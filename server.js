@@ -614,9 +614,6 @@ const CHAT_RETENTION_DAYS = Math.max(
     : 30
 );
 const MIN_PASSWORD_LENGTH = 12;
-const PASSWORD_ITERATIONS = 120000;
-const PASSWORD_KEY_LENGTH = 64;
-const PASSWORD_DIGEST = "sha512";
 const DELETED_MESSAGE_TEXT = "This message was deleted.";
 const CALL_LOG_PREFIX = "__call_log__:";
 const ENCRYPTED_MESSAGE_PLACEHOLDER = "🔒 Encrypted message";
