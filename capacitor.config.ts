@@ -1,14 +1,19 @@
 import { CapacitorConfig } from '@capacitor/cli';
 
+const isDevServer = Boolean(process.env.CAP_SERVER_URL);
 const config: CapacitorConfig = {
   appId: 'com.novyn.app',
   appName: 'Novyn',
   webDir: 'dist',
   bundledWebRuntime: false,
-  server: {
-    url: 'http://localhost:3000',  // Local dev server for Android emulator
-    cleartext: true  // Allow HTTP for dev
-  },
+  ...(isDevServer
+    ? {
+        server: {
+          url: process.env.CAP_SERVER_URL,
+          cleartext: process.env.CAP_CLEAR_TEXT === 'true'
+        }
+      }
+    : {}),
   plugins: {
     StatusBar: {
       style: 'DARK',
@@ -22,17 +27,15 @@ const config: CapacitorConfig = {
       showSpinner: false,
       androidScaleType: 'CENTER_CROP'
     },
-    Camera: {
-      // Native camera permissions handled automatically
-    },
+    Camera: {},
     PushNotifications: {
-      presentationOptions: ["badge", "sound", "alert", "vibration"],
+      presentationOptions: ['badge', 'sound', 'alert', 'vibration'],
       android: {
         channelId: 'novyn-chat',
         channelName: 'Novyn Notifications',
         channelDescription: 'Chat notifications',
-        importance: 4,  // High priority
-        visibility: 1   // Public
+        importance: 4,
+        visibility: 1
       }
     },
     Keyboard: {
@@ -40,16 +43,13 @@ const config: CapacitorConfig = {
     }
   },
   android: {
-    allowMixedContent: true,  // For dev HTTP
+    allowMixedContent: process.env.CAP_ALLOW_MIXED_CONTENT === 'true',
     permissions: [
       'CAMERA',
       'RECORD_AUDIO',
-      'READ_EXTERNAL_STORAGE',
-      'WRITE_EXTERNAL_STORAGE',
-      'POST_NOTIFICATIONS'  // Android 13+
+      'POST_NOTIFICATIONS'
     ]
   }
 };
 
 export default config;
-
