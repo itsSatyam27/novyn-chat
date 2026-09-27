@@ -4230,74 +4230,119 @@ app.get("/api/link-preview", async (req, res) => {
   }
 });
 
-app.post("/api/import-wallpaper-url", async (req, res) => {
-  const targetUrl = String(req.body?.url || "").trim();
-  if (!targetUrl || !targetUrl.startsWith("http")) {
-    return res.status(400).json({ error: "Invalid URL" });
-  }
-
-  try {
-    let directImageUrl = targetUrl;
-
-    // 1. Pinterest oEmbed handler for pins
-    if (targetUrl.includes("pinterest.com/pin/") || targetUrl.includes("pin.it/")) {
-      try {
-        const oembedRes = await fetch(`https://www.pinterest.com/oembed.json?url=${encodeURIComponent(targetUrl)}`);
-        if (oembedRes.ok) {
-          const oembedData = await oembedRes.json();
-          if (oembedData.url || oembedData.thumbnail_url) {
-            directImageUrl = oembedData.url || oembedData.thumbnail_url;
-          }
-        }
-      } catch (_) {}
+app.post(
+  "/api/import-wallpaper-url",
+  createIpRateLimiter({ getStore: () => httpRateLimits }, "wallpaper-import", 10, 15 * 60 * 1000),
+  async (req, res) => {
+    const targetUrl = String(req.body?.url || "").trim();
+    if (!targetUrl || !/^https?:\/\//i.test(targetUrl)) {
+      return res.status(400).json({ error: "Invalid URL" });
     }
 
-    // 2. OpenGraph / Twitter Image fallback if not a direct image file
-    if (!directImageUrl.match(/\.(jpeg|jpg|gif|png|webp|svg)(\?.*)?$/i)) {
+    const fetchExternal = async (rawUrl, maxBytes, headers = {}) => {
+      const safeUrl = await assertSafeExternalUrl(rawUrl);
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 5000);
       try {
-        const ogRes = await fetch(directImageUrl, {
-          headers: {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-          },
+        const response = await fetch(safeUrl.href, {
+          signal: controller.signal,
+          redirect: "manual",
+          headers,
         });
-        if (ogRes.ok) {
-          const html = await ogRes.text();
-          const ogImage = html.match(/<meta\s+(?:property|name)=["'](?:og:image|twitter:image)["']\s+content=["'](.*?)["']/i);
-          if (ogImage && ogImage[1]) {
-            directImageUrl = ogImage[1];
-          }
+        if (response.status >= 300 && response.status < 400) {
+          throw new Error("Redirects are not allowed.");
         }
-      } catch (_) {}
-    }
+        return { response, safeUrl };
+      } finally {
+        clearTimeout(timeout);
+      }
+    };
 
-    // 3. Download the image and cache locally in uploads directory
     try {
-      const imgRes = await fetch(directImageUrl, {
-        headers: {
-          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-          Referer: new URL(directImageUrl).origin,
-        },
+      let directImageUrl = targetUrl;
+
+      // Pinterest oEmbed destination is fixed; the user URL is only a query parameter.
+      if (targetUrl.includes("pinterest.com/pin/") || targetUrl.includes("pin.it/")) {
+        try {
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 4000);
+          try {
+            const oembedRes = await fetch(
+              `https://www.pinterest.com/oembed.json?url=${encodeURIComponent(targetUrl)}`,
+              { signal: controller.signal, redirect: "manual" }
+            );
+            if (oembedRes.ok) {
+              const oembedText = await readResponseWithLimit(oembedRes, 128 * 1024);
+              const oembedData = JSON.parse(oembedText);
+              if (oembedData.url || oembedData.thumbnail_url) {
+                directImageUrl = oembedData.url || oembedData.thumbnail_url;
+              }
+            }
+          } finally {
+            clearTimeout(timeout);
+          }
+        } catch (_) {}
+      }
+
+      // Resolve OpenGraph metadata through the same SSRF and response-size controls.
+      if (!/\.(jpeg|jpg|gif|png|webp)(\?.*)?$/i.test(directImageUrl)) {
+        try {
+          const { response } = await fetchExternal(directImageUrl, 512 * 1024, {
+            "User-Agent": "Novyn/1.0",
+            Accept: "text/html,application/xhtml+xml",
+          });
+          if (response.ok) {
+            const html = await readResponseWithLimit(response, 512 * 1024);
+            const ogImage = html.match(
+              /<meta\s+(?:property|name)=["'](?:og:image|twitter:image)["']\s+content=["'](.*?)["']/i
+            );
+            if (ogImage?.[1]) {
+              directImageUrl = ogImage[1];
+            }
+          }
+        } catch (_) {}
+      }
+
+      const { response: imgRes, safeUrl: finalUrl } = await fetchExternal(directImageUrl, 8 * 1024 * 1024, {
+        "User-Agent": "Novyn/1.0",
+        Accept: "image/jpeg,image/png,image/gif,image/webp",
       });
 
-      if (imgRes.ok) {
-        const buffer = Buffer.from(await imgRes.arrayBuffer());
-        let ext = path.extname(new URL(directImageUrl).pathname) || ".jpg";
-        if (ext.length > 5 || !ext) ext = ".jpg";
-        const filename = `wallpaper-${Date.now()}-${crypto.randomBytes(3).toString("hex")}${ext}`;
-        const destPath = path.join(uploadsDir, filename);
-        fs.writeFileSync(destPath, buffer);
-        const token = signUploadToken(filename);
-        return res.json({ url: `/uploads/${filename}?token=${token}` });
+      if (!imgRes.ok) {
+        return res.status(400).json({ error: "Unable to fetch image." });
       }
-    } catch (_) {}
 
-    // Fallback to direct URL if fetch failed
-    res.json({ url: directImageUrl });
-  } catch (err) {
-    console.error("Import wallpaper error:", err);
-    res.json({ url: targetUrl });
+      const contentType = String(imgRes.headers.get("content-type") || "").split(";")[0].trim().toLowerCase();
+      const extensionByMime = {
+        "image/jpeg": ".jpg",
+        "image/png": ".png",
+        "image/gif": ".gif",
+        "image/webp": ".webp",
+      };
+      const ext = extensionByMime[contentType];
+      if (!ext) {
+        return res.status(415).json({ error: "Only JPEG, PNG, GIF, and WebP wallpapers are supported." });
+      }
+
+      const buffer = await readResponseBufferWithLimit(imgRes, 8 * 1024 * 1024);
+      if (!buffer.length) {
+        return res.status(400).json({ error: "Empty image response." });
+      }
+
+      const filename = `wallpaper-${Date.now()}-${crypto.randomBytes(3).toString("hex")}${ext}`;
+      const destPath = path.join(uploadsDir, filename);
+      fs.writeFileSync(destPath, buffer);
+      const token = signUploadToken(filename);
+      return res.json({ url: `/uploads/${filename}?token=${token}`, source: finalUrl.href });
+    } catch (err) {
+      const message = String(err?.message || "");
+      const clientError = /Unsafe destination|Unsupported URL|credentials|Redirects|Response too large|Unsupported URL port/.test(message);
+      return res.status(clientError ? 400 : 500).json({
+        error: clientError ? "URL is not allowed." : "Failed to import wallpaper.",
+      });
+    }
   }
-});
+);
 
 // ── Feedback Endpoint ─────────────────────────────────────────────────────
 // Accepts feedback from any visitor (auth optional).
