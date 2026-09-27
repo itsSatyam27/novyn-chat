@@ -13,6 +13,7 @@ const { createChatAuthorization } = require("./server/chat/authorization");
 const { createIpRateLimiter, pruneHttpRateLimits } = require("./server/auth/rate-limit");
 const { createAuthToken: signAuthToken, verifyAuthToken: verifySignedAuthToken } = require("./server/auth/tokens");
 const { createAuthSessions } = require("./server/auth/sessions");
+const { parseCookies, createCsrf } = require("./server/auth/csrf");
 const runtimeState = require("./server/core/state");
 require("dotenv").config();
 const admin = require("firebase-admin");
@@ -714,6 +715,13 @@ const AUTH_REFRESH_SESSION_TTL_MS = 14 * 24 * 60 * 60 * 1000; // 14 days
 const AUTH_ALIAS_TTL_MS = AUTH_REFRESH_REMEMBER_TTL_MS;
 const AUTH_COOKIE_SECURE = process.env.NODE_ENV === "production";
 
+const csrfProtection = createCsrf({
+  cookieName: AUTH_CSRF_COOKIE,
+  headerName: AUTH_CSRF_HEADER,
+  secure: AUTH_COOKIE_SECURE,
+  tokenBytes: AUTH_CSRF_TOKEN_BYTES,
+});
+
 if (process.env.NODE_ENV !== "production" && !process.env.AUTH_SECRET) {
   console.warn("AUTH_SECRET is not set. Development fallback is enabled only outside production.");
 }
@@ -965,280 +973,24 @@ function fromBase64Url(input) {
   return Buffer.from(padded, "base64");
 }
 
-function parseCookies(rawCookieHeader) {
-  const header = String(rawCookieHeader || "");
-  const out = {};
-  if (!header) return out;
-  for (const part of header.split(";")) {
-    const idx = part.indexOf("=");
-    if (idx <= 0) continue;
-    const key = part.slice(0, idx).trim();
-    const value = part.slice(idx + 1).trim();
-    if (!key) continue;
-    try {
-      out[key] = decodeURIComponent(value);
-    } catch (_) {
-      out[key] = value;
-    }
-  }
-  return out;
-}
-
 function safeTimingEqual(left, right) {
-  const leftText = String(left || "");
-  const rightText = String(right || "");
-  if (!leftText || !rightText) return false;
-  const leftBuffer = Buffer.from(leftText);
-  const rightBuffer = Buffer.from(rightText);
-  if (leftBuffer.length !== rightBuffer.length) return false;
-  return crypto.timingSafeEqual(leftBuffer, rightBuffer);
+  return require("./server/auth/csrf").safeTimingEqual(left, right);
 }
 
 function createCsrfToken() {
-  return crypto.randomBytes(AUTH_CSRF_TOKEN_BYTES).toString("hex");
+  return csrfProtection.createToken();
 }
 
 function ensureCsrfCookie(req, res) {
-  if (!res || typeof res.cookie !== "function") return "";
-  const cookies = parseCookies(req?.headers?.cookie);
-  const existing = toDisplayName(cookies[AUTH_CSRF_COOKIE]);
-  const token = existing || createCsrfToken();
-  if (!existing) {
-    res.cookie(AUTH_CSRF_COOKIE, token, {
-      httpOnly: false,
-      sameSite: "lax",
-      secure: AUTH_COOKIE_SECURE,
-      path: "/",
-    });
-  }
-  return token;
+  return csrfProtection.ensureCookie(req, res);
 }
 
 function isSameOriginRequest(req) {
-  const host = toDisplayName(req?.headers?.host).toLowerCase();
-  if (!host) return false;
-
-  const source = toDisplayName(req?.headers?.origin || req?.headers?.referer).toLowerCase();
-  if (!source) {
-    const fetchSite = toDisplayName(req?.headers?.["sec-fetch-site"]).toLowerCase();
-    if (!fetchSite) return true;
-    return fetchSite === "same-origin" || fetchSite === "same-site";
-  }
-
-  try {
-    const parsed = new URL(source);
-    if (parsed.host.toLowerCase() === host) return true;
-    
-    // Support local dev proxy (e.g. localhost:5173 -> localhost:3000)
-    const isLocalhost = (h) => h.startsWith("localhost") || h.startsWith("127.0.0.1") || h.startsWith("[::1]");
-    if (isLocalhost(parsed.host) && isLocalhost(host)) {
-      return true;
-    }
-    return false;
-  } catch (_) {
-    return false;
-  }
+  return csrfProtection.isSameOriginRequest(req);
 }
 
 function requireCsrf(req, res, next) {
-  if (req.method === "GET" || req.method === "HEAD" || req.method === "OPTIONS") {
-    next();
-    return;
-  }
-
-  const token = ensureCsrfCookie(req, res);
-
-  const cookies = parseCookies(req?.headers?.cookie);
-  const cookieToken = toDisplayName(cookies[AUTH_CSRF_COOKIE]) || token;
-  const headerToken = toDisplayName(req?.headers?.[AUTH_CSRF_HEADER]) || toDisplayName(req?.body?.csrfToken);
-
-  // In local development or when matching token is provided
-  if (cookieToken && headerToken && safeTimingEqual(cookieToken, headerToken)) {
-    // Verified
-  } else if (process.env.NODE_ENV !== "production") {
-    // In local dev, allow requests if same-origin / localhost
-  } else {
-    res.status(403).json({ message: "Invalid CSRF token.", error: "Invalid CSRF token." });
-    return;
-  }
-
-  if (!isSameOriginRequest(req)) {
-    res.status(403).json({ message: "Cross-site request blocked.", error: "Cross-site request blocked." });
-    return;
-  }
-
-  next();
-}
-
-function createAuthToken(kind, userKey, ttlMs, extra = {}) {
-  return signAuthToken({ secret: AUTH_SECRET, kind, userKey, ttlMs, extra });
-}
-
-function verifyAuthToken(rawToken, expectedKind) {
-  return verifySignedAuthToken({ secret: AUTH_SECRET, rawToken, expectedKind });
-}
-
-function linkAuthAlias(oldKey, newKey) {
-  const prev = normalizeName(oldKey);
-  const next = normalizeName(newKey);
-  if (!prev || !next || prev === next) return;
-  authUserAliases.set(prev, {
-    newKey: next,
-    expiresAt: Date.now() + AUTH_ALIAS_TTL_MS,
-  });
-  scheduleAuthStatePersist();
-}
-
-function resolveCurrentUserKey(rawKey) {
-  let key = normalizeName(rawKey);
-  const seen = new Set();
-  while (key && !seen.has(key)) {
-    seen.add(key);
-    if (users.has(key)) return key;
-    const alias = authUserAliases.get(key);
-    if (!alias) break;
-    if (Date.now() > alias.expiresAt) {
-      authUserAliases.delete(key);
-      break;
-    }
-    key = normalizeName(alias.newKey);
-  }
-  return "";
-}
-
-function trackRefreshSession(userKey, jti, expiresAt, remember) {
-  return authSessions.trackRefreshSession(userKey, jti, expiresAt, remember);
-}
-
-function revokeRefreshSession(rawTokenId) {
-  return authSessions.revokeRefreshSession(rawTokenId);
-}
-
-function moveRefreshSessionsToUser(oldUserKey, nextUserKey) {
-  return authSessions.moveRefreshSessionsToUser(oldUserKey, nextUserKey);
-}
-
-function pruneExpiredAuthState() {
-  return authSessions.pruneExpiredAuthState();
-}
-
-function issueAuthTokensForUser(userKey, remember) {
-  const key = normalizeName(userKey);
-  if (!key) return null;
-  const persistent = Boolean(remember);
-  const refreshTtl = persistent ? AUTH_REFRESH_REMEMBER_TTL_MS : AUTH_REFRESH_SESSION_TTL_MS;
-  const refreshTokenId = crypto.randomBytes(16).toString("hex");
-  const accessToken = createAuthToken("access", key, AUTH_ACCESS_TTL_MS);
-  const refreshToken = createAuthToken("refresh", key, refreshTtl, {
-    jti: refreshTokenId,
-    remember: persistent ? 1 : 0,
-  });
-  trackRefreshSession(key, refreshTokenId, Date.now() + refreshTtl, persistent);
-  return { accessToken, refreshToken, remember: persistent };
-}
-
-function applyAuthCookies(res, issuedTokens) {
-  if (!res || !issuedTokens?.accessToken || !issuedTokens?.refreshToken) return;
-  const shared = {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: AUTH_COOKIE_SECURE,
-    path: "/",
-  };
-  res.cookie(AUTH_ACCESS_COOKIE, issuedTokens.accessToken, {
-    ...shared,
-    maxAge: AUTH_ACCESS_TTL_MS,
-  });
-  const refreshTtlMs = issuedTokens.remember
-    ? AUTH_REFRESH_REMEMBER_TTL_MS
-    : AUTH_REFRESH_SESSION_TTL_MS;
-  const refreshOptions = {
-    ...shared,
-    maxAge: refreshTtlMs,
-  };
-  res.cookie(AUTH_REFRESH_COOKIE, issuedTokens.refreshToken, refreshOptions);
-  const csrfOptions = {
-    sameSite: "lax",
-    secure: AUTH_COOKIE_SECURE,
-    path: "/",
-    maxAge: refreshTtlMs,
-  };
-  res.cookie(AUTH_CSRF_COOKIE, createCsrfToken(), csrfOptions);
-}
-
-function clearAuthCookies(res) {
-  if (!res) return;
-  const shared = {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: AUTH_COOKIE_SECURE,
-    path: "/",
-  };
-  const csrfShared = {
-    sameSite: "lax",
-    secure: AUTH_COOKIE_SECURE,
-    path: "/",
-  };
-  res.clearCookie(AUTH_ACCESS_COOKIE, shared);
-  res.clearCookie(AUTH_REFRESH_COOKIE, shared);
-  res.clearCookie(AUTH_CSRF_COOKIE, csrfShared);
-}
-
-function getAuthCookiesFromHeader(rawCookieHeader) {
-  const cookies = parseCookies(rawCookieHeader);
-  return {
-    accessToken: toDisplayName(cookies[AUTH_ACCESS_COOKIE]),
-    refreshToken: toDisplayName(cookies[AUTH_REFRESH_COOKIE]),
-  };
-}
-
-function resolveUserFromAuthCookies(authCookies, options = {}) {
-  pruneExpiredAuthState();
-  const allowRefreshFallback = options.allowRefreshFallback !== false;
-
-  const accessPayload = verifyAuthToken(authCookies?.accessToken, "access");
-  if (accessPayload) {
-    const resolved = resolveCurrentUserKey(accessPayload.sub);
-    if (resolved) {
-      return { userKey: resolved, via: "access" };
-    }
-  }
-
-  if (!allowRefreshFallback) {
-    return { userKey: "" };
-  }
-
-  const refreshPayload = verifyAuthToken(authCookies?.refreshToken, "refresh");
-  if (!refreshPayload?.jti) {
-    return { userKey: "" };
-  }
-
-  const session = refreshSessions.get(refreshPayload.jti);
-  if (!session) return { userKey: "" };
-  if (Date.now() > Number(session.expiresAt)) {
-    revokeRefreshSession(refreshPayload.jti);
-    return { userKey: "" };
-  }
-
-  const resolved = resolveCurrentUserKey(session.userKey || refreshPayload.sub);
-  if (!resolved) {
-    revokeRefreshSession(refreshPayload.jti);
-    return { userKey: "" };
-  }
-
-  session.userKey = resolved;
-  return {
-    userKey: resolved,
-    via: "refresh",
-    remember: Boolean(session.remember),
-    refreshTokenId: toDisplayName(refreshPayload.jti),
-  };
-}
-
-function readRememberFlag(value) {
-  if (typeof value === "boolean") return value;
-  const text = toDisplayName(value).toLowerCase();
-  return text === "1" || text === "true" || text === "yes" || text === "on";
+  return csrfProtection.middleware(req, res, next);
 }
 
 function createUserRecord(username) {
