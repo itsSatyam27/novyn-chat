@@ -781,7 +781,6 @@ const {
 } = runtimeState;
 
 let mongoStorage = null;
-let mongoClient = null;
 let mongoLegacyCollection = null;
 let mongoUsersCollection = null;
 let mongoConversationsCollection = null;
@@ -2070,19 +2069,6 @@ async function loadStateFromLegacyMongoDocument() {
   return true;
 }
 
-async function ensureMongoIndexes() {
-  if (!hasMongoStorage()) return;
-  await Promise.all([
-    mongoUsersCollection.createIndex({ email: 1 }, { name: "email_idx" }),
-    mongoConversationsCollection.createIndex({ updatedAt: -1 }, { name: "updated_at_idx" }),
-    mongoMessagesCollection.createIndex(
-      { conversationKey: 1, timestamp: 1, messageId: 1 },
-      { name: "conversation_time_idx" }
-    ),
-    mongoMessagesCollection.createIndex({ messageId: 1 }, { name: "message_id_idx" }),
-  ]);
-}
-
 async function initializeMongo() {
   if (!MONGODB_URI) return;
 
@@ -2097,11 +2083,10 @@ async function initializeMongo() {
     });
     await mongoStorage.connect();
 
-    const collections = mongoStorage.collections;
-    mongoLegacyCollection = collections.legacy;
-    mongoUsersCollection = collections.users;
-    mongoConversationsCollection = collections.conversations;
-    mongoMessagesCollection = collections.messages;
+    mongoLegacyCollection = mongoStorage.getCollection("legacy");
+    mongoUsersCollection = mongoStorage.getCollection("users");
+    mongoConversationsCollection = mongoStorage.getCollection("conversations");
+    mongoMessagesCollection = mongoStorage.getCollection("messages");
 
     console.log(`Connected to MongoDB database: ${MONGODB_DB}`);
   } catch (err) {
@@ -3919,7 +3904,7 @@ function authenticateSignupPayload(payload) {
   return { ok: true, user };
 }
 
-app.post("/api/auth/signin", createIpRateLimiter("auth-signin", 25, 15 * 60 * 1000), requireCsrf, (req, res) => {
+app.post("/api/auth/signin", createIpRateLimiter({ getStore: () => httpRateLimits }, "auth-signin", 25, 15 * 60 * 1000), requireCsrf, (req, res) => {
   const result = authenticateSigninPayload(req.body || {});
   if (!result.ok) {
     res.status(result.status || 401).json({
@@ -3944,7 +3929,7 @@ app.post("/api/auth/signin", createIpRateLimiter("auth-signin", 25, 15 * 60 * 10
 
 app.post(
   "/api/auth/signup",
-  createIpRateLimiter("auth-signup", 20, 15 * 60 * 1000),
+  createIpRateLimiter({ getStore: () => httpRateLimits }, "auth-signup", 20, 15 * 60 * 1000),
   requireCsrf,
   (req, res) => {
     const result = authenticateSignupPayload(req.body || {});
@@ -3969,7 +3954,7 @@ app.post(
 
 app.post(
   "/api/auth/google",
-  createIpRateLimiter("auth-google", 25, 15 * 60 * 1000),
+  createIpRateLimiter({ getStore: () => httpRateLimits }, "auth-google", 25, 15 * 60 * 1000),
   async (req, res) => {
     if (!firebaseAdmin) {
       res.status(503).json({
@@ -4129,7 +4114,7 @@ app.get("/api/auth/session", (req, res) => {
   });
 });
 
-app.post("/api/auth/refresh", createIpRateLimiter("auth-refresh", 120, 15 * 60 * 1000), (req, res) => {
+app.post("/api/auth/refresh", createIpRateLimiter({ getStore: () => httpRateLimits }, "auth-refresh", 120, 15 * 60 * 1000), (req, res) => {
   const cookies = getAuthCookiesFromHeader(req.headers.cookie);
   const refreshPayload = verifyAuthToken(cookies.refreshToken, "refresh");
   if (!refreshPayload?.jti) {
@@ -4165,7 +4150,7 @@ app.post("/api/auth/refresh", createIpRateLimiter("auth-refresh", 120, 15 * 60 *
   res.json({ ok: true });
 });
 
-app.post("/api/auth/logout", createIpRateLimiter("auth-logout", 120, 15 * 60 * 1000), requireCsrf, (req, res) => {
+app.post("/api/auth/logout", createIpRateLimiter({ getStore: () => httpRateLimits }, "auth-logout", 120, 15 * 60 * 1000), requireCsrf, (req, res) => {
   const cookies = getAuthCookiesFromHeader(req.headers.cookie);
   const refreshPayload = verifyAuthToken(cookies.refreshToken, "refresh");
   if (refreshPayload?.jti) {
@@ -4320,7 +4305,7 @@ app.post("/api/import-wallpaper-url", async (req, res) => {
 {
   const FEEDBACK_TO_EMAIL = toDisplayName(process.env.FEEDBACK_TO_EMAIL || "");
 
-  app.post("/api/feedback", createIpRateLimiter("feedback", 5, 60 * 60 * 1000), async (req, res) => {
+  app.post("/api/feedback", createIpRateLimiter({ getStore: () => httpRateLimits }, "feedback", 5, 60 * 60 * 1000), async (req, res) => {
     const type    = toDisplayName(req.body?.type    || "general").slice(0, 50);
     const message = toDisplayName(req.body?.message || "").slice(0, 2000);
     const email   = toDisplayName(req.body?.email   || "").slice(0, 200);
@@ -4356,9 +4341,9 @@ app.post("/api/import-wallpaper-url", async (req, res) => {
 
     // 1. Persist to MongoDB or flat-file fallback
     try {
-      if (hasMongoStorage() && mongoClient) {
-        const db = mongoClient.db(MONGODB_DB);
-        await db.collection("feedback").insertOne(entry);
+      const feedbackCollection = mongoStorage?.getCollection("feedback");
+      if (hasMongoStorage() && feedbackCollection) {
+        await feedbackCollection.insertOne(entry);
       } else {
         const feedbackFile = path.join(DATA_DIR, "feedback.log");
         await fsp.mkdir(DATA_DIR, { recursive: true });
@@ -6693,7 +6678,6 @@ async function closeStorage() {
     console.error("Failed closing MongoDB connection:", err);
   } finally {
     mongoStorage = null;
-    mongoClient = null;
     mongoLegacyCollection = null;
     mongoUsersCollection = null;
     mongoConversationsCollection = null;
