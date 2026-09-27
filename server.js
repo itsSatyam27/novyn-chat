@@ -7076,7 +7076,7 @@ io.on("connection", (socket) => {
     io,
     emitFriendList,
     schedulePersist
-  }););
+  });
 
   socket.on("disconnect", () => {
     const userKey = socket.data.userKey;
