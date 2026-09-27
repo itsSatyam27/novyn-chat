@@ -779,57 +779,17 @@ let persistInFlight = Promise.resolve();
 let authPersistTimer = null;
 let authPersistInFlight = Promise.resolve();
 
-function normalizeName(name) {
-  return String(name || "").trim().toLowerCase();
-}
-
-function toDisplayName(name) {
-  return String(name || "").trim();
-}
-
-function normalizeEmail(email) {
-  return String(email || "").trim().toLowerCase();
-}
-
-function isPlausibleEmail(email) {
-  const value = toDisplayName(email);
-  if (!value || value.length > 120) return false;
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
-}
-
-function parseEnvBoolean(value, fallback = false) {
-  const normalized = toDisplayName(value).toLowerCase();
-  if (!normalized) return fallback;
-  if (normalized === "1" || normalized === "true" || normalized === "yes" || normalized === "on") return true;
-  if (normalized === "0" || normalized === "false" || normalized === "no" || normalized === "off") return false;
-  return fallback;
-}
-
-function normalizeHandleInput(handle) {
-  const cleaned = normalizeName(handle).replace(/[^a-z0-9_]/g, "");
-  return cleaned.slice(0, 24);
-}
-
-function normalizeChatKind(value) {
-  return toDisplayName(value).toLowerCase() === "group" ? "group" : "friend";
-}
-
-function normalizePresenceMode(value, fallback = "online") {
-  const mode = toDisplayName(value).toLowerCase();
-  if (mode === "online" || mode === "away" || mode === "busy" || mode === "offline") {
-    return mode;
-  }
-  const fallbackMode = toDisplayName(fallback).toLowerCase();
-  if (fallbackMode === "online" || fallbackMode === "away" || fallbackMode === "busy" || fallbackMode === "offline") {
-    return fallbackMode;
-  }
-  return "online";
-}
-
-function normalizeGroupId(value) {
-  const raw = normalizeName(value).replace(/[^a-z0-9_-]/g, "");
-  return raw.slice(0, 48);
-}
+const {
+  normalizeName,
+  toDisplayName,
+  normalizeEmail,
+  isPlausibleEmail,
+  parseEnvBoolean,
+  normalizeHandleInput,
+  normalizeChatKind,
+  normalizePresenceMode,
+  normalizeGroupId,
+} = require("./server/core/normalization");
 
 function getGroupConversationKey(groupId) {
   return `${GROUP_CONVERSATION_PREFIX}${normalizeGroupId(groupId)}`;
