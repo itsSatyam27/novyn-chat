@@ -6116,18 +6116,29 @@ io.on("connection", (socket) => {
   socket.on("list_scheduled_messages", (payload) => {
     const userKey = socket.data.userKey;
     if (!userKey) return;
+    if (!allowSocketAction(socket, "list_scheduled_messages", 60, 60 * 1000)) return;
+
     const toType = normalizeChatKind(payload?.toType || "friend");
-    const to = toDisplayName(payload?.to || "");
-    emitScheduledMessagesUpdated(userKey, {
-      toType: to ? toType : "",
-      to,
-    });
+    const to = toDisplayName(payload?.to || "").slice(0, 128);
+    if (to) {
+      const resolved = resolveChatTargetForUser(userKey, to, toType, { inferGroup: true });
+      if (!resolved.ok) {
+        socket.emit("error_message", { message: "You are not authorized to view scheduled messages for this chat." });
+        return;
+      }
+      emitScheduledMessagesUpdated(userKey, { toType: resolved.type, to: resolved.targetKey });
+      return;
+    }
+
+    emitScheduledMessagesUpdated(userKey);
   });
 
   socket.on("cancel_scheduled_message", (payload) => {
     const userKey = socket.data.userKey;
     if (!userKey) return;
-    const id = toDisplayName(payload?.id || payload?.messageId || payload);
+    if (!allowSocketAction(socket, "cancel_scheduled_message", 60, 60 * 1000)) return;
+
+    const id = toDisplayName(payload?.id || payload?.messageId || payload).slice(0, 128);
     if (!id) return;
     const entry = scheduledMessages.get(id);
     if (!entry || normalizeName(entry.fromKey) !== normalizeName(userKey)) {
