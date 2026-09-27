@@ -5,7 +5,7 @@ const path = require("path");
 const http = require("http");
 const express = require("express");
 const multer = require("multer");
-const { MongoClient } = require("mongodb");
+const { createMongoStorage } = require("./server/db/mongo");
 const { Server } = require("socket.io");
 const webpush = require("web-push");
 const { cloudinary, hasCloudinaryConfig } = require("./cloudinary");
@@ -776,6 +776,7 @@ const {
   httpRateLimits,
 } = runtimeState;
 
+let mongoStorage = null;
 let mongoClient = null;
 let mongoLegacyCollection = null;
 let mongoUsersCollection = null;
@@ -2079,22 +2080,28 @@ async function ensureMongoIndexes() {
 }
 
 async function initializeMongo() {
-  if (!MONGODB_URI) {
-    return;
-  }
+  if (!MONGODB_URI) return;
 
   try {
-    mongoClient = new MongoClient(MONGODB_URI);
-    await mongoClient.connect();
-    const db = mongoClient.db(MONGODB_DB);
-    mongoLegacyCollection = db.collection(MONGODB_LEGACY_COLLECTION);
-    mongoUsersCollection = db.collection(MONGODB_USERS_COLLECTION);
-    mongoConversationsCollection = db.collection(MONGODB_CONVERSATIONS_COLLECTION);
-    mongoMessagesCollection = db.collection(MONGODB_MESSAGES_COLLECTION);
-    await ensureMongoIndexes();
+    mongoStorage = createMongoStorage({
+      uri: MONGODB_URI,
+      dbName: MONGODB_DB,
+      legacyCollectionName: MONGODB_LEGACY_COLLECTION,
+      usersCollectionName: MONGODB_USERS_COLLECTION,
+      conversationsCollectionName: MONGODB_CONVERSATIONS_COLLECTION,
+      messagesCollectionName: MONGODB_MESSAGES_COLLECTION,
+    });
+    await mongoStorage.connect();
+
+    const collections = mongoStorage.collections;
+    mongoLegacyCollection = collections.legacy;
+    mongoUsersCollection = collections.users;
+    mongoConversationsCollection = collections.conversations;
+    mongoMessagesCollection = collections.messages;
+
     console.log(`Connected to MongoDB database: ${MONGODB_DB}`);
   } catch (err) {
-    mongoClient = null;
+    mongoStorage = null;
     mongoLegacyCollection = null;
     mongoUsersCollection = null;
     mongoConversationsCollection = null;
@@ -7396,18 +7403,18 @@ io.on("connection", (socket) => {
 });
 
 async function closeStorage() {
-  if (mongoClient) {
-    try {
-      await mongoClient.close();
-    } catch (err) {
-      console.error("Failed closing MongoDB connection:", err);
-    } finally {
-      mongoClient = null;
-      mongoLegacyCollection = null;
-      mongoUsersCollection = null;
-      mongoConversationsCollection = null;
-      mongoMessagesCollection = null;
-    }
+  if (!mongoStorage) return;
+  try {
+    await mongoStorage.close();
+  } catch (err) {
+    console.error("Failed closing MongoDB connection:", err);
+  } finally {
+    mongoStorage = null;
+    mongoClient = null;
+    mongoLegacyCollection = null;
+    mongoUsersCollection = null;
+    mongoConversationsCollection = null;
+    mongoMessagesCollection = null;
   }
 }
 
