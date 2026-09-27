@@ -9,6 +9,7 @@ const { createMongoStorage } = require("./server/db/mongo");
 const { createSocketAuthMiddleware } = require("./server/realtime/socket-auth");
 const { registerMessageMutationHandlers } = require("./server/realtime/message-mutations");
 const { registerCallHandlers } = require("./server/realtime/call-handlers");
+const { applyGameMove } = require("./server/realtime/game-rules");
 const { Server } = require("socket.io");
 const webpush = require("web-push");
 const { cloudinary, hasCloudinaryConfig } = require("./cloudinary");
@@ -5645,9 +5646,10 @@ io.on("connection", (socket) => {
   socket.on("game_move", (payload) => {
     const userKey = socket.data.userKey;
     if (!userKey) return;
+
     const messageId = String(payload?.messageId || "");
-    const moveData = payload?.moveData || {};
     const to = toDisplayName(payload?.to);
+    const moveData = payload?.moveData;
     if (!messageId || !to) return;
 
     const resolvedTarget = resolveChatTargetForUser(userKey, to, "friend", { inferGroup: true });
@@ -5659,47 +5661,45 @@ io.on("connection", (socket) => {
     const isGroup = resolvedTarget.type === "group";
     const convKey = isGroup ? getGroupConversationKey(to) : getConversationKey(userKey, to);
     const list = conversations.get(convKey);
-    let updatedGame = null;
+    if (!list) return;
 
-    if (list) {
-      const item = list.find((m) => String(m.id) === messageId || String(m.clientTempId) === messageId);
-      if (item && item.game) {
-        item.game = {
-          ...item.game,
-          state: moveData.state || item.game.state,
-          turn: moveData.turn !== undefined ? moveData.turn : item.game.turn,
-          winner: moveData.winner !== undefined ? moveData.winner : item.game.winner,
-          data: {
-            ...item.game.data,
-            ...moveData,
-          },
-          lastMoveBy: userKey,
-          updatedAt: Date.now(),
-        };
-        updatedGame = item.game;
-        schedulePersist();
-      }
+    const item = list.find((m) => String(m.id) === messageId || String(m.clientTempId) === messageId);
+    if (!item?.game) return;
+
+    const result = applyGameMove(item.game, userKey, moveData);
+    if (!result.ok) {
+      socket.emit("error_message", { message: result.reason || "Invalid game move." });
+      return;
     }
 
-    if (updatedGame) {
-      const packet = { messageId, moveData, updatedBy: userKey, to, from: userKey };
-      socket.emit("game_move_updated", packet);
-      if (isGroup) {
-        const group = groups.get(normalizeGroupId(to));
-        if (group) {
-          for (const memberKey of group.members || []) {
-            const memberSocketId = onlineUsers.get(normalizeName(memberKey));
-            if (memberSocketId && normalizeName(memberKey) !== userKey) {
-              io.to(memberSocketId).emit("game_move_updated", packet);
-            }
+    item.game = result.game;
+    const updatedGame = item.game;
+    schedulePersist();
+
+    const packet = {
+      messageId,
+      game: updatedGame,
+      updatedBy: userKey,
+      to,
+      from: userKey,
+    };
+
+    socket.emit("game_move_updated", packet);
+
+    if (isGroup) {
+      const group = groups.get(normalizeGroupId(to));
+      if (group) {
+        for (const memberKey of group.members || []) {
+          const memberSocketId = onlineUsers.get(normalizeName(memberKey));
+          if (memberSocketId && normalizeName(memberKey) !== userKey) {
+            io.to(memberSocketId).emit("game_move_updated", packet);
           }
         }
-      } else {
-        const friendKey = normalizeName(to);
-        const friendSocket = onlineUsers.get(friendKey);
-        if (friendSocket) {
-          io.to(friendSocket).emit("game_move_updated", packet);
-        }
+      }
+    } else {
+      const friendSocket = onlineUsers.get(normalizeName(to));
+      if (friendSocket) {
+        io.to(friendSocket).emit("game_move_updated", packet);
       }
     }
   });
