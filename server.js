@@ -12,6 +12,7 @@ const { cloudinary, hasCloudinaryConfig } = require("./cloudinary");
 const { createChatAuthorization } = require("./server/chat/authorization");
 const { createIpRateLimiter, pruneHttpRateLimits } = require("./server/auth/rate-limit");
 const { createAuthToken: signAuthToken, verifyAuthToken: verifySignedAuthToken } = require("./server/auth/tokens");
+const { createAuthSessions } = require("./server/auth/sessions");
 const runtimeState = require("./server/core/state");
 require("dotenv").config();
 const admin = require("firebase-admin");
@@ -790,6 +791,13 @@ const {
   normalizeGroupId,
 } = require("./server/core/normalization");
 
+const authSessions = createAuthSessions({
+  refreshSessions,
+  refreshByUser,
+  authUserAliases,
+  schedulePersist: () => scheduleAuthStatePersist(),
+});
+
 function getGroupConversationKey(groupId) {
   return `${GROUP_CONVERSATION_PREFIX}${normalizeGroupId(groupId)}`;
 }
@@ -1099,70 +1107,19 @@ function resolveCurrentUserKey(rawKey) {
 }
 
 function trackRefreshSession(userKey, jti, expiresAt, remember) {
-  const key = normalizeName(userKey);
-  const tokenId = toDisplayName(jti);
-  if (!key || !tokenId) return;
-  refreshSessions.set(tokenId, {
-    userKey: key,
-    expiresAt: Number(expiresAt) || 0,
-    remember: Boolean(remember),
-  });
-  if (!refreshByUser.has(key)) {
-    refreshByUser.set(key, new Set());
-  }
-  refreshByUser.get(key).add(tokenId);
-  scheduleAuthStatePersist();
+  return authSessions.trackRefreshSession(userKey, jti, expiresAt, remember);
 }
 
 function revokeRefreshSession(rawTokenId) {
-  const tokenId = toDisplayName(rawTokenId);
-  if (!tokenId) return false;
-  const existing = refreshSessions.get(tokenId);
-  if (!existing) return false;
-  refreshSessions.delete(tokenId);
-  const ownerSet = refreshByUser.get(existing.userKey);
-  if (ownerSet) {
-    ownerSet.delete(tokenId);
-    if (!ownerSet.size) refreshByUser.delete(existing.userKey);
-  }
-  scheduleAuthStatePersist();
-  return true;
+  return authSessions.revokeRefreshSession(rawTokenId);
 }
 
 function moveRefreshSessionsToUser(oldUserKey, nextUserKey) {
-  const oldKey = normalizeName(oldUserKey);
-  const newKey = normalizeName(nextUserKey);
-  if (!oldKey || !newKey || oldKey === newKey) return;
-  const tokenSet = refreshByUser.get(oldKey);
-  if (!tokenSet || !tokenSet.size) return;
-  if (!refreshByUser.has(newKey)) {
-    refreshByUser.set(newKey, new Set());
-  }
-  const nextSet = refreshByUser.get(newKey);
-  for (const tokenId of tokenSet) {
-    const entry = refreshSessions.get(tokenId);
-    if (entry) entry.userKey = newKey;
-    nextSet.add(tokenId);
-  }
-  refreshByUser.delete(oldKey);
-  scheduleAuthStatePersist();
+  return authSessions.moveRefreshSessionsToUser(oldUserKey, nextUserKey);
 }
 
 function pruneExpiredAuthState() {
-  const now = Date.now();
-  let touched = false;
-  for (const [oldKey, alias] of authUserAliases.entries()) {
-    if (!alias || Number(alias.expiresAt) <= now) {
-      authUserAliases.delete(oldKey);
-      touched = true;
-    }
-  }
-  for (const [tokenId, entry] of refreshSessions.entries()) {
-    if (!entry || Number(entry.expiresAt) <= now) {
-      touched = revokeRefreshSession(tokenId) || touched;
-    }
-  }
-  if (touched) scheduleAuthStatePersist();
+  return authSessions.pruneExpiredAuthState();
 }
 
 function issueAuthTokensForUser(userKey, remember) {
