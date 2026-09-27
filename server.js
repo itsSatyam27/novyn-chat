@@ -10,6 +10,7 @@ const { Server } = require("socket.io");
 const webpush = require("web-push");
 const { cloudinary, hasCloudinaryConfig } = require("./cloudinary");
 const { createChatAuthorization } = require("./server/chat/authorization");
+const runtimeState = require("./server/core/state");
 require("dotenv").config();
 const admin = require("firebase-admin");
 
@@ -747,23 +748,25 @@ if (!passwordResetEmailConfigured && !PASSWORD_RESET_LOG_CODES) {
   );
 }
 
-const users = new Map();
-const onlineUsers = new Map();
-const conversations = new Map();
-const groups = new Map();
-const scheduledMessages = new Map();
-const scheduledMessageTimers = new Map();
-const activeCalls = new Map();
-const passwordResetTokens = new Map();
-const passwordResetByUser = new Map();
-const passwordResetRate = new Map();
-const emailChangeTokens = new Map();
-const emailChangeByUser = new Map();
-const emailChangeRate = new Map();
-const refreshSessions = new Map();
-const refreshByUser = new Map();
-const authUserAliases = new Map();
-const httpRateLimits = new Map();
+const {
+  users,
+  onlineUsers,
+  conversations,
+  groups,
+  scheduledMessages,
+  scheduledMessageTimers,
+  activeCalls,
+  passwordResetTokens,
+  passwordResetByUser,
+  passwordResetRate,
+  emailChangeTokens,
+  emailChangeByUser,
+  emailChangeRate,
+  refreshSessions,
+  refreshByUser,
+  authUserAliases,
+  httpRateLimits,
+} = runtimeState;
 
 let mongoClient = null;
 let mongoLegacyCollection = null;
