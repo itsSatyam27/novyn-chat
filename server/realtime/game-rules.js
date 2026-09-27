@@ -274,7 +274,7 @@ function createGameChallenge(input = {}) {
   const to = String(input.to || "").trim();
   const requested = input.game;
 
-  if (!userKey || !requested || typeof requested !== "object" || Array.isArray(requested)) {
+  if (!userKey || !userName || !requested || typeof requested !== "object" || Array.isArray(requested)) {
     return { ok: false, reason: "Invalid game challenge." };
   }
 
@@ -303,7 +303,7 @@ function createGameChallenge(input = {}) {
       createdBy: userName,
       opponent: toType === "friend" ? to : undefined,
       state: "in_progress",
-      turn: userKey,
+      turn: userName,
       data,
     },
   };
