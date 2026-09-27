@@ -67,10 +67,24 @@ function createMongoStorage(options = {}) {
     collections = null;
   }
 
+  function getCollection(name) {
+    if (!collections) return null;
+    const key = String(name || "").trim();
+    if (!key) return null;
+    return collections[key] || null;
+  }
+
   return {
     connect,
     close,
     isConnected,
+    getCollection,
+    get db() {
+      return db;
+    },
+    get client() {
+      return client;
+    },
     get collections() {
       return collections;
     },
