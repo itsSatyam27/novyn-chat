@@ -6,7 +6,7 @@
  */
 
 const DB_NAME = 'novyn_e2ee_keystore';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const STORE_NAME = 'identity_keys';
 
 // In-memory cache for derived shared AES keys
@@ -39,23 +39,20 @@ function openKeyStoreDB(): Promise<IDBDatabase> {
 async function saveKeyPairToDB(username: string, keyPair: CryptoKeyPair): Promise<void> {
   try {
     const db = await openKeyStoreDB();
-    const privateKeyJwk = await window.crypto.subtle.exportKey('jwk', keyPair.privateKey);
-    const publicKeyJwk = await window.crypto.subtle.exportKey('jwk', keyPair.publicKey);
-
-    return new Promise((resolve, reject) => {
+    await new Promise<void>((resolve, reject) => {
       const tx = db.transaction(STORE_NAME, 'readwrite');
       const store = tx.objectStore(STORE_NAME);
       const req = store.put({
         username: username.toLowerCase(),
-        privateKeyJwk,
-        publicKeyJwk,
+        privateKey: keyPair.privateKey,
+        publicKey: keyPair.publicKey,
         createdAt: Date.now(),
       });
       req.onsuccess = () => resolve();
       req.onerror = () => reject(req.error);
     });
   } catch (err) {
-    console.warn('Failed to persist E2EE key to IndexedDB:', err);
+    console.warn('Failed to persist E2EE CryptoKeys to IndexedDB:', err);
   }
 }
 
@@ -68,16 +65,25 @@ async function loadKeyPairFromDB(username: string): Promise<CryptoKeyPair | null
       const req = store.get(username.toLowerCase());
       req.onsuccess = async () => {
         const data = req.result;
-        if (!data || !data.privateKeyJwk || !data.publicKeyJwk) {
+        if (!data) {
           resolve(null);
           return;
         }
         try {
+          if (data.privateKey instanceof CryptoKey && data.publicKey instanceof CryptoKey) {
+            resolve({ privateKey: data.privateKey, publicKey: data.publicKey });
+            return;
+          }
+          // Migrate legacy exported JWK records once, then keep the private key non-extractable.
+          if (!data.privateKeyJwk || !data.publicKeyJwk) {
+            resolve(null);
+            return;
+          }
           const privateKey = await window.crypto.subtle.importKey(
             'jwk',
             data.privateKeyJwk,
             { name: 'ECDH', namedCurve: 'P-256' },
-            true,
+            false,
             ['deriveKey', 'deriveBits']
           );
           const publicKey = await window.crypto.subtle.importKey(
@@ -89,7 +95,7 @@ async function loadKeyPairFromDB(username: string): Promise<CryptoKeyPair | null
           );
           resolve({ privateKey, publicKey });
         } catch (err) {
-          console.warn('Failed to import stored JWK keys:', err);
+          console.warn('Failed to import stored E2EE key:', err);
           resolve(null);
         }
       };
@@ -135,7 +141,7 @@ export async function initE2EEIdentity(username: string): Promise<string> {
           name: 'ECDH',
           namedCurve: 'P-256',
         },
-        true,
+        false,
         ['deriveKey', 'deriveBits']
       );
       await saveKeyPairToDB(userKey, keyPair);
