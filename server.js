@@ -5261,6 +5261,10 @@ io.on("connection", (socket) => {
   socket.on("get_history", (rawTarget) => {
     const userKey = socket.data.userKey;
     if (!userKey) return;
+    if (!allowSocketAction(socket, "get_history", 120, 60 * 1000)) {
+      socket.emit("error_message", { message: "Too many history requests. Slow down a bit." });
+      return;
+    }
 
     let targetName = rawTarget;
     let targetType = "friend";
