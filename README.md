@@ -1,18 +1,18 @@
-# ⚡ Novyn Chat — Real-Time Encrypted Cross-Platform Messenger
+# ⚡ Novyn Chat — Real-Time Messaging Platform
 
 <div align="center">
 
 ![Novyn Chat Banner](public/logo192.png)
 
-**A high-performance, real-time messaging platform with WhatsApp-style End-to-End Encryption (E2EE), WebRTC voice/video calling, in-chat mini-games, and a unified architecture across Web & Android.**
+**A real-time messaging platform with client-side encryption for supported direct text messages, WebRTC voice/video calling, in-chat mini-games, and a React + Capacitor web/Android client.**
 
-[![React](https://img.shields.io/badge/React-18-blue.svg)](https://reactjs.org/)
-[![Vite](https://img.shields.io/badge/Vite-5.x-purple.svg)](https://vitejs.dev/)
-[![Node.js](https://img.shields.io/badge/Node.js-18+-green.svg)](https://nodejs.org/)
+[![React](https://img.shields.io/badge/React-19-blue.svg)](https://reactjs.org/)
+[![Vite](https://img.shields.io/badge/Vite-8.x-purple.svg)](https://vitejs.dev/)
+[![Node.js](https://img.shields.io/badge/Node.js-24+-green.svg)](https://nodejs.org/)
 [![Socket.IO](https://img.shields.io/badge/Socket.IO-4.x-black.svg)](https://socket.io/)
 [![MongoDB](https://img.shields.io/badge/MongoDB-Atlas%20Ready-brightgreen.svg)](https://www.mongodb.com/)
 [![Capacitor](https://img.shields.io/badge/Capacitor-6.x%20(Android)-1192e8.svg)](https://capacitorjs.com/)
-[![Web Crypto API](https://img.shields.io/badge/Security-E2EE%20(AES--256--GCM)-gold.svg)](https://developer.mozilla.org/en-US/docs/Web/API/Web_Crypto_API)
+[![Web Crypto API](https://img.shields.io/badge/Security-Web%20Crypto%20prototype-gold.svg)](https://developer.mozilla.org/en-US/docs/Web/API/Web_Crypto_API)
 
 </div>
 
@@ -32,7 +32,7 @@
 
 ## 🏛️ Architecture & Unified Platform Design
 
-Novyn Chat uses a **Single-Source Unified Architecture** where the **Web App (Vite + React + TS)** and **Native Android App (Capacitor)** share 100% of the UI components, business logic, WebSocket state, and cryptography engine.
+Novyn's primary client is a **Vite + React + TypeScript** application packaged for Android with **Capacitor**. The Node.js + Express + Socket.IO backend is shared by the web and Capacitor clients. A separate Flutter client exists in the repository but is not yet protocol-equivalent for E2EE.
 
 ```mermaid
 graph TD
@@ -67,14 +67,14 @@ graph TD
 
 ### Key Architectural Strengths:
 - **Same Data & Identity**: Log in from any browser or your Android phone; your conversations, media, and friendships sync instantly in real-time.
-- **Zero Latency (0ms) Switch**: In-memory and IndexedDB local caching renders existing conversations instantly before the server roundtrip completes.
+- **Fast local UX**: In-memory and IndexedDB caching can render cached conversations before the server roundtrip completes; server history is paginated.
 - **Hardware Native Integrations**: Smooth haptics, splash screen control, camera access, and status bar coloring via Capacitor native plugins on mobile.
 
 ---
 
 ## 🔒 End-to-End Encryption (E2EE) Deep Dive
 
-Novyn Chat features client-side **End-to-End Encryption** modeled after Signal and WhatsApp, powered by the browser's native **Web Crypto API (`window.crypto.subtle`)**.
+Novyn currently has a **pairwise encryption prototype** for supported web direct text messages using Web Crypto API (`window.crypto.subtle`). It is **not yet Signal/WhatsApp-grade E2EE**: there is no Double Ratchet/X3DH-style session protocol, group E2EE, encrypted media/voice, or cryptographic key-authentication layer.
 
 ```mermaid
 sequenceDiagram
@@ -105,10 +105,11 @@ sequenceDiagram
     Bob->>Bob: AES-GCM Decrypt(ciphertext, iv) → Original Plaintext
 ```
 
-### Security Highlights:
-1. **Private Keys Never Leave Device**: Private keys are generated locally and securely stored in `IndexedDB` (`novyn_e2ee_keystore`).
-2. **Zero-Knowledge Backend**: MongoDB only stores Base64 scrambled ciphertext (`ciphertext`) and initialization vectors (`iv`).
-3. **60-Digit Safety Number Verification**: In **Contact Details ➔ Encryption (E2EE)**, both users can compare an out-of-band **60-digit numerical fingerprint** (12 blocks of 5 digits) or scan the **Safety QR Code** to verify encryption integrity.
+### Current security boundaries:
+1. **Private-key storage**: The web client stores `CryptoKey` objects in IndexedDB; the identity private key is generated as non-extractable where supported.
+2. **Direct text only**: Supported direct messages can carry ciphertext/IV. Groups, attachments, and voice messages are not currently E2EE.
+3. **Key authenticity is not complete**: Safety numbers are fingerprints of exchanged public keys; the protocol does not yet provide signed prekeys or a full device-identity verification model.
+4. **Protocol roadmap**: A production E2EE implementation should use a mature Signal-style protocol with device sessions, ratcheting, prekeys, key rotation, and encrypted media rather than extending the current prototype ad hoc.
 
 ---
 
@@ -234,7 +235,7 @@ novyn-chat/
 
 ### 1. Clone & Install Dependencies
 ```bash
-git clone https://github.com/bysatyam/novyn-chat.git
+git clone https://github.com/itsSatyam27/novyn-chat.git
 cd novyn-chat
 npm install
 ```
