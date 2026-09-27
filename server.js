@@ -3,6 +3,8 @@ const fsp = require("fs/promises");
 const crypto = require("crypto");
 const path = require("path");
 const http = require("http");
+const dns = require("dns").promises;
+const net = require("net");
 const express = require("express");
 const multer = require("multer");
 const { MongoClient } = require("mongodb");
@@ -92,6 +94,17 @@ try {
 
 const app = express();
 const server = http.createServer(app);
+app.disable("x-powered-by");
+app.use((req, res, next) => {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  res.setHeader("Permissions-Policy", "camera=(self), microphone=(self), geolocation=()");
+  res.setHeader("X-Frame-Options", "DENY");
+  if (process.env.NODE_ENV === "production") {
+    res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+  }
+  next();
+});
 app.use(express.json({ limit: "64kb" }));
 app.use("/api/auth", createIpRateLimiter("auth-api", 80, 15 * 60 * 1000));
 app.use("/upload-voice", createIpRateLimiter("voice-upload", 40, 15 * 60 * 1000));
@@ -140,7 +153,11 @@ const uploadFile = multer({
 const uploadTokenSecret =
   process.env.UPLOAD_TOKEN_SECRET ||
   process.env.CLOUDINARY_API_SECRET ||
-  "dev-secret";
+  (process.env.NODE_ENV === "production" ? null : "dev-secret");
+
+if (!uploadTokenSecret) {
+  throw new Error("UPLOAD_TOKEN_SECRET must be configured in production.");
+}
 
 if (!process.env.UPLOAD_TOKEN_SECRET && !process.env.CLOUDINARY_API_SECRET) {
   console.warn(
@@ -497,10 +514,30 @@ app.post(
   }
 );
 
+const allowedSocketOrigins = toDisplayName(process.env.ALLOWED_ORIGIN)
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
+const socketCorsOrigin = (origin, callback) => {
+  if (!origin) {
+    // Native clients and same-origin requests may omit Origin.
+    callback(null, process.env.NODE_ENV !== "production");
+    return;
+  }
+  if (allowedSocketOrigins.includes(origin)) {
+    callback(null, true);
+    return;
+  }
+  callback(new Error("Origin not allowed"));
+};
+
 const io = new Server(server, {
   cors: {
-    origin: process.env.ALLOWED_ORIGIN ? process.env.ALLOWED_ORIGIN.split(",") : "*",
+    origin: socketCorsOrigin,
+    credentials: true,
   },
+  maxHttpBufferSize: 256 * 1024,
 });
 
 app.get(["/login", "/login.html"], (req, res) => {
@@ -571,7 +608,7 @@ const CHAT_RETENTION_DAYS = Math.max(
     ? Math.floor(Number(process.env.CHAT_RETENTION_DAYS))
     : 30
 );
-const MIN_PASSWORD_LENGTH = 4;
+const MIN_PASSWORD_LENGTH = 12;
 const PASSWORD_ITERATIONS = 120000;
 const PASSWORD_KEY_LENGTH = 64;
 const PASSWORD_DIGEST = "sha512";
@@ -662,8 +699,11 @@ const RTC_TURN_CREDENTIAL_TYPE = toDisplayName(process.env.RTC_TURN_CREDENTIAL_T
 const RTC_ICE_SERVERS = resolveRtcIceServers();
 const AUTH_SECRET =
   toDisplayName(process.env.AUTH_SECRET) ||
-  toDisplayName(process.env.UPLOAD_TOKEN_SECRET) ||
-  "dev-auth-secret";
+  (process.env.NODE_ENV === "production" ? "" : toDisplayName(process.env.UPLOAD_TOKEN_SECRET) || "dev-auth-secret");
+
+if (!AUTH_SECRET) {
+  throw new Error("AUTH_SECRET must be configured in production.");
+}
 const AUTH_ACCESS_COOKIE = "novyn_at";
 const AUTH_REFRESH_COOKIE = "novyn_rt";
 const AUTH_CSRF_COOKIE = "novyn_csrf";
@@ -675,8 +715,8 @@ const AUTH_REFRESH_SESSION_TTL_MS = 14 * 24 * 60 * 60 * 1000; // 14 days
 const AUTH_ALIAS_TTL_MS = AUTH_REFRESH_REMEMBER_TTL_MS;
 const AUTH_COOKIE_SECURE = process.env.NODE_ENV === "production";
 
-if (!process.env.AUTH_SECRET && !process.env.UPLOAD_TOKEN_SECRET) {
-  console.warn("AUTH_SECRET is not set. Using an insecure dev secret for auth tokens.");
+if (process.env.NODE_ENV !== "production" && !process.env.AUTH_SECRET) {
+  console.warn("AUTH_SECRET is not set. Development fallback is enabled only outside production.");
 }
 
 const passwordResetEmailConfigured = Boolean(
@@ -4603,18 +4643,78 @@ app.post("/api/auth/logout", createIpRateLimiter("auth-logout", 120, 15 * 60 * 1
   res.json({ ok: true });
 });
 
+const ssrfBlockList = new net.BlockList();
+[
+  ["127.0.0.0", 8, "ipv4"], ["0.0.0.0", 8, "ipv4"], ["10.0.0.0", 8, "ipv4"],
+  ["100.64.0.0", 10, "ipv4"], ["169.254.0.0", 16, "ipv4"], ["172.16.0.0", 12, "ipv4"],
+  ["192.0.0.0", 24, "ipv4"], ["192.0.2.0", 24, "ipv4"], ["192.168.0.0", 16, "ipv4"],
+  ["198.18.0.0", 15, "ipv4"], ["198.51.100.0", 24, "ipv4"], ["203.0.113.0", 24, "ipv4"],
+  ["224.0.0.0", 4, "ipv4"], ["::1", 128, "ipv6"], ["fc00::", 7, "ipv6"],
+  ["fe80::", 10, "ipv6"], ["ff00::", 8, "ipv6"], ["::ffff:0:0", 96, "ipv6"]
+].forEach(([address, prefix, type]) => ssrfBlockList.addSubnet(address, prefix, type));
+
+function isBlockedSsrfIp(ip) {
+  const version = net.isIP(ip);
+  return version === 4
+    ? ssrfBlockList.check(ip, "ipv4")
+    : version === 6
+      ? ssrfBlockList.check(ip, "ipv6")
+      : true;
+}
+
+async function assertSafeExternalUrl(rawUrl) {
+  const parsed = new URL(String(rawUrl || ""));
+  if (!["http:", "https:"].includes(parsed.protocol)) throw new Error("Unsupported URL scheme");
+  if (parsed.username || parsed.password) throw new Error("URL credentials are not allowed");
+  if ((parsed.protocol === "http:" && parsed.port && parsed.port !== "80") ||
+      (parsed.protocol === "https:" && parsed.port && parsed.port !== "443")) {
+    throw new Error("Unsupported URL port");
+  }
+
+  const host = parsed.hostname.replace(/^\[|\]$/g, "").toLowerCase();
+  const addresses = net.isIP(host)
+    ? [{ address: host }]
+    : await dns.lookup(host, { all: true, verbatim: true });
+  if (!addresses.length || addresses.some((entry) => isBlockedSsrfIp(entry.address))) {
+    throw new Error("Unsafe destination");
+  }
+  return parsed;
+}
+
+async function readResponseWithLimit(response, maxBytes) {
+  const length = Number(response.headers.get("content-length") || 0);
+  if (length > maxBytes) throw new Error("Response too large");
+  if (!response.body) return "";
+  const reader = response.body.getReader();
+  const chunks = [];
+  let total = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > maxBytes) {
+      await reader.cancel();
+      throw new Error("Response too large");
+    }
+    chunks.push(Buffer.from(value));
+  }
+  return Buffer.concat(chunks, total).toString("utf8");
+}
+
 app.get("/api/link-preview", async (req, res) => {
   const targetUrl = String(req.query?.url || "").trim();
-  if (!targetUrl || !targetUrl.startsWith("http")) {
+  if (!targetUrl) {
     res.status(400).json({ error: "Invalid URL" });
     return;
   }
 
   try {
+    const safeUrl = await assertSafeExternalUrl(targetUrl);
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 4000);
-    const response = await fetch(targetUrl, {
+    const response = await fetch(safeUrl.href, {
       signal: controller.signal,
+      redirect: "manual",
       headers: {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
@@ -4627,7 +4727,11 @@ app.get("/api/link-preview", async (req, res) => {
       return;
     }
 
-    const html = await response.text();
+    if (response.status >= 300 && response.status < 400) {
+      res.status(400).json({ error: "Redirects are not allowed." });
+      return;
+    }
+    const html = await readResponseWithLimit(response, 1024 * 1024);
     const titleMatch = html.match(/<meta\s+property=["']og:title["']\s+content=["'](.*?)["']/i) ||
       html.match(/<title[^>]*>(.*?)<\/title>/i) ||
       html.match(/<meta\s+name=["']title["']\s+content=["'](.*?)["']/i);
@@ -4651,7 +4755,7 @@ app.get("/api/link-preview", async (req, res) => {
     const siteName = siteMatch ? siteMatch[1] : (parsedUrl?.hostname.replace(/^www\./, '') || "");
 
     res.json({
-      url: targetUrl,
+      url: safeUrl.href,
       title,
       description,
       image,
@@ -4659,7 +4763,9 @@ app.get("/api/link-preview", async (req, res) => {
       domain: parsedUrl?.hostname || "",
     });
   } catch (err) {
-    res.status(500).json({ error: "Failed to parse link preview" });
+    const message = String(err?.message || "");
+    const clientError = /Unsafe destination|Unsupported URL|credentials|Redirects|Response too large/.test(message);
+    res.status(clientError ? 400 : 500).json({ error: clientError ? "URL is not allowed." : "Failed to parse link preview" });
   }
 });
 
@@ -4862,6 +4968,11 @@ app.use((req, res) => {
 });
 
 io.use((socket, next) => {
+  const origin = toDisplayName(socket.handshake?.headers?.origin);
+  if (process.env.NODE_ENV === "production" && (!origin || !allowedSocketOrigins.includes(origin))) {
+    return next(new Error("Origin not allowed"));
+  }
+
   const auth = resolveUserFromAuthCookies(getAuthCookiesFromHeader(socket.handshake?.headers?.cookie), {
     allowRefreshFallback: true,
   });
@@ -4886,6 +4997,10 @@ io.on("connection", (socket) => {
     finalizeSocketAuthentication(socket, user);
   });
   socket.on("register", (payload) => {
+    if (!allowSocketAction(socket, "register", 10, 15 * 60 * 1000)) {
+      socket.emit("auth_failed", { message: "Too many authentication attempts. Try again later." });
+      return;
+    }
     const isStringPayload = typeof payload === "string";
     const raw = payload || {};
     const mode = isStringPayload ? "" : toDisplayName(raw?.mode || "").toLowerCase();
@@ -6242,13 +6357,16 @@ io.on("connection", (socket) => {
     const friendKey = normalizeName(to);
     const convKey = getConversationKey(userKey, friendKey);
     const list = conversations.get(convKey);
-    if (list) {
-      const idx = list.findIndex((m) => String(m.id) === messageId || String(m.clientTempId) === messageId);
-      if (idx !== -1) {
-        list.splice(idx, 1);
-        schedulePersist();
-      }
+    if (!list) return;
+    const idx = list.findIndex((m) => String(m.id) === messageId || String(m.clientTempId) === messageId);
+    if (idx === -1) return;
+    const item = list[idx];
+    if (normalizeName(item?.from) !== userKey) {
+      socket.emit("error_message", { message: "You can only unsend your own messages." });
+      return;
     }
+    list.splice(idx, 1);
+    schedulePersist();
 
     const packet = { messageId, to: to, from: userKey };
     socket.emit("message_unsent", packet);
@@ -6274,6 +6392,10 @@ io.on("connection", (socket) => {
       const idx = list.findIndex((m) => String(m.id) === messageId || String(m.clientTempId) === messageId);
       if (idx !== -1) {
         const item = list[idx];
+        if (normalizeName(item?.from) !== userKey) {
+          socket.emit("error_message", { message: "You can only edit your own messages." });
+          return;
+        }
         if (item.isEncrypted) {
           socket.emit("error_message", { message: "Encrypted messages cannot be edited yet." });
           return;
@@ -6393,6 +6515,10 @@ io.on("connection", (socket) => {
     const question = String(payload?.question || "").trim();
     const optionsRaw = Array.isArray(payload?.options) ? payload.options : [];
     if (!to || !question || optionsRaw.length < 2) return;
+    if (!resolveChatTargetForUser(userKey, to, "friend", { inferGroup: true }).ok) {
+      socket.emit("error_message", { message: "You are not authorized to create a poll here." });
+      return;
+    }
 
     const options = optionsRaw.slice(0, 8).map((opt, i) => ({
       id: `opt_${i}_${Date.now()}`,
@@ -6488,7 +6614,13 @@ io.on("connection", (socket) => {
     const to = toDisplayName(payload?.to);
     if (!messageId || !to) return;
 
-    const isGroup = groups.has(normalizeGroupId(to)) || to.startsWith("grp_");
+    const resolvedTarget = resolveChatTargetForUser(userKey, to, "friend", { inferGroup: true });
+    if (!resolvedTarget.ok) {
+      socket.emit("error_message", { message: "You are not authorized to modify this game." });
+      return;
+    }
+
+    const isGroup = resolvedTarget.type === "group";
     const convKey = isGroup ? getGroupConversationKey(to) : getConversationKey(userKey, to);
     const list = conversations.get(convKey);
     let updatedGame = null;
@@ -6592,6 +6724,12 @@ io.on("connection", (socket) => {
     const isVideo = Boolean(payload?.isVideo);
     const callId = toDisplayName(payload?.callId).slice(0, 128);
     if (!to || !callId) return;
+
+    const callTarget = resolveChatTargetForUser(userKey, to, "friend", { inferGroup: false });
+    if (!callTarget.ok || callTarget.type !== "friend") {
+      socket.emit("call_ended", { callId, reason: "You are not authorized to call this user." });
+      return;
+    }
 
     const me = users.get(userKey);
     const friendKey = normalizeName(to);
