@@ -269,6 +269,7 @@ function applyGameMove(game, userKey, moveData) {
 
 function createGameChallenge(input = {}) {
   const userKey = String(input.userKey || "").trim().toLowerCase();
+  const userName = String(input.userDisplayName || input.userKey || "").trim();
   const toType = input.toType === "group" ? "group" : "friend";
   const to = String(input.to || "").trim();
   const requested = input.game;
@@ -288,10 +289,10 @@ function createGameChallenge(input = {}) {
 
   const board = gameType === "tictactoe" ? Array(9).fill(null) : gameType === "connect4" ? Array(42).fill(null) : undefined;
   const data = gameType === "tictactoe"
-    ? { board, playerX: userKey }
+    ? { board, playerX: userName }
     : gameType === "connect4"
-    ? { board, player1: userKey }
-    : { player1: userKey };
+    ? { board, player1: userName }
+    : { player1: userName };
 
   return {
     ok: true,
@@ -299,8 +300,8 @@ function createGameChallenge(input = {}) {
       id: typeof requested.id === "string" && requested.id.length <= 128 ? requested.id : `game_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
       gameType,
       title: titles[gameType],
-      createdBy: userKey,
-      opponent: toType === "friend" ? to.toLowerCase() : undefined,
+      createdBy: userName,
+      opponent: toType === "friend" ? to : undefined,
       state: "in_progress",
       turn: userKey,
       data,
