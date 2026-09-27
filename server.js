@@ -1062,7 +1062,15 @@ function requireCsrf(req, res, next) {
   next();
 }
 
-function createAuthToken(kind, userKey, ttlMs, extra = {}) {\n  return signAuthToken({ secret: AUTH_SECRET, kind, userKey, ttlMs, extra });\n}\n\nfunction verifyAuthToken(rawToken, expectedKind) {\n  return verifySignedAuthToken({ secret: AUTH_SECRET, rawToken, expectedKind });\n}\n\nfunction linkAuthAlias(oldKey, newKey) {
+function createAuthToken(kind, userKey, ttlMs, extra = {}) {
+  return signAuthToken({ secret: AUTH_SECRET, kind, userKey, ttlMs, extra });
+}
+
+function verifyAuthToken(rawToken, expectedKind) {
+  return verifySignedAuthToken({ secret: AUTH_SECRET, rawToken, expectedKind });
+}
+
+function linkAuthAlias(oldKey, newKey) {
   const prev = normalizeName(oldKey);
   const next = normalizeName(newKey);
   if (!prev || !next || prev === next) return;
