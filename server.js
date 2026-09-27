@@ -5486,13 +5486,20 @@ io.on("connection", (socket) => {
   socket.on("add_reaction", (payload) => {
     const userKey = socket.data.userKey;
     if (!userKey) return;
-    const messageId = String(payload?.messageId || payload?.id || "");
+    if (!allowSocketAction(socket, "add_reaction", 120, 60 * 1000)) return;
+
+    const messageId = String(payload?.messageId || payload?.id || "").slice(0, 128);
     const to = toDisplayName(payload?.to);
-    const emoji = String(payload?.emoji || "").trim();
+    const emoji = String(payload?.emoji || "").trim().slice(0, 16);
     if (!messageId || !to || !emoji) return;
 
-    const friendKey = normalizeName(to);
-    const convKey = getConversationKey(userKey, friendKey);
+    const resolvedTarget = resolveChatTargetForUser(userKey, to, "friend", { inferGroup: true });
+    if (!resolvedTarget.ok) {
+      socket.emit("error_message", { message: "You are not authorized to react in this chat." });
+      return;
+    }
+
+    const convKey = resolvedTarget.conversationKey;
     const list = conversations.get(convKey);
     let reactions = {};
     if (list) {
@@ -5513,11 +5520,30 @@ io.on("connection", (socket) => {
       }
     }
 
-    const packet = { messageId, reactions, to: to, from: userKey };
+    const packet = {
+      messageId,
+      reactions,
+      to,
+      toType: resolvedTarget.type,
+      from: userKey,
+    };
     socket.emit("reaction_updated", packet);
-    const friendSocket = onlineUsers.get(friendKey);
-    if (friendSocket) {
-      io.to(friendSocket).emit("reaction_updated", packet);
+
+    if (resolvedTarget.type === "group") {
+      const group = groups.get(resolvedTarget.targetKey);
+      if (group) {
+        for (const memberKey of group.members || []) {
+          const memberSocket = onlineUsers.get(normalizeName(memberKey));
+          if (memberSocket && normalizeName(memberKey) !== userKey) {
+            io.to(memberSocket).emit("reaction_updated", packet);
+          }
+        }
+      }
+    } else {
+      const friendSocket = onlineUsers.get(normalizeName(resolvedTarget.targetKey));
+      if (friendSocket) {
+        io.to(friendSocket).emit("reaction_updated", packet);
+      }
     }
   });
 
