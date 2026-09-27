@@ -9,7 +9,7 @@ const { createMongoStorage } = require("./server/db/mongo");
 const { createSocketAuthMiddleware } = require("./server/realtime/socket-auth");
 const { registerMessageMutationHandlers } = require("./server/realtime/message-mutations");
 const { registerCallHandlers } = require("./server/realtime/call-handlers");
-const { applyGameMove } = require("./server/realtime/game-rules");
+const { applyGameMove, createGameChallenge } = require("./server/realtime/game-rules");
 const { Server } = require("socket.io");
 const webpush = require("web-push");
 const { cloudinary, hasCloudinaryConfig } = require("./cloudinary");
@@ -5822,7 +5822,22 @@ io.on("connection", (socket) => {
     const toType = normalizeChatKind(payload?.toType || "friend");
     const replyTo = normalizeReplyPayload(payload?.replyTo);
     if (isEncrypted && replyTo) replyTo.text = ENCRYPTED_MESSAGE_PLACEHOLDER;
-    const game = payload?.game || null;
+    const rawGame = payload?.game || null;
+    let game = null;
+    if (rawGame) {
+      const challenge = createGameChallenge({
+        userKey,
+        userDisplayName: users.get(userKey)?.username || userKey,
+        to,
+        toType,
+        game: rawGame,
+      });
+      if (!challenge.ok) {
+        socket.emit("error_message", { message: challenge.reason || "Invalid game challenge." });
+        return;
+      }
+      game = challenge.game;
+    }
     const poll = payload?.poll || null;
 
     if (!text) return;
