@@ -5603,30 +5603,45 @@ io.on("connection", (socket) => {
   socket.on("poll_vote", (payload) => {
     const userKey = socket.data.userKey;
     if (!userKey) return;
+
     const messageId = String(payload?.messageId || "");
     const optionId = String(payload?.optionId || "");
     const to = toDisplayName(payload?.to);
     if (!messageId || !optionId || !to) return;
 
-    const friendKey = normalizeName(to);
-    const convKey = getConversationKey(userKey, friendKey);
+    const resolvedTarget = resolveChatTargetForUser(userKey, to, "friend", { inferGroup: true });
+    if (!resolvedTarget.ok) {
+      socket.emit("error_message", { message: "You are not authorized to vote in this poll." });
+      return;
+    }
+
+    const isGroup = resolvedTarget.type === "group";
+    const convKey = isGroup ? getGroupConversationKey(to) : getConversationKey(userKey, to);
     const list = conversations.get(convKey);
     let updatedPoll = null;
 
     if (list) {
       const item = list.find((m) => String(m.id) === messageId || String(m.clientTempId) === messageId);
-      if (item && item.poll) {
+      if (item?.poll && Array.isArray(item.poll.options)) {
+        const selectedOption = item.poll.options.find((opt) => String(opt.id) === optionId);
+        if (!selectedOption) {
+          socket.emit("error_message", { message: "That poll option does not exist." });
+          return;
+        }
+
         let total = 0;
         item.poll.options.forEach((opt) => {
+          if (!Array.isArray(opt.votes)) opt.votes = [];
           const idx = opt.votes.indexOf(userKey);
           if (opt.id === optionId) {
             if (idx === -1) opt.votes.push(userKey);
             else opt.votes.splice(idx, 1);
-          } else {
-            if (idx !== -1) opt.votes.splice(idx, 1);
+          } else if (idx !== -1) {
+            opt.votes.splice(idx, 1);
           }
           total += opt.votes.length;
         });
+
         item.poll.totalVotes = total;
         updatedPoll = item.poll;
         schedulePersist();
@@ -5636,9 +5651,22 @@ io.on("connection", (socket) => {
     if (updatedPoll) {
       const packet = { messageId, poll: updatedPoll, to, from: userKey };
       socket.emit("poll_updated", packet);
-      const friendSocket = onlineUsers.get(friendKey);
-      if (friendSocket) {
-        io.to(friendSocket).emit("poll_updated", packet);
+
+      if (isGroup) {
+        const group = groups.get(normalizeGroupId(to));
+        if (group) {
+          for (const memberKey of group.members || []) {
+            const memberSocketId = onlineUsers.get(normalizeName(memberKey));
+            if (memberSocketId && normalizeName(memberKey) !== userKey) {
+              io.to(memberSocketId).emit("poll_updated", packet);
+            }
+          }
+        }
+      } else {
+        const friendSocket = onlineUsers.get(normalizeName(to));
+        if (friendSocket) {
+          io.to(friendSocket).emit("poll_updated", packet);
+        }
       }
     }
   });
