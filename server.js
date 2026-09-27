@@ -18,9 +18,6 @@ function readEnvText(value) {
   return String(value || "").trim();
 }
 
-function toDisplayName(value) {
-  return String(value || "").trim();
-}
 
 function parseJsonMaybe(rawText) {
   const text = readEnvText(rawText).replace(/^\uFEFF/, "");
