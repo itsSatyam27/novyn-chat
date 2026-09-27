@@ -6619,6 +6619,10 @@ io.on("connection", (socket) => {
   socket.on("leave_group", (payload) => {
     const userKey = socket.data.userKey;
     if (!userKey) return;
+    if (!allowSocketAction(socket, "leave_group", 20, 60 * 60 * 1000)) {
+      socket.emit("error_message", { message: "Too many group updates. Try again later." });
+      return;
+    }
     const groupId = normalizeGroupId(payload?.groupId || payload?.to || payload);
     const group = groups.get(groupId);
     const me = users.get(userKey);
@@ -6654,8 +6658,10 @@ io.on("connection", (socket) => {
       if (!(group.admins instanceof Set)) {
         group.admins = new Set();
       }
-      if (!group.admins.size && group.ownerKey) {
-        group.admins.add(group.ownerKey);
+      // The new owner must always retain admin privileges. Otherwise an owner
+      // hand-off can leave the group with an owner who cannot manage members.
+      if (group.ownerKey) {
+        group.admins.add(normalizeName(group.ownerKey));
       }
       group.updatedAt = nowIso();
     }
