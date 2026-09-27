@@ -10,6 +10,8 @@ const { Server } = require("socket.io");
 const webpush = require("web-push");
 const { cloudinary, hasCloudinaryConfig } = require("./cloudinary");
 const { createChatAuthorization } = require("./server/chat/authorization");
+const { createIpRateLimiter, pruneHttpRateLimits } = require("./server/auth/rate-limit");
+const { createAuthToken: signAuthToken, verifyAuthToken: verifySignedAuthToken } = require("./server/auth/tokens");
 const runtimeState = require("./server/core/state");
 require("dotenv").config();
 const admin = require("firebase-admin");
@@ -103,9 +105,9 @@ app.use((req, res, next) => {
   next();
 });
 app.use(express.json({ limit: "64kb" }));
-app.use("/api/auth", createIpRateLimiter("auth-api", 80, 15 * 60 * 1000));
-app.use("/upload-voice", createIpRateLimiter("voice-upload", 40, 15 * 60 * 1000));
-app.use("/upload-file", createIpRateLimiter("file-upload", 40, 15 * 60 * 1000));
+app.use("/api/auth", createIpRateLimiter({ getStore: () => httpRateLimits }, "auth-api", 80, 15 * 60 * 1000));
+app.use("/upload-voice", createIpRateLimiter({ getStore: () => httpRateLimits }, "voice-upload", 40, 15 * 60 * 1000));
+app.use("/upload-file", createIpRateLimiter({ getStore: () => httpRateLimits }, "file-upload", 40, 15 * 60 * 1000));
 app.use((req, res, next) => {
   ensureCsrfCookie(req, res);
   next();
@@ -1060,56 +1062,7 @@ function requireCsrf(req, res, next) {
   next();
 }
 
-function createAuthToken(kind, userKey, ttlMs, extra = {}) {
-  const now = Date.now();
-  const payload = {
-    sub: normalizeName(userKey),
-    kind: toDisplayName(kind),
-    iat: now,
-    exp: now + Math.max(1000, Number(ttlMs) || 0),
-    ...extra,
-  };
-  const headerPart = toBase64Url(JSON.stringify({ alg: "HS256", typ: "JWT" }));
-  const payloadPart = toBase64Url(JSON.stringify(payload));
-  const body = `${headerPart}.${payloadPart}`;
-  const signature = crypto.createHmac("sha256", AUTH_SECRET).update(body).digest();
-  return `${body}.${toBase64Url(signature)}`;
-}
-
-function verifyAuthToken(rawToken, expectedKind) {
-  const token = String(rawToken || "");
-  const parts = token.split(".");
-  if (parts.length !== 3) return null;
-  const [headerPart, payloadPart, sigPart] = parts;
-  if (!headerPart || !payloadPart || !sigPart) return null;
-
-  const body = `${headerPart}.${payloadPart}`;
-  const expectedSig = crypto.createHmac("sha256", AUTH_SECRET).update(body).digest();
-  let actualSig = null;
-  try {
-    actualSig = fromBase64Url(sigPart);
-  } catch (_) {
-    return null;
-  }
-  if (actualSig.length !== expectedSig.length) return null;
-  if (!crypto.timingSafeEqual(actualSig, expectedSig)) return null;
-
-  let payload = null;
-  try {
-    payload = JSON.parse(fromBase64Url(payloadPart).toString("utf8"));
-  } catch (_) {
-    return null;
-  }
-  if (!payload || typeof payload !== "object") return null;
-  if (expectedKind && payload.kind !== expectedKind) return null;
-  const subjectKey = normalizeName(payload.sub);
-  if (!subjectKey) return null;
-  const exp = Number(payload.exp);
-  if (!Number.isFinite(exp) || exp <= Date.now()) return null;
-  return payload;
-}
-
-function linkAuthAlias(oldKey, newKey) {
+function createAuthToken(kind, userKey, ttlMs, extra = {}) {\n  return signAuthToken({ secret: AUTH_SECRET, kind, userKey, ttlMs, extra });\n}\n\nfunction verifyAuthToken(rawToken, expectedKind) {\n  return verifySignedAuthToken({ secret: AUTH_SECRET, rawToken, expectedKind });\n}\n\nfunction linkAuthAlias(oldKey, newKey) {
   const prev = normalizeName(oldKey);
   const next = normalizeName(newKey);
   if (!prev || !next || prev === next) return;
@@ -1321,38 +1274,6 @@ function readRememberFlag(value) {
   if (typeof value === "boolean") return value;
   const text = toDisplayName(value).toLowerCase();
   return text === "1" || text === "true" || text === "yes" || text === "on";
-}
-
-function createIpRateLimiter(bucket, maxRequests, windowMs) {
-  const safeBucket = toDisplayName(bucket) || "default";
-  const max = Math.max(1, Number(maxRequests) || 1);
-  const windowDuration = Math.max(1000, Number(windowMs) || 1000);
-  return (req, res, next) => {
-    const ip = toDisplayName(req.ip || req.socket?.remoteAddress || "unknown");
-    const now = Date.now();
-    const key = `${safeBucket}:${ip}`;
-    const current = httpRateLimits.get(key);
-    const active =
-      current && now <= Number(current.resetAt)
-        ? current
-        : { count: 0, resetAt: now + windowDuration };
-    active.count += 1;
-    httpRateLimits.set(key, active);
-    if (active.count > max) {
-      res.status(429).json({ error: "Too many requests. Please try again later." });
-      return;
-    }
-    next();
-  };
-}
-
-function pruneHttpRateLimits() {
-  const now = Date.now();
-  for (const [key, entry] of httpRateLimits.entries()) {
-    if (!entry || Number(entry.resetAt) <= now) {
-      httpRateLimits.delete(key);
-    }
-  }
 }
 
 function createUserRecord(username) {
@@ -3301,7 +3222,7 @@ function pruneExpiredMessages() {
 
 function runRetentionMaintenance() {
   pruneExpiredAuthState();
-  pruneHttpRateLimits();
+  pruneHttpRateLimits(httpRateLimits);
   pruneExpiredPasswordResetTokens();
   pruneExpiredEmailChangeTokens();
   const pruned = pruneExpiredMessages();
