@@ -6133,13 +6133,39 @@ io.on("connection", (socket) => {
     socket.data.activeChatKind = resolved.type;
     markConversationAsSeen(userKey, resolved.targetKey, resolved.type);
 
-    const messages = conversations.get(resolved.conversationKey) || [];
+    const allMessages = conversations.get(resolved.conversationKey) || [];
+    const requestedLimit = rawTarget && typeof rawTarget === "object"
+      ? Number(rawTarget.limit)
+      : NaN;
+    const limit = Number.isFinite(requestedLimit)
+      ? Math.min(100, Math.max(1, Math.floor(requestedLimit)))
+      : 50;
+    const before = rawTarget && typeof rawTarget === "object"
+      ? toDisplayName(rawTarget.before)
+      : "";
+
+    let endIndex = allMessages.length;
+    if (before) {
+      const beforeIndex = allMessages.findIndex(
+        (message) =>
+          String(message?.id || "") === before ||
+          String(message?.clientTempId || "") === before
+      );
+      if (beforeIndex >= 0) endIndex = beforeIndex;
+    }
+
+    const startIndex = Math.max(0, endIndex - limit);
+    const messages = allMessages.slice(startIndex, endIndex);
+    const hasMore = startIndex > 0;
+    const nextBefore = hasMore ? String(messages[0]?.id || messages[0]?.clientTempId || "") : null;
     const wallpaper = conversationWallpapers.get(resolved.conversationKey) || "";
 
     socket.emit("history", {
       with: resolved.targetKey,
       withLabel: resolved.targetLabel,
       messages,
+      hasMore,
+      nextBefore,
       kind: resolved.type,
       toType: resolved.type,
       to: resolved.targetKey,
