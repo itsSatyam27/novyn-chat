@@ -267,4 +267,45 @@ function applyGameMove(game, userKey, moveData) {
   }
 }
 
-module.exports = { applyGameMove };
+function createGameChallenge(input = {}) {
+  const userKey = String(input.userKey || "").trim().toLowerCase();
+  const toType = input.toType === "group" ? "group" : "friend";
+  const to = String(input.to || "").trim();
+  const requested = input.game;
+
+  if (!userKey || !requested || typeof requested !== "object" || Array.isArray(requested)) {
+    return { ok: false, reason: "Invalid game challenge." };
+  }
+
+  const gameType = String(requested.gameType || "");
+  if (!GAME_TYPES.has(gameType)) return { ok: false, reason: "Unsupported game." };
+
+  const titles = {
+    tictactoe: "Tic-Tac-Toe",
+    rps: "Rock • Paper • Scissors",
+    connect4: "Connect 4",
+  };
+
+  const board = gameType === "tictactoe" ? Array(9).fill(null) : gameType === "connect4" ? Array(42).fill(null) : undefined;
+  const data = gameType === "tictactoe"
+    ? { board, playerX: userKey }
+    : gameType === "connect4"
+    ? { board, player1: userKey }
+    : { player1: userKey };
+
+  return {
+    ok: true,
+    game: {
+      id: typeof requested.id === "string" && requested.id.length <= 128 ? requested.id : `game_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      gameType,
+      title: titles[gameType],
+      createdBy: userKey,
+      opponent: toType === "friend" ? to.toLowerCase() : undefined,
+      state: "in_progress",
+      turn: userKey,
+      data,
+    },
+  };
+}
+
+module.exports = { applyGameMove, createGameChallenge };
