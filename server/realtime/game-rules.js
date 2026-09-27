@@ -191,7 +191,7 @@ function applyConnect4(game, userKey, moveData) {
   if (board.length !== 42 || !Array.isArray(requestedBoard) || requestedBoard.length !== 42) {
     return { ok: false, reason: "Invalid Connect 4 board." };
   }
-  if (game.state === "finished" || game.turn !== userKey) {
+  if (game.state === "finished" || !sameUser(game.turn, userKey)) {
     return { ok: false, reason: "It is not your turn." };
   }
 
