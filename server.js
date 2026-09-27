@@ -670,7 +670,6 @@ const ALLOWED_FILE_MIME = new Set([
   "image/png",
   "image/gif",
   "image/webp",
-  "image/svg+xml",
   "application/pdf",
   "text/plain",
   "text/csv",
