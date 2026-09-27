@@ -6381,6 +6381,11 @@ io.on("connection", (socket) => {
     const messageId = String(payload?.messageId || payload?.id || "");
     const to = toDisplayName(payload?.to);
     if (!messageId || !to) return;
+    const resolvedTarget = resolveChatTargetForUser(userKey, to, payload?.toType || payload?.kind || "friend", { inferGroup: true });
+    if (!resolvedTarget.ok) {
+      socket.emit("error_message", { message: resolvedTarget.message || "You are not authorized for this chat." });
+      return;
+    }
 
     const friendKey = normalizeName(to);
     const convKey = getConversationKey(userKey, friendKey);
@@ -6410,6 +6415,11 @@ io.on("connection", (socket) => {
     const messageId = String(payload?.messageId || payload?.id || "");
     const to = toDisplayName(payload?.to);
     if (!messageId || !to) return;
+    const resolvedTarget = resolveChatTargetForUser(userKey, to, payload?.toType || payload?.kind || "friend", { inferGroup: true });
+    if (!resolvedTarget.ok) {
+      socket.emit("error_message", { message: resolvedTarget.message || "You are not authorized for this chat." });
+      return;
+    }
 
     const friendKey = normalizeName(to);
     const convKey = getConversationKey(userKey, friendKey);
