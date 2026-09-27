@@ -3,7 +3,7 @@
 const GAME_TYPES = new Set(["tictactoe", "rps", "connect4"]);
 const RPS_MOVES = new Set(["rock", "paper", "scissors"]);
 
-function cloneData(data) {
+function sameUser(a, b) {\n  return String(a || "").trim().toLowerCase() === String(b || "").trim().toLowerCase();\n}\n\nfunction cloneData(data) {
   return data && typeof data === "object" && !Array.isArray(data) ? { ...data } : {};
 }
 
@@ -40,19 +40,19 @@ function applyTicTacToe(game, userKey, moveData) {
   const playerX = current.playerX || game.createdBy;
   let playerO = current.playerO || game.opponent || null;
 
-  if (game.state === "finished" || game.turn !== userKey) {
+  if (game.state === "finished" || !sameUser(game.turn, userKey)) {
     return { ok: false, reason: "It is not your turn." };
   }
 
-  if (userKey === playerX) {
+  if (sameUser(userKey, playerX)) {
     if (!playerX) return { ok: false, reason: "Invalid game players." };
   } else if (playerO) {
-    if (userKey !== playerO) return { ok: false, reason: "You are not a player in this game." };
+    if (!sameUser(userKey, playerO)) return { ok: false, reason: "You are not a player in this game." };
   } else {
     playerO = userKey;
   }
 
-  const symbol = userKey === playerX ? "X" : "O";
+  const symbol = sameUser(userKey, playerX) ? "X" : "O";
   const requestedBoard = moveData.board;
   const changed = [];
 
@@ -119,8 +119,8 @@ function applyRps(game, userKey, moveData) {
     player2 = userKey;
   }
 
-  const p1Move = userKey === player1 ? move : current.p1Move;
-  const p2Move = userKey === player2 ? move : current.p2Move;
+  const p1Move = sameUser(userKey, player1) ? move : current.p1Move;
+  const p2Move = sameUser(userKey, player2) ? move : current.p2Move;
   if (!p1Move || !p2Move) {
     return {
       ok: true,
