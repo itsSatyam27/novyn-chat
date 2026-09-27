@@ -5763,35 +5763,32 @@ io.on("connection", (socket) => {
     const userKey = socket.data.userKey;
     if (!userKey) return;
     const to = toDisplayName(payload?.to);
-    const wallpaper = String(payload?.wallpaper || "").trim();
+    const wallpaper = String(payload?.wallpaper || "").trim().slice(0, 2048);
+    const requestedType = payload?.toType || payload?.kind || "friend";
     if (!to) return;
 
-    const isGroup = groups.has(normalizeGroupId(to)) || to.startsWith("grp_");
-    const convKey = isGroup ? getGroupConversationKey(to) : getConversationKey(userKey, to);
-    conversationWallpapers.set(convKey, wallpaper);
+    const resolved = resolveChatTargetForUser(userKey, to, requestedType, { inferGroup: true });
+    if (!resolved.ok) {
+      socket.emit("error_message", { message: resolved.message || "You are not authorized for this chat." });
+      return;
+    }
+
+    conversationWallpapers.set(resolved.conversationKey, wallpaper);
     schedulePersist();
 
-    const packet = { to, from: userKey, wallpaper };
+    const packet = { to: resolved.targetKey, from: userKey, wallpaper, toType: resolved.type };
     socket.emit("chat_wallpaper_updated", packet);
 
-    if (isGroup) {
-      const group = groups.get(normalizeGroupId(to));
-      if (group) {
-        for (const memberKey of group.members || []) {
-          for (const [_, s] of io.sockets.sockets) {
-            if (s.data.userKey === memberKey) {
-              s.emit("chat_wallpaper_updated", { to, from: userKey, wallpaper });
-            }
-          }
+    if (resolved.type === "group") {
+      for (const memberKey of resolved.group.members || []) {
+        const memberSocketId = onlineUsers.get(normalizeName(memberKey));
+        if (memberSocketId && normalizeName(memberKey) !== normalizeName(userKey)) {
+          io.to(memberSocketId).emit("chat_wallpaper_updated", packet);
         }
       }
     } else {
-      const friendKey = normalizeName(to);
-      for (const [_, s] of io.sockets.sockets) {
-        if (s.data.userKey === friendKey || s.data.userKey === userKey) {
-          s.emit("chat_wallpaper_updated", { to: userKey, from: userKey, wallpaper });
-        }
-      }
+      const friendSocketId = onlineUsers.get(normalizeName(resolved.targetKey));
+      if (friendSocketId) io.to(friendSocketId).emit("chat_wallpaper_updated", packet);
     }
   });
 
@@ -5799,12 +5796,22 @@ io.on("connection", (socket) => {
     const userKey = socket.data.userKey;
     if (!userKey) return;
     const to = toDisplayName(payload?.to);
+    const requestedType = payload?.toType || payload?.kind || "friend";
     if (!to) return;
 
-    const isGroup = groups.has(normalizeGroupId(to)) || to.startsWith("grp_");
-    const convKey = isGroup ? getGroupConversationKey(to) : getConversationKey(userKey, to);
-    const wallpaper = conversationWallpapers.get(convKey) || "";
-    socket.emit("chat_wallpaper_updated", { to, from: userKey, wallpaper });
+    const resolved = resolveChatTargetForUser(userKey, to, requestedType, { inferGroup: true });
+    if (!resolved.ok) {
+      socket.emit("error_message", { message: resolved.message || "You are not authorized for this chat." });
+      return;
+    }
+
+    const wallpaper = conversationWallpapers.get(resolved.conversationKey) || "";
+    socket.emit("chat_wallpaper_updated", {
+      to: resolved.targetKey,
+      from: userKey,
+      wallpaper,
+      toType: resolved.type,
+    });
   });
 
   registerCallHandlers(socket, {
