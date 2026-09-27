@@ -6,6 +6,7 @@ const http = require("http");
 const express = require("express");
 const multer = require("multer");
 const { createMongoStorage } = require("./server/db/mongo");
+const { createSocketAuthMiddleware } = require("./server/realtime/socket-auth");
 const { Server } = require("socket.io");
 const webpush = require("web-push");
 const { cloudinary, hasCloudinaryConfig } = require("./cloudinary");
@@ -4439,20 +4440,15 @@ app.use((req, res) => {
   res.status(404).json({ error: "Not found" });
 });
 
-io.use((socket, next) => {
-  const origin = toDisplayName(socket.handshake?.headers?.origin);
-  if (process.env.NODE_ENV === "production" && (!origin || !allowedSocketOrigins.includes(origin))) {
-    return next(new Error("Origin not allowed"));
-  }
-
-  const auth = resolveUserFromAuthCookies(getAuthCookiesFromHeader(socket.handshake?.headers?.cookie), {
-    allowRefreshFallback: true,
-  });
-  if (auth.userKey) {
-    socket.data.userKey = auth.userKey;
-  }
-  next();
-});
+io.use(
+  createSocketAuthMiddleware({
+    isProduction: process.env.NODE_ENV === "production",
+    allowedOrigins: allowedSocketOrigins,
+    resolveUserFromAuthCookies,
+    getAuthCookiesFromHeader,
+    normalizeText: toDisplayName,
+  })
+);
 
 io.on("connection", (socket) => {
   socket.on("resume_session", () => {
