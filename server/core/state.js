@@ -19,4 +19,5 @@ module.exports = {
   refreshByUser: new Map(),
   authUserAliases: new Map(),
   httpRateLimits: new Map(),
+  socketRateLimits: new Map(),
 };
