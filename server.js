@@ -2430,11 +2430,24 @@ function toSerializedMessageEntry(doc) {
 async function loadStateFromMongoCollections() {
   if (!hasMongoStorage()) return false;
 
+  // A snapshot write spans multiple collections. Load one complete snapshot,
+  // rather than accidentally mixing old/new documents after a crash.
+  const latestCandidates = await Promise.all([
+    mongoUsersCollection.findOne({}, { projection: { snapshotId: 1, updatedAt: 1 }, sort: { updatedAt: -1 } }),
+    mongoConversationsCollection.findOne({}, { projection: { snapshotId: 1, updatedAt: 1 }, sort: { updatedAt: -1 } }),
+    mongoMessagesCollection.findOne({}, { projection: { snapshotId: 1, updatedAt: 1 }, sort: { updatedAt: -1 } }),
+  ]);
+  const latest = latestCandidates
+    .filter(Boolean)
+    .sort((a, b) => String(b.updatedAt || "").localeCompare(String(a.updatedAt || "")))[0];
+  const snapshotId = toDisplayName(latest?.snapshotId);
+  const snapshotFilter = snapshotId ? { snapshotId } : {};
+
   const [userDocs, conversationDocs, messageDocs, legacyDoc] = await Promise.all([
-    mongoUsersCollection.find({}, { projection: { snapshotId: 0, updatedAt: 0 } }).toArray(),
-    mongoConversationsCollection.find({}, { projection: { _id: 1 } }).toArray(),
+    mongoUsersCollection.find(snapshotFilter, { projection: { snapshotId: 0, updatedAt: 0 } }).toArray(),
+    mongoConversationsCollection.find(snapshotFilter, { projection: { _id: 1 } }).toArray(),
     mongoMessagesCollection
-      .find({}, { projection: { _id: 0, snapshotId: 0, updatedAt: 0 } })
+      .find(snapshotFilter, { projection: { _id: 0, snapshotId: 0, updatedAt: 0 } })
       .sort({ conversationKey: 1, timestamp: 1, messageId: 1 })
       .toArray(),
     mongoLegacyCollection
@@ -2445,17 +2458,13 @@ async function loadStateFromMongoCollections() {
       : null,
   ]);
 
-  if (!userDocs.length && !conversationDocs.length && !messageDocs.length) {
-    return false;
-  }
+  if (!userDocs.length && !conversationDocs.length && !messageDocs.length) return false;
 
   const messageMap = new Map();
   for (const doc of messageDocs) {
     const conversationKey = toDisplayName(doc?.conversationKey);
     if (!conversationKey) continue;
-    if (!messageMap.has(conversationKey)) {
-      messageMap.set(conversationKey, []);
-    }
+    if (!messageMap.has(conversationKey)) messageMap.set(conversationKey, []);
     messageMap.get(conversationKey).push(toSerializedMessageEntry(doc));
   }
 
@@ -2464,18 +2473,14 @@ async function loadStateFromMongoCollections() {
     const key = toDisplayName(doc?._id);
     if (key) conversationKeySet.add(key);
   }
-  for (const key of messageMap.keys()) {
-    conversationKeySet.add(key);
-  }
+  for (const key of messageMap.keys()) conversationKeySet.add(key);
 
   const parsed = {
     users: userDocs.map(toSerializedUserEntry).filter(Boolean),
-    conversations: Array.from(conversationKeySet)
-      .sort()
-      .map((key) => ({
-        key,
-        messages: messageMap.get(key) || [],
-      })),
+    conversations: Array.from(conversationKeySet).sort().map((key) => ({
+      key,
+      messages: messageMap.get(key) || [],
+    })),
     groups: Array.isArray(legacyDoc?.groups) ? legacyDoc.groups : [],
     scheduledMessages: Array.isArray(legacyDoc?.scheduledMessages) ? legacyDoc.scheduledMessages : [],
   };
