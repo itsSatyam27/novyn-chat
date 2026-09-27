@@ -5885,7 +5885,8 @@ io.on("connection", (socket) => {
     activeCalls,
     setCallPair,
     clearCallPair,
-    io
+    io,
+    allowSocketAction
   });
 
   socket.on("private_message", (payload) => {
