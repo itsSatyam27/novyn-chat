@@ -5485,31 +5485,44 @@ io.on("connection", (socket) => {
     const messageId = String(payload?.messageId || payload?.id || "");
     const to = toDisplayName(payload?.to);
     if (!messageId || !to) return;
-    const resolvedTarget = resolveChatTargetForUser(userKey, to, payload?.toType || payload?.kind || "friend", { inferGroup: true });
+
+    const resolvedTarget = resolveChatTargetForUser(
+      userKey, to, payload?.toType || payload?.kind || "friend", { inferGroup: true }
+    );
     if (!resolvedTarget.ok) {
       socket.emit("error_message", { message: resolvedTarget.message || "You are not authorized for this chat." });
       return;
     }
 
-    const friendKey = normalizeName(to);
-    const convKey = getConversationKey(userKey, friendKey);
-    const list = conversations.get(convKey);
-    let pinnedMessage = null;
-    if (list) {
-      const item = list.find((m) => String(m.id) === messageId || String(m.clientTempId) === messageId);
-      if (item) {
-        item.pinnedAt = nowIso();
-        item.pinnedBy = userKey;
-        pinnedMessage = item;
-        schedulePersist();
-      }
-    }
+    const list = conversations.get(resolvedTarget.conversationKey);
+    if (!list) return;
+    const item = list.find((m) => String(m.id) === messageId || String(m.clientTempId) === messageId);
+    if (!item) return;
 
-    const packet = { messageId, pinnedAt: pinnedMessage?.pinnedAt || nowIso(), pinnedBy: userKey, to: to, from: userKey };
+    item.pinnedAt = nowIso();
+    item.pinnedBy = userKey;
+    schedulePersist();
+
+    const packet = {
+      messageId,
+      pinnedAt: item.pinnedAt,
+      pinnedBy: userKey,
+      to: resolvedTarget.targetKey,
+      from: userKey,
+      toType: resolvedTarget.type,
+    };
     socket.emit("message_pinned", packet);
-    const friendSocket = onlineUsers.get(friendKey);
-    if (friendSocket) {
-      io.to(friendSocket).emit("message_pinned", packet);
+
+    if (resolvedTarget.type === "group") {
+      for (const memberKey of resolvedTarget.group.members || []) {
+        const memberSocketId = onlineUsers.get(normalizeName(memberKey));
+        if (memberSocketId && normalizeName(memberKey) !== normalizeName(userKey)) {
+          io.to(memberSocketId).emit("message_pinned", packet);
+        }
+      }
+    } else {
+      const friendSocketId = onlineUsers.get(normalizeName(resolvedTarget.targetKey));
+      if (friendSocketId) io.to(friendSocketId).emit("message_pinned", packet);
     }
   });
 
@@ -5519,29 +5532,37 @@ io.on("connection", (socket) => {
     const messageId = String(payload?.messageId || payload?.id || "");
     const to = toDisplayName(payload?.to);
     if (!messageId || !to) return;
-    const resolvedTarget = resolveChatTargetForUser(userKey, to, payload?.toType || payload?.kind || "friend", { inferGroup: true });
+
+    const resolvedTarget = resolveChatTargetForUser(
+      userKey, to, payload?.toType || payload?.kind || "friend", { inferGroup: true }
+    );
     if (!resolvedTarget.ok) {
       socket.emit("error_message", { message: resolvedTarget.message || "You are not authorized for this chat." });
       return;
     }
 
-    const friendKey = normalizeName(to);
-    const convKey = getConversationKey(userKey, friendKey);
-    const list = conversations.get(convKey);
-    if (list) {
-      const item = list.find((m) => String(m.id) === messageId || String(m.clientTempId) === messageId);
-      if (item) {
-        item.pinnedAt = null;
-        item.pinnedBy = "";
-        schedulePersist();
-      }
-    }
+    const list = conversations.get(resolvedTarget.conversationKey);
+    if (!list) return;
+    const item = list.find((m) => String(m.id) === messageId || String(m.clientTempId) === messageId);
+    if (!item) return;
 
-    const packet = { messageId, to: to, from: userKey };
+    item.pinnedAt = null;
+    item.pinnedBy = "";
+    schedulePersist();
+
+    const packet = { messageId, to: resolvedTarget.targetKey, from: userKey, toType: resolvedTarget.type };
     socket.emit("message_unpinned", packet);
-    const friendSocket = onlineUsers.get(friendKey);
-    if (friendSocket) {
-      io.to(friendSocket).emit("message_unpinned", packet);
+
+    if (resolvedTarget.type === "group") {
+      for (const memberKey of resolvedTarget.group.members || []) {
+        const memberSocketId = onlineUsers.get(normalizeName(memberKey));
+        if (memberSocketId && normalizeName(memberKey) !== normalizeName(userKey)) {
+          io.to(memberSocketId).emit("message_unpinned", packet);
+        }
+      }
+    } else {
+      const friendSocketId = onlineUsers.get(normalizeName(resolvedTarget.targetKey));
+      if (friendSocketId) io.to(friendSocketId).emit("message_unpinned", packet);
     }
   });
 
