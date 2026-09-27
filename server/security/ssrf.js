@@ -42,6 +42,29 @@ async function assertSafeExternalUrl(rawUrl) {
   return parsed;
 }
 
+async function readResponseBufferWithLimit(response, maxBytes) {
+  const length = Number(response.headers.get("content-length") || 0);
+  if (length > maxBytes) throw new Error("Response too large");
+  if (!response.body) return Buffer.alloc(0);
+
+  const reader = response.body.getReader();
+  const chunks = [];
+  let total = 0;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > maxBytes) {
+      await reader.cancel();
+      throw new Error("Response too large");
+    }
+    chunks.push(Buffer.from(value));
+  }
+
+  return Buffer.concat(chunks, total);
+}
+
 async function readResponseWithLimit(response, maxBytes) {
   const length = Number(response.headers.get("content-length") || 0);
   if (length > maxBytes) throw new Error("Response too large");
@@ -65,4 +88,4 @@ async function readResponseWithLimit(response, maxBytes) {
   return Buffer.concat(chunks, total).toString("utf8");
 }
 
-module.exports = { assertSafeExternalUrl, readResponseWithLimit };
+module.exports = { assertSafeExternalUrl, readResponseWithLimit, readResponseBufferWithLimit };
