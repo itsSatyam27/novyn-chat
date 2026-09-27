@@ -5679,6 +5679,12 @@ io.on("connection", (socket) => {
     const packet = {
       messageId,
       game: updatedGame,
+      moveData: {
+        ...updatedGame.data,
+        state: updatedGame.state,
+        turn: updatedGame.turn,
+        winner: updatedGame.winner,
+      },
       updatedBy: userKey,
       to,
       from: userKey,
