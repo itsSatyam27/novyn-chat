@@ -5569,20 +5569,36 @@ io.on("connection", (socket) => {
   socket.on("create_poll", (payload) => {
     const userKey = socket.data.userKey;
     if (!userKey) return;
-    const to = toDisplayName(payload?.to);
-    const question = String(payload?.question || "").trim();
-    const optionsRaw = Array.isArray(payload?.options) ? payload.options : [];
-    if (!to || !question || optionsRaw.length < 2) return;
-    if (!resolveChatTargetForUser(userKey, to, "friend", { inferGroup: true }).ok) {
-      socket.emit("error_message", { message: "You are not authorized to create a poll here." });
+    if (!allowSocketAction(socket, "create_poll", 20, 60 * 1000)) {
+      socket.emit("error_message", { message: "Poll rate limit reached. Slow down a bit." });
       return;
     }
 
-    const options = optionsRaw.slice(0, 8).map((opt, i) => ({
-      id: `opt_${i}_${Date.now()}`,
-      text: String(opt).trim(),
+    const to = toDisplayName(payload?.to);
+    const requestedType = payload?.toType || payload?.kind || "friend";
+    const question = String(payload?.question || "").trim().slice(0, 500);
+    const optionsRaw = Array.isArray(payload?.options) ? payload.options : [];
+    if (!to || !question || optionsRaw.length < 2 || optionsRaw.length > 8) {
+      socket.emit("error_message", { message: "A poll needs 2 to 8 options." });
+      return;
+    }
+
+    const resolved = resolveChatTargetForUser(userKey, to, requestedType, { inferGroup: true });
+    if (!resolved.ok) {
+      socket.emit("error_message", { message: resolved.message || "You are not authorized to create a poll here." });
+      return;
+    }
+
+    const options = optionsRaw.map((opt, i) => ({
+      id: `opt_${i}_${Date.now()}_${crypto.randomBytes(2).toString("hex")}`,
+      text: String(opt || "").trim().slice(0, 200),
       votes: [],
-    }));
+    })).filter((opt) => opt.text);
+
+    if (options.length < 2) {
+      socket.emit("error_message", { message: "A poll needs at least 2 non-empty options." });
+      return;
+    }
 
     const poll = {
       id: `poll_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`,
@@ -5591,20 +5607,18 @@ io.on("connection", (socket) => {
       totalVotes: 0,
     };
 
-    const clientTempId = payload?.clientTempId || `tmp_poll_${Date.now()}`;
-    const friendKey = normalizeName(to);
-    const convKey = getConversationKey(userKey, friendKey);
-    let list = conversations.get(convKey);
-    if (!list) {
-      list = [];
-      conversations.set(convKey, list);
-    }
-
+    const clientTempId = String(payload?.clientTempId || `tmp_poll_${Date.now()}`).slice(0, 64);
+    const convKey = resolved.conversationKey;
+    const list = conversations.get(convKey) || [];
     const msg = {
       id: poll.id,
       clientTempId,
-      from: userKey,
-      to: friendKey,
+      from: users.get(userKey)?.username || userKey,
+      to: resolved.targetLabel,
+      fromKey: userKey,
+      toKey: resolved.targetKey,
+      toType: resolved.type,
+      groupId: resolved.type === "group" ? resolved.targetKey : undefined,
       text: `📊 Poll: ${question}`,
       timestamp: nowIso(),
       poll,
@@ -5612,12 +5626,18 @@ io.on("connection", (socket) => {
     };
 
     list.push(msg);
+    conversations.set(convKey, list);
     schedulePersist();
 
-    socket.emit("private_message", msg);
-    const friendSocket = onlineUsers.get(friendKey);
-    if (friendSocket) {
-      io.to(friendSocket).emit("private_message", msg);
+    if (resolved.type === "group") {
+      for (const memberKey of resolved.group.members || []) {
+        const memberSocketId = onlineUsers.get(normalizeName(memberKey));
+        if (memberSocketId) io.to(memberSocketId).emit("private_message", msg);
+      }
+    } else {
+      socket.emit("private_message", msg);
+      const friendSocket = onlineUsers.get(normalizeName(resolved.targetKey));
+      if (friendSocket) io.to(friendSocket).emit("private_message", msg);
     }
   });
 
