@@ -3621,14 +3621,26 @@ function allowSocketAction(socket, key, maxPerWindow, windowMs) {
   if (!socket || !key) return false;
   const max = Math.max(1, Number(maxPerWindow) || 1);
   const windowDuration = Math.max(1000, Number(windowMs) || 1000);
-  if (!socket.data.rateBuckets) {
-    socket.data.rateBuckets = {};
-  }
   const now = Date.now();
-  const bucket = socket.data.rateBuckets[key] || {
-    count: 0,
-    windowStartedAt: now,
-  };
+  const userKey = normalizeName(socket.data?.userKey || "");
+  const globalKey = userKey ? `${userKey}:${key}` : `anonymous:${socket.handshake?.address || "unknown"}:${key}`;
+  const globalStore = runtimeState.socketRateLimits;
+
+  // Enforce limits across all simultaneous sockets for the same account.
+  // Otherwise a client could bypass a per-socket limit by opening connections.
+  const existing = globalStore.get(globalKey);
+  if (!existing || now - existing.windowStartedAt > windowDuration) {
+    globalStore.set(globalKey, { count: 1, windowStartedAt: now });
+  } else {
+    existing.count += 1;
+  }
+
+  const globalBucket = globalStore.get(globalKey);
+  if (globalBucket.count > max) return false;
+
+  // Keep a lightweight per-socket bucket as an additional burst guard.
+  if (!socket.data.rateBuckets) socket.data.rateBuckets = {};
+  const bucket = socket.data.rateBuckets[key] || { count: 0, windowStartedAt: now };
   if (now - bucket.windowStartedAt > windowDuration) {
     bucket.windowStartedAt = now;
     bucket.count = 0;
