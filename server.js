@@ -3626,6 +3626,14 @@ function allowSocketAction(socket, key, maxPerWindow, windowMs) {
   const globalKey = userKey ? `${userKey}:${key}` : `anonymous:${socket.handshake?.address || "unknown"}:${key}`;
   const globalStore = runtimeState.socketRateLimits;
 
+  // Prune expired global buckets opportunistically so long-lived servers do
+  // not retain one Map entry forever for every user/action combination.
+  for (const [storedKey, storedBucket] of globalStore) {
+    if (!storedBucket || now - storedBucket.windowStartedAt > windowDuration) {
+      globalStore.delete(storedKey);
+    }
+  }
+
   // Enforce limits across all simultaneous sockets for the same account.
   // Otherwise a client could bypass a per-socket limit by opening connections.
   const existing = globalStore.get(globalKey);
