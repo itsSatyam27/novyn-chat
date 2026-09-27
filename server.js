@@ -13,7 +13,7 @@ const { createChatAuthorization } = require("./server/chat/authorization");
 const { createIpRateLimiter, pruneHttpRateLimits } = require("./server/auth/rate-limit");
 const { createAuthToken: signAuthToken, verifyAuthToken: verifySignedAuthToken } = require("./server/auth/tokens");
 const { createAuthSessions } = require("./server/auth/sessions");
-const { parseCookies, createCsrf } = require("./server/auth/csrf");
+const { parseCookies, safeTimingEqual: csrfSafeTimingEqual, createCsrf } = require("./server/auth/csrf");
 const runtimeState = require("./server/core/state");
 require("dotenv").config();
 const admin = require("firebase-admin");
@@ -974,7 +974,7 @@ function fromBase64Url(input) {
 }
 
 function safeTimingEqual(left, right) {
-  return require("./server/auth/csrf").safeTimingEqual(left, right);
+  return csrfSafeTimingEqual(left, right);
 }
 
 function createCsrfToken() {
