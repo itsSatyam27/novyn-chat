@@ -90,6 +90,8 @@ export function playCallEndSound() {
 export class WebRTCManager {
   private pc: RTCPeerConnection | null = null;
   private localStream: MediaStream | null = null;
+  private cameraTrack: MediaStreamTrack | null = null;
+  private screenTrack: MediaStreamTrack | null = null;
   private remoteStream: MediaStream = new MediaStream();
   private pendingCandidates: RTCIceCandidateInit[] = [];
   private onRemoteStreamCallback: ((stream: MediaStream) => void) | null = null;
@@ -164,6 +166,7 @@ export class WebRTCManager {
           },
         });
         this.localStream = stream;
+        this.cameraTrack = stream.getVideoTracks()[0] || null;
         if (this.onLocalStreamCallback) this.onLocalStreamCallback(stream);
         return stream;
       } catch (videoErr: any) {
@@ -181,6 +184,7 @@ export class WebRTCManager {
     try {
       const audioStream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints });
       this.localStream = audioStream;
+      this.cameraTrack = null;
       if (this.onLocalStreamCallback) this.onLocalStreamCallback(audioStream);
       return audioStream;
     } catch (audioErr: any) {
@@ -234,6 +238,13 @@ export class WebRTCManager {
       this.localStream.getTracks().forEach((track) => {
         pc.addTrack(track, this.localStream!);
       });
+    }
+
+    // Keep a video receive m-line even when this side had to fall back to
+    // audio-only media. Without it, the remote peer may be unable to send
+    // video in a call where only one camera initialized successfully.
+    if (!this.localStream?.getVideoTracks().length) {
+      pc.addTransceiver('video', { direction: 'recvonly' });
     }
 
     return pc;
@@ -315,37 +326,45 @@ export class WebRTCManager {
     if (!this.pc || !this.localStream) return false;
 
     if (isSharing) {
+      if (this.screenTrack) return true;
       try {
-        const screenStream = await (navigator.mediaDevices as any).getDisplayMedia({
-          video: true,
+        const screenStream = await navigator.mediaDevices.getDisplayMedia({
+          video: {
+            frameRate: { ideal: 30, max: 60 },
+          },
           audio: false,
         });
         const screenTrack = screenStream.getVideoTracks()[0];
         if (!screenTrack) return false;
 
-        const senders = this.pc.getSenders();
-        const videoSender = senders.find((s) => s.track && s.track.kind === 'video');
-
-        if (videoSender) {
-          await videoSender.replaceTrack(screenTrack);
-        } else {
-          this.pc.addTrack(screenTrack, this.localStream);
+        const videoSender = this.pc.getSenders().find(
+          (sender) => sender.track?.kind === 'video'
+        );
+        // Screen sharing requires an existing video sender because replacing a
+        // track is renegotiation-free. Adding a brand-new sender would require
+        // a second offer/answer exchange that this call protocol does not do.
+        if (!videoSender) {
+          screenTrack.stop();
+          console.warn('[WebRTC] Screen share unavailable without a video sender.');
+          return false;
         }
 
-        // Update local stream with screen track for local preview
-        const oldVideoTracks = this.localStream.getVideoTracks();
-        oldVideoTracks.forEach((t) => this.localStream!.removeTrack(t));
-        this.localStream.addTrack(screenTrack);
+        await videoSender.replaceTrack(screenTrack);
+        this.screenTrack = screenTrack;
 
-        if (this.onLocalStreamCallback) {
-          this.onLocalStreamCallback(this.localStream);
-        }
+        // Keep the original camera track alive for restoration. The local
+        // preview gets a separate stream containing audio + the screen track.
+        const previewStream = new MediaStream([
+          ...this.localStream.getAudioTracks(),
+          screenTrack,
+        ]);
+        if (this.onLocalStreamCallback) this.onLocalStreamCallback(previewStream);
 
+        screenTrack.contentHint = 'detail';
         screenTrack.onended = () => {
-          this.toggleScreenShare(false);
-          if (this.onScreenShareEndedCallback) {
-            this.onScreenShareEndedCallback();
-          }
+          void this.toggleScreenShare(false).then(() => {
+            if (this.onScreenShareEndedCallback) this.onScreenShareEndedCallback();
+          });
         };
 
         return true;
@@ -353,40 +372,33 @@ export class WebRTCManager {
         console.warn('Screen sharing cancelled or failed:', err);
         return false;
       }
-    } else {
-      try {
-        // Restore camera track
-        const cameraStream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            width: { ideal: 1280, max: 1920 },
-            height: { ideal: 720, max: 1080 },
-            facingMode: 'user',
-          },
-        });
-        const cameraTrack = cameraStream.getVideoTracks()[0];
+    }
 
-        const senders = this.pc.getSenders();
-        const videoSender = senders.find((s) => s.track && s.track.kind === 'video');
-        if (videoSender) {
-          await videoSender.replaceTrack(cameraTrack);
-        }
+    try {
+      const screenTrack = this.screenTrack;
+      this.screenTrack = null;
+      if (screenTrack) screenTrack.onended = null;
 
-        if (this.localStream) {
-          const oldVideoTracks = this.localStream.getVideoTracks();
-          oldVideoTracks.forEach((t) => {
-            t.stop();
-            this.localStream!.removeTrack(t);
-          });
-          this.localStream.addTrack(cameraTrack);
-          if (this.onLocalStreamCallback) {
-            this.onLocalStreamCallback(this.localStream);
-          }
-        }
-      } catch (err) {
-        console.warn('Could not restore camera after screen share:', err);
+      if (this.cameraTrack && this.cameraTrack.readyState === 'live') {
+        const videoSender = this.pc.getSenders().find(
+          (sender) => sender.track?.kind === 'video'
+        );
+        if (videoSender) await videoSender.replaceTrack(this.cameraTrack);
+
+        const previewStream = new MediaStream([
+          ...this.localStream.getAudioTracks(),
+          this.cameraTrack,
+        ]);
+        if (this.onLocalStreamCallback) this.onLocalStreamCallback(previewStream);
+      } else if (screenTrack) {
+        screenTrack.stop();
       }
+    } catch (err) {
+      console.warn('Could not restore camera after screen share:', err);
       return false;
     }
+
+    return false;
   }
 
   public getLocalStream(): MediaStream | null {
@@ -398,12 +410,18 @@ export class WebRTCManager {
   }
 
   public stopLocalMedia() {
+    if (this.screenTrack) {
+      this.screenTrack.onended = null;
+      this.screenTrack.stop();
+      this.screenTrack = null;
+    }
     if (this.localStream) {
       this.localStream.getTracks().forEach((track) => {
         track.stop();
       });
       this.localStream = null;
     }
+    this.cameraTrack = null;
   }
 
   public cleanup() {
