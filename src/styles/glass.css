@@ -380,7 +380,8 @@ button:disabled { cursor: not-allowed; }
   .workspace-pane { padding: 0; }
   .app-container[data-tab="settings"] .workspace-pane { padding-bottom: 0; }
   .chat-list-panel { padding-bottom: calc(86px + env(safe-area-inset-bottom, 0px)) !important; }
-  .glass-dock.mobile-bottom-nav { left: 50%; right: auto; bottom: max(18px, env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); height: 60px; padding: 0; width: calc(var(--dock-expanded) + 4 * var(--dock-slot) + 4 * var(--dock-gap) + 14px); }
+  .glass-dock.mobile-bottom-nav { left: 50%; right: auto; bottom: max(18px, env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); height: 60px; padding: 0; width: calc(var(--dock-expanded) + 4 * var(--dock-slot) + 4 * var(--dock-gap) + 14px); background: transparent !important; border: 0 !important; box-shadow: none !important; backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
+  .glass-dock.mobile-bottom-nav[data-phase="tucked"] .dock-surface { visibility: hidden; background: transparent !important; border-color: transparent !important; box-shadow: none !important; backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
   .glass-dock { --dock-slot: 43px; }
   .chat-window { border: 0; }
   .chat-header { height: auto !important; min-height: 68px; flex-wrap: wrap; padding: 12px !important; }

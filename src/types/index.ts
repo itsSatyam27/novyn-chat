@@ -134,6 +134,8 @@ export interface CallState {
   isMuted: boolean;
   isCameraOff: boolean;
   isScreenSharing?: boolean;
+  /** The other participant is presenting a display rather than their camera. */
+  remoteIsScreenSharing?: boolean;
   status: 'idle' | 'calling' | 'ringing' | 'connected' | 'ended';
   localStream?: MediaStream | null;
   remoteStream?: MediaStream | null;

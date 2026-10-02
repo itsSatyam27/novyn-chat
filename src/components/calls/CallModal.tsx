@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useChat } from '../../context/ChatContext';
 import { Avatar } from '../ui/Avatar';
@@ -46,6 +46,22 @@ export const CallModal: React.FC = () => {
   const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
 
+  const attachLocalVideo = useCallback((node: HTMLVideoElement | null) => {
+    localVideoRef.current = node;
+    if (node && callState.localStream) {
+      node.srcObject = callState.localStream;
+      node.play().catch(() => {});
+    }
+  }, [callState.localStream]);
+
+  const attachRemoteVideo = useCallback((node: HTMLVideoElement | null) => {
+    remoteVideoRef.current = node;
+    if (node && callState.remoteStream) {
+      node.srcObject = callState.remoteStream;
+      node.play().catch(() => {});
+    }
+  }, [callState.remoteStream]);
+
   // Persistent Audio Playback (Ensures sound ALWAYS propagates across all modes)
   useEffect(() => {
     if (remoteAudioRef.current && callState.remoteStream) {
@@ -62,7 +78,10 @@ export const CallModal: React.FC = () => {
       localVideoRef.current.srcObject = callState.localStream;
       localVideoRef.current.play().catch(() => {});
     }
-  }, [callState.localStream, callState.isVideo, callState.isScreenSharing, callState.isCameraOff, isMinimized]);
+  // The local PiP mounts only once the connected video layout is visible.
+  // Include the connection/remote stream state so an already-acquired camera
+  // stream is attached after that element has mounted.
+  }, [callState.localStream, callState.remoteStream, callState.status, callState.isVideo, callState.isScreenSharing, callState.isCameraOff, isMinimized]);
 
   // Bind remote stream to video element
   useEffect(() => {
@@ -100,6 +119,7 @@ export const CallModal: React.FC = () => {
     callState.remoteStream.getVideoTracks().length > 0 &&
     callState.remoteStream.getVideoTracks().some((t) => t.enabled && t.readyState === 'live')
   );
+  const isScreenPresentation = Boolean(callState.isScreenSharing || callState.remoteIsScreenSharing);
 
   return (
     <>
@@ -226,13 +246,16 @@ export const CallModal: React.FC = () => {
           {/* Remote Full-Screen Video Feed */}
           <div style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden' }}>
             <video
-              ref={remoteVideoRef}
+                ref={attachRemoteVideo}
               autoPlay
               playsInline
               style={{
                 width: '100%',
                 height: '100%',
-                objectFit: 'cover',
+                // Desktop displays are landscape. Fitting them avoids a portrait
+                // phone cutting off the sides of the shared screen.
+                objectFit: callState.remoteIsScreenSharing ? 'contain' : 'cover',
+                background: callState.remoteIsScreenSharing ? '#080b12' : 'transparent',
                 display: hasRemoteVideo ? 'block' : 'none',
               }}
             />
@@ -266,17 +289,17 @@ export const CallModal: React.FC = () => {
               }}
             >
               <video
-                ref={localVideoRef}
+                ref={attachLocalVideo}
                 autoPlay
                 playsInline
                 muted
                 style={{
                   width: '100%',
                   height: '100%',
-                  objectFit: 'cover',
+                  objectFit: callState.isScreenSharing ? 'contain' : 'cover',
                   transform: callState.isScreenSharing ? 'none' : 'scaleX(-1)',
                   display: callState.localStream && !callState.isCameraOff ? 'block' : 'none',
-                  filter: FILTER_PRESETS.find((p) => p.id === videoFilter)?.css || 'none',
+                  filter: callState.isScreenSharing ? 'none' : FILTER_PRESETS.find((p) => p.id === videoFilter)?.css || 'none',
                   transition: 'filter 0.3s ease',
                 }}
               />
@@ -385,8 +408,8 @@ export const CallModal: React.FC = () => {
                   {callState.isCameraOff ? <VideoOff style={{ width: '20px', height: '20px' }} /> : <Video style={{ width: '20px', height: '20px' }} />}
               </button>
 
-              {/* Video Filters Toggle */}
-              <button
+              {/* Filters are camera-only, never part of a screen share. */}
+              {!isScreenPresentation && <button
                 type="button"
                 onClick={() => {
                   triggerHaptic('light');
@@ -408,7 +431,7 @@ export const CallModal: React.FC = () => {
                 title="Camera Video Filters"
               >
                 <Sparkles style={{ width: '19px', height: '19px' }} />
-              </button>
+              </button>}
 
               {/* Screen Share */}
               <button
@@ -455,7 +478,7 @@ export const CallModal: React.FC = () => {
             </div>
 
             {/* Floating Filter Selector Pills Drawer */}
-            {showFilterPicker && (
+            {!isScreenPresentation && showFilterPicker && (
               <div
                 style={{
                   position: 'absolute',
