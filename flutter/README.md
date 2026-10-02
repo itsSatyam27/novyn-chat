@@ -1,6 +1,17 @@
 # novyn
 
-A new Flutter project.
+The Flutter client targets `https://novyn-live.onrender.com` in release builds.
+
+## Backend configuration
+
+Run against a local Android-emulator backend without changing source:
+
+```bash
+flutter run --dart-define=NOVYN_API_URL=http://10.0.2.2:3000
+```
+
+For a physical device, use your computer's LAN URL instead. A release APK can
+target another backend with `flutter build apk --release --dart-define=NOVYN_API_URL=https://your-api.example.com`.
 
 ## Getting Started
 

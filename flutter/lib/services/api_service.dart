@@ -10,12 +10,15 @@ import '../models/chat_models.dart';
 /// using [_sessionCookie]).
 class ApiService {
   // ── Server URL ─────────────────────────────────────────────────────────────
-  // Change to your deployed URL in production.
-  // For local dev on a real device replace with your machine's LAN IP, e.g.:
-  //   static const String baseUrl = 'http://192.168.1.100:3000';
-  // For emulator use:
-  //   static const String baseUrl = 'http://10.0.2.2:3000';
-  static const String baseUrl = 'http://10.0.2.2:3000';
+  /// The production backend used by release APKs.
+  ///
+  /// Override it for local work without editing source code:
+  /// `flutter run --dart-define=NOVYN_API_URL=http://10.0.2.2:3000`
+  /// A physical device should use the development machine's LAN address.
+  static const String baseUrl = String.fromEnvironment(
+    'NOVYN_API_URL',
+    defaultValue: 'https://novyn-live.onrender.com',
+  );
 
   // Holds the raw cookie string received from Set-Cookie after sign-in.
   // Flutter's http package does not persist cookies automatically on mobile,

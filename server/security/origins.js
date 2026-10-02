@@ -1,5 +1,8 @@
 function isAllowedSocketOrigin(origin, { isProduction, allowedOrigins }) {
-  if (!origin) return !isProduction;
+  // Native Socket.IO clients (Flutter, desktop) do not send a browser Origin
+  // header. CORS is a browser boundary; authentication still protects every
+  // socket action after this transport-level check.
+  if (!origin) return true;
   if (allowedOrigins.includes(origin)) return true;
   if (isProduction) return false;
   try {

@@ -44,6 +44,7 @@ test('development allows exact loopback origins; production requires the allowli
     assert.equal(isAllowedSocketOrigin(origin, dev), false);
   }
   assert.equal(isAllowedSocketOrigin('https://chat.example', { isProduction: true, allowedOrigins: ['https://chat.example'] }), true);
+  assert.equal(isAllowedSocketOrigin('', { isProduction: true, allowedOrigins: [] }), true, 'native clients have no browser Origin header');
 });
 
 test('media access follows ownership and current conversation membership', () => {
