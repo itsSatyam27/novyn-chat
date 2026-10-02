@@ -193,7 +193,7 @@ html, body {
   right: 0 !important;
   bottom: 0 !important;
   width: 100vw !important;
-  height: 100vh !important;
+  height: 100dvh !important;
   z-index: 9999 !important;
   background: rgba(4, 7, 13, 0.82) !important;
   backdrop-filter: blur(14px) !important;
@@ -213,7 +213,299 @@ html, body {
   border-radius: var(--radius-xl) !important;
   padding: 32px 28px !important;
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.8) !important;
-  overflow: hidden !important;
+  max-height: 100%;
+  overflow-y: auto !important;
+  overscroll-behavior: contain;
+}
+
+.auth-modal-backdrop {
+  height: 100dvh !important;
+  padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)) !important;
+}
+
+.auth-forgot-password {
+  display: block;
+  margin: 8px 0 0 auto;
+  min-height: 32px;
+  padding: 4px 0;
+  border: 0;
+  background: transparent;
+  color: #34d399;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.auth-forgot-password:hover {
+  color: #6ee7b7;
+  text-decoration: underline;
+}
+
+.auth-modal-card button:focus-visible {
+  outline: 2px solid #34d399;
+  outline-offset: 3px;
+}
+
+.password-recovery {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding-top: 8px;
+}
+
+.recovery-header {
+  text-align: center;
+}
+
+.recovery-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  margin: 0 auto 20px;
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  border-radius: 18px;
+  background: rgba(16, 185, 129, 0.12);
+  color: #34d399;
+}
+
+.recovery-badge svg {
+  width: 26px;
+  height: 26px;
+}
+
+.recovery-header h2 {
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.3;
+}
+
+.recovery-header p {
+  margin-top: 10px;
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  line-height: 1.65;
+}
+
+.recovery-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.recovery-input {
+  position: relative;
+}
+
+.recovery-input > svg {
+  position: absolute;
+  top: 50%;
+  left: 14px;
+  width: 18px;
+  height: 18px;
+  transform: translateY(-50%);
+  color: var(--text-dark);
+  pointer-events: none;
+}
+
+.recovery-input .input-field {
+  min-height: 48px;
+}
+
+.recovery-input .input-field:disabled {
+  opacity: 0.65;
+}
+
+.recovery-hint {
+  margin-top: 8px;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.recovery-notice {
+  padding: 12px 14px;
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  border-radius: var(--radius-md);
+  background: rgba(16, 185, 129, 0.08);
+  color: #6ee7b7;
+  font-size: 0.8rem;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.recovery-notice-error {
+  border-color: rgba(239, 68, 68, 0.25);
+  background: rgba(239, 68, 68, 0.1);
+  color: #fca5a5;
+}
+
+.recovery-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.recovery-actions .btn {
+  width: 100%;
+  min-height: 48px;
+  white-space: normal;
+}
+
+.recovery-actions .btn:disabled {
+  opacity: 0.6;
+  cursor: wait;
+  transform: none;
+}
+
+@media (max-width: 480px) {
+  .auth-modal-card {
+    padding: 32px 20px 24px !important;
+  }
+
+  .auth-modal-card .input-field {
+    font-size: 16px;
+  }
+}
+
+.auth-modal-card.game-launcher-modal {
+  max-width: 480px !important;
+}
+
+.game-launcher {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.game-launcher-context {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  color: #cbd5e1;
+  font-size: 0.8rem;
+  overflow-wrap: anywhere;
+}
+
+.game-launcher-context svg {
+  flex-shrink: 0;
+  color: #34d399;
+}
+
+.game-launcher-intro p {
+  margin-top: 6px;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.game-launcher-options {
+  display: grid;
+  gap: 12px;
+}
+
+.game-launcher-option {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr) 28px;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 18px 16px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: linear-gradient(110deg, var(--game-tint), rgba(255, 255, 255, 0.02));
+  color: var(--text-main);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.game-launcher-option:hover {
+  border-color: var(--game-accent);
+  background-color: var(--game-tint);
+}
+
+.game-launcher-option:active {
+  background-color: rgba(255, 255, 255, 0.08);
+}
+
+.game-launcher-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  color: var(--game-accent);
+  background: var(--game-tint);
+}
+
+.game-launcher-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+
+.game-launcher-meta {
+  color: var(--game-accent);
+  font-size: 0.65rem;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.game-launcher-title {
+  font-size: 0.95rem;
+  font-weight: 750;
+  line-height: 1.4;
+}
+
+.game-launcher-description {
+  color: var(--text-muted);
+  font-size: 0.76rem;
+  line-height: 1.55;
+}
+
+.game-launcher-play {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--game-accent);
+}
+
+.game-launcher-footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 0.73rem;
+  color: var(--text-muted);
+}
+
+.game-launcher-footer svg {
+  flex-shrink: 0;
+}
+
+.tic-tac-toe-board button:focus-visible {
+  outline: 2px solid #f8fafc;
+  outline-offset: -4px;
+}
+
+@media (max-width: 400px) {
+  .game-launcher-option {
+    grid-template-columns: 36px minmax(0, 1fr) 18px;
+    gap: 10px;
+    padding: 14px 12px;
+  }
+
+  .game-launcher-icon {
+    width: 36px;
+    height: 40px;
+    border-radius: 10px;
+  }
 }
 
 .modal-close-btn {
@@ -1029,6 +1321,74 @@ html, body {
   border: 1px solid var(--border);
   padding: 8px 16px;
   border-radius: 12px;
+}
+
+/* Modern Landing Page Keyframes & Utilities */
+@keyframes glowFloat {
+  0%, 100% {
+    transform: translate(0px, 0px) scale(1);
+    opacity: 0.35;
+  }
+  50% {
+    transform: translate(30px, -20px) scale(1.12);
+    opacity: 0.65;
+  }
+}
+
+@keyframes glowFloatReverse {
+  0%, 100% {
+    transform: translate(0px, 0px) scale(1);
+    opacity: 0.3;
+  }
+  50% {
+    transform: translate(-30px, 25px) scale(1.18);
+    opacity: 0.55;
+  }
+}
+
+@keyframes liveWaveform {
+  0%, 100% {
+    height: 6px;
+  }
+  50% {
+    height: 28px;
+  }
+}
+
+@keyframes pulseBorder {
+  0%, 100% {
+    border-color: rgba(16, 185, 129, 0.2);
+    box-shadow: 0 0 15px rgba(16, 185, 129, 0.08);
+  }
+  50% {
+    border-color: rgba(16, 185, 129, 0.6);
+    box-shadow: 0 0 25px rgba(16, 185, 129, 0.25);
+  }
+}
+
+.ambient-grid {
+  background-size: 32px 32px;
+  background-image: 
+    linear-gradient(to right, rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+}
+
+.bento-card {
+  position: relative;
+  background: rgba(13, 19, 33, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 24px;
+  padding: 28px;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  transition: all 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+  overflow: hidden;
+}
+
+.bento-card:hover {
+  border-color: rgba(16, 185, 129, 0.35);
+  transform: translateY(-3px);
+  box-shadow: 0 20px 45px rgba(0, 0, 0, 0.5), 0 0 35px rgba(16, 185, 129, 0.12);
 }
 
 /* Chat Mockup Card */

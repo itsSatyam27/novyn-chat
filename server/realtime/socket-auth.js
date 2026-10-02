@@ -1,9 +1,10 @@
 "use strict";
+const { isAllowedSocketOrigin } = require('../security/origins');
 
 function createSocketAuthMiddleware({ isProduction, allowedOrigins, resolveUserFromAuthCookies, getAuthCookiesFromHeader, normalizeText }) {
   return function socketAuthMiddleware(socket, next) {
     const origin = normalizeText(socket.handshake?.headers?.origin);
-    if (isProduction && (!origin || !allowedOrigins.includes(origin))) {
+    if (!isAllowedSocketOrigin(origin, { isProduction, allowedOrigins })) {
       return next(new Error("Origin not allowed"));
     }
 
@@ -14,6 +15,7 @@ function createSocketAuthMiddleware({ isProduction, allowedOrigins, resolveUserF
 
     if (auth.userKey) {
       socket.data.userKey = auth.userKey;
+      socket.data.sessionId = auth.sessionId;
     }
 
     next();

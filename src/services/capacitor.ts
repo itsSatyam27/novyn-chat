@@ -65,7 +65,7 @@ export async function setupMobileEnvironment() {
 
   try {
     await StatusBar.setStyle({ style: Style.Dark });
-    await StatusBar.setBackgroundColor({ color: '#090d16' });
+    await StatusBar.setBackgroundColor({ color: '#e6f6f5' });
   } catch (err) {
     console.debug('StatusBar setup error:', err);
   }

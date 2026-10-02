@@ -16,9 +16,19 @@ interface MessageInputProps {
   onCreatePoll?: (question: string, options: string[]) => void;
   onOpenGames?: () => void;
   activeChatId?: string | null;
+  mentionMembers?: string[];
 }
 
 const EMOJI_LIST = ['😀', '😂', '😍', '🔥', '👍', '🎉', '❤️', '🙌', '✨', '🚀'];
+
+const PICKER_EMOJIS = [
+  ...EMOJI_LIST,
+  '😄', '😁', '😅', '🤣', '😊', '😇', '🙂', '🙃', '😉', '🥰', '😘', '😋',
+  '🤔', '🤭', '🤫', '🥳', '😴', '😭', '😤', '😡', '🤯', '🥺', '🙌', '👌',
+  '✌️', '🤞', '💪', '🎯', '💡', '✅', '❗', '💬', '🌟', '🎈', '🍀', '👋',
+];
+
+const MESSAGE_CHARACTER_LIMIT = 250;
 
 export const MessageInput: React.FC<MessageInputProps> = ({
   onSendMessage,
@@ -28,6 +38,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   onCreatePoll,
   onOpenGames,
   activeChatId,
+  mentionMembers = [],
 }) => {
   const [text, setText] = useState(() => {
     if (activeChatId) {
@@ -37,10 +48,13 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   });
   const [isRecording, setIsRecording] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState('');
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showAttachMenu, setShowAttachMenu] = useState(false);
   const [showGifModal, setShowGifModal] = useState(false);
   const [showPollModal, setShowPollModal] = useState(false);
+  const [mentionQuery, setMentionQuery] = useState<string | null>(null);
+  const [mentionIndex, setMentionIndex] = useState(0);
   const typingTimerRef = useRef<any>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -52,6 +66,9 @@ export const MessageInput: React.FC<MessageInputProps> = ({
 
   // Restore draft when activeChatId switches
   useEffect(() => {
+    setUploadError('');
+    setShowAttachMenu(false);
+    setShowEmojiPicker(false);
     if (activeChatId) {
       const saved = localStorage.getItem(`novyn_draft_${activeChatId.toLowerCase()}`) || '';
       setText(saved);
@@ -112,6 +129,10 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const val = e.target.value;
     setText(val);
+    const cursorText = val.slice(0, e.target.selectionStart ?? val.length);
+    const mentionMatch = cursorText.match(/(?:^|\s)@([\w-]*)$/);
+    setMentionQuery(mentionMatch ? mentionMatch[1].toLowerCase() : null);
+    setMentionIndex(0);
 
     // Save draft per active conversation
     if (activeChatId) {
@@ -130,9 +151,30 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     }, 1500);
   };
 
+  const mentionCandidates = mentionQuery === null ? [] : mentionMembers
+    .filter((member) => member.toLowerCase().includes(mentionQuery))
+    .slice(0, 5);
+
+  const insertMention = (member: string) => {
+    const cursor = textareaRef.current?.selectionStart ?? text.length;
+    const before = text.slice(0, cursor).replace(/@([\w-]*)$/, `@${member}`);
+    const next = `${before}${text.slice(cursor)} `;
+    setText(next);
+    setMentionQuery(null);
+    requestAnimationFrame(() => {
+      textareaRef.current?.focus();
+      const nextCursor = before.length + 1;
+      textareaRef.current?.setSelectionRange(nextCursor, nextCursor);
+    });
+  };
+
   const handleSend = () => {
     const trimmed = text.trim();
     if (!trimmed) return;
+    if (trimmed.length > MESSAGE_CHARACTER_LIMIT) {
+      setUploadError(`Messages can be up to ${MESSAGE_CHARACTER_LIMIT} characters.`);
+      return;
+    }
 
     onSendMessage(trimmed, {
       replyTo: replyMessage
@@ -160,7 +202,28 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (mentionCandidates.length) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setMentionIndex((current) => (current + 1) % mentionCandidates.length);
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setMentionIndex((current) => (current - 1 + mentionCandidates.length) % mentionCandidates.length);
+        return;
+      }
+      if (e.key === 'Escape') {
+        setMentionQuery(null);
+        return;
+      }
+      if (e.key === 'Enter' || e.key === 'Tab') {
+        e.preventDefault();
+        insertMention(mentionCandidates[mentionIndex]);
+        return;
+      }
+    }
+    if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault();
       handleSend();
     }
@@ -169,11 +232,13 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    e.target.value = '';
 
     setIsUploading(true);
+    setUploadError('');
     triggerHaptic('medium');
 
-    const res = await uploadMediaFile(file);
+    const res = await uploadMediaFile(file).catch(() => ({ ok: false, url: undefined, error: 'Upload interrupted. Choose the file again to retry.' }));
     setIsUploading(false);
 
     if (res.ok && res.url) {
@@ -190,7 +255,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       });
       onCancelReply();
     } else {
-      alert(res.error || 'Failed to upload attachment');
+      setUploadError(res.error || 'Could not upload the file. Choose it again to retry.');
     }
   };
 
@@ -214,6 +279,8 @@ export const MessageInput: React.FC<MessageInputProps> = ({
 
   return (
     <div style={{ position: 'relative', width: '100%' }}>
+      {isUploading && <div className="composer-notice" role="status">Uploading attachment…</div>}
+      {uploadError && <div className="composer-notice is-error" role="alert">{uploadError}<button type="button" onClick={() => setUploadError('')} aria-label="Dismiss upload error">×</button></div>}
       {/* Reply Banner */}
       {replyMessage && (
         <div
@@ -221,7 +288,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            background: '#161f30',
+            background: 'var(--bg-surface)',
             border: '1px solid var(--border)',
             borderBottom: 'none',
             borderRadius: '16px 16px 0 0',
@@ -230,15 +297,15 @@ export const MessageInput: React.FC<MessageInputProps> = ({
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
-            <span style={{ fontWeight: 700, color: '#10b981' }}>Replying to {replyMessage.sender}:</span>
-            <span style={{ color: '#94a3b8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <span style={{ fontWeight: 700, color: '#0e9f8a' }}>Replying to {replyMessage.sender}:</span>
+            <span style={{ color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {replyMessage.text || 'Attachment'}
             </span>
           </div>
           <button
             type="button"
             onClick={onCancelReply}
-            style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '2px' }}
+            style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '2px' }}
           >
             <X style={{ width: '14px', height: '14px' }} />
           </button>
@@ -250,38 +317,24 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         {showEmojiPicker && (
           <motion.div
             ref={emojiPickerRef}
-            initial={{ opacity: 0, scale: 0.92, y: 8 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.92, y: 8 }}
-            transition={{ duration: 0.15 }}
-            style={{
-              position: 'absolute',
-              bottom: '100%',
-              marginBottom: '10px',
-              left: '0',
-              background: '#161f30',
-              border: '1px solid var(--border)',
-              borderRadius: '16px',
-              padding: '10px',
-              display: 'flex',
-              gap: '8px',
-              boxShadow: '0 12px 30px rgba(0,0,0,0.5)',
-              zIndex: 30,
-            }}
+            initial={{ opacity: 0, y: 5 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 3 }}
+            transition={{ duration: 0.1 }}
+            className="emoji-picker"
+            style={{ position: 'absolute', bottom: '100%', marginBottom: '10px', left: '0', zIndex: 30 }}
           >
-            {EMOJI_LIST.map((emoji) => (
-              <button
-                key={emoji}
-                type="button"
-                onClick={() => {
+            <div className="emoji-picker-title"><span>Quick reactions</span><span>Tap to add</span></div>
+            <div className="emoji-picker-grid">
+              {PICKER_EMOJIS.map((emoji) => (
+                <button key={emoji} type="button" onClick={() => {
                   setText((prev) => prev + emoji);
-                  setShowEmojiPicker(false);
-                }}
-                style={{ background: 'none', border: 'none', fontSize: '1.25rem', cursor: 'pointer', padding: '2px' }}
-              >
-                {emoji}
-              </button>
-            ))}
+                  requestAnimationFrame(() => textareaRef.current?.focus());
+                }} aria-label={`Add ${emoji}`}>
+                  {emoji}
+                </button>
+              ))}
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -291,6 +344,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         {showAttachMenu && (
           <motion.div
             ref={attachMenuRef}
+            className="attachment-menu"
             initial={{ opacity: 0, scale: 0.92, y: 10 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.92, y: 10 }}
@@ -300,19 +354,20 @@ export const MessageInput: React.FC<MessageInputProps> = ({
               bottom: '100%',
               marginBottom: '10px',
               left: '8px',
-              background: '#0f172a',
-              border: '1px solid rgba(255, 255, 255, 0.12)',
+              background: 'var(--bg-surface)',
+              border: '1px solid var(--border)',
               borderRadius: '16px',
               padding: '6px',
               display: 'flex',
               flexDirection: 'column',
               gap: '2px',
-              boxShadow: '0 20px 45px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.08)',
+              boxShadow: '0 20px 45px rgba(36, 76, 96, 0.1), 0 0 0 1px rgba(255, 255, 255, 0.08)',
               zIndex: 1000,
               backdropFilter: 'blur(16px)',
               minWidth: '220px',
             }}
           >
+            <div className="attachment-menu-title"><span>Share something</span><span>Choose a format</span></div>
             {/* Photos & Videos */}
             <button
               type="button"
@@ -329,17 +384,17 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                 borderRadius: '10px',
                 background: 'transparent',
                 border: 'none',
-                color: '#ffffff',
+                color: 'var(--text-main)',
                 fontSize: '0.84rem',
                 fontWeight: 600,
                 cursor: 'pointer',
                 textAlign: 'left',
                 transition: 'background 0.12s ease',
               }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255, 255, 255, 0.06)')}
+              onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255, 255, 255, 0.55)')}
               onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
             >
-              <div style={{ width: '28px', height: '28px', borderRadius: '8px', background: 'rgba(16, 185, 129, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#10b981' }}>
+              <div style={{ width: '28px', height: '28px', borderRadius: '8px', background: 'rgba(16, 185, 129, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0e9f8a' }}>
                 <ImageIcon style={{ width: '15px', height: '15px' }} />
               </div>
               <span>Photos & Videos</span>
@@ -361,17 +416,17 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                 borderRadius: '10px',
                 background: 'transparent',
                 border: 'none',
-                color: '#ffffff',
+                color: 'var(--text-main)',
                 fontSize: '0.84rem',
                 fontWeight: 600,
                 cursor: 'pointer',
                 textAlign: 'left',
                 transition: 'background 0.12s ease',
               }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255, 255, 255, 0.06)')}
+              onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255, 255, 255, 0.55)')}
               onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
             >
-              <div style={{ width: '28px', height: '28px', borderRadius: '8px', background: 'rgba(96, 165, 250, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#60a5fa' }}>
+              <div style={{ width: '28px', height: '28px', borderRadius: '8px', background: 'rgba(96, 165, 250, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#2569b2' }}>
                 <FileText style={{ width: '15px', height: '15px' }} />
               </div>
               <span>Document / File</span>
@@ -394,17 +449,17 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                   borderRadius: '10px',
                   background: 'transparent',
                   border: 'none',
-                  color: '#ffffff',
+                  color: 'var(--text-main)',
                   fontSize: '0.84rem',
                   fontWeight: 600,
                   cursor: 'pointer',
                   textAlign: 'left',
                   transition: 'background 0.12s ease',
                 }}
-                onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255, 255, 255, 0.06)')}
+                onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255, 255, 255, 0.55)')}
                 onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
               >
-                <div style={{ width: '28px', height: '28px', borderRadius: '8px', background: 'rgba(245, 158, 11, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f59e0b' }}>
+                <div style={{ width: '28px', height: '28px', borderRadius: '8px', background: 'rgba(245, 158, 11, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#a86d0b' }}>
                   <BarChart3 style={{ width: '15px', height: '15px' }} />
                 </div>
                 <span>Create Poll</span>
@@ -428,14 +483,14 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                   borderRadius: '10px',
                   background: 'transparent',
                   border: 'none',
-                  color: '#ffffff',
+                  color: 'var(--text-main)',
                   fontSize: '0.84rem',
                   fontWeight: 600,
                   cursor: 'pointer',
                   textAlign: 'left',
                   transition: 'background 0.12s ease',
                 }}
-                onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255, 255, 255, 0.06)')}
+                onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255, 255, 255, 0.55)')}
                 onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
               >
                 <div style={{ width: '28px', height: '28px', borderRadius: '8px', background: 'rgba(168, 85, 247, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#a855f7' }}>
@@ -461,14 +516,14 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                 borderRadius: '10px',
                 background: 'transparent',
                 border: 'none',
-                color: '#ffffff',
+                color: 'var(--text-main)',
                 fontSize: '0.84rem',
                 fontWeight: 600,
                 cursor: 'pointer',
                 textAlign: 'left',
                 transition: 'background 0.12s ease',
               }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255, 255, 255, 0.06)')}
+              onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255, 255, 255, 0.55)')}
               onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
             >
               <div style={{ width: '28px', height: '28px', borderRadius: '8px', background: 'rgba(236, 72, 153, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ec4899' }}>
@@ -481,6 +536,24 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       </AnimatePresence>
 
       {/* Input Bar */}
+      {mentionCandidates.length > 0 && (
+        <div className="mention-suggestions" role="listbox" aria-label="Mention suggestions">
+          {mentionCandidates.map((member, index) => (
+            <button
+              key={member}
+              type="button"
+              role="option"
+              aria-selected={index === mentionIndex}
+              className={index === mentionIndex ? 'is-selected' : ''}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => insertMention(member)}
+            >
+              <span className="mention-avatar">@</span>
+              <span>@{member}</span>
+            </button>
+          ))}
+        </div>
+      )}
       <div
         className="input-bar-container"
         style={{ borderRadius: replyMessage ? '0 0 18px 18px' : '18px' }}
@@ -509,7 +582,8 @@ export const MessageInput: React.FC<MessageInputProps> = ({
             }}
             disabled={isUploading}
             className="input-action-btn"
-            style={showAttachMenu ? { color: '#10b981', background: 'rgba(16, 185, 129, 0.15)' } : {}}
+            style={showAttachMenu ? { color: '#0e9f8a', background: 'rgba(16, 185, 129, 0.15)' } : {}}
+            aria-label="Attach..."
             title="Attach..."
           >
             <Paperclip style={{ width: '18px', height: '18px' }} />
@@ -520,7 +594,8 @@ export const MessageInput: React.FC<MessageInputProps> = ({
             type="button"
             onClick={() => setShowEmojiPicker(!showEmojiPicker)}
             className="input-action-btn"
-            style={showEmojiPicker ? { color: '#10b981', background: 'rgba(16, 185, 129, 0.15)' } : {}}
+            style={showEmojiPicker ? { color: '#0e9f8a', background: 'rgba(16, 185, 129, 0.15)' } : {}}
+            aria-label="Emoji"
             title="Emoji"
           >
             <Smile style={{ width: '18px', height: '18px' }} />
@@ -528,14 +603,20 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         </div>
 
         <textarea
+          aria-label="Message"
           ref={textareaRef}
           value={text}
           onChange={handleChange}
           onKeyDown={handleKeyDown}
           placeholder="Message..."
+          maxLength={MESSAGE_CHARACTER_LIMIT}
           rows={1}
           className="message-textarea"
         />
+
+        <span className={`message-character-count ${text.length >= MESSAGE_CHARACTER_LIMIT * 0.9 ? 'is-near-limit' : ''}`} aria-live="polite">
+          {text.length}/{MESSAGE_CHARACTER_LIMIT}
+        </span>
 
         <div>
           {text.trim() ? (
@@ -543,6 +624,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
               type="button"
               onClick={handleSend}
               className="send-btn"
+              aria-label="Send message"
             >
               <Send style={{ width: '16px', height: '16px' }} />
             </button>
@@ -552,7 +634,8 @@ export const MessageInput: React.FC<MessageInputProps> = ({
               onClick={() => setIsRecording(true)}
               disabled={isUploading}
               className="input-action-btn"
-              style={{ color: '#10b981' }}
+              style={{ color: '#0e9f8a' }}
+              aria-label="Voice Message"
               title="Voice Message"
             >
               <Mic style={{ width: '20px', height: '20px' }} />

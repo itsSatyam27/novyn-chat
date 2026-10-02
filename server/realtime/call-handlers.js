@@ -19,6 +19,10 @@ function registerCallHandlers(socket, deps) {
     const isVideo = Boolean(payload?.isVideo);
     const callId = toDisplayName(payload?.callId).slice(0, 128);
     if (!to || !callId) return;
+    if (normalizeName(to) === normalizeName(userKey)) {
+      socket.emit("call_ended", { callId, reason: "You cannot call yourself." });
+      return;
+    }
 
     const callTarget = resolveChatTargetForUser(userKey, to, "friend", { inferGroup: false });
     if (!callTarget.ok || callTarget.type !== "friend") {

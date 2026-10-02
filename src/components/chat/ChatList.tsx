@@ -22,6 +22,7 @@ import {
   ArrowLeft,
   X,
   Check,
+  SquarePen,
 } from 'lucide-react';
 import { triggerHaptic } from '../../services/capacitor';
 import { CreateGroupModal } from './CreateGroupModal';
@@ -63,6 +64,8 @@ export const ChatList: React.FC<ChatListProps> = ({
   const [activeFilter, setActiveFilter] = useState<FilterTab>('all');
   const [isViewingArchived, setIsViewingArchived] = useState(false);
   const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
+  const [isComposeOpen, setIsComposeOpen] = useState(false);
+  const composeRef = useRef<HTMLDivElement>(null);
 
   // Context Menu State
   const [menuOpenFor, setMenuOpenFor] = useState<string | null>(null);
@@ -78,6 +81,7 @@ export const ChatList: React.FC<ChatListProps> = ({
   // Close context menu on outside click
   useEffect(() => {
     const handleOutsideClick = (e: MouseEvent) => {
+      if (composeRef.current && !composeRef.current.contains(e.target as Node)) setIsComposeOpen(false);
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
         setMenuOpenFor(null);
         setMenuPosition(null);
@@ -224,7 +228,7 @@ export const ChatList: React.FC<ChatListProps> = ({
             borderRadius: '12px',
             background: 'rgba(16, 185, 129, 0.12)',
             border: '1px solid rgba(16, 185, 129, 0.25)',
-            color: '#10b981',
+            color: '#0e9f8a',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -324,12 +328,12 @@ export const ChatList: React.FC<ChatListProps> = ({
                       top: '2px',
                       right: '4px',
                       background: '#10b981',
-                      color: '#ffffff',
+                      color: 'var(--text-on-primary)',
                       fontSize: '0.62rem',
                       fontWeight: 800,
                       padding: '1px 5px',
                       borderRadius: '9999px',
-                      border: '2px solid #101624',
+                      border: '2px solid #e4f0f0',
                     }}
                   >
                     {conv.unreadCount > 0 ? conv.unreadCount : ''}
@@ -365,32 +369,32 @@ export const ChatList: React.FC<ChatListProps> = ({
             <h2 className="chat-list-title">Archived</h2>
           </div>
         ) : (
-          <h2 className="chat-list-title">Chats</h2>
+          <h2 className="chat-list-title">Messages</h2>
         )}
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+        <div className="inbox-compose" ref={composeRef} onKeyDown={(event) => {
+          if (event.key === 'Escape') {
+            setIsComposeOpen(false);
+            composeRef.current?.querySelector<HTMLButtonElement>('.inbox-compose-trigger')?.focus();
+          }
+        }} onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setIsComposeOpen(false); }}>
           <button
             type="button"
             onClick={() => {
               triggerHaptic('light');
-              setIsGroupModalOpen(true);
+              setIsComposeOpen((open) => !open);
             }}
-            className="header-action-btn"
-            title="Create New Group"
+            className="header-action-btn inbox-compose-trigger"
+            title="Compose"
+            aria-label="Compose a message"
+            aria-expanded={isComposeOpen}
           >
-            <Users style={{ width: '18px', height: '18px', color: '#10b981' }} />
+            <SquarePen size={19} />
           </button>
-          <button
-            type="button"
-            onClick={() => {
-              triggerHaptic('light');
-              onOpenContacts();
-            }}
-            className="header-action-btn"
-            title="Add Friend"
-          >
-            <UserPlus style={{ width: '18px', height: '18px' }} />
-          </button>
+          {isComposeOpen && <div className="inbox-compose-options" role="group" aria-label="New conversation">
+            <button type="button" onClick={() => { setIsComposeOpen(false); onOpenContacts(); }}><SquarePen size={17} /> New message</button>
+            <button type="button" onClick={() => { setIsComposeOpen(false); setIsGroupModalOpen(true); }}><Users size={17} /> New group</button>
+          </div>}
         </div>
       </div>
 
@@ -404,24 +408,32 @@ export const ChatList: React.FC<ChatListProps> = ({
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder={isViewingArchived ? 'Search archived chats...' : 'Search conversations...'}
             className="search-input-field"
+            aria-label="Search conversations"
           />
         </div>
       </div>
 
-      {/* Filter Tabs (All / Unread / Favourites / Groups) - WhatsApp style */}
+      {/* Always-visible filters with a shared sliding selection pill. */}
       {!isViewingArchived && (
+        <div className="chat-filters-viewport">
         <div
+          className="chat-filters"
+          role="group"
+          aria-label="Filter conversations"
           style={{
+            '--filter-index': ['all', 'unread', 'favourites', 'groups'].indexOf(activeFilter),
             display: 'flex',
             alignItems: 'center',
             gap: '6px',
             padding: '0 16px 12px',
             overflowX: 'auto',
             scrollbarWidth: 'none',
-          }}
+          } as React.CSSProperties}
         >
+          <span className="chat-filter-pill" aria-hidden="true" />
           <button
             type="button"
+            aria-pressed={activeFilter === 'all'}
             onClick={() => {
               triggerHaptic('light');
               setActiveFilter('all');
@@ -430,8 +442,8 @@ export const ChatList: React.FC<ChatListProps> = ({
               padding: '5px 12px',
               borderRadius: '9999px',
               border: 'none',
-              background: activeFilter === 'all' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255, 255, 255, 0.05)',
-              color: activeFilter === 'all' ? '#10b981' : '#94a3b8',
+              background: activeFilter === 'all' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255, 255, 255, 0.55)',
+              color: activeFilter === 'all' ? '#0e9f8a' : 'var(--text-muted)',
               fontWeight: 700,
               fontSize: '0.76rem',
               cursor: 'pointer',
@@ -444,6 +456,7 @@ export const ChatList: React.FC<ChatListProps> = ({
 
           <button
             type="button"
+            aria-pressed={activeFilter === 'unread'}
             onClick={() => {
               triggerHaptic('light');
               setActiveFilter('unread');
@@ -452,8 +465,8 @@ export const ChatList: React.FC<ChatListProps> = ({
               padding: '5px 12px',
               borderRadius: '9999px',
               border: 'none',
-              background: activeFilter === 'unread' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255, 255, 255, 0.05)',
-              color: activeFilter === 'unread' ? '#10b981' : '#94a3b8',
+              background: activeFilter === 'unread' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255, 255, 255, 0.55)',
+              color: activeFilter === 'unread' ? '#0e9f8a' : 'var(--text-muted)',
               fontWeight: 700,
               fontSize: '0.76rem',
               cursor: 'pointer',
@@ -467,22 +480,24 @@ export const ChatList: React.FC<ChatListProps> = ({
             Unread
             {unreadCountTotal > 0 && (
               <span
+                className="chat-filter-count"
                 style={{
-                  background: activeFilter === 'unread' ? '#10b981' : 'rgba(255, 255, 255, 0.2)',
-                  color: '#ffffff',
+                  background: activeFilter === 'unread' ? '#10b981' : 'rgba(255, 255, 255, 0.55)',
+                  color: 'var(--text-main)',
                   fontSize: '0.62rem',
                   padding: '1px 5px',
                   borderRadius: '9999px',
                   fontWeight: 800,
                 }}
               >
-                {unreadCountTotal}
+                {unreadCountTotal > 99 ? '99+' : unreadCountTotal}
               </span>
             )}
           </button>
 
           <button
             type="button"
+            aria-pressed={activeFilter === 'favourites'}
             onClick={() => {
               triggerHaptic('light');
               setActiveFilter('favourites');
@@ -491,8 +506,8 @@ export const ChatList: React.FC<ChatListProps> = ({
               padding: '5px 12px',
               borderRadius: '9999px',
               border: 'none',
-              background: activeFilter === 'favourites' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255, 255, 255, 0.05)',
-              color: activeFilter === 'favourites' ? '#10b981' : '#94a3b8',
+              background: activeFilter === 'favourites' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255, 255, 255, 0.55)',
+              color: activeFilter === 'favourites' ? '#0e9f8a' : 'var(--text-muted)',
               fontWeight: 700,
               fontSize: '0.76rem',
               cursor: 'pointer',
@@ -505,6 +520,7 @@ export const ChatList: React.FC<ChatListProps> = ({
 
           <button
             type="button"
+            aria-pressed={activeFilter === 'groups'}
             onClick={() => {
               triggerHaptic('light');
               setActiveFilter('groups');
@@ -513,8 +529,8 @@ export const ChatList: React.FC<ChatListProps> = ({
               padding: '5px 12px',
               borderRadius: '9999px',
               border: 'none',
-              background: activeFilter === 'groups' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255, 255, 255, 0.05)',
-              color: activeFilter === 'groups' ? '#10b981' : '#94a3b8',
+              background: activeFilter === 'groups' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255, 255, 255, 0.55)',
+              color: activeFilter === 'groups' ? '#0e9f8a' : 'var(--text-muted)',
               fontWeight: 700,
               fontSize: '0.76rem',
               cursor: 'pointer',
@@ -524,6 +540,7 @@ export const ChatList: React.FC<ChatListProps> = ({
           >
             Groups
           </button>
+        </div>
         </div>
       )}
 
@@ -540,22 +557,22 @@ export const ChatList: React.FC<ChatListProps> = ({
             justifyContent: 'space-between',
             padding: '10px 20px',
             cursor: 'pointer',
-            borderBottom: '1px solid rgba(255, 255, 255, 0.04)',
-            background: 'rgba(255, 255, 255, 0.015)',
+            borderBottom: '1px solid var(--border)',
+            background: 'rgba(255, 255, 255, 0.55)',
             transition: 'background 0.15s ease',
           }}
-          onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.background = 'rgba(255, 255, 255, 0.04)')}
-          onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.background = 'rgba(255, 255, 255, 0.015)')}
+          onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.background = 'rgba(255, 255, 255, 0.55)')}
+          onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.background = 'rgba(255, 255, 255, 0.55)')}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <Archive style={{ width: '18px', height: '18px', color: '#10b981' }} />
-            <span style={{ fontSize: '0.88rem', fontWeight: 700, color: '#ffffff' }}>Archived</span>
+            <Archive style={{ width: '18px', height: '18px', color: '#0e9f8a' }} />
+            <span style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--text-main)' }}>Archived</span>
           </div>
           <span
             style={{
               fontSize: '0.72rem',
               fontWeight: 800,
-              color: '#10b981',
+              color: '#0e9f8a',
               background: 'rgba(16, 185, 129, 0.15)',
               padding: '2px 8px',
               borderRadius: '9999px',
@@ -570,9 +587,9 @@ export const ChatList: React.FC<ChatListProps> = ({
       <div className="conversations-scroll">
         {filteredConversations.length === 0 ? (
           <div style={{ padding: '40px 20px', textAlign: 'center', color: 'var(--text-dark)' }}>
-            <MessageSquare style={{ width: '36px', height: '36px', margin: '0 auto 12px', opacity: 0.3, color: '#10b981' }} />
+            <MessageSquare style={{ width: '36px', height: '36px', margin: '0 auto 12px', color: 'var(--primary)' }} />
             <p style={{ fontSize: '0.85rem', marginBottom: '8px' }}>
-              {isViewingArchived
+              {searchQuery.trim() ? 'No conversations match your search' : isViewingArchived
                 ? 'No archived conversations'
                 : activeFilter === 'unread'
                 ? 'No unread conversations'
@@ -582,11 +599,11 @@ export const ChatList: React.FC<ChatListProps> = ({
                 ? 'No group conversations'
                 : 'No conversations yet'}
             </p>
-            {!isViewingArchived && activeFilter === 'all' && (
+            {searchQuery.trim() ? <button type="button" className="empty-state-action" onClick={() => setSearchQuery('')}>Clear search</button> : !isViewingArchived && activeFilter === 'all' && (
               <button
                 type="button"
                 onClick={onOpenContacts}
-                style={{ background: 'none', border: 'none', color: '#10b981', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer' }}
+                style={{ background: 'none', border: 'none', color: '#0e9f8a', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer' }}
               >
                 + Add a friend to start
               </button>
@@ -613,6 +630,12 @@ export const ChatList: React.FC<ChatListProps> = ({
                 }}
                 onContextMenu={(e) => handleOpenMenu(e, conv.username, true)}
                 className={`chat-list-item ${isSelected ? 'selected' : ''}`}
+                tabIndex={0}
+                role="link"
+                aria-label={`Open conversation with ${conv.displayName || conv.username}`}
+                onKeyDown={(event) => {
+                  if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); event.currentTarget.click(); }
+                }}
                 style={{ position: 'relative', overflow: 'visible' }}
               >
                 <Avatar
@@ -628,18 +651,18 @@ export const ChatList: React.FC<ChatListProps> = ({
                   <div className="chat-item-top">
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0, flex: 1 }}>
                       <span className="chat-item-name">{conv.displayName || conv.username}</span>
-                      {isFav && <Star style={{ width: '12px', height: '12px', color: '#f59e0b', fill: '#f59e0b', flexShrink: 0 }} />}
+                      {isFav && <Star style={{ width: '12px', height: '12px', color: '#a86d0b', fill: '#a86d0b', flexShrink: 0 }} />}
                     </div>
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
-                      <span className="chat-item-time" style={isUnread ? { color: '#10b981', fontWeight: 700 } : {}}>
+                      <span className="chat-item-time" style={isUnread ? { color: '#0e9f8a', fontWeight: 700 } : {}}>
                         {formatLastSeen(conv.lastMessage?.timestamp || conv.lastSeenAt)}
                       </span>
                     </div>
                   </div>
 
                   <div className="chat-item-bottom">
-                    <span className="chat-item-preview" style={isUnread ? { color: '#ffffff', fontWeight: 600 } : {}}>
+                    <span className="chat-item-preview" style={isUnread ? { color: 'var(--text-main)', fontWeight: 600 } : {}}>
                       {conv.lastMessage ? (
                         conv.lastMessage.isVoice ? (
                           '🎤 Voice message'
@@ -655,11 +678,11 @@ export const ChatList: React.FC<ChatListProps> = ({
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
                       {isMuted && (
-                        <BellOff style={{ width: '13px', height: '13px', color: 'rgba(255, 255, 255, 0.4)' }} />
+                        <BellOff style={{ width: '13px', height: '13px', color: 'rgba(20, 52, 63, 0.45)' }} />
                       )}
 
                       {isPinned && (
-                        <Pin style={{ width: '13px', height: '13px', color: '#10b981', transform: 'rotate(45deg)' }} />
+                        <Pin style={{ width: '13px', height: '13px', color: '#0e9f8a', transform: 'rotate(45deg)' }} />
                       )}
 
                       {isUnread && (
@@ -676,7 +699,7 @@ export const ChatList: React.FC<ChatListProps> = ({
                         style={{
                           background: 'transparent',
                           border: 'none',
-                          color: '#94a3b8',
+                          color: 'var(--text-muted)',
                           padding: '2px',
                           borderRadius: '4px',
                           cursor: 'pointer',
@@ -708,10 +731,10 @@ export const ChatList: React.FC<ChatListProps> = ({
             left: `${menuPosition.x}px`,
             top: `${menuPosition.y}px`,
             width: '210px',
-            background: '#131b2e',
-            border: '1px solid rgba(255, 255, 255, 0.12)',
+            background: 'var(--bg-surface)',
+            border: '1px solid var(--border)',
             borderRadius: '14px',
-            boxShadow: '0 12px 36px rgba(0, 0, 0, 0.65)',
+            boxShadow: '0 12px 36px rgba(36, 76, 96, 0.1)',
             zIndex: 9999,
             padding: '6px',
             display: 'flex',
@@ -731,12 +754,12 @@ export const ChatList: React.FC<ChatListProps> = ({
           >
             {pinnedChats.has(selectedMenuConv.username.toLowerCase()) ? (
               <>
-                <PinOff style={{ width: '15px', height: '15px', color: '#94a3b8' }} />
+                <PinOff style={{ width: '15px', height: '15px', color: 'var(--text-muted)' }} />
                 <span>Unpin chat</span>
               </>
             ) : (
               <>
-                <Pin style={{ width: '15px', height: '15px', color: '#10b981' }} />
+                <Pin style={{ width: '15px', height: '15px', color: '#0e9f8a' }} />
                 <span>Pin chat</span>
               </>
             )}
@@ -754,12 +777,12 @@ export const ChatList: React.FC<ChatListProps> = ({
           >
             {mutedUsers.has(selectedMenuConv.username.toLowerCase()) ? (
               <>
-                <Bell style={{ width: '15px', height: '15px', color: '#10b981' }} />
+                <Bell style={{ width: '15px', height: '15px', color: '#0e9f8a' }} />
                 <span>Unmute notifications</span>
               </>
             ) : (
               <>
-                <BellOff style={{ width: '15px', height: '15px', color: '#f59e0b' }} />
+                <BellOff style={{ width: '15px', height: '15px', color: '#a86d0b' }} />
                 <span>Mute notifications</span>
               </>
             )}
@@ -778,8 +801,8 @@ export const ChatList: React.FC<ChatListProps> = ({
               style={{
                 width: '15px',
                 height: '15px',
-                color: favouriteChats.has(selectedMenuConv.username.toLowerCase()) ? '#f59e0b' : '#94a3b8',
-                fill: favouriteChats.has(selectedMenuConv.username.toLowerCase()) ? '#f59e0b' : 'none',
+                color: favouriteChats.has(selectedMenuConv.username.toLowerCase()) ? '#a86d0b' : 'var(--text-muted)',
+                fill: favouriteChats.has(selectedMenuConv.username.toLowerCase()) ? '#a86d0b' : 'none',
               }}
             />
             <span>
@@ -804,12 +827,12 @@ export const ChatList: React.FC<ChatListProps> = ({
             {selectedMenuConv.unreadCount > 0 ||
             manualUnreadChats.has(selectedMenuConv.username.toLowerCase()) ? (
               <>
-                <MailCheck style={{ width: '15px', height: '15px', color: '#10b981' }} />
+                <MailCheck style={{ width: '15px', height: '15px', color: '#0e9f8a' }} />
                 <span>Mark as read</span>
               </>
             ) : (
               <>
-                <Mail style={{ width: '15px', height: '15px', color: '#38bdf8' }} />
+                <Mail style={{ width: '15px', height: '15px', color: '#087fac' }} />
                 <span>Mark as unread</span>
               </>
             )}
@@ -826,18 +849,18 @@ export const ChatList: React.FC<ChatListProps> = ({
           >
             {archivedChats.has(selectedMenuConv.username.toLowerCase()) ? (
               <>
-                <ArchiveRestore style={{ width: '15px', height: '15px', color: '#10b981' }} />
+                <ArchiveRestore style={{ width: '15px', height: '15px', color: '#0e9f8a' }} />
                 <span>Unarchive chat</span>
               </>
             ) : (
               <>
-                <Archive style={{ width: '15px', height: '15px', color: '#94a3b8' }} />
+                <Archive style={{ width: '15px', height: '15px', color: 'var(--text-muted)' }} />
                 <span>Archive chat</span>
               </>
             )}
           </button>
 
-          <div style={{ height: '1px', background: 'rgba(255, 255, 255, 0.08)', margin: '4px 0' }} />
+          <div style={{ height: '1px', background: 'rgba(255, 255, 255, 0.55)', margin: '4px 0' }} />
 
           {/* 6. Block (1-on-1 chats only) */}
           {!selectedMenuConv.isGroup && (
@@ -904,7 +927,7 @@ export const ChatList: React.FC<ChatListProps> = ({
           style={{
             position: 'fixed',
             inset: 0,
-            background: 'rgba(0, 0, 0, 0.7)',
+            background: 'rgba(23, 66, 78, 0.12)',
             backdropFilter: 'blur(6px)',
             display: 'flex',
             alignItems: 'center',
@@ -922,12 +945,12 @@ export const ChatList: React.FC<ChatListProps> = ({
               border: '1px solid var(--border)',
               borderRadius: '16px',
               padding: '22px',
-              boxShadow: '0 20px 40px rgba(0, 0, 0, 0.6)',
+              boxShadow: '0 20px 40px rgba(36, 76, 96, 0.1)',
               animation: 'scaleUp 0.15s ease',
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#ffffff', marginBottom: '8px' }}>
+            <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-main)', marginBottom: '8px' }}>
               {confirmAction.type === 'clear'
                 ? 'Clear this chat?'
                 : confirmAction.type === 'delete'
@@ -936,7 +959,7 @@ export const ChatList: React.FC<ChatListProps> = ({
                 ? 'Exit group?'
                 : 'Block user?'}
             </h3>
-            <p style={{ fontSize: '0.84rem', color: '#94a3b8', lineHeight: 1.5, marginBottom: '20px' }}>
+            <p style={{ fontSize: '0.84rem', color: 'var(--text-muted)', lineHeight: 1.5, marginBottom: '20px' }}>
               {confirmAction.type === 'clear'
                 ? `Messages with ${confirmAction.target.displayName || confirmAction.target.username} will be deleted from your device.`
                 : confirmAction.type === 'delete'
@@ -953,9 +976,9 @@ export const ChatList: React.FC<ChatListProps> = ({
                 style={{
                   padding: '9px 16px',
                   borderRadius: '10px',
-                  background: 'rgba(255, 255, 255, 0.06)',
+                  background: 'rgba(255, 255, 255, 0.55)',
                   border: 'none',
-                  color: '#ffffff',
+                  color: 'var(--text-main)',
                   fontSize: '0.84rem',
                   fontWeight: 600,
                   cursor: 'pointer',
@@ -972,7 +995,7 @@ export const ChatList: React.FC<ChatListProps> = ({
                   borderRadius: '10px',
                   background: '#ef4444',
                   border: 'none',
-                  color: '#ffffff',
+                  color: 'var(--text-on-primary)',
                   fontSize: '0.84rem',
                   fontWeight: 700,
                   cursor: 'pointer',

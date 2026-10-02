@@ -1,12 +1,17 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="96" height="96">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
   <defs>
-    <filter id="n"><feGaussianBlur stdDeviation="2.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-    <filter id="s"><feGaussianBlur stdDeviation="1.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    <linearGradient id="badgeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#7c6cff" />
+      <stop offset="100%" stop-color="#5141cd" />
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#3f33a6" flood-opacity="0.42"/>
+    </filter>
   </defs>
-  <rect width="96" height="96" rx="21" ry="21" fill="#0a0d0d"/>
-  <path d="M48 85 Q28 85 20 71 Q15 60 18 48 Q20 41 24 37 L31 18 L38 36 Q42 33 48 33 Q54 33 58 36 L65 18 L72 37 Q76 41 78 48 Q81 60 76 71 Q68 85 48 85 Z"
-        fill="none" stroke="#3CFFA0" stroke-width="2.2" stroke-linejoin="round" filter="url(#n)"/>
-  <path d="M31 59 Q38 53 45 59" stroke="#3CFFA0" stroke-width="2.2" stroke-linecap="round" fill="none" filter="url(#s)"/>
-  <path d="M51 59 Q58 53 65 59" stroke="#3CFFA0" stroke-width="2.2" stroke-linecap="round" fill="none" filter="url(#s)"/>
-  <circle cx="48" cy="68" r="1.5" fill="#3CFFA0"/>
+  
+  <!-- Rounded Badge -->
+  <rect width="100" height="100" rx="24" fill="url(#badgeGrad)" />
+  
+  <!-- White Wings Center -->
+  <image href="data:image/png;base64,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" x="12" y="12" width="76" height="76" filter="url(#glow)" />
 </svg>

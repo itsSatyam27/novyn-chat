@@ -58,12 +58,12 @@ export const VerifySafetyNumberModal: React.FC<VerifySafetyNumberModalProps> = (
 
   return (
     <div
-      className="modal-overlay"
+      className="modal-overlay chat-option-overlay safety-number-overlay"
       onClick={onClose}
       style={{
         position: 'fixed',
         inset: 0,
-        backgroundColor: 'rgba(0, 0, 0, 0.75)',
+        backgroundColor: 'rgba(23, 66, 78, 0.12)',
         backdropFilter: 'blur(10px)',
         zIndex: 9999,
         display: 'flex',
@@ -73,23 +73,24 @@ export const VerifySafetyNumberModal: React.FC<VerifySafetyNumberModalProps> = (
       }}
     >
       <div
-        className="modal-content animate-in"
+        className="modal-content animate-in chat-option-modal safety-number-modal"
         onClick={(e) => e.stopPropagation()}
         style={{
-          background: 'linear-gradient(145deg, #111827 0%, #0b0f17 100%)',
+          background: 'linear-gradient(145deg, var(--bg-surface) 0%, #0b0f17 100%)',
           border: '1px solid rgba(16, 185, 129, 0.3)',
           borderRadius: '24px',
           width: '100%',
           maxWidth: '430px',
           padding: '24px',
-          color: '#ffffff',
-          boxShadow: '0 25px 60px -15px rgba(0, 0, 0, 0.7), 0 0 35px rgba(16, 185, 129, 0.15)',
+          color: 'var(--text-main)',
+          boxShadow: '0 25px 60px -15px rgba(36, 76, 96, 0.1), 0 0 35px rgba(16, 185, 129, 0.15)',
           textAlign: 'center',
           position: 'relative',
         }}
       >
         {/* Close Button */}
         <button
+          className="chat-option-close"
           type="button"
           onClick={() => {
             triggerHaptic('light');
@@ -99,9 +100,9 @@ export const VerifySafetyNumberModal: React.FC<VerifySafetyNumberModalProps> = (
             position: 'absolute',
             top: '18px',
             right: '18px',
-            background: 'rgba(255, 255, 255, 0.08)',
+            background: 'rgba(255, 255, 255, 0.55)',
             border: 'none',
-            color: '#94a3b8',
+            color: 'var(--text-muted)',
             borderRadius: '50%',
             width: '32px',
             height: '32px',
@@ -126,17 +127,17 @@ export const VerifySafetyNumberModal: React.FC<VerifySafetyNumberModalProps> = (
             alignItems: 'center',
             justifyContent: 'center',
             margin: '0 auto 14px',
-            color: '#10b981',
+            color: '#0e9f8a',
           }}
         >
           <ShieldCheck style={{ width: '30px', height: '30px' }} />
         </div>
 
-        <h3 style={{ fontSize: '1.25rem', fontWeight: 800, margin: '0 0 6px', color: '#ffffff' }}>
+        <h3 style={{ fontSize: '1.25rem', fontWeight: 800, margin: '0 0 6px', color: 'var(--text-main)' }}>
           Verify Security Code
         </h3>
-        <p style={{ fontSize: '0.8rem', color: '#94a3b8', margin: '0 0 20px', lineHeight: 1.4 }}>
-          End-to-end encryption code with <strong style={{ color: '#10b981' }}>@{contactUsername}</strong>
+        <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '0 0 20px', lineHeight: 1.4 }}>
+          End-to-end encryption code with <strong style={{ color: '#0e9f8a' }}>@{contactUsername}</strong>
         </p>
 
         {/* QR Code Container */}
@@ -151,7 +152,7 @@ export const VerifySafetyNumberModal: React.FC<VerifySafetyNumberModalProps> = (
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            boxShadow: '0 8px 25px rgba(0, 0, 0, 0.4)',
+            boxShadow: '0 8px 25px rgba(36, 76, 96, 0.1)',
           }}
         >
           <svg viewBox="0 0 100 100" style={{ width: '100%', height: '100%' }}>
@@ -190,15 +191,15 @@ export const VerifySafetyNumberModal: React.FC<VerifySafetyNumberModalProps> = (
         {/* 60-digit number formatted into 4 columns of 3 blocks */}
         <div
           style={{
-            background: 'rgba(255, 255, 255, 0.03)',
-            border: '1px solid rgba(255, 255, 255, 0.08)',
+            background: 'rgba(255, 255, 255, 0.55)',
+            border: '1px solid var(--border)',
             borderRadius: '16px',
             padding: '14px 16px',
             marginBottom: '16px',
           }}
         >
           {isVerifying ? (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '16px', color: '#94a3b8' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '16px', color: 'var(--text-muted)' }}>
               <RefreshCw className="animate-spin" style={{ width: '16px', height: '16px' }} />
               <span>Verifying encryption keys...</span>
             </div>
@@ -211,7 +212,7 @@ export const VerifySafetyNumberModal: React.FC<VerifySafetyNumberModalProps> = (
                 fontFamily: 'monospace',
                 fontSize: '0.86rem',
                 fontWeight: 700,
-                color: '#e2e8f0',
+                color: 'var(--text-main)',
                 letterSpacing: '0.04em',
               }}
             >
@@ -238,9 +239,9 @@ export const VerifySafetyNumberModal: React.FC<VerifySafetyNumberModalProps> = (
             textAlign: 'left',
           }}
         >
-          <Lock style={{ width: '15px', height: '15px', color: '#10b981', flexShrink: 0 }} />
-          <span style={{ fontSize: '0.74rem', color: '#94a3b8', lineHeight: 1.35 }}>
-            To verify that messages and calls with <strong style={{ color: '#ffffff' }}>{contactDisplayName || contactUsername}</strong> are end-to-end encrypted, compare these 60 numbers with their device.
+          <Lock style={{ width: '15px', height: '15px', color: '#0e9f8a', flexShrink: 0 }} />
+          <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)', lineHeight: 1.35 }}>
+            To verify that messages and calls with <strong style={{ color: 'var(--text-main)' }}>{contactDisplayName || contactUsername}</strong> are end-to-end encrypted, compare these 60 numbers with their device.
           </span>
         </div>
 
@@ -256,7 +257,7 @@ export const VerifySafetyNumberModal: React.FC<VerifySafetyNumberModalProps> = (
               ? '#10b981'
               : 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
             border: 'none',
-            color: '#ffffff',
+            color: 'var(--text-main)',
             fontWeight: 700,
             fontSize: '0.88rem',
             cursor: 'pointer',

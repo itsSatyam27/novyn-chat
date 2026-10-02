@@ -91,6 +91,7 @@ export const VoicePlayer: React.FC<VoicePlayerProps> = ({ url, isMe, duration: d
 
   return (
     <div
+      className={`voice-player ${isMe ? 'is-me' : 'is-other'} ${isPlaying ? 'is-playing' : ''}`}
       style={{
         display: 'flex',
         alignItems: 'center',
@@ -104,20 +105,21 @@ export const VoicePlayer: React.FC<VoicePlayerProps> = ({ url, isMe, duration: d
       {/* Play/Pause Button */}
       <button
         type="button"
+        className="voice-player-toggle"
         onClick={togglePlay}
         style={{
           width: '42px',
           height: '42px',
           borderRadius: '50%',
           background: isMe ? '#ffffff' : '#10b981',
-          color: isMe ? '#059669' : '#ffffff',
+          color: isMe ? '#059669' : 'var(--text-main)',
           border: 'none',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           cursor: 'pointer',
           flexShrink: 0,
-          boxShadow: isMe ? '0 4px 12px rgba(0,0,0,0.15)' : '0 4px 14px rgba(16, 185, 129, 0.4)',
+          boxShadow: isMe ? '0 4px 12px rgba(36, 76, 96, 0.1)' : '0 4px 14px rgba(16, 185, 129, 0.4)',
           transition: 'all 0.15s ease',
         }}
         onMouseDown={(e) => (e.currentTarget.style.transform = 'scale(0.92)')}
@@ -134,6 +136,7 @@ export const VoicePlayer: React.FC<VoicePlayerProps> = ({ url, isMe, duration: d
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px', minWidth: 0 }}>
         {/* Interactive Sound Waveform Bars */}
         <div
+          className="voice-player-waveform"
           onClick={handleWaveformClick}
           style={{
             display: 'flex',
@@ -150,18 +153,12 @@ export const VoicePlayer: React.FC<VoicePlayerProps> = ({ url, isMe, duration: d
             return (
               <span
                 key={idx}
+                className={`voice-player-bar ${isPlayed ? 'is-played' : ''}`}
                 style={{
                   flex: 1,
                   height: `${barHeight}px`,
                   borderRadius: '9999px',
-                  background: isMe
-                    ? isPlayed
-                      ? '#ffffff'
-                      : 'rgba(255, 255, 255, 0.35)'
-                    : isPlayed
-                    ? '#10b981'
-                    : 'rgba(255, 255, 255, 0.2)',
-                  transition: 'background 0.1s ease',
+                  animationDelay: `${idx * 42}ms`,
                 }}
               />
             );
@@ -170,12 +167,13 @@ export const VoicePlayer: React.FC<VoicePlayerProps> = ({ url, isMe, duration: d
 
         {/* Time and Speed Badge */}
         <div
+          className="voice-player-meta"
           style={{
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
             fontSize: '0.72rem',
-            color: isMe ? 'rgba(255, 255, 255, 0.9)' : '#94a3b8',
+            color: isMe ? 'rgba(20, 52, 63, 0.9)' : 'var(--text-muted)',
             fontFamily: 'monospace',
             fontWeight: 700,
           }}
@@ -184,11 +182,12 @@ export const VoicePlayer: React.FC<VoicePlayerProps> = ({ url, isMe, duration: d
 
           <button
             type="button"
+            className="voice-player-speed"
             onClick={cycleSpeed}
             style={{
-              background: isMe ? 'rgba(0, 0, 0, 0.2)' : 'rgba(255, 255, 255, 0.08)',
-              border: isMe ? '1px solid rgba(255,255,255,0.2)' : '1px solid rgba(255,255,255,0.1)',
-              color: isMe ? '#ffffff' : '#34d399',
+              background: isMe ? 'rgba(23, 66, 78, 0.05)' : 'rgba(255, 255, 255, 0.55)',
+              border: isMe ? '1px solid var(--border)' : '1px solid var(--border)',
+              color: isMe ? 'var(--text-main)' : '#078779',
               fontSize: '0.68rem',
               fontWeight: 800,
               padding: '2px 7px',

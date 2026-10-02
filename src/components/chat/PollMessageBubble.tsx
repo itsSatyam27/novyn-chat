@@ -24,6 +24,7 @@ export const PollMessageBubble: React.FC<PollMessageBubbleProps> = ({
 
   return (
     <div
+      className={`poll-message ${isMe ? 'is-me' : 'is-other'}`}
       style={{
         display: 'flex',
         flexDirection: 'column',
@@ -37,20 +38,21 @@ export const PollMessageBubble: React.FC<PollMessageBubbleProps> = ({
       {/* Poll Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
         <div
+          className="poll-message-icon"
           style={{
             width: '26px',
             height: '26px',
             borderRadius: '8px',
-            background: isMe ? 'rgba(255, 255, 255, 0.2)' : 'rgba(16, 185, 129, 0.2)',
+            background: isMe ? 'rgba(255, 255, 255, 0.55)' : 'rgba(16, 185, 129, 0.2)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            color: isMe ? '#ffffff' : '#10b981',
+            color: isMe ? 'var(--text-main)' : '#0e9f8a',
           }}
         >
           <BarChart3 style={{ width: '15px', height: '15px' }} />
         </div>
-        <div style={{ fontSize: '0.94rem', fontWeight: 800, color: '#ffffff', lineHeight: 1.3 }}>
+        <div style={{ fontSize: '0.94rem', fontWeight: 800, color: 'var(--text-main)', lineHeight: 1.3 }}>
           {poll.question}
         </div>
       </div>
@@ -64,6 +66,7 @@ export const PollMessageBubble: React.FC<PollMessageBubbleProps> = ({
 
           return (
             <motion.div
+              className={`poll-option ${hasVoted ? 'is-voted' : ''}`}
               key={opt.id}
               whileTap={{ scale: 0.98 }}
               onClick={() => {
@@ -77,11 +80,11 @@ export const PollMessageBubble: React.FC<PollMessageBubbleProps> = ({
                 background: hasVoted
                   ? 'rgba(16, 185, 129, 0.18)'
                   : isMe
-                  ? 'rgba(0, 0, 0, 0.22)'
-                  : 'rgba(255, 255, 255, 0.05)',
+                  ? 'rgba(23, 66, 78, 0.055)'
+                  : 'rgba(255, 255, 255, 0.55)',
                 border: hasVoted
                   ? '1.5px solid #10b981'
-                  : '1px solid rgba(255, 255, 255, 0.1)',
+                  : '1px solid var(--border)',
                 padding: '10px 14px',
                 cursor: 'pointer',
                 transition: 'border-color 0.15s ease',
@@ -89,6 +92,7 @@ export const PollMessageBubble: React.FC<PollMessageBubbleProps> = ({
             >
               {/* Background Animated Fill Percentage Bar */}
               <div
+                className="poll-option-fill"
                 style={{
                   position: 'absolute',
                   top: 0,
@@ -98,8 +102,8 @@ export const PollMessageBubble: React.FC<PollMessageBubbleProps> = ({
                   background: hasVoted
                     ? 'rgba(16, 185, 129, 0.28)'
                     : isMe
-                    ? 'rgba(255, 255, 255, 0.12)'
-                    : 'rgba(255, 255, 255, 0.08)',
+                    ? 'rgba(255, 255, 255, 0.55)'
+                    : 'rgba(255, 255, 255, 0.55)',
                   transition: 'width 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
                   zIndex: 0,
                 }}
@@ -118,9 +122,9 @@ export const PollMessageBubble: React.FC<PollMessageBubbleProps> = ({
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   {hasVoted && (
-                    <CheckCircle2 style={{ width: '15px', height: '15px', color: '#10b981', flexShrink: 0 }} />
+                    <CheckCircle2 style={{ width: '15px', height: '15px', color: '#0e9f8a', flexShrink: 0 }} />
                   )}
-                  <span style={{ fontSize: '0.84rem', fontWeight: 600, color: '#ffffff' }}>
+                  <span style={{ fontSize: '0.84rem', fontWeight: 600, color: 'var(--text-main)' }}>
                     {opt.text}
                   </span>
                 </div>
@@ -129,7 +133,7 @@ export const PollMessageBubble: React.FC<PollMessageBubbleProps> = ({
                   style={{
                     fontSize: '0.78rem',
                     fontWeight: 700,
-                    color: hasVoted ? '#10b981' : 'rgba(255, 255, 255, 0.7)',
+                    color: hasVoted ? '#0e9f8a' : 'rgba(20, 52, 63, 0.7)',
                     fontFamily: 'monospace',
                   }}
                 >
@@ -142,7 +146,7 @@ export const PollMessageBubble: React.FC<PollMessageBubbleProps> = ({
       </div>
 
       {/* Footer Info */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.72rem', color: 'rgba(255, 255, 255, 0.5)' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.72rem', color: 'rgba(20, 52, 63, 0.5)' }}>
         <span>{total} {total === 1 ? 'vote' : 'votes'} total</span>
         <span>Tap option to vote / change</span>
       </div>

@@ -58,6 +58,7 @@ export const LinkPreviewCard: React.FC<{ url: string }> = ({ url }) => {
 
   return (
     <a
+      className="link-preview-card"
       href={data.url}
       target="_blank"
       rel="noopener noreferrer"
@@ -66,18 +67,18 @@ export const LinkPreviewCard: React.FC<{ url: string }> = ({ url }) => {
         marginTop: '8px',
         borderRadius: '12px',
         overflow: 'hidden',
-        background: 'rgba(0, 0, 0, 0.3)',
-        border: '1px solid rgba(255, 255, 255, 0.12)',
+        background: 'rgba(23, 66, 78, 0.075)',
+        border: '1px solid var(--border)',
         textDecoration: 'none',
-        color: '#ffffff',
+        color: 'var(--text-main)',
         maxWidth: '360px',
         transition: 'all 0.15s ease',
       }}
       onMouseEnter={(e) => (e.currentTarget.style.borderColor = 'rgba(16, 185, 129, 0.5)')}
-      onMouseLeave={(e) => (e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.12)')}
+      onMouseLeave={(e) => (e.currentTarget.style.borderColor = 'var(--border)')}
     >
       {data.image && (
-        <div style={{ width: '100%', height: '140px', overflow: 'hidden', background: '#0a0f1d' }}>
+        <div style={{ width: '100%', height: '140px', overflow: 'hidden', background: 'var(--bg-surface)' }}>
           <img
             src={data.image}
             alt={data.title || 'Preview'}
@@ -89,11 +90,11 @@ export const LinkPreviewCard: React.FC<{ url: string }> = ({ url }) => {
 
       <div style={{ padding: '10px 12px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '4px' }}>
-          <Globe style={{ width: '12px', height: '12px', color: '#10b981' }} />
-          <span style={{ fontSize: '0.7rem', color: '#10b981', fontWeight: 700, textTransform: 'uppercase' }}>
+          <Globe style={{ width: '12px', height: '12px', color: '#0e9f8a' }} />
+          <span style={{ fontSize: '0.7rem', color: '#0e9f8a', fontWeight: 700, textTransform: 'uppercase' }}>
             {data.siteName || data.domain || 'Link'}
           </span>
-          <ExternalLink style={{ width: '10px', height: '10px', color: '#94a3b8', marginLeft: 'auto' }} />
+          <ExternalLink style={{ width: '10px', height: '10px', color: 'var(--text-muted)', marginLeft: 'auto' }} />
         </div>
 
         {data.title && (
@@ -101,7 +102,7 @@ export const LinkPreviewCard: React.FC<{ url: string }> = ({ url }) => {
             style={{
               fontSize: '0.84rem',
               fontWeight: 700,
-              color: '#ffffff',
+              color: 'var(--text-main)',
               lineHeight: 1.3,
               marginBottom: '3px',
               display: '-webkit-box',
@@ -118,7 +119,7 @@ export const LinkPreviewCard: React.FC<{ url: string }> = ({ url }) => {
           <div
             style={{
               fontSize: '0.74rem',
-              color: '#94a3b8',
+              color: 'var(--text-muted)',
               lineHeight: 1.35,
               display: '-webkit-box',
               WebkitLineClamp: 2,

@@ -49,6 +49,7 @@ function createMongoStorage(options = {}) {
         users: db.collection(usersCollectionName),
         conversations: db.collection(conversationsCollectionName),
         messages: db.collection(messagesCollectionName),
+        feedback: db.collection('feedback'),
       };
       await ensureIndexes();
       return true;

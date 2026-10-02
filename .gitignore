@@ -16,6 +16,12 @@ novynchat-firebase-adminsdk.json
 *service-account*.json
 *serviceaccount*.json
 
+# Credentials vault directory (keys/*)
+keys/*
+!keys/README.md
+!keys/*.example
+!keys/*.example.*
+
 # Flutter Firebase config files (contain API keys — regenerate with flutterfire configure)
 flutter/android/app/google-services.json
 flutter/ios/Runner/GoogleService-Info.plist

@@ -9,7 +9,7 @@ function createPasswordSecret(password) {
   const hash = crypto
     .pbkdf2Sync(String(password || ""), salt, PBKDF2_ITERATIONS, PBKDF2_KEYLEN, PBKDF2_DIGEST)
     .toString("hex");
-  return { salt, hash, iterations: PBKDF2_ITERATIONS };
+  return { passwordSalt: salt, passwordHash: hash, iterations: PBKDF2_ITERATIONS };
 }
 
 function verifyPassword(password, salt, hash, iterations = PBKDF2_ITERATIONS) {

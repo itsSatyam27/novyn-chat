@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useChat } from '../../context/ChatContext';
 import { Avatar } from '../ui/Avatar';
 import { Users, UserPlus, UserCheck, Search, MessageSquare, Phone, Video, Check, X, Plus } from 'lucide-react';
@@ -7,9 +7,11 @@ import { CreateGroupModal } from '../chat/CreateGroupModal';
 
 interface ContactsPanelProps {
   isCompact?: boolean;
+  onOpenChat: () => void;
+  addRequest?: number;
 }
 
-export const ContactsPanel: React.FC<ContactsPanelProps> = ({ isCompact = false }) => {
+export const ContactsPanel: React.FC<ContactsPanelProps> = ({ isCompact = false, onOpenChat, addRequest = 0 }) => {
   const {
     conversations,
     friendRequests,
@@ -21,6 +23,7 @@ export const ContactsPanel: React.FC<ContactsPanelProps> = ({ isCompact = false 
   } = useChat();
 
   const [activeSubTab, setActiveSubTab] = useState<'all' | 'requests' | 'add'>('all');
+  useEffect(() => { if (addRequest > 0) setActiveSubTab('add'); }, [addRequest]);
   const [searchQuery, setSearchQuery] = useState('');
   const [targetUsername, setTargetUsername] = useState('');
   const [statusMessage, setStatusMessage] = useState<{ text: string; error?: boolean } | null>(null);
@@ -28,6 +31,12 @@ export const ContactsPanel: React.FC<ContactsPanelProps> = ({ isCompact = false 
   const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
 
   const friendsList = conversations.filter((c) => !c.isGroup);
+
+  const openChat = (username: string) => {
+    triggerHaptic('light');
+    setActiveChat(username);
+    onOpenChat();
+  };
 
   const filteredFriends = friendsList.filter((c) => {
     const q = searchQuery.toLowerCase();
@@ -61,7 +70,7 @@ export const ContactsPanel: React.FC<ContactsPanelProps> = ({ isCompact = false 
   if (isCompact) {
     return (
       <div className="chat-list-panel" style={{ width: '100%', alignItems: 'center', padding: '14px 0' }}>
-        <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'rgba(16, 185, 129, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#10b981', marginBottom: '16px' }}>
+        <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'var(--primary-glow)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)', marginBottom: '16px' }}>
           <Users style={{ width: '18px', height: '18px' }} />
         </div>
 
@@ -69,10 +78,7 @@ export const ContactsPanel: React.FC<ContactsPanelProps> = ({ isCompact = false 
           {friendsList.map((friend) => (
             <div
               key={friend.username}
-              onClick={() => {
-                triggerHaptic('light');
-                setActiveChat(friend.username);
-              }}
+              onClick={() => openChat(friend.username)}
               style={{ position: 'relative', cursor: 'pointer', padding: '4px' }}
               title={`Chat with ${friend.displayName || friend.username}`}
             >
@@ -90,27 +96,14 @@ export const ContactsPanel: React.FC<ContactsPanelProps> = ({ isCompact = false 
   }
 
   return (
-    <div className="chat-list-panel" style={{ width: '100%' }}>
+    <div className="chat-list-panel contacts-panel" style={{ width: '100%' }}>
       {/* Header */}
       <div className="chat-list-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <div
-            style={{
-              width: '34px',
-              height: '34px',
-              borderRadius: '10px',
-              background: 'rgba(16, 185, 129, 0.15)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#10b981',
-            }}
-          >
-            <Users style={{ width: '18px', height: '18px' }} />
-          </div>
+          <span className="sidebar-outline-icon" aria-hidden="true"><Users size={18} /></span>
           <div>
             <h2 className="chat-list-title" style={{ fontSize: '1.2rem' }}>Contacts</h2>
-            <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>
+            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
               {friendsList.length} {friendsList.length === 1 ? 'Friend' : 'Friends'}
             </span>
           </div>
@@ -124,9 +117,10 @@ export const ContactsPanel: React.FC<ContactsPanelProps> = ({ isCompact = false 
               setIsGroupModalOpen(true);
             }}
             className="header-action-btn"
+            aria-label="Create New Group"
             title="Create New Group"
           >
-            <Plus style={{ width: '18px', height: '18px', color: '#10b981' }} />
+            <Plus style={{ width: '18px', height: '18px', color: 'var(--primary)' }} />
           </button>
 
           <button
@@ -137,7 +131,8 @@ export const ContactsPanel: React.FC<ContactsPanelProps> = ({ isCompact = false 
               setStatusMessage(null);
             }}
             className="header-action-btn"
-            style={activeSubTab === 'add' ? { background: 'rgba(16, 185, 129, 0.2)', color: '#10b981', borderColor: 'rgba(16, 185, 129, 0.4)' } : {}}
+            style={activeSubTab === 'add' ? { background: 'var(--primary-glow)', color: 'var(--primary)', borderColor: 'var(--primary)' } : {}}
+            aria-label={activeSubTab === 'add' ? 'View Friends' : 'Add Friend'}
             title={activeSubTab === 'add' ? 'View Friends' : 'Add Friend'}
           >
             <UserPlus style={{ width: '18px', height: '18px' }} />
@@ -146,8 +141,9 @@ export const ContactsPanel: React.FC<ContactsPanelProps> = ({ isCompact = false 
       </div>
 
       {/* Sub-Tabs: All Friends | Requests (badge) | Add New */}
-      <div style={{ padding: '0 20px 14px' }}>
-        <div className="tab-switcher" style={{ marginBottom: '0' }}>
+      <div className="chat-filters-viewport">
+        <div className="chat-filters contacts-filters" role="group" aria-label="Filter contacts" style={{ '--filter-index': ['all', 'requests', 'add'].indexOf(activeSubTab) } as React.CSSProperties}>
+          <span className="chat-filter-pill" aria-hidden="true" />
           <button
             type="button"
             onClick={() => {
@@ -155,6 +151,7 @@ export const ContactsPanel: React.FC<ContactsPanelProps> = ({ isCompact = false 
               setActiveSubTab('all');
             }}
             className={`tab-btn ${activeSubTab === 'all' ? 'active' : ''}`}
+            aria-pressed={activeSubTab === 'all'}
             style={{ fontSize: '0.8rem', padding: '8px' }}
           >
             Friends ({friendsList.length})
@@ -167,14 +164,16 @@ export const ContactsPanel: React.FC<ContactsPanelProps> = ({ isCompact = false 
               setActiveSubTab('requests');
             }}
             className={`tab-btn ${activeSubTab === 'requests' ? 'active' : ''}`}
+            aria-pressed={activeSubTab === 'requests'}
             style={{ fontSize: '0.8rem', padding: '8px', position: 'relative' }}
           >
             Requests
             {friendRequests.length > 0 && (
               <span
+                className="chat-filter-count"
                 style={{
                   background: '#ef4444',
-                  color: '#ffffff',
+                  color: 'var(--text-on-primary)',
                   fontSize: '0.65rem',
                   fontWeight: 800,
                   padding: '1px 6px',
@@ -182,7 +181,7 @@ export const ContactsPanel: React.FC<ContactsPanelProps> = ({ isCompact = false 
                   marginLeft: '6px',
                 }}
               >
-                {friendRequests.length}
+                {friendRequests.length > 99 ? '99+' : friendRequests.length}
               </span>
             )}
           </button>
@@ -195,6 +194,7 @@ export const ContactsPanel: React.FC<ContactsPanelProps> = ({ isCompact = false 
               setStatusMessage(null);
             }}
             className={`tab-btn ${activeSubTab === 'add' ? 'active' : ''}`}
+            aria-pressed={activeSubTab === 'add'}
             style={{ fontSize: '0.8rem', padding: '8px' }}
           >
             + Add
@@ -220,38 +220,36 @@ export const ContactsPanel: React.FC<ContactsPanelProps> = ({ isCompact = false 
 
           <div className="conversations-scroll" style={{ padding: '0 16px 16px' }}>
             {filteredFriends.length === 0 ? (
-              <div style={{ padding: '48px 20px', textAlign: 'center', color: '#64748b' }}>
-                <Users style={{ width: '36px', height: '36px', margin: '0 auto 12px', opacity: 0.3, color: '#10b981' }} />
-                <p style={{ fontSize: '0.85rem', marginBottom: '8px' }}>No contacts found</p>
+              <div style={{ padding: '48px 20px', textAlign: 'center', color: 'var(--text-dark)' }}>
+            <span className="sidebar-outline-icon is-empty" aria-hidden="true"><Users size={32} /></span>
+                <p style={{ fontSize: '0.85rem', marginBottom: '8px' }}>{searchQuery.trim() ? 'No friends match your search' : 'Your people will appear here'}</p>
                 <button
                   type="button"
-                  onClick={() => setActiveSubTab('add')}
-                  style={{ background: 'none', border: 'none', color: '#10b981', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer' }}
+                  onClick={() => searchQuery.trim() ? setSearchQuery('') : setActiveSubTab('add')}
+                  style={{ background: 'none', border: 'none', color: 'var(--primary)', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer' }}
                 >
-                  + Add a new friend
+                  {searchQuery.trim() ? 'Clear search' : '+ Add your first friend'}
                 </button>
               </div>
             ) : (
               filteredFriends.map((friend) => (
                 <div
                   key={friend.username}
+                  className="contact-card"
                   style={{
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
                     padding: '12px 14px',
                     borderRadius: '14px',
-                    background: 'rgba(255, 255, 255, 0.025)',
+                    background: 'var(--bg-surface)',
                     border: '1px solid var(--border)',
                     marginBottom: '8px',
                     transition: 'all 0.15s ease',
                   }}
                 >
                   <div
-                    onClick={() => {
-                      triggerHaptic('light');
-                      setActiveChat(friend.username);
-                    }}
+                    onClick={() => openChat(friend.username)}
                     style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', flex: 1, minWidth: 0 }}
                   >
                     <Avatar
@@ -261,10 +259,10 @@ export const ContactsPanel: React.FC<ContactsPanelProps> = ({ isCompact = false 
                       size="md"
                     />
                     <div style={{ minWidth: 0 }}>
-                      <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#ffffff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <div style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-main)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {friend.displayName || friend.username}
                       </div>
-                      <div style={{ fontSize: '0.72rem', color: friend.online ? '#10b981' : '#64748b', fontWeight: friend.online ? 600 : 400 }}>
+                      <div style={{ fontSize: '0.72rem', color: friend.online ? 'var(--primary)' : 'var(--text-dark)', fontWeight: friend.online ? 600 : 400 }}>
                         {friend.online ? '● Online' : 'Offline'}
                       </div>
                     </div>
@@ -274,25 +272,14 @@ export const ContactsPanel: React.FC<ContactsPanelProps> = ({ isCompact = false 
                     <button
                       type="button"
                       onClick={() => {
-                        triggerHaptic('light');
-                        setActiveChat(friend.username);
-                      }}
-                      className="header-action-btn"
-                      style={{ width: '32px', height: '32px' }}
-                      title="Send Message"
-                    >
-                      <MessageSquare style={{ width: '15px', height: '15px' }} />
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => {
                         triggerHaptic('medium');
                         startCall(friend.username, false);
                       }}
                       className="header-action-btn"
-                      style={{ width: '32px', height: '32px' }}
-                      title="Audio Call"
+                      disabled={Boolean(friend.isSelf)}
+                      style={{ width: '32px', height: '32px', opacity: friend.isSelf ? 0.35 : 1 }}
+                      aria-label={friend.isSelf ? 'Calls unavailable for Saved Messages' : 'Audio Call'}
+                      title={friend.isSelf ? 'You cannot call yourself' : 'Audio Call'}
                     >
                       <Phone style={{ width: '15px', height: '15px' }} />
                     </button>
@@ -308,13 +295,14 @@ export const ContactsPanel: React.FC<ContactsPanelProps> = ({ isCompact = false 
       {activeSubTab === 'requests' && (
         <div className="conversations-scroll" style={{ padding: '0 16px 16px' }}>
           {friendRequests.length === 0 ? (
-            <div style={{ padding: '48px 20px', textAlign: 'center', color: '#64748b' }}>
-              <UserCheck style={{ width: '36px', height: '36px', margin: '0 auto 12px', opacity: 0.3, color: '#10b981' }} />
+            <div style={{ padding: '48px 20px', textAlign: 'center', color: 'var(--text-dark)' }}>
+              <UserCheck style={{ width: '36px', height: '36px', margin: '0 auto 12px', color: 'var(--primary)' }} />
               <p style={{ fontSize: '0.85rem' }}>No pending friend requests</p>
             </div>
           ) : (
             friendRequests.map((req) => (
               <div
+                className="contact-request-card"
                 key={req.from}
                 style={{
                   display: 'flex',
@@ -322,7 +310,7 @@ export const ContactsPanel: React.FC<ContactsPanelProps> = ({ isCompact = false 
                   justifyContent: 'space-between',
                   padding: '12px 14px',
                   borderRadius: '14px',
-                  background: 'rgba(255, 255, 255, 0.035)',
+                  background: 'var(--bg-surface)',
                   border: '1px solid var(--border)',
                   marginBottom: '8px',
                 }}
@@ -330,10 +318,10 @@ export const ContactsPanel: React.FC<ContactsPanelProps> = ({ isCompact = false 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                   <Avatar name={req.displayName || req.from} size="sm" />
                   <div>
-                    <div style={{ fontSize: '0.88rem', fontWeight: 700, color: '#ffffff' }}>
+                    <div style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--text-main)' }}>
                       {req.displayName || req.from}
                     </div>
-                    <div style={{ fontSize: '0.72rem', color: '#94a3b8' }}>wants to connect</div>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>wants to connect</div>
                   </div>
                 </div>
 
@@ -344,18 +332,20 @@ export const ContactsPanel: React.FC<ContactsPanelProps> = ({ isCompact = false 
                       triggerHaptic('success');
                       acceptFriendRequest(req.from);
                     }}
+                    className="contact-request-accept"
                     style={{
                       width: '32px',
                       height: '32px',
                       borderRadius: '8px',
-                      background: '#10b981',
+                      background: 'var(--primary)',
                       border: 'none',
-                      color: '#ffffff',
+                      color: 'var(--text-on-primary)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
                       cursor: 'pointer',
                     }}
+                    aria-label="Accept"
                     title="Accept"
                   >
                     <Check style={{ width: '16px', height: '16px' }} />
@@ -367,11 +357,12 @@ export const ContactsPanel: React.FC<ContactsPanelProps> = ({ isCompact = false 
                       triggerHaptic('medium');
                       rejectFriendRequest(req.from);
                     }}
+                    className="contact-request-decline"
                     style={{
                       width: '32px',
                       height: '32px',
                       borderRadius: '8px',
-                      background: 'rgba(255, 255, 255, 0.08)',
+                      background: 'var(--bg-surface)',
                       border: 'none',
                       color: '#ef4444',
                       display: 'flex',
@@ -379,6 +370,7 @@ export const ContactsPanel: React.FC<ContactsPanelProps> = ({ isCompact = false 
                       justifyContent: 'center',
                       cursor: 'pointer',
                     }}
+                    aria-label="Decline"
                     title="Decline"
                   >
                     <X style={{ width: '16px', height: '16px' }} />
@@ -395,13 +387,14 @@ export const ContactsPanel: React.FC<ContactsPanelProps> = ({ isCompact = false 
         <div style={{ padding: '0 20px 20px', flex: 1, overflowY: 'auto' }}>
           <form onSubmit={handleSendRequest}>
             <div className="input-wrapper" style={{ marginBottom: '14px' }}>
-              <label className="input-label">Enter Username or Email</label>
+              <label className="input-label" htmlFor="contact-identifier">Username or email</label>
               <input
                 type="text"
                 required
+                id="contact-identifier"
                 value={targetUsername}
                 onChange={(e) => setTargetUsername(e.target.value)}
-                placeholder="e.g. satyampandey or user@gmail.com"
+                placeholder="Username or email address"
                 className="input-field"
                 style={{ paddingLeft: '16px' }}
               />
@@ -413,9 +406,9 @@ export const ContactsPanel: React.FC<ContactsPanelProps> = ({ isCompact = false 
                 style={
                   !statusMessage.error
                     ? {
-                        background: 'rgba(16, 185, 129, 0.12)',
-                        border: '1px solid rgba(16, 185, 129, 0.3)',
-                        color: '#34d399',
+                        background: 'var(--primary-glow)',
+                        border: '1px solid var(--primary)',
+                        color: 'var(--primary)',
                         padding: '10px 14px',
                         borderRadius: 'var(--radius-md)',
                         fontSize: '0.8rem',
@@ -445,14 +438,9 @@ export const ContactsPanel: React.FC<ContactsPanelProps> = ({ isCompact = false 
             </button>
           </form>
 
-          <div style={{ marginTop: '24px', padding: '16px', borderRadius: '14px', background: 'rgba(255, 255, 255, 0.02)', border: '1px solid var(--border)' }}>
-            <h4 style={{ fontSize: '0.82rem', fontWeight: 700, color: '#ffffff', marginBottom: '6px' }}>
-              💡 Quick Connect
-            </h4>
-            <p style={{ fontSize: '0.75rem', color: '#94a3b8', lineHeight: 1.5 }}>
-              You can search for people by their exact Novyn username or Google email address. Once accepted, you can immediately start encrypted text chats, voice notes, and video calls.
-            </p>
-          </div>
+          <p style={{ marginTop: '16px', fontSize: '0.75rem', color: 'var(--text-muted)', lineHeight: 1.6, textAlign: 'center' }}>
+            Connect using their exact username or email.
+          </p>
         </div>
       )}
 

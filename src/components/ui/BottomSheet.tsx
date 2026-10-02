@@ -35,7 +35,7 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm"
+            className="fixed inset-0 bg-slate-900/20 backdrop-blur-sm"
           />
 
           {/* Sheet */}
@@ -52,17 +52,17 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
                 onClose();
               }
             }}
-            className="relative z-10 w-full max-w-lg rounded-t-3xl bg-[#111827] border-t border-white/10 p-6 pb-8 shadow-2xl safe-padding-bottom sm:rounded-2xl sm:border sm:p-6"
+            className="relative z-10 w-full max-w-lg rounded-t-3xl bg-white/95 border-t border-white p-6 pb-8 shadow-2xl safe-padding-bottom sm:rounded-2xl sm:border sm:p-6"
           >
             {/* Grab Handle */}
-            <div className="mx-auto -mt-2 mb-4 h-1.5 w-12 rounded-full bg-white/20 sm:hidden" />
+            <div className="mx-auto -mt-2 mb-4 h-1.5 w-12 rounded-full bg-slate-300 sm:hidden" />
 
             {title && (
               <div className="mb-4 flex items-center justify-between">
-                <h3 className="text-lg font-bold text-white">{title}</h3>
+                <h3 className="text-lg font-bold text-slate-800">{title}</h3>
                 <button
                   onClick={onClose}
-                  className="rounded-full p-1.5 text-slate-400 hover:bg-white/10 hover:text-white transition"
+                  className="rounded-full p-1.5 text-slate-500 hover:bg-teal-50 hover:text-teal-700 transition"
                 >
                   ✕
                 </button>

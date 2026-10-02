@@ -4,6 +4,7 @@ function registerMessageMutationHandlers(socket, deps) {
   const {
     allowSocketAction,
     toDisplayName,
+    withUploadToken,
     normalizeChatKind,
     MAX_MESSAGE_LENGTH,
     users,
@@ -129,7 +130,7 @@ function registerMessageMutationHandlers(socket, deps) {
       emitFriendList(withLabel);
     }
     schedulePersist();
-  }
+  });
 
   socket.on("set_message_pin", (payload) => {
     const userKey = socket.data.userKey;
@@ -212,7 +213,7 @@ function registerMessageMutationHandlers(socket, deps) {
       }
     }
     schedulePersist();
-  }
+  });
 
   socket.on("delete_message", (payload) => {
     const userKey = socket.data.userKey;
@@ -303,7 +304,7 @@ function registerMessageMutationHandlers(socket, deps) {
       emitFriendList(withLabel);
     }
     schedulePersist();
-  }
+  });
 }
 
 module.exports = { registerMessageMutationHandlers };

@@ -29,6 +29,7 @@ interface SettingsSubPanelProps {
   activeSubSection: SettingsSubSection;
   onSelectSubSection: (sub: SettingsSubSection) => void;
   blockedCount: number;
+  onBack?: () => void;
 }
 
 export const SettingsSubPanel: React.FC<SettingsSubPanelProps> = ({
@@ -36,6 +37,7 @@ export const SettingsSubPanel: React.FC<SettingsSubPanelProps> = ({
   activeSubSection,
   onSelectSubSection,
   blockedCount,
+  onBack,
 }) => {
   const metaByCategory: Record<SettingsMainCategory, { title: string; subtitle: string; icon: any; color: string }> = {
     profile: {
@@ -125,6 +127,12 @@ export const SettingsSubPanel: React.FC<SettingsSubPanelProps> = ({
         label: 'Read Receipts & Activity',
         desc: 'Seen indicators and typing status',
         icon: CheckCircle2,
+      },
+      {
+        id: 'privacy-retention',
+        label: 'Message Retention',
+        desc: 'Keep chat history for 7, 15, or 30 days',
+        icon: Sparkles,
       },
       {
         id: 'privacy-sessions',
@@ -233,135 +241,22 @@ export const SettingsSubPanel: React.FC<SettingsSubPanelProps> = ({
   const list = sectionsByCategory[activeCategory] || [];
 
   return (
-    <div
-      style={{
-        flex: 1,
-        minWidth: 0,
-        height: '100%',
-        background: 'linear-gradient(180deg, rgba(255, 255, 255, 0.02) 0%, rgba(255, 255, 255, 0.005) 100%)',
-        borderRight: '1px solid var(--border)',
-        display: 'flex',
-        flexDirection: 'column',
-      }}
-    >
-      {/* Header */}
-      <div
-        className="chat-list-header"
-        style={{
-          padding: '0 22px',
-          height: '64px',
-          display: 'flex',
-          alignItems: 'center',
-          borderBottom: '1px solid var(--border)',
-          flexShrink: 0,
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <div
-            style={{
-              width: '34px',
-              height: '34px',
-              borderRadius: '10px',
-              background: `${currentMeta.color}1a`,
-              color: currentMeta.color,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              border: `1px solid ${currentMeta.color}33`,
-            }}
-          >
-            <HeaderIcon style={{ width: '17px', height: '17px' }} />
-          </div>
-          <div>
-            <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#ffffff', margin: 0 }}>
-              {currentMeta.title}
-            </h3>
-            <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>{currentMeta.subtitle}</span>
-          </div>
-        </div>
+    <section className={`settings-section-nav settings-section-nav--${activeCategory}`} aria-label={currentMeta.title}>
+      <header className="settings-section-heading">
+        {onBack && <button type="button" className="settings-back" onClick={onBack} aria-label="Back to Settings">←</button>}
+        <div className="settings-section-symbol"><HeaderIcon size={23} /></div>
+        <div><p className="settings-eyebrow">SETTINGS / {activeCategory}</p><h1>{currentMeta.title}</h1><p>{currentMeta.subtitle}</p></div>
+      </header>
+      <div className="settings-section-tabs" role="group" aria-label="Settings sections">
+        {list.map((item) => (
+          <button key={item.id} type="button" aria-pressed={activeSubSection === item.id}
+            title={item.desc}
+            onClick={() => { triggerHaptic('light'); onSelectSubSection(item.id); }}>
+            {item.label}
+            {item.badge !== undefined && <span className="settings-section-badge">{item.badge}</span>}
+          </button>
+        ))}
       </div>
-
-      {/* Sub-item Cards List */}
-      <div className="conversations-scroll" style={{ padding: '16px 18px', flex: 1, overflowY: 'auto' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          {list.map((item) => {
-            const Icon = item.icon;
-            const isSelected = activeSubSection === item.id;
-
-            return (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => {
-                  triggerHaptic('light');
-                  onSelectSubSection(item.id);
-                }}
-                style={{
-                  display: 'flex',
-                  alignItems: 'flex-start',
-                  gap: '12px',
-                  padding: '14px 16px',
-                  borderRadius: '14px',
-                  border: isSelected ? '1px solid var(--border-focus)' : '1px solid rgba(255, 255, 255, 0.05)',
-                  background: isSelected
-                    ? 'linear-gradient(135deg, var(--primary-glow) 0%, rgba(255, 255, 255, 0.02) 100%)'
-                    : 'rgba(255, 255, 255, 0.02)',
-                  boxShadow: isSelected ? '0 4px 16px var(--primary-glow)' : 'none',
-                  cursor: 'pointer',
-                  textAlign: 'left',
-                  transition: 'all 0.18s cubic-bezier(0.16, 1, 0.3, 1)',
-                  width: '100%',
-                }}
-              >
-                <div
-                  style={{
-                    width: '36px',
-                    height: '36px',
-                    borderRadius: '10px',
-                    background: isSelected ? 'var(--primary-glow)' : 'rgba(255, 255, 255, 0.05)',
-                    color: isSelected ? 'var(--primary)' : '#94a3b8',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    flexShrink: 0,
-                    border: isSelected ? '1px solid var(--border-focus)' : '1px solid transparent',
-                  }}
-                >
-                  <Icon style={{ width: '17px', height: '17px' }} />
-                </div>
-
-                <div style={{ minWidth: 0, flex: 1 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
-                    <span style={{ fontSize: '0.9rem', fontWeight: 700, color: isSelected ? '#ffffff' : '#e2e8f0' }}>
-                      {item.label}
-                    </span>
-                    {item.badge !== undefined && (
-                      <span
-                        style={{
-                          fontSize: typeof item.badge === 'string' ? '0.65rem' : '0.7rem',
-                          fontWeight: 700,
-                          padding: typeof item.badge === 'string' ? '2px 7px' : '2px 8px',
-                          borderRadius: '10px',
-                          background: typeof item.badge === 'string' ? 'rgba(6, 182, 212, 0.15)' : '#ef4444',
-                          color: typeof item.badge === 'string' ? '#22d3ee' : '#ffffff',
-                          border: typeof item.badge === 'string' ? '1px solid rgba(6, 182, 212, 0.35)' : 'none',
-                          boxShadow: typeof item.badge === 'string' ? '0 0 10px rgba(6, 182, 212, 0.2)' : '0 0 10px rgba(239, 68, 68, 0.4)',
-                          letterSpacing: typeof item.badge === 'string' ? '0.02em' : 'normal',
-                        }}
-                      >
-                        {item.badge}
-                      </span>
-                    )}
-                  </div>
-                  <div style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: '2px', lineHeight: 1.35 }}>
-                    {item.desc}
-                  </div>
-                </div>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-    </div>
+    </section>
   );
 };

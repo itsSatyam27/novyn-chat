@@ -69,10 +69,11 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ isOpen, onCl
   return createPortal(
     <AnimatePresence>
       <div
+        className="create-group-overlay"
         style={{
           position: 'fixed',
           inset: 0,
-          background: 'rgba(0, 0, 0, 0.75)',
+          background: 'rgba(23, 66, 78, 0.12)',
           backdropFilter: 'blur(12px)',
           WebkitBackdropFilter: 'blur(12px)',
           display: 'flex',
@@ -84,6 +85,7 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ isOpen, onCl
         onClick={onClose}
       >
         <motion.div
+          className="create-group-modal"
           initial={{ opacity: 0, scale: 0.95, y: 12 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 12 }}
@@ -91,10 +93,10 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ isOpen, onCl
           style={{
             width: '100%',
             maxWidth: '460px',
-            background: '#0f172a',
-            border: '1px solid rgba(255, 255, 255, 0.12)',
+            background: 'var(--bg-surface)',
+            border: '1px solid var(--border)',
             borderRadius: '24px',
-            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.9)',
+            boxShadow: '0 25px 50px -12px rgba(36, 76, 96, 0.1)',
             padding: '24px',
             display: 'flex',
             flexDirection: 'column',
@@ -117,16 +119,16 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ isOpen, onCl
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  color: '#10b981',
+                  color: '#0e9f8a',
                 }}
               >
                 <Users style={{ width: '20px', height: '20px' }} />
               </div>
               <div>
-                <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#ffffff', margin: 0 }}>
+                <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-main)', margin: 0 }}>
                   Create New Group
                 </h3>
-                <span style={{ fontSize: '0.74rem', color: '#94a3b8' }}>
+                <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
                   {selectedMembers.length} member{selectedMembers.length === 1 ? '' : 's'} selected
                 </span>
               </div>
@@ -134,7 +136,7 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ isOpen, onCl
             <button
               type="button"
               onClick={onClose}
-              style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}
+              style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
             >
               <X style={{ width: '18px', height: '18px' }} />
             </button>
@@ -143,10 +145,11 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ isOpen, onCl
           <form onSubmit={handleCreate} style={{ display: 'flex', flexDirection: 'column', gap: '16px', overflow: 'hidden' }}>
             {/* Group Name Input */}
             <div>
-              <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#94a3b8', marginBottom: '6px' }}>
+              <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '6px' }}>
                 GROUP NAME
               </label>
               <input
+                className="create-group-input"
                 type="text"
                 value={groupName}
                 onChange={(e) => {
@@ -158,10 +161,10 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ isOpen, onCl
                 style={{
                   width: '100%',
                   padding: '11px 14px',
-                  background: 'rgba(255, 255, 255, 0.05)',
-                  border: '1px solid rgba(255, 255, 255, 0.12)',
+                  background: 'rgba(255, 255, 255, 0.55)',
+                  border: '1px solid var(--border)',
                   borderRadius: '12px',
-                  color: '#ffffff',
+                  color: 'var(--text-main)',
                   fontSize: '0.9rem',
                   outline: 'none',
                   boxSizing: 'border-box',
@@ -171,22 +174,23 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ isOpen, onCl
 
             {/* Members Search */}
             <div>
-              <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#94a3b8', marginBottom: '6px' }}>
+              <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '6px' }}>
                 ADD MEMBERS
               </label>
               <div
+                className="create-group-search"
                 style={{
                   display: 'flex',
                   alignItems: 'center',
                   gap: '8px',
                   padding: '8px 12px',
-                  background: 'rgba(255, 255, 255, 0.04)',
-                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  background: 'rgba(255, 255, 255, 0.55)',
+                  border: '1px solid var(--border)',
                   borderRadius: '10px',
                   marginBottom: '10px',
                 }}
               >
-                <Search style={{ width: '14px', height: '14px', color: '#94a3b8' }} />
+                <Search style={{ width: '14px', height: '14px', color: 'var(--text-muted)' }} />
                 <input
                   type="text"
                   value={searchQuery}
@@ -195,7 +199,7 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ isOpen, onCl
                   style={{
                     background: 'transparent',
                     border: 'none',
-                    color: '#ffffff',
+                    color: 'var(--text-main)',
                     fontSize: '0.82rem',
                     outline: 'none',
                     width: '100%',
@@ -215,7 +219,7 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ isOpen, onCl
                 }}
               >
                 {filteredFriends.length === 0 ? (
-                  <div style={{ textAlign: 'center', padding: '16px', color: '#64748b', fontSize: '0.82rem' }}>
+                  <div style={{ textAlign: 'center', padding: '16px', color: 'var(--text-dark)', fontSize: '0.82rem' }}>
                     {availableFriends.length === 0 ? 'Add friends first to start a group chat.' : 'No matching contacts.'}
                   </div>
                 ) : (
@@ -223,6 +227,7 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ isOpen, onCl
                     const isSelected = selectedMembers.includes(friend.username);
                     return (
                       <div
+                        className={`create-group-member ${isSelected ? 'is-selected' : ''}`}
                         key={friend.username}
                         onClick={() => toggleMember(friend.username)}
                         style={{
@@ -231,7 +236,7 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ isOpen, onCl
                           justifyContent: 'space-between',
                           padding: '8px 12px',
                           borderRadius: '10px',
-                          background: isSelected ? 'rgba(16, 185, 129, 0.12)' : 'rgba(255, 255, 255, 0.03)',
+                          background: isSelected ? 'rgba(16, 185, 129, 0.12)' : 'rgba(255, 255, 255, 0.55)',
                           border: `1px solid ${isSelected ? 'rgba(16, 185, 129, 0.3)' : 'transparent'}`,
                           cursor: 'pointer',
                           transition: 'all 0.15s ease',
@@ -245,10 +250,10 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ isOpen, onCl
                             size="sm"
                           />
                           <div>
-                            <div style={{ fontSize: '0.84rem', fontWeight: 700, color: '#ffffff' }}>
+                            <div style={{ fontSize: '0.84rem', fontWeight: 700, color: 'var(--text-main)' }}>
                               {friend.displayName || friend.username}
                             </div>
-                            <div style={{ fontSize: '0.72rem', color: '#94a3b8' }}>
+                            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
                               @{friend.username}
                             </div>
                           </div>
@@ -259,12 +264,12 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ isOpen, onCl
                             width: '22px',
                             height: '22px',
                             borderRadius: '6px',
-                            background: isSelected ? '#10b981' : 'rgba(255, 255, 255, 0.08)',
-                            border: `1px solid ${isSelected ? '#10b981' : 'rgba(255, 255, 255, 0.2)'}`,
+                            background: isSelected ? '#10b981' : 'rgba(255, 255, 255, 0.55)',
+                            border: `1px solid ${isSelected ? '#10b981' : 'var(--border)'}`,
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            color: '#ffffff',
+                            color: 'var(--text-main)',
                             transition: 'all 0.15s ease',
                           }}
                         >
@@ -284,7 +289,7 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ isOpen, onCl
             )}
 
             {/* Actions */}
-            <div style={{ display: 'flex', gap: '10px', marginTop: '4px' }}>
+            <div className="create-group-actions" style={{ display: 'flex', gap: '10px', marginTop: '4px' }}>
               <button
                 type="button"
                 onClick={onClose}
@@ -292,9 +297,9 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ isOpen, onCl
                   flex: 1,
                   padding: '11px',
                   borderRadius: '12px',
-                  background: 'rgba(255, 255, 255, 0.05)',
-                  border: '1px solid rgba(255, 255, 255, 0.1)',
-                  color: '#94a3b8',
+                  background: 'rgba(255, 255, 255, 0.55)',
+                  border: '1px solid var(--border)',
+                  color: 'var(--text-muted)',
                   fontSize: '0.86rem',
                   fontWeight: 700,
                   cursor: 'pointer',
@@ -311,7 +316,7 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ isOpen, onCl
                   borderRadius: '12px',
                   background: '#10b981',
                   border: 'none',
-                  color: '#ffffff',
+                  color: 'var(--text-on-primary)',
                   fontSize: '0.86rem',
                   fontWeight: 700,
                   cursor: 'pointer',

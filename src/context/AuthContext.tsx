@@ -1,7 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { UserProfile } from '../types';
 import { apiRequest } from '../services/api';
-import { loginWithGooglePopup } from '../services/firebase';
 import { connectSocket, disconnectSocket } from '../services/socket';
 import { triggerHaptic } from '../services/capacitor';
 
@@ -34,6 +33,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           avatarId: res.data.avatarId || '',
           bio: res.data.bio || '',
           presenceMode: res.data.presenceMode || 'online',
+          retentionDays: res.data.retentionDays,
         });
         connectSocket();
       } else {
@@ -49,6 +49,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               avatarId: secondSession.data.avatarId || '',
               bio: secondSession.data.bio || '',
               presenceMode: secondSession.data.presenceMode || 'online',
+              retentionDays: secondSession.data.retentionDays,
             });
             connectSocket();
           }
@@ -78,6 +79,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         email: res.data.email,
       });
       triggerHaptic('success');
+      disconnectSocket();
       connectSocket();
       return { ok: true };
     }
@@ -99,6 +101,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         email,
       });
       triggerHaptic('success');
+      disconnectSocket();
       connectSocket();
       return { ok: true };
     }
@@ -109,6 +112,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const loginWithGoogle = async () => {
     try {
+      const { loginWithGooglePopup } = await import('../services/firebase');
       const googleData = await loginWithGooglePopup();
       if (!googleData?.idToken) {
         return { ok: false, error: 'Google sign-in token missing' };
@@ -126,6 +130,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           email: res.data.email,
         });
         triggerHaptic('success');
+        disconnectSocket();
         connectSocket();
         return { ok: true };
       }

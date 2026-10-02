@@ -3,7 +3,11 @@
 const GAME_TYPES = new Set(["tictactoe", "rps", "connect4"]);
 const RPS_MOVES = new Set(["rock", "paper", "scissors"]);
 
-function sameUser(a, b) {\n  return String(a || "").trim().toLowerCase() === String(b || "").trim().toLowerCase();\n}\n\nfunction cloneData(data) {
+function sameUser(a, b) {
+  return String(a || "").trim().toLowerCase() === String(b || "").trim().toLowerCase();
+}
+
+function cloneData(data) {
   return data && typeof data === "object" && !Array.isArray(data) ? { ...data } : {};
 }
 

@@ -41,10 +41,11 @@ export const ForwardModal: React.FC<ForwardModalProps> = ({
   return (
     <AnimatePresence>
       <div
+        className="forward-modal-overlay"
         style={{
           position: 'fixed',
           inset: 0,
-          background: 'rgba(0, 0, 0, 0.75)',
+          background: 'rgba(23, 66, 78, 0.12)',
           backdropFilter: 'blur(8px)',
           display: 'flex',
           alignItems: 'center',
@@ -55,6 +56,7 @@ export const ForwardModal: React.FC<ForwardModalProps> = ({
         onClick={onClose}
       >
         <motion.div
+          className="forward-modal"
           initial={{ opacity: 0, scale: 0.94, y: 12 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.94, y: 12 }}
@@ -63,10 +65,10 @@ export const ForwardModal: React.FC<ForwardModalProps> = ({
           style={{
             width: '100%',
             maxWidth: '420px',
-            background: '#0d131f',
-            border: '1px solid rgba(255, 255, 255, 0.12)',
+            background: 'var(--bg-surface)',
+            border: '1px solid var(--border)',
             borderRadius: '20px',
-            boxShadow: '0 24px 60px rgba(0, 0, 0, 0.8)',
+            boxShadow: '0 24px 60px rgba(36, 76, 96, 0.1)',
             overflow: 'hidden',
             display: 'flex',
             flexDirection: 'column',
@@ -75,22 +77,23 @@ export const ForwardModal: React.FC<ForwardModalProps> = ({
         >
           {/* Header */}
           <div
+            className="forward-modal-header"
             style={{
               padding: '16px 20px',
-              borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+              borderBottom: '1px solid var(--border)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
             }}
           >
-            <div style={{ fontWeight: 700, fontSize: '1rem', color: '#ffffff' }}>Forward Message</div>
+            <div style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--text-main)' }}>Forward Message</div>
             <button
               type="button"
               onClick={onClose}
               style={{
                 background: 'none',
                 border: 'none',
-                color: 'rgba(255, 255, 255, 0.5)',
+                color: 'rgba(20, 52, 63, 0.5)',
                 cursor: 'pointer',
                 padding: '4px',
                 borderRadius: '50%',
@@ -103,19 +106,20 @@ export const ForwardModal: React.FC<ForwardModalProps> = ({
 
           {/* Message Preview Box */}
           <div
+            className="forward-message-preview"
             style={{
               padding: '12px 20px',
-              background: 'rgba(255, 255, 255, 0.03)',
-              borderBottom: '1px solid rgba(255, 255, 255, 0.06)',
+              background: 'rgba(255, 255, 255, 0.55)',
+              borderBottom: '1px solid var(--border)',
             }}
           >
-            <div style={{ fontSize: '0.72rem', color: 'rgba(255, 255, 255, 0.4)', marginBottom: '4px' }}>
+            <div style={{ fontSize: '0.72rem', color: 'rgba(20, 52, 63, 0.45)', marginBottom: '4px' }}>
               Forwarding content:
             </div>
             <div
               style={{
                 fontSize: '0.84rem',
-                color: '#94a3b8',
+                color: 'var(--text-muted)',
                 maxHeight: '48px',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
@@ -131,19 +135,20 @@ export const ForwardModal: React.FC<ForwardModalProps> = ({
           </div>
 
           {/* Search Contacts */}
-          <div style={{ padding: '12px 20px 8px' }}>
+          <div className="forward-search-area" style={{ padding: '12px 20px 8px' }}>
             <div
+              className="forward-search"
               style={{
                 display: 'flex',
                 alignItems: 'center',
                 gap: '8px',
-                background: 'rgba(255, 255, 255, 0.05)',
-                border: '1px solid rgba(255, 255, 255, 0.1)',
+                background: 'rgba(255, 255, 255, 0.55)',
+                border: '1px solid var(--border)',
                 borderRadius: '12px',
                 padding: '8px 12px',
               }}
             >
-              <Search style={{ width: '16px', height: '16px', color: 'rgba(255, 255, 255, 0.4)' }} />
+              <Search style={{ width: '16px', height: '16px', color: 'rgba(20, 52, 63, 0.45)' }} />
               <input
                 type="text"
                 value={search}
@@ -153,7 +158,7 @@ export const ForwardModal: React.FC<ForwardModalProps> = ({
                   background: 'none',
                   border: 'none',
                   outline: 'none',
-                  color: '#ffffff',
+                  color: 'var(--text-main)',
                   fontSize: '0.85rem',
                   width: '100%',
                 }}
@@ -173,7 +178,7 @@ export const ForwardModal: React.FC<ForwardModalProps> = ({
             }}
           >
             {filtered.length === 0 ? (
-              <div style={{ padding: '24px', textAlign: 'center', color: '#64748b', fontSize: '0.82rem' }}>
+              <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-dark)', fontSize: '0.82rem' }}>
                 No contacts found
               </div>
             ) : (
@@ -181,6 +186,7 @@ export const ForwardModal: React.FC<ForwardModalProps> = ({
                 const isSelected = selectedContact === conv.username;
                 return (
                   <div
+                    className={`forward-contact-row ${isSelected ? 'is-selected' : ''}`}
                     key={conv.username}
                     onClick={() => {
                       triggerHaptic('light');
@@ -208,10 +214,10 @@ export const ForwardModal: React.FC<ForwardModalProps> = ({
                         size="sm"
                       />
                       <div>
-                        <div style={{ fontWeight: 600, fontSize: '0.88rem', color: '#ffffff' }}>
+                        <div style={{ fontWeight: 600, fontSize: '0.88rem', color: 'var(--text-main)' }}>
                           {conv.displayName || conv.username}
                         </div>
-                        <div style={{ fontSize: '0.74rem', color: 'rgba(255, 255, 255, 0.4)' }}>
+                        <div style={{ fontSize: '0.74rem', color: 'rgba(20, 52, 63, 0.45)' }}>
                           @{conv.username}
                         </div>
                       </div>
@@ -222,14 +228,14 @@ export const ForwardModal: React.FC<ForwardModalProps> = ({
                         width: '20px',
                         height: '20px',
                         borderRadius: '50%',
-                        border: isSelected ? '2px solid #10b981' : '2px solid rgba(255, 255, 255, 0.2)',
+                        border: isSelected ? '2px solid #10b981' : '2px solid var(--border)',
                         background: isSelected ? '#10b981' : 'transparent',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
                       }}
                     >
-                      {isSelected && <Check style={{ width: '12px', height: '12px', color: '#ffffff' }} />}
+                      {isSelected && <Check style={{ width: '12px', height: '12px', color: 'var(--text-main)' }} />}
                     </div>
                   </div>
                 );
@@ -239,9 +245,10 @@ export const ForwardModal: React.FC<ForwardModalProps> = ({
 
           {/* Action Footer */}
           <div
+            className="forward-modal-footer"
             style={{
               padding: '16px 20px',
-              borderTop: '1px solid rgba(255, 255, 255, 0.08)',
+              borderTop: '1px solid var(--border)',
               display: 'flex',
               justifyContent: 'flex-end',
               gap: '10px',
@@ -251,9 +258,9 @@ export const ForwardModal: React.FC<ForwardModalProps> = ({
               type="button"
               onClick={onClose}
               style={{
-                background: 'rgba(255, 255, 255, 0.06)',
+                background: 'rgba(255, 255, 255, 0.55)',
                 border: 'none',
-                color: 'rgba(255, 255, 255, 0.7)',
+                color: 'rgba(20, 52, 63, 0.7)',
                 padding: '9px 16px',
                 borderRadius: '10px',
                 fontWeight: 600,
@@ -268,9 +275,9 @@ export const ForwardModal: React.FC<ForwardModalProps> = ({
               disabled={!selectedContact || isForwarded}
               onClick={handleSend}
               style={{
-                background: selectedContact ? '#10b981' : 'rgba(255, 255, 255, 0.1)',
+                background: selectedContact ? '#10b981' : 'rgba(255, 255, 255, 0.55)',
                 border: 'none',
-                color: selectedContact ? '#ffffff' : 'rgba(255, 255, 255, 0.3)',
+                color: selectedContact ? 'var(--text-main)' : 'rgba(20, 52, 63, 0.45)',
                 padding: '9px 18px',
                 borderRadius: '10px',
                 fontWeight: 700,

@@ -1,7 +1,8 @@
 const DEFAULT_WINDOW_MS = 60 * 1000;
 
 function createIpRateLimiter({ store, getStore, normalizeIp = (value) => String(value || "unknown") } = {}, bucket, maxRequests, windowMs = DEFAULT_WINDOW_MS) {
-  const resolveStore = () => getStore ? getStore() : store;\n  if (!store && !getStore) {
+  const resolveStore = () => getStore ? getStore() : store;
+  if (!store && !getStore) {
     throw new Error("createIpRateLimiter requires a rate-limit store.");
   }
   const safeBucket = String(bucket || "default").trim() || "default";
@@ -9,7 +10,12 @@ function createIpRateLimiter({ store, getStore, normalizeIp = (value) => String(
   const windowDuration = Math.max(1000, Number(windowMs) || DEFAULT_WINDOW_MS);
 
   return (req, res, next) => {
-    const activeStore = resolveStore();\n    if (!activeStore || typeof activeStore.get !== "function" || typeof activeStore.set !== "function") {\n      next();\n      return;\n    }\n    const ip = normalizeIp(req?.ip || req?.socket?.remoteAddress || "unknown");
+    const activeStore = resolveStore();
+    if (!activeStore || typeof activeStore.get !== "function" || typeof activeStore.set !== "function") {
+      next();
+      return;
+    }
+    const ip = normalizeIp(req?.ip || req?.socket?.remoteAddress || "unknown");
     const now = Date.now();
     const key = safeBucket + ":" + ip;
     const current = activeStore.get(key);

@@ -39,8 +39,11 @@ import {
   Lightbulb,
   Star,
   Send,
+  Moon,
+  Sun,
 } from 'lucide-react';
 import { triggerHaptic } from '../../services/capacitor';
+import { useDockAlwaysVisible, setDockAlwaysVisible } from '../../services/dockPreferences';
 import { SettingsSubSection } from './SettingsPanel';
 import { getSocket } from '../../services/socket';
 import {
@@ -51,11 +54,10 @@ import {
   playMessageSentSound,
 } from '../../services/audioManager';
 import {
-  applyThemeAccent,
+  applyColorMode,
   applyWallpaper,
   applyFontFamily,
   applyFontSize,
-  THEME_PRESETS,
   WALLPAPER_PRESETS,
   FONT_PRESETS,
   PRESET_AVATARS,
@@ -124,6 +126,14 @@ export const SettingsDetailView: React.FC<SettingsDetailViewProps> = ({ activeSu
 
   // Privacy State
   const [readReceipts, setReadReceipts] = useState(() => localStorage.getItem('novyn_receipts') !== 'false');
+  const [retentionDays, setRetentionDays] = useState<7 | 15 | 30>(() => {
+    const saved = Number(user?.retentionDays || localStorage.getItem(`novyn_retention_days_${user?.username || 'guest'}`) || 30);
+    return saved === 7 || saved === 15 ? saved : 30;
+  });
+  useEffect(() => {
+    const saved = Number(user?.retentionDays || localStorage.getItem(`novyn_retention_days_${user?.username || 'guest'}`) || 30);
+    setRetentionDays(saved === 7 || saved === 15 ? saved : 30);
+  }, [user?.username, user?.retentionDays]);
   const [newBlockInput, setNewBlockInput] = useState('');
 
   // Password Change
@@ -134,8 +144,11 @@ export const SettingsDetailView: React.FC<SettingsDetailViewProps> = ({ activeSu
   const [showNewPw, setShowNewPw] = useState(false);
   const [passwordMsg, setPasswordMsg] = useState<{ text: string; ok: boolean } | null>(null);
 
+  const dockAlwaysVisible = useDockAlwaysVisible();
   // Appearance & Themes
-  const [activeTheme, setActiveTheme] = useState(() => localStorage.getItem('novyn_theme_accent') || 'emerald');
+  const [colorMode, setColorMode] = useState<'light' | 'dark'>(
+    () => localStorage.getItem('novyn_color_mode') === 'dark' ? 'dark' : 'light'
+  );
   const [activeWallpaper, setActiveWallpaperState] = useState(() => localStorage.getItem('novyn_wallpaper') || 'midnight');
   const [activeFontFamily, setActiveFontFamilyState] = useState(() => localStorage.getItem('novyn_font_family') || 'plus-jakarta');
   const [activeFontSize, setActiveFontSizeState] = useState<'sm' | 'md' | 'lg'>(
@@ -331,10 +344,10 @@ export const SettingsDetailView: React.FC<SettingsDetailViewProps> = ({ activeSu
   };
 
   return (
-    <div style={{ flex: 1, height: '100%', display: 'flex', flexDirection: 'column', minWidth: 0, background: 'var(--bg-app)' }}>
+    <div className="settings-detail" style={{ flex: 1, height: '100%', display: 'flex', flexDirection: 'column', minWidth: 0, background: 'var(--bg-app)' }}>
       {/* Header - 64px aligned with Columns 2 and 3 */}
       <div
-        className="chat-list-header"
+        className="chat-list-header settings-detail-header"
         style={{
           padding: '0 20px',
           height: '64px',
@@ -353,9 +366,9 @@ export const SettingsDetailView: React.FC<SettingsDetailViewProps> = ({ activeSu
               onBack();
             }}
             style={{
-              background: 'rgba(255, 255, 255, 0.08)',
+              background: 'rgba(255, 255, 255, 0.55)',
               border: '1px solid var(--border)',
-              color: '#ffffff',
+              color: 'var(--text-main)',
               cursor: 'pointer',
               width: '36px',
               height: '36px',
@@ -373,14 +386,17 @@ export const SettingsDetailView: React.FC<SettingsDetailViewProps> = ({ activeSu
           </button>
         )}
 
-        <h2 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#ffffff', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {activeSubSection === 'profile-details' && 'Profile Details & Avatars'}
+        <div className="settings-detail-title">
+          <span>Account workspace</span>
+          <h2 style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-main)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {activeSubSection === 'profile-details' && 'Profile settings'}
           {activeSubSection === 'profile-username' && 'Change Username (@handle)'}
           {activeSubSection === 'profile-email' && 'Linked Email Address'}
           {activeSubSection === 'profile-presence' && 'Presence Mode & Status'}
           {activeSubSection === 'privacy-blocked' && 'Blocked Contacts & Blacklist'}
           {activeSubSection === 'privacy-password' && 'Change Account Password'}
           {activeSubSection === 'privacy-receipts' && 'Read Receipts & Activity'}
+          {activeSubSection === 'privacy-retention' && 'Message Retention'}
           {activeSubSection === 'privacy-sessions' && 'Active Devices & Sessions'}
           {activeSubSection === 'privacy-linked-devices' && 'Linked Devices (Multi-Device Sync)'}
           {activeSubSection === 'privacy-danger' && 'Account Safety & Actions'}
@@ -393,39 +409,44 @@ export const SettingsDetailView: React.FC<SettingsDetailViewProps> = ({ activeSu
           {activeSubSection === 'storage-cache' && 'Storage & Cache Management'}
           {activeSubSection === 'storage-export' && 'Backup & Restore Chat Data'}
           {activeSubSection === 'storage-security' && 'P2P WebRTC & TLS Security'}
-        </h2>
+          {activeSubSection === 'feedback-send' && 'Share your thoughts'}
+          {activeSubSection === 'feedback-bug' && 'Report a problem'}
+          {activeSubSection === 'feedback-feature' && 'Suggest something new'}
+          </h2>
+        </div>
       </div>
 
       {/* Main Body */}
-      <div className="conversations-scroll" style={{ flex: 1, overflowY: 'auto', padding: '20px 20px 80px', maxWidth: '780px' }}>
+      <div className="conversations-scroll settings-detail-body" key={activeSubSection} style={{ flex: 1, overflowY: 'auto', padding: '20px 20px 80px', maxWidth: '780px' }}>
         {/* 1. PROFILE DETAILS & PRESET AVATARS */}
         {activeSubSection === 'profile-details' && (
-          <form onSubmit={handleSaveProfile}>
+          <form onSubmit={handleSaveProfile} className="profile-editor">
             <div
+              className="profile-editor-hero"
               style={{
                 display: 'flex',
                 alignItems: 'center',
                 gap: '20px',
                 padding: '20px 24px',
                 borderRadius: '20px',
-                background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.04) 0%, rgba(255, 255, 255, 0.015) 100%)',
+                background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.55) 0%, rgba(255, 255, 255, 0.55) 100%)',
                 border: '1px solid var(--border)',
                 marginBottom: '24px',
-                boxShadow: '0 8px 30px rgba(0, 0, 0, 0.3)',
+                boxShadow: '0 8px 30px rgba(36, 76, 96, 0.1)',
               }}
             >
               <Avatar name={displayName || user?.username || 'You'} avatarUrl={avatarId} size="xl" online={status === 'online'} />
               <div>
-                <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#ffffff', margin: 0 }}>
+                <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-main)', margin: 0 }}>
                   {displayName || user?.username}
                 </h3>
-                <p style={{ fontSize: '0.84rem', color: '#94a3b8', margin: '2px 0 0' }}>@{user?.username}</p>
-                {user?.email && <p style={{ fontSize: '0.78rem', color: '#64748b', margin: '3px 0 0' }}>{user.email}</p>}
+                <p style={{ fontSize: '0.84rem', color: 'var(--text-muted)', margin: '2px 0 0' }}>@{user?.username}</p>
+                {user?.email && <p style={{ fontSize: '0.78rem', color: 'var(--text-dark)', margin: '3px 0 0' }}>{user.email}</p>}
               </div>
             </div>
 
             {/* Illustrated Preset Avatars Selector */}
-            <div style={{ marginBottom: '22px' }}>
+            <div className="profile-editor-avatars" style={{ marginBottom: '22px' }}>
               <label className="input-label" style={{ marginBottom: '10px', display: 'block' }}>Choose Illustrated Avatar</label>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(58px, 1fr))', gap: '12px' }}>
                 {/* Default Initials Option */}
@@ -436,7 +457,7 @@ export const SettingsDetailView: React.FC<SettingsDetailViewProps> = ({ activeSu
                     height: '58px',
                     borderRadius: '16px',
                     border: !avatarId ? '2.5px solid var(--border-focus)' : '1px solid var(--border)',
-                    background: !avatarId ? 'var(--primary-glow)' : 'rgba(255, 255, 255, 0.03)',
+                    background: !avatarId ? 'var(--primary-glow)' : 'rgba(255, 255, 255, 0.55)',
                     cursor: 'pointer',
                     display: 'flex',
                     flexDirection: 'column',
@@ -448,11 +469,11 @@ export const SettingsDetailView: React.FC<SettingsDetailViewProps> = ({ activeSu
                   }}
                   title="Default Initials Avatar"
                 >
-                  <span style={{ fontSize: '0.95rem', fontWeight: 800, color: '#ffffff' }}>
+                  <span style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-main)' }}>
                     {(displayName || user?.username || 'U').charAt(0).toUpperCase()}
                   </span>
                   {!avatarId && (
-                    <div style={{ position: 'absolute', top: '2px', right: '2px', width: '14px', height: '14px', borderRadius: '50%', background: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ffffff' }}>
+                    <div style={{ position: 'absolute', top: '2px', right: '2px', width: '14px', height: '14px', borderRadius: '50%', background: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-on-primary)' }}>
                       <Check style={{ width: '10px', height: '10px' }} />
                     </div>
                   )}
@@ -470,7 +491,7 @@ export const SettingsDetailView: React.FC<SettingsDetailViewProps> = ({ activeSu
                         height: '58px',
                         borderRadius: '16px',
                         border: isSelected ? '2.5px solid var(--border-focus)' : '1px solid var(--border)',
-                        background: isSelected ? 'var(--primary-glow)' : 'rgba(255, 255, 255, 0.03)',
+                        background: isSelected ? 'var(--primary-glow)' : 'rgba(255, 255, 255, 0.55)',
                         cursor: 'pointer',
                         padding: '4px',
                         display: 'flex',
@@ -483,7 +504,7 @@ export const SettingsDetailView: React.FC<SettingsDetailViewProps> = ({ activeSu
                     >
                       <img src={url} alt="Avatar" style={{ width: '100%', height: '100%', borderRadius: '12px', objectFit: 'cover' }} />
                       {isSelected && (
-                        <div style={{ position: 'absolute', top: '2px', right: '2px', width: '16px', height: '16px', borderRadius: '50%', background: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ffffff', boxShadow: '0 0 8px rgba(0,0,0,0.5)' }}>
+                        <div style={{ position: 'absolute', top: '2px', right: '2px', width: '16px', height: '16px', borderRadius: '50%', background: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-on-primary)', boxShadow: '0 0 8px rgba(36, 76, 96, 0.1)' }}>
                           <Check style={{ width: '11px', height: '11px' }} />
                         </div>
                       )}
@@ -493,7 +514,7 @@ export const SettingsDetailView: React.FC<SettingsDetailViewProps> = ({ activeSu
               </div>
             </div>
 
-            <div className="input-wrapper" style={{ marginBottom: '20px' }}>
+            <div className="input-wrapper profile-editor-field" style={{ marginBottom: '20px' }}>
               <label className="input-label">Display Name</label>
               <input
                 type="text"
@@ -506,7 +527,7 @@ export const SettingsDetailView: React.FC<SettingsDetailViewProps> = ({ activeSu
               />
             </div>
 
-            <div className="input-wrapper" style={{ marginBottom: '26px' }}>
+            <div className="input-wrapper profile-editor-field profile-editor-bio" style={{ marginBottom: '26px' }}>
               <label className="input-label">About / Status Bio</label>
               <textarea
                 rows={3}
@@ -520,7 +541,7 @@ export const SettingsDetailView: React.FC<SettingsDetailViewProps> = ({ activeSu
 
             <button
               type="submit"
-              className="btn btn-primary"
+              className="btn btn-primary profile-editor-save"
               style={{ width: '100%', padding: '13px', borderRadius: '14px', fontSize: '0.92rem', fontWeight: 700 }}
             >
               {saved ? (
@@ -536,10 +557,10 @@ export const SettingsDetailView: React.FC<SettingsDetailViewProps> = ({ activeSu
 
         {/* 2. CHANGE USERNAME */}
         {activeSubSection === 'profile-username' && (
-          <form onSubmit={handleUsernameChangeSubmit}>
+          <form className="profile-section profile-username-form" onSubmit={handleUsernameChangeSubmit}>
             <div style={{ marginBottom: '20px' }}>
-              <p style={{ fontSize: '0.84rem', color: '#94a3b8', margin: 0, lineHeight: 1.5 }}>
-                Your username is your unique ID across Novyn Chat. Friends can find and message you using <code style={{ color: 'var(--primary)', background: 'rgba(255,255,255,0.06)', padding: '2px 6px', borderRadius: '6px' }}>@{user?.username}</code>.
+              <p style={{ fontSize: '0.84rem', color: 'var(--text-muted)', margin: 0, lineHeight: 1.5 }}>
+                Your username is your unique ID across Novyn Chat. Friends can find and message you using <code style={{ color: 'var(--primary)', background: 'rgba(255, 255, 255, 0.55)', padding: '2px 6px', borderRadius: '6px' }}>@{user?.username}</code>.
               </p>
             </div>
 
@@ -551,7 +572,7 @@ export const SettingsDetailView: React.FC<SettingsDetailViewProps> = ({ activeSu
                   marginBottom: '18px',
                   fontSize: '0.84rem',
                   background: usernameMsg.ok ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
-                  color: usernameMsg.ok ? '#34d399' : '#f87171',
+                  color: usernameMsg.ok ? '#078779' : '#bd3750',
                   border: `1px solid ${usernameMsg.ok ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`,
                 }}
               >
@@ -560,22 +581,23 @@ export const SettingsDetailView: React.FC<SettingsDetailViewProps> = ({ activeSu
             )}
 
             <div
+              className="profile-current-username-card"
               style={{
                 padding: '18px 20px',
                 borderRadius: '16px',
-                background: 'rgba(255, 255, 255, 0.03)',
+                background: 'rgba(255, 255, 255, 0.55)',
                 border: '1px solid var(--border)',
                 marginBottom: '20px',
               }}
             >
-              <div style={{ fontSize: '0.78rem', color: '#94a3b8', marginBottom: '4px' }}>CURRENT USERNAME</div>
-              <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#ffffff' }}>@{user?.username}</div>
+              <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '4px' }}>CURRENT USERNAME</div>
+              <div style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-main)' }}>@{user?.username}</div>
             </div>
 
             <div className="input-wrapper" style={{ marginBottom: '22px' }}>
               <label className="input-label">New Username</label>
               <div style={{ position: 'relative' }}>
-                <span style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontWeight: 700 }}>@</span>
+                <span style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', fontWeight: 700 }}>@</span>
                 <input
                   type="text"
                   required
@@ -601,18 +623,19 @@ export const SettingsDetailView: React.FC<SettingsDetailViewProps> = ({ activeSu
 
         {/* 3. LINKED EMAIL */}
         {activeSubSection === 'profile-email' && (
-          <div>
+          <div className="profile-section profile-email-section">
             <div style={{ marginBottom: '20px' }}>
-              <p style={{ fontSize: '0.84rem', color: '#94a3b8', margin: 0 }}>
+              <p style={{ fontSize: '0.84rem', color: 'var(--text-muted)', margin: 0 }}>
                 Your linked email address is used for password recovery and account security.
               </p>
             </div>
 
             <div
+              className="profile-email-card"
               style={{
                 padding: '22px',
                 borderRadius: '18px',
-                background: 'rgba(255, 255, 255, 0.03)',
+                background: 'rgba(255, 255, 255, 0.55)',
                 border: '1px solid var(--border)',
                 display: 'flex',
                 alignItems: 'center',
@@ -622,10 +645,10 @@ export const SettingsDetailView: React.FC<SettingsDetailViewProps> = ({ activeSu
               <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
                 <Mail style={{ width: '24px', height: '24px', color: 'var(--primary)' }} />
                 <div>
-                  <div style={{ fontSize: '0.96rem', fontWeight: 700, color: '#ffffff' }}>
+                  <div style={{ fontSize: '0.96rem', fontWeight: 700, color: 'var(--text-main)' }}>
                     {user?.email || 'No email linked yet'}
                   </div>
-                  <div style={{ fontSize: '0.74rem', color: user?.email ? '#10b981' : '#f59e0b', marginTop: '2px' }}>
+                  <div style={{ fontSize: '0.74rem', color: user?.email ? '#0e9f8a' : '#a86d0b', marginTop: '2px' }}>
                     {user?.email ? '● Verified & Active' : 'Sign up or update email to secure account'}
                   </div>
                 </div>
@@ -636,7 +659,7 @@ export const SettingsDetailView: React.FC<SettingsDetailViewProps> = ({ activeSu
 
         {/* 4. PRESENCE STATUS */}
         {activeSubSection === 'profile-presence' && (
-          <div>
+          <div className="profile-section profile-presence-section">
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               {[
                 { id: 'online', label: 'Active', desc: 'Display green active badge and receive direct calls & notifications', color: '#10b981' },
@@ -648,6 +671,7 @@ export const SettingsDetailView: React.FC<SettingsDetailViewProps> = ({ activeSu
                 return (
                   <div
                     key={item.id}
+                    className={`profile-presence-option ${isSelected ? 'is-selected' : ''}`}
                     onClick={() => {
                       setStatus(item.id as any);
                       updateProfile({ status: item.id });
@@ -660,7 +684,7 @@ export const SettingsDetailView: React.FC<SettingsDetailViewProps> = ({ activeSu
                       padding: '16px 20px',
                       borderRadius: '16px',
                       border: isSelected ? `1.5px solid ${item.color}` : '1px solid var(--border)',
-                      background: isSelected ? `${item.color}15` : 'rgba(255, 255, 255, 0.02)',
+                      background: isSelected ? `${item.color}15` : 'rgba(255, 255, 255, 0.55)',
                       cursor: 'pointer',
                       transition: 'all 0.18s ease',
                       boxShadow: isSelected ? `0 4px 20px ${item.color}1a` : 'none',
@@ -669,14 +693,14 @@ export const SettingsDetailView: React.FC<SettingsDetailViewProps> = ({ activeSu
                     <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
                       <span style={{ width: '12px', height: '12px', borderRadius: '50%', background: item.color, boxShadow: `0 0 10px ${item.color}` }} />
                       <div>
-                        <div style={{ fontSize: '0.92rem', fontWeight: 700, color: isSelected ? '#ffffff' : '#cbd5e1' }}>
+                        <div style={{ fontSize: '0.92rem', fontWeight: 700, color: isSelected ? 'var(--text-main)' : 'var(--text-muted)' }}>
                           {item.label}
                         </div>
-                        <div style={{ fontSize: '0.76rem', color: '#94a3b8', marginTop: '2px' }}>{item.desc}</div>
+                        <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)', marginTop: '2px' }}>{item.desc}</div>
                       </div>
                     </div>
 
-                    {isSelected && <Check style={{ width: '18px', height: '18px', color: item.color }} />}
+                    {isSelected && <span className="profile-presence-current">Current</span>}
                   </div>
                 );
               })}
@@ -686,8 +710,8 @@ export const SettingsDetailView: React.FC<SettingsDetailViewProps> = ({ activeSu
 
         {/* 5. BLOCKED CONTACTS */}
         {activeSubSection === 'privacy-blocked' && (
-          <div>
-            <form onSubmit={handleBlockUserSubmit} style={{ display: 'flex', gap: '10px', marginBottom: '22px' }}>
+          <div className="privacy-section privacy-blocked-section">
+            <form className="privacy-block-form" onSubmit={handleBlockUserSubmit} style={{ display: 'flex', gap: '10px', marginBottom: '22px' }}>
               <input
                 type="text"
                 value={newBlockInput}
@@ -707,14 +731,15 @@ export const SettingsDetailView: React.FC<SettingsDetailViewProps> = ({ activeSu
 
             {blockedUsers.size === 0 ? (
               <div
+                className="privacy-empty-state"
                 style={{
                   padding: '48px 24px',
                   borderRadius: '20px',
-                  background: 'linear-gradient(135deg, rgba(168, 85, 247, 0.04) 0%, rgba(255, 255, 255, 0.015) 100%)',
+                  background: 'linear-gradient(135deg, rgba(168, 85, 247, 0.04) 0%, rgba(255, 255, 255, 0.55) 100%)',
                   border: '1px solid rgba(168, 85, 247, 0.18)',
                   textAlign: 'center',
-                  color: '#64748b',
-                  boxShadow: '0 8px 30px rgba(0, 0, 0, 0.25)',
+                  color: 'var(--text-dark)',
+                  boxShadow: '0 8px 30px rgba(36, 76, 96, 0.1)',
                 }}
               >
                 <div
@@ -733,8 +758,8 @@ export const SettingsDetailView: React.FC<SettingsDetailViewProps> = ({ activeSu
                 >
                   <Ban style={{ width: '28px', height: '28px' }} />
                 </div>
-                <h4 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#ffffff', margin: '0 0 6px' }}>No Blocked Contacts</h4>
-                <p style={{ fontSize: '0.82rem', color: '#94a3b8', margin: 0, maxWidth: '340px', marginInline: 'auto', lineHeight: 1.4 }}>
+                <h4 style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-main)', margin: '0 0 6px' }}>No Blocked Contacts</h4>
+                <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: 0, maxWidth: '340px', marginInline: 'auto', lineHeight: 1.4 }}>
                   You have not blocked any contacts. Blocked users will appear here with instant unblock controls.
                 </p>
               </div>
@@ -749,14 +774,14 @@ export const SettingsDetailView: React.FC<SettingsDetailViewProps> = ({ activeSu
                       justifyContent: 'space-between',
                       padding: '16px 20px',
                       borderRadius: '16px',
-                      background: 'rgba(255, 255, 255, 0.03)',
+                      background: 'rgba(255, 255, 255, 0.55)',
                       border: '1px solid var(--border)',
                     }}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
                       <Avatar name={username} size="md" />
                       <div>
-                        <div style={{ fontSize: '0.92rem', fontWeight: 700, color: '#ffffff' }}>@{username}</div>
+                        <div style={{ fontSize: '0.92rem', fontWeight: 700, color: 'var(--text-main)' }}>@{username}</div>
                         <div style={{ fontSize: '0.72rem', color: '#ef4444', marginTop: '2px' }}>Blocked on chat & calling</div>
                       </div>
                     </div>
@@ -768,7 +793,7 @@ export const SettingsDetailView: React.FC<SettingsDetailViewProps> = ({ activeSu
                         blockUser(username, false);
                       }}
                       className="btn btn-secondary"
-                      style={{ padding: '8px 18px', fontSize: '0.82rem', borderRadius: '10px', color: '#38bdf8' }}
+                      style={{ padding: '8px 18px', fontSize: '0.82rem', borderRadius: '10px', color: '#087fac' }}
                     >
                       Unblock
                     </button>
@@ -781,7 +806,7 @@ export const SettingsDetailView: React.FC<SettingsDetailViewProps> = ({ activeSu
 
         {/* 6. CHANGE PASSWORD */}
         {activeSubSection === 'privacy-password' && (
-          <form onSubmit={handlePasswordChange}>
+          <form className="privacy-section privacy-password-form" onSubmit={handlePasswordChange}>
             {passwordMsg && (
               <div
                 style={{
@@ -790,7 +815,7 @@ export const SettingsDetailView: React.FC<SettingsDetailViewProps> = ({ activeSu
                   marginBottom: '18px',
                   fontSize: '0.84rem',
                   background: passwordMsg.ok ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
-                  color: passwordMsg.ok ? '#34d399' : '#f87171',
+                  color: passwordMsg.ok ? '#078779' : '#bd3750',
                   border: `1px solid ${passwordMsg.ok ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`,
                 }}
               >
@@ -814,7 +839,7 @@ export const SettingsDetailView: React.FC<SettingsDetailViewProps> = ({ activeSu
                   <button
                     type="button"
                     onClick={() => setShowCurrentPw(!showCurrentPw)}
-                    style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}
+                    style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
                   >
                     {showCurrentPw ? <EyeOff style={{ width: '16px', height: '16px' }} /> : <Eye style={{ width: '16px', height: '16px' }} />}
                   </button>
@@ -836,7 +861,7 @@ export const SettingsDetailView: React.FC<SettingsDetailViewProps> = ({ activeSu
                   <button
                     type="button"
                     onClick={() => setShowNewPw(!showNewPw)}
-                    style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}
+                    style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
                   >
                     {showNewPw ? <EyeOff style={{ width: '16px', height: '16px' }} /> : <Eye style={{ width: '16px', height: '16px' }} />}
                   </button>
@@ -869,43 +894,79 @@ export const SettingsDetailView: React.FC<SettingsDetailViewProps> = ({ activeSu
 
         {/* 7. READ RECEIPTS */}
         {activeSubSection === 'privacy-receipts' && (
-          <div>
+          <div className="privacy-section">
             <div
+              className="privacy-setting-row"
               style={{
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
                 padding: '20px 22px',
                 borderRadius: '18px',
-                background: 'rgba(255, 255, 255, 0.03)',
+                background: 'rgba(255, 255, 255, 0.55)',
                 border: '1px solid var(--border)',
                 marginBottom: '16px',
               }}
             >
               <div>
-                <div style={{ fontSize: '0.94rem', fontWeight: 700, color: '#ffffff' }}>Send Read Receipts</div>
-                <div style={{ fontSize: '0.78rem', color: '#94a3b8', marginTop: '3px' }}>
+                <div style={{ fontSize: '0.94rem', fontWeight: 700, color: 'var(--text-main)' }}>Send Read Receipts</div>
+                <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '3px' }}>
                   Displays double checkmarks when messages are seen by contacts
                 </div>
               </div>
-              <input
-                type="checkbox"
-                checked={readReceipts}
-                onChange={(e) => {
-                  setReadReceipts(e.target.checked);
-                  localStorage.setItem('novyn_receipts', String(e.target.checked));
+              <button
+                type="button"
+                className={`settings-toggle ${readReceipts ? 'is-on' : 'is-off'}`}
+                role="switch"
+                aria-checked={readReceipts}
+                aria-label="Toggle read receipts"
+                onClick={() => {
+                  const nextValue = !readReceipts;
+                  setReadReceipts(nextValue);
+                  localStorage.setItem('novyn_receipts', String(nextValue));
                   triggerHaptic('light');
                 }}
-                style={{ width: '22px', height: '22px', accentColor: 'var(--primary)', cursor: 'pointer' }}
-              />
+              >
+                <span />
+                <span className="settings-toggle-label">{readReceipts ? 'ON' : 'OFF'}</span>
+              </button>
             </div>
+          </div>
+        )}
+
+        {activeSubSection === 'privacy-retention' && (
+          <div className="privacy-section retention-section">
+            <div className="privacy-setting-row retention-card" style={{ padding: '22px', borderRadius: '18px', background: 'rgba(255, 255, 255, 0.55)', border: '1px solid var(--border)' }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '14px' }}>
+                <div className="retention-icon"><Sparkles style={{ width: '20px', height: '20px' }} /></div>
+                <div>
+                  <div style={{ fontSize: '0.96rem', fontWeight: 750, color: 'var(--text-main)' }}>Keep messages for</div>
+                  <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '4px', lineHeight: 1.5 }}>Messages older than this period are hidden from your account. Other participants keep their own retention preference.</div>
+                </div>
+              </div>
+              <div className="retention-options" role="group" aria-label="Message retention period">
+                {([7, 15, 30] as const).map((days) => (
+                  <button key={days} type="button" className={retentionDays === days ? 'is-selected' : ''} aria-pressed={retentionDays === days} onClick={() => {
+                    setRetentionDays(days);
+                    localStorage.setItem(`novyn_retention_days_${user?.username || 'guest'}`, String(days));
+                    setUser((current) => current ? { ...current, retentionDays: days } : current);
+                    getSocket()?.emit('update_profile', { retentionDays: days });
+                    triggerHaptic('light');
+                  }}>
+                    <strong>{days}</strong><span>days</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+            <p className="retention-note">Your default is 30 days. Changing this preference affects only what you see; it does not remove history for other people.</p>
           </div>
         )}
 
         {/* 8. SESSIONS */}
         {activeSubSection === 'privacy-sessions' && (
-          <div>
+          <div className="privacy-section">
             <div
+              className="privacy-session-card"
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -919,10 +980,10 @@ export const SettingsDetailView: React.FC<SettingsDetailViewProps> = ({ activeSu
               <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
                 <Globe style={{ width: '26px', height: '26px', color: 'var(--primary)' }} />
                 <div>
-                  <div style={{ fontSize: '0.94rem', fontWeight: 700, color: '#ffffff' }}>
+                  <div style={{ fontSize: '0.94rem', fontWeight: 700, color: 'var(--text-main)' }}>
                     Current Web Client <span style={{ fontSize: '0.72rem', color: 'var(--primary)', marginLeft: '6px' }}>● Active Now</span>
                   </div>
-                  <div style={{ fontSize: '0.76rem', color: '#94a3b8', marginTop: '3px' }}>
+                  <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)', marginTop: '3px' }}>
                     Google Chrome • Windows NT • WebRTC & E2EE Ready
                   </div>
                 </div>
@@ -933,15 +994,16 @@ export const SettingsDetailView: React.FC<SettingsDetailViewProps> = ({ activeSu
 
         {/* 8.5 LINKED DEVICES (COMING SOON) */}
         {activeSubSection === 'privacy-linked-devices' && (
-          <div>
+          <div className="privacy-section">
             <div
+              className="privacy-linked-devices-card"
               style={{
                 padding: '36px 28px',
                 borderRadius: '24px',
                 background: 'linear-gradient(135deg, rgba(6, 182, 212, 0.08) 0%, rgba(139, 92, 246, 0.04) 100%)',
                 border: '1px solid rgba(6, 182, 212, 0.25)',
                 textAlign: 'center',
-                boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
+                boxShadow: '0 8px 32px rgba(36, 76, 96, 0.1)',
                 position: 'relative',
                 overflow: 'hidden',
               }}
@@ -981,12 +1043,12 @@ export const SettingsDetailView: React.FC<SettingsDetailViewProps> = ({ activeSu
                     width: '64px',
                     height: '64px',
                     borderRadius: '18px',
-                    background: 'rgba(255, 255, 255, 0.04)',
-                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    background: 'rgba(255, 255, 255, 0.55)',
+                    border: '1px solid var(--border)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    color: '#38bdf8',
+                    color: '#087fac',
                   }}
                 >
                   <Laptop style={{ width: '32px', height: '32px' }} />
@@ -1002,8 +1064,8 @@ export const SettingsDetailView: React.FC<SettingsDetailViewProps> = ({ activeSu
                     width: '64px',
                     height: '64px',
                     borderRadius: '18px',
-                    background: 'rgba(255, 255, 255, 0.04)',
-                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    background: 'rgba(255, 255, 255, 0.55)',
+                    border: '1px solid var(--border)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -1014,10 +1076,10 @@ export const SettingsDetailView: React.FC<SettingsDetailViewProps> = ({ activeSu
                 </div>
               </div>
 
-              <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#ffffff', margin: '0 0 8px' }}>
+              <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-main)', margin: '0 0 8px' }}>
                 Multi-Device QR Code Linking
               </h3>
-              <p style={{ fontSize: '0.86rem', color: '#94a3b8', maxWidth: '440px', margin: '0 auto 24px', lineHeight: 1.55 }}>
+              <p style={{ fontSize: '0.86rem', color: 'var(--text-muted)', maxWidth: '440px', margin: '0 auto 24px', lineHeight: 1.55 }}>
                 Soon you will be able to link up to 4 devices (phones, tablets, and web browsers) simultaneously with instant end-to-end synchronized chat history.
               </p>
 
@@ -1048,8 +1110,9 @@ export const SettingsDetailView: React.FC<SettingsDetailViewProps> = ({ activeSu
 
         {/* 9. DANGER ZONE */}
         {activeSubSection === 'privacy-danger' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div className="privacy-section privacy-danger-section" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <div
+              className="privacy-danger-card"
               style={{
                 padding: '22px',
                 borderRadius: '18px',
@@ -1061,8 +1124,8 @@ export const SettingsDetailView: React.FC<SettingsDetailViewProps> = ({ activeSu
               }}
             >
               <div>
-                <div style={{ fontSize: '0.95rem', fontWeight: 800, color: '#ffffff' }}>Log Out All Devices</div>
-                <div style={{ fontSize: '0.76rem', color: '#94a3b8', marginTop: '3px' }}>
+                <div style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-main)' }}>Log Out All Devices</div>
+                <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)', marginTop: '3px' }}>
                   Revoke all active sessions and log out immediately
                 </div>
               </div>
@@ -1074,7 +1137,7 @@ export const SettingsDetailView: React.FC<SettingsDetailViewProps> = ({ activeSu
                   logout();
                 }}
                 className="btn btn-secondary"
-                style={{ padding: '10px 18px', fontSize: '0.84rem', borderRadius: '12px', color: '#f87171' }}
+                style={{ padding: '10px 18px', fontSize: '0.84rem', borderRadius: '12px', color: '#bd3750' }}
               >
                 <LogOut style={{ width: '15px', height: '15px' }} /> Sign Out All
               </button>
@@ -1084,15 +1147,16 @@ export const SettingsDetailView: React.FC<SettingsDetailViewProps> = ({ activeSu
 
         {/* 10. SOUNDS */}
         {activeSubSection === 'notif-sounds' && (
-          <div>
+          <div className="notification-section notification-sounds-section">
             <div
+              className="notification-master-card"
               style={{
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
                 padding: '20px 22px',
                 borderRadius: '18px',
-                background: 'rgba(255, 255, 255, 0.03)',
+                background: 'rgba(255, 255, 255, 0.55)',
                 border: '1px solid var(--border)',
                 marginBottom: '20px',
               }}
@@ -1100,38 +1164,45 @@ export const SettingsDetailView: React.FC<SettingsDetailViewProps> = ({ activeSu
               <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
                 <Volume2 style={{ width: '24px', height: '24px', color: 'var(--primary)' }} />
                 <div>
-                  <div style={{ fontSize: '0.94rem', fontWeight: 700, color: '#ffffff' }}>Enable Message Sounds</div>
-                  <div style={{ fontSize: '0.78rem', color: '#94a3b8', marginTop: '2px' }}>Play audio on message sent & received</div>
+                  <div style={{ fontSize: '0.94rem', fontWeight: 700, color: 'var(--text-main)' }}>Enable Message Sounds</div>
+                  <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '2px' }}>Play audio on message sent & received</div>
                 </div>
               </div>
-              <input
-                type="checkbox"
-                checked={soundEnabled}
-                onChange={(e) => {
-                  setSoundEnabled(e.target.checked);
-                  localStorage.setItem('novyn_sound', String(e.target.checked));
+              <button
+                type="button"
+                className={`settings-toggle ${soundEnabled ? 'is-on' : 'is-off'}`}
+                role="switch"
+                aria-checked={soundEnabled}
+                aria-label="Toggle message sounds"
+                onClick={() => {
+                  const nextValue = !soundEnabled;
+                  setSoundEnabled(nextValue);
+                  localStorage.setItem('novyn_sound', String(nextValue));
                   triggerHaptic('light');
                 }}
-                style={{ width: '22px', height: '22px', accentColor: 'var(--primary)', cursor: 'pointer' }}
-              />
+              >
+                <span />
+                <span className="settings-toggle-label">{soundEnabled ? 'ON' : 'OFF'}</span>
+              </button>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div className="notification-sound-list" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               {/* Notification Chime */}
               <div
+                className="notification-sound-card"
                 style={{
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
                   padding: '16px 20px',
                   borderRadius: '16px',
-                  background: 'rgba(255, 255, 255, 0.02)',
+                  background: 'rgba(255, 255, 255, 0.55)',
                   border: '1px solid var(--border)',
                 }}
               >
                 <div>
-                  <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#ffffff' }}>Incoming Notification</div>
-                  <div style={{ fontSize: '0.74rem', color: '#94a3b8' }}>notification.mp3 • Played on receiving messages</div>
+                  <div style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-main)' }}>Incoming Notification</div>
+                  <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>notification.mp3 • Played on receiving messages</div>
                 </div>
 
                 <button
@@ -1146,19 +1217,20 @@ export const SettingsDetailView: React.FC<SettingsDetailViewProps> = ({ activeSu
 
               {/* Message Sent Chime */}
               <div
+                className="notification-sound-card"
                 style={{
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
                   padding: '16px 20px',
                   borderRadius: '16px',
-                  background: 'rgba(255, 255, 255, 0.02)',
+                  background: 'rgba(255, 255, 255, 0.55)',
                   border: '1px solid var(--border)',
                 }}
               >
                 <div>
-                  <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#ffffff' }}>Message Sent Sound</div>
-                  <div style={{ fontSize: '0.74rem', color: '#94a3b8' }}>message_sent.mp3 • Played on sending messages</div>
+                  <div style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-main)' }}>Message Sent Sound</div>
+                  <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>message_sent.mp3 • Played on sending messages</div>
                 </div>
 
                 <button
@@ -1176,45 +1248,47 @@ export const SettingsDetailView: React.FC<SettingsDetailViewProps> = ({ activeSu
 
         {/* 11. CALLS */}
         {activeSubSection === 'notif-calls' && (
-          <div>
+          <div className="notification-section notification-calls-section">
             <div
+              className="notification-master-card"
               style={{
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
                 padding: '20px 22px',
                 borderRadius: '18px',
-                background: 'rgba(255, 255, 255, 0.03)',
+                background: 'rgba(255, 255, 255, 0.55)',
                 border: '1px solid var(--border)',
                 marginBottom: '20px',
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                <Smartphone style={{ width: '24px', height: '24px', color: '#38bdf8' }} />
+                <Smartphone style={{ width: '24px', height: '24px', color: '#087fac' }} />
                 <div>
-                  <div style={{ fontSize: '0.94rem', fontWeight: 700, color: '#ffffff' }}>WebRTC Call Audio</div>
-                  <div style={{ fontSize: '0.78rem', color: '#94a3b8', marginTop: '2px' }}>Ringtone melody & outgoing dial tones</div>
+                  <div style={{ fontSize: '0.94rem', fontWeight: 700, color: 'var(--text-main)' }}>WebRTC Call Audio</div>
+                  <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '2px' }}>Ringtone melody & outgoing dial tones</div>
                 </div>
               </div>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div className="notification-sound-list" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               {/* Incoming Call Ringtone */}
               <div
+                className={`notification-sound-card ${isPlayingRingtone ? 'is-playing' : ''}`}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
                   padding: '16px 20px',
                   borderRadius: '16px',
-                  background: 'rgba(255, 255, 255, 0.02)',
+                  background: 'rgba(255, 255, 255, 0.55)',
                   border: isPlayingRingtone ? '1px solid var(--border-focus)' : '1px solid var(--border)',
                   boxShadow: isPlayingRingtone ? '0 0 16px var(--primary-glow)' : 'none',
                 }}
               >
                 <div>
-                  <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#ffffff' }}>Incoming Call Ringtone</div>
-                  <div style={{ fontSize: '0.74rem', color: '#94a3b8' }}>ringtone.mp3 • Played when you receive a call</div>
+                  <div style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-main)' }}>Incoming Call Ringtone</div>
+                  <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>ringtone.mp3 • Played when you receive a call</div>
                 </div>
 
                 <button
@@ -1237,20 +1311,21 @@ export const SettingsDetailView: React.FC<SettingsDetailViewProps> = ({ activeSu
 
               {/* Outgoing Call Ringing */}
               <div
+                className={`notification-sound-card ${isPlayingCallRing ? 'is-playing' : ''}`}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
                   padding: '16px 20px',
                   borderRadius: '16px',
-                  background: 'rgba(255, 255, 255, 0.02)',
+                  background: 'rgba(255, 255, 255, 0.55)',
                   border: isPlayingCallRing ? '1px solid #38bdf8' : '1px solid var(--border)',
                   boxShadow: isPlayingCallRing ? '0 0 16px rgba(56, 189, 248, 0.25)' : 'none',
                 }}
               >
                 <div>
-                  <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#ffffff' }}>Outgoing Call Dial Ringing</div>
-                  <div style={{ fontSize: '0.74rem', color: '#94a3b8' }}>call_ring.mp3 • Played when you dial someone</div>
+                  <div style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-main)' }}>Outgoing Call Dial Ringing</div>
+                  <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>call_ring.mp3 • Played when you dial someone</div>
                 </div>
 
                 <button
@@ -1265,7 +1340,7 @@ export const SettingsDetailView: React.FC<SettingsDetailViewProps> = ({ activeSu
                     </>
                   ) : (
                     <>
-                      <Play style={{ width: '14px', height: '14px', color: '#38bdf8' }} /> Preview
+                      <Play style={{ width: '14px', height: '14px', color: '#087fac' }} /> Preview
                     </>
                   )}
                 </button>
@@ -1276,35 +1351,42 @@ export const SettingsDetailView: React.FC<SettingsDetailViewProps> = ({ activeSu
 
         {/* 12. PREVIEWS */}
         {activeSubSection === 'notif-previews' && (
-          <div>
+          <div className="notification-section notification-preview-section">
             <div
+              className="notification-master-card"
               style={{
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
                 padding: '20px 22px',
                 borderRadius: '18px',
-                background: 'rgba(255, 255, 255, 0.03)',
+                background: 'rgba(255, 255, 255, 0.55)',
                 border: '1px solid var(--border)',
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                <Eye style={{ width: '24px', height: '24px', color: '#f59e0b' }} />
+                <Eye style={{ width: '24px', height: '24px', color: '#a86d0b' }} />
                 <div>
-                  <div style={{ fontSize: '0.94rem', fontWeight: 700, color: '#ffffff' }}>Show Text Snippets</div>
-                  <div style={{ fontSize: '0.78rem', color: '#94a3b8', marginTop: '2px' }}>Include message preview in notifications</div>
+                  <div style={{ fontSize: '0.94rem', fontWeight: 700, color: 'var(--text-main)' }}>Show Text Snippets</div>
+                  <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '2px' }}>Include message preview in notifications</div>
                 </div>
               </div>
-              <input
-                type="checkbox"
-                checked={previewEnabled}
-                onChange={(e) => {
-                  setPreviewEnabled(e.target.checked);
-                  localStorage.setItem('novyn_preview', String(e.target.checked));
+              <button
+                type="button"
+                className={`settings-toggle ${previewEnabled ? 'is-on' : 'is-off'}`}
+                role="switch"
+                aria-checked={previewEnabled}
+                aria-label="Toggle notification text snippets"
+                onClick={() => {
+                  const nextValue = !previewEnabled;
+                  setPreviewEnabled(nextValue);
+                  localStorage.setItem('novyn_preview', String(nextValue));
                   triggerHaptic('light');
                 }}
-                style={{ width: '22px', height: '22px', accentColor: 'var(--primary)', cursor: 'pointer' }}
-              />
+              >
+                <span />
+                <span className="settings-toggle-label">{previewEnabled ? 'ON' : 'OFF'}</span>
+              </button>
             </div>
           </div>
         )}
@@ -1312,43 +1394,46 @@ export const SettingsDetailView: React.FC<SettingsDetailViewProps> = ({ activeSu
         {/* 13. THEME ACCENTS */}
         {activeSubSection === 'appear-theme' && (
           <div>
-            <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
-              {Object.entries(THEME_PRESETS).map(([key, theme]) => (
-                <div
-                  key={key}
-                  onClick={() => {
-                    triggerHaptic('light');
-                    setActiveTheme(key);
-                    applyThemeAccent(key);
-                  }}
-                  style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    gap: '8px',
-                    cursor: 'pointer',
-                  }}
-                >
-                  <div
-                    style={{
-                      width: '52px',
-                      height: '52px',
-                      borderRadius: '50%',
-                      background: theme.accent,
-                      border: activeTheme === key ? '3.5px solid #ffffff' : '2px solid transparent',
-                      boxShadow: activeTheme === key ? `0 0 20px ${theme.accentGlow}` : 'none',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      color: '#ffffff',
-                      transition: 'all 0.2s ease',
-                    }}
-                  >
-                    {activeTheme === key && <Check style={{ width: '22px', height: '22px' }} />}
-                  </div>
-                  <span style={{ fontSize: '0.8rem', color: '#94a3b8', fontWeight: 600 }}>{theme.name}</span>
-                </div>
-              ))}
+            <div className="color-mode-preference">
+              <div className="color-mode-copy">
+                <div className="color-mode-icon">{colorMode === 'dark' ? <Moon size={20} /> : <Sun size={20} />}</div>
+                <span><strong>Dark mode</strong><small>Use a softer, low-light interface across Novyn.</small></span>
+              </div>
+              <button
+                type="button"
+                className={`color-mode-switch ${colorMode === 'dark' ? 'is-dark' : ''}`}
+                role="switch"
+                aria-checked={colorMode === 'dark'}
+                aria-label="Toggle dark mode"
+                onClick={() => {
+                  const next = colorMode === 'dark' ? 'light' : 'dark';
+                  setColorMode(next);
+                  applyColorMode(next);
+                  triggerHaptic('light');
+                }}
+              >
+                <span />
+              </button>
+            </div>
+            <div className="dock-preference">
+              <span><strong>Always show dock</strong><small>Keep navigation visible instead of tucking it away when idle.</small></span>
+              <button
+                type="button"
+                className={`color-mode-switch ${dockAlwaysVisible ? 'is-dark' : ''}`}
+                role="switch"
+                aria-checked={dockAlwaysVisible}
+                aria-label="Toggle always-visible dock"
+                onClick={() => {
+                  setDockAlwaysVisible(!dockAlwaysVisible);
+                  triggerHaptic('light');
+                }}
+              >
+                <span />
+              </button>
+            </div>
+            <div className="signature-theme-card">
+              <span className="signature-theme-swatch"><Check style={{ width: '18px', height: '18px' }} /></span>
+              <span><strong>Novyn Purple</strong><small>Your signature accent for both light and dark mode.</small></span>
             </div>
           </div>
         )}
@@ -1382,7 +1467,7 @@ export const SettingsDetailView: React.FC<SettingsDetailViewProps> = ({ activeSu
                       transition: 'all 0.18s ease',
                     }}
                   >
-                    <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#ffffff' }}>{wp.name}</span>
+                    <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-main)' }}>{wp.name}</span>
                     {isSelected && <Check style={{ width: '18px', height: '18px', color: 'var(--primary)', alignSelf: 'flex-end' }} />}
                   </div>
                 );
@@ -1393,9 +1478,9 @@ export const SettingsDetailView: React.FC<SettingsDetailViewProps> = ({ activeSu
 
         {/* 15. TYPOGRAPHY & FONT SIZING */}
         {activeSubSection === 'appear-font' && (
-          <div>
+          <div className="typography-section">
             {/* Font Family Selector */}
-            <div style={{ marginBottom: '24px' }}>
+            <div className="typography-font-family" style={{ marginBottom: '24px' }}>
               <label className="input-label" style={{ marginBottom: '10px', display: 'block' }}>
                 App Font Family
               </label>
@@ -1406,6 +1491,7 @@ export const SettingsDetailView: React.FC<SettingsDetailViewProps> = ({ activeSu
                   return (
                     <div
                       key={font.id}
+                      className={`typography-font-card ${isSelected ? 'is-selected' : ''}`}
                       onClick={() => {
                         triggerHaptic('light');
                         setActiveFontFamilyState(font.id);
@@ -1418,7 +1504,7 @@ export const SettingsDetailView: React.FC<SettingsDetailViewProps> = ({ activeSu
                         padding: '14px 18px',
                         borderRadius: '16px',
                         border: isSelected ? '1.5px solid var(--border-focus)' : '1px solid var(--border)',
-                        background: isSelected ? 'var(--primary-glow)' : 'rgba(255, 255, 255, 0.02)',
+                        background: isSelected ? 'var(--primary-glow)' : 'rgba(255, 255, 255, 0.55)',
                         cursor: 'pointer',
                         transition: 'all 0.18s ease',
                         boxShadow: isSelected ? '0 4px 18px var(--primary-glow)' : 'none',
@@ -1426,15 +1512,15 @@ export const SettingsDetailView: React.FC<SettingsDetailViewProps> = ({ activeSu
                       }}
                     >
                       <div>
-                        <div style={{ fontSize: '0.96rem', fontWeight: 700, color: isSelected ? '#ffffff' : '#e2e8f0' }}>
+                        <div style={{ fontSize: '0.96rem', fontWeight: 700, color: isSelected ? 'var(--text-main)' : 'var(--text-main)' }}>
                           {font.name}
                         </div>
-                        <div style={{ fontSize: '0.74rem', color: '#94a3b8', marginTop: '2px', fontFamily: 'inherit' }}>
+                        <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '2px', fontFamily: 'inherit' }}>
                           {font.description}
                         </div>
                       </div>
 
-                      {isSelected && <Check style={{ width: '18px', height: '18px', color: 'var(--primary)' }} />}
+                      {isSelected && <span className="typography-current">Selected</span>}
                     </div>
                   );
                 })}
@@ -1442,7 +1528,7 @@ export const SettingsDetailView: React.FC<SettingsDetailViewProps> = ({ activeSu
             </div>
 
             {/* Font Size Selector */}
-            <div style={{ marginBottom: '24px' }}>
+            <div className="typography-size-section" style={{ marginBottom: '24px' }}>
               <label className="input-label" style={{ marginBottom: '10px', display: 'block' }}>
                 Message Text Sizing
               </label>
@@ -1451,6 +1537,7 @@ export const SettingsDetailView: React.FC<SettingsDetailViewProps> = ({ activeSu
                   <button
                     key={size}
                     type="button"
+                    className={`typography-size-button ${activeFontSize === size ? 'is-selected' : ''}`}
                     onClick={() => {
                       triggerHaptic('light');
                       setActiveFontSizeState(size);
@@ -1462,7 +1549,7 @@ export const SettingsDetailView: React.FC<SettingsDetailViewProps> = ({ activeSu
                       borderRadius: '16px',
                       border: activeFontSize === size ? '1.5px solid var(--border-focus)' : '1px solid var(--border)',
                       background: activeFontSize === size ? 'var(--primary-glow)' : 'var(--bg-input)',
-                      color: activeFontSize === size ? '#ffffff' : '#94a3b8',
+                      color: activeFontSize === size ? 'var(--text-main)' : 'var(--text-muted)',
                       fontSize: '0.88rem',
                       fontWeight: 700,
                       cursor: 'pointer',
@@ -1477,6 +1564,7 @@ export const SettingsDetailView: React.FC<SettingsDetailViewProps> = ({ activeSu
 
             {/* Live Message Bubble Preview */}
             <div
+              className="typography-preview"
               style={{
                 padding: '22px',
                 borderRadius: '18px',
@@ -1485,7 +1573,7 @@ export const SettingsDetailView: React.FC<SettingsDetailViewProps> = ({ activeSu
                 transition: 'background 0.3s ease',
               }}
             >
-              <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#94a3b8', marginBottom: '12px', letterSpacing: '0.05em' }}>
+              <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '12px', letterSpacing: '0.05em' }}>
                 LIVE CHAT TYPOGRAPHY PREVIEW:
               </div>
               <div className="bubble other" style={{ maxWidth: '320px', marginBottom: '10px' }}>
@@ -1500,12 +1588,13 @@ export const SettingsDetailView: React.FC<SettingsDetailViewProps> = ({ activeSu
 
         {/* 16. CACHE & STORAGE */}
         {activeSubSection === 'storage-cache' && (
-          <div>
+          <div className="storage-section storage-cache-section">
             <div
+              className="storage-cache-card"
               style={{
                 padding: '22px',
                 borderRadius: '18px',
-                background: 'rgba(255, 255, 255, 0.03)',
+                background: 'rgba(255, 255, 255, 0.55)',
                 border: '1px solid var(--border)',
                 display: 'flex',
                 alignItems: 'center',
@@ -1513,8 +1602,8 @@ export const SettingsDetailView: React.FC<SettingsDetailViewProps> = ({ activeSu
               }}
             >
               <div>
-                <div style={{ fontSize: '0.95rem', fontWeight: 700, color: '#ffffff' }}>Temporary Media & Local Blobs</div>
-                <div style={{ fontSize: '0.78rem', color: '#94a3b8', marginTop: '4px' }}>
+                <div style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-main)' }}>Temporary Media & Local Blobs</div>
+                <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '4px' }}>
                   {cacheCleared ? '0 KB - Cache Cleared' : '~4.2 MB cached audio waveforms and image previews'}
                 </div>
               </div>
@@ -1541,7 +1630,7 @@ export const SettingsDetailView: React.FC<SettingsDetailViewProps> = ({ activeSu
 
         {/* 17. BACKUP & RESTORE CHAT ARCHIVE */}
         {activeSubSection === 'storage-export' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+          <div className="storage-section storage-backup-section" style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
             {importStatus && (
               <div
                 style={{
@@ -1549,7 +1638,7 @@ export const SettingsDetailView: React.FC<SettingsDetailViewProps> = ({ activeSu
                   borderRadius: '16px',
                   fontSize: '0.86rem',
                   background: importStatus.ok ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
-                  color: importStatus.ok ? '#34d399' : '#f87171',
+                  color: importStatus.ok ? '#078779' : '#bd3750',
                   border: `1px solid ${importStatus.ok ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`,
                   lineHeight: 1.45,
                 }}
@@ -1560,10 +1649,11 @@ export const SettingsDetailView: React.FC<SettingsDetailViewProps> = ({ activeSu
 
             {/* Export Card */}
             <div
+              className="storage-export-card"
               style={{
                 padding: '24px',
                 borderRadius: '20px',
-                background: 'rgba(255, 255, 255, 0.03)',
+                background: 'rgba(255, 255, 255, 0.55)',
                 border: '1px solid var(--border)',
               }}
             >
@@ -1572,8 +1662,8 @@ export const SettingsDetailView: React.FC<SettingsDetailViewProps> = ({ activeSu
                   <Download style={{ width: '20px', height: '20px' }} />
                 </div>
                 <div>
-                  <h4 style={{ fontSize: '1rem', fontWeight: 800, color: '#ffffff', margin: 0 }}>Export Chat Backup</h4>
-                  <p style={{ fontSize: '0.78rem', color: '#94a3b8', margin: '2px 0 0' }}>
+                  <h4 style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--text-main)', margin: 0 }}>Export Chat Backup</h4>
+                  <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: '2px 0 0' }}>
                     Save a complete JSON archive of your messages, friends, and active chats to your device.
                   </p>
                 </div>
@@ -1597,20 +1687,21 @@ export const SettingsDetailView: React.FC<SettingsDetailViewProps> = ({ activeSu
 
             {/* Import / Restore Card */}
             <div
+              className="storage-import-card"
               style={{
                 padding: '24px',
                 borderRadius: '20px',
-                background: 'linear-gradient(135deg, rgba(56, 189, 248, 0.06) 0%, rgba(255, 255, 255, 0.02) 100%)',
+                background: 'linear-gradient(135deg, rgba(56, 189, 248, 0.06) 0%, rgba(255, 255, 255, 0.55) 100%)',
                 border: '1px solid rgba(56, 189, 248, 0.25)',
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '14px' }}>
-                <div style={{ width: '40px', height: '40px', borderRadius: '12px', background: 'rgba(56, 189, 248, 0.15)', color: '#38bdf8', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div style={{ width: '40px', height: '40px', borderRadius: '12px', background: 'rgba(56, 189, 248, 0.15)', color: '#087fac', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <Upload style={{ width: '20px', height: '20px' }} />
                 </div>
                 <div>
-                  <h4 style={{ fontSize: '1rem', fontWeight: 800, color: '#ffffff', margin: 0 }}>Restore & Import Backup</h4>
-                  <p style={{ fontSize: '0.78rem', color: '#94a3b8', margin: '2px 0 0' }}>
+                  <h4 style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--text-main)', margin: 0 }}>Restore & Import Backup</h4>
+                  <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: '2px 0 0' }}>
                     Select a previously exported Novyn JSON backup file to restore conversations.
                   </p>
                 </div>
@@ -1627,7 +1718,7 @@ export const SettingsDetailView: React.FC<SettingsDetailViewProps> = ({ activeSu
                   fontSize: '0.88rem',
                   fontWeight: 700,
                   cursor: 'pointer',
-                  color: '#38bdf8',
+                  color: '#087fac',
                   border: '1px solid rgba(56, 189, 248, 0.3)',
                 }}
               >
@@ -1645,8 +1736,9 @@ export const SettingsDetailView: React.FC<SettingsDetailViewProps> = ({ activeSu
 
         {/* 18. ENCRYPTION & SECURITY */}
         {activeSubSection === 'storage-security' && (
-          <div>
+          <div className="storage-section storage-security-section">
             <div
+              className="storage-security-card"
               style={{
                 padding: '24px',
                 borderRadius: '20px',
@@ -1659,11 +1751,11 @@ export const SettingsDetailView: React.FC<SettingsDetailViewProps> = ({ activeSu
             >
               <ShieldCheck style={{ width: '30px', height: '30px', color: 'var(--primary)', flexShrink: 0, marginTop: '2px' }} />
               <div>
-                <strong style={{ fontSize: '1rem', color: '#ffffff' }}>P2P WebRTC & End-to-End Encryption</strong>
-                <p style={{ fontSize: '0.8rem', color: '#cbd5e1', lineHeight: 1.55, margin: '6px 0 0' }}>
+                <strong style={{ fontSize: '1rem', color: 'var(--text-main)' }}>P2P WebRTC & End-to-End Encryption</strong>
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', lineHeight: 1.55, margin: '6px 0 0' }}>
                   Direct voice, video, and message channels communicate with TLS transport encryption and direct P2P streaming over verified STUN signaling servers.
                 </p>
-                <div style={{ fontSize: '0.74rem', color: '#94a3b8', marginTop: '12px' }}>
+                <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '12px' }}>
                   Novyn Client v1.0.0 • Verified STUN Signaling Active
                 </div>
               </div>
@@ -1760,10 +1852,10 @@ const FeedbackSettingsPanel: React.FC<{ type: FeedbackPanelType }> = ({ type }) 
   const charLimit = 2000;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+    <div className={`feedback-panel feedback-panel--${type}`} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
 
       {/* Header card */}
-      <div style={{
+      <div className="feedback-header-card" style={{
         padding: '20px 22px',
         borderRadius: '20px',
         background: `linear-gradient(135deg, ${meta.color}14 0%, rgba(255,255,255,0.02) 100%)`,
@@ -1778,8 +1870,8 @@ const FeedbackSettingsPanel: React.FC<{ type: FeedbackPanelType }> = ({ type }) 
           <Icon style={{ width: '22px', height: '22px' }} />
         </div>
         <div>
-          <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: '#fff' }}>{meta.title}</h3>
-          <p style={{ margin: '3px 0 0', fontSize: '0.78rem', color: '#94a3b8', lineHeight: 1.4 }}>
+          <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-main)' }}>{meta.title}</h3>
+          <p style={{ margin: '3px 0 0', fontSize: '0.78rem', color: 'var(--text-muted)', lineHeight: 1.4 }}>
             {user ? `Sending as ${user.username}` : 'You\'re not logged in — add your email to get a reply'}
           </p>
         </div>
@@ -1795,10 +1887,10 @@ const FeedbackSettingsPanel: React.FC<{ type: FeedbackPanelType }> = ({ type }) 
             width: '56px', height: '56px', borderRadius: '50%', margin: '0 auto 14px',
             background: 'rgba(16,185,129,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}>
-            <CheckCircle2 style={{ width: '28px', height: '28px', color: '#10b981' }} />
+            <CheckCircle2 style={{ width: '28px', height: '28px', color: '#0e9f8a' }} />
           </div>
-          <h4 style={{ fontSize: '1rem', fontWeight: 800, color: '#fff', margin: '0 0 6px' }}>Thanks for the feedback!</h4>
-          <p style={{ fontSize: '0.84rem', color: '#94a3b8', margin: 0, lineHeight: 1.5 }}>
+          <h4 style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--text-main)', margin: '0 0 6px' }}>Thanks for the feedback!</h4>
+          <p style={{ fontSize: '0.84rem', color: 'var(--text-muted)', margin: 0, lineHeight: 1.5 }}>
             We read every submission and use it to make Novyn better.
           </p>
           <button
@@ -1806,22 +1898,22 @@ const FeedbackSettingsPanel: React.FC<{ type: FeedbackPanelType }> = ({ type }) 
             onClick={() => setSuccess(false)}
             style={{
               marginTop: '16px', padding: '8px 20px', borderRadius: '10px',
-              background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)',
-              color: '#94a3b8', fontSize: '0.84rem', cursor: 'pointer',
+              background: 'rgba(255, 255, 255, 0.55)', border: '1px solid var(--border)',
+              color: 'var(--text-muted)', fontSize: '0.84rem', cursor: 'pointer',
             }}
           >
             Send another
           </button>
         </div>
       ) : (
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+        <form className="feedback-form" onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
 
           {/* Star rating */}
-          <div style={{
+          <div className="feedback-rating-card" style={{
             padding: '16px 18px', borderRadius: '14px',
-            background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border)',
+            background: 'rgba(255, 255, 255, 0.55)', border: '1px solid var(--border)',
           }}>
-            <p style={{ margin: '0 0 10px', fontSize: '0.8rem', fontWeight: 600, color: '#94a3b8' }}>
+            <p style={{ margin: '0 0 10px', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)' }}>
               Rate your overall experience (optional)
             </p>
             <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
@@ -1829,6 +1921,7 @@ const FeedbackSettingsPanel: React.FC<{ type: FeedbackPanelType }> = ({ type }) 
                 <button
                   key={star}
                   type="button"
+                  className="feedback-star"
                   onClick={() => setRating(star === rating ? 0 : star)}
                   onMouseEnter={() => setHoverRating(star)}
                   onMouseLeave={() => setHoverRating(0)}
@@ -1848,7 +1941,7 @@ const FeedbackSettingsPanel: React.FC<{ type: FeedbackPanelType }> = ({ type }) 
                 </button>
               ))}
               {rating > 0 && (
-                <span style={{ fontSize: '0.8rem', color: '#f59e0b', fontWeight: 700, marginLeft: '4px' }}>
+                <span style={{ fontSize: '0.8rem', color: '#a86d0b', fontWeight: 700, marginLeft: '4px' }}>
                   {['', 'Poor', 'Fair', 'Good', 'Great', 'Excellent'][rating]}
                 </span>
               )}
@@ -1856,8 +1949,9 @@ const FeedbackSettingsPanel: React.FC<{ type: FeedbackPanelType }> = ({ type }) 
           </div>
 
           {/* Message */}
-          <div style={{ position: 'relative' }}>
+          <div className="feedback-message-field" style={{ position: 'relative' }}>
             <textarea
+              className="feedback-textarea"
               value={message}
               onChange={e => { setMessage(e.target.value.slice(0, charLimit)); setError(''); }}
               placeholder={meta.placeholder}
@@ -1865,9 +1959,9 @@ const FeedbackSettingsPanel: React.FC<{ type: FeedbackPanelType }> = ({ type }) 
               style={{
                 width: '100%', resize: 'none', padding: '14px 16px',
                 borderRadius: '14px', fontSize: '0.88rem', lineHeight: 1.6,
-                background: 'rgba(255,255,255,0.04)',
+                background: 'rgba(255, 255, 255, 0.55)',
                 border: `1px solid ${error ? '#f87171' : 'var(--border)'}`,
-                color: '#e2e8f0', outline: 'none', boxSizing: 'border-box',
+                color: 'var(--text-main)', outline: 'none', boxSizing: 'border-box',
                 fontFamily: 'inherit', transition: 'border-color 0.15s',
               }}
               onFocus={e => { if (!error) e.target.style.borderColor = 'var(--border-focus)'; }}
@@ -1876,7 +1970,7 @@ const FeedbackSettingsPanel: React.FC<{ type: FeedbackPanelType }> = ({ type }) 
             <span style={{
               position: 'absolute', bottom: '10px', right: '14px',
               fontSize: '0.7rem',
-              color: message.length > charLimit * 0.9 ? '#f87171' : '#475569',
+              color: message.length > charLimit * 0.9 ? '#bd3750' : 'var(--text-dark)',
             }}>
               {message.length}/{charLimit}
             </span>
@@ -1885,14 +1979,15 @@ const FeedbackSettingsPanel: React.FC<{ type: FeedbackPanelType }> = ({ type }) 
           {/* Email (for anonymous users) */}
           {!user && (
             <input
+              className="feedback-email-input"
               type="email"
               value={email}
               onChange={e => setEmail(e.target.value)}
               placeholder="Your email (optional — so we can reply)"
               style={{
                 width: '100%', padding: '12px 14px', borderRadius: '12px',
-                fontSize: '0.87rem', background: 'rgba(255,255,255,0.04)',
-                border: '1px solid var(--border)', color: '#e2e8f0',
+                fontSize: '0.87rem', background: 'rgba(255, 255, 255, 0.55)',
+                border: '1px solid var(--border)', color: 'var(--text-main)',
                 outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit',
               }}
             />
@@ -1900,20 +1995,21 @@ const FeedbackSettingsPanel: React.FC<{ type: FeedbackPanelType }> = ({ type }) 
 
           {/* Error */}
           {error && (
-            <p style={{ margin: 0, fontSize: '0.82rem', color: '#f87171', fontWeight: 600 }}>{error}</p>
+            <p style={{ margin: 0, fontSize: '0.82rem', color: '#bd3750', fontWeight: 600 }}>{error}</p>
           )}
 
           {/* Submit */}
           <button
             type="submit"
+            className="feedback-submit"
             disabled={loading || !message.trim()}
             style={{
               padding: '13px 20px', borderRadius: '14px', fontWeight: 700,
               fontSize: '0.9rem', border: 'none', cursor: loading || !message.trim() ? 'not-allowed' : 'pointer',
               background: loading || !message.trim()
-                ? 'rgba(255,255,255,0.06)'
+                ? 'rgba(255, 255, 255, 0.55)'
                 : `linear-gradient(135deg, ${meta.color} 0%, ${meta.color}bb 100%)`,
-              color: loading || !message.trim() ? '#475569' : '#fff',
+              color: loading || !message.trim() ? 'var(--text-dark)' : 'var(--text-main)',
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
               transition: 'all 0.2s ease',
               boxShadow: loading || !message.trim() ? 'none' : `0 4px 14px ${meta.color}40`,

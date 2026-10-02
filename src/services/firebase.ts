@@ -12,8 +12,19 @@ const firebaseConfig = {
   appId:             import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
-const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
-export const auth = getAuth(app);
+let app: any = null;
+let auth: any = null;
+
+if (firebaseConfig.apiKey) {
+  try {
+    app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
+    auth = getAuth(app);
+  } catch (err) {
+    console.warn('Firebase initialization skipped:', err);
+  }
+}
+
+export { auth };
 
 export async function loginWithGooglePopup(): Promise<{ idToken: string; email?: string; displayName?: string }> {
   const provider = new GoogleAuthProvider();

@@ -163,16 +163,16 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ isCompact = fals
               margin: '12px 14px',
               padding: '12px 14px',
               borderRadius: '16px',
-              background: 'rgba(255, 255, 255, 0.03)',
+              background: 'rgba(255, 255, 255, 0.55)',
               border: '1px solid var(--border)',
             }}
           >
             <Avatar name={displayName || user?.username || 'You'} size="md" online={status === 'online'} />
             <div style={{ minWidth: 0, flex: 1 }}>
-              <div style={{ fontSize: '0.92rem', fontWeight: 800, color: '#ffffff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              <div style={{ fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-main)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {displayName || user?.username}
               </div>
-              <div style={{ fontSize: '0.74rem', color: '#94a3b8' }}>@{user?.username}</div>
+              <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>@{user?.username}</div>
             </div>
           </div>
 
@@ -223,16 +223,16 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ isCompact = fals
                         <Icon style={{ width: '18px', height: '18px' }} />
                       </div>
                       <div>
-                        <div style={{ fontSize: '0.88rem', fontWeight: 700, color: isSelected ? '#ffffff' : '#e2e8f0' }}>
+                        <div style={{ fontSize: '0.88rem', fontWeight: 700, color: isSelected ? 'var(--text-main)' : 'var(--text-main)' }}>
                           {cat.label}
                         </div>
-                        <div style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: '1px' }}>
+                        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '1px' }}>
                           {cat.description}
                         </div>
                       </div>
                     </div>
 
-                    <ChevronRight style={{ width: '16px', height: '16px', color: isSelected ? '#10b981' : '#64748b' }} />
+                    <ChevronRight style={{ width: '16px', height: '16px', color: isSelected ? '#0e9f8a' : 'var(--text-dark)' }} />
                   </button>
                 );
               })}
@@ -258,7 +258,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ isCompact = fals
               borderRadius: '14px',
               background: 'rgba(239, 68, 68, 0.08)',
               border: '1px solid rgba(239, 68, 68, 0.2)',
-              color: '#f87171',
+              color: '#bd3750',
               fontSize: '0.86rem',
               fontWeight: 700,
               cursor: 'pointer',
@@ -293,14 +293,14 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ isCompact = fals
           }}
         >
           <div>
-            <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#ffffff', margin: 0 }}>
+            <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-main)', margin: 0 }}>
               {activeCategory === 'profile' && 'Profile & Account'}
               {activeCategory === 'notifications' && 'Notification Preferences'}
               {activeCategory === 'privacy' && 'Privacy & Security'}
               {activeCategory === 'appearance' && 'Appearance & Chat Customization'}
               {activeCategory === 'storage' && 'Storage & Device Data'}
             </h2>
-            <p style={{ fontSize: '0.78rem', color: '#94a3b8', margin: '3px 0 0' }}>
+            <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: '3px 0 0' }}>
               {activeCategory === 'profile' && 'Manage your public persona, avatar, and active status'}
               {activeCategory === 'notifications' && 'Control message chimes, calling sounds, and badges'}
               {activeCategory === 'privacy' && 'Manage blocked users, read receipts, and your credentials'}
@@ -323,18 +323,18 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ isCompact = fals
                   gap: '20px',
                   padding: '22px 26px',
                   borderRadius: '20px',
-                  background: 'rgba(255, 255, 255, 0.03)',
+                  background: 'rgba(255, 255, 255, 0.55)',
                   border: '1px solid var(--border)',
                   marginBottom: '26px',
                 }}
               >
                 <Avatar name={displayName || user?.username || 'You'} size="xl" online={status === 'online'} />
                 <div>
-                  <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#ffffff', margin: 0 }}>
+                  <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--text-main)', margin: 0 }}>
                     {displayName || user?.username}
                   </h3>
-                  <p style={{ fontSize: '0.84rem', color: '#94a3b8', margin: '3px 0 0' }}>@{user?.username}</p>
-                  {user?.email && <p style={{ fontSize: '0.78rem', color: '#64748b', margin: '4px 0 0' }}>{user.email}</p>}
+                  <p style={{ fontSize: '0.84rem', color: 'var(--text-muted)', margin: '3px 0 0' }}>@{user?.username}</p>
+                  {user?.email && <p style={{ fontSize: '0.78rem', color: 'var(--text-dark)', margin: '4px 0 0' }}>{user.email}</p>}
                 </div>
               </div>
 
@@ -358,7 +358,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ isCompact = fals
                           borderRadius: '14px',
                           border: isSelected ? `1.5px solid ${dotColor}` : '1px solid var(--border)',
                           background: isSelected ? `${dotColor}1a` : 'var(--bg-input)',
-                          color: isSelected ? '#ffffff' : '#94a3b8',
+                          color: isSelected ? 'var(--text-main)' : 'var(--text-muted)',
                           fontSize: '0.86rem',
                           fontWeight: 700,
                           cursor: 'pointer',
@@ -431,15 +431,15 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ isCompact = fals
                   justifyContent: 'space-between',
                   padding: '18px 20px',
                   borderRadius: '16px',
-                  background: 'rgba(255, 255, 255, 0.03)',
+                  background: 'rgba(255, 255, 255, 0.55)',
                   border: '1px solid var(--border)',
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                  <Volume2 style={{ width: '22px', height: '22px', color: '#10b981' }} />
+                  <Volume2 style={{ width: '22px', height: '22px', color: '#0e9f8a' }} />
                   <div>
-                    <div style={{ fontSize: '0.92rem', fontWeight: 700, color: '#ffffff' }}>Message Audio Sounds</div>
-                    <div style={{ fontSize: '0.78rem', color: '#94a3b8' }}>Play subtle sound effects on incoming messages</div>
+                    <div style={{ fontSize: '0.92rem', fontWeight: 700, color: 'var(--text-main)' }}>Message Audio Sounds</div>
+                    <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Play subtle sound effects on incoming messages</div>
                   </div>
                 </div>
                 <input
@@ -457,15 +457,15 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ isCompact = fals
                   justifyContent: 'space-between',
                   padding: '18px 20px',
                   borderRadius: '16px',
-                  background: 'rgba(255, 255, 255, 0.03)',
+                  background: 'rgba(255, 255, 255, 0.55)',
                   border: '1px solid var(--border)',
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                  <Smartphone style={{ width: '22px', height: '22px', color: '#38bdf8' }} />
+                  <Smartphone style={{ width: '22px', height: '22px', color: '#087fac' }} />
                   <div>
-                    <div style={{ fontSize: '0.92rem', fontWeight: 700, color: '#ffffff' }}>Call Ringtones & Chimes</div>
-                    <div style={{ fontSize: '0.78rem', color: '#94a3b8' }}>Play audio chime on incoming and outgoing WebRTC calls</div>
+                    <div style={{ fontSize: '0.92rem', fontWeight: 700, color: 'var(--text-main)' }}>Call Ringtones & Chimes</div>
+                    <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Play audio chime on incoming and outgoing WebRTC calls</div>
                   </div>
                 </div>
                 <input
@@ -483,15 +483,15 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ isCompact = fals
                   justifyContent: 'space-between',
                   padding: '18px 20px',
                   borderRadius: '16px',
-                  background: 'rgba(255, 255, 255, 0.03)',
+                  background: 'rgba(255, 255, 255, 0.55)',
                   border: '1px solid var(--border)',
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                  <Eye style={{ width: '22px', height: '22px', color: '#f59e0b' }} />
+                  <Eye style={{ width: '22px', height: '22px', color: '#a86d0b' }} />
                   <div>
-                    <div style={{ fontSize: '0.92rem', fontWeight: 700, color: '#ffffff' }}>Message Previews</div>
-                    <div style={{ fontSize: '0.78rem', color: '#94a3b8' }}>Show sender name and text snippet in notifications</div>
+                    <div style={{ fontSize: '0.92rem', fontWeight: 700, color: 'var(--text-main)' }}>Message Previews</div>
+                    <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Show sender name and text snippet in notifications</div>
                   </div>
                 </div>
                 <input
@@ -514,13 +514,13 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ isCompact = fals
                   justifyContent: 'space-between',
                   padding: '18px 20px',
                   borderRadius: '16px',
-                  background: 'rgba(255, 255, 255, 0.03)',
+                  background: 'rgba(255, 255, 255, 0.55)',
                   border: '1px solid var(--border)',
                 }}
               >
                 <div>
-                  <div style={{ fontSize: '0.92rem', fontWeight: 700, color: '#ffffff' }}>Read Receipts</div>
-                  <div style={{ fontSize: '0.78rem', color: '#94a3b8', marginTop: '2px' }}>
+                  <div style={{ fontSize: '0.92rem', fontWeight: 700, color: 'var(--text-main)' }}>Read Receipts</div>
+                  <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '2px' }}>
                     Show double checkmarks when messages are seen
                   </div>
                 </div>
@@ -539,7 +539,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ isCompact = fals
                 </div>
 
                 {blockedUsers.size === 0 ? (
-                  <div style={{ padding: '20px', borderRadius: '14px', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border)', textAlign: 'center', color: '#64748b', fontSize: '0.86rem' }}>
+                  <div style={{ padding: '20px', borderRadius: '14px', background: 'rgba(255, 255, 255, 0.55)', border: '1px solid var(--border)', textAlign: 'center', color: 'var(--text-dark)', fontSize: '0.86rem' }}>
                     No blocked contacts
                   </div>
                 ) : (
@@ -553,15 +553,15 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ isCompact = fals
                           justifyContent: 'space-between',
                           padding: '12px 16px',
                           borderRadius: '14px',
-                          background: 'rgba(255,255,255,0.03)',
+                          background: 'rgba(255, 255, 255, 0.55)',
                           border: '1px solid var(--border)',
                         }}
                       >
-                        <span style={{ fontSize: '0.9rem', fontWeight: 600, color: '#ffffff' }}>@{username}</span>
+                        <span style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-main)' }}>@{username}</span>
                         <button
                           type="button"
                           onClick={() => blockUser(username, false)}
-                          style={{ background: 'none', border: 'none', color: '#38bdf8', fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer' }}
+                          style={{ background: 'none', border: 'none', color: '#087fac', fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer' }}
                         >
                           Unblock
                         </button>
@@ -573,8 +573,8 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ isCompact = fals
 
               {/* Password Change */}
               <form onSubmit={handlePasswordChange} style={{ borderTop: '1px solid var(--border)', paddingTop: '24px' }}>
-                <div style={{ fontSize: '0.95rem', fontWeight: 700, color: '#ffffff', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Lock style={{ width: '18px', height: '18px', color: '#10b981' }} /> Change Password
+                <div style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Lock style={{ width: '18px', height: '18px', color: '#0e9f8a' }} /> Change Password
                 </div>
 
                 {passwordMsg && (
@@ -585,7 +585,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ isCompact = fals
                       marginBottom: '14px',
                       fontSize: '0.84rem',
                       background: passwordMsg.ok ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
-                      color: passwordMsg.ok ? '#34d399' : '#f87171',
+                      color: passwordMsg.ok ? '#078779' : '#bd3750',
                       border: `1px solid ${passwordMsg.ok ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`,
                     }}
                   >
@@ -666,13 +666,13 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ isCompact = fals
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          color: '#ffffff',
+                          color: 'var(--text-main)',
                           transition: 'all 0.2s ease',
                         }}
                       >
                         {accentColor === theme.color && <Check style={{ width: '20px', height: '20px' }} />}
                       </div>
-                      <span style={{ fontSize: '0.78rem', color: '#94a3b8' }}>{theme.name}</span>
+                      <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>{theme.name}</span>
                     </div>
                   ))}
                 </div>
@@ -692,7 +692,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ isCompact = fals
                         borderRadius: '14px',
                         border: fontSize === size ? '1.5px solid #10b981' : '1px solid var(--border)',
                         background: fontSize === size ? 'rgba(16, 185, 129, 0.12)' : 'var(--bg-input)',
-                        color: fontSize === size ? '#34d399' : '#94a3b8',
+                        color: fontSize === size ? '#078779' : 'var(--text-muted)',
                         fontSize: '0.86rem',
                         fontWeight: 700,
                         cursor: 'pointer',
@@ -713,7 +713,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ isCompact = fals
                 style={{
                   padding: '22px',
                   borderRadius: '18px',
-                  background: 'rgba(255, 255, 255, 0.03)',
+                  background: 'rgba(255, 255, 255, 0.55)',
                   border: '1px solid var(--border)',
                   display: 'flex',
                   alignItems: 'center',
@@ -721,8 +721,8 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ isCompact = fals
                 }}
               >
                 <div>
-                  <div style={{ fontSize: '0.95rem', fontWeight: 700, color: '#ffffff' }}>Local Cache & Temporary Files</div>
-                  <div style={{ fontSize: '0.78rem', color: '#94a3b8', marginTop: '4px' }}>
+                  <div style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-main)' }}>Local Cache & Temporary Files</div>
+                  <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '4px' }}>
                     Cached audio waveforms, voice notes, and contact avatars
                   </div>
                 </div>
@@ -751,10 +751,10 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ isCompact = fals
                   gap: '16px',
                 }}
               >
-                <ShieldCheck style={{ width: '28px', height: '28px', color: '#10b981', flexShrink: 0 }} />
-                <div style={{ fontSize: '0.84rem', color: '#cbd5e1', lineHeight: 1.5 }}>
-                  <strong style={{ color: '#ffffff' }}>Novyn Chat WebRTC & End-to-End Ready</strong>
-                  <div style={{ color: '#94a3b8', fontSize: '0.76rem', marginTop: '2px' }}>
+                <ShieldCheck style={{ width: '28px', height: '28px', color: '#0e9f8a', flexShrink: 0 }} />
+                <div style={{ fontSize: '0.84rem', color: 'var(--text-muted)', lineHeight: 1.5 }}>
+                  <strong style={{ color: 'var(--text-main)' }}>Novyn Chat WebRTC & End-to-End Ready</strong>
+                  <div style={{ color: 'var(--text-muted)', fontSize: '0.76rem', marginTop: '2px' }}>
                     Version 1.0.0 • Connected Securely
                   </div>
                 </div>

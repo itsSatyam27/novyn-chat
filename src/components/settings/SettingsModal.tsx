@@ -112,7 +112,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
         onClick={onClose}
         style={{
           zIndex: 130,
-          background: 'rgba(3, 7, 18, 0.75)',
+          background: 'rgba(247, 254, 253, 0.75)',
           backdropFilter: 'blur(14px)',
           WebkitBackdropFilter: 'blur(14px)',
           display: 'flex',
@@ -132,10 +132,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
             width: '100%',
             height: '76vh',
             maxHeight: '680px',
-            background: 'linear-gradient(180deg, #111827 0%, #0c121e 100%)',
-            border: '1px solid rgba(255, 255, 255, 0.12)',
+            background: 'linear-gradient(180deg, var(--bg-surface) 0%, var(--bg-surface) 100%)',
+            border: '1px solid var(--border)',
             borderRadius: '24px',
-            boxShadow: '0 30px 70px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(16, 185, 129, 0.15)',
+            boxShadow: '0 30px 70px rgba(36, 76, 96, 0.1), 0 0 0 1px rgba(16, 185, 129, 0.15)',
             display: 'flex',
             overflow: 'hidden',
           }}
@@ -145,8 +145,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
             style={{
               width: '220px',
               minWidth: '220px',
-              background: 'rgba(255, 255, 255, 0.02)',
-              borderRight: '1px solid rgba(255, 255, 255, 0.08)',
+              background: 'rgba(255, 255, 255, 0.55)',
+              borderRight: '1px solid var(--border)',
               padding: '20px 14px',
               display: 'flex',
               flexDirection: 'column',
@@ -154,7 +154,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
             }}
           >
             <div>
-              <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#ffffff', padding: '0 10px 16px', margin: 0, letterSpacing: '-0.02em' }}>
+              <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-main)', padding: '0 10px 16px', margin: 0, letterSpacing: '-0.02em' }}>
                 Settings
               </h3>
 
@@ -173,7 +173,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                     borderRadius: '12px',
                     border: 'none',
                     background: activeTab === 'profile' ? 'rgba(16, 185, 129, 0.15)' : 'transparent',
-                    color: activeTab === 'profile' ? '#10b981' : '#94a3b8',
+                    color: activeTab === 'profile' ? '#0e9f8a' : 'var(--text-muted)',
                     fontWeight: activeTab === 'profile' ? 700 : 500,
                     fontSize: '0.84rem',
                     cursor: 'pointer',
@@ -198,7 +198,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                     borderRadius: '12px',
                     border: 'none',
                     background: activeTab === 'notifications' ? 'rgba(16, 185, 129, 0.15)' : 'transparent',
-                    color: activeTab === 'notifications' ? '#10b981' : '#94a3b8',
+                    color: activeTab === 'notifications' ? '#0e9f8a' : 'var(--text-muted)',
                     fontWeight: activeTab === 'notifications' ? 700 : 500,
                     fontSize: '0.84rem',
                     cursor: 'pointer',
@@ -223,7 +223,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                     borderRadius: '12px',
                     border: 'none',
                     background: activeTab === 'privacy' ? 'rgba(16, 185, 129, 0.15)' : 'transparent',
-                    color: activeTab === 'privacy' ? '#10b981' : '#94a3b8',
+                    color: activeTab === 'privacy' ? '#0e9f8a' : 'var(--text-muted)',
                     fontWeight: activeTab === 'privacy' ? 700 : 500,
                     fontSize: '0.84rem',
                     cursor: 'pointer',
@@ -248,7 +248,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                     borderRadius: '12px',
                     border: 'none',
                     background: activeTab === 'appearance' ? 'rgba(16, 185, 129, 0.15)' : 'transparent',
-                    color: activeTab === 'appearance' ? '#10b981' : '#94a3b8',
+                    color: activeTab === 'appearance' ? '#0e9f8a' : 'var(--text-muted)',
                     fontWeight: activeTab === 'appearance' ? 700 : 500,
                     fontSize: '0.84rem',
                     cursor: 'pointer',
@@ -273,7 +273,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                     borderRadius: '12px',
                     border: 'none',
                     background: activeTab === 'storage' ? 'rgba(16, 185, 129, 0.15)' : 'transparent',
-                    color: activeTab === 'storage' ? '#10b981' : '#94a3b8',
+                    color: activeTab === 'storage' ? '#0e9f8a' : 'var(--text-muted)',
                     fontWeight: activeTab === 'storage' ? 700 : 500,
                     fontSize: '0.84rem',
                     cursor: 'pointer',
@@ -302,7 +302,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                 borderRadius: '12px',
                 border: '1px solid rgba(239, 68, 68, 0.2)',
                 background: 'rgba(239, 68, 68, 0.08)',
-                color: '#f87171',
+                color: '#bd3750',
                 fontSize: '0.82rem',
                 fontWeight: 700,
                 cursor: 'pointer',
@@ -319,13 +319,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
             <div
               style={{
                 padding: '18px 24px',
-                borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+                borderBottom: '1px solid var(--border)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
               }}
             >
-              <h2 style={{ fontSize: '1.15rem', fontWeight: 800, color: '#ffffff', margin: 0 }}>
+              <h2 style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--text-main)', margin: 0 }}>
                 {activeTab === 'profile' && 'Edit Profile'}
                 {activeTab === 'notifications' && 'Notification Settings'}
                 {activeTab === 'privacy' && 'Privacy & Security'}
@@ -343,9 +343,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                   width: '34px',
                   height: '34px',
                   borderRadius: '50%',
-                  background: 'rgba(255, 255, 255, 0.06)',
-                  border: '1px solid rgba(255, 255, 255, 0.1)',
-                  color: '#94a3b8',
+                  background: 'rgba(255, 255, 255, 0.55)',
+                  border: '1px solid var(--border)',
+                  color: 'var(--text-muted)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -369,18 +369,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                       gap: '16px',
                       padding: '16px 20px',
                       borderRadius: '18px',
-                      background: 'rgba(255, 255, 255, 0.03)',
-                      border: '1px solid rgba(255, 255, 255, 0.08)',
+                      background: 'rgba(255, 255, 255, 0.55)',
+                      border: '1px solid var(--border)',
                       marginBottom: '22px',
                     }}
                   >
                     <Avatar name={displayName || user?.username || 'You'} size="xl" online={status === 'online'} />
                     <div>
-                      <h4 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#ffffff', margin: 0 }}>
+                      <h4 style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-main)', margin: 0 }}>
                         {displayName || user?.username}
                       </h4>
-                      <p style={{ fontSize: '0.8rem', color: '#94a3b8', margin: '2px 0 0' }}>@{user?.username}</p>
-                      {user?.email && <p style={{ fontSize: '0.74rem', color: '#64748b', margin: '2px 0 0' }}>{user.email}</p>}
+                      <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '2px 0 0' }}>@{user?.username}</p>
+                      {user?.email && <p style={{ fontSize: '0.74rem', color: 'var(--text-dark)', margin: '2px 0 0' }}>{user.email}</p>}
                     </div>
                   </div>
 
@@ -404,7 +404,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                               borderRadius: '12px',
                               border: isSelected ? `1px solid ${dotColor}` : '1px solid var(--border)',
                               background: isSelected ? `${dotColor}1a` : 'var(--bg-input)',
-                              color: isSelected ? '#ffffff' : '#94a3b8',
+                              color: isSelected ? 'var(--text-main)' : 'var(--text-muted)',
                               fontSize: '0.82rem',
                               fontWeight: 700,
                               cursor: 'pointer',
@@ -477,15 +477,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                       justifyContent: 'space-between',
                       padding: '16px',
                       borderRadius: '14px',
-                      background: 'rgba(255, 255, 255, 0.03)',
+                      background: 'rgba(255, 255, 255, 0.55)',
                       border: '1px solid var(--border)',
                     }}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                      <Volume2 style={{ width: '20px', height: '20px', color: '#10b981' }} />
+                      <Volume2 style={{ width: '20px', height: '20px', color: '#0e9f8a' }} />
                       <div>
-                        <div style={{ fontSize: '0.88rem', fontWeight: 700, color: '#ffffff' }}>Message Sounds</div>
-                        <div style={{ fontSize: '0.74rem', color: '#94a3b8' }}>Play subtle chimes for incoming messages</div>
+                        <div style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--text-main)' }}>Message Sounds</div>
+                        <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>Play subtle chimes for incoming messages</div>
                       </div>
                     </div>
                     <input
@@ -503,15 +503,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                       justifyContent: 'space-between',
                       padding: '16px',
                       borderRadius: '14px',
-                      background: 'rgba(255, 255, 255, 0.03)',
+                      background: 'rgba(255, 255, 255, 0.55)',
                       border: '1px solid var(--border)',
                     }}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                      <Smartphone style={{ width: '20px', height: '20px', color: '#38bdf8' }} />
+                      <Smartphone style={{ width: '20px', height: '20px', color: '#087fac' }} />
                       <div>
-                        <div style={{ fontSize: '0.88rem', fontWeight: 700, color: '#ffffff' }}>Call Ringtones</div>
-                        <div style={{ fontSize: '0.74rem', color: '#94a3b8' }}>Play audio chime on incoming and outgoing calls</div>
+                        <div style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--text-main)' }}>Call Ringtones</div>
+                        <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>Play audio chime on incoming and outgoing calls</div>
                       </div>
                     </div>
                     <input
@@ -529,15 +529,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                       justifyContent: 'space-between',
                       padding: '16px',
                       borderRadius: '14px',
-                      background: 'rgba(255, 255, 255, 0.03)',
+                      background: 'rgba(255, 255, 255, 0.55)',
                       border: '1px solid var(--border)',
                     }}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                      <Eye style={{ width: '20px', height: '20px', color: '#f59e0b' }} />
+                      <Eye style={{ width: '20px', height: '20px', color: '#a86d0b' }} />
                       <div>
-                        <div style={{ fontSize: '0.88rem', fontWeight: 700, color: '#ffffff' }}>Message Previews</div>
-                        <div style={{ fontSize: '0.74rem', color: '#94a3b8' }}>Show message snippet in notifications</div>
+                        <div style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--text-main)' }}>Message Previews</div>
+                        <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>Show message snippet in notifications</div>
                       </div>
                     </div>
                     <input
@@ -561,13 +561,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                       justifyContent: 'space-between',
                       padding: '16px',
                       borderRadius: '14px',
-                      background: 'rgba(255, 255, 255, 0.03)',
+                      background: 'rgba(255, 255, 255, 0.55)',
                       border: '1px solid var(--border)',
                     }}
                   >
                     <div>
-                      <div style={{ fontSize: '0.88rem', fontWeight: 700, color: '#ffffff' }}>Read Receipts</div>
-                      <div style={{ fontSize: '0.74rem', color: '#94a3b8' }}>Show double checkmarks when messages are seen</div>
+                      <div style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--text-main)' }}>Read Receipts</div>
+                      <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>Show double checkmarks when messages are seen</div>
                     </div>
                     <input
                       type="checkbox"
@@ -584,7 +584,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                     </div>
 
                     {blockedUsers.size === 0 ? (
-                      <div style={{ padding: '16px', borderRadius: '12px', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border)', textAlign: 'center', color: '#64748b', fontSize: '0.82rem' }}>
+                      <div style={{ padding: '16px', borderRadius: '12px', background: 'rgba(255, 255, 255, 0.55)', border: '1px solid var(--border)', textAlign: 'center', color: 'var(--text-dark)', fontSize: '0.82rem' }}>
                         No blocked contacts
                       </div>
                     ) : (
@@ -598,15 +598,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                               justifyContent: 'space-between',
                               padding: '10px 14px',
                               borderRadius: '12px',
-                              background: 'rgba(255,255,255,0.03)',
+                              background: 'rgba(255, 255, 255, 0.55)',
                               border: '1px solid var(--border)',
                             }}
                           >
-                            <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#ffffff' }}>@{username}</span>
+                            <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)' }}>@{username}</span>
                             <button
                               type="button"
                               onClick={() => blockUser(username, false)}
-                              style={{ background: 'none', border: 'none', color: '#38bdf8', fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer' }}
+                              style={{ background: 'none', border: 'none', color: '#087fac', fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer' }}
                             >
                               Unblock
                             </button>
@@ -618,8 +618,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
 
                   {/* Change Password Form */}
                   <form onSubmit={handlePasswordChange} style={{ borderTop: '1px solid var(--border)', paddingTop: '18px' }}>
-                    <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#ffffff', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <Lock style={{ width: '15px', height: '15px', color: '#10b981' }} /> Change Password
+                    <div style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Lock style={{ width: '15px', height: '15px', color: '#0e9f8a' }} /> Change Password
                     </div>
 
                     {passwordMsg && (
@@ -630,7 +630,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                           marginBottom: '12px',
                           fontSize: '0.8rem',
                           background: passwordMsg.ok ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
-                          color: passwordMsg.ok ? '#34d399' : '#f87171',
+                          color: passwordMsg.ok ? '#078779' : '#bd3750',
                           border: `1px solid ${passwordMsg.ok ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`,
                         }}
                       >
@@ -733,8 +733,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                               padding: '12px 8px',
                               borderRadius: '12px',
                               border: isSelected ? '1px solid #10b981' : '1px solid var(--border)',
-                              background: isSelected ? 'rgba(16, 185, 129, 0.12)' : 'rgba(255, 255, 255, 0.03)',
-                              color: isSelected ? '#10b981' : '#94a3b8',
+                              background: isSelected ? 'rgba(16, 185, 129, 0.12)' : 'rgba(255, 255, 255, 0.55)',
+                              color: isSelected ? '#0e9f8a' : 'var(--text-muted)',
                               cursor: 'pointer',
                               display: 'flex',
                               flexDirection: 'column',
@@ -784,12 +784,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                               display: 'flex',
                               alignItems: 'center',
                               justifyContent: 'center',
-                              color: '#ffffff',
+                              color: 'var(--text-main)',
                             }}
                           >
                             {accentColor === theme.color && <Check style={{ width: '18px', height: '18px' }} />}
                           </div>
-                          <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>{theme.name}</span>
+                          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{theme.name}</span>
                         </div>
                       ))}
                     </div>
@@ -810,7 +810,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                             borderRadius: '12px',
                             border: fontSize === size ? '1px solid #10b981' : '1px solid var(--border)',
                             background: fontSize === size ? 'rgba(16, 185, 129, 0.12)' : 'var(--bg-input)',
-                            color: fontSize === size ? '#34d399' : '#94a3b8',
+                            color: fontSize === size ? '#078779' : 'var(--text-muted)',
                             fontSize: '0.82rem',
                             fontWeight: 700,
                             cursor: 'pointer',
@@ -831,7 +831,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                     style={{
                       padding: '18px',
                       borderRadius: '16px',
-                      background: 'rgba(255, 255, 255, 0.03)',
+                      background: 'rgba(255, 255, 255, 0.55)',
                       border: '1px solid var(--border)',
                       display: 'flex',
                       alignItems: 'center',
@@ -839,8 +839,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                     }}
                   >
                     <div>
-                      <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#ffffff' }}>Local Cache & Media</div>
-                      <div style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: '2px' }}>
+                      <div style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-main)' }}>Local Cache & Media</div>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px' }}>
                         Temporary audio, voice notes, and cached images
                       </div>
                     </div>
@@ -869,10 +869,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                       gap: '12px',
                     }}
                   >
-                    <ShieldCheck style={{ width: '24px', height: '24px', color: '#10b981', flexShrink: 0 }} />
-                    <div style={{ fontSize: '0.78rem', color: '#cbd5e1', lineHeight: 1.5 }}>
+                    <ShieldCheck style={{ width: '24px', height: '24px', color: '#0e9f8a', flexShrink: 0 }} />
+                    <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', lineHeight: 1.5 }}>
                       <strong>Novyn Chat WebRTC & End-to-End Ready</strong>
-                      <div style={{ color: '#94a3b8', fontSize: '0.72rem' }}>Version 1.0.0 • Connected Securely</div>
+                      <div style={{ color: 'var(--text-muted)', fontSize: '0.72rem' }}>Version 1.0.0 • Connected Securely</div>
                     </div>
                   </div>
                 </div>

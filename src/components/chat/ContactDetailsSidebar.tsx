@@ -25,6 +25,7 @@ import {
   Check,
   Lock,
   ShieldCheck,
+  Clock3,
 } from 'lucide-react';
 import { SharedMediaModal } from './SharedMediaModal';
 import { ExportChatModal } from './ExportChatModal';
@@ -50,6 +51,9 @@ interface ContactDetailsSidebarProps {
   onMediaClick: (url: string) => void;
   isMuted?: boolean;
   isBlocked?: boolean;
+  retentionDays?: number | null;
+  accountRetentionDays?: number;
+  onRetentionChange?: (days: number | null) => void;
 }
 
 export const ContactDetailsSidebar: React.FC<ContactDetailsSidebarProps> = ({
@@ -66,6 +70,9 @@ export const ContactDetailsSidebar: React.FC<ContactDetailsSidebarProps> = ({
   onMediaClick,
   isMuted = false,
   isBlocked = false,
+  retentionDays = null,
+  accountRetentionDays = 30,
+  onRetentionChange,
 }) => {
   const { user } = useAuth();
   const {
@@ -182,6 +189,7 @@ export const ContactDetailsSidebar: React.FC<ContactDetailsSidebarProps> = ({
   return (
     <>
       <div
+        className="contact-details-sidebar"
         style={{
           width: '340px',
           minWidth: '340px',
@@ -198,6 +206,7 @@ export const ContactDetailsSidebar: React.FC<ContactDetailsSidebarProps> = ({
       >
         {/* Header */}
         <div
+          className="contact-details-header"
           style={{
             padding: '16px 20px',
             borderBottom: '1px solid var(--border)',
@@ -206,7 +215,7 @@ export const ContactDetailsSidebar: React.FC<ContactDetailsSidebarProps> = ({
             justifyContent: 'space-between',
           }}
         >
-          <h3 style={{ fontSize: '1rem', fontWeight: 800, color: '#ffffff', letterSpacing: '-0.01em' }}>
+          <h3 style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--text-main)', letterSpacing: '-0.01em' }}>
             {isGroup ? 'Group Info' : 'Contact Info'}
           </h3>
           <button
@@ -224,9 +233,9 @@ export const ContactDetailsSidebar: React.FC<ContactDetailsSidebarProps> = ({
         </div>
 
         {/* Scrollable Content */}
-        <div className="conversations-scroll" style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
+        <div className="conversations-scroll contact-details-content" style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
           {/* Group Profile or User Card */}
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', marginBottom: '22px' }}>
+          <div className="contact-details-profile" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', marginBottom: '22px' }}>
             <div style={{ marginBottom: '12px' }}>
               <Avatar
                 name={contact.displayName || contact.username}
@@ -238,18 +247,19 @@ export const ContactDetailsSidebar: React.FC<ContactDetailsSidebarProps> = ({
               />
             </div>
 
-            <h2 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#ffffff', marginBottom: '2px' }}>
+            <h2 style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--text-main)', marginBottom: '2px' }}>
               {contact.displayName || contact.username}
             </h2>
-            <p style={{ fontSize: '0.8rem', color: '#94a3b8', marginBottom: '6px' }}>
+            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '6px' }}>
               @{contact.username}
             </p>
 
             <span
+              className="contact-presence"
               style={{
                 fontSize: '0.72rem',
                 fontWeight: 700,
-                color: '#38bdf8',
+                color: '#087fac',
                 background: 'rgba(56, 189, 248, 0.12)',
                 padding: '2px 10px',
                 borderRadius: '9999px',
@@ -265,7 +275,7 @@ export const ContactDetailsSidebar: React.FC<ContactDetailsSidebarProps> = ({
 
             {/* Quick 1-on-1 Call Actions (only for direct contacts) */}
             {!isGroup && (
-              <div style={{ display: 'flex', gap: '10px', width: '100%' }}>
+              <div className="contact-call-actions" style={{ display: 'flex', gap: '10px', width: '100%' }}>
                 <button
                   type="button"
                   onClick={() => {
@@ -275,7 +285,7 @@ export const ContactDetailsSidebar: React.FC<ContactDetailsSidebarProps> = ({
                   className="btn btn-secondary"
                   style={{ flex: 1, padding: '9px', borderRadius: '12px', fontSize: '0.8rem' }}
                 >
-                  <Phone style={{ width: '15px', height: '15px', color: '#34d399' }} /> Call
+                  <Phone style={{ width: '15px', height: '15px', color: '#078779' }} /> Call
                 </button>
 
                 <button
@@ -287,7 +297,7 @@ export const ContactDetailsSidebar: React.FC<ContactDetailsSidebarProps> = ({
                   className="btn btn-secondary"
                   style={{ flex: 1, padding: '9px', borderRadius: '12px', fontSize: '0.8rem' }}
                 >
-                  <Video style={{ width: '15px', height: '15px', color: '#38bdf8' }} /> Video
+                  <Video style={{ width: '15px', height: '15px', color: '#087fac' }} /> Video
                 </button>
               </div>
             )}
@@ -295,7 +305,7 @@ export const ContactDetailsSidebar: React.FC<ContactDetailsSidebarProps> = ({
 
           {/* Group Members Section */}
           {isGroup && (
-            <div style={{ marginBottom: '24px' }}>
+            <div className="contact-group-members" style={{ marginBottom: '24px' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
                 <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-dark)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                   MEMBERS ({groupInfo?.members?.length || contact.memberCount || 2})
@@ -305,10 +315,11 @@ export const ContactDetailsSidebar: React.FC<ContactDetailsSidebarProps> = ({
                   <button
                     type="button"
                     onClick={() => setIsAddMembersOpen((prev) => !prev)}
+                    className="contact-add-member-button"
                     style={{
                       background: 'none',
                       border: 'none',
-                      color: '#10b981',
+                      color: '#0e9f8a',
                       fontSize: '0.75rem',
                       fontWeight: 700,
                       cursor: 'pointer',
@@ -325,6 +336,7 @@ export const ContactDetailsSidebar: React.FC<ContactDetailsSidebarProps> = ({
               {/* Add Members Drawer / Inline Selector */}
               {isAddMembersOpen && (
                 <div
+                  className="contact-add-members-panel"
                   style={{
                     padding: '12px',
                     borderRadius: '14px',
@@ -336,11 +348,11 @@ export const ContactDetailsSidebar: React.FC<ContactDetailsSidebarProps> = ({
                     gap: '8px',
                   }}
                 >
-                  <span style={{ fontSize: '0.76rem', fontWeight: 700, color: '#34d399' }}>
+                  <span style={{ fontSize: '0.76rem', fontWeight: 700, color: '#078779' }}>
                     Select friends to add:
                   </span>
                   {eligibleFriendsToAdd.length === 0 ? (
-                    <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
                       All your friends are already in this group.
                     </span>
                   ) : (
@@ -349,6 +361,7 @@ export const ContactDetailsSidebar: React.FC<ContactDetailsSidebarProps> = ({
                         const isSelected = selectedToAdd.includes(f.username);
                         return (
                           <div
+                            className={`contact-add-member-row ${isSelected ? 'is-selected' : ''}`}
                             key={f.username}
                             onClick={() => {
                               setSelectedToAdd((prev) =>
@@ -361,14 +374,14 @@ export const ContactDetailsSidebar: React.FC<ContactDetailsSidebarProps> = ({
                               justifyContent: 'space-between',
                               padding: '6px 8px',
                               borderRadius: '8px',
-                              background: isSelected ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255, 255, 255, 0.03)',
+                              background: isSelected ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255, 255, 255, 0.55)',
                               cursor: 'pointer',
                             }}
                           >
-                            <span style={{ fontSize: '0.78rem', color: '#ffffff' }}>
+                            <span style={{ fontSize: '0.78rem', color: 'var(--text-main)' }}>
                               {f.displayName || f.username}
                             </span>
-                            {isSelected && <Check style={{ width: '12px', height: '12px', color: '#10b981' }} />}
+                            {isSelected && <Check style={{ width: '12px', height: '12px', color: '#0e9f8a' }} />}
                           </div>
                         );
                       })}
@@ -378,15 +391,16 @@ export const ContactDetailsSidebar: React.FC<ContactDetailsSidebarProps> = ({
                   {eligibleFriendsToAdd.length > 0 && (
                     <div style={{ display: 'flex', gap: '6px', marginTop: '4px' }}>
                       <button
+                        className="contact-add-members-cancel"
                         type="button"
                         onClick={() => setIsAddMembersOpen(false)}
                         style={{
                           flex: 1,
                           padding: '6px',
                           borderRadius: '8px',
-                          background: 'rgba(255,255,255,0.05)',
+                          background: 'rgba(255, 255, 255, 0.55)',
                           border: 'none',
-                          color: '#94a3b8',
+                          color: 'var(--text-muted)',
                           fontSize: '0.74rem',
                           cursor: 'pointer',
                         }}
@@ -394,6 +408,7 @@ export const ContactDetailsSidebar: React.FC<ContactDetailsSidebarProps> = ({
                         Cancel
                       </button>
                       <button
+                        className="contact-add-members-confirm"
                         type="button"
                         onClick={handleAddSelectedMembers}
                         disabled={selectedToAdd.length === 0}
@@ -403,7 +418,7 @@ export const ContactDetailsSidebar: React.FC<ContactDetailsSidebarProps> = ({
                           borderRadius: '8px',
                           background: '#10b981',
                           border: 'none',
-                          color: '#ffffff',
+                          color: 'var(--text-on-primary)',
                           fontSize: '0.74rem',
                           fontWeight: 700,
                           cursor: 'pointer',
@@ -426,6 +441,7 @@ export const ContactDetailsSidebar: React.FC<ContactDetailsSidebarProps> = ({
 
                   return (
                     <div
+                      className="contact-member-row"
                       key={m.username}
                       style={{
                         display: 'flex',
@@ -433,7 +449,7 @@ export const ContactDetailsSidebar: React.FC<ContactDetailsSidebarProps> = ({
                         justifyContent: 'space-between',
                         padding: '8px 10px',
                         borderRadius: '12px',
-                        background: 'rgba(255, 255, 255, 0.03)',
+                        background: 'rgba(255, 255, 255, 0.55)',
                         border: '1px solid var(--border)',
                       }}
                     >
@@ -446,17 +462,18 @@ export const ContactDetailsSidebar: React.FC<ContactDetailsSidebarProps> = ({
                         />
                         <div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#ffffff' }}>
+                            <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-main)' }}>
                               {m.displayName || m.username} {isMe && '(You)'}
                             </span>
                             {isOwner ? (
                               <span
+                                className="contact-member-role contact-member-role--owner"
                                 style={{
                                   fontSize: '0.65rem',
                                   padding: '1px 5px',
                                   borderRadius: '4px',
                                   background: 'rgba(245, 158, 11, 0.15)',
-                                  color: '#f59e0b',
+                                  color: '#a86d0b',
                                   fontWeight: 800,
                                   display: 'flex',
                                   alignItems: 'center',
@@ -467,12 +484,13 @@ export const ContactDetailsSidebar: React.FC<ContactDetailsSidebarProps> = ({
                               </span>
                             ) : isAdmin ? (
                               <span
+                                className="contact-member-role contact-member-role--admin"
                                 style={{
                                   fontSize: '0.65rem',
                                   padding: '1px 5px',
                                   borderRadius: '4px',
                                   background: 'rgba(56, 189, 248, 0.15)',
-                                  color: '#38bdf8',
+                                  color: '#087fac',
                                   fontWeight: 800,
                                   display: 'flex',
                                   alignItems: 'center',
@@ -483,7 +501,7 @@ export const ContactDetailsSidebar: React.FC<ContactDetailsSidebarProps> = ({
                               </span>
                             ) : null}
                           </div>
-                          <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>
+                          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
                             @{m.username}
                           </span>
                         </div>
@@ -497,14 +515,14 @@ export const ContactDetailsSidebar: React.FC<ContactDetailsSidebarProps> = ({
                               <button
                                 type="button"
                                 onClick={() => setMemberToRemove(null)}
-                                style={{ background: 'none', border: 'none', color: '#94a3b8', fontSize: '0.7rem', cursor: 'pointer' }}
+                                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '0.7rem', cursor: 'pointer' }}
                               >
                                 Cancel
                               </button>
                               <button
                                 type="button"
                                 onClick={() => handleRemoveMember(m.username)}
-                                style={{ background: '#ef4444', border: 'none', color: '#ffffff', fontSize: '0.7rem', padding: '2px 6px', borderRadius: '4px', cursor: 'pointer' }}
+                                style={{ background: '#ef4444', border: 'none', color: 'var(--text-on-primary)', fontSize: '0.7rem', padding: '2px 6px', borderRadius: '4px', cursor: 'pointer' }}
                               >
                                 Remove
                               </button>
@@ -529,7 +547,7 @@ export const ContactDetailsSidebar: React.FC<ContactDetailsSidebarProps> = ({
           )}
 
           {/* Shared Media & Files Section */}
-          <div style={{ marginBottom: '22px' }}>
+          <div className="contact-shared-section" style={{ marginBottom: '22px' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
               <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-dark)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                 Shared Files & Media
@@ -541,10 +559,11 @@ export const ContactDetailsSidebar: React.FC<ContactDetailsSidebarProps> = ({
                   triggerHaptic('light');
                   setIsSharedMediaModalOpen(true);
                 }}
+                className="contact-view-all-button"
                 style={{
                   background: 'none',
                   border: 'none',
-                  color: '#10b981',
+                  color: '#0e9f8a',
                   fontSize: '0.75rem',
                   fontWeight: 700,
                   cursor: 'pointer',
@@ -562,9 +581,10 @@ export const ContactDetailsSidebar: React.FC<ContactDetailsSidebarProps> = ({
 
             {/* Media Tabs */}
             <div
+              className="contact-media-tabs"
               style={{
                 display: 'flex',
-                background: 'rgba(255, 255, 255, 0.03)',
+                background: 'rgba(255, 255, 255, 0.55)',
                 padding: '3px',
                 borderRadius: '10px',
                 marginBottom: '10px',
@@ -580,7 +600,7 @@ export const ContactDetailsSidebar: React.FC<ContactDetailsSidebarProps> = ({
                   borderRadius: '8px',
                   border: 'none',
                   background: activeMediaTab === 'media' ? '#10b981' : 'transparent',
-                  color: activeMediaTab === 'media' ? '#ffffff' : '#94a3b8',
+                  color: activeMediaTab === 'media' ? 'var(--text-main)' : 'var(--text-muted)',
                   fontSize: '0.75rem',
                   fontWeight: 700,
                   cursor: 'pointer',
@@ -603,7 +623,7 @@ export const ContactDetailsSidebar: React.FC<ContactDetailsSidebarProps> = ({
                   borderRadius: '8px',
                   border: 'none',
                   background: activeMediaTab === 'docs' ? '#10b981' : 'transparent',
-                  color: activeMediaTab === 'docs' ? '#ffffff' : '#94a3b8',
+                  color: activeMediaTab === 'docs' ? 'var(--text-main)' : 'var(--text-muted)',
                   fontSize: '0.75rem',
                   fontWeight: 700,
                   cursor: 'pointer',
@@ -626,7 +646,7 @@ export const ContactDetailsSidebar: React.FC<ContactDetailsSidebarProps> = ({
                   borderRadius: '8px',
                   border: 'none',
                   background: activeMediaTab === 'voice' ? '#10b981' : 'transparent',
-                  color: activeMediaTab === 'voice' ? '#ffffff' : '#94a3b8',
+                  color: activeMediaTab === 'voice' ? 'var(--text-main)' : 'var(--text-muted)',
                   fontSize: '0.75rem',
                   fontWeight: 700,
                   cursor: 'pointer',
@@ -645,7 +665,7 @@ export const ContactDetailsSidebar: React.FC<ContactDetailsSidebarProps> = ({
             {activeMediaTab === 'media' && (
               <div>
                 {recentMedia.length === 0 ? (
-                  <div style={{ padding: '24px 0', textAlign: 'center', color: '#64748b', fontSize: '0.75rem', border: '1px dashed var(--border)', borderRadius: '12px' }}>
+                  <div style={{ padding: '24px 0', textAlign: 'center', color: 'var(--text-dark)', fontSize: '0.75rem', border: '1px dashed var(--border)', borderRadius: '12px' }}>
                     <ImageIcon style={{ width: '22px', height: '22px', margin: '0 auto 6px', opacity: 0.3 }} />
                     No photos or videos yet
                   </div>
@@ -659,7 +679,7 @@ export const ContactDetailsSidebar: React.FC<ContactDetailsSidebarProps> = ({
                           height: '90px',
                           borderRadius: '10px',
                           overflow: 'hidden',
-                          background: '#090d16',
+                          background: 'var(--bg-surface)',
                           border: '1px solid var(--border)',
                           cursor: 'pointer',
                         }}
@@ -679,7 +699,7 @@ export const ContactDetailsSidebar: React.FC<ContactDetailsSidebarProps> = ({
             {activeMediaTab === 'docs' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                 {recentDocs.length === 0 ? (
-                  <div style={{ padding: '24px 0', textAlign: 'center', color: '#64748b', fontSize: '0.75rem', border: '1px dashed var(--border)', borderRadius: '12px' }}>
+                  <div style={{ padding: '24px 0', textAlign: 'center', color: 'var(--text-dark)', fontSize: '0.75rem', border: '1px dashed var(--border)', borderRadius: '12px' }}>
                     <FileText style={{ width: '22px', height: '22px', margin: '0 auto 6px', opacity: 0.3 }} />
                     No documents shared yet
                   </div>
@@ -696,18 +716,18 @@ export const ContactDetailsSidebar: React.FC<ContactDetailsSidebarProps> = ({
                         gap: '10px',
                         padding: '8px 10px',
                         borderRadius: '10px',
-                        background: 'rgba(255, 255, 255, 0.02)',
+                        background: 'rgba(255, 255, 255, 0.55)',
                         border: '1px solid var(--border)',
-                        color: '#ffffff',
+                        color: 'var(--text-main)',
                         textDecoration: 'none',
                         fontSize: '0.78rem',
                       }}
                     >
-                      <FileText style={{ width: '16px', height: '16px', color: '#10b981', flexShrink: 0 }} />
+                      <FileText style={{ width: '16px', height: '16px', color: '#0e9f8a', flexShrink: 0 }} />
                       <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
                         {item.attachment?.name || 'Document'}
                       </span>
-                      <Download style={{ width: '14px', height: '14px', color: '#94a3b8' }} />
+                      <Download style={{ width: '14px', height: '14px', color: 'var(--text-muted)' }} />
                     </a>
                   ))
                 )}
@@ -717,7 +737,7 @@ export const ContactDetailsSidebar: React.FC<ContactDetailsSidebarProps> = ({
             {activeMediaTab === 'voice' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                 {recentVoice.length === 0 ? (
-                  <div style={{ padding: '24px 0', textAlign: 'center', color: '#64748b', fontSize: '0.75rem', border: '1px dashed var(--border)', borderRadius: '12px' }}>
+                  <div style={{ padding: '24px 0', textAlign: 'center', color: 'var(--text-dark)', fontSize: '0.75rem', border: '1px dashed var(--border)', borderRadius: '12px' }}>
                     <Mic style={{ width: '22px', height: '22px', margin: '0 auto 6px', opacity: 0.3 }} />
                     No voice notes recorded yet
                   </div>
@@ -728,15 +748,15 @@ export const ContactDetailsSidebar: React.FC<ContactDetailsSidebarProps> = ({
                       style={{
                         padding: '8px 10px',
                         borderRadius: '10px',
-                        background: 'rgba(255, 255, 255, 0.02)',
+                        background: 'rgba(255, 255, 255, 0.55)',
                         border: '1px solid var(--border)',
                         display: 'flex',
                         alignItems: 'center',
                         gap: '8px',
                       }}
                     >
-                      <Mic style={{ width: '14px', height: '14px', color: '#38bdf8' }} />
-                      <span style={{ fontSize: '0.78rem', color: '#ffffff', flex: 1 }}>
+                      <Mic style={{ width: '14px', height: '14px', color: '#087fac' }} />
+                      <span style={{ fontSize: '0.78rem', color: 'var(--text-main)', flex: 1 }}>
                         Voice message ({new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})
                       </span>
                     </div>
@@ -747,15 +767,16 @@ export const ContactDetailsSidebar: React.FC<ContactDetailsSidebarProps> = ({
           </div>
 
           {/* Chat Options & Actions - Redesigned Grouped Card */}
-          <div style={{ marginBottom: '22px' }}>
-            <span style={{ fontSize: '0.74rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: '8px' }}>
+          <div className="contact-options-section" style={{ marginBottom: '22px' }}>
+            <span style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: '8px' }}>
               CHAT OPTIONS
             </span>
 
             <div
+              className="contact-options-card"
               style={{
-                background: 'rgba(255, 255, 255, 0.035)',
-                border: '1px solid rgba(255, 255, 255, 0.08)',
+                background: 'rgba(255, 255, 255, 0.55)',
+                border: '1px solid var(--border)',
                 borderRadius: '16px',
                 overflow: 'hidden',
               }}
@@ -772,10 +793,10 @@ export const ContactDetailsSidebar: React.FC<ContactDetailsSidebarProps> = ({
                   justifyContent: 'space-between',
                   padding: '12px 14px',
                   cursor: 'pointer',
-                  borderBottom: '1px solid rgba(255, 255, 255, 0.04)',
+                  borderBottom: '1px solid var(--border)',
                   transition: 'background 0.15s ease',
                 }}
-                onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255, 255, 255, 0.03)')}
+                onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255, 255, 255, 0.55)')}
                 onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -784,28 +805,29 @@ export const ContactDetailsSidebar: React.FC<ContactDetailsSidebarProps> = ({
                       width: '32px',
                       height: '32px',
                       borderRadius: '8px',
-                      background: isMuted ? 'rgba(245, 158, 11, 0.18)' : 'rgba(255, 255, 255, 0.06)',
+                      background: isMuted ? 'rgba(245, 158, 11, 0.18)' : 'rgba(255, 255, 255, 0.55)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      color: isMuted ? '#f59e0b' : '#94a3b8',
+                      color: isMuted ? '#a86d0b' : 'var(--text-muted)',
                     }}
                   >
                     {isMuted ? <BellOff style={{ width: '16px', height: '16px' }} /> : <Bell style={{ width: '16px', height: '16px' }} />}
                   </div>
                   <div>
-                    <div style={{ fontSize: '0.86rem', fontWeight: 600, color: '#ffffff' }}>Mute Notifications</div>
-                    <div style={{ fontSize: '0.72rem', color: '#94a3b8' }}>{isMuted ? 'Alerts are silenced' : 'Play sound on new messages'}</div>
+                    <div style={{ fontSize: '0.86rem', fontWeight: 600, color: 'var(--text-main)' }}>Mute Notifications</div>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{isMuted ? 'Alerts are silenced' : 'Play sound on new messages'}</div>
                   </div>
                 </div>
 
                 {/* Modern iOS-style Switch Indicator */}
                 <div
+                  className={`contact-mute-switch ${isMuted ? 'is-on' : 'is-off'}`}
                   style={{
                     width: '38px',
                     height: '22px',
                     borderRadius: '9999px',
-                    background: isMuted ? '#f59e0b' : 'rgba(255, 255, 255, 0.15)',
+                    background: isMuted ? '#f59e0b' : 'rgba(255, 255, 255, 0.55)',
                     position: 'relative',
                     transition: 'background 0.2s ease',
                     flexShrink: 0,
@@ -821,13 +843,30 @@ export const ContactDetailsSidebar: React.FC<ContactDetailsSidebarProps> = ({
                       top: '2px',
                       left: isMuted ? '18px' : '2px',
                       transition: 'left 0.2s ease',
-                      boxShadow: '0 1px 3px rgba(0,0,0,0.4)',
+                      boxShadow: '0 1px 3px rgba(36, 76, 96, 0.1)',
                     }}
                   />
                 </div>
               </div>
 
-              {/* 2. Export Chat */}
+              {/* 2. Disappearing messages */}
+              <div className="chat-retention-row" style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '10px' }}>
+                  <div className="chat-retention-icon"><Clock3 style={{ width: '16px', height: '16px' }} /></div>
+                  <div>
+                    <div style={{ fontSize: '0.86rem', fontWeight: 600, color: 'var(--text-main)' }}>Disappearing Messages</div>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{retentionDays === null ? `Using account default (${accountRetentionDays} days)` : `This chat keeps messages for ${retentionDays === 1 ? '24 hours' : `${retentionDays} days`}`}</div>
+                  </div>
+                </div>
+                <div className="chat-retention-options" role="group" aria-label="Disappearing message period">
+                  {([null, 1, 7, 15] as const).map((days) => {
+                    const label = days === null ? 'Default' : days === 1 ? '24h' : `${days}d`;
+                    return <button key={label} type="button" className={retentionDays === days ? 'is-selected' : ''} aria-pressed={retentionDays === days} onClick={() => onRetentionChange?.(days)}>{label}</button>;
+                  })}
+                </div>
+              </div>
+
+              {/* 3. Export Chat */}
               <div
                 onClick={() => {
                   triggerHaptic('light');
@@ -839,10 +878,10 @@ export const ContactDetailsSidebar: React.FC<ContactDetailsSidebarProps> = ({
                   justifyContent: 'space-between',
                   padding: '12px 14px',
                   cursor: 'pointer',
-                  borderBottom: !isGroup ? '1px solid rgba(255, 255, 255, 0.04)' : 'none',
+                  borderBottom: !isGroup ? '1px solid var(--border)' : 'none',
                   transition: 'background 0.15s ease',
                 }}
-                onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255, 255, 255, 0.03)')}
+                onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255, 255, 255, 0.55)')}
                 onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -855,17 +894,17 @@ export const ContactDetailsSidebar: React.FC<ContactDetailsSidebarProps> = ({
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      color: '#10b981',
+                      color: '#0e9f8a',
                     }}
                   >
                     <Download style={{ width: '16px', height: '16px' }} />
                   </div>
                   <div>
-                    <div style={{ fontSize: '0.86rem', fontWeight: 600, color: '#ffffff' }}>Export Chat History</div>
-                    <div style={{ fontSize: '0.72rem', color: '#94a3b8' }}>Download messages and media file</div>
+                    <div style={{ fontSize: '0.86rem', fontWeight: 600, color: 'var(--text-main)' }}>Export Chat History</div>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Download messages and media file</div>
                   </div>
                 </div>
-                <ExternalLink style={{ width: '15px', height: '15px', color: '#64748b' }} />
+                <ExternalLink style={{ width: '15px', height: '15px', color: 'var(--text-dark)' }} />
               </div>
 
               {/* 3. QR Code & Encryption (1-on-1 only) */}
@@ -882,10 +921,10 @@ export const ContactDetailsSidebar: React.FC<ContactDetailsSidebarProps> = ({
                       justifyContent: 'space-between',
                       padding: '12px 14px',
                       cursor: 'pointer',
-                      borderBottom: '1px solid rgba(255, 255, 255, 0.04)',
+                      borderBottom: '1px solid var(--border)',
                       transition: 'background 0.15s ease',
                     }}
-                    onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255, 255, 255, 0.03)')}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255, 255, 255, 0.55)')}
                     onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -898,17 +937,17 @@ export const ContactDetailsSidebar: React.FC<ContactDetailsSidebarProps> = ({
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          color: '#38bdf8',
+                          color: '#087fac',
                         }}
                       >
                         <QrCode style={{ width: '16px', height: '16px' }} />
                       </div>
                       <div>
-                        <div style={{ fontSize: '0.86rem', fontWeight: 600, color: '#ffffff' }}>Contact QR Code</div>
-                        <div style={{ fontSize: '0.72rem', color: '#94a3b8' }}>Quick scan to share with others</div>
+                        <div style={{ fontSize: '0.86rem', fontWeight: 600, color: 'var(--text-main)' }}>Contact QR Code</div>
+                        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Quick scan to share with others</div>
                       </div>
                     </div>
-                    <ExternalLink style={{ width: '15px', height: '15px', color: '#64748b' }} />
+                    <ExternalLink style={{ width: '15px', height: '15px', color: 'var(--text-dark)' }} />
                   </div>
 
                   {/* End-to-End Encryption & Security Code */}
@@ -923,10 +962,10 @@ export const ContactDetailsSidebar: React.FC<ContactDetailsSidebarProps> = ({
                       justifyContent: 'space-between',
                       padding: '12px 14px',
                       cursor: 'pointer',
-                      borderBottom: '1px solid rgba(255, 255, 255, 0.04)',
+                      borderBottom: '1px solid var(--border)',
                       transition: 'background 0.15s ease',
                     }}
-                    onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255, 255, 255, 0.03)')}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255, 255, 255, 0.55)')}
                     onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -939,19 +978,19 @@ export const ContactDetailsSidebar: React.FC<ContactDetailsSidebarProps> = ({
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          color: '#10b981',
+                          color: '#0e9f8a',
                         }}
                       >
                         <Lock style={{ width: '16px', height: '16px' }} />
                       </div>
                       <div>
-                        <div style={{ fontSize: '0.86rem', fontWeight: 600, color: '#ffffff', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          Encryption <span style={{ fontSize: '0.68rem', padding: '1px 6px', borderRadius: '6px', background: 'rgba(16, 185, 129, 0.2)', color: '#10b981', fontWeight: 700 }}>E2EE</span>
+                        <div style={{ fontSize: '0.86rem', fontWeight: 600, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          Encryption <span style={{ fontSize: '0.68rem', padding: '1px 6px', borderRadius: '6px', background: 'rgba(16, 185, 129, 0.2)', color: '#0e9f8a', fontWeight: 700 }}>E2EE</span>
                         </div>
-                        <div style={{ fontSize: '0.72rem', color: '#94a3b8' }}>Tap to verify 60-digit security code</div>
+                        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Tap to verify 60-digit security code</div>
                       </div>
                     </div>
-                    <ExternalLink style={{ width: '15px', height: '15px', color: '#64748b' }} />
+                    <ExternalLink style={{ width: '15px', height: '15px', color: 'var(--text-dark)' }} />
                   </div>
                 </>
               )}
@@ -970,7 +1009,7 @@ export const ContactDetailsSidebar: React.FC<ContactDetailsSidebarProps> = ({
                   cursor: 'pointer',
                   transition: 'background 0.15s ease',
                 }}
-                onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255, 255, 255, 0.03)')}
+                onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255, 255, 255, 0.55)')}
                 onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -989,22 +1028,23 @@ export const ContactDetailsSidebar: React.FC<ContactDetailsSidebarProps> = ({
                     <Palette style={{ width: '16px', height: '16px' }} />
                   </div>
                   <div>
-                    <div style={{ fontSize: '0.86rem', fontWeight: 600, color: '#ffffff' }}>Chat Wallpaper & Theme</div>
-                    <div style={{ fontSize: '0.72rem', color: '#94a3b8' }}>Custom backdrop and colors</div>
+                    <div style={{ fontSize: '0.86rem', fontWeight: 600, color: 'var(--text-main)' }}>Chat Wallpaper & Theme</div>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Custom backdrop and colors</div>
                   </div>
                 </div>
-                <ExternalLink style={{ width: '15px', height: '15px', color: '#64748b' }} />
+                <ExternalLink style={{ width: '15px', height: '15px', color: 'var(--text-dark)' }} />
               </div>
             </div>
           </div>
 
           {/* Danger Zone: Grouped Card */}
-          <div style={{ marginBottom: '24px' }}>
-            <span style={{ fontSize: '0.74rem', fontWeight: 700, color: '#f87171', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: '8px' }}>
+          <div className="contact-danger-section" style={{ marginBottom: '24px' }}>
+            <span style={{ fontSize: '0.74rem', fontWeight: 700, color: '#bd3750', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: '8px' }}>
               DANGER ZONE
             </span>
 
             <div
+              className="contact-danger-card"
               style={{
                 background: 'rgba(239, 68, 68, 0.035)',
                 border: '1px solid rgba(239, 68, 68, 0.18)',
@@ -1024,19 +1064,19 @@ export const ContactDetailsSidebar: React.FC<ContactDetailsSidebarProps> = ({
                       justifyContent: 'space-between',
                     }}
                   >
-                    <span style={{ fontSize: '0.78rem', color: '#f87171', fontWeight: 600 }}>Leave this group?</span>
+                    <span style={{ fontSize: '0.78rem', color: '#bd3750', fontWeight: 600 }}>Leave this group?</span>
                     <div style={{ display: 'flex', gap: '6px' }}>
                       <button
                         type="button"
                         onClick={() => setShowConfirmLeave(false)}
-                        style={{ background: 'none', border: 'none', color: '#94a3b8', fontSize: '0.75rem', padding: '4px 8px', cursor: 'pointer' }}
+                        style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '0.75rem', padding: '4px 8px', cursor: 'pointer' }}
                       >
                         Cancel
                       </button>
                       <button
                         type="button"
                         onClick={handleLeaveGroup}
-                        style={{ background: '#ef4444', border: 'none', color: '#ffffff', fontSize: '0.75rem', fontWeight: 700, padding: '4px 12px', borderRadius: '6px', cursor: 'pointer' }}
+                        style={{ background: '#ef4444', border: 'none', color: 'var(--text-on-primary)', fontSize: '0.75rem', fontWeight: 700, padding: '4px 12px', borderRadius: '6px', cursor: 'pointer' }}
                       >
                         Leave
                       </button>
@@ -1072,8 +1112,8 @@ export const ContactDetailsSidebar: React.FC<ContactDetailsSidebarProps> = ({
                         <LogOut style={{ width: '16px', height: '16px' }} />
                       </div>
                       <div>
-                        <div style={{ fontSize: '0.86rem', fontWeight: 700, color: '#f87171' }}>Leave Group</div>
-                        <div style={{ fontSize: '0.72rem', color: '#94a3b8' }}>Exit and remove conversation</div>
+                        <div style={{ fontSize: '0.86rem', fontWeight: 700, color: '#bd3750' }}>Leave Group</div>
+                        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Exit and remove conversation</div>
                       </div>
                     </div>
                     <ExternalLink style={{ width: '15px', height: '15px', color: '#ef4444' }} />
@@ -1093,12 +1133,12 @@ export const ContactDetailsSidebar: React.FC<ContactDetailsSidebarProps> = ({
                         justifyContent: 'space-between',
                       }}
                     >
-                      <span style={{ fontSize: '0.78rem', color: '#f87171', fontWeight: 600 }}>Clear all messages?</span>
+                      <span style={{ fontSize: '0.78rem', color: '#bd3750', fontWeight: 600 }}>Clear all messages?</span>
                       <div style={{ display: 'flex', gap: '6px' }}>
                         <button
                           type="button"
                           onClick={() => setShowConfirmClear(false)}
-                          style={{ background: 'none', border: 'none', color: '#94a3b8', fontSize: '0.75rem', padding: '4px 8px', cursor: 'pointer' }}
+                          style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '0.75rem', padding: '4px 8px', cursor: 'pointer' }}
                         >
                           Cancel
                         </button>
@@ -1109,7 +1149,7 @@ export const ContactDetailsSidebar: React.FC<ContactDetailsSidebarProps> = ({
                             onClearChat(contact.username);
                             setShowConfirmClear(false);
                           }}
-                          style={{ background: '#ef4444', border: 'none', color: '#ffffff', fontSize: '0.75rem', fontWeight: 700, padding: '4px 12px', borderRadius: '6px', cursor: 'pointer' }}
+                          style={{ background: '#ef4444', border: 'none', color: 'var(--text-on-primary)', fontSize: '0.75rem', fontWeight: 700, padding: '4px 12px', borderRadius: '6px', cursor: 'pointer' }}
                         >
                           Clear
                         </button>
@@ -1146,8 +1186,8 @@ export const ContactDetailsSidebar: React.FC<ContactDetailsSidebarProps> = ({
                           <Trash2 style={{ width: '16px', height: '16px' }} />
                         </div>
                         <div>
-                          <div style={{ fontSize: '0.86rem', fontWeight: 600, color: '#f87171' }}>Clear Chat History</div>
-                          <div style={{ fontSize: '0.72rem', color: '#94a3b8' }}>Delete message stream locally</div>
+                          <div style={{ fontSize: '0.86rem', fontWeight: 600, color: '#bd3750' }}>Clear Chat History</div>
+                          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Delete message stream locally</div>
                         </div>
                       </div>
                       <ExternalLink style={{ width: '15px', height: '15px', color: '#ef4444' }} />
@@ -1188,10 +1228,10 @@ export const ContactDetailsSidebar: React.FC<ContactDetailsSidebarProps> = ({
                         <Ban style={{ width: '16px', height: '16px' }} />
                       </div>
                       <div>
-                        <div style={{ fontSize: '0.86rem', fontWeight: 600, color: '#f87171' }}>
+                        <div style={{ fontSize: '0.86rem', fontWeight: 600, color: '#bd3750' }}>
                           {isBlocked ? 'Unblock Contact' : 'Block Contact'}
                         </div>
-                        <div style={{ fontSize: '0.72rem', color: '#94a3b8' }}>
+                        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
                           {isBlocked ? 'Allow messaging & calls' : 'Stop incoming messages & calls'}
                         </div>
                       </div>
@@ -1216,12 +1256,12 @@ export const ContactDetailsSidebar: React.FC<ContactDetailsSidebarProps> = ({
                         justifyContent: 'space-between',
                       }}
                     >
-                      <span style={{ fontSize: '0.78rem', color: '#f87171', fontWeight: 600 }}>Unfriend @{contact.username}?</span>
+                      <span style={{ fontSize: '0.78rem', color: '#bd3750', fontWeight: 600 }}>Unfriend @{contact.username}?</span>
                       <div style={{ display: 'flex', gap: '6px' }}>
                         <button
                           type="button"
                           onClick={() => setShowConfirmUnfriend(false)}
-                          style={{ background: 'none', border: 'none', color: '#94a3b8', fontSize: '0.75rem', padding: '4px 8px', cursor: 'pointer' }}
+                          style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '0.75rem', padding: '4px 8px', cursor: 'pointer' }}
                         >
                           Cancel
                         </button>
@@ -1233,7 +1273,7 @@ export const ContactDetailsSidebar: React.FC<ContactDetailsSidebarProps> = ({
                             setShowConfirmUnfriend(false);
                             onClose();
                           }}
-                          style={{ background: '#ef4444', border: 'none', color: '#ffffff', fontSize: '0.75rem', fontWeight: 700, padding: '4px 12px', borderRadius: '6px', cursor: 'pointer' }}
+                          style={{ background: '#ef4444', border: 'none', color: 'var(--text-on-primary)', fontSize: '0.75rem', fontWeight: 700, padding: '4px 12px', borderRadius: '6px', cursor: 'pointer' }}
                         >
                           Unfriend
                         </button>
@@ -1269,8 +1309,8 @@ export const ContactDetailsSidebar: React.FC<ContactDetailsSidebarProps> = ({
                           <UserMinus style={{ width: '16px', height: '16px' }} />
                         </div>
                         <div>
-                          <div style={{ fontSize: '0.86rem', fontWeight: 600, color: '#f87171' }}>Unfriend Contact</div>
-                          <div style={{ fontSize: '0.72rem', color: '#94a3b8' }}>Remove from friends list</div>
+                          <div style={{ fontSize: '0.86rem', fontWeight: 600, color: '#bd3750' }}>Unfriend Contact</div>
+                          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Remove from friends list</div>
                         </div>
                       </div>
                       <ExternalLink style={{ width: '15px', height: '15px', color: '#ef4444' }} />

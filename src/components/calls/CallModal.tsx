@@ -124,11 +124,11 @@ export const CallModal: React.FC = () => {
             bottom: '24px',
             right: '24px',
             zIndex: 200,
-            background: '#111827',
+            background: 'var(--bg-surface)',
             border: '1px solid rgba(16, 185, 129, 0.4)',
             borderRadius: '20px',
             padding: '10px 16px',
-            boxShadow: '0 12px 36px rgba(0, 0, 0, 0.6)',
+            boxShadow: '0 12px 36px rgba(36, 76, 96, 0.1)',
             display: 'flex',
             alignItems: 'center',
             gap: '12px',
@@ -138,10 +138,10 @@ export const CallModal: React.FC = () => {
           <Avatar name={callState.remoteDisplayName || callState.remoteUser} size="sm" />
 
           <div>
-            <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#ffffff' }}>
+            <div style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-main)' }}>
               {callState.remoteDisplayName || callState.remoteUser}
             </div>
-            <div style={{ fontSize: '0.72rem', color: '#10b981', fontFamily: 'monospace' }}>
+            <div style={{ fontSize: '0.72rem', color: '#0e9f8a', fontFamily: 'monospace' }}>
               {callState.status === 'connected' ? formatDuration(seconds) : 'Calling...'}
             </div>
           </div>
@@ -154,9 +154,9 @@ export const CallModal: React.FC = () => {
                 width: '32px',
                 height: '32px',
                 borderRadius: '50%',
-                background: callState.isMuted ? '#ef4444' : 'rgba(255,255,255,0.08)',
+                background: callState.isMuted ? '#ef4444' : 'rgba(255, 255, 255, 0.55)',
                 border: 'none',
-                color: '#ffffff',
+                color: 'var(--text-main)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -173,9 +173,9 @@ export const CallModal: React.FC = () => {
                 width: '32px',
                 height: '32px',
                 borderRadius: '50%',
-                background: 'rgba(255,255,255,0.08)',
+                background: 'rgba(255, 255, 255, 0.55)',
                 border: 'none',
-                color: '#ffffff',
+                color: 'var(--text-main)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -195,7 +195,7 @@ export const CallModal: React.FC = () => {
                 borderRadius: '50%',
                 background: '#ef4444',
                 border: 'none',
-                color: '#ffffff',
+                color: 'var(--text-on-primary)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -216,7 +216,7 @@ export const CallModal: React.FC = () => {
             position: 'fixed',
             inset: 0,
             zIndex: 150,
-            background: '#030712',
+            background: 'var(--bg-surface)',
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
@@ -240,7 +240,7 @@ export const CallModal: React.FC = () => {
             {!hasRemoteVideo && (
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
                 <Avatar name={callState.remoteDisplayName || callState.remoteUser} size="xl" />
-                <p style={{ color: '#94a3b8', marginTop: '16px', fontSize: '0.9rem' }}>
+                <p style={{ color: 'var(--text-muted)', marginTop: '16px', fontSize: '0.9rem' }}>
                   Camera off / Audio only
                 </p>
               </div>
@@ -258,9 +258,9 @@ export const CallModal: React.FC = () => {
                 height: '110px',
                 borderRadius: '16px',
                 overflow: 'hidden',
-                background: '#111827',
-                border: '2px solid rgba(255, 255, 255, 0.2)',
-                boxShadow: '0 8px 32px rgba(0, 0, 0, 0.6)',
+                background: 'var(--bg-surface)',
+                border: '2px solid var(--border)',
+                boxShadow: '0 8px 32px rgba(36, 76, 96, 0.1)',
                 cursor: 'grab',
                 zIndex: 10,
               }}
@@ -281,7 +281,7 @@ export const CallModal: React.FC = () => {
                 }}
               />
               {(!callState.localStream || callState.isCameraOff) && (
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#64748b' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-dark)' }}>
                   <VideoOff style={{ width: '22px', height: '22px' }} />
                 </div>
               )}
@@ -296,27 +296,27 @@ export const CallModal: React.FC = () => {
                 display: 'flex',
                 alignItems: 'center',
                 gap: '12px',
-                background: 'rgba(0, 0, 0, 0.6)',
+                background: 'rgba(23, 66, 78, 0.12)',
                 backdropFilter: 'blur(12px)',
                 WebkitBackdropFilter: 'blur(12px)',
                 padding: '8px 16px',
                 borderRadius: '9999px',
-                border: '1px solid rgba(255, 255, 255, 0.1)',
+                border: '1px solid var(--border)',
                 zIndex: 10,
               }}
             >
-              <span style={{ fontSize: '0.88rem', fontWeight: 700, color: '#ffffff' }}>
+              <span style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--text-main)' }}>
                 {callState.remoteDisplayName || callState.remoteUser}
               </span>
               <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981' }} />
-              <span style={{ fontSize: '0.82rem', fontFamily: 'monospace', color: '#10b981', fontWeight: 700 }}>
+              <span style={{ fontSize: '0.82rem', fontFamily: 'monospace', color: '#0e9f8a', fontWeight: 700 }}>
                 {formatDuration(seconds)}
               </span>
 
               <button
                 type="button"
                 onClick={() => setIsMinimized(true)}
-                style={{ background: 'none', border: 'none', color: '#ffffff', cursor: 'pointer', marginLeft: '6px' }}
+                style={{ background: 'none', border: 'none', color: 'var(--text-main)', cursor: 'pointer', marginLeft: '6px' }}
                 title="Minimize call"
               >
                 <Minimize2 style={{ width: '15px', height: '15px' }} />
@@ -333,13 +333,13 @@ export const CallModal: React.FC = () => {
                 display: 'flex',
                 alignItems: 'center',
                 gap: '14px',
-                background: 'rgba(17, 24, 39, 0.88)',
+                background: 'rgba(247, 254, 253, 0.88)',
                 backdropFilter: 'blur(20px)',
                 WebkitBackdropFilter: 'blur(20px)',
                 padding: '12px 22px',
                 borderRadius: '9999px',
-                border: '1px solid rgba(255, 255, 255, 0.15)',
-                boxShadow: '0 20px 50px rgba(0, 0, 0, 0.7)',
+                border: '1px solid var(--border)',
+                boxShadow: '0 20px 50px rgba(36, 76, 96, 0.1)',
                 zIndex: 10,
               }}
             >
@@ -351,9 +351,9 @@ export const CallModal: React.FC = () => {
                   width: '46px',
                   height: '46px',
                   borderRadius: '50%',
-                  background: callState.isMuted ? '#ef4444' : 'rgba(255, 255, 255, 0.08)',
+                  background: callState.isMuted ? '#ef4444' : 'rgba(255, 255, 255, 0.55)',
                   border: 'none',
-                  color: '#ffffff',
+                  color: 'var(--text-main)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -372,9 +372,9 @@ export const CallModal: React.FC = () => {
                   width: '46px',
                   height: '46px',
                   borderRadius: '50%',
-                  background: callState.isCameraOff ? '#ef4444' : 'rgba(255, 255, 255, 0.08)',
+                  background: callState.isCameraOff ? '#ef4444' : 'rgba(255, 255, 255, 0.55)',
                   border: 'none',
-                  color: '#ffffff',
+                  color: 'var(--text-main)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -396,9 +396,9 @@ export const CallModal: React.FC = () => {
                   width: '46px',
                   height: '46px',
                   borderRadius: '50%',
-                  background: showFilterPicker || videoFilter !== 'normal' ? 'linear-gradient(135deg, #ec4899 0%, #8b5cf6 100%)' : 'rgba(255, 255, 255, 0.08)',
+                  background: showFilterPicker || videoFilter !== 'normal' ? 'linear-gradient(135deg, #ec4899 0%, #8b5cf6 100%)' : 'rgba(255, 255, 255, 0.55)',
                   border: 'none',
-                  color: '#ffffff',
+                  color: 'var(--text-main)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -418,9 +418,9 @@ export const CallModal: React.FC = () => {
                   width: '46px',
                   height: '46px',
                   borderRadius: '50%',
-                  background: callState.isScreenSharing ? '#10b981' : 'rgba(255, 255, 255, 0.08)',
+                  background: callState.isScreenSharing ? '#10b981' : 'rgba(255, 255, 255, 0.55)',
                   border: 'none',
-                  color: '#ffffff',
+                  color: 'var(--text-main)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -441,7 +441,7 @@ export const CallModal: React.FC = () => {
                   borderRadius: '50%',
                   background: '#ef4444',
                   border: 'none',
-                  color: '#ffffff',
+                  color: 'var(--text-on-primary)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -462,15 +462,15 @@ export const CallModal: React.FC = () => {
                   bottom: '100px',
                   left: '50%',
                   transform: 'translateX(-50%)',
-                  background: 'rgba(15, 23, 42, 0.92)',
+                  background: 'rgba(247, 254, 253, 0.92)',
                   backdropFilter: 'blur(20px)',
-                  border: '1px solid rgba(255, 255, 255, 0.15)',
+                  border: '1px solid var(--border)',
                   borderRadius: '9999px',
                   padding: '6px 10px',
                   display: 'flex',
                   gap: '6px',
                   zIndex: 20,
-                  boxShadow: '0 10px 30px rgba(0,0,0,0.6)',
+                  boxShadow: '0 10px 30px rgba(36, 76, 96, 0.1)',
                 }}
               >
                 {FILTER_PRESETS.map((preset) => {
@@ -484,9 +484,9 @@ export const CallModal: React.FC = () => {
                         setVideoFilter(preset.id);
                       }}
                       style={{
-                        background: isActive ? 'linear-gradient(135deg, #ec4899 0%, #8b5cf6 100%)' : 'rgba(255, 255, 255, 0.05)',
+                        background: isActive ? 'linear-gradient(135deg, #ec4899 0%, #8b5cf6 100%)' : 'rgba(255, 255, 255, 0.55)',
                         border: 'none',
-                        color: '#ffffff',
+                        color: 'var(--text-main)',
                         fontSize: '0.74rem',
                         fontWeight: 700,
                         padding: '6px 12px',
@@ -510,15 +510,16 @@ export const CallModal: React.FC = () => {
       {!isMinimized && (!callState.isVideo && !callState.isScreenSharing && !hasRemoteVideo || callState.status !== 'connected') && (
         <AnimatePresence>
           <div
-            className="modal-backdrop"
+            className="modal-backdrop call-modal-backdrop"
             style={{
               zIndex: 150,
-              background: 'rgba(3, 7, 18, 0.75)',
+              background: 'rgba(247, 254, 253, 0.75)',
               backdropFilter: 'blur(16px)',
               WebkitBackdropFilter: 'blur(16px)',
             }}
           >
             <motion.div
+              className="call-modal-card"
               initial={{ scale: 0.9, opacity: 0, y: 20 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.9, opacity: 0, y: 20 }}
@@ -526,10 +527,10 @@ export const CallModal: React.FC = () => {
               style={{
                 maxWidth: '380px',
                 width: '90%',
-                background: 'linear-gradient(180deg, #111827 0%, #0c121e 100%)',
-                border: '1px solid rgba(255, 255, 255, 0.12)',
+                background: 'linear-gradient(180deg, var(--bg-surface) 0%, var(--bg-surface) 100%)',
+                border: '1px solid var(--border)',
                 borderRadius: '28px',
-                boxShadow: '0 30px 70px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(16, 185, 129, 0.15)',
+                boxShadow: '0 30px 70px rgba(36, 76, 96, 0.1), 0 0 0 1px rgba(16, 185, 129, 0.15)',
                 padding: '36px 28px',
                 textAlign: 'center',
                 display: 'flex',
@@ -541,15 +542,16 @@ export const CallModal: React.FC = () => {
               {/* Minimize button (when connected) */}
               {callState.status === 'connected' && (
                 <button
+                  className="call-minimize-button"
                   type="button"
                   onClick={() => setIsMinimized(true)}
                   style={{
                     position: 'absolute',
                     top: '18px',
                     right: '18px',
-                    background: 'rgba(255, 255, 255, 0.05)',
+                    background: 'rgba(255, 255, 255, 0.55)',
                     border: 'none',
-                    color: '#94a3b8',
+                    color: 'var(--text-muted)',
                     borderRadius: '50%',
                     width: '32px',
                     height: '32px',
@@ -565,7 +567,7 @@ export const CallModal: React.FC = () => {
               )}
 
               {/* Avatar with Animated Glowing Pulse Ring */}
-              <div style={{ position: 'relative', marginBottom: '22px' }}>
+              <div className="call-avatar-wrap" style={{ position: 'relative', marginBottom: '22px' }}>
                 <Avatar name={callState.remoteDisplayName || callState.remoteUser} size="xl" />
                 <span
                   style={{
@@ -580,15 +582,15 @@ export const CallModal: React.FC = () => {
                 />
               </div>
 
-              <h2 style={{ fontSize: '1.35rem', fontWeight: 800, color: '#ffffff', marginBottom: '4px', letterSpacing: '-0.02em' }}>
+              <h2 className="call-contact-name" style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--text-main)', marginBottom: '4px', letterSpacing: '-0.02em' }}>
                 {callState.remoteDisplayName || callState.remoteUser}
               </h2>
 
-              <p style={{ fontSize: '0.85rem', color: '#94a3b8', fontWeight: 500, marginBottom: '24px' }}>
+              <p className="call-status-text" style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 500, marginBottom: '24px' }}>
                 {callState.status === 'ringing' && (callState.isIncoming ? 'Incoming call...' : 'Ringing...')}
                 {callState.status === 'calling' && 'Calling...'}
                 {callState.status === 'connected' && (
-                  <span style={{ color: '#10b981', fontFamily: 'monospace', fontWeight: 700, fontSize: '1.05rem' }}>
+                  <span style={{ color: '#0e9f8a', fontFamily: 'monospace', fontWeight: 700, fontSize: '1.05rem' }}>
                     {formatDuration(seconds)}
                   </span>
                 )}
@@ -596,7 +598,7 @@ export const CallModal: React.FC = () => {
 
               {/* Animated sound wave equalizer during audio call */}
               {callState.status === 'connected' && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', height: '24px', marginBottom: '28px' }}>
+                <div className="call-waveform" style={{ display: 'flex', alignItems: 'center', gap: '4px', height: '24px', marginBottom: '28px' }}>
                   {[12, 22, 16, 28, 14, 8, 24, 18, 10, 20, 15].map((h, i) => (
                     <span
                       key={i}
@@ -616,8 +618,9 @@ export const CallModal: React.FC = () => {
               {/* Controls */}
               {callState.isIncoming && callState.status === 'ringing' ? (
                 /* Incoming Call Actions (Decline Red & Accept Green) */
-                <div style={{ display: 'flex', alignItems: 'center', gap: '28px' }}>
+                <div className="call-incoming-controls" style={{ display: 'flex', alignItems: 'center', gap: '28px' }}>
                   <button
+                    className="call-control call-control--decline"
                     type="button"
                     onClick={() => {
                       triggerHaptic('medium');
@@ -629,7 +632,7 @@ export const CallModal: React.FC = () => {
                       borderRadius: '50%',
                       background: '#ef4444',
                       border: 'none',
-                      color: '#ffffff',
+                      color: 'var(--text-on-primary)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
@@ -645,6 +648,7 @@ export const CallModal: React.FC = () => {
                   </button>
 
                   <button
+                    className="call-control call-control--accept"
                     type="button"
                     onClick={() => {
                       triggerHaptic('success');
@@ -656,7 +660,7 @@ export const CallModal: React.FC = () => {
                       borderRadius: '50%',
                       background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
                       border: 'none',
-                      color: '#ffffff',
+                      color: 'var(--text-on-primary)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
@@ -673,17 +677,18 @@ export const CallModal: React.FC = () => {
                 </div>
               ) : (
                 /* Connected / Calling Action Controls */
-                <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                <div className="call-connected-controls" style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
                   <button
+                    className={`call-control call-control--utility ${callState.isMuted ? 'is-alert' : ''}`}
                     type="button"
                     onClick={toggleMute}
                     style={{
                       width: '46px',
                       height: '46px',
                       borderRadius: '50%',
-                      background: callState.isMuted ? '#ef4444' : 'rgba(255, 255, 255, 0.08)',
-                      border: '1px solid rgba(255, 255, 255, 0.1)',
-                      color: '#ffffff',
+                      background: callState.isMuted ? '#ef4444' : 'rgba(255, 255, 255, 0.55)',
+                      border: '1px solid var(--border)',
+                      color: 'var(--text-main)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
@@ -695,6 +700,7 @@ export const CallModal: React.FC = () => {
                   </button>
 
                   <button
+                    className="call-control call-control--end"
                     type="button"
                     onClick={() => {
                       triggerHaptic('medium');
@@ -706,7 +712,7 @@ export const CallModal: React.FC = () => {
                       borderRadius: '50%',
                       background: '#ef4444',
                       border: 'none',
-                      color: '#ffffff',
+                      color: 'var(--text-on-primary)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
@@ -719,15 +725,16 @@ export const CallModal: React.FC = () => {
                   </button>
 
                   <button
+                    className={`call-control call-control--utility ${callState.isCameraOff ? 'is-alert' : ''}`}
                     type="button"
                     onClick={toggleCamera}
                     style={{
                       width: '46px',
                       height: '46px',
                       borderRadius: '50%',
-                      background: callState.isCameraOff ? '#ef4444' : 'rgba(255, 255, 255, 0.08)',
-                      border: '1px solid rgba(255, 255, 255, 0.1)',
-                      color: '#ffffff',
+                      background: callState.isCameraOff ? '#ef4444' : 'rgba(255, 255, 255, 0.55)',
+                      border: '1px solid var(--border)',
+                      color: 'var(--text-main)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
@@ -739,15 +746,16 @@ export const CallModal: React.FC = () => {
                   </button>
 
                   <button
+                    className={`call-control call-control--utility ${callState.isScreenSharing ? 'is-active' : ''}`}
                     type="button"
                     onClick={toggleScreenShare}
                     style={{
                       width: '46px',
                       height: '46px',
                       borderRadius: '50%',
-                      background: callState.isScreenSharing ? '#10b981' : 'rgba(255, 255, 255, 0.08)',
-                      border: '1px solid rgba(255, 255, 255, 0.1)',
-                      color: '#ffffff',
+                      background: callState.isScreenSharing ? '#10b981' : 'rgba(255, 255, 255, 0.55)',
+                      border: '1px solid var(--border)',
+                      color: 'var(--text-main)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',

@@ -49,6 +49,21 @@ function createChatAuthorization(deps) {
     let resolvedFriendKey = friendKey;
     let friend = users.get(resolvedFriendKey);
 
+    // A user may always open their own private Saved Messages conversation.
+    // It intentionally does not require adding yourself as a friend.
+    if (resolvedFriendKey === normalizeName(userKey) && friend) {
+      return {
+        ok: true,
+        type: "friend",
+        me,
+        friend,
+        isSelf: true,
+        targetKey: resolvedFriendKey,
+        targetLabel: "Saved Messages",
+        conversationKey: getConversationKey(userKey, resolvedFriendKey),
+      };
+    }
+
     if ((!friend || !me.friends.has(resolvedFriendKey)) && me.friends instanceof Set) {
       for (const candidateKey of me.friends) {
         const normalizedCandidateKey = normalizeName(candidateKey);

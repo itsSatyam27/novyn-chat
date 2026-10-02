@@ -12,8 +12,12 @@ interface VoiceRecorderProps {
 export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onSendVoice, onCancel }) => {
   const [seconds, setSeconds] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
+  const [waveform, setWaveform] = useState(() => Array.from({ length: 18 }, (_, index) => 0.22 + (index % 4) * 0.08));
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const animationFrameRef = useRef<number | null>(null);
+  const lastWaveUpdateRef = useRef(0);
 
   useEffect(() => {
     let timer: any;
@@ -23,6 +27,26 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onSendVoice, onCan
         const mediaRecorder = new MediaRecorder(stream);
         mediaRecorderRef.current = mediaRecorder;
         audioChunksRef.current = [];
+
+        // Draw the actual microphone signal instead of a decorative loop.
+        const audioContext = new AudioContext();
+        const analyser = audioContext.createAnalyser();
+        analyser.fftSize = 64;
+        audioContext.createMediaStreamSource(stream).connect(analyser);
+        audioContextRef.current = audioContext;
+        const samples = new Uint8Array(analyser.frequencyBinCount);
+        const updateWaveform = (now: number) => {
+          analyser.getByteFrequencyData(samples);
+          if (now - lastWaveUpdateRef.current > 55) {
+            lastWaveUpdateRef.current = now;
+            setWaveform(Array.from({ length: 18 }, (_, index) => {
+              const sample = samples[Math.min(samples.length - 1, Math.floor((index / 18) * samples.length))] || 0;
+              return Math.max(0.16, Math.min(1, sample / 180));
+            }));
+          }
+          animationFrameRef.current = requestAnimationFrame(updateWaveform);
+        };
+        animationFrameRef.current = requestAnimationFrame(updateWaveform);
 
         mediaRecorder.ondataavailable = (event) => {
           if (event.data.size > 0) {
@@ -46,6 +70,8 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onSendVoice, onCan
 
     return () => {
       if (timer) clearInterval(timer);
+      if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
+      audioContextRef.current?.close().catch(() => {});
       if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
         mediaRecorderRef.current.stop();
         mediaRecorderRef.current.stream.getTracks().forEach((track) => track.stop());
@@ -61,6 +87,8 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onSendVoice, onCan
     mediaRecorderRef.current.onstop = async () => {
       const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
       mediaRecorderRef.current?.stream.getTracks().forEach((track) => track.stop());
+      if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
+      audioContextRef.current?.close().catch(() => {});
 
       const res = await uploadVoiceBlob(audioBlob);
       if (res.ok && res.url) {
@@ -79,6 +107,8 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onSendVoice, onCan
       mediaRecorderRef.current.stop();
       mediaRecorderRef.current.stream.getTracks().forEach((track) => track.stop());
     }
+    if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
+    audioContextRef.current?.close().catch(() => {});
     triggerHaptic('light');
     onCancel();
   };
@@ -91,6 +121,7 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onSendVoice, onCan
 
   return (
     <motion.div
+      className="voice-recorder"
       initial={{ opacity: 0, scale: 0.98 }}
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.98 }}
@@ -99,17 +130,18 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onSendVoice, onCan
         alignItems: 'center',
         justifyContent: 'space-between',
         width: '100%',
-        background: '#101624',
-        border: '1px solid rgba(16, 185, 129, 0.4)',
+        background: 'var(--chat-surface, var(--bg-surface))',
+        border: '1px solid var(--chat-indigo-border, rgba(109, 93, 252, 0.4))',
         borderRadius: '9999px',
         padding: '6px 12px 6px 16px',
         boxSizing: 'border-box',
-        boxShadow: '0 4px 20px rgba(0, 0, 0, 0.3)',
+        boxShadow: '0 8px 24px rgba(53, 43, 130, 0.15)',
       }}
     >
       {/* Live recording status */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
         <div
+          className="voice-recorder-mic"
           style={{
             position: 'relative',
             display: 'flex',
@@ -136,22 +168,22 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onSendVoice, onCan
           />
         </div>
 
-        <span style={{ fontSize: '0.9rem', fontWeight: 800, color: '#ffffff', fontFamily: 'monospace', letterSpacing: '0.05em' }}>
+        <span className="voice-recorder-time" style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-main)', fontFamily: 'monospace', letterSpacing: '0.05em' }}>
           {formatTime(seconds)}
         </span>
 
         {/* Dynamic soundwave animated bars */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '3.5px', height: '22px' }}>
-          {[14, 20, 10, 24, 16, 8, 22, 12, 18, 14, 22, 10].map((height, i) => (
+        <div className="voice-recorder-waveform" style={{ display: 'flex', alignItems: 'center', gap: '3.5px', height: '26px' }}>
+          {waveform.map((level, i) => (
             <span
               key={i}
               style={{
                 width: '3px',
-                height: `${height}px`,
-                backgroundColor: '#10b981',
+                height: `${Math.round(8 + level * 22)}px`,
+                backgroundColor: 'var(--chat-indigo, #6d5dfc)',
                 borderRadius: '9999px',
-                animation: 'pulse 0.9s infinite alternate',
-                animationDelay: `${i * 0.08}s`,
+                transition: 'height 75ms ease-out, opacity 150ms ease',
+                opacity: 0.45 + level * 0.55,
               }}
             />
           ))}
@@ -161,13 +193,14 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onSendVoice, onCan
       {/* Action buttons (Trash Cancel & Send) */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
         <button
+          className="voice-recorder-cancel"
           type="button"
           onClick={handleCancel}
           disabled={isUploading}
           style={{
             background: 'rgba(239, 68, 68, 0.12)',
             border: '1px solid rgba(239, 68, 68, 0.3)',
-            color: '#f87171',
+            color: '#bd3750',
             borderRadius: '50%',
             width: '40px',
             height: '40px',
@@ -185,6 +218,7 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onSendVoice, onCan
         </button>
 
         <button
+          className="voice-recorder-send"
           type="button"
           onClick={handleStopAndSend}
           disabled={isUploading}
@@ -192,14 +226,14 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onSendVoice, onCan
             width: '42px',
             height: '42px',
             borderRadius: '50%',
-            background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+            background: 'linear-gradient(135deg, #7c6cff 0%, #5545d6 100%)',
             border: 'none',
-            color: '#ffffff',
+            color: 'var(--text-on-primary)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             cursor: 'pointer',
-            boxShadow: '0 4px 14px rgba(16, 185, 129, 0.45)',
+            boxShadow: '0 5px 16px rgba(89, 73, 215, 0.48)',
             transition: 'all 0.15s ease',
           }}
           onMouseDown={(e) => (e.currentTarget.style.transform = 'scale(0.94)')}

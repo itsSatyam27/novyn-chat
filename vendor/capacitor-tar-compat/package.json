@@ -1,0 +1,9 @@
+{
+  "name": "@novyn/capacitor-tar-compat",
+  "version": "1.0.0",
+  "private": true,
+  "main": "index.cjs",
+  "dependencies": {
+    "tar-patched": "npm:tar@^7.5.22"
+  }
+}

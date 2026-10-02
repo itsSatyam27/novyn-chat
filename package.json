@@ -4,6 +4,7 @@
   "description": "Simple web chat app with friends and real-time messaging",
   "main": "server.js",
   "scripts": {
+    "test": "node --test tests/*.test.js",
     "dev": "concurrently -n \"backend,frontend\" -c \"blue,green\" \"node server.js\" \"vite\"",
     "dev:front": "vite",
     "dev:back": "node server.js",
@@ -48,12 +49,18 @@
     "lucide-react": "^1.31.0",
     "mongodb": "^6.21.0",
     "multer": "^2.1.1",
-    "nodemailer": "^8.0.5",
+    "nodemailer": "^10.0.12",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "socket.io": "^4.8.1",
     "socket.io-client": "^4.8.3",
+    "tar": "file:vendor/capacitor-tar-compat",
     "web-push": "^3.6.7"
+  },
+  "overrides": {
+    "tar": "$tar",
+    "uuid": "^11.1.1",
+    "qs": "^6.16.0"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.3",

@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../../context/AuthContext';
 import { MessageSquare, ShieldCheck, Mail, Lock, User, ArrowRight, X } from 'lucide-react';
 import { triggerHaptic } from '../../services/capacitor';
+import { NovynLogo } from '../ui/NovynLogo';
+import { PasswordRecovery } from './PasswordRecovery';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -23,9 +25,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [email, setEmail] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [recovering, setRecovering] = useState(false);
 
   useEffect(() => {
     setMode(initialMode);
+    setRecovering(false);
     setError('');
   }, [initialMode, isOpen]);
 
@@ -62,13 +66,16 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
   return (
     <AnimatePresence>
-      <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal-backdrop auth-modal-backdrop" onClick={onClose}>
         <motion.div
           initial={{ opacity: 0, scale: 0.94, y: 15 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.94, y: 15 }}
           transition={{ type: 'spring', damping: 25, stiffness: 350 }}
           className="auth-modal-card"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={recovering ? 'recovery-title' : 'auth-title'}
           onClick={(e) => e.stopPropagation()}
         >
           {/* Close Button */}
@@ -79,13 +86,16 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               onClose();
             }}
             className="modal-close-btn"
+            aria-label="Close"
           >
             <X style={{ width: '18px', height: '18px' }} />
           </button>
 
+          {!recovering && <>
           {/* Brand Header */}
-          <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+          <div className="auth-brand-header" style={{ textAlign: 'center', marginBottom: '24px' }}>
             <div
+              className="auth-brand-mark"
               style={{
                 width: '52px',
                 height: '52px',
@@ -98,13 +108,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 marginBottom: '12px',
               }}
             >
-              <MessageSquare style={{ width: '28px', height: '28px', color: '#ffffff' }} />
+              <NovynLogo size={32} variant="white" />
             </div>
-            <h2 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#ffffff', letterSpacing: '-0.02em' }}>
+            <h2 id="auth-title" className="auth-brand-title" style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--text-main)', letterSpacing: '-0.02em' }}>
               {mode === 'signin' ? 'Welcome Back' : 'Create an Account'}
             </h2>
-            <p style={{ fontSize: '0.78rem', color: '#94a3b8', marginTop: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
-              <ShieldCheck style={{ width: '14px', height: '14px', color: '#10b981' }} /> Direct-message encryption with device keys
+            <p className="auth-brand-subtitle" style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
+              <ShieldCheck style={{ width: '14px', height: '14px', color: '#0e9f8a' }} /> Direct-message encryption with device keys
             </p>
           </div>
 
@@ -115,6 +125,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               onClick={() => {
                 triggerHaptic('light');
                 setMode('signin');
+                setRecovering(false);
                 setError('');
               }}
               className={`tab-btn ${mode === 'signin' ? 'active' : ''}`}
@@ -126,6 +137,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               onClick={() => {
                 triggerHaptic('light');
                 setMode('signup');
+                setRecovering(false);
                 setError('');
               }}
               className={`tab-btn ${mode === 'signup' ? 'active' : ''}`}
@@ -170,9 +182,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
           {/* Error Alert */}
           {error && <div className="alert-error">{error}</div>}
+          </>}
 
           {/* Form */}
-          <form onSubmit={handleSubmit}>
+          {recovering ? <PasswordRecovery initialIdentifier={identifier} onBack={() => setRecovering(false)} /> : <form onSubmit={handleSubmit}>
             {mode === 'signup' && (
               <>
                 <div className="input-wrapper">
@@ -229,6 +242,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 placeholder="••••••••"
                 className="input-field"
               />
+              {mode === 'signin' && (
+                <button type="button" className="auth-forgot-password" onClick={() => { setError(''); setRecovering(true); }}>
+                  Forgot password?
+                </button>
+              )}
             </div>
 
             <button
@@ -246,7 +264,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 </>
               )}
             </button>
-          </form>
+          </form>}
         </motion.div>
       </div>
     </AnimatePresence>

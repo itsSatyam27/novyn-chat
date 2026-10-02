@@ -1,7 +1,7 @@
 const path = require("path");
 const cloudinary = require("cloudinary").v2;
 
-require("dotenv").config({ path: path.join(__dirname, ".env") });
+require("dotenv").config({ path: process.env.NOVYN_ENV_FILE || path.join(__dirname, ".env") });
 
 const { CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET } = process.env;
 const hasCloudinaryConfig = Boolean(

@@ -49,7 +49,9 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose })
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Contacts & Friends">
       {/* Tabs */}
-      <div className="tab-switcher" style={{ marginBottom: '20px' }}>
+      <div className="chat-filters-viewport">
+      <div className="chat-filters contacts-filters" role="group" aria-label="Filter contacts" style={{ '--filter-index': ['add', 'requests', 'friends'].indexOf(activeTab) } as React.CSSProperties}>
+        <span className="chat-filter-pill" aria-hidden="true" />
         <button
           type="button"
           onClick={() => {
@@ -58,6 +60,7 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose })
             setStatusMessage(null);
           }}
           className={`tab-btn ${activeTab === 'add' ? 'active' : ''}`}
+          aria-pressed={activeTab === 'add'}
           style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
         >
           <UserPlus style={{ width: '15px', height: '15px' }} /> Add
@@ -71,6 +74,7 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose })
             setStatusMessage(null);
           }}
           className={`tab-btn ${activeTab === 'requests' ? 'active' : ''}`}
+          aria-pressed={activeTab === 'requests'}
           style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', position: 'relative' }}
         >
           <UserCheck style={{ width: '15px', height: '15px' }} /> Requests
@@ -97,10 +101,12 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose })
             setStatusMessage(null);
           }}
           className={`tab-btn ${activeTab === 'friends' ? 'active' : ''}`}
+          aria-pressed={activeTab === 'friends'}
           style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
         >
           <Users style={{ width: '15px', height: '15px' }} /> Friends ({friendsList.length})
         </button>
+      </div>
       </div>
 
       {/* 1. Add Friend Tab */}
@@ -127,7 +133,7 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose })
                   ? {
                       background: 'rgba(16, 185, 129, 0.12)',
                       border: '1px solid rgba(16, 185, 129, 0.3)',
-                      color: '#34d399',
+                      color: '#078779',
                       padding: '10px 14px',
                       borderRadius: 'var(--radius-md)',
                       fontSize: '0.8rem',
@@ -175,14 +181,14 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose })
                   justifyContent: 'space-between',
                   padding: '12px 14px',
                   borderRadius: 'var(--radius-md)',
-                  background: 'rgba(255, 255, 255, 0.04)',
+                  background: 'rgba(255, 255, 255, 0.55)',
                   border: '1px solid var(--border)',
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                   <Avatar name={req.displayName || req.from} size="sm" />
                   <div>
-                    <div style={{ fontSize: '0.88rem', fontWeight: 700, color: '#ffffff' }}>
+                    <div style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--text-main)' }}>
                       {req.displayName || req.from}
                     </div>
                     <div style={{ fontSize: '0.72rem', color: 'var(--text-dark)' }}>wants to connect</div>
@@ -202,7 +208,7 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose })
                       borderRadius: '8px',
                       background: '#10b981',
                       border: 'none',
-                      color: '#ffffff',
+                      color: 'var(--text-on-primary)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
@@ -222,7 +228,7 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose })
                       width: '32px',
                       height: '32px',
                       borderRadius: '8px',
-                      background: 'rgba(255, 255, 255, 0.08)',
+                      background: 'rgba(255, 255, 255, 0.55)',
                       border: 'none',
                       color: '#ef4444',
                       display: 'flex',
@@ -263,7 +269,7 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose })
                   justifyContent: 'space-between',
                   padding: '10px 12px',
                   borderRadius: 'var(--radius-md)',
-                  background: 'rgba(255, 255, 255, 0.02)',
+                  background: 'rgba(255, 255, 255, 0.55)',
                   border: '1px solid var(--border)',
                   cursor: 'pointer',
                   transition: 'all 0.15s ease',
@@ -277,16 +283,16 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose })
                     size="sm"
                   />
                   <div>
-                    <div style={{ fontSize: '0.88rem', fontWeight: 700, color: '#ffffff' }}>
+                    <div style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--text-main)' }}>
                       {friend.displayName || friend.username}
                     </div>
-                    <div style={{ fontSize: '0.72rem', color: friend.online ? '#10b981' : '#64748b' }}>
+                    <div style={{ fontSize: '0.72rem', color: friend.online ? '#0e9f8a' : 'var(--text-dark)' }}>
                       {friend.online ? 'Online' : 'Offline'}
                     </div>
                   </div>
                 </div>
 
-                <span style={{ fontSize: '0.75rem', color: '#10b981', fontWeight: 700 }}>Chat →</span>
+                <span style={{ fontSize: '0.75rem', color: '#0e9f8a', fontWeight: 700 }}>Chat →</span>
               </div>
             ))
           )}

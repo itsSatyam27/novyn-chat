@@ -7,6 +7,8 @@ const express = require("express");
 const multer = require("multer");
 const { createMongoStorage } = require("./server/db/mongo");
 const { createSocketAuthMiddleware } = require("./server/realtime/socket-auth");
+const { isAllowedSocketOrigin } = require("./server/security/origins");
+const { mediaNames, canReadMedia } = require("./server/security/media-access");
 const { registerMessageMutationHandlers } = require("./server/realtime/message-mutations");
 const { registerCallHandlers } = require("./server/realtime/call-handlers");
 const { applyGameMove, createGameChallenge } = require("./server/realtime/game-rules");
@@ -19,7 +21,18 @@ const { createAuthToken: signAuthToken, verifyAuthToken: verifySignedAuthToken }
 const { createAuthSessions } = require("./server/auth/sessions");
 const { parseCookies, safeTimingEqual: csrfSafeTimingEqual, createCsrf } = require("./server/auth/csrf");
 const runtimeState = require("./server/core/state");
-require("dotenv").config();
+const {
+  normalizeName,
+  toDisplayName,
+  normalizeEmail,
+  isPlausibleEmail,
+  parseEnvBoolean,
+  normalizeHandleInput,
+  normalizeChatKind,
+  normalizePresenceMode,
+  normalizeGroupId,
+} = require("./server/core/normalization");
+require("dotenv").config({ path: process.env.NOVYN_ENV_FILE || path.join(__dirname, '.env') });
 const admin = require("firebase-admin");
 
 function readEnvText(value) {
@@ -159,6 +172,7 @@ const uploadTokenSecret =
   process.env.UPLOAD_TOKEN_SECRET ||
   process.env.CLOUDINARY_API_SECRET ||
   (process.env.NODE_ENV === "production" ? null : "dev-secret");
+const GIPHY_API_KEY = toDisplayName(process.env.GIPHY_API_KEY);
 
 if (!uploadTokenSecret) {
   throw new Error("UPLOAD_TOKEN_SECRET must be configured in production.");
@@ -178,15 +192,7 @@ let vapidKeys = null;
 if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
   vapidKeys = { publicKey: VAPID_PUBLIC_KEY, privateKey: VAPID_PRIVATE_KEY };
 } else {
-  try {
-    vapidKeys = webpush.generateVAPIDKeys();
-    console.warn("VAPID keys are not set. Generated temporary keys for this session.");
-    console.warn(`VAPID_PUBLIC_KEY=${vapidKeys.publicKey}`);
-    console.warn(`VAPID_PRIVATE_KEY=${vapidKeys.privateKey}`);
-  } catch (err) {
-    console.warn("Failed to generate VAPID keys. Push notifications disabled.", err);
-    vapidKeys = null;
-  }
+  console.warn("Push notifications disabled: configure both VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY with stable keys.");
 }
 
 const pushEnabled = Boolean(vapidKeys?.publicKey && vapidKeys?.privateKey);
@@ -196,6 +202,47 @@ if (pushEnabled) {
 
 function signUploadToken(filename) {
   return crypto.createHmac("sha256", uploadTokenSecret).update(filename).digest("hex");
+}
+
+function requireUser(req, res, next) {
+  const auth = resolveUserFromAuthCookies(getAuthCookiesFromHeader(req.headers.cookie), { allowRefreshFallback: true });
+  if (!auth.userKey || !users.get(auth.userKey)?.isRegistered) {
+    return res.status(401).json({ error: 'Sign in required.' });
+  }
+  req.userKey = auth.userKey;
+  next();
+}
+
+function mediaMetadata(filename) {
+  if (!/^[a-zA-Z0-9_-]+\.[a-zA-Z0-9]+$/.test(filename)) return null;
+  try { return JSON.parse(fs.readFileSync(path.join(uploadsDir, `${filename}.metadata.json`), 'utf8')); }
+  catch { return null; }
+}
+
+function saveMediaMetadata(filename, ownerKey, remote = null) {
+  fs.writeFileSync(path.join(uploadsDir, `${filename}.metadata.json`), JSON.stringify({ ownerKey, remote }), { flag: 'wx' });
+}
+
+function userCanReadMedia(filename, userKey) {
+  const metadata = mediaMetadata(filename);
+  return canReadMedia({
+    filename, userKey, ownerKey: resolveCurrentUserKey(metadata?.ownerKey),
+    conversations, wallpapers: conversationWallpapers,
+    canReadConversation: (key, viewer) => isGroupConversationKey(key)
+      ? Boolean(groups.get(key.slice(GROUP_CONVERSATION_PREFIX.length))?.members.has(viewer))
+      : key.split('::').includes(viewer),
+  });
+}
+
+async function storeCloudMedia(file, ownerKey, folder) {
+  const result = await cloudinary.uploader.upload(file.path, {
+    resource_type: 'auto', type: 'authenticated', folder,
+  });
+  const filename = `cloud-${crypto.randomBytes(16).toString('hex')}.bin`;
+  saveMediaMetadata(filename, ownerKey, {
+    publicId: result.public_id, format: result.format || '', resourceType: result.resource_type,
+  });
+  return `/uploads/${filename}?token=${signUploadToken(filename)}`;
 }
 
 function withUploadToken(rawUrl) {
@@ -346,12 +393,62 @@ app.get("/downloads/:filename", (req, res) => {
 
 // ── Feedback Endpoint ─────────────────────────────────────────────────────
 
-app.get("/uploads/:file", (req, res) => {
+app.get("/api/giphy", requireUser, async (req, res) => {
+  if (!GIPHY_API_KEY) {
+    res.status(503).json({ error: "GIF search is not configured.", code: "GIPHY_NOT_CONFIGURED" });
+    return;
+  }
+
+  const type = req.query.type === "stickers" ? "stickers" : "gifs";
+  const query = toDisplayName(req.query.q).slice(0, 120);
+  const limit = Math.max(1, Math.min(Number.parseInt(String(req.query.limit || "24"), 10) || 24, 36));
+  const offset = Math.max(0, Math.min(Number.parseInt(String(req.query.offset || "0"), 10) || 0, 5000));
+  const endpoint = query ? "search" : "trending";
+  const url = new URL(`https://api.giphy.com/v1/${type}/${endpoint}`);
+  url.searchParams.set("api_key", GIPHY_API_KEY);
+  url.searchParams.set("limit", String(limit));
+  url.searchParams.set("offset", String(offset));
+  url.searchParams.set("rating", "g");
+  if (query) url.searchParams.set("q", query);
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8000);
+  try {
+    const response = await fetch(url, { signal: controller.signal, headers: { Accept: "application/json" } });
+    if (!response.ok) throw new Error(`GIPHY returned ${response.status}`);
+    const payload = await response.json();
+    const items = Array.isArray(payload?.data) ? payload.data.map((item) => ({
+      id: toDisplayName(item?.id),
+      title: toDisplayName(item?.title || item?.alt_text) || "GIF",
+      previewUrl: toDisplayName(item?.images?.fixed_width_small?.url || item?.images?.fixed_width?.url),
+      url: toDisplayName(item?.images?.fixed_width?.url || item?.images?.original?.url),
+    })).filter((item) => item.id && item.previewUrl && item.url) : [];
+    res.set("Cache-Control", "private, max-age=120");
+    res.json({ items, nextOffset: Number(payload?.pagination?.offset || offset) + items.length });
+  } catch (error) {
+    console.error("GIPHY request failed:", error.message);
+    res.status(502).json({ error: "GIF search is temporarily unavailable." });
+  } finally {
+    clearTimeout(timeout);
+  }
+});
+
+app.get("/uploads/:file", requireUser, (req, res) => {
   const filename = path.basename(req.params.file || "");
   const token = String(req.query.token || "");
-  if (!filename || token !== signUploadToken(filename)) {
+  if (!/^[a-zA-Z0-9_-]+\.[a-zA-Z0-9]+$/.test(filename) || !safeTimingEqual(token, signUploadToken(filename)) || !userCanReadMedia(filename, req.userKey)) {
     res.status(403).json({ error: "Unauthorized" });
     return;
+  }
+  const metadata = mediaMetadata(filename);
+  if (metadata?.remote) {
+    res.set('Cache-Control', 'private, no-store');
+    res.set('Referrer-Policy', 'no-referrer');
+    return res.redirect(302, cloudinary.utils.private_download_url(metadata.remote.publicId, metadata.remote.format, {
+      resource_type: metadata.remote.resourceType, type: 'authenticated',
+      expires_at: Math.floor(Date.now() / 1000) + 60,
+      attachment: String(req.query.download || '') === '1',
+    }));
   }
   const filePath = path.join(uploadsDir, filename);
   if (!fs.existsSync(filePath)) {
@@ -371,6 +468,7 @@ app.get("/uploads/:file", (req, res) => {
 app.post(
   "/upload-voice",
   requireCsrf,
+  requireUser,
   (req, res, next) => {
     uploadVoice.single("voice")(req, res, (err) => {
       if (!err) {
@@ -408,13 +506,10 @@ app.post(
 
     try {
       if (hasCloudinaryConfig) {
-        const result = await cloudinary.uploader.upload(req.file.path, {
-          resource_type: "auto",
-          folder: "novyn_voice",
-        });
+        const url = await storeCloudMedia(req.file, auth.userKey, 'novyn_voice');
 
         fs.unlink(req.file.path, () => {});
-        res.json({ url: result.secure_url });
+        res.json({ url });
         return;
       }
 
@@ -431,9 +526,11 @@ app.post(
       const filename = `voice-${Date.now()}-${crypto.randomBytes(3).toString("hex")}${safeExt}`;
       const destPath = path.join(uploadsDir, filename);
       fs.renameSync(req.file.path, destPath);
+      saveMediaMetadata(filename, auth.userKey);
       const token = signUploadToken(filename);
       res.json({ url: `/uploads/${filename}?token=${token}` });
     } catch (error) {
+      fs.unlink(req.file.path, () => {});
       console.error(error);
       res.status(500).json({ error: "Upload failed" });
     }
@@ -443,6 +540,7 @@ app.post(
 app.post(
   "/upload-file",
   requireCsrf,
+  requireUser,
   (req, res, next) => {
     uploadFile.single("file")(req, res, (err) => {
       if (!err) {
@@ -484,13 +582,10 @@ app.post(
 
     try {
       if (hasCloudinaryConfig) {
-        const result = await cloudinary.uploader.upload(req.file.path, {
-          resource_type: "auto",
-          folder: kind === "image" ? "novyn_images" : "novyn_files",
-        });
+        const url = await storeCloudMedia(req.file, auth.userKey, kind === 'image' ? 'novyn_images' : 'novyn_files');
         fs.unlink(req.file.path, () => {});
         res.json({
-          url: result.secure_url,
+          url,
           name: attachmentName,
           mime,
           size,
@@ -503,6 +598,7 @@ app.post(
       const filename = `file-${Date.now()}-${crypto.randomBytes(3).toString("hex")}${ext}`;
       const destPath = path.join(uploadsDir, filename);
       fs.renameSync(req.file.path, destPath);
+      saveMediaMetadata(filename, auth.userKey);
       const token = signUploadToken(filename);
       res.json({
         url: `/uploads/${filename}?token=${token}`,
@@ -525,12 +621,10 @@ const allowedSocketOrigins = toDisplayName(process.env.ALLOWED_ORIGIN)
   .filter(Boolean);
 
 const socketCorsOrigin = (origin, callback) => {
-  if (!origin) {
-    // Native clients and same-origin requests may omit Origin.
-    callback(null, process.env.NODE_ENV !== "production");
-    return;
-  }
-  if (allowedSocketOrigins.includes(origin)) {
+  if (isAllowedSocketOrigin(origin, {
+    isProduction: process.env.NODE_ENV === "production",
+    allowedOrigins: allowedSocketOrigins,
+  })) {
     callback(null, true);
     return;
   }
@@ -596,7 +690,7 @@ app.get("/api/stats", (req, res) => {
 
 const conversationWallpapers = new Map();
 
-const DATA_DIR = path.join(__dirname, "data");
+const DATA_DIR = path.resolve(process.env.DATA_DIR || path.join(__dirname, "data"));
 const DATA_FILE = path.join(DATA_DIR, "chat-state.json");
 const AUTH_STATE_FILE = path.join(DATA_DIR, "auth-state.json");
 const ABUSE_REPORT_FILE = path.join(DATA_DIR, "abuse-reports.log");
@@ -653,7 +747,7 @@ const PASSWORD_RESET_EMAIL_SUBJECT =
   toDisplayName(process.env.PASSWORD_RESET_EMAIL_SUBJECT) || "Your Novyn password reset code";
 const EMAIL_CHANGE_EMAIL_SUBJECT =
   toDisplayName(process.env.EMAIL_CHANGE_EMAIL_SUBJECT) || "Verify your new Novyn email";
-const MAX_MESSAGE_LENGTH = 1000;
+const MAX_MESSAGE_LENGTH = 250;
 const MAX_GROUP_NAME_LENGTH = 48;
 const MAX_GROUP_MEMBERS = 48;
 const GROUP_ID_PREFIX = "grp_";
@@ -738,6 +832,8 @@ const passwordResetMailer = passwordResetEmailConfigured
       connectionTimeout: SMTP_CONNECTION_TIMEOUT_MS,
       greetingTimeout: SMTP_GREETING_TIMEOUT_MS,
       socketTimeout: SMTP_SOCKET_TIMEOUT_MS,
+      disableFileAccess: true,
+      disableUrlAccess: true,
       auth: {
         user: SMTP_USER,
         pass: SMTP_PASS,
@@ -788,24 +884,147 @@ let persistInFlight = Promise.resolve();
 let authPersistTimer = null;
 let authPersistInFlight = Promise.resolve();
 
-const {
-  normalizeName,
-  toDisplayName,
-  normalizeEmail,
-  isPlausibleEmail,
-  parseEnvBoolean,
-  normalizeHandleInput,
-  normalizeChatKind,
-  normalizePresenceMode,
-  normalizeGroupId,
-} = require("./server/core/normalization");
-
 const authSessions = createAuthSessions({
   refreshSessions,
   refreshByUser,
   authUserAliases,
   schedulePersist: () => scheduleAuthStatePersist(),
 });
+
+const {
+  revokeRefreshSession,
+  pruneExpiredAuthState,
+} = authSessions;
+
+function createAuthToken(kind, userKey, ttlMs, extra = {}) {
+  return signAuthToken({
+    secret: AUTH_SECRET,
+    kind,
+    userKey,
+    ttlMs,
+    extra,
+  });
+}
+
+function verifyAuthToken(rawToken, expectedKind) {
+  return verifySignedAuthToken({
+    secret: AUTH_SECRET,
+    rawToken,
+    expectedKind,
+  });
+}
+
+function resolveCurrentUserKey(rawKey) {
+  let key = normalizeName(rawKey);
+  const seen = new Set();
+  while (key && !seen.has(key)) {
+    seen.add(key);
+    if (users.has(key)) return key;
+    const alias = authUserAliases.get(key);
+    if (!alias) break;
+    if (Date.now() > Number(alias.expiresAt)) {
+      authUserAliases.delete(key);
+      break;
+    }
+    key = normalizeName(alias.newKey);
+  }
+  return "";
+}
+
+function getAuthCookiesFromHeader(rawCookieHeader) {
+  const cookies = parseCookies(rawCookieHeader);
+  return {
+    accessToken: toDisplayName(cookies[AUTH_ACCESS_COOKIE]),
+    refreshToken: toDisplayName(cookies[AUTH_REFRESH_COOKIE]),
+  };
+}
+
+function resolveUserFromAuthCookies(authCookies, options = {}) {
+  pruneExpiredAuthState();
+  const allowRefreshFallback = options.allowRefreshFallback !== false;
+
+  const accessPayload = verifyAuthToken(authCookies?.accessToken, "access");
+  const accessSession = accessPayload?.sid && refreshSessions.get(accessPayload.sid);
+  if (accessSession && Number(accessSession.expiresAt) > Date.now()) {
+    const resolved = resolveCurrentUserKey(accessPayload.sub);
+    if (resolved && resolved === resolveCurrentUserKey(accessSession.userKey)) {
+      return { userKey: resolved, via: "access", sessionId: accessPayload.sid };
+    }
+  }
+
+  if (!allowRefreshFallback) return { userKey: "" };
+
+  const refreshPayload = verifyAuthToken(authCookies?.refreshToken, "refresh");
+  if (!refreshPayload?.jti) return { userKey: "" };
+  const session = refreshSessions.get(refreshPayload.jti);
+  if (!session || Date.now() > Number(session.expiresAt)) {
+    revokeRefreshSession(refreshPayload.jti);
+    return { userKey: "" };
+  }
+
+  const resolved = resolveCurrentUserKey(session.userKey || refreshPayload.sub);
+  if (!resolved) {
+    revokeRefreshSession(refreshPayload.jti);
+    return { userKey: "" };
+  }
+  session.userKey = resolved;
+  return {
+    userKey: resolved,
+    via: "refresh",
+    remember: Boolean(session.remember),
+    refreshTokenId: toDisplayName(refreshPayload.jti),
+    sessionId: toDisplayName(refreshPayload.jti),
+  };
+}
+
+function readRememberFlag(value) {
+  if (typeof value === "boolean") return value;
+  return ["1", "true", "yes", "on"].includes(toDisplayName(value).toLowerCase());
+}
+
+function issueAuthTokensForUser(userKey, remember) {
+  const key = normalizeName(userKey);
+  if (!key) return null;
+  const persistent = Boolean(remember);
+  const refreshTtl = persistent ? AUTH_REFRESH_REMEMBER_TTL_MS : AUTH_REFRESH_SESSION_TTL_MS;
+  const refreshTokenId = crypto.randomBytes(16).toString("hex");
+  const accessToken = createAuthToken("access", key, AUTH_ACCESS_TTL_MS, { sid: refreshTokenId });
+  const refreshToken = createAuthToken("refresh", key, refreshTtl, {
+    jti: refreshTokenId,
+    remember: persistent ? 1 : 0,
+  });
+  authSessions.trackRefreshSession(key, refreshTokenId, Date.now() + refreshTtl, persistent);
+  return { accessToken, refreshToken, remember: persistent };
+}
+
+function applyAuthCookies(res, issuedTokens) {
+  if (!res || !issuedTokens?.accessToken || !issuedTokens?.refreshToken) return;
+  const shared = {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: AUTH_COOKIE_SECURE,
+    path: "/",
+  };
+  res.cookie(AUTH_ACCESS_COOKIE, issuedTokens.accessToken, { ...shared, maxAge: AUTH_ACCESS_TTL_MS });
+  const refreshTtlMs = issuedTokens.remember
+    ? AUTH_REFRESH_REMEMBER_TTL_MS
+    : AUTH_REFRESH_SESSION_TTL_MS;
+  res.cookie(AUTH_REFRESH_COOKIE, issuedTokens.refreshToken, { ...shared, maxAge: refreshTtlMs });
+  res.cookie(AUTH_CSRF_COOKIE, createCsrfToken(), {
+    sameSite: "lax",
+    secure: AUTH_COOKIE_SECURE,
+    path: "/",
+    maxAge: refreshTtlMs,
+  });
+}
+
+function clearAuthCookies(res) {
+  if (!res) return;
+  const shared = { httpOnly: true, sameSite: "lax", secure: AUTH_COOKIE_SECURE, path: "/" };
+  res.clearCookie(AUTH_ACCESS_COOKIE, shared);
+  res.clearCookie(AUTH_REFRESH_COOKIE, shared);
+  res.clearCookie(AUTH_CSRF_COOKIE, { sameSite: "lax", secure: AUTH_COOKIE_SECURE, path: "/" });
+}
 
 function getGroupConversationKey(groupId) {
   return `${GROUP_CONVERSATION_PREFIX}${normalizeGroupId(groupId)}`;
@@ -1018,11 +1237,13 @@ function createUserRecord(username) {
     lastSeenAt: "",
     presenceMode: "online",
     publicKey: "",
+    retentionDays: 30,
   };
 }
 
 function serializeState() {
   return {
+    wallpapers: Array.from(conversationWallpapers.entries()),
     users: Array.from(users.entries()).map(([key, user]) => ({
       key,
       username: user.username,
@@ -1047,6 +1268,7 @@ function serializeState() {
       lastSeenAt: toDisplayName(user.lastSeenAt),
       presenceMode: normalizePresenceMode(user.presenceMode),
       publicKey: toDisplayName(user.publicKey),
+      retentionDays: [7, 15, 30].includes(Number(user.retentionDays)) ? Number(user.retentionDays) : 30,
     })),
     conversations: Array.from(conversations.entries()).map(([key, messages]) => ({
       key,
@@ -1136,13 +1358,15 @@ function applyLoadedAuthRuntimeState(parsed) {
 async function persistFileNow() {
   const payload = JSON.stringify(serializeState(), null, 2);
   await fsp.mkdir(DATA_DIR, { recursive: true });
-  await fsp.writeFile(DATA_FILE, payload, "utf8");
+  await fsp.writeFile(`${DATA_FILE}.tmp`, payload, "utf8");
+  await fsp.rename(`${DATA_FILE}.tmp`, DATA_FILE);
 }
 
 async function persistAuthStateNow() {
   const payload = JSON.stringify(serializeAuthRuntimeState(), null, 2);
   await fsp.mkdir(DATA_DIR, { recursive: true });
-  await fsp.writeFile(AUTH_STATE_FILE, payload, "utf8");
+  await fsp.writeFile(`${AUTH_STATE_FILE}.tmp`, payload, "utf8");
+  await fsp.rename(`${AUTH_STATE_FILE}.tmp`, AUTH_STATE_FILE);
 }
 
 function hasMongoStorage() {
@@ -1231,6 +1455,7 @@ async function persistMongoNow() {
               createdAt: toDisplayName(entry.createdAt),
               lastSeenAt: toDisplayName(entry.lastSeenAt),
               presenceMode: normalizePresenceMode(entry.presenceMode),
+              publicKey: toDisplayName(entry.publicKey),
               snapshotId,
               updatedAt,
             },
@@ -1294,6 +1519,7 @@ async function persistMongoNow() {
           updatedAt,
           retentionDays: CHAT_RETENTION_DAYS,
           groups: state.groups || [],
+          wallpapers: state.wallpapers || [],
           scheduledMessages: state.scheduledMessages || [],
         },
       },
@@ -1312,9 +1538,7 @@ async function persistNow() {
 }
 
 function schedulePersist() {
-  if (persistTimer) {
-    clearTimeout(persistTimer);
-  }
+  if (persistTimer) return;
 
   persistTimer = setTimeout(() => {
     persistTimer = null;
@@ -1327,9 +1551,7 @@ function schedulePersist() {
 }
 
 function scheduleAuthStatePersist() {
-  if (authPersistTimer) {
-    clearTimeout(authPersistTimer);
-  }
+  if (authPersistTimer) return;
 
   authPersistTimer = setTimeout(() => {
     authPersistTimer = null;
@@ -1746,6 +1968,12 @@ function hydrateMessage(rawMessage) {
 }
 
 function applyLoadedState(parsed) {
+  conversationWallpapers.clear();
+  for (const entry of parsed?.wallpapers || []) {
+    if (Array.isArray(entry) && typeof entry[0] === 'string' && typeof entry[1] === 'string') {
+      conversationWallpapers.set(entry[0], entry[1]);
+    }
+  }
   users.clear();
   conversations.clear();
   groups.clear();
@@ -1779,6 +2007,7 @@ function applyLoadedState(parsed) {
     user.lastSeenAt = toDisplayName(entry.lastSeenAt);
     user.presenceMode = normalizePresenceMode(entry.presenceMode);
     user.publicKey = toDisplayName(entry.publicKey);
+    user.retentionDays = [7, 15, 30].includes(Number(entry.retentionDays)) ? Number(entry.retentionDays) : 30;
     user.pushSubs = Array.isArray(entry.pushSubs)
       ? entry.pushSubs.filter((sub) => sub && sub.endpoint && sub.keys)
       : [];
@@ -2022,7 +2251,7 @@ async function loadStateFromMongoCollections() {
     mongoLegacyCollection
       ? mongoLegacyCollection.findOne(
           { _id: "main" },
-          { projection: { groups: 1, scheduledMessages: 1 } }
+          { projection: { groups: 1, scheduledMessages: 1, wallpapers: 1 } }
         )
       : null,
   ]);
@@ -2051,6 +2280,7 @@ async function loadStateFromMongoCollections() {
       messages: messageMap.get(key) || [],
     })),
     groups: Array.isArray(legacyDoc?.groups) ? legacyDoc.groups : [],
+    wallpapers: Array.isArray(legacyDoc?.wallpapers) ? legacyDoc.wallpapers : [],
     scheduledMessages: Array.isArray(legacyDoc?.scheduledMessages) ? legacyDoc.scheduledMessages : [],
   };
 
@@ -2092,6 +2322,7 @@ async function initializeMongo() {
     mongoUsersCollection = null;
     mongoConversationsCollection = null;
     mongoMessagesCollection = null;
+    if (process.env.NODE_ENV === 'production') throw err;
     console.error("Failed to connect MongoDB, falling back to local file storage:", err);
   }
 }
@@ -2119,6 +2350,7 @@ async function loadState() {
         }
       }
     } catch (err) {
+      if (process.env.NODE_ENV === 'production') throw err;
       console.error("Failed to load chat state from MongoDB collections, trying local file:", err);
     }
   }
@@ -2505,7 +2737,8 @@ function deliverFriendMessage(params = {}) {
 
   const me = users.get(fromKey);
   const friend = users.get(toKey);
-  if (!me || !friend || !me.friends.has(toKey)) {
+  const isSelf = fromKey === toKey;
+  if (!me || !friend || (!isSelf && !me.friends.has(toKey))) {
     return { ok: false, message: "You can message only your friends." };
   }
   if (usersAreBlocked(fromKey, toKey)) {
@@ -2555,15 +2788,17 @@ function deliverFriendMessage(params = {}) {
   conversations.set(conversationKey, conversation);
   runRetentionMaintenance();
 
-  recipientViewing ? setUnreadCount(friend, fromKey, 0) : incrementUnread(friend, fromKey);
+  if (!isSelf) {
+    recipientViewing ? setUnreadCount(friend, fromKey, 0) : incrementUnread(friend, fromKey);
+  }
 
   const senderSocketId = onlineUsers.get(fromKey);
   if (senderSocketId) {
     io.to(senderSocketId).emit("private_message", message);
   }
-  if (recipientSocketId) {
+  if (recipientSocketId && recipientSocketId !== senderSocketId) {
     io.to(recipientSocketId).emit("private_message", message);
-  } else if (!isMutedBy(friend, fromKey)) {
+  } else if (!isSelf && !isMutedBy(friend, fromKey)) {
     const bodyText = formatPushBody(text);
     void sendPushToUser(toKey, {
       type: "message",
@@ -2578,7 +2813,7 @@ function deliverFriendMessage(params = {}) {
 
   emitMessageStatus(message);
   emitFriendList(fromKey);
-  emitFriendList(toKey);
+  if (!isSelf) emitFriendList(toKey);
   schedulePersist();
   return { ok: true, existing: false, message, me, friend };
 }
@@ -3015,6 +3250,18 @@ function getConversationSummaryByKey(conversationKey) {
 
   return {
     lastMessage: compact,
+    lastMessageData: {
+      id: message.id,
+      from: message.from,
+      to: message.to,
+      text: message.isEncrypted && !message.deletedAt ? ENCRYPTED_MESSAGE_PLACEHOLDER : compact,
+      timestamp: message.timestamp,
+      isEncrypted: Boolean(message.isEncrypted && !message.deletedAt),
+      ciphertext: !message.deletedAt ? message.ciphertext : undefined,
+      iv: !message.deletedAt ? message.iv : undefined,
+      attachment: !message.deletedAt ? message.attachment : undefined,
+      isVoice: !message.deletedAt && Boolean(message.isVoice || message.attachment?.kind === 'audio'),
+    },
     lastTimestamp: message.timestamp || null,
     lastFrom: message.from || "",
   };
@@ -3189,6 +3436,7 @@ function buildFriendList(forUser) {
       presence,
       unreadCount: getUnreadCount(user, friendKey),
       lastMessage: summary.lastMessage,
+      lastMessageData: summary.lastMessageData,
       lastTimestamp: summary.lastTimestamp,
       lastFrom: summary.lastFrom,
       avatarId: friend?.avatarId || "",
@@ -3221,6 +3469,7 @@ function buildFriendList(forUser) {
         online: onlineCount > 0,
         unreadCount: getUnreadCount(user, group.id),
         lastMessage: summary.lastMessage,
+        lastMessageData: summary.lastMessageData,
         lastTimestamp: summary.lastTimestamp,
         lastFrom: summary.lastFrom,
         avatarId: "",
@@ -3558,6 +3807,9 @@ function buildRegisterSuccessPayload(userKey, user) {
       const requester = users.get(requesterKey);
       return requester?.username || requesterKey;
     }),
+    sentRequests: Array.from(users.values())
+      .filter((candidate) => candidate.requests.has(userKey))
+      .map((candidate) => candidate.username),
     safety: {
       blocked: Array.from(user.blockedUsers || [])
         .map((targetKey) => users.get(targetKey)?.username || targetKey),
@@ -3587,6 +3839,7 @@ function finalizeSocketAuthentication(socket, user) {
   const userKey = normalizeName(user.username);
 
   socket.data.userKey = userKey;
+  socket.data.passwordHashSnapshot = user.passwordHash;
   socket.data.activeChatWith = null;
   socket.data.activeChatKind = "friend";
 
@@ -3626,7 +3879,7 @@ function allowSocketAction(socket, key, maxPerWindow, windowMs) {
   // Prune expired global buckets opportunistically so long-lived servers do
   // not retain one Map entry forever for every user/action combination.
   for (const [storedKey, storedBucket] of globalStore) {
-    if (!storedBucket || now - storedBucket.windowStartedAt > windowDuration) {
+    if (!storedBucket || now >= storedBucket.expiresAt) {
       globalStore.delete(storedKey);
     }
   }
@@ -3634,8 +3887,8 @@ function allowSocketAction(socket, key, maxPerWindow, windowMs) {
   // Enforce limits across all simultaneous sockets for the same account.
   // Otherwise a client could bypass a per-socket limit by opening connections.
   const existing = globalStore.get(globalKey);
-  if (!existing || now - existing.windowStartedAt > windowDuration) {
-    globalStore.set(globalKey, { count: 1, windowStartedAt: now });
+  if (!existing || now >= existing.expiresAt) {
+    globalStore.set(globalKey, { count: 1, windowStartedAt: now, expiresAt: now + windowDuration });
   } else {
     existing.count += 1;
   }
@@ -3864,11 +4117,7 @@ function authenticateSigninPayload(payload) {
   }
 
   if (!user.passwordSalt || !user.passwordHash) {
-    const secret = createPasswordSecret(password);
-    user.passwordSalt = secret.passwordSalt;
-    user.passwordHash = secret.passwordHash;
-    user.isRegistered = true;
-    schedulePersist();
+    return { ok: false, status: 401, message: 'Password sign-in is unavailable for this account. Use Google sign-in or reset your password.', suggestions: [] };
   } else if (!verifyPassword(password, user.passwordSalt, user.passwordHash)) {
     return { ok: false, status: 401, message: "Incorrect password.", suggestions };
   }
@@ -3972,6 +4221,7 @@ app.post(
 app.post(
   "/api/auth/google",
   createIpRateLimiter({ getStore: () => httpRateLimits }, "auth-google", 25, 15 * 60 * 1000),
+  requireCsrf,
   async (req, res) => {
     if (!firebaseAdmin) {
       res.status(503).json({
@@ -4003,6 +4253,9 @@ app.post(
     }
 
     const email = normalizeEmail(decoded.email || "");
+    if (decoded.email_verified !== true || decoded.firebase?.sign_in_provider !== 'google.com') {
+      return res.status(401).json({ message: 'A verified Google sign-in is required.' });
+    }
     if (!email) {
       res.status(400).json({ message: "Google account email is required." });
       return;
@@ -4128,10 +4381,11 @@ app.get("/api/auth/session", (req, res) => {
     avatarId: user.avatarId || "",
     bio: user.bio || "",
     presenceMode: user.presenceMode || "online",
+    retentionDays: [7, 15, 30].includes(Number(user.retentionDays)) ? Number(user.retentionDays) : 30,
   });
 });
 
-app.post("/api/auth/refresh", createIpRateLimiter({ getStore: () => httpRateLimits }, "auth-refresh", 120, 15 * 60 * 1000), (req, res) => {
+app.post("/api/auth/refresh", createIpRateLimiter({ getStore: () => httpRateLimits }, "auth-refresh", 120, 15 * 60 * 1000), requireCsrf, (req, res) => {
   const cookies = getAuthCookiesFromHeader(req.headers.cookie);
   const refreshPayload = verifyAuthToken(cookies.refreshToken, "refresh");
   if (!refreshPayload?.jti) {
@@ -4172,14 +4426,17 @@ app.post("/api/auth/logout", createIpRateLimiter({ getStore: () => httpRateLimit
   const refreshPayload = verifyAuthToken(cookies.refreshToken, "refresh");
   if (refreshPayload?.jti) {
     revokeRefreshSession(refreshPayload.jti);
+    for (const client of io.sockets.sockets.values()) {
+      if (client.data.sessionId === refreshPayload.jti) client.disconnect(true);
+    }
   }
   clearAuthCookies(res);
   res.json({ ok: true });
 });
 
-const { assertSafeExternalUrl, readResponseWithLimit } = require("./server/security/ssrf");
+const { fetchSafeExternalUrl, readResponseWithLimit, readResponseBufferWithLimit } = require("./server/security/ssrf");
 
-app.get("/api/link-preview", async (req, res) => {
+app.get("/api/link-preview", requireUser, createIpRateLimiter({ getStore: () => httpRateLimits }, 'link-preview', 60, 60 * 1000), async (req, res) => {
   const targetUrl = String(req.query?.url || "").trim();
   if (!targetUrl) {
     res.status(400).json({ error: "Invalid URL" });
@@ -4187,23 +4444,13 @@ app.get("/api/link-preview", async (req, res) => {
   }
 
   try {
-    const safeUrl = await assertSafeExternalUrl(targetUrl);
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 4000);
-    let response;
-    try {
-      response = await fetch(safeUrl.href, {
-        signal: controller.signal,
-        redirect: "manual",
+    const response = await fetchSafeExternalUrl(targetUrl, {
+        timeoutMs: 4000,
         headers: {
           "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
           Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         },
       });
-    } finally {
-      clearTimeout(timeout);
-    }
-
     if (!response.ok) {
       res.status(400).json({ error: "Failed to fetch URL" });
       return;
@@ -4258,6 +4505,8 @@ app.get("/api/link-preview", async (req, res) => {
 
 app.post(
   "/api/import-wallpaper-url",
+  requireCsrf,
+  requireUser,
   createIpRateLimiter({ getStore: () => httpRateLimits }, "wallpaper-import", 10, 15 * 60 * 1000),
   async (req, res) => {
     const targetUrl = String(req.body?.url || "").trim();
@@ -4265,23 +4514,13 @@ app.post(
       return res.status(400).json({ error: "Invalid URL" });
     }
 
-    const fetchExternal = async (rawUrl, maxBytes, headers = {}) => {
-      const safeUrl = await assertSafeExternalUrl(rawUrl);
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 5000);
-      try {
-        const response = await fetch(safeUrl.href, {
-          signal: controller.signal,
-          redirect: "manual",
-          headers,
-        });
+    const fetchExternal = async (rawUrl, headers = {}) => {
+        const response = await fetchSafeExternalUrl(rawUrl, { headers });
         if (response.status >= 300 && response.status < 400) {
+          await response.body?.cancel();
           throw new Error("Redirects are not allowed.");
         }
-        return { response, safeUrl };
-      } finally {
-        clearTimeout(timeout);
-      }
+        return { response, safeUrl: new URL(rawUrl) };
     };
 
     try {
@@ -4290,12 +4529,9 @@ app.post(
       // Pinterest oEmbed destination is fixed; the user URL is only a query parameter.
       if (targetUrl.includes("pinterest.com/pin/") || targetUrl.includes("pin.it/")) {
         try {
-          const controller = new AbortController();
-          const timeout = setTimeout(() => controller.abort(), 4000);
-          try {
-            const oembedRes = await fetch(
+            const oembedRes = await fetchSafeExternalUrl(
               `https://www.pinterest.com/oembed.json?url=${encodeURIComponent(targetUrl)}`,
-              { signal: controller.signal, redirect: "manual" }
+              { timeoutMs: 4000 }
             );
             if (oembedRes.ok) {
               const oembedText = await readResponseWithLimit(oembedRes, 128 * 1024);
@@ -4304,16 +4540,13 @@ app.post(
                 directImageUrl = oembedData.url || oembedData.thumbnail_url;
               }
             }
-          } finally {
-            clearTimeout(timeout);
-          }
         } catch (_) {}
       }
 
       // Resolve OpenGraph metadata through the same SSRF and response-size controls.
       if (!/\.(jpeg|jpg|gif|png|webp)(\?.*)?$/i.test(directImageUrl)) {
         try {
-          const { response } = await fetchExternal(directImageUrl, 512 * 1024, {
+          const { response } = await fetchExternal(directImageUrl, {
             "User-Agent": "Novyn/1.0",
             Accept: "text/html,application/xhtml+xml",
           });
@@ -4329,7 +4562,7 @@ app.post(
         } catch (_) {}
       }
 
-      const { response: imgRes, safeUrl: finalUrl } = await fetchExternal(directImageUrl, 8 * 1024 * 1024, {
+      const { response: imgRes, safeUrl: finalUrl } = await fetchExternal(directImageUrl, {
         "User-Agent": "Novyn/1.0",
         Accept: "image/jpeg,image/png,image/gif,image/webp",
       });
@@ -4358,6 +4591,7 @@ app.post(
       const filename = `wallpaper-${Date.now()}-${crypto.randomBytes(3).toString("hex")}${ext}`;
       const destPath = path.join(uploadsDir, filename);
       fs.writeFileSync(destPath, buffer);
+      saveMediaMetadata(filename, req.userKey);
       const token = signUploadToken(filename);
       return res.json({ url: `/uploads/${filename}?token=${token}`, source: finalUrl.href });
     } catch (err) {
@@ -4510,6 +4744,40 @@ io.use(
 );
 
 io.on("connection", (socket) => {
+  // Prevent a copied private URL from being laundered into another conversation
+  // through sending, forwarding, editing, or wallpaper/profile updates.
+  socket.use((packet, next) => {
+    const userKey = normalizeName(socket.data.userKey || '');
+    const session = socket.data.sessionId && refreshSessions.get(socket.data.sessionId);
+    if (userKey && ((socket.data.sessionId && (!session || session.expiresAt <= Date.now())) ||
+      socket.data.passwordHashSnapshot !== users.get(userKey)?.passwordHash)) {
+      socket.emit('auth_failed', { message: 'Session expired. Please sign in again.' });
+      socket.disconnect(true);
+      return;
+    }
+    const names = mediaNames(packet.slice(1).filter((item) => typeof item !== 'function'));
+    if (names.some((filename) => !userCanReadMedia(filename, userKey))) {
+      const result = { ok: false, message: 'You do not have access to this media.' };
+      const callback = packet[packet.length - 1];
+      if (typeof callback === 'function') callback(result);
+      else socket.emit('error_message', result);
+      return;
+    }
+    next();
+  });
+  const authenticatedUser = users.get(normalizeName(socket.data.userKey || ""));
+  if (authenticatedUser?.isRegistered) {
+    finalizeSocketAuthentication(socket, authenticatedUser);
+  }
+
+  socket.on("discover_online", () => {
+    const userKey = normalizeName(socket.data.userKey || "");
+    if (!userKey) return;
+    socket.emit("discover_online", {
+      users: buildDiscoverOnlineList(userKey),
+    });
+  });
+
   socket.on("resume_session", () => {
     const userKey = resolveCurrentUserKey(socket.data.userKey);
     if (!userKey) {
@@ -4630,9 +4898,8 @@ io.on("connection", (socket) => {
       }
 
       if (!existing.passwordSalt || !existing.passwordHash) {
-        const secret = createPasswordSecret(password);
-        existing.passwordSalt = secret.passwordSalt;
-        existing.passwordHash = secret.passwordHash;
+        socket.emit('auth_failed', { message: 'Use Google sign-in or reset your password for this account.' });
+        return;
       } else if (!verifyPassword(password, existing.passwordSalt, existing.passwordHash)) {
         socket.emit("auth_failed", {
           message: "Incorrect password.",
@@ -4654,6 +4921,9 @@ io.on("connection", (socket) => {
     finalizeSocketAuthentication(socket, user);
   });
   socket.on("request_password_reset", async (payload) => {
+    if (!allowSocketAction(socket, 'request_password_reset', 10, 15 * 60 * 1000)) {
+      return socket.emit('password_reset_failed', { message: 'Too many requests. Try again later.' });
+    }
     pruneExpiredPasswordResetTokens();
     const identifier = toDisplayName(payload?.identifier || payload?.email || payload);
     const genericSentMessage = "If an account exists, a reset code has been sent.";
@@ -4712,6 +4982,9 @@ io.on("connection", (socket) => {
   });
 
   socket.on("reset_password", (payload) => {
+    if (!allowSocketAction(socket, 'reset_password', 30, 15 * 60 * 1000)) {
+      return socket.emit('password_reset_failed', { message: 'Too many attempts. Try again later.' });
+    }
     pruneExpiredPasswordResetTokens();
     const identifier = toDisplayName(payload?.identifier || payload?.email || payload?.username || "");
     const token = toDisplayName(payload?.token || "");
@@ -5034,6 +5307,10 @@ io.on("connection", (socket) => {
     if (payload?.presenceMode !== undefined || payload?.status !== undefined) {
       user.presenceMode = normalizePresenceMode(payload.presenceMode || payload.status);
     }
+    if (payload?.retentionDays !== undefined) {
+      const days = Number(payload.retentionDays);
+      if ([7, 15, 30].includes(days)) user.retentionDays = days;
+    }
 
     schedulePersist();
 
@@ -5044,6 +5321,7 @@ io.on("connection", (socket) => {
       avatarId: user.avatarId,
       presenceMode: user.presenceMode,
       email: user.email || "",
+      retentionDays: [7, 15, 30].includes(Number(user.retentionDays)) ? Number(user.retentionDays) : 30,
     });
 
     emitFriendList(userKey);
@@ -5167,6 +5445,108 @@ io.on("connection", (socket) => {
     schedulePersist();
 
     socket.emit("password_changed");
+  });
+
+  socket.on("add_friend", (rawTarget, callback) => {
+    const reply = (result) => {
+      if (typeof callback === 'function') callback(result);
+      else if (!result.ok) socket.emit('error_message', result);
+    };
+    const userKey = normalizeName(socket.data.userKey || "");
+    if (!userKey) return reply({ ok: false, message: "Sign in required." });
+    if (!allowSocketAction(socket, 'add_friend', 30, 60 * 1000)) {
+      return reply({ ok: false, message: "Too many friend requests. Please wait a minute." });
+    }
+
+    const targetText = toDisplayName(rawTarget).replace(/^@/, '');
+    const target = targetText.includes("@")
+      ? findUserByEmail(targetText)
+      : users.get(normalizeName(targetText));
+    const me = users.get(userKey);
+    const targetKey = normalizeName(target?.username || targetText);
+
+    if (!me || !target || !target.isRegistered || !targetKey) {
+      reply({ ok: false, message: "User not found." });
+      return;
+    }
+    if (targetKey === userKey) {
+      reply({ ok: false, message: "You cannot add yourself." });
+      return;
+    }
+    if (usersAreBlocked(userKey, targetKey)) {
+      reply({ ok: false, message: "Friend request cannot be sent while one of you is blocked." });
+      return;
+    }
+    if (me.friends.has(targetKey)) {
+      reply({ ok: false, message: "You are already friends." });
+      return;
+    }
+    if (target.requests.has(userKey)) {
+      reply({ ok: true, username: target.username });
+      return;
+    }
+    if (me.requests.has(targetKey)) {
+      reply({ ok: false, message: "This user has already requested you. Accept their request in Contacts." });
+      return;
+    }
+
+    target.requests.add(userKey);
+    reply({ ok: true, username: target.username });
+    socket.emit("friend_request_sent", { to: target.username });
+    emitRequests(targetKey);
+    const targetSocket = onlineUsers.get(targetKey);
+    if (targetSocket) {
+      io.to(targetSocket).emit("friend_request_received", {
+        from: me.username,
+        displayName: me.displayName || me.username,
+      });
+    }
+    emitDiscoverOnlineToAll();
+    schedulePersist();
+  });
+
+  socket.on("cancel_friend_request", (rawTarget, callback) => {
+    const reply = (result) => {
+      if (typeof callback === 'function') callback(result);
+      else if (!result.ok) socket.emit('error_message', result);
+    };
+    const userKey = normalizeName(socket.data.userKey || "");
+    if (!userKey) return reply({ ok: false, message: 'Sign in required.' });
+    const targetKey = normalizeName(rawTarget);
+    const me = users.get(userKey);
+    const target = users.get(targetKey);
+    if (!me || !target || !target.requests.has(userKey)) {
+      reply({ ok: false, message: "No pending friend request found." });
+      return;
+    }
+
+    target.requests.delete(userKey);
+    reply({ ok: true });
+    socket.emit("friend_request_cancelled", { to: target.username });
+    emitRequests(targetKey);
+    emitDiscoverOnlineToAll();
+    schedulePersist();
+  });
+
+  socket.on("reject_friend", (rawRequester) => {
+    const userKey = normalizeName(socket.data.userKey || "");
+    if (!userKey) return;
+    const requesterKey = normalizeName(rawRequester);
+    const me = users.get(userKey);
+    const requester = users.get(requesterKey);
+    if (!me || !requester || !me.requests.has(requesterKey)) {
+      socket.emit("error_message", { message: "No pending friend request found." });
+      return;
+    }
+
+    me.requests.delete(requesterKey);
+    emitRequests(userKey);
+    const requesterSocket = onlineUsers.get(requesterKey);
+    if (requesterSocket) {
+      io.to(requesterSocket).emit("friend_request_cancelled", { to: me.username });
+    }
+    emitDiscoverOnlineToAll();
+    schedulePersist();
   });
 
   socket.on("accept_friend", (rawFriendName) => {
@@ -5933,11 +6313,16 @@ io.on("connection", (socket) => {
     allowSocketAction
   });
 
-  socket.on("private_message", (payload) => {
+  socket.on("private_message", (payload, callback) => {
+    const respond = typeof callback === "function" ? callback : () => {};
+    const rejectMessage = (message) => {
+      if (typeof callback === "function") respond({ ok: false, message });
+      else socket.emit("error_message", { message });
+    };
     const userKey = socket.data.userKey;
-    if (!userKey) return;
+    if (!userKey) { rejectMessage("Please sign in again."); return; }
     if (!allowSocketAction(socket, "private_message", 40, 60 * 1000)) {
-      socket.emit("error_message", { message: "Message rate limit reached. Slow down a bit." });
+      rejectMessage("Message rate limit reached. Slow down a bit.");
       return;
     }
 
@@ -5945,7 +6330,7 @@ io.on("connection", (socket) => {
     const ciphertext = toDisplayName(payload?.ciphertext);
     const iv = toDisplayName(payload?.iv);
     if (isEncrypted && (!ciphertext || !iv)) {
-      socket.emit("error_message", { message: "Invalid encrypted message payload." });
+      rejectMessage("Invalid encrypted message payload.");
       return;
     }
     // Never store a client-supplied plaintext body for an encrypted message.
@@ -5968,16 +6353,16 @@ io.on("connection", (socket) => {
         game: rawGame,
       });
       if (!challenge.ok) {
-        socket.emit("error_message", { message: challenge.reason || "Invalid game challenge." });
+        rejectMessage(challenge.reason || "Invalid game challenge.");
         return;
       }
       game = challenge.game;
     }
     const poll = payload?.poll || null;
 
-    if (!text) return;
+    if (!text) { rejectMessage("Message is empty."); return; }
     if (text.length > MAX_MESSAGE_LENGTH) {
-      socket.emit("error_message", { message: `Message too long. Limit is ${MAX_MESSAGE_LENGTH} characters.` });
+      rejectMessage(`Message too long. Limit is ${MAX_MESSAGE_LENGTH} characters.`);
       return;
     }
 
@@ -5993,9 +6378,10 @@ io.on("connection", (socket) => {
         clientTempId: safeClientTempId,
       });
       if (!result.ok) {
-        socket.emit("error_message", { message: result.message || "Unable to send message to this group." });
+        rejectMessage(result.message || "Unable to send message to this group.");
         return;
       }
+      respond({ ok: true, id: result.message.id });
       if (result.existing) {
         socket.emit("private_message", result.message);
       }
@@ -6023,9 +6409,10 @@ io.on("connection", (socket) => {
           reason: "blocked",
         });
       }
-      socket.emit("error_message", { message: result.message || "Unable to send message." });
+      rejectMessage(result.message || "Unable to send message.");
       return;
     }
+    respond({ ok: true, id: result.message.id });
     if (result.existing) {
       socket.emit("private_message", result.message);
       emitMessageStatus(result.message);
@@ -6709,9 +7096,36 @@ io.on("connection", (socket) => {
     schedulePersist();
   });
 
+  socket.on("set_mute", (payload) => {
+    const userKey = socket.data.userKey;
+    if (!userKey) return;
+    if (!allowSocketAction(socket, "set_mute", 80, 60 * 1000)) {
+      socket.emit("error_message", { message: "Too many notification updates. Try again shortly." });
+      return;
+    }
+
+    const targetKey = normalizeName(payload?.username);
+    const user = users.get(userKey);
+    const target = users.get(targetKey);
+    if (!user || !target || targetKey === userKey || !user.friends.has(targetKey)) {
+      socket.emit("error_message", { message: "You can only update notifications for a contact." });
+      return;
+    }
+
+    if (!(user.mutedUsers instanceof Set)) user.mutedUsers = new Set();
+    const muted = Boolean(payload?.muted);
+    if (muted) user.mutedUsers.add(targetKey);
+    else user.mutedUsers.delete(targetKey);
+
+    socket.emit("mute_updated", { username: target.username || targetKey, muted });
+    emitFriendList(userKey);
+    schedulePersist();
+  });
+
   registerMessageMutationHandlers(socket, {
     allowSocketAction,
     toDisplayName,
+    withUploadToken,
     normalizeChatKind,
     MAX_MESSAGE_LENGTH,
     users,
@@ -6876,10 +7290,9 @@ async function bootstrap() {
   queueAllScheduledMessages();
   startRetentionMaintenanceLoop();
 
-  const hasExplicitPort = typeof process.env.PORT === "string" && process.env.PORT.trim() !== "";
   const preferredPort = parsePort(process.env.PORT, 3000);
   const activePort = await listenWithPortFallback(preferredPort, {
-    maxRetries: hasExplicitPort ? 0 : 20,
+    maxRetries: 0,
   });
 
   const usingMongo = hasMongoStorage();

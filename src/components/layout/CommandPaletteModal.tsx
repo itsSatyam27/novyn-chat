@@ -70,7 +70,7 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
       title: `Start Audio Call with ${activeChat}`,
       subtitle: 'Voice call via WebRTC',
       category: 'Actions',
-      icon: <Phone style={{ width: '16px', height: '16px', color: '#10b981' }} />,
+      icon: <Phone style={{ width: '16px', height: '16px', color: '#0e9f8a' }} />,
       action: () => onAudioCall(activeChat),
     });
     commands.push({
@@ -78,7 +78,7 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
       title: `Start Video Call with ${activeChat}`,
       subtitle: 'HD Video call with camera filters',
       category: 'Actions',
-      icon: <Video style={{ width: '16px', height: '16px', color: '#60a5fa' }} />,
+      icon: <Video style={{ width: '16px', height: '16px', color: '#2569b2' }} />,
       action: () => onVideoCall(activeChat),
     });
     commands.push({
@@ -86,7 +86,7 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
       title: 'Create Interactive Poll',
       subtitle: 'Ask a question with multiple live vote choices',
       category: 'Actions',
-      icon: <BarChart3 style={{ width: '16px', height: '16px', color: '#f59e0b' }} />,
+      icon: <BarChart3 style={{ width: '16px', height: '16px', color: '#a86d0b' }} />,
       action: () => onOpenPollModal(),
     });
     commands.push({
@@ -102,7 +102,7 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
       title: 'Export Chat History',
       subtitle: 'Download transcript as .txt or .json',
       category: 'Actions',
-      icon: <Download style={{ width: '16px', height: '16px', color: '#10b981' }} />,
+      icon: <Download style={{ width: '16px', height: '16px', color: '#0e9f8a' }} />,
       action: () => onOpenExportModal(),
     });
   }
@@ -121,7 +121,7 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
     title: 'Show My Profile QR Code',
     subtitle: 'Share your profile card for instant adding',
     category: 'Settings',
-    icon: <QrCode style={{ width: '16px', height: '16px', color: '#38bdf8' }} />,
+    icon: <QrCode style={{ width: '16px', height: '16px', color: '#087fac' }} />,
     action: () => onOpenQRModal(),
   });
 
@@ -132,7 +132,7 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
       title: c.displayName || c.username,
       subtitle: `@${c.username}${c.lastMessage ? ` • ${c.lastMessage}` : ''}`,
       category: 'Chats',
-      icon: <MessageSquare style={{ width: '16px', height: '16px', color: '#94a3b8' }} />,
+      icon: <MessageSquare style={{ width: '16px', height: '16px', color: 'var(--text-muted)' }} />,
       action: () => onSelectChat(c.username),
     });
   });
@@ -184,10 +184,11 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
   return (
     <AnimatePresence>
       <div
+        className="command-palette-backdrop"
         style={{
           position: 'fixed',
           inset: 0,
-          background: 'rgba(0, 0, 0, 0.7)',
+          background: 'rgba(23, 66, 78, 0.12)',
           backdropFilter: 'blur(12px)',
           display: 'flex',
           alignItems: 'flex-start',
@@ -198,6 +199,7 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
         onClick={onClose}
       >
         <motion.div
+          className="command-palette"
           initial={{ opacity: 0, scale: 0.95, y: -20 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: -20 }}
@@ -205,10 +207,10 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
           style={{
             width: '100%',
             maxWidth: '560px',
-            background: '#0f172a',
-            border: '1px solid rgba(255, 255, 255, 0.15)',
+            background: 'var(--bg-surface)',
+            border: '1px solid var(--border)',
             borderRadius: '20px',
-            boxShadow: '0 30px 60px -12px rgba(0, 0, 0, 0.9)',
+            boxShadow: '0 30px 60px -12px rgba(36, 76, 96, 0.1)',
             overflow: 'hidden',
             display: 'flex',
             flexDirection: 'column',
@@ -217,15 +219,16 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
         >
           {/* Search Header */}
           <div
+            className="command-palette-search"
             style={{
               display: 'flex',
               alignItems: 'center',
               padding: '14px 18px',
-              borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+              borderBottom: '1px solid var(--border)',
               gap: '12px',
             }}
           >
-            <Search style={{ width: '20px', height: '20px', color: '#10b981', flexShrink: 0 }} />
+            <Search className="command-palette-search-icon" style={{ width: '20px', height: '20px', color: '#0e9f8a', flexShrink: 0 }} />
             <input
               ref={inputRef}
               type="text"
@@ -237,16 +240,17 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
                 flex: 1,
                 background: 'transparent',
                 border: 'none',
-                color: '#ffffff',
+                color: 'var(--text-main)',
                 fontSize: '0.98rem',
                 outline: 'none',
               }}
             />
             <span
+              className="command-palette-key"
               style={{
                 fontSize: '0.72rem',
-                color: '#64748b',
-                background: 'rgba(255, 255, 255, 0.08)',
+                color: 'var(--text-dark)',
+                background: 'rgba(255, 255, 255, 0.55)',
                 padding: '3px 6px',
                 borderRadius: '6px',
                 fontFamily: 'monospace',
@@ -258,6 +262,7 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
 
           {/* Results List */}
           <div
+            className="command-palette-results"
             style={{
               maxHeight: '360px',
               overflowY: 'auto',
@@ -268,39 +273,43 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
             }}
           >
             {filtered.length === 0 ? (
-              <div style={{ padding: '32px', textAlign: 'center', color: '#64748b', fontSize: '0.88rem' }}>
+              <div style={{ padding: '32px', textAlign: 'center', color: 'var(--text-dark)', fontSize: '0.88rem' }}>
                 No commands or contacts found
               </div>
             ) : (
               filtered.map((item, idx) => {
                 const isSelected = idx === selectedIndex;
+                const showCategory = idx === 0 || filtered[idx - 1]?.category !== item.category;
                 return (
-                  <div
-                    key={item.id}
-                    onMouseEnter={() => setSelectedIndex(idx)}
-                    onClick={() => {
-                      triggerHaptic('light');
-                      item.action();
-                      onClose();
-                    }}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '12px',
-                      padding: '10px 14px',
-                      borderRadius: '12px',
-                      background: isSelected ? 'rgba(16, 185, 129, 0.15)' : 'transparent',
-                      border: isSelected ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid transparent',
-                      cursor: 'pointer',
-                      transition: 'all 0.1s ease',
-                    }}
-                  >
+                  <React.Fragment key={item.id}>
+                    {showCategory && <div className="command-palette-category">{item.category}</div>}
                     <div
+                      className={`command-palette-row ${isSelected ? 'is-selected' : ''}`}
+                      onMouseEnter={() => setSelectedIndex(idx)}
+                      onClick={() => {
+                        triggerHaptic('light');
+                        item.action();
+                        onClose();
+                      }}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '12px',
+                        padding: '10px 14px',
+                        borderRadius: '12px',
+                        background: isSelected ? 'rgba(16, 185, 129, 0.15)' : 'transparent',
+                        border: isSelected ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid transparent',
+                        cursor: 'pointer',
+                        transition: 'all 0.1s ease',
+                      }}
+                    >
+                    <div
+                      className="command-palette-row-icon"
                       style={{
                         width: '32px',
                         height: '32px',
                         borderRadius: '8px',
-                        background: 'rgba(255, 255, 255, 0.05)',
+                        background: 'rgba(255, 255, 255, 0.55)',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
@@ -311,20 +320,21 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
                     </div>
 
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: '0.88rem', fontWeight: 700, color: '#ffffff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      <div style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--text-main)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                         {item.title}
                       </div>
                       {item.subtitle && (
-                        <div style={{ fontSize: '0.74rem', color: '#94a3b8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                           {item.subtitle}
                         </div>
                       )}
                     </div>
 
                     {isSelected && (
-                      <CornerDownLeft style={{ width: '14px', height: '14px', color: '#10b981', flexShrink: 0 }} />
+                      <CornerDownLeft className="command-palette-enter" style={{ width: '14px', height: '14px', color: '#0e9f8a', flexShrink: 0 }} />
                     )}
-                  </div>
+                    </div>
+                  </React.Fragment>
                 );
               })
             )}
@@ -332,15 +342,16 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
 
           {/* Footer Info */}
           <div
+            className="command-palette-footer"
             style={{
               padding: '8px 16px',
-              borderTop: '1px solid rgba(255, 255, 255, 0.06)',
-              background: 'rgba(0, 0, 0, 0.2)',
+              borderTop: '1px solid var(--border)',
+              background: 'rgba(23, 66, 78, 0.05)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
               fontSize: '0.72rem',
-              color: '#64748b',
+              color: 'var(--text-dark)',
             }}
           >
             <div style={{ display: 'flex', gap: '12px' }}>

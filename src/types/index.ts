@@ -1,4 +1,4 @@
-export type MessageStatus = 'sent' | 'delivered' | 'seen';
+export type MessageStatus = 'sending' | 'failed' | 'sent' | 'delivered' | 'seen';
 
 export interface Attachment {
   url: string;
@@ -59,6 +59,7 @@ export interface Message {
   text: string;
   timestamp: string | number;
   status: MessageStatus;
+  sendError?: string;
   attachment?: Attachment | null;
   replyTo?: {
     id: string;
@@ -91,6 +92,7 @@ export interface UserProfile {
   lastSeenAt?: string;
   presenceMode?: 'online' | 'away' | 'dnd' | 'offline';
   publicKey?: string;
+  retentionDays?: 7 | 15 | 30;
 }
 
 export interface Conversation {
@@ -110,6 +112,8 @@ export interface Conversation {
   owner?: string;
   members?: string[];
   publicKey?: string;
+  /** Built-in private notes conversation addressed to the signed-in user. */
+  isSelf?: boolean;
 }
 
 export interface FriendRequest {

@@ -83,10 +83,11 @@ export const ExportChatModal: React.FC<ExportChatModalProps> = ({
   return (
     <AnimatePresence>
       <div
+        className="chat-option-overlay export-chat-overlay"
         style={{
           position: 'fixed',
           inset: 0,
-          background: 'rgba(0, 0, 0, 0.65)',
+          background: 'rgba(23, 66, 78, 0.12)',
           backdropFilter: 'blur(8px)',
           display: 'flex',
           alignItems: 'center',
@@ -97,6 +98,7 @@ export const ExportChatModal: React.FC<ExportChatModalProps> = ({
         onClick={onClose}
       >
         <motion.div
+          className="chat-option-modal export-chat-modal"
           initial={{ opacity: 0, scale: 0.95, y: 10 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 10 }}
@@ -104,10 +106,10 @@ export const ExportChatModal: React.FC<ExportChatModalProps> = ({
           style={{
             width: '100%',
             maxWidth: '420px',
-            background: '#0f172a',
-            border: '1px solid rgba(255, 255, 255, 0.12)',
+            background: 'var(--bg-surface)',
+            border: '1px solid var(--border)',
             borderRadius: '20px',
-            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.8)',
+            boxShadow: '0 25px 50px -12px rgba(36, 76, 96, 0.1)',
             padding: '24px',
             display: 'flex',
             flexDirection: 'column',
@@ -128,16 +130,16 @@ export const ExportChatModal: React.FC<ExportChatModalProps> = ({
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  color: '#10b981',
+                  color: '#0e9f8a',
                 }}
               >
                 <Download style={{ width: '18px', height: '18px' }} />
               </div>
               <div>
-                <h3 style={{ fontSize: '1rem', fontWeight: 800, color: '#ffffff', margin: 0 }}>
+                <h3 style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--text-main)', margin: 0 }}>
                   Export Chat History
                 </h3>
-                <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                   {contactName} • {messages.length} messages
                 </span>
               </div>
@@ -148,7 +150,7 @@ export const ExportChatModal: React.FC<ExportChatModalProps> = ({
               style={{
                 background: 'none',
                 border: 'none',
-                color: '#94a3b8',
+                color: 'var(--text-muted)',
                 cursor: 'pointer',
                 padding: '4px',
               }}
@@ -160,6 +162,7 @@ export const ExportChatModal: React.FC<ExportChatModalProps> = ({
           {/* Format Selection Cards */}
           <div style={{ display: 'flex', gap: '10px' }}>
             <div
+              className={`export-format-card ${format === 'txt' ? 'is-selected' : ''}`}
               onClick={() => {
                 triggerHaptic('light');
                 setFormat('txt');
@@ -168,8 +171,8 @@ export const ExportChatModal: React.FC<ExportChatModalProps> = ({
                 flex: 1,
                 padding: '14px',
                 borderRadius: '12px',
-                background: format === 'txt' ? 'rgba(16, 185, 129, 0.12)' : 'rgba(255, 255, 255, 0.04)',
-                border: `1.5px solid ${format === 'txt' ? '#10b981' : 'rgba(255, 255, 255, 0.08)'}`,
+                background: format === 'txt' ? 'rgba(16, 185, 129, 0.12)' : 'rgba(255, 255, 255, 0.55)',
+                border: `1.5px solid ${format === 'txt' ? '#10b981' : 'var(--border)'}`,
                 cursor: 'pointer',
                 display: 'flex',
                 flexDirection: 'column',
@@ -177,12 +180,13 @@ export const ExportChatModal: React.FC<ExportChatModalProps> = ({
                 transition: 'all 0.15s ease',
               }}
             >
-              <FileText style={{ width: '20px', height: '20px', color: format === 'txt' ? '#10b981' : '#94a3b8' }} />
-              <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#ffffff' }}>Text (.txt)</span>
-              <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>Readable chat log</span>
+              <FileText style={{ width: '20px', height: '20px', color: format === 'txt' ? '#0e9f8a' : 'var(--text-muted)' }} />
+              <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-main)' }}>Text (.txt)</span>
+              <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Readable chat log</span>
             </div>
 
             <div
+              className={`export-format-card ${format === 'json' ? 'is-selected' : ''}`}
               onClick={() => {
                 triggerHaptic('light');
                 setFormat('json');
@@ -191,8 +195,8 @@ export const ExportChatModal: React.FC<ExportChatModalProps> = ({
                 flex: 1,
                 padding: '14px',
                 borderRadius: '12px',
-                background: format === 'json' ? 'rgba(16, 185, 129, 0.12)' : 'rgba(255, 255, 255, 0.04)',
-                border: `1.5px solid ${format === 'json' ? '#10b981' : 'rgba(255, 255, 255, 0.08)'}`,
+                background: format === 'json' ? 'rgba(16, 185, 129, 0.12)' : 'rgba(255, 255, 255, 0.55)',
+                border: `1.5px solid ${format === 'json' ? '#10b981' : 'var(--border)'}`,
                 cursor: 'pointer',
                 display: 'flex',
                 flexDirection: 'column',
@@ -200,14 +204,15 @@ export const ExportChatModal: React.FC<ExportChatModalProps> = ({
                 transition: 'all 0.15s ease',
               }}
             >
-              <Code2 style={{ width: '20px', height: '20px', color: format === 'json' ? '#10b981' : '#94a3b8' }} />
-              <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#ffffff' }}>JSON (.json)</span>
-              <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>Structured backup</span>
+              <Code2 style={{ width: '20px', height: '20px', color: format === 'json' ? '#0e9f8a' : 'var(--text-muted)' }} />
+              <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-main)' }}>JSON (.json)</span>
+              <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Structured backup</span>
             </div>
           </div>
 
           {/* Action Button */}
           <button
+            className="chat-option-primary export-action"
             type="button"
             onClick={handleExport}
             style={{
@@ -216,7 +221,7 @@ export const ExportChatModal: React.FC<ExportChatModalProps> = ({
               borderRadius: '12px',
               background: exported ? '#10b981' : 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
               border: 'none',
-              color: '#ffffff',
+              color: 'var(--text-main)',
               fontSize: '0.9rem',
               fontWeight: 800,
               cursor: 'pointer',

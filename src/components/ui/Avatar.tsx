@@ -88,6 +88,7 @@ export const Avatar: React.FC<AvatarProps> = ({
     >
       {showImage ? (
         <img
+          className="avatar-face"
           src={avatarUrl}
           alt={name}
           onError={() => setImgError(true)}
@@ -102,6 +103,7 @@ export const Avatar: React.FC<AvatarProps> = ({
         />
       ) : (
         <div
+          className="avatar-face"
           style={{
             width: '100%',
             height: '100%',
@@ -132,7 +134,7 @@ export const Avatar: React.FC<AvatarProps> = ({
             height: dotS.height,
             borderRadius: '50%',
             background: dotColor,
-            border: '2px solid #090d16',
+            border: '2px solid #ffffff',
             boxShadow: effectivePresence === 'online' ? '0 0 6px rgba(16, 185, 129, 0.6)' : 'none',
           }}
         />

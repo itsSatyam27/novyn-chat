@@ -55,10 +55,8 @@ function createCsrf({ cookieName, headerName, secure, tokenBytes = 24 }) {
       const parsed = new URL(source);
       if (parsed.host.toLowerCase() === host) return true;
       const isLocalhost = (value) =>
-        value.startsWith("localhost") ||
-        value.startsWith("127.0.0.1") ||
-        value.startsWith("[::1]");
-      return isLocalhost(parsed.host) && isLocalhost(host);
+        ['localhost', '127.0.0.1', '[::1]'].includes(new URL(`http://${value}`).hostname);
+      return process.env.NODE_ENV !== 'production' && isLocalhost(parsed.host) && isLocalhost(host);
     } catch (_) {
       return false;
     }

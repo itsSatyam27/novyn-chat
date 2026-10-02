@@ -36,6 +36,7 @@ export const PinnedMessageBanner: React.FC<PinnedMessageBannerProps> = ({
 
   return (
     <motion.div
+      className="pinned-message-banner"
       initial={{ opacity: 0, y: -8 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -8 }}
@@ -45,9 +46,9 @@ export const PinnedMessageBanner: React.FC<PinnedMessageBannerProps> = ({
         alignItems: 'center',
         justifyContent: 'space-between',
         padding: '8px 16px',
-        background: 'rgba(16, 22, 36, 0.92)',
+        background: 'rgba(247, 254, 253, 0.92)',
         backdropFilter: 'blur(12px)',
-        borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+        borderBottom: '1px solid var(--border)',
         zIndex: 9,
         cursor: 'pointer',
       }}
@@ -56,13 +57,14 @@ export const PinnedMessageBanner: React.FC<PinnedMessageBannerProps> = ({
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, flex: 1 }}>
         <div
+          className="pinned-message-icon"
           style={{
             width: '28px',
             height: '28px',
             borderRadius: '8px',
             background: 'rgba(16, 185, 129, 0.15)',
             border: '1px solid rgba(16, 185, 129, 0.3)',
-            color: '#10b981',
+            color: '#0e9f8a',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -74,17 +76,17 @@ export const PinnedMessageBanner: React.FC<PinnedMessageBannerProps> = ({
 
         <div style={{ minWidth: 0, flex: 1 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <span style={{ fontSize: '0.74rem', fontWeight: 700, color: '#10b981' }}>
+            <span style={{ fontSize: '0.74rem', fontWeight: 700, color: '#0e9f8a' }}>
               Pinned Message {pinnedMessages.length > 1 && `(${safeIndex + 1}/${pinnedMessages.length})`}
             </span>
-            <span style={{ fontSize: '0.7rem', color: 'rgba(255, 255, 255, 0.4)' }}>
+            <span style={{ fontSize: '0.7rem', color: 'rgba(20, 52, 63, 0.45)' }}>
               • {current.sender}
             </span>
           </div>
           <div
             style={{
               fontSize: '0.82rem',
-              color: 'rgba(255, 255, 255, 0.85)',
+              color: 'rgba(20, 52, 63, 0.85)',
               overflow: 'hidden',
               textOverflow: 'ellipsis',
               whiteSpace: 'nowrap',
@@ -103,7 +105,7 @@ export const PinnedMessageBanner: React.FC<PinnedMessageBannerProps> = ({
             style={{
               background: 'none',
               border: 'none',
-              color: 'rgba(255, 255, 255, 0.6)',
+              color: 'rgba(20, 52, 63, 0.6)',
               cursor: 'pointer',
               padding: '4px',
               borderRadius: '6px',
@@ -126,7 +128,7 @@ export const PinnedMessageBanner: React.FC<PinnedMessageBannerProps> = ({
           style={{
             background: 'none',
             border: 'none',
-            color: 'rgba(255, 255, 255, 0.4)',
+            color: 'rgba(20, 52, 63, 0.45)',
             cursor: 'pointer',
             padding: '4px',
             borderRadius: '6px',

@@ -1,6 +1,6 @@
 // Central in-process runtime state.
-// Durable state belongs in MongoDB; these maps are intentionally limited to
-// live/session/ephemeral state and should not be treated as the database.
+// Users and conversations are authoritative in this process and persisted as
+// snapshots. This implementation supports one backend process/replica only.
 module.exports = {
   users: new Map(),
   onlineUsers: new Map(),

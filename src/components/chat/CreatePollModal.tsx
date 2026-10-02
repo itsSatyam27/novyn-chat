@@ -57,10 +57,11 @@ export const CreatePollModal: React.FC<CreatePollModalProps> = ({
   return createPortal(
     <AnimatePresence>
       <div
+        className="chat-option-overlay create-poll-overlay"
         style={{
           position: 'fixed',
           inset: 0,
-          background: 'rgba(0, 0, 0, 0.7)',
+          background: 'rgba(23, 66, 78, 0.12)',
           backdropFilter: 'blur(10px)',
           WebkitBackdropFilter: 'blur(10px)',
           display: 'flex',
@@ -72,6 +73,7 @@ export const CreatePollModal: React.FC<CreatePollModalProps> = ({
         onClick={onClose}
       >
         <motion.div
+          className="chat-option-modal create-poll-modal"
           initial={{ opacity: 0, scale: 0.95, y: 10 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 10 }}
@@ -79,10 +81,10 @@ export const CreatePollModal: React.FC<CreatePollModalProps> = ({
           style={{
             width: '100%',
             maxWidth: '440px',
-            background: '#0f172a',
-            border: '1px solid rgba(255, 255, 255, 0.12)',
+            background: 'var(--bg-surface)',
+            border: '1px solid var(--border)',
             borderRadius: '20px',
-            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.8)',
+            boxShadow: '0 25px 50px -12px rgba(36, 76, 96, 0.1)',
             padding: '24px',
             display: 'flex',
             flexDirection: 'column',
@@ -94,6 +96,7 @@ export const CreatePollModal: React.FC<CreatePollModalProps> = ({
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <div
+                className="create-poll-header-icon"
                 style={{
                   width: '36px',
                   height: '36px',
@@ -103,31 +106,33 @@ export const CreatePollModal: React.FC<CreatePollModalProps> = ({
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  color: '#10b981',
+                  color: '#0e9f8a',
                 }}
               >
                 <BarChart3 style={{ width: '18px', height: '18px' }} />
               </div>
-              <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#ffffff', margin: 0 }}>
+              <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-main)', margin: 0 }}>
                 Create a Poll
               </h3>
             </div>
             <button
+              className="chat-option-close"
               type="button"
               onClick={onClose}
-              style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}
+              style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
             >
               <X style={{ width: '18px', height: '18px' }} />
             </button>
           </div>
 
-          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          <form className="create-poll-form" onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
             {/* Question Input */}
             <div>
-              <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#94a3b8', marginBottom: '6px' }}>
+              <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '6px' }}>
                 QUESTION
               </label>
               <input
+                className="create-poll-input"
                 type="text"
                 value={question}
                 onChange={(e) => setQuestion(e.target.value)}
@@ -136,11 +141,11 @@ export const CreatePollModal: React.FC<CreatePollModalProps> = ({
                 required
                 style={{
                   width: '100%',
-                  background: 'rgba(255, 255, 255, 0.06)',
-                  border: '1px solid rgba(255, 255, 255, 0.12)',
+                  background: 'rgba(255, 255, 255, 0.55)',
+                  border: '1px solid var(--border)',
                   borderRadius: '12px',
                   padding: '10px 14px',
-                  color: '#ffffff',
+                  color: 'var(--text-main)',
                   fontSize: '0.88rem',
                   outline: 'none',
                 }}
@@ -149,12 +154,13 @@ export const CreatePollModal: React.FC<CreatePollModalProps> = ({
 
             {/* Options */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#94a3b8' }}>
+              <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-muted)' }}>
                 OPTIONS (2–6)
               </label>
               {options.map((opt, i) => (
                 <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <input
+                    className="create-poll-input create-poll-option-input"
                     type="text"
                     value={opt}
                     onChange={(e) => handleOptionChange(i, e.target.value)}
@@ -162,23 +168,24 @@ export const CreatePollModal: React.FC<CreatePollModalProps> = ({
                     required
                     style={{
                       flex: 1,
-                      background: 'rgba(255, 255, 255, 0.04)',
-                      border: '1px solid rgba(255, 255, 255, 0.08)',
+                      background: 'rgba(255, 255, 255, 0.55)',
+                      border: '1px solid var(--border)',
                       borderRadius: '10px',
                       padding: '8px 12px',
-                      color: '#ffffff',
+                      color: 'var(--text-main)',
                       fontSize: '0.84rem',
                       outline: 'none',
                     }}
                   />
                   {options.length > 2 && (
                     <button
+                      className="create-poll-remove"
                       type="button"
                       onClick={() => handleRemoveOption(i)}
                       style={{
                         background: 'none',
                         border: 'none',
-                        color: '#f87171',
+                        color: '#bd3750',
                         cursor: 'pointer',
                         padding: '4px',
                       }}
@@ -191,14 +198,15 @@ export const CreatePollModal: React.FC<CreatePollModalProps> = ({
 
               {options.length < 6 && (
                 <button
+                  className="create-poll-add-option"
                   type="button"
                   onClick={handleAddOption}
                   style={{
                     background: 'none',
-                    border: '1px dashed rgba(255, 255, 255, 0.2)',
+                    border: '1px dashed var(--border)',
                     borderRadius: '10px',
                     padding: '8px',
-                    color: '#10b981',
+                    color: '#0e9f8a',
                     fontSize: '0.8rem',
                     fontWeight: 700,
                     cursor: 'pointer',
@@ -216,6 +224,7 @@ export const CreatePollModal: React.FC<CreatePollModalProps> = ({
 
             {/* Submit Button */}
             <button
+              className="chat-option-primary create-poll-submit"
               type="submit"
               disabled={!question.trim() || options.filter((o) => o.trim()).length < 2}
               style={{
@@ -224,7 +233,7 @@ export const CreatePollModal: React.FC<CreatePollModalProps> = ({
                 borderRadius: '12px',
                 background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
                 border: 'none',
-                color: '#ffffff',
+                color: 'var(--text-on-primary)',
                 fontSize: '0.9rem',
                 fontWeight: 800,
                 cursor: 'pointer',

@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Check, X, Sparkles, Upload, Link as LinkIcon, Loader2 } from 'lucide-react';
 import { triggerHaptic } from '../../services/capacitor';
-import { uploadMediaFile } from '../../services/api';
+import { apiRequest, uploadMediaFile } from '../../services/api';
 
 export interface WallpaperPreset {
   id: string;
@@ -182,7 +182,7 @@ export const WallpaperPickerModal: React.FC<WallpaperPickerModalProps> = ({
 
     try {
       // Call backend wallpaper resolver (handles Pinterest oEmbed, OpenGraph, and caches directly on server)
-      const res = await fetch('/api/import-wallpaper-url', {
+      const res = await apiRequest('/api/import-wallpaper-url', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url: raw }),
@@ -190,7 +190,7 @@ export const WallpaperPickerModal: React.FC<WallpaperPickerModalProps> = ({
 
       let finalImgUrl = raw;
       if (res.ok) {
-        const data = await res.json();
+        const data = res.data;
         if (data.url) {
           finalImgUrl = data.url;
         }
@@ -235,10 +235,11 @@ export const WallpaperPickerModal: React.FC<WallpaperPickerModalProps> = ({
   return createPortal(
     <AnimatePresence>
       <div
+        className="chat-option-overlay wallpaper-picker-overlay"
         style={{
           position: 'fixed',
           inset: 0,
-          background: 'rgba(0, 0, 0, 0.75)',
+          background: 'rgba(23, 66, 78, 0.12)',
           backdropFilter: 'blur(12px)',
           WebkitBackdropFilter: 'blur(12px)',
           display: 'flex',
@@ -250,6 +251,7 @@ export const WallpaperPickerModal: React.FC<WallpaperPickerModalProps> = ({
         onClick={onClose}
       >
         <motion.div
+          className="chat-option-modal wallpaper-picker-modal"
           initial={{ opacity: 0, scale: 0.95, y: 12 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 12 }}
@@ -257,10 +259,10 @@ export const WallpaperPickerModal: React.FC<WallpaperPickerModalProps> = ({
           style={{
             width: '100%',
             maxWidth: '480px',
-            background: '#0f172a',
-            border: '1px solid rgba(255, 255, 255, 0.14)',
+            background: 'var(--bg-surface)',
+            border: '1px solid var(--border)',
             borderRadius: '24px',
-            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.9)',
+            boxShadow: '0 25px 50px -12px rgba(36, 76, 96, 0.1)',
             padding: '24px',
             display: 'flex',
             flexDirection: 'column',
@@ -287,18 +289,19 @@ export const WallpaperPickerModal: React.FC<WallpaperPickerModalProps> = ({
                 <Sparkles style={{ width: '18px', height: '18px' }} />
               </div>
               <div>
-                <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#ffffff', margin: 0 }}>
+                <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-main)', margin: 0 }}>
                   Chat Wallpaper & Theme
                 </h3>
-                <span style={{ fontSize: '0.74rem', color: '#94a3b8' }}>
+                <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
                   Syncs in real-time across both participants
                 </span>
               </div>
             </div>
             <button
+              className="chat-option-close"
               type="button"
               onClick={onClose}
-              style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}
+              style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
             >
               <X style={{ width: '18px', height: '18px' }} />
             </button>
@@ -306,7 +309,7 @@ export const WallpaperPickerModal: React.FC<WallpaperPickerModalProps> = ({
 
           {/* Presets Grid */}
           <div>
-            <label style={{ display: 'block', fontSize: '0.74rem', fontWeight: 700, color: '#94a3b8', marginBottom: '8px' }}>
+            <label style={{ display: 'block', fontSize: '0.74rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '8px' }}>
               DOODLE & ILLUSTRATED PATTERNS
             </label>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
@@ -323,7 +326,7 @@ export const WallpaperPickerModal: React.FC<WallpaperPickerModalProps> = ({
                       height: '84px',
                       borderRadius: '14px',
                       background: preset.preview,
-                      border: `2px solid ${isSelected ? '#10b981' : 'rgba(255, 255, 255, 0.14)'}`,
+                      border: `2px solid ${isSelected ? '#10b981' : 'var(--border)'}`,
                       boxShadow: isSelected ? '0 0 16px rgba(16, 185, 129, 0.45)' : 'none',
                       cursor: 'pointer',
                       position: 'relative',
@@ -334,7 +337,7 @@ export const WallpaperPickerModal: React.FC<WallpaperPickerModalProps> = ({
                       transition: 'all 0.15s ease',
                     }}
                   >
-                    <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#ffffff', textShadow: '0 2px 4px rgba(0,0,0,0.95)' }}>
+                    <span style={{ fontSize: '0.72rem', fontWeight: 800, color: 'var(--text-main)', textShadow: '0 2px 4px rgba(36, 76, 96, 0.1)' }}>
                       {preset.name}
                     </span>
                     {isSelected && (
@@ -350,7 +353,7 @@ export const WallpaperPickerModal: React.FC<WallpaperPickerModalProps> = ({
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          color: '#ffffff',
+                          color: 'var(--text-on-primary)',
                         }}
                       >
                         <Check style={{ width: '12px', height: '12px' }} />
@@ -364,7 +367,7 @@ export const WallpaperPickerModal: React.FC<WallpaperPickerModalProps> = ({
 
           {/* Custom Upload or URL */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            <label style={{ fontSize: '0.74rem', fontWeight: 700, color: '#94a3b8' }}>
+            <label style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--text-muted)' }}>
               CUSTOM WALLPAPER (DEVICE UPLOAD OR LINK)
             </label>
 
@@ -385,9 +388,9 @@ export const WallpaperPickerModal: React.FC<WallpaperPickerModalProps> = ({
                   flex: 1,
                   padding: '10px 14px',
                   borderRadius: '12px',
-                  background: 'rgba(255, 255, 255, 0.06)',
-                  border: '1px solid rgba(255, 255, 255, 0.12)',
-                  color: '#ffffff',
+                  background: 'rgba(255, 255, 255, 0.55)',
+                  border: '1px solid var(--border)',
+                  color: 'var(--text-main)',
                   fontSize: '0.84rem',
                   fontWeight: 700,
                   cursor: 'pointer',
@@ -404,7 +407,7 @@ export const WallpaperPickerModal: React.FC<WallpaperPickerModalProps> = ({
                   </>
                 ) : (
                   <>
-                    <Upload style={{ width: '16px', height: '16px', color: '#10b981' }} /> Upload from Device
+                    <Upload style={{ width: '16px', height: '16px', color: '#0e9f8a' }} /> Upload from Device
                   </>
                 )}
               </button>
@@ -418,11 +421,11 @@ export const WallpaperPickerModal: React.FC<WallpaperPickerModalProps> = ({
                 placeholder="Or paste Pinterest, Imgur, or direct image link..."
                 style={{
                   flex: 1,
-                  background: 'rgba(255, 255, 255, 0.05)',
-                  border: '1px solid rgba(255, 255, 255, 0.12)',
+                  background: 'rgba(255, 255, 255, 0.55)',
+                  border: '1px solid var(--border)',
                   borderRadius: '10px',
                   padding: '9px 12px',
-                  color: '#ffffff',
+                  color: 'var(--text-main)',
                   fontSize: '0.84rem',
                   outline: 'none',
                 }}
@@ -436,7 +439,7 @@ export const WallpaperPickerModal: React.FC<WallpaperPickerModalProps> = ({
                   borderRadius: '10px',
                   background: '#10b981',
                   border: 'none',
-                  color: '#ffffff',
+                  color: 'var(--text-on-primary)',
                   fontSize: '0.84rem',
                   fontWeight: 700,
                   cursor: 'pointer',

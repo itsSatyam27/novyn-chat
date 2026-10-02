@@ -8,45 +8,20 @@ export interface ThemeConfig {
 }
 
 export const THEME_PRESETS: Record<string, ThemeConfig> = {
-  emerald: {
-    name: 'Emerald',
-    accent: '#10b981',
-    accentHover: '#059669',
-    accentGlow: 'rgba(16, 185, 129, 0.25)',
-  },
-  cyan: {
-    name: 'Cyan',
-    accent: '#06b6d4',
-    accentHover: '#0891b2',
-    accentGlow: 'rgba(6, 182, 212, 0.25)',
-  },
   purple: {
     name: 'Purple',
-    accent: '#8b5cf6',
-    accentHover: '#7c3aed',
-    accentGlow: 'rgba(139, 92, 246, 0.25)',
-  },
-  rose: {
-    name: 'Rose',
-    accent: '#f43f5e',
-    accentHover: '#e11d48',
-    accentGlow: 'rgba(244, 63, 94, 0.25)',
-  },
-  amber: {
-    name: 'Amber',
-    accent: '#f59e0b',
-    accentHover: '#d97706',
-    accentGlow: 'rgba(245, 158, 11, 0.25)',
-  },
-  sapphire: {
-    name: 'Sapphire',
-    accent: '#3b82f6',
-    accentHover: '#2563eb',
-    accentGlow: 'rgba(59, 130, 246, 0.25)',
+    accent: '#6d5dfc',
+    accentHover: '#5746e8',
+    accentGlow: 'rgba(109, 93, 252, 0.24)',
   },
 };
 
 export const WALLPAPER_PRESETS: Record<string, { name: string; background: string; description: string }> = {
+  glass: {
+    name: 'Lagoon Glass',
+    background: 'transparent',
+    description: 'Soft blue and mint colors with translucent surfaces',
+  },
   midnight: {
     name: 'Midnight OLED',
     background: '#070a11',
@@ -87,6 +62,12 @@ export interface FontOption {
 }
 
 export const FONT_PRESETS: FontOption[] = [
+  {
+    id: 'dm-sans',
+    name: 'DM Sans',
+    family: "'DM Sans', system-ui, sans-serif",
+    description: 'Soft, clear lettering for the Lagoon interface',
+  },
   {
     id: 'plus-jakarta',
     name: 'Plus Jakarta Sans',
@@ -131,17 +112,25 @@ export const PRESET_AVATARS = [
 ];
 
 export function applyThemeAccent(key: string): void {
-  const theme = THEME_PRESETS[key] || THEME_PRESETS.emerald;
+  const theme = THEME_PRESETS.purple;
   const root = document.documentElement;
   root.style.setProperty('--primary', theme.accent);
   root.style.setProperty('--primary-hover', theme.accentHover);
   root.style.setProperty('--primary-glow', theme.accentGlow);
   root.style.setProperty('--border-focus', theme.accent);
-  localStorage.setItem('novyn_theme_accent', key);
+  localStorage.setItem('novyn_theme_accent', 'purple');
+}
+
+/** Apply the app-wide light/dark colour mode and remember the user's choice. */
+export function applyColorMode(mode: 'light' | 'dark'): void {
+  const root = document.documentElement;
+  root.setAttribute('data-color-mode', mode);
+  root.style.colorScheme = mode;
+  localStorage.setItem('novyn_color_mode', mode);
 }
 
 export function applyWallpaper(key: string): void {
-  const wp = WALLPAPER_PRESETS[key] || WALLPAPER_PRESETS.midnight;
+  const wp = WALLPAPER_PRESETS[key] || WALLPAPER_PRESETS.glass;
   const root = document.documentElement;
   root.style.setProperty('--chat-wallpaper', wp.background);
   localStorage.setItem('novyn_wallpaper', key);
@@ -163,17 +152,25 @@ export function applyFontSize(size: 'sm' | 'md' | 'lg'): void {
 
 export function initializeUserPreferences(): void {
   try {
-    const savedAccent = localStorage.getItem('novyn_theme_accent') || 'emerald';
-    applyThemeAccent(savedAccent);
+    const savedColorMode = localStorage.getItem('novyn_color_mode') === 'dark' ? 'dark' : 'light';
+    applyColorMode(savedColorMode);
 
-    const savedWallpaper = localStorage.getItem('novyn_wallpaper') || 'midnight';
+    applyThemeAccent('purple');
+
+    const isFirstGlassLaunch = localStorage.getItem('novyn_design_version') !== 'lagoon-1';
+    const previousWallpaper = localStorage.getItem('novyn_wallpaper');
+    const savedWallpaper = !previousWallpaper || (isFirstGlassLaunch && previousWallpaper === 'midnight') ? 'glass' : previousWallpaper;
     applyWallpaper(savedWallpaper);
 
-    const savedFontFamily = localStorage.getItem('novyn_font_family') || 'plus-jakarta';
+    const previousFont = localStorage.getItem('novyn_font_family');
+    const isFirstQuietFontLaunch = localStorage.getItem('novyn_typography_version') !== 'jakarta-1';
+    const savedFontFamily = !previousFont || (isFirstQuietFontLaunch && previousFont === 'dm-sans') ? 'plus-jakarta' : previousFont;
     applyFontFamily(savedFontFamily);
+    localStorage.setItem('novyn_typography_version', 'jakarta-1');
 
     const savedFontSize = (localStorage.getItem('novyn_font_size') as any) || 'md';
     applyFontSize(savedFontSize);
+    localStorage.setItem('novyn_design_version', 'lagoon-1');
   } catch (err) {
     console.error('Failed to initialize preferences:', err);
   }

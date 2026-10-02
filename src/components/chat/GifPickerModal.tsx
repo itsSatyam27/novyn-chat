@@ -1,352 +1,80 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, X, Sparkles, Flame, Heart, ThumbsUp, Laugh, PartyPopper } from 'lucide-react';
+import { Search, X, Sparkles, Flame, Heart, ThumbsUp, Laugh, PartyPopper, Sticker } from 'lucide-react';
 import { triggerHaptic } from '../../services/capacitor';
 
-interface GifPickerModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onSelectGif: (gifUrl: string) => void;
-}
+interface GifPickerModalProps { isOpen: boolean; onClose: () => void; onSelectGif: (gifUrl: string) => void; }
+interface GiphyItem { id: string; title: string; previewUrl: string; url: string; }
 
 const CATEGORIES = [
-  { label: 'Trending', icon: Flame, query: 'trending' },
-  { label: 'Reactions', icon: Sparkles, query: 'reaction' },
-  { label: 'Laugh', icon: Laugh, query: 'funny laugh' },
-  { label: 'Love', icon: Heart, query: 'love heart' },
-  { label: 'Thumbs Up', icon: ThumbsUp, query: 'agree thumbs up' },
-  { label: 'Party', icon: PartyPopper, query: 'celebrate dance' },
+  { label: 'Trending', icon: Flame, query: '' }, { label: 'Reactions', icon: Sparkles, query: 'reaction' },
+  { label: 'Laugh', icon: Laugh, query: 'funny laugh' }, { label: 'Love', icon: Heart, query: 'love heart' },
+  { label: 'Thumbs up', icon: ThumbsUp, query: 'thumbs up' }, { label: 'Party', icon: PartyPopper, query: 'celebrate dance' },
 ];
 
-const CURATED_GIFS: Record<string, string[]> = {
-  trending: [
-    'https://media.giphy.com/media/artj92V8o75VPL7AeQ/giphy.gif',
-    'https://media.giphy.com/media/26u4cqiYI30juCOGY/giphy.gif',
-    'https://media.giphy.com/media/3o7TKSjRrfIPjeiVyM/giphy.gif',
-    'https://media.giphy.com/media/l0MYt5jPR6QX5pnqM/giphy.gif',
-    'https://media.giphy.com/media/xT9IgG50Fb7Mi0prBC/giphy.gif',
-    'https://media.giphy.com/media/3o7abKhOpu0NwenH3O/giphy.gif',
-  ],
-  reaction: [
-    'https://media.giphy.com/media/l3q2K5jinAlChoCLS/giphy.gif',
-    'https://media.giphy.com/media/26AHONQ79FdWZhAI0/giphy.gif',
-    'https://media.giphy.com/media/xT0xeJpnrWC4XWblEk/giphy.gif',
-    'https://media.giphy.com/media/3o6Zt6KHxJTbXCnSvu/giphy.gif',
-    'https://media.giphy.com/media/d3mlE7uhX8KFgEmY/giphy.gif',
-  ],
-  'funny laugh': [
-    'https://media.giphy.com/media/10JhviFuU2gWD6/giphy.gif',
-    'https://media.giphy.com/media/3oEjHAUOqG3lSS0f1C/giphy.gif',
-    'https://media.giphy.com/media/26n6Gx9moCgs1qxxt/giphy.gif',
-    'https://media.giphy.com/media/lOKbTE7h9Bq40/giphy.gif',
-  ],
-  'love heart': [
-    'https://media.giphy.com/media/26FLdm964upIslUZ2/giphy.gif',
-    'https://media.giphy.com/media/3o7TKoWXm3okO1kgHC/giphy.gif',
-    'https://media.giphy.com/media/l4pTdcifPZLpDjL1e/giphy.gif',
-    'https://media.giphy.com/media/M90mJvfWfd5mbUuULX/giphy.gif',
-  ],
-  'agree thumbs up': [
-    'https://media.giphy.com/media/111ebonMs90YLu/giphy.gif',
-    'https://media.giphy.com/media/3o7abKhOpu0NwenH3O/giphy.gif',
-    'https://media.giphy.com/media/mgqefOvJJVTNW/giphy.gif',
-  ],
-  'celebrate dance': [
-    'https://media.giphy.com/media/blSTtZehjAZ8I/giphy.gif',
-    'https://media.giphy.com/media/l2JIdnF6aJcA83J9S/giphy.gif',
-    'https://media.giphy.com/media/artj92V8o75VPL7AeQ/giphy.gif',
-  ],
-};
-
-export const GifPickerModal: React.FC<GifPickerModalProps> = ({
-  isOpen,
-  onClose,
-  onSelectGif,
-}) => {
+export const GifPickerModal: React.FC<GifPickerModalProps> = ({ isOpen, onClose, onSelectGif }) => {
   const [query, setQuery] = useState('');
-  const [activeCategory, setActiveCategory] = useState('trending');
-  const [gifs, setGifs] = useState<string[]>(CURATED_GIFS.trending);
+  const [activeCategory, setActiveCategory] = useState('');
+  const [mediaType, setMediaType] = useState<'gifs' | 'stickers'>('gifs');
+  const [items, setItems] = useState<GiphyItem[]>([]);
   const [loading, setLoading] = useState(false);
-  const debounceRef = useRef<any>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [error, setError] = useState('');
+  const [nextOffset, setNextOffset] = useState(0);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const loadMedia = useCallback(async (offset = 0, append = false) => {
+    const search = query.trim() || activeCategory;
+    append ? setLoadingMore(true) : setLoading(true);
+    setError('');
+    try {
+      const params = new URLSearchParams({ type: mediaType, limit: '24', offset: String(offset) });
+      if (search) params.set('q', search);
+      const response = await fetch(`/api/giphy?${params}`, { credentials: 'include' });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || 'GIF search is unavailable.');
+      const next: GiphyItem[] = Array.isArray(payload.items) ? payload.items : [];
+      setItems((current) => append ? [...current, ...next.filter((item) => !current.some((saved) => saved.id === item.id))] : next);
+      setNextOffset(Number(payload.nextOffset) || offset + next.length);
+    } catch (requestError) {
+      setItems((current) => append ? current : []);
+      setError(requestError instanceof Error ? requestError.message : 'GIF search is unavailable.');
+    } finally { setLoading(false); setLoadingMore(false); }
+  }, [activeCategory, mediaType, query]);
 
   useEffect(() => {
     if (!isOpen) return;
-
-    if (!query.trim()) {
-      setGifs(CURATED_GIFS[activeCategory] || CURATED_GIFS.trending);
-      return;
-    }
-
-    setLoading(true);
     if (debounceRef.current) clearTimeout(debounceRef.current);
-
-    debounceRef.current = setTimeout(async () => {
-      try {
-        const apiKey = 'LIVDSRZULEUB'; // Public Tenor test key
-        const res = await fetch(
-          `https://g.tenor.com/v1/search?q=${encodeURIComponent(query)}&key=${apiKey}&limit=16`
-        );
-        if (res.ok) {
-          const data = await res.json();
-          const urls = data.results?.map((r: any) => r.media?.[0]?.gif?.url).filter(Boolean) || [];
-          if (urls.length > 0) {
-            setGifs(urls);
-          } else {
-            // Fallback to query match in curated
-            const matches = Object.values(CURATED_GIFS).flat();
-            setGifs(matches.slice(0, 8));
-          }
-        } else {
-          // Fallback to query match in curated
-          const matches = Object.values(CURATED_GIFS).flat();
-          setGifs(matches.slice(0, 8));
-        }
-      } catch (err) {
-        console.warn('GIF search error, using curated:', err);
-        const matches = Object.values(CURATED_GIFS).flat();
-        setGifs(matches.slice(0, 8));
-      } finally {
-        setLoading(false);
-      }
-    }, 350);
-
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
-  }, [query, activeCategory, isOpen]);
+    debounceRef.current = setTimeout(() => loadMedia(), query.trim() ? 300 : 0);
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, [isOpen, query, activeCategory, mediaType, loadMedia]);
 
   if (!isOpen) return null;
-
   return createPortal(
     <AnimatePresence>
-      <div
-        style={{
-          position: 'fixed',
-          inset: 0,
-          background: 'rgba(0, 0, 0, 0.7)',
-          backdropFilter: 'blur(10px)',
-          WebkitBackdropFilter: 'blur(10px)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 9999,
-          padding: '16px',
-        }}
-        onClick={onClose}
-      >
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95, y: 10 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.95, y: 10 }}
-          transition={{ duration: 0.15 }}
-          style={{
-            width: '100%',
-            maxWidth: '520px',
-            maxHeight: '80vh',
-            background: '#0f172a',
-            border: '1px solid rgba(255, 255, 255, 0.12)',
-            borderRadius: '20px',
-            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.8)',
-            display: 'flex',
-            flexDirection: 'column',
-            overflow: 'hidden',
-          }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          {/* Header & Search */}
-          <div style={{ padding: '16px 20px', borderBottom: '1px solid rgba(255, 255, 255, 0.08)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <div
-                  style={{
-                    width: '28px',
-                    height: '28px',
-                    borderRadius: '8px',
-                    background: 'linear-gradient(135deg, #ec4899 0%, #8b5cf6 100%)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: '#ffffff',
-                  }}
-                >
-                  <Sparkles style={{ width: '15px', height: '15px' }} />
-                </div>
-                <h3 style={{ fontSize: '1rem', fontWeight: 800, color: '#ffffff', margin: 0 }}>
-                  Search GIFs & Memes
-                </h3>
-              </div>
-              <button
-                type="button"
-                onClick={onClose}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: '#94a3b8',
-                  cursor: 'pointer',
-                  padding: '4px',
-                  borderRadius: '6px',
-                }}
-              >
-                <X style={{ width: '18px', height: '18px' }} />
-              </button>
+      <div className="gif-picker-backdrop" onClick={onClose}>
+        <motion.div className="gif-picker-modal" initial={{ opacity: 0, scale: 0.95, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 10 }} transition={{ duration: 0.15 }} onClick={(event) => event.stopPropagation()}>
+          <header className="gif-picker-header">
+            <div className="gif-picker-heading"><span><Sparkles size={15} /></span><h3>GIFs & Stickers</h3></div>
+            <button type="button" className="gif-picker-close" onClick={onClose} aria-label="Close GIF picker"><X size={18} /></button>
+            <label className="gif-picker-search"><Search size={16} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={`Search ${mediaType === 'gifs' ? 'GIFs' : 'stickers'} on GIPHY`} autoFocus />{query && <button type="button" onClick={() => setQuery('')} aria-label="Clear search"><X size={14} /></button>}</label>
+            <div className="gif-picker-tabs" role="tablist" aria-label="Media type">
+              <button type="button" role="tab" aria-selected={mediaType === 'gifs'} onClick={() => { setMediaType('gifs'); triggerHaptic('light'); }}><Sparkles size={14} /> GIFs</button>
+              <button type="button" role="tab" aria-selected={mediaType === 'stickers'} onClick={() => { setMediaType('stickers'); triggerHaptic('light'); }}><Sticker size={14} /> Stickers</button>
             </div>
-
-            {/* Search Input */}
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '10px',
-                background: 'rgba(255, 255, 255, 0.06)',
-                border: '1px solid rgba(255, 255, 255, 0.12)',
-                borderRadius: '12px',
-                padding: '8px 14px',
-              }}
-            >
-              <Search style={{ width: '16px', height: '16px', color: '#94a3b8' }} />
-              <input
-                type="text"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search Tenor & Giphy..."
-                autoFocus
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  outline: 'none',
-                  color: '#ffffff',
-                  fontSize: '0.88rem',
-                  width: '100%',
-                }}
-              />
-              {query && (
-                <button
-                  type="button"
-                  onClick={() => setQuery('')}
-                  style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}
-                >
-                  <X style={{ width: '14px', height: '14px' }} />
-                </button>
-              )}
-            </div>
-
-            {/* Category Pills */}
-            {!query && (
-              <div
-                style={{
-                  display: 'flex',
-                  gap: '6px',
-                  overflowX: 'auto',
-                  marginTop: '12px',
-                  paddingBottom: '4px',
-                }}
-              >
-                {CATEGORIES.map((cat) => {
-                  const Icon = cat.icon;
-                  const isActive = activeCategory === cat.query;
-                  return (
-                    <button
-                      key={cat.query}
-                      type="button"
-                      onClick={() => {
-                        triggerHaptic('light');
-                        setActiveCategory(cat.query);
-                      }}
-                      style={{
-                        background: isActive ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255, 255, 255, 0.04)',
-                        border: `1px solid ${isActive ? 'rgba(16, 185, 129, 0.5)' : 'rgba(255, 255, 255, 0.08)'}`,
-                        color: isActive ? '#10b981' : '#94a3b8',
-                        borderRadius: '9999px',
-                        padding: '5px 12px',
-                        fontSize: '0.75rem',
-                        fontWeight: 600,
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '5px',
-                        whiteSpace: 'nowrap',
-                        transition: 'all 0.15s ease',
-                      }}
-                    >
-                      <Icon style={{ width: '12px', height: '12px' }} />
-                      {cat.label}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
+            {!query && <div className="gif-picker-categories">{CATEGORIES.map((category) => { const Icon = category.icon; const active = activeCategory === category.query; return <button key={category.label} type="button" className={active ? 'active' : ''} onClick={() => { setActiveCategory(category.query); triggerHaptic('light'); }}><Icon size={12} />{category.label}</button>; })}</div>}
+          </header>
+          <div className="gif-picker-grid">
+            {loading && <div className="gif-picker-state"><i />Loading from GIPHY…</div>}
+            {!loading && error && <div className="gif-picker-state error">{error}{error.includes('not configured') && <small>Add <code>GIPHY_API_KEY</code> to the server environment, then restart it.</small>}</div>}
+            {!loading && !error && !items.length && <div className="gif-picker-state">No results. Try another search.</div>}
+            {!loading && items.map((item) => <motion.button key={item.id} type="button" className="gif-picker-item" whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={() => { triggerHaptic('medium'); onSelectGif(item.url); onClose(); }}><img src={item.previewUrl} alt={item.title || 'GIF'} loading="lazy" /></motion.button>)}
           </div>
-
-          {/* GIF Grid Stream */}
-          <div
-            style={{
-              padding: '16px',
-              overflowY: 'auto',
-              flex: 1,
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))',
-              gap: '10px',
-              maxHeight: '400px',
-            }}
-          >
-            {loading ? (
-              <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '32px', color: '#94a3b8' }}>
-                <div
-                  style={{
-                    width: '24px',
-                    height: '24px',
-                    border: '2px solid #10b981',
-                    borderTopColor: 'transparent',
-                    borderRadius: '50%',
-                    animation: 'spin 0.8s linear infinite',
-                    margin: '0 auto 8px',
-                  }}
-                />
-                <span style={{ fontSize: '0.8rem' }}>Loading GIFs...</span>
-              </div>
-            ) : gifs.length === 0 ? (
-              <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '32px', color: '#64748b' }}>
-                No GIFs found for "{query}". Try a different keyword!
-              </div>
-            ) : (
-              gifs.map((url, idx) => (
-                <motion.div
-                  key={`${url}-${idx}`}
-                  whileHover={{ scale: 1.04 }}
-                  whileTap={{ scale: 0.96 }}
-                  onClick={() => {
-                    triggerHaptic('medium');
-                    onSelectGif(url);
-                    onClose();
-                  }}
-                  style={{
-                    position: 'relative',
-                    borderRadius: '12px',
-                    overflow: 'hidden',
-                    cursor: 'pointer',
-                    background: 'rgba(255, 255, 255, 0.04)',
-                    height: '110px',
-                  }}
-                >
-                  <img
-                    src={url}
-                    alt="GIF"
-                    loading="lazy"
-                    style={{
-                      width: '100%',
-                      height: '100%',
-                      objectFit: 'cover',
-                      display: 'block',
-                    }}
-                  />
-                </motion.div>
-              ))
-            )}
-          </div>
+          {!loading && !error && items.length > 0 && <button type="button" className="gif-picker-more" disabled={loadingMore} onClick={() => loadMedia(nextOffset, true)}>{loadingMore ? 'Loading…' : 'Load more'}</button>}
+          <footer>Powered by GIPHY</footer>
         </motion.div>
       </div>
-    </AnimatePresence>,
-    document.body
+    </AnimatePresence>, document.body
   );
 };

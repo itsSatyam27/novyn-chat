@@ -1,10 +1,11 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { Message, MessageStatus, Conversation, FriendRequest, CallState, CallLog, GameType, GameData } from '../types';
-import { getSocket } from '../services/socket';
+import { connectSocket, getSocket } from '../services/socket';
 import { useAuth } from './AuthContext';
 import { WebRTCManager, playRingtone, playCallRing, stopRingtone, playCallEndSound } from '../services/webrtc';
 import { playMessageNotification, playMessageSentSound } from '../services/audioManager';
 import { triggerHaptic } from '../services/capacitor';
+import { ENCRYPTED_MESSAGE_PLACEHOLDER, readLastMessage, needsDecryption, withDecryptedText } from '../services/messagePresentation';
 import {
   initE2EEIdentity,
   encryptMessageContent,
@@ -12,10 +13,6 @@ import {
   generateSafetyNumber,
   getMyPublicKeyJwk,
 } from '../services/e2ee';
-
-// The relay may retain this value for conversation ordering and notification-safe UI,
-// but it must never receive the actual body of an encrypted direct message.
-const ENCRYPTED_MESSAGE_PLACEHOLDER = '🔒 Encrypted message';
 
 interface ChatContextType {
   conversations: Conversation[];
@@ -31,9 +28,10 @@ interface ChatContextType {
   callLogs: CallLog[];
   clearCallLogs: () => void;
   sendMessage: (text: string, options?: { attachment?: any; replyTo?: any; isVoice?: boolean }) => void;
+  retryMessage: (id: string) => void;
   sendTyping: (isTyping: boolean) => void;
   sendFriendRequest: (username: string) => Promise<{ ok: boolean; message?: string }>;
-  cancelFriendRequest: (username: string) => Promise<void>;
+  cancelFriendRequest: (username: string) => Promise<{ ok: boolean; message?: string }>;
   acceptFriendRequest: (from: string) => void;
   rejectFriendRequest: (from: string) => void;
   updateProfile: (payload: { displayName?: string; bio?: string; status?: string; avatarId?: string }) => void;
@@ -183,6 +181,8 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   activeChatRef.current = activeChat;
 
   const messagesCacheRef = useRef<Record<string, Message[]>>({});
+  const pendingSendsRef = useRef(new Map<string, { text: string; options: any; to: string; sender: string }>());
+  useEffect(() => { pendingSendsRef.current.clear(); }, [user?.username]);
 
   const conversationsRef = useRef<Conversation[]>(conversations);
   conversationsRef.current = conversations;
@@ -212,6 +212,56 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     });
   }, [user?.username]);
+
+  // Decrypt both open-chat messages and unopened conversation previews. Waiting
+  // for identity/key readiness also handles history arriving before local keys.
+  useEffect(() => {
+    if (!user || !myPublicKey) return;
+    let cancelled = false;
+    const jobs = new Map<string, { partner: string; message: Message; publicKey: string }>();
+    const queue = (conversation: Conversation, message?: Message) => {
+      if (conversation.isGroup || !conversation.publicKey || !needsDecryption(message)) return;
+      const partner = conversation.username.toLowerCase();
+      jobs.set(JSON.stringify([partner, message.id, message.ciphertext, message.iv]), {
+        partner, message, publicKey: conversation.publicKey,
+      });
+    };
+    conversations.forEach((conversation) => queue(conversation, conversation.lastMessage));
+    const active = conversations.find((c) => c.username.toLowerCase() === activeChat?.toLowerCase());
+    if (active) messages.forEach((message) => queue(active, message));
+    if (!jobs.size) return;
+
+    void Promise.all([...jobs.values()].map(async (job) => {
+      const text = await decryptMessageContent(job.message.ciphertext!, job.message.iv!, job.partner, job.publicKey);
+      return text === null ? null : { partner: job.partner, message: { ...job.message, text } };
+    })).then((results) => {
+      if (cancelled) return;
+      const decrypted = results.filter((result) => result !== null);
+      if (!decrypted.length) return;
+      const update = (message: Message, partner: string) => decrypted.reduce(
+        (current, result) => result.partner === partner ? withDecryptedText(current, result.message) : current,
+        message
+      );
+      const updateList = (list: Message[], partner: string) => {
+        const next = list.map((message) => update(message, partner));
+        return next.some((message, index) => message !== list[index]) ? next : list;
+      };
+      for (const partner of new Set(decrypted.map((result) => result.partner))) {
+        const cached = messagesCacheRef.current[partner];
+        if (cached) messagesCacheRef.current[partner] = updateList(cached, partner);
+      }
+      if (activeChat) setMessages((previous) => updateList(previous, activeChat.toLowerCase()));
+      setConversations((previous) => {
+        const next = previous.map((conversation) => {
+          if (!conversation.lastMessage) return conversation;
+          const lastMessage = update(conversation.lastMessage, conversation.username.toLowerCase());
+          return lastMessage === conversation.lastMessage ? conversation : { ...conversation, lastMessage };
+        });
+        return next.some((conversation, index) => conversation !== previous[index]) ? next : previous;
+      });
+    });
+    return () => { cancelled = true; };
+  }, [conversations, messages, activeChat, myPublicKey, user?.username]);
 
   const getSafetyNumber = useCallback(async (peerUsername: string): Promise<string> => {
     const peerConv = conversationsRef.current.find(
@@ -310,6 +360,26 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     const key = activeChat.toLowerCase();
+    const activeConversation = conversationsRef.current.find((conversation) => conversation.username.toLowerCase() === key);
+
+    // Saved Messages is a private, device-local notebook. It deliberately avoids
+    // friend authorization, networking and peer encryption requirements.
+    if (activeConversation?.isSelf) {
+      try {
+        const stored = JSON.parse(localStorage.getItem(`novyn_saved_messages_${user.username.toLowerCase()}`) || '[]');
+        const savedMessages = Array.isArray(stored) ? stored : [];
+        messagesCacheRef.current[key] = savedMessages;
+        setMessages(savedMessages);
+        setConversations((prev) => prev.map((conversation) =>
+          conversation.isSelf ? { ...conversation, lastMessage: savedMessages[savedMessages.length - 1] } : conversation
+        ));
+      } catch {
+        messagesCacheRef.current[key] = [];
+        setMessages([]);
+      }
+      return;
+    }
+
     // 1. Instant 0ms cache display
     const cached = messagesCacheRef.current[key];
     if (cached) {
@@ -333,7 +403,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Auto-Away & Background Tab Visibility Presence Sync
   useEffect(() => {
     if (!user) return;
-    const socket = getSocket();
+    const socket = connectSocket();
     if (!socket) return;
 
     // Request notification permission once on user session start
@@ -476,8 +546,6 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const socket = getSocket();
     if (!socket) return;
 
-    socket.emit('resume_session');
-
     // Friend & Group list sync
     const handleFriendList = (data: any) => {
       const list = Array.isArray(data) ? data : data?.friends || [];
@@ -495,19 +563,36 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         memberCount: item.memberCount || 2,
         owner: item.owner,
         members: item.members,
-        lastMessage: item.lastMessage
-          ? {
-              id: item.lastMessage.id || '1',
-              sender: item.lastMessage.from || item.lastFrom || '',
-              receiver: user.username,
-              text: item.lastMessage.text || item.lastMessage,
-              timestamp: item.lastTimestamp || item.lastMessage.timestamp,
-              status: 'delivered',
-              isEncrypted: Boolean(item.lastMessage.isEncrypted),
-            }
-          : undefined,
+        lastMessage: readLastMessage(item, user.username),
       }));
-      setConversations(formatted);
+      const savedMessages: Conversation = {
+        username: user.username,
+        displayName: 'Saved Messages',
+        avatarId: user.avatarId,
+        online: true,
+        presence: 'online',
+        unreadCount: 0,
+        isSelf: true,
+      };
+      try {
+        const stored = JSON.parse(localStorage.getItem(`novyn_saved_messages_${user.username.toLowerCase()}`) || '[]');
+        if (Array.isArray(stored) && stored.length) savedMessages.lastMessage = stored[stored.length - 1];
+      } catch {
+        // An invalid local note cache should never prevent the chat list loading.
+      }
+      const withSavedMessages = [
+        savedMessages,
+        ...formatted.filter((conversation) => conversation.username.toLowerCase() !== user.username.toLowerCase()),
+      ];
+      setConversations((previous) => withSavedMessages.map((conversation) => {
+        const cached = previous.find((c) => c.username.toLowerCase() === conversation.username.toLowerCase())?.lastMessage;
+        if (conversation.isSelf) {
+          return cached ? { ...conversation, lastMessage: cached } : conversation;
+        }
+        return conversation.lastMessage && cached
+          ? { ...conversation, lastMessage: withDecryptedText(conversation.lastMessage, cached) }
+          : conversation;
+      }));
     };
 
     socket.on('peer_public_key_updated', ({ username, publicKey }: { username: string; publicKey: string }) => {
@@ -533,10 +618,16 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setFriendRequests(formatted);
     };
 
-    socket.on('init', (data: any) => {
+    const handleSession = (data: any) => {
       if (data?.friends) handleFriendList(data.friends);
       if (data?.requests) handleRequests(data.requests);
-    });
+      if (Array.isArray(data?.sentRequests)) setSentRequests(new Set(data.sentRequests.map((name: string) => name.toLowerCase())));
+    };
+    const resumeSession = () => socket.emit('resume_session');
+    socket.on('init', handleSession);
+    socket.on('register_success', handleSession);
+    socket.on('connect', resumeSession);
+    if (socket.connected) resumeSession();
 
     socket.on('friend_list', handleFriendList);
     socket.on('friend_list_updated', handleFriendList);
@@ -739,7 +830,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
           id: m.id || m.messageId || String(m.timestamp),
           sender: m.from || m.sender || m.fromKey,
           receiver: m.to || m.receiver || m.toKey,
-          text: m.text || '',
+          text: m.isEncrypted && !m.deletedAt ? ENCRYPTED_MESSAGE_PLACEHOLDER : m.text || '',
           timestamp: m.timestamp,
           status: (m.seenAt ? 'seen' : m.deliveredAt ? 'delivered' : m.status || 'sent') as MessageStatus,
           attachment: m.attachment,
@@ -750,31 +841,18 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
           pinnedBy: m.pinnedBy || '',
           poll: m.poll || null,
           game: m.game || null,
-          ciphertext: m.ciphertext,
-          iv: m.iv,
-          isEncrypted: Boolean(m.isEncrypted),
+          ciphertext: !m.deletedAt ? m.ciphertext : undefined,
+          iv: !m.deletedAt ? m.iv : undefined,
+          isEncrypted: Boolean(m.isEncrypted && !m.deletedAt),
         }));
 
+        const confirmedIds = new Set(historyList.map((message: any) => message.clientTempId).filter(Boolean));
+        for (const id of confirmedIds) pendingSendsRef.current.delete(String(id));
+        const pendingMessages = (messagesCacheRef.current[target.toLowerCase()] || []).filter((message) => pendingSendsRef.current.has(message.id));
+        formattedList.push(...pendingMessages);
         messagesCacheRef.current[target.toLowerCase()] = formattedList;
         setMessages(formattedList);
 
-        // Asynchronously decrypt encrypted messages
-        const partnerKey = target.toLowerCase();
-        const peerConv = conversationsRef.current.find((c) => c.username.toLowerCase() === partnerKey);
-        const peerPub = peerConv?.publicKey;
-        if (peerPub) {
-          formattedList.forEach((m) => {
-            if (m.isEncrypted && m.ciphertext && m.iv) {
-              decryptMessageContent(m.ciphertext, m.iv, partnerKey, peerPub).then((decrypted) => {
-                if (decrypted) {
-                  setMessages((prev) =>
-                    prev.map((item) => (item.id === m.id ? { ...item, text: decrypted } : item))
-                  );
-                }
-              });
-            }
-          });
-        }
       }
     };
 
@@ -799,6 +877,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const sender = rawMsg.from || rawMsg.sender || rawMsg.fromKey;
       const receiver = rawMsg.to || rawMsg.receiver || rawMsg.toKey;
       const clientTempId = rawMsg.clientTempId;
+      if (sender?.toLowerCase() === user.username.toLowerCase() && clientTempId) pendingSendsRef.current.delete(clientTempId);
       const msgId = rawMsg.id || rawMsg.messageId || clientTempId || String(Date.now());
       const status: MessageStatus = rawMsg.seenAt ? 'seen' : rawMsg.deliveredAt ? 'delivered' : rawMsg.status || 'sent';
 
@@ -806,7 +885,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         id: msgId,
         sender,
         receiver,
-        text: rawMsg.text || '',
+        text: rawMsg.isEncrypted ? ENCRYPTED_MESSAGE_PLACEHOLDER : rawMsg.text || '',
         timestamp: rawMsg.timestamp || new Date().toISOString(),
         status,
         attachment: rawMsg.attachment,
@@ -844,21 +923,6 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
           return next;
         });
 
-        // Decrypt incoming message if encrypted
-        if (rawMsg.isEncrypted && rawMsg.ciphertext && rawMsg.iv) {
-          const partnerKey = (sender?.toLowerCase() === user.username.toLowerCase() ? receiver : sender)?.toLowerCase();
-          const peerConv = conversationsRef.current.find((c) => c.username.toLowerCase() === partnerKey);
-          const peerPub = peerConv?.publicKey;
-          if (peerPub && partnerKey) {
-            decryptMessageContent(rawMsg.ciphertext, rawMsg.iv, partnerKey, peerPub).then((decrypted) => {
-              if (decrypted) {
-                setMessages((prev) =>
-                  prev.map((item) => (item.id === msgId || (clientTempId && item.id === clientTempId) ? { ...item, text: decrypted } : item))
-                );
-              }
-            });
-          }
-        }
       }
 
       setConversations((prev) => {
@@ -1037,8 +1101,11 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     return () => {
       socket.off('init');
+      socket.off('register_success', handleSession);
+      socket.off('connect', resumeSession);
       socket.off('friend_list');
       socket.off('friend_list_updated');
+      socket.off('peer_public_key_updated');
       socket.off('requests_updated');
       socket.off('user_profile_updated');
       socket.off('profile_updated');
@@ -1099,6 +1166,26 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const editMessage = useCallback((messageId: string, newText: string) => {
     if (!activeChat) return;
+    const activeConv = conversationsRef.current.find(
+      (conversation) => conversation.username.toLowerCase() === activeChat.toLowerCase()
+    );
+    // Saved Messages lives only on this device, so it must never use the
+    // realtime edit endpoint.
+    if (activeConv?.isSelf && user) {
+      const nextText = newText.trim();
+      if (!nextText) return;
+      const storageKey = `novyn_saved_messages_${user.username.toLowerCase()}`;
+      setMessages((previous) => {
+        const next = previous.map((message) =>
+          message.id === messageId ? { ...message, text: nextText, editedAt: new Date().toISOString() } : message
+        );
+        messagesCacheRef.current[activeChat.toLowerCase()] = next;
+        localStorage.setItem(storageKey, JSON.stringify(next));
+        return next;
+      });
+      triggerHaptic('light');
+      return;
+    }
     // Editing would require re-encrypting and replacing the ciphertext. Until that
     // protocol exists, never fall back to submitting an encrypted message as plaintext.
     if (messagesCacheRef.current[activeChat.toLowerCase()]?.some((m) => m.id === messageId && m.isEncrypted)) {
@@ -1109,20 +1196,51 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     socket.emit('edit_message', { messageId, text: newText, to: activeChat });
     setMessages((prev) => prev.map((m) => (m.id === messageId ? { ...m, text: newText } : m)));
     triggerHaptic('light');
-  }, [activeChat]);
+  }, [activeChat, user]);
 
   const sendMessage = useCallback(
-    (text: string, options: { attachment?: any; replyTo?: any; isVoice?: boolean } = {}) => {
+    (text: string, options: { attachment?: any; replyTo?: any; isVoice?: boolean; retryId?: string } = {}) => {
       if (!activeChat || !user) return;
-      const socket = getSocket();
-      if (!socket) return;
 
       const activeConv = conversationsRef.current.find(
         (c) => c.username.toLowerCase() === activeChat.toLowerCase()
       );
+
+      if (activeConv?.isSelf) {
+        const savedMessage: Message = {
+          id: options.retryId || `note_${crypto.randomUUID()}`,
+          sender: user.username,
+          receiver: user.username,
+          text: text || '',
+          timestamp: new Date().toISOString(),
+          status: 'sent',
+          attachment: options.attachment,
+          replyTo: options.replyTo,
+          isVoice: options.isVoice,
+        };
+        const storageKey = `novyn_saved_messages_${user.username.toLowerCase()}`;
+        setMessages((previous) => {
+          const next = options.retryId
+            ? previous.map((message) => message.id === options.retryId ? savedMessage : message)
+            : [...previous, savedMessage];
+          messagesCacheRef.current[activeChat.toLowerCase()] = next;
+          localStorage.setItem(storageKey, JSON.stringify(next));
+          return next;
+        });
+        setConversations((previous) => previous.map((conversation) =>
+          conversation.isSelf ? { ...conversation, lastMessage: savedMessage, unreadCount: 0 } : conversation
+        ));
+        playMessageSentSound();
+        triggerHaptic('light');
+        return;
+      }
+
+      const socket = getSocket();
+      if (!socket) return;
       const toType = activeConv?.isGroup ? 'group' : 'friend';
 
-      const clientTempId = `tmp_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+      const clientTempId = options.retryId || `tmp_${crypto.randomUUID()}`;
+      pendingSendsRef.current.set(clientTempId, { text, options, to: activeChat, sender: user.username });
       const rawText = text || (options.attachment?.kind === 'image' ? '[Image]' : options.isVoice ? '[Voice Message]' : '[File]');
       
       const payload: any = {
@@ -1140,14 +1258,14 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         receiver: activeChat,
         text: text || '',
         timestamp: new Date().toISOString(),
-        status: 'sent',
+        status: 'sending',
         attachment: options.attachment,
         replyTo: options.replyTo,
         isVoice: options.isVoice,
       };
 
       setMessages((prev) => {
-        const next = [...prev, optimisticMsg];
+        const next = options.retryId ? prev.map((message) => message.id === clientTempId ? { ...message, status: 'sending' as const, sendError: undefined } : message) : [...prev, optimisticMsg];
         if (activeChat) {
           messagesCacheRef.current[activeChat.toLowerCase()] = next;
         }
@@ -1155,9 +1273,24 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
       playMessageSentSound();
 
+      const fail = (reason: string) => {
+        if (!pendingSendsRef.current.has(clientTempId)) return;
+        const update = (list: Message[]) => list.map((message) => message.id === clientTempId ? { ...message, status: 'failed' as const, sendError: reason } : message);
+        const key = activeChat.toLowerCase();
+        messagesCacheRef.current[key] = update(messagesCacheRef.current[key] || []);
+        if (activeChatRef.current?.toLowerCase() === key) setMessages(update);
+      };
+      const transmit = () => {
+        if (!pendingSendsRef.current.has(clientTempId)) return;
+        if (!socket.connected) { fail('You are offline. Reconnect and retry.'); return; }
+        socket.timeout(12000).emit('private_message', payload, (error: Error | null, result: any) => {
+          if (error) fail('Delivery not confirmed. Retry safely when connected.');
+          else if (!result?.ok) fail(result?.message || 'Could not send this message.');
+        });
+      };
       // Check if peer has public key for E2EE encryption
       const peerPubKey = activeConv?.publicKey;
-      if (toType === 'friend' && peerPubKey) {
+      if (toType === 'friend' && peerPubKey && !activeConv?.isSelf) {
         encryptMessageContent(rawText, activeChat, peerPubKey).then((encrypted) => {
           if (encrypted) {
             // Keep message bodies and quoted message bodies off the relay. The UI
@@ -1170,15 +1303,21 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
             payload.iv = encrypted.iv;
             payload.isEncrypted = true;
           }
-          socket.emit('private_message', payload);
-        });
+          if (!encrypted) { fail('Encryption failed. Please retry.'); return; }
+          transmit();
+        }).catch(() => fail('Encryption failed. Please retry.'));
       } else {
-        socket.emit('private_message', payload);
+        transmit();
       }
       triggerHaptic('light');
     },
     [activeChat, user]
   );
+
+  const retryMessage = useCallback((id: string) => {
+    const pending = pendingSendsRef.current.get(id);
+    if (pending && pending.to === activeChat && pending.sender === user?.username) sendMessage(pending.text, { ...pending.options, retryId: id });
+  }, [activeChat, user?.username, sendMessage]);
 
   const sendTyping = useCallback(
     (isTyping: boolean) => {
@@ -1196,25 +1335,36 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const sendFriendRequest = useCallback(async (usernameOrEmail: string) => {
     const socket = getSocket();
-    if (!socket) return { ok: false, message: 'Socket disconnected' };
-
-    setSentRequests((prev) => new Set(prev).add(usernameOrEmail.toLowerCase()));
-    socket.emit('add_friend', usernameOrEmail);
-    triggerHaptic('success');
-    return { ok: true };
+    if (!socket.connected) return { ok: false, message: 'Connection lost. Please reconnect and try again.' };
+    return new Promise<{ ok: boolean; message?: string }>((resolve) => {
+      socket.timeout(8000).emit('add_friend', usernameOrEmail.trim(), (err: Error | null, result: { ok: boolean; message?: string; username?: string }) => {
+        if (err) return resolve({ ok: false, message: 'Request timed out. Please try again.' });
+        if (result?.ok && result.username) {
+          setSentRequests((prev) => new Set(prev).add(result.username!.toLowerCase()));
+          triggerHaptic('success');
+        }
+        resolve(result || { ok: false, message: 'Unable to send request.' });
+      });
+    });
   }, []);
 
   const cancelFriendRequest = useCallback(async (username: string) => {
     const socket = getSocket();
-    if (!socket) return;
-
-    setSentRequests((prev) => {
-      const next = new Set(prev);
-      next.delete(username.toLowerCase());
-      return next;
+    if (!socket.connected) return { ok: false, message: 'Connection lost. Please reconnect and try again.' };
+    return new Promise<{ ok: boolean; message?: string }>((resolve) => {
+      socket.timeout(8000).emit('cancel_friend_request', username, (err: Error | null, result: { ok: boolean; message?: string }) => {
+        if (err) return resolve({ ok: false, message: 'Request timed out. Please try again.' });
+        if (result?.ok) {
+          setSentRequests((prev) => {
+            const next = new Set(prev);
+            next.delete(username.toLowerCase());
+            return next;
+          });
+          triggerHaptic('light');
+        }
+        resolve(result || { ok: false, message: 'Unable to cancel request.' });
+      });
     });
-    socket.emit('cancel_friend_request', username);
-    triggerHaptic('light');
   }, []);
 
   const acceptFriendRequest = useCallback((from: string) => {
@@ -1300,6 +1450,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const createPoll = useCallback(
     (question: string, options: string[]) => {
       if (!activeChat) return;
+      if (conversationsRef.current.find((conversation) => conversation.username.toLowerCase() === activeChat.toLowerCase())?.isSelf) return;
       const socket = getSocket();
       if (!socket) return;
       const clientTempId = `tmp_poll_${Date.now()}`;
@@ -1338,6 +1489,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const activeConv = conversationsRef.current.find(
         (c) => c.username.toLowerCase() === activeChat.toLowerCase()
       );
+      if (activeConv?.isSelf) return;
       const toType = activeConv?.isGroup ? 'group' : 'friend';
       const clientTempId = `tmp_game_${Date.now()}`;
 
@@ -1500,6 +1652,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // WebRTC Call Triggers
   const startCall = useCallback(async (remoteUser: string, isVideo = false) => {
+    if (!user || remoteUser.trim().toLowerCase() === user.username.toLowerCase()) return;
     const socket = getSocket();
     if (!socket || !webrtcManagerRef.current) return;
 
@@ -1552,7 +1705,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       alert(msg);
     }
-  }, [endCall]);
+  }, [endCall, user?.username]);
 
   const answerCall = useCallback(async () => {
     const socket = getSocket();
@@ -1634,6 +1787,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         callLogs,
         clearCallLogs,
         sendMessage,
+        retryMessage,
         sendTyping,
         sendFriendRequest,
         cancelFriendRequest,

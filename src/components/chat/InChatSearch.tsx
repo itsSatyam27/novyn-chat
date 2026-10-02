@@ -59,9 +59,9 @@ export const InChatSearch: React.FC<InChatSearchProps> = ({
         alignItems: 'center',
         gap: '8px',
         padding: '8px 16px',
-        background: 'rgba(15, 23, 42, 0.95)',
+        background: 'rgba(247, 254, 253, 0.95)',
         backdropFilter: 'blur(16px)',
-        borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+        borderBottom: '1px solid var(--border)',
         zIndex: 10,
       }}
     >
@@ -70,14 +70,14 @@ export const InChatSearch: React.FC<InChatSearchProps> = ({
           display: 'flex',
           alignItems: 'center',
           gap: '8px',
-          background: 'rgba(255, 255, 255, 0.06)',
-          border: '1px solid rgba(255, 255, 255, 0.12)',
+          background: 'rgba(255, 255, 255, 0.55)',
+          border: '1px solid var(--border)',
           borderRadius: '10px',
           padding: '6px 12px',
           flex: 1,
         }}
       >
-        <Search style={{ width: '15px', height: '15px', color: '#94a3b8', flexShrink: 0 }} />
+        <Search style={{ width: '15px', height: '15px', color: 'var(--text-muted)', flexShrink: 0 }} />
         <input
           ref={inputRef}
           type="text"
@@ -89,7 +89,7 @@ export const InChatSearch: React.FC<InChatSearchProps> = ({
             background: 'none',
             border: 'none',
             outline: 'none',
-            color: '#ffffff',
+            color: 'var(--text-main)',
             fontSize: '0.85rem',
             width: '100%',
           }}
@@ -101,7 +101,7 @@ export const InChatSearch: React.FC<InChatSearchProps> = ({
             style={{
               background: 'none',
               border: 'none',
-              color: '#94a3b8',
+              color: 'var(--text-muted)',
               cursor: 'pointer',
               padding: '2px',
               display: 'flex',
@@ -114,7 +114,7 @@ export const InChatSearch: React.FC<InChatSearchProps> = ({
       </div>
 
       {query && (
-        <span style={{ fontSize: '0.78rem', color: matchesCount > 0 ? '#10b981' : '#94a3b8', whiteSpace: 'nowrap', fontWeight: 600 }}>
+        <span style={{ fontSize: '0.78rem', color: matchesCount > 0 ? '#0e9f8a' : 'var(--text-muted)', whiteSpace: 'nowrap', fontWeight: 600 }}>
           {matchesCount > 0 ? `${currentMatchIndex + 1} of ${matchesCount}` : 'No matches'}
         </span>
       )}
@@ -128,10 +128,10 @@ export const InChatSearch: React.FC<InChatSearchProps> = ({
               onPrevMatch();
             }}
             style={{
-              background: 'rgba(255, 255, 255, 0.06)',
-              border: '1px solid rgba(255, 255, 255, 0.1)',
+              background: 'rgba(255, 255, 255, 0.55)',
+              border: '1px solid var(--border)',
               borderRadius: '6px',
-              color: '#ffffff',
+              color: 'var(--text-main)',
               cursor: 'pointer',
               padding: '4px 6px',
               display: 'flex',
@@ -148,10 +148,10 @@ export const InChatSearch: React.FC<InChatSearchProps> = ({
               onNextMatch();
             }}
             style={{
-              background: 'rgba(255, 255, 255, 0.06)',
-              border: '1px solid rgba(255, 255, 255, 0.1)',
+              background: 'rgba(255, 255, 255, 0.55)',
+              border: '1px solid var(--border)',
               borderRadius: '6px',
-              color: '#ffffff',
+              color: 'var(--text-main)',
               cursor: 'pointer',
               padding: '4px 6px',
               display: 'flex',
@@ -173,7 +173,7 @@ export const InChatSearch: React.FC<InChatSearchProps> = ({
         style={{
           background: 'none',
           border: 'none',
-          color: '#94a3b8',
+          color: 'var(--text-muted)',
           cursor: 'pointer',
           padding: '6px',
           borderRadius: '8px',

@@ -40,6 +40,8 @@ interface MessageBubbleProps {
   currentUsername?: string;
   searchQuery?: string;
   isGroup?: boolean;
+  grouped?: boolean;
+  onRetry?: (id: string) => void;
 }
 
 const HighlightText: React.FC<{ text: string; query?: string }> = ({ text, query }) => {
@@ -90,24 +92,22 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   currentUsername,
   searchQuery,
   isGroup = false,
+  grouped = false,
+  onRetry,
 }) => {
   const [showActionsMenu, setShowActionsMenu] = useState(false);
   const [showReactions, setShowReactions] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-  const [openBelow, setOpenBelow] = useState(false);
   const [copied, setCopied] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(message.text || '');
   const containerRef = useRef<HTMLDivElement>(null);
   const lastTapRef = useRef<number>(0);
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
 
   const toggleActionsMenu = (e: React.MouseEvent) => {
     e.stopPropagation();
     triggerHaptic('light');
-    if (containerRef.current) {
-      const rect = containerRef.current.getBoundingClientRect();
-      setOpenBelow(rect.top < 280);
-    }
     setShowActionsMenu((prev) => !prev);
     setShowReactions(false);
   };
@@ -186,6 +186,8 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
 
   const renderStatus = () => {
     if (!isMe) return null;
+    if (message.status === 'sending') return <span className="message-send-state" role="status">Sending…</span>;
+    if (message.status === 'failed') return <button type="button" className="message-retry" title={message.sendError} onClick={() => onRetry?.(message.id)}>Couldn’t send · Retry</button>;
     if (message.status === 'seen') {
       return (
         <span title="Seen" style={{ display: 'inline-flex', alignItems: 'center', marginLeft: '2px' }}>
@@ -237,6 +239,19 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   };
 
   const handleTouchEnd = (e: React.TouchEvent) => {
+    const start = touchStartRef.current;
+    const touch = e.changedTouches[0];
+    if (start && touch) {
+      const horizontalDistance = touch.clientX - start.x;
+      const verticalDistance = Math.abs(touch.clientY - start.y);
+      if (horizontalDistance > 68 && verticalDistance < 48) {
+        triggerHaptic('medium');
+        onReply(message);
+        touchStartRef.current = null;
+        return;
+      }
+    }
+    touchStartRef.current = null;
     const now = Date.now();
     if (now - lastTapRef.current < 320) {
       handleDoubleClick(e);
@@ -259,7 +274,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     <div
       ref={containerRef}
       id={`msg-${message.id}`}
-      className={`bubble-row ${isMe ? 'me' : 'other'}`}
+      className={`bubble-row ${isMe ? 'me' : 'other'} ${grouped ? 'is-grouped' : ''}`}
       style={{ position: 'relative', display: 'flex', alignItems: 'flex-end', gap: '6px' }}
     >
       {/* 3-Dots Action Trigger Button on Left of 'Me' */}
@@ -271,7 +286,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           style={{
             background: 'none',
             border: 'none',
-            color: 'rgba(255, 255, 255, 0.4)',
+            color: 'rgba(20, 52, 63, 0.45)',
             cursor: 'pointer',
             padding: '4px',
             borderRadius: '50%',
@@ -280,6 +295,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             justifyContent: 'center',
             marginBottom: '16px',
           }}
+          aria-label="Message actions"
           title="Message actions"
         >
           <MoreVertical style={{ width: '16px', height: '16px' }} />
@@ -293,6 +309,10 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           animate={{ opacity: 1, y: 0, scale: 1 }}
           transition={{ duration: 0.2 }}
           onDoubleClick={handleDoubleClick}
+          onTouchStart={(e) => {
+            const touch = e.touches[0];
+            touchStartRef.current = touch ? { x: touch.clientX, y: touch.clientY } : null;
+          }}
           onTouchEnd={handleTouchEnd}
           className={`bubble ${isMe ? 'me' : 'other'} ${message.game ? 'game-bubble' : ''}`}
           style={{ position: 'relative', cursor: 'default' }}
@@ -312,14 +332,14 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                   top: '-46px',
                   right: isMe ? '0' : 'auto',
                   left: isMe ? 'auto' : '0',
-                  background: '#161f30',
-                  border: '1px solid rgba(255, 255, 255, 0.18)',
+                  background: 'var(--bg-surface)',
+                  border: '1px solid var(--border)',
                   borderRadius: '9999px',
                   padding: '5px 12px',
                   display: 'flex',
                   alignItems: 'center',
                   gap: '8px',
-                  boxShadow: '0 12px 32px rgba(0,0,0,0.7)',
+                  boxShadow: '0 12px 32px rgba(36, 76, 96, 0.1)',
                   zIndex: 50,
                 }}
               >
@@ -356,28 +376,28 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           <AnimatePresence>
             {showActionsMenu && (
               <motion.div
-                initial={{ opacity: 0, scale: 0.92, y: 6 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.92, y: 6 }}
+                className={`message-actions-menu ${isMe ? 'opens-left' : 'opens-right'}`}
+                initial={{ opacity: 0, scale: 0.94, x: isMe ? 8 : -8 }}
+                animate={{ opacity: 1, scale: 1, x: 0 }}
+                exit={{ opacity: 0, scale: 0.94, x: isMe ? 8 : -8 }}
                 transition={{ duration: 0.15 }}
                 onClick={(e) => e.stopPropagation()}
                 style={{
                   position: 'absolute',
-                  top: openBelow ? '100%' : 'auto',
-                  bottom: openBelow ? 'auto' : '100%',
-                  right: isMe ? '0' : 'auto',
-                  left: isMe ? 'auto' : '0',
-                  marginTop: openBelow ? '6px' : '0',
-                  marginBottom: openBelow ? '0' : '6px',
-                  background: '#131b2e',
-                  border: '1px solid rgba(255, 255, 255, 0.15)',
+                  top: isMe ? 'auto' : '0',
+                  bottom: isMe ? '0' : 'auto',
+                  right: isMe ? 'calc(100% + 10px)' : 'auto',
+                  left: isMe ? 'auto' : 'calc(100% + 10px)',
+                  margin: 0,
+                  background: 'var(--bg-surface)',
+                  border: '1px solid var(--border)',
                   borderRadius: '14px',
                   padding: '6px',
                   display: 'flex',
                   flexDirection: 'column',
                   gap: '2px',
                   minWidth: '160px',
-                  boxShadow: '0 16px 36px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.05)',
+                  boxShadow: '0 16px 36px rgba(36, 76, 96, 0.1), 0 0 0 1px rgba(255, 255, 255, 0.05)',
                   zIndex: 1000,
                   backdropFilter: 'blur(16px)',
                 }}
@@ -390,7 +410,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                     justifyContent: 'space-between',
                     gap: '4px',
                     padding: '4px 6px 6px',
-                    borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+                    borderBottom: '1px solid var(--border)',
                     marginBottom: '4px',
                   }}
                 >
@@ -433,7 +453,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                   style={{
                     background: 'none',
                     border: 'none',
-                    color: '#ffffff',
+                    color: 'var(--text-main)',
                     cursor: 'pointer',
                     padding: '7px 10px',
                     borderRadius: '8px',
@@ -446,10 +466,10 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                     textAlign: 'left',
                     transition: 'background 0.15s ease',
                   }}
-                  onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)')}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255, 255, 255, 0.55)')}
                   onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
                 >
-                  <Reply style={{ width: '14px', height: '14px', color: '#10b981' }} />
+                  <Reply style={{ width: '14px', height: '14px', color: '#0e9f8a' }} />
                   <span>Reply</span>
                 </button>
 
@@ -460,7 +480,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                   style={{
                     background: 'none',
                     border: 'none',
-                    color: copied ? '#10b981' : '#ffffff',
+                    color: copied ? '#0e9f8a' : 'var(--text-main)',
                     cursor: 'pointer',
                     padding: '7px 10px',
                     borderRadius: '8px',
@@ -473,17 +493,17 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                     textAlign: 'left',
                     transition: 'background 0.15s ease',
                   }}
-                  onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)')}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255, 255, 255, 0.55)')}
                   onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
                 >
                   {copied ? (
                     <>
-                      <Check style={{ width: '14px', height: '14px', color: '#10b981' }} />
+                      <Check style={{ width: '14px', height: '14px', color: '#0e9f8a' }} />
                       <span>Copied!</span>
                     </>
                   ) : (
                     <>
-                      <Copy style={{ width: '14px', height: '14px', color: '#94a3b8' }} />
+                      <Copy style={{ width: '14px', height: '14px', color: 'var(--text-muted)' }} />
                       <span>Copy Text</span>
                     </>
                   )}
@@ -502,7 +522,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                     style={{
                       background: 'none',
                       border: 'none',
-                      color: '#ffffff',
+                      color: 'var(--text-main)',
                       cursor: 'pointer',
                       padding: '7px 10px',
                       borderRadius: '8px',
@@ -515,10 +535,10 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                       textAlign: 'left',
                       transition: 'background 0.15s ease',
                     }}
-                    onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)')}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255, 255, 255, 0.55)')}
                     onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
                   >
-                    <Forward style={{ width: '14px', height: '14px', color: '#60a5fa' }} />
+                    <Forward style={{ width: '14px', height: '14px', color: '#2569b2' }} />
                     <span>Forward</span>
                   </button>
                 )}
@@ -540,7 +560,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                     style={{
                       background: 'none',
                       border: 'none',
-                      color: '#ffffff',
+                      color: 'var(--text-main)',
                       cursor: 'pointer',
                       padding: '7px 10px',
                       borderRadius: '8px',
@@ -553,17 +573,17 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                       textAlign: 'left',
                       transition: 'background 0.15s ease',
                     }}
-                    onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)')}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255, 255, 255, 0.55)')}
                     onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
                   >
                     {message.pinnedAt ? (
                       <>
-                        <PinOff style={{ width: '14px', height: '14px', color: '#f59e0b' }} />
+                        <PinOff style={{ width: '14px', height: '14px', color: '#a86d0b' }} />
                         <span>Unpin</span>
                       </>
                     ) : (
                       <>
-                        <Pin style={{ width: '14px', height: '14px', color: '#f59e0b' }} />
+                        <Pin style={{ width: '14px', height: '14px', color: '#a86d0b' }} />
                         <span>Pin</span>
                       </>
                     )}
@@ -582,7 +602,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                     style={{
                       background: 'none',
                       border: 'none',
-                      color: '#ffffff',
+                      color: 'var(--text-main)',
                       cursor: 'pointer',
                       padding: '7px 10px',
                       borderRadius: '8px',
@@ -595,10 +615,10 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                       textAlign: 'left',
                       transition: 'background 0.15s ease',
                     }}
-                    onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)')}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255, 255, 255, 0.55)')}
                     onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
                   >
-                    <Edit2 style={{ width: '14px', height: '14px', color: '#38bdf8' }} />
+                    <Edit2 style={{ width: '14px', height: '14px', color: '#087fac' }} />
                     <span>Edit</span>
                   </button>
                 )}
@@ -616,7 +636,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                     style={{
                       background: 'none',
                       border: 'none',
-                      color: '#f87171',
+                      color: '#bd3750',
                       cursor: 'pointer',
                       padding: '7px 10px',
                       borderRadius: '8px',
@@ -641,12 +661,12 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           </AnimatePresence>
 
           {/* Group Sender Name */}
-          {isGroup && !isMe && (
+          {isGroup && !isMe && !grouped && (
             <div
               style={{
                 fontSize: '0.74rem',
                 fontWeight: 800,
-                color: '#34d399',
+                color: '#078779',
                 marginBottom: '4px',
                 display: 'flex',
                 alignItems: 'center',
@@ -672,7 +692,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                 padding: '6px 10px',
                 borderRadius: '8px',
                 borderLeft: isMe ? '3px solid rgba(0,0,0,0.4)' : '3px solid #10b981',
-                background: isMe ? 'rgba(0, 0, 0, 0.12)' : 'rgba(0, 0, 0, 0.25)',
+                background: isMe ? 'rgba(23, 66, 78, 0.03)' : 'rgba(23, 66, 78, 0.0625)',
                 fontSize: '0.75rem',
                 marginBottom: '8px',
                 cursor: 'pointer',
@@ -725,15 +745,15 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                 gap: '10px',
                 padding: '8px 12px',
                 borderRadius: '10px',
-                background: isMe ? 'rgba(0,0,0,0.1)' : 'rgba(0,0,0,0.2)',
+                background: isMe ? 'rgba(23, 66, 78, 0.025)' : 'rgba(23, 66, 78, 0.05)',
                 textDecoration: 'none',
-                color: isMe ? '#022c22' : '#ffffff',
+                color: isMe ? '#022c22' : 'var(--text-main)',
                 fontSize: '0.8rem',
                 marginBottom: '6px',
                 fontWeight: 600,
               }}
             >
-              <FileText style={{ width: '20px', height: '20px', color: isMe ? '#022c22' : '#34d399' }} />
+              <FileText style={{ width: '20px', height: '20px', color: isMe ? '#022c22' : '#078779' }} />
               <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {message.attachment.name}
               </span>
@@ -754,11 +774,11 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                 autoFocus
                 style={{
                   width: '100%',
-                  background: isMe ? 'rgba(0,0,0,0.15)' : 'rgba(0,0,0,0.25)',
-                  border: '1px solid rgba(255,255,255,0.4)',
+                  background: isMe ? 'rgba(23, 66, 78, 0.0375)' : 'rgba(23, 66, 78, 0.0625)',
+                  border: '1px solid var(--border)',
                   borderRadius: '8px',
                   padding: '6px 8px',
-                  color: isMe ? '#022c22' : '#ffffff',
+                  color: isMe ? '#022c22' : 'var(--text-main)',
                   fontSize: '0.85rem',
                   outline: 'none',
                   marginBottom: '6px',
@@ -769,14 +789,14 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                 <button
                   type="button"
                   onClick={() => setIsEditing(false)}
-                  style={{ background: 'none', border: 'none', color: isMe ? '#022c22' : '#cbd5e1', fontSize: '0.72rem', cursor: 'pointer' }}
+                  style={{ background: 'none', border: 'none', color: isMe ? '#022c22' : 'var(--text-muted)', fontSize: '0.72rem', cursor: 'pointer' }}
                 >
                   Cancel
                 </button>
                 <button
                   type="button"
                   onClick={handleSaveEdit}
-                  style={{ background: '#022c22', border: 'none', color: '#ffffff', fontSize: '0.72rem', fontWeight: 700, padding: '2px 8px', borderRadius: '4px', cursor: 'pointer' }}
+                  style={{ background: 'var(--primary)', border: 'none', color: 'var(--text-on-primary)', fontSize: '0.72rem', fontWeight: 700, padding: '2px 8px', borderRadius: '4px', cursor: 'pointer' }}
                 >
                   Save
                 </button>
@@ -837,7 +857,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         <div className="bubble-meta-outside">
           {message.pinnedAt && (
             <span title="Pinned message" style={{ display: 'flex', alignItems: 'center' }}>
-              <Pin style={{ width: '11px', height: '11px', color: '#f59e0b', marginRight: '2px' }} />
+              <Pin style={{ width: '11px', height: '11px', color: '#a86d0b', marginRight: '2px' }} />
             </span>
           )}
           <span>{formatTime(message.timestamp)}</span>
@@ -854,7 +874,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           style={{
             background: 'none',
             border: 'none',
-            color: 'rgba(255, 255, 255, 0.4)',
+            color: 'rgba(20, 52, 63, 0.45)',
             cursor: 'pointer',
             padding: '4px',
             borderRadius: '50%',
@@ -863,6 +883,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             justifyContent: 'center',
             marginBottom: '16px',
           }}
+          aria-label="Message actions (Reply, React)"
           title="Message actions (Reply, React)"
         >
           <MoreVertical style={{ width: '16px', height: '16px' }} />

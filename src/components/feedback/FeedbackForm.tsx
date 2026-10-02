@@ -141,11 +141,11 @@ export const FeedbackForm: React.FC = () => {
               borderRadius: '999px',
               background: 'linear-gradient(135deg, var(--primary) 0%, #059669 100%)',
               border: 'none',
-              color: '#ffffff',
+              color: 'var(--text-on-primary)',
               fontSize: '0.82rem',
               fontWeight: 700,
               cursor: 'pointer',
-              boxShadow: '0 4px 20px var(--primary-glow), 0 2px 8px rgba(0,0,0,0.4)',
+              boxShadow: '0 4px 20px var(--primary-glow), 0 2px 8px rgba(36, 76, 96, 0.1)',
               letterSpacing: '0.01em',
               whiteSpace: 'nowrap',
             }}
@@ -172,7 +172,7 @@ export const FeedbackForm: React.FC = () => {
               position: 'fixed',
               inset: 0,
               zIndex: 1000,
-              background: 'rgba(0,0,0,0.6)',
+              background: 'rgba(23, 66, 78, 0.12)',
               backdropFilter: 'blur(6px)',
               display: 'flex',
               alignItems: 'flex-end',
@@ -192,11 +192,11 @@ export const FeedbackForm: React.FC = () => {
               style={{
                 width: '100%',
                 maxWidth: '420px',
-                background: 'var(--bg-surface, #111827)',
-                border: '1px solid var(--border, rgba(255,255,255,0.08))',
+                background: 'var(--bg-surface)',
+                border: '1px solid var(--border)',
                 borderRadius: '20px',
                 padding: '24px',
-                boxShadow: '0 24px 60px rgba(0,0,0,0.7)',
+                boxShadow: '0 24px 60px rgba(36, 76, 96, 0.1)',
                 display: 'flex',
                 flexDirection: 'column',
                 gap: '16px',
@@ -220,12 +220,12 @@ export const FeedbackForm: React.FC = () => {
                       margin: '0 auto 16px',
                     }}
                   >
-                    <CheckCircle2 style={{ width: '32px', height: '32px', color: '#10b981' }} />
+                    <CheckCircle2 style={{ width: '32px', height: '32px', color: '#0e9f8a' }} />
                   </motion.div>
-                  <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#fff', margin: '0 0 8px' }}>
+                  <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-main)', margin: '0 0 8px' }}>
                     Thanks for your feedback!
                   </h3>
-                  <p style={{ fontSize: '0.86rem', color: '#94a3b8', margin: 0, lineHeight: 1.5 }}>
+                  <p style={{ fontSize: '0.86rem', color: 'var(--text-muted)', margin: 0, lineHeight: 1.5 }}>
                     We read every submission and use it to make Novyn better.
                   </p>
                 </motion.div>
@@ -243,8 +243,8 @@ export const FeedbackForm: React.FC = () => {
                         <MessageSquarePlus style={{ width: '17px', height: '17px', color: 'var(--primary)' }} />
                       </div>
                       <div>
-                        <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: '#fff' }}>Send Feedback</h3>
-                        <p style={{ margin: 0, fontSize: '0.74rem', color: '#64748b' }}>
+                        <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: 'var(--text-main)' }}>Send Feedback</h3>
+                        <p style={{ margin: 0, fontSize: '0.74rem', color: 'var(--text-dark)' }}>
                           {user ? `Sending as ${user.username}` : 'Anonymous — add email to get a reply'}
                         </p>
                       </div>
@@ -253,8 +253,8 @@ export const FeedbackForm: React.FC = () => {
                       type="button"
                       onClick={handleClose}
                       style={{
-                        background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)',
-                        color: '#94a3b8', width: '30px', height: '30px', borderRadius: '8px',
+                        background: 'rgba(255, 255, 255, 0.55)', border: '1px solid var(--border)',
+                        color: 'var(--text-muted)', width: '30px', height: '30px', borderRadius: '8px',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                         cursor: 'pointer', flexShrink: 0,
                       }}
@@ -272,9 +272,9 @@ export const FeedbackForm: React.FC = () => {
                         width: '100%', display: 'flex', alignItems: 'center',
                         justifyContent: 'space-between',
                         padding: '10px 14px', borderRadius: '12px',
-                        background: 'rgba(255,255,255,0.04)',
+                        background: 'rgba(255, 255, 255, 0.55)',
                         border: `1px solid ${typeOpen ? 'var(--border-focus)' : 'var(--border)'}`,
-                        color: '#e2e8f0', cursor: 'pointer', fontSize: '0.87rem', fontWeight: 600,
+                        color: 'var(--text-main)', cursor: 'pointer', fontSize: '0.87rem', fontWeight: 600,
                       }}
                     >
                       <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -282,7 +282,7 @@ export const FeedbackForm: React.FC = () => {
                         <span style={{ color: selectedType.color }}>{selectedType.label}</span>
                       </span>
                       <ChevronDown style={{
-                        width: '14px', height: '14px', color: '#64748b',
+                        width: '14px', height: '14px', color: 'var(--text-dark)',
                         transform: typeOpen ? 'rotate(180deg)' : 'none',
                         transition: 'transform 0.2s',
                       }} />
@@ -297,10 +297,10 @@ export const FeedbackForm: React.FC = () => {
                           transition={{ duration: 0.15 }}
                           style={{
                             position: 'absolute', top: 'calc(100% + 6px)', left: 0, right: 0,
-                            background: 'var(--bg-surface, #111827)',
+                            background: 'var(--bg-surface)',
                             border: '1px solid var(--border)',
                             borderRadius: '12px', overflow: 'hidden', zIndex: 10,
-                            boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+                            boxShadow: '0 8px 24px rgba(36, 76, 96, 0.1)',
                           }}
                         >
                           {FEEDBACK_TYPES.map(opt => (
@@ -311,8 +311,8 @@ export const FeedbackForm: React.FC = () => {
                               style={{
                                 width: '100%', display: 'flex', alignItems: 'center', gap: '10px',
                                 padding: '10px 14px', background: type === opt.value
-                                  ? 'rgba(255,255,255,0.06)' : 'transparent',
-                                border: 'none', color: type === opt.value ? opt.color : '#cbd5e1',
+                                  ? 'rgba(255, 255, 255, 0.55)' : 'transparent',
+                                border: 'none', color: type === opt.value ? opt.color : 'var(--text-muted)',
                                 cursor: 'pointer', fontSize: '0.87rem', fontWeight: 600,
                                 textAlign: 'left',
                               }}
@@ -328,7 +328,7 @@ export const FeedbackForm: React.FC = () => {
 
                   {/* Star rating */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    <span style={{ fontSize: '0.78rem', color: '#64748b', fontWeight: 600 }}>
+                    <span style={{ fontSize: '0.78rem', color: 'var(--text-dark)', fontWeight: 600 }}>
                       Rate your experience (optional)
                     </span>
                     <div style={{ display: 'flex', gap: '6px' }}>
@@ -355,7 +355,7 @@ export const FeedbackForm: React.FC = () => {
                         </button>
                       ))}
                       {rating > 0 && (
-                        <span style={{ fontSize: '0.78rem', color: '#f59e0b', alignSelf: 'center', marginLeft: '4px', fontWeight: 700 }}>
+                        <span style={{ fontSize: '0.78rem', color: '#a86d0b', alignSelf: 'center', marginLeft: '4px', fontWeight: 700 }}>
                           {['', 'Poor', 'Fair', 'Good', 'Great', 'Excellent'][rating]}
                         </span>
                       )}
@@ -373,9 +373,9 @@ export const FeedbackForm: React.FC = () => {
                       style={{
                         width: '100%', resize: 'none', padding: '12px 14px',
                         borderRadius: '12px', fontSize: '0.88rem', lineHeight: 1.6,
-                        background: 'rgba(255,255,255,0.04)',
+                        background: 'rgba(255, 255, 255, 0.55)',
                         border: `1px solid ${error ? '#f87171' : 'var(--border)'}`,
-                        color: '#e2e8f0', outline: 'none', boxSizing: 'border-box',
+                        color: 'var(--text-main)', outline: 'none', boxSizing: 'border-box',
                         fontFamily: 'inherit', transition: 'border-color 0.15s',
                       }}
                       onFocus={e => { if (!error) e.target.style.borderColor = 'var(--border-focus)'; }}
@@ -383,7 +383,7 @@ export const FeedbackForm: React.FC = () => {
                     />
                     <span style={{
                       position: 'absolute', bottom: '10px', right: '12px',
-                      fontSize: '0.7rem', color: charCount > charLimit * 0.9 ? '#f87171' : '#475569',
+                      fontSize: '0.7rem', color: charCount > charLimit * 0.9 ? '#bd3750' : 'var(--text-dark)',
                     }}>
                       {charCount}/{charLimit}
                     </span>
@@ -398,8 +398,8 @@ export const FeedbackForm: React.FC = () => {
                       placeholder="Your email (optional — for a reply)"
                       style={{
                         width: '100%', padding: '10px 14px', borderRadius: '12px',
-                        fontSize: '0.87rem', background: 'rgba(255,255,255,0.04)',
-                        border: '1px solid var(--border)', color: '#e2e8f0',
+                        fontSize: '0.87rem', background: 'rgba(255, 255, 255, 0.55)',
+                        border: '1px solid var(--border)', color: 'var(--text-main)',
                         outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit',
                       }}
                     />
@@ -412,7 +412,7 @@ export const FeedbackForm: React.FC = () => {
                         initial={{ opacity: 0, y: -6 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0 }}
-                        style={{ margin: 0, fontSize: '0.82rem', color: '#f87171', fontWeight: 600 }}
+                        style={{ margin: 0, fontSize: '0.82rem', color: '#bd3750', fontWeight: 600 }}
                       >
                         {error}
                       </motion.p>
@@ -426,9 +426,9 @@ export const FeedbackForm: React.FC = () => {
                     style={{
                       width: '100%', padding: '12px', borderRadius: '12px',
                       background: loading || !message.trim()
-                        ? 'rgba(255,255,255,0.06)'
+                        ? 'rgba(255, 255, 255, 0.55)'
                         : 'linear-gradient(135deg, var(--primary) 0%, #059669 100%)',
-                      border: 'none', color: loading || !message.trim() ? '#475569' : '#fff',
+                      border: 'none', color: loading || !message.trim() ? 'var(--text-dark)' : 'var(--text-main)',
                       fontSize: '0.9rem', fontWeight: 700, cursor: loading || !message.trim() ? 'not-allowed' : 'pointer',
                       display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
                       transition: 'all 0.2s ease',
