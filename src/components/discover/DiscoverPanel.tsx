@@ -29,6 +29,8 @@ export const DiscoverPanel: React.FC<DiscoverPanelProps> = ({ isCompact = false,
   const [pendingUser, setPendingUser] = useState<string | null>(null);
 
   const fetchOnlineUsers = () => {
+    setLoading(true);
+    setError('');
     const socket = connectSocket();
     if (socket && socket.connected) {
       socket.emit('discover_online');
@@ -72,6 +74,9 @@ export const DiscoverPanel: React.FC<DiscoverPanelProps> = ({ isCompact = false,
     requestOnlineUsers();
 
     const interval = setInterval(requestOnlineUsers, 10000);
+    // A missing server response should never leave the panel in a permanent
+    // loading state. Later socket responses still replace this empty state.
+    const initialResponseTimeout = window.setTimeout(() => setLoading(false), 5000);
 
     return () => {
       socket.off('discover_online', handleDiscoverOnline);
@@ -81,6 +86,7 @@ export const DiscoverPanel: React.FC<DiscoverPanelProps> = ({ isCompact = false,
       socket.off('register_success', requestOnlineUsers);
       socket.off('auth_failed', handleConnectionError);
       clearInterval(interval);
+      clearTimeout(initialResponseTimeout);
     };
   }, [user]);
 
