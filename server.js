@@ -5325,6 +5325,7 @@ io.on("connection", (socket) => {
     });
 
     emitFriendList(userKey);
+    emitStatusToFriends(userKey);
     for (const friendKey of user.friends) {
       emitFriendList(friendKey);
       const friendSocket = onlineUsers.get(friendKey);
@@ -5334,6 +5335,7 @@ io.on("connection", (socket) => {
           displayName: user.displayName,
           bio: user.bio,
           avatarId: user.avatarId,
+          presenceMode: getEffectivePresence(userKey),
         });
       }
     }

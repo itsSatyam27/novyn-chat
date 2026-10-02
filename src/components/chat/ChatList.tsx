@@ -303,6 +303,7 @@ export const ChatList: React.FC<ChatListProps> = ({
                   online={conv.online}
                   presence={conv.presence}
                   isGroup={conv.isGroup}
+                  hidePresence={conv.isSelf}
                   size="md"
                 />
 
@@ -644,6 +645,7 @@ export const ChatList: React.FC<ChatListProps> = ({
                   online={conv.online}
                   presence={conv.presence}
                   isGroup={conv.isGroup}
+                  hidePresence={conv.isSelf}
                   size="md"
                 />
 

@@ -638,7 +638,13 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setConversations((prev) =>
         prev.map((c) =>
           c.username.toLowerCase() === profile.username?.toLowerCase()
-            ? { ...c, displayName: profile.displayName || c.displayName, avatarId: profile.avatarId || c.avatarId }
+            ? {
+                ...c,
+                displayName: profile.displayName || c.displayName,
+                avatarId: profile.avatarId || c.avatarId,
+                online: profile.presenceMode ? profile.presenceMode !== 'offline' : c.online,
+                presence: profile.presenceMode || c.presence,
+              }
             : c
         )
       );

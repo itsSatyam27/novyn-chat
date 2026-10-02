@@ -8,6 +8,7 @@ interface AvatarProps {
   presence?: 'online' | 'away' | 'dnd' | 'offline';
   className?: string;
   isGroup?: boolean;
+  hidePresence?: boolean;
 }
 
 const sizeStyles = {
@@ -48,6 +49,7 @@ export const Avatar: React.FC<AvatarProps> = ({
   online,
   presence,
   isGroup,
+  hidePresence = false,
 }) => {
   const [imgError, setImgError] = React.useState(false);
 
@@ -124,7 +126,7 @@ export const Avatar: React.FC<AvatarProps> = ({
         </div>
       )}
 
-      {dotColor && (
+      {dotColor && !hidePresence && (
         <span
           style={{
             position: 'absolute',
