@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import '../../l10n/app_localizations.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import 'dart:convert';
+import '../../widgets/profile_avatar_with_orbit.dart';
+import '../../widgets/presence_dock.dart';
 import 'dart:math' as math;
 import 'dart:ui';
 import '../../services/settings_service.dart';
@@ -73,20 +74,20 @@ class ProfileScreen extends StatelessWidget {
           
           SafeArea(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // ── Title Section ─────────────────────────────────────────
                   Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 24),
+                    padding: const EdgeInsets.symmetric(vertical: 16),
                     child: Stack(
                       children: [
                         Text(
                           'Settings',
                           style: TextStyle(
                             fontFamily: 'Outfit',
-                            fontSize: 32,
+                            fontSize: 27,
                             fontWeight: FontWeight.w900,
                             foreground: Paint()..shader = const LinearGradient(
                               colors: [Color(0xFF7C6FF7), Color(0xFF40E0D0)],
@@ -102,7 +103,7 @@ class ProfileScreen extends StatelessWidget {
                 Container(
                   width: double.infinity,
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(32),
+                    borderRadius: BorderRadius.circular(28),
                     gradient: LinearGradient(
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
@@ -128,7 +129,7 @@ class ProfileScreen extends StatelessWidget {
                     ],
                   ),
                   child: ClipRRect(
-                    borderRadius: BorderRadius.circular(32),
+                    borderRadius: BorderRadius.circular(28),
                     child: Stack(
                       children: [
                         // ── Top Right Edit Pencil (Minimalist) ──────────
@@ -159,23 +160,23 @@ class ProfileScreen extends StatelessWidget {
                         ),
                         
                         Padding(
-                          padding: const EdgeInsets.all(20),
+                          padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
                           child: Column(
                             children: [
                               // Avatar with Status Orbit
                               Center(
-                                child: _ProfileAvatarWithOrbit(
+                                child: ProfileAvatarWithOrbit(
                                   photoUrl: profile?.photoUrl,
                                   displayName: displayName,
-                                  status: profile?.status ?? 'Online',
+                                  status: profile?.presenceMode ?? 'online',
                                 ),
                               ),
-                              const SizedBox(height: 20),
+                              const SizedBox(height: 14),
                               Text(
                                 displayName,
                                 style: TextStyle(
                                   fontFamily: 'Outfit',
-                                  fontSize: 24,
+                                  fontSize: 22,
                                   fontWeight: FontWeight.w900,
                                   color: Theme.of(context).colorScheme.onSurface,
                                   letterSpacing: -0.5,
@@ -198,40 +199,15 @@ class ProfileScreen extends StatelessWidget {
                                   ),
                                 ),
                               ),
-                              const SizedBox(height: 24),
+                              const SizedBox(height: 16),
                               
-                              // Minimalist Status Dots
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  _StatusDot(
-                                    label: 'Online',
-                                    color: const Color(0xFF10B981),
-                                    isSelected: profile?.presenceMode == 'online',
-                                    onTap: () => auth.updateStatus('online'),
-                                  ),
-                                  _StatusDot(
-                                    label: 'Away',
-                                    color: const Color(0xFFF59E0B),
-                                    isSelected: profile?.presenceMode == 'away',
-                                    onTap: () => auth.updateStatus('away'),
-                                  ),
-                                  _StatusDot(
-                                    label: 'Busy',
-                                    color: const Color(0xFFEC4899),
-                                    isSelected: profile?.presenceMode == 'busy',
-                                    onTap: () => auth.updateStatus('busy'),
-                                  ),
-                                  _StatusDot(
-                                    label: 'Invisible',
-                                    color: const Color(0xFF64748B),
-                                    isSelected: profile?.presenceMode == 'invisible',
-                                    onTap: () => auth.updateStatus('invisible'),
-                                  ),
-                                ],
+                              PresenceDock(
+                                status: profile?.presenceMode ?? 'online',
+                                busy: auth.updatingPresence,
+                                onSelected: (mode) => _updateStatus(context, auth, mode),
                               ),
                               
-                              const SizedBox(height: 24),
+                              const SizedBox(height: 4),
                               // We removed the old button here as it's now a Floating Node
                             ],
                           ),
@@ -241,21 +217,6 @@ class ProfileScreen extends StatelessWidget {
                     ),
                   ),
                 ),
-
-            // ── Account Section ───────────────────────────────────────
-            _AuroraSectionLabel(label: l10n.account),
-            _AuroraMenuCard(
-              icon: Icons.verified_user_rounded,
-              title: l10n.securityPrivacy,
-              iconColor: const Color(0xFF10B981),
-              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SecurityPrivacyScreen())),
-            ),
-            _AuroraMenuCard(
-              icon: Icons.qr_code_rounded,
-              title: l10n.qrCode,
-              iconColor: const Color(0xFF7C6FF7),
-              onTap: () => _showQRCode(context),
-            ),
 
             // ── Preferences Section ───────────────────────────────────
             _AuroraSectionLabel(label: l10n.preferences),
@@ -284,6 +245,21 @@ class ProfileScreen extends StatelessWidget {
               onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const LanguageRegionScreen())),
             ),
 
+            // ── Account Section ───────────────────────────────────────
+            _AuroraSectionLabel(label: l10n.account),
+            _AuroraMenuCard(
+              icon: Icons.verified_user_rounded,
+              title: l10n.securityPrivacy,
+              iconColor: const Color(0xFF10B981),
+              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SecurityPrivacyScreen())),
+            ),
+            _AuroraMenuCard(
+              icon: Icons.qr_code_rounded,
+              title: l10n.qrCode,
+              iconColor: const Color(0xFF7C6FF7),
+              onTap: () => _showQRCode(context),
+            ),
+
             // ── Support Section ───────────────────────────────────────
             _AuroraSectionLabel(label: l10n.support),
             _AuroraMenuCard(
@@ -309,6 +285,17 @@ class ProfileScreen extends StatelessWidget {
   ],
 ),
     );
+  }
+
+  Future<void> _updateStatus(BuildContext context, AuthService auth, String mode) async {
+    try {
+      await auth.updateStatus(mode);
+    } catch (_) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Status could not be saved. Check your connection and try again.'),
+      ));
+    }
   }
 
   void _showComingSoon(BuildContext context, String feature) {
@@ -578,14 +565,14 @@ class ProfileScreen extends StatelessWidget {
   }
 
   Color _getStatusColor(String status) {
-    switch (status) {
-      case 'Online':
+    switch (status.trim().toLowerCase()) {
+      case 'online':
         return const Color(0xFF10B981);
-      case 'Away':
+      case 'away':
         return const Color(0xFFF59E0B);
-      case 'Busy':
+      case 'busy':
         return const Color(0xFFEC4899);
-      case 'Invisible':
+      case 'invisible':
         return const Color(0xFF64748B);
       default:
         return const Color(0xFF10B981);
@@ -701,161 +688,6 @@ class ProfileScreen extends StatelessWidget {
 
 // ── Aurora Support Widgets ─────────────────────────────────────────────────
 
-class _ProfileAvatarWithOrbit extends StatefulWidget {
-  final String? photoUrl;
-  final String displayName;
-  final String status;
-
-  const _ProfileAvatarWithOrbit({
-    required this.photoUrl,
-    required this.displayName,
-    required this.status,
-  });
-
-  @override
-  State<_ProfileAvatarWithOrbit> createState() => _ProfileAvatarWithOrbitState();
-}
-
-class _ProfileAvatarWithOrbitState extends State<_ProfileAvatarWithOrbit> with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(vsync: this, duration: const Duration(seconds: 10))..repeat();
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final orbitColor = _getStatusColor(widget.status);
-    
-    return Stack(
-      alignment: Alignment.center,
-      children: [
-        // ── Glowing Orbit ───────────────────────────────────────────
-        AnimatedBuilder(
-          animation: _controller,
-          builder: (context, child) {
-            return Transform.rotate(
-              angle: _controller.value * 2 * math.pi,
-              child: CustomPaint(
-                size: const Size(105, 105),
-                painter: _OrbitCometPainter(color: orbitColor),
-              ),
-            );
-          },
-        ),
-        
-        // ── Avatar with Outer Glow ──────────────────────────────────
-        Container(
-          width: 80,
-          height: 80,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: theme.brightness == Brightness.dark ? const Color(0xFF1A1D2E) : Colors.white,
-            boxShadow: [
-              BoxShadow(
-                color: orbitColor.withValues(alpha: 0.3),
-                blurRadius: 15,
-                spreadRadius: 2,
-              ),
-            ],
-            image: widget.photoUrl != null && widget.photoUrl!.isNotEmpty
-                ? DecorationImage(
-                    image: MemoryImage(base64Decode(widget.photoUrl!)),
-                    fit: BoxFit.cover,
-                  )
-                : null,
-          ),
-          child: widget.photoUrl == null || widget.photoUrl!.isEmpty
-              ? Center(
-                  child: Text(
-                    widget.displayName.isNotEmpty ? widget.displayName.substring(0, 1).toUpperCase() : '?',
-                    style: TextStyle(
-                      fontFamily: 'Outfit',
-                      fontSize: 32,
-                      fontWeight: FontWeight.w900,
-                      color: theme.colorScheme.primary,
-                    ),
-                  ),
-                )
-              : null,
-        ),
-      ],
-    );
-  }
-
-  Color _getStatusColor(String status) {
-    switch (status) {
-      case 'Online':
-        return const Color(0xFF10B981);
-      case 'Away':
-        return const Color(0xFFF59E0B);
-      case 'Busy':
-        return const Color(0xFFEC4899);
-      case 'Invisible':
-        return const Color(0xFF64748B);
-      default:
-        return const Color(0xFF10B981);
-    }
-  }
-}
-
-// ── Custom Painter for the Comet Orbit ───────────────────────────────────────
-class _OrbitCometPainter extends CustomPainter {
-  final Color color;
-  _OrbitCometPainter({required this.color});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final rect = Offset.zero & size;
-    final center = Offset(size.width / 2, size.height / 2);
-    final radius = size.width / 2;
-
-    // 1. Draw the base faint orbit line
-    final orbitPaint = Paint()
-      ..color = color.withValues(alpha: 0.1)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.5;
-    canvas.drawCircle(center, radius, orbitPaint);
-
-    // 2. Draw the Comet Trail (a fading arc)
-    final trailPaint = Paint()
-      ..shader = SweepGradient(
-        colors: [Colors.transparent, color],
-        stops: const [0.8, 1.0],
-      ).createShader(rect)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.5
-      ..strokeCap = StrokeCap.round;
-
-    canvas.drawArc(Rect.fromCircle(center: center, radius: radius), 0, math.pi * 0.4, false, trailPaint);
-
-    // 3. Draw the Satellite Head (Glowing Dot)
-    final headPaint = Paint()
-      ..color = color
-      ..style = PaintingStyle.fill
-      ..maskFilter = const MaskFilter.blur(BlurStyle.solid, 4);
-    
-    // Position at the end of the arc
-    final headOffset = Offset(
-      center.dx + radius * math.cos(math.pi * 0.4),
-      center.dy + radius * math.sin(math.pi * 0.4),
-    );
-    canvas.drawCircle(headOffset, 4.5, headPaint);
-    canvas.drawCircle(headOffset, 2.5, Paint()..color = Colors.white);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
-}
 
 class _StatusDot extends StatelessWidget {
   final String label;
@@ -1130,7 +962,7 @@ class _AuroraMenuCard extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: const EdgeInsets.only(bottom: 10),
       child: InkWell(
         onTap: () {
           HapticFeedback.lightImpact();
@@ -1139,7 +971,7 @@ class _AuroraMenuCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(24),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
             color: isDark
                 ? const Color(0xFF1A1D2B).withValues(alpha: 0.6)
@@ -1162,8 +994,8 @@ class _AuroraMenuCard extends StatelessWidget {
           child: Row(
             children: [
               Container(
-                width: 48,
-                height: 48,
+                width: 40,
+                height: 40,
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     colors: [
@@ -1173,12 +1005,12 @@ class _AuroraMenuCard extends StatelessWidget {
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(14),
                   border: Border.all(color: iconColor.withValues(alpha: 0.1)),
                 ),
-                child: Icon(icon, color: iconColor, size: 22),
+                child: Icon(icon, color: iconColor, size: 20),
               ),
-              const SizedBox(width: 16),
+              const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -1187,7 +1019,7 @@ class _AuroraMenuCard extends StatelessWidget {
                       title,
                       style: TextStyle(
                         fontFamily: 'Outfit',
-                        fontSize: 16,
+                        fontSize: 15,
                         fontWeight: FontWeight.w800,
                         color: Theme.of(context).colorScheme.onSurface,
                       ),
@@ -1230,7 +1062,7 @@ class _AuroraSectionLabel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(8, 32, 8, 16),
+      padding: const EdgeInsets.fromLTRB(6, 24, 6, 12),
       child: Row(
         children: [
           Container(

@@ -42,7 +42,7 @@ import {
   Moon,
   Sun,
 } from 'lucide-react';
-import { triggerHaptic } from '../../services/capacitor';
+import { triggerHaptic, isNativeMobile } from '../../services/capacitor';
 import { useDockAlwaysVisible, setDockAlwaysVisible } from '../../services/dockPreferences';
 import { SettingsSubSection } from './SettingsPanel';
 import { getSocket } from '../../services/socket';
@@ -76,8 +76,8 @@ export const SettingsDetailView: React.FC<SettingsDetailViewProps> = ({ activeSu
   const [displayName, setDisplayName] = useState(user?.displayName || user?.username || '');
   const [bio, setBio] = useState(user?.bio || 'Hey there! I am using Novyn Chat.');
   const [avatarId, setAvatarId] = useState(user?.avatarId || '');
-  const [status, setStatus] = useState<'online' | 'away' | 'dnd'>(
-    (user?.presenceMode as any) || 'online'
+  const [status, setStatus] = useState<'online' | 'away' | 'busy' | 'invisible'>(
+    user?.presenceMode === 'dnd' ? 'busy' : user?.presenceMode === 'offline' ? 'invisible' : user?.presenceMode || 'online'
   );
   const [saved, setSaved] = useState(false);
 
@@ -88,6 +88,8 @@ export const SettingsDetailView: React.FC<SettingsDetailViewProps> = ({ activeSu
 
   // Notifications State
   const [soundEnabled, setSoundEnabled] = useState(() => localStorage.getItem('novyn_sound') !== 'false');
+  const [vibrationEnabled, setVibrationEnabled] = useState(() => localStorage.getItem('novyn_vibration') !== 'false');
+  const supportsVibration = isNativeMobile || typeof navigator !== 'undefined' && 'vibrate' in navigator;
   const [previewEnabled, setPreviewEnabled] = useState(() => localStorage.getItem('novyn_preview') !== 'false');
   const [isPlayingRingtone, setIsPlayingRingtone] = useState(false);
   const [isPlayingCallRing, setIsPlayingCallRing] = useState(false);
@@ -167,7 +169,7 @@ export const SettingsDetailView: React.FC<SettingsDetailViewProps> = ({ activeSu
       setDisplayName(user.displayName || user.username || '');
       setBio(user.bio || 'Hey there! I am using Novyn Chat.');
       setAvatarId(user.avatarId || localStorage.getItem(`novyn_avatar_${user.username}`) || '');
-      setStatus((user.presenceMode as any) || 'online');
+      setStatus(user.presenceMode === 'dnd' ? 'busy' : user.presenceMode === 'offline' ? 'invisible' : user.presenceMode || 'online');
     }
   }, [user?.username]);
 
@@ -664,7 +666,8 @@ export const SettingsDetailView: React.FC<SettingsDetailViewProps> = ({ activeSu
               {[
                 { id: 'online', label: 'Active', desc: 'Display green active badge and receive direct calls & notifications', color: '#10b981' },
                 { id: 'away', label: 'Away', desc: 'Shows yellow away indicator when stepped away from screen', color: '#f59e0b' },
-                { id: 'dnd', label: 'Do Not Disturb', desc: 'Shows red DND indicator and silences sound chimes', color: '#ef4444' },
+                { id: 'busy', label: 'Busy', desc: 'Let contacts know you are busy', color: '#ec4899' },
+                { id: 'invisible', label: 'Invisible', desc: 'Appear offline to other contacts', color: '#64748b' },
               ].map((item) => {
                 const isSelected = status === item.id;
 
@@ -1148,6 +1151,17 @@ export const SettingsDetailView: React.FC<SettingsDetailViewProps> = ({ activeSu
         {/* 10. SOUNDS */}
         {activeSubSection === 'notif-sounds' && (
           <div className="notification-section notification-sounds-section">
+            <div className="android-vibration-setting">
+              <span><strong>Vibration & tap feedback</strong><small>{supportsVibration ? 'Haptic feedback on supported devices' : 'Vibration is not supported by this browser'}</small></span>
+              <button type="button" className={`settings-toggle ${vibrationEnabled && supportsVibration ? 'is-on' : 'is-off'}`}
+                role="switch" aria-label="Toggle vibration" aria-checked={vibrationEnabled && supportsVibration}
+                disabled={!supportsVibration} onClick={() => {
+                  const nextValue = !vibrationEnabled;
+                  setVibrationEnabled(nextValue);
+                  localStorage.setItem('novyn_vibration', String(nextValue));
+                  if (nextValue) triggerHaptic('light');
+                }}><span /><span className="settings-toggle-label">{vibrationEnabled && supportsVibration ? 'ON' : 'OFF'}</span></button>
+            </div>
             <div
               className="notification-master-card"
               style={{

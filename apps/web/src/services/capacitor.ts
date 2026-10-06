@@ -7,6 +7,7 @@ import { StatusBar, Style } from '@capacitor/status-bar';
 export const isNativeMobile = Capacitor.isNativePlatform();
 
 export async function triggerHaptic(type: 'light' | 'medium' | 'heavy' | 'success' | 'warning' | 'error' = 'light') {
+  if (typeof localStorage !== 'undefined' && localStorage.getItem('novyn_vibration') === 'false') return;
   if (!isNativeMobile) {
     if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
       if (type === 'light') navigator.vibrate(10);

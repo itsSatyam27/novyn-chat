@@ -112,6 +112,7 @@ class _CallScreenState extends State<CallScreen>
   void _playRingtone() async {
     // Set MODE_IN_COMMUNICATION once — earpiece by default, no pause on later toggles
     await AudioManagerService.startCallMode();
+    if (!mounted || (widget.isIncoming && context.read<AuthService>().user?.presenceMode == 'busy')) return;
     await _audioPlayer.setReleaseMode(ReleaseMode.loop);
     final sound = widget.isIncoming ? 'audio/ringtone.mp3' : 'audio/call_ring.mp3';
     await _audioPlayer.play(AssetSource(sound));

@@ -270,7 +270,7 @@ class SocketService extends ChangeNotifier {
             _messages = [..._messages, msg];
           }
         }
-      } else if (!isOwn) {
+      } else if (!isOwn && !(notificationsMuted?.call() ?? false)) {
         // Message for a different chat — play notification sound
         _audioPlayer.play(AssetSource('audio/notification.mp3'));
       }
@@ -384,7 +384,8 @@ class SocketService extends ChangeNotifier {
     });
 
     // ── Profile update ────────────────────────────────────────────────────
-    _socket!.on('profile_updated', (_) {
+    _socket!.on('profile_updated', (data) {
+      if (data is Map) onProfileData?.call(Map<String, dynamic>.from(data));
       // Notify AuthService to refresh — wired via callback below
       onProfileUpdated?.call();
     });
@@ -686,6 +687,27 @@ class SocketService extends ChangeNotifier {
 
   // ── Callback registrations ────────────────────────────────────────────────
   VoidCallback? onProfileUpdated;
+  bool Function()? notificationsMuted;
+  void Function(Map<String, dynamic>)? onProfileData;
+
+  Future<void> updatePresence(String mode) async {
+    _requireConnection();
+    final connection = _socket!;
+    final confirmed = Completer<void>();
+    void received(dynamic data) {
+      if (data is Map && data['presenceMode'] == mode &&
+          data['username'] == _myUsername && !confirmed.isCompleted) {
+        confirmed.complete();
+      }
+    }
+    connection.on('profile_updated', received);
+    try {
+      connection.emit('update_profile', {'presenceMode': mode});
+      await confirmed.future.timeout(const Duration(seconds: 10));
+    } finally {
+      connection.off('profile_updated', received);
+    }
+  }
 
   // messagesReadByPeer — used by chat_detail_screen for read tick color
   bool get messagesReadByPeer => false; // novyn-chat tracks this via message_status events

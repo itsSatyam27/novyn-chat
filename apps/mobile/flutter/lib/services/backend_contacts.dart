@@ -38,8 +38,8 @@ class BackendContacts extends ChangeNotifier {
       case 'friend_list_updated':
         friends = _users(payload is List ? payload : data['friends'],
             excludeGroups: true);
-        sentRequests.removeWhere((name) => friends.any(
-            (user) => user.username.toLowerCase() == name.toLowerCase()));
+        sentRequests.removeWhere((name) => friends
+            .any((user) => user.username.toLowerCase() == name.toLowerCase()));
         break;
       case 'requests_updated':
         requests = _names(data['requests']);
@@ -56,7 +56,8 @@ class BackendContacts extends ChangeNotifier {
         sentRequests.removeWhere((user) => user.toLowerCase() == name);
         break;
       case 'user_status':
-        updateStatus(data['username']?.toString() ?? '', data['online'] == true);
+        updateStatus(data['username']?.toString() ?? '', data['online'] == true,
+            presence: data['presence']?.toString());
         return;
       default:
         return;
@@ -64,11 +65,17 @@ class BackendContacts extends ChangeNotifier {
     notifyListeners();
   }
 
-  void updateStatus(String username, bool online) {
-    friends = friends.map((user) =>
-        user.username.toLowerCase() == username.toLowerCase()
-            ? user.copyWith(isOnline: online)
-            : user).toList();
+  void updateStatus(String username, bool online, {String? presence}) {
+    friends = friends
+        .map((user) => user.username.toLowerCase() == username.toLowerCase()
+            ? user.copyWith(
+                isOnline: online,
+                status: presence ??
+                    (online
+                        ? (user.status == 'offline' ? 'online' : user.status)
+                        : 'offline'))
+            : user)
+        .toList();
     notifyListeners();
   }
 
@@ -87,14 +94,15 @@ class BackendContacts extends ChangeNotifier {
     notifyListeners();
   }
 
-  static List<String> _names(dynamic values) => values is List
-      ? values.map((value) => value.toString()).toList()
-      : [];
+  static List<String> _names(dynamic values) =>
+      values is List ? values.map((value) => value.toString()).toList() : [];
 
   static List<UserModel> _users(dynamic values, {bool excludeGroups = false}) {
     if (values is! List) return [];
-    return values.whereType<Map>()
-        .where((data) => !excludeGroups ||
+    return values
+        .whereType<Map>()
+        .where((data) =>
+            !excludeGroups ||
             (data['kind'] != 'group' && data['groupId'] == null))
         .map(userFromMap)
         .where((user) => user.username.isNotEmpty)

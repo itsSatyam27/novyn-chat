@@ -27,6 +27,12 @@ registered for the platform being built. Optional values are `FIREBASE_AUTH_DOMA
 explicit values. Do not reuse the web Firebase app ID for Android or iOS, and
 never embed server private keys or service-account credentials in the app.
 
+Flutter uses Firebase for Google identity, but chat, friend, and account data
+come from the Novyn API and Socket.IO backend, shared with the web app. Make
+sure `NOVYN_API_URL` points to the same backend used by web; Flutter defaults to
+`https://novyn-live.onrender.com` and can be overridden with
+`--dart-define=NOVYN_API_URL=https://your-backend-host`.
+
 Google Sign-In troubleshooting: if the app fails with `sign_in_failed` /
 `ApiException: 10`, the Firebase Android app configuration is mismatched. Ensure the
 Android package name matches the one in `google-services.json`, add the SHA-1 for

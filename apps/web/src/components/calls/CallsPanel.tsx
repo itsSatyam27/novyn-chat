@@ -1,3 +1,4 @@
+import { getPreferredLocale } from '../../services/regionalPreferences';
 import React from 'react';
 import { useChat } from '../../context/ChatContext';
 import { Avatar } from '../ui/Avatar';
@@ -24,8 +25,8 @@ export const CallsPanel: React.FC<CallsPanelProps> = ({ isCompact = false, onOpe
       const d = new Date(ts);
       const now = new Date();
       const isToday = d.toDateString() === now.toDateString();
-      const time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      return isToday ? time : `${d.toLocaleDateString([], { month: 'short', day: 'numeric' })}, ${time}`;
+      const time = d.toLocaleTimeString(getPreferredLocale(), { hour: '2-digit', minute: '2-digit' });
+      return isToday ? time : `${d.toLocaleDateString(getPreferredLocale(), { month: 'short', day: 'numeric' })}, ${time}`;
     } catch {
       return '';
     }

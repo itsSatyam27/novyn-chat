@@ -1,5 +1,8 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import '../models/user_model.dart';
+import 'api_service.dart';
+import 'backend_contacts.dart';
+import 'socket_service.dart';
 
 enum FriendRequestStatus { pending, accepted, declined }
 
@@ -9,7 +12,7 @@ class FriendRequest {
   final String toUid;
   final FriendRequestStatus status;
   final DateTime createdAt;
-  UserModel? fromUser; // populated after fetch
+  final UserModel? fromUser;
 
   FriendRequest({
     required this.id,
@@ -19,197 +22,119 @@ class FriendRequest {
     required this.createdAt,
     this.fromUser,
   });
-
-  factory FriendRequest.fromDoc(DocumentSnapshot doc) {
-    final d = doc.data() as Map<String, dynamic>;
-    return FriendRequest(
-      id: doc.id,
-      fromUid: d['fromUid'] ?? '',
-      toUid: d['toUid'] ?? '',
-      status: FriendRequestStatus.values.firstWhere(
-        (e) => e.name == (d['status'] ?? 'pending'),
-        orElse: () => FriendRequestStatus.pending,
-      ),
-      createdAt: (d['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-    );
-  }
 }
 
+/// Contact operations backed by the same authenticated Novyn account as web.
 class FriendService {
-  final FirebaseFirestore _db = FirebaseFirestore.instance;
-
-  // In-memory cache so the UI never shows a loading flash on revisit
+  final SocketService _socket;
   List<UserModel>? _cachedFriends;
+
+  FriendService(this._socket);
+
   List<UserModel>? get cachedFriends => _cachedFriends;
 
-  // ── Send a friend request ─────────────────────────────────────────────────
-  Future<void> sendRequest(String fromUid, String toUid) async {
-    // Prevent duplicates
-    final existing = await _db
-        .collection('friendRequests')
-        .where('fromUid', isEqualTo: fromUid)
-        .where('toUid', isEqualTo: toUid)
-        .where('status', isEqualTo: 'pending')
-        .limit(1)
-        .get();
-    if (existing.docs.isNotEmpty) return;
-
-    await _db.collection('friendRequests').add({
-      'fromUid': fromUid,
-      'toUid': toUid,
-      'status': 'pending',
-      'createdAt': FieldValue.serverTimestamp(),
+  Stream<T> _watch<T>(T Function() read, {VoidCallback? onListen}) {
+    return Stream<T>.multi((controller) {
+      void emit() => controller.add(read());
+      _socket.contacts.addListener(emit);
+      controller.onCancel = () => _socket.contacts.removeListener(emit);
+      emit();
+      onListen?.call();
     });
   }
 
-  // ── Accept a request ──────────────────────────────────────────────────────
-  Future<void> acceptRequest(String requestId, String myUid, String otherUid) async {
-    final batch = _db.batch();
-
-    // Update request status
-    batch.update(_db.collection('friendRequests').doc(requestId), {
-      'status': 'accepted',
+  Stream<List<UserModel>> friendsStream(String myUid) {
+    return _watch(() {
+      _cachedFriends = List<UserModel>.from(_socket.contacts.friends);
+      return List<UserModel>.from(_cachedFriends!);
     });
-
-    // Add to both users' friend lists
-    batch.set(
-      _db.collection('friends').doc(myUid).collection('friendList').doc(otherUid),
-      {'uid': otherUid, 'since': FieldValue.serverTimestamp()},
-    );
-    batch.set(
-      _db.collection('friends').doc(otherUid).collection('friendList').doc(myUid),
-      {'uid': myUid, 'since': FieldValue.serverTimestamp()},
-    );
-
-    await batch.commit();
   }
 
-  // ── Decline a request ─────────────────────────────────────────────────────
+  Stream<List<String>> friendUidsStream(String myUid) {
+    return _watch(
+        () => _socket.contacts.friends.map((user) => user.username).toList());
+  }
+
+  Stream<int> pendingRequestsCountStream(String myUid) {
+    return _watch(() => _socket.contacts.requests.length);
+  }
+
+  Stream<List<FriendRequest>> pendingRequestsStream(String myUid) {
+    return _watch(() => _socket.contacts.requests.map((username) {
+          final user = _socket.contacts.findUser(username) ??
+              BackendContacts.userFromMap({'username': username});
+          return FriendRequest(
+            id: username,
+            fromUid: username,
+            toUid: myUid,
+            status: FriendRequestStatus.pending,
+            createdAt: DateTime.now(),
+            fromUser: user,
+          );
+        }).toList());
+  }
+
+  Stream<List<UserModel>> discoverUsersStream(
+    String myUid,
+    List<String> friendUids,
+  ) {
+    return _watch(
+      () => _socket.contacts.discovered
+          .where((user) =>
+              user.username.toLowerCase() != myUid.toLowerCase() &&
+              !friendUids.any(
+                (uid) => uid.toLowerCase() == user.username.toLowerCase(),
+              ))
+          .toList(),
+      onListen: _socket.requestDiscover,
+    );
+  }
+
+  Stream<Set<String>> sentPendingUidsStream(String myUid) {
+    return _watch(() => Set<String>.from(_socket.contacts.sentRequests));
+  }
+
+  Future<void> sendRequest(String fromUid, String toUid) {
+    return _socket.sendFriendRequest(toUid);
+  }
+
+  Future<void> acceptRequest(
+      String requestId, String myUid, String otherUid) async {
+    _socket.acceptFriendRequest(otherUid);
+  }
+
   Future<void> declineRequest(String requestId) async {
-    await _db.collection('friendRequests').doc(requestId).update({
-      'status': 'declined',
-    });
+    _socket.rejectFriendRequest(requestId);
   }
 
-  // ── Remove a friend ───────────────────────────────────────────────────────
   Future<void> removeFriend(String myUid, String otherUid) async {
-    final batch = _db.batch();
-    batch.delete(
-      _db.collection('friends').doc(myUid).collection('friendList').doc(otherUid),
-    );
-    batch.delete(
-      _db.collection('friends').doc(otherUid).collection('friendList').doc(myUid),
-    );
-    await batch.commit();
+    _socket.removeFriend(otherUid);
+    _cachedFriends?.removeWhere((user) => user.username == otherUid);
   }
 
-  // ── Update cached friend status (from socket presence events) ───────────
-  void updateCachedStatus(String uid, bool isOnline) {
-    if (_cachedFriends == null) return;
-    final idx = _cachedFriends!.indexWhere((u) => u.uid == uid);
-    if (idx != -1) {
-      _cachedFriends![idx] = _cachedFriends![idx].copyWith(isOnline: isOnline);
+  void updateCachedStatus(String username, bool isOnline) {
+    _socket.contacts.updateStatus(username, isOnline);
+    final friends = _cachedFriends;
+    if (friends == null) return;
+    final index = friends.indexWhere(
+      (user) => user.username.toLowerCase() == username.toLowerCase(),
+    );
+    if (index != -1) {
+      friends[index] = friends[index].copyWith(isOnline: isOnline);
     }
   }
 
-  // ── Stream friend UIDs ────────────────────────────────────────────────────
-  Stream<List<String>> friendUidsStream(String myUid) {
-    return _db
-        .collection('friends')
-        .doc(myUid)
-        .collection('friendList')
-        .snapshots()
-        .map((s) => s.docs.map((d) => d.id).toList());
-  }
+  Future<UserModel?> getUser(String username) async {
+    final cached = _socket.contacts.findUser(username);
+    if (cached != null) return cached;
 
-  // ── Stream friends as UserModels ──────────────────────────────────────────
-  Stream<List<UserModel>> friendsStream(String myUid) {
-    return friendUidsStream(myUid).asyncMap((uids) async {
-      if (uids.isEmpty) {
-        _cachedFriends = [];
-        return <UserModel>[];
+    final matches = await ApiService.searchUsers(username);
+    for (final result in matches) {
+      if (result['username']?.toString().toLowerCase() ==
+          username.toLowerCase()) {
+        return BackendContacts.userFromMap(result);
       }
-      final futures = uids.map((uid) => _db.collection('users').doc(uid).get());
-      final docs = await Future.wait(futures);
-      final result = docs
-          .where((d) => d.exists)
-          .map((d) => UserModel.fromDoc(d))
-          .toList();
-      _cachedFriends = result;
-      return result;
-    });
-  }
-
-  // ── Stream incoming pending requests count ────────────────────────────────
-  Stream<int> pendingRequestsCountStream(String myUid) {
-    return _db
-        .collection('friendRequests')
-        .where('toUid', isEqualTo: myUid)
-        .where('status', isEqualTo: 'pending')
-        .snapshots()
-        .map((s) => s.docs.length);
-  }
-
-  // ── Stream incoming pending requests (with sender info) ───────────────────
-  Stream<List<FriendRequest>> pendingRequestsStream(String myUid) {
-    return _db
-        .collection('friendRequests')
-        .where('toUid', isEqualTo: myUid)
-        .where('status', isEqualTo: 'pending')
-        .snapshots()
-        .asyncMap((snapshot) async {
-      final requests = snapshot.docs
-          .map((d) => FriendRequest.fromDoc(d))
-          .toList();
-
-      // Fetch sender profiles
-      for (final req in requests) {
-        final doc = await _db.collection('users').doc(req.fromUid).get();
-        if (doc.exists) req.fromUser = UserModel.fromDoc(doc);
-      }
-      return requests;
-    });
-  }
-
-  // ── Stream all users except me + my friends (for Discover) ───────────────
-  Stream<List<UserModel>> discoverUsersStream(
-      String myUid, List<String> friendUids) {
-    return _db
-        .collection('users')
-        .orderBy('createdAt', descending: true)
-        .snapshots()
-        .map((s) => s.docs
-            .map((d) => UserModel.fromDoc(d))
-            .where((u) => u.uid != myUid && !friendUids.contains(u.uid))
-            .toList());
-  }
-
-  // ── Check if a pending request already exists (sent by me) ───────────────
-  Future<bool> hasPendingRequest(String fromUid, String toUid) async {
-    final q = await _db
-        .collection('friendRequests')
-        .where('fromUid', isEqualTo: fromUid)
-        .where('toUid', isEqualTo: toUid)
-        .where('status', isEqualTo: 'pending')
-        .limit(1)
-        .get();
-    return q.docs.isNotEmpty;
-  }
-
-  // ── Stream sent pending request UIDs (so Discover can show "Pending") ─────
-  Stream<Set<String>> sentPendingUidsStream(String myUid) {
-    return _db
-        .collection('friendRequests')
-        .where('fromUid', isEqualTo: myUid)
-        .where('status', isEqualTo: 'pending')
-        .snapshots()
-        .map((s) => s.docs.map((d) => d['toUid'] as String).toSet());
-  }
-
-  // ── Fetch a single user by UID (for QR scanning) ──────────────────────────
-  Future<UserModel?> getUser(String uid) async {
-    final doc = await _db.collection('users').doc(uid).get();
-    if (doc.exists) return UserModel.fromDoc(doc);
+    }
     return null;
   }
 }

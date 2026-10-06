@@ -11,6 +11,7 @@ class UserAvatar extends StatefulWidget {
   final Color? fallbackColor;
   final bool showOnlineIndicator;
   final bool isOnline;
+  final String? presence;
   final double borderWidth;
   final Color? borderColor;
 
@@ -22,6 +23,7 @@ class UserAvatar extends StatefulWidget {
     this.fallbackColor,
     this.showOnlineIndicator = false,
     this.isOnline = false,
+    this.presence,
     this.borderWidth = 0,
     this.borderColor,
   });
@@ -167,22 +169,28 @@ class _UserAvatarState extends State<UserAvatar> {
     return Stack(
       children: [
         avatar,
-        if (widget.isOnline)
-          Positioned(
-            right: 0,
-            bottom: 0,
-            child: Container(
-              width: widget.radius * 0.45,
-              height: widget.radius * 0.45,
-              decoration: BoxDecoration(
-                color: const Color(0xFF22C55E),
-                shape: BoxShape.circle,
-                border: Border.all(color: Colors.white, width: 2),
-              ),
+        Positioned(
+          right: 0,
+          bottom: 0,
+          child: Container(
+            key: const ValueKey('avatar-presence'),
+            width: widget.radius * 0.45,
+            height: widget.radius * 0.45,
+            decoration: BoxDecoration(
+              color: !widget.isOnline
+                  ? const Color(0xFF64748B)
+                  : switch (widget.presence?.trim().toLowerCase()) {
+                      'away' => const Color(0xFFF59E0B),
+                      'busy' || 'dnd' => const Color(0xFFEC4899),
+                      'invisible' || 'offline' => const Color(0xFF64748B),
+                      _ => const Color(0xFF10B981),
+                    },
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white, width: 2),
             ),
           ),
+        ),
       ],
     );
   }
 }
-

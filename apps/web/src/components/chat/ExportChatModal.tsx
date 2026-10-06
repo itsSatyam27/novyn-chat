@@ -1,3 +1,4 @@
+import { getPreferredLocale } from '../../services/regionalPreferences';
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Message } from '../../types';
@@ -44,13 +45,13 @@ export const ExportChatModal: React.FC<ExportChatModalProps> = ({
       const lines = [
         `==================================================`,
         `  NOVYN CHAT TRANSCRIPT: ${contactName.toUpperCase()}`,
-        `  Exported on: ${new Date().toLocaleString()}`,
+        `  Exported on: ${new Date().toLocaleString(getPreferredLocale())}`,
         `  Total Messages: ${messages.length}`,
         `==================================================\n`,
       ];
 
       messages.forEach((m) => {
-        const timeStr = new Date(m.timestamp).toLocaleString();
+        const timeStr = new Date(m.timestamp).toLocaleString(getPreferredLocale());
         const sender = m.sender;
         let body = m.text || '';
         if (m.isVoice) body = `[Voice Message] (${m.voiceDuration || 0}s)`;

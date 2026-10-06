@@ -58,7 +58,7 @@ class _ChatsScreenState extends State<ChatsScreen> {
     // Refresh when socket reconnects or notifies (new group created, etc)
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final socket = context.read<SocketService>();
-      
+
       // Initial load
       _loadChats(silent: true);
 
@@ -73,14 +73,22 @@ class _ChatsScreenState extends State<ChatsScreen> {
 
   void _handleSocketUpdate() {
     if (!mounted) return;
-    
-    // If the cache was updated by socket service, sync our local state
-    if (ChatsScreen.cachedChats != null) {
-      setState(() {
-        _chats = List.from(ChatsScreen.cachedChats!);
-        _applyFilters(); // Re-apply search/filters
-      });
-    }
+
+    final previews =
+        List<ChatPreview>.from(context.read<SocketService>().conversations);
+    previews.sort((a, b) {
+      if (a.isPinned != b.isPinned) return a.isPinned ? -1 : 1;
+      return b.lastTime.compareTo(a.lastTime);
+    });
+    ChatsScreen.cachedChats = previews;
+    ChatsScreen.totalUnread =
+        previews.fold(0, (total, chat) => total + chat.unreadCount);
+
+    setState(() {
+      _chats = previews;
+      _loading = false;
+    });
+    _applyFilters();
   }
 
   Future<void> _loadChats({bool silent = false}) async {
@@ -153,8 +161,7 @@ class _ChatsScreenState extends State<ChatsScreen> {
       });
 
       ChatsScreen.cachedChats = previews;
-      ChatsScreen.totalUnread =
-          previews.fold(0, (s, c) => s + c.unreadCount);
+      ChatsScreen.totalUnread = previews.fold(0, (s, c) => s + c.unreadCount);
 
       if (!mounted) return;
       final settings = context.read<SettingsService>();
@@ -184,8 +191,8 @@ class _ChatsScreenState extends State<ChatsScreen> {
       context,
       PageRouteBuilder(
         transitionDuration: const Duration(milliseconds: 300),
-        pageBuilder: (context, animation, secondaryAnimation) => 
-          ChatDetailScreen(peer: chat.peer),
+        pageBuilder: (context, animation, secondaryAnimation) =>
+            ChatDetailScreen(peer: chat.peer),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           return FadeTransition(opacity: animation, child: child);
         },
@@ -227,11 +234,12 @@ class _ChatsScreenState extends State<ChatsScreen> {
         }
 
         // 3. Unread check
-        if (_activeFilter == ChatFilter.unread && c.unreadCount == 0) return false;
+        if (_activeFilter == ChatFilter.unread && c.unreadCount == 0)
+          return false;
 
         // 4. Group check
         if (_activeFilter == ChatFilter.groups && !c.isGroup) return false;
-        
+
         // 5. Hide groups in "All" if user wants (optional, but usually "All" shows everything)
         // If we are in "All", maybe we don't filter groups.
 
@@ -239,7 +247,7 @@ class _ChatsScreenState extends State<ChatsScreen> {
         if (_search.isNotEmpty) {
           final q = _search.toLowerCase();
           return c.peer.name.toLowerCase().contains(q) ||
-                 c.peer.username.toLowerCase().contains(q);
+              c.peer.username.toLowerCase().contains(q);
         }
 
         return true;
@@ -271,7 +279,7 @@ class _ChatsScreenState extends State<ChatsScreen> {
           children: [
             // Connection status banner
             const ConnectionBanner(),
-            
+
             // ── Header ──────────────────────────────────────────────
             Padding(
               padding: const EdgeInsets.fromLTRB(24, 20, 16, 14),
@@ -293,43 +301,46 @@ class _ChatsScreenState extends State<ChatsScreen> {
                       Row(
                         children: [
                           _HeaderAction(
-                            icon: _isSearching ? Icons.close_rounded : Icons.search_rounded, 
-                            onTap: () {
-                              HapticFeedback.mediumImpact();
-                              setState(() {
-                                _isSearching = !_isSearching;
-                                if (!_isSearching) {
-                                  _search = '';
-                                  _applyFilters();
+                              icon: _isSearching
+                                  ? Icons.close_rounded
+                                  : Icons.search_rounded,
+                              onTap: () {
+                                HapticFeedback.mediumImpact();
+                                setState(() {
+                                  _isSearching = !_isSearching;
+                                  if (!_isSearching) {
+                                    _search = '';
+                                    _applyFilters();
+                                  }
+                                });
+                                if (_isSearching) {
+                                  _searchFocusNode.requestFocus();
                                 }
-                              });
-                              if (_isSearching) {
-                                _searchFocusNode.requestFocus();
-                              }
-                            }
-                          ),
+                              }),
                         ],
                       ),
                     ],
                   ),
                   // Search Bar (Conditional)
-                if (_isSearching) ...[
-                  _buildSearch(),
-                  const SizedBox(height: 16),
-                ],
+                  if (_isSearching) ...[
+                    _buildSearch(),
+                    const SizedBox(height: 16),
+                  ],
 
-                // Filters
-                _buildFilters(),
+                  // Filters
+                  _buildFilters(),
                 ],
               ),
             ),
-            
+
             // Offline indicator
             const OfflineIndicator(),
-            
+
             Expanded(
               child: _loading
-                  ? Center(child: CircularProgressIndicator(color: Theme.of(context).colorScheme.primary))
+                  ? Center(
+                      child: CircularProgressIndicator(
+                          color: Theme.of(context).colorScheme.primary))
                   : RefreshIndicator(
                       color: Theme.of(context).colorScheme.primary,
                       onRefresh: _loadChats,
@@ -351,11 +362,14 @@ class _ChatsScreenState extends State<ChatsScreen> {
                             SliverList(
                               delegate: SliverChildBuilderDelegate(
                                 (context, i) {
-                                  final pinnedChats = activeChats.where((c) => c.isPinned).toList();
+                                  final pinnedChats = activeChats
+                                      .where((c) => c.isPinned)
+                                      .toList();
                                   if (i >= pinnedChats.length) return null;
                                   return _buildChatCard(pinnedChats[i]);
                                 },
-                                childCount: activeChats.where((c) => c.isPinned).length,
+                                childCount:
+                                    activeChats.where((c) => c.isPinned).length,
                               ),
                             ),
                           ],
@@ -369,16 +383,21 @@ class _ChatsScreenState extends State<ChatsScreen> {
                               : SliverList(
                                   delegate: SliverChildBuilderDelegate(
                                     (context, i) {
-                                      final recentChats = activeChats.where((c) => !c.isPinned).toList();
+                                      final recentChats = activeChats
+                                          .where((c) => !c.isPinned)
+                                          .toList();
                                       if (i >= recentChats.length) return null;
                                       return _buildChatCard(recentChats[i]);
                                     },
-                                    childCount: activeChats.where((c) => !c.isPinned).length,
+                                    childCount: activeChats
+                                        .where((c) => !c.isPinned)
+                                        .length,
                                   ),
                                 ),
-                          
+
                           // Bottom padding
-                          const SliverToBoxAdapter(child: SizedBox(height: 100)),
+                          const SliverToBoxAdapter(
+                              child: SizedBox(height: 100)),
                         ],
                       ),
                     ),
@@ -427,28 +446,28 @@ class _ChatsScreenState extends State<ChatsScreen> {
 
     return Expanded(
       child: GestureDetector(
-         onTap: () => _setFilter(filter),
-         child: NeoContainer(
-           borderRadius: 14,
-           distance: isActive ? 2 : 4,
-           blur: isActive ? 4 : 8,
-           isSunken: isActive,
-           color: pageBg,
-           child: Center(
-             child: Text(
-               label,
-               style: TextStyle(
-                 fontFamily: 'Outfit',
-                 fontSize: 12,
-                 fontWeight: isActive ? FontWeight.bold : FontWeight.w500,
-                 color: isActive 
-                     ? theme.colorScheme.primary 
-                     : theme.colorScheme.onSurface.withOpacity(0.5),
-               ),
-             ),
-           ),
-         ),
-       ),
+        onTap: () => _setFilter(filter),
+        child: NeoContainer(
+          borderRadius: 14,
+          distance: isActive ? 2 : 4,
+          blur: isActive ? 4 : 8,
+          isSunken: isActive,
+          color: pageBg,
+          child: Center(
+            child: Text(
+              label,
+              style: TextStyle(
+                fontFamily: 'Outfit',
+                fontSize: 12,
+                fontWeight: isActive ? FontWeight.bold : FontWeight.w500,
+                color: isActive
+                    ? theme.colorScheme.primary
+                    : theme.colorScheme.onSurface.withOpacity(0.5),
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 
@@ -475,28 +494,32 @@ class _ChatsScreenState extends State<ChatsScreen> {
             widget.onNavigateToPeople?.call();
           }),
           const SizedBox(width: 12),
-          ...storyPeers.map((chat) => Padding(
-            padding: const EdgeInsets.only(right: 12),
-            child: _StoryCard(
-              name: chat.peer.name.split(' ').first, 
-              color: chat.peer.avatarColor, 
-              initials: chat.peer.initials,
-              ringColors: chat.unreadCount > 0 ? [const Color(0xFF00C97A), const Color(0xFF7B6EF6)] : null,
-              onTap: () => _openChat(chat),
-            ),
-          )).toList(),
+          ...storyPeers
+              .map((chat) => Padding(
+                    padding: const EdgeInsets.only(right: 12),
+                    child: _StoryCard(
+                      name: chat.peer.name.split(' ').first,
+                      color: chat.peer.avatarColor,
+                      initials: chat.peer.initials,
+                      ringColors: chat.unreadCount > 0
+                          ? [const Color(0xFF00C97A), const Color(0xFF7B6EF6)]
+                          : null,
+                      onTap: () => _openChat(chat),
+                    ),
+                  ))
+              .toList(),
           if (storyPeers.length < 3) ...[
             _StoryCard(
-              name: 'Ananya', 
-              color: const Color(0xFF7B6EF6), 
+              name: 'Ananya',
+              color: const Color(0xFF7B6EF6),
               initials: 'AN',
               onTap: () => _showSnackBar('Opening story for Ananya...'),
             ),
             const SizedBox(width: 12),
             _StoryCard(
-              name: 'Rohit', 
-              color: const Color(0xFFF97316), 
-              initials: 'RK', 
+              name: 'Rohit',
+              color: const Color(0xFFF97316),
+              initials: 'RK',
               ringColors: const [Color(0xFFF97316), Color(0xFFEC4899)],
               onTap: () => _showSnackBar('Opening story for Rohit...'),
             ),
@@ -512,7 +535,9 @@ class _ChatsScreenState extends State<ChatsScreen> {
       padding: const EdgeInsets.fromLTRB(20, 14, 20, 8),
       child: Row(
         children: [
-          Expanded(child: Container(height: 1, color: onSurface.withValues(alpha: 0.05))),
+          Expanded(
+              child: Container(
+                  height: 1, color: onSurface.withValues(alpha: 0.05))),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 8),
             child: Text(
@@ -526,7 +551,9 @@ class _ChatsScreenState extends State<ChatsScreen> {
               ),
             ),
           ),
-          Expanded(child: Container(height: 1, color: onSurface.withValues(alpha: 0.05))),
+          Expanded(
+              child: Container(
+                  height: 1, color: onSurface.withValues(alpha: 0.05))),
         ],
       ),
     );
@@ -542,9 +569,10 @@ class _ChatsScreenState extends State<ChatsScreen> {
             context,
             PageRouteBuilder(
               transitionDuration: const Duration(milliseconds: 300),
-              pageBuilder: (context, animation, secondaryAnimation) => 
-                ChatDetailScreen(peer: preview.peer),
-              transitionsBuilder: (context, animation, secondaryAnimation, child) {
+              pageBuilder: (context, animation, secondaryAnimation) =>
+                  ChatDetailScreen(peer: preview.peer),
+              transitionsBuilder:
+                  (context, animation, secondaryAnimation, child) {
                 return FadeTransition(opacity: animation, child: child);
               },
             ),
@@ -563,13 +591,13 @@ class _ChatsScreenState extends State<ChatsScreen> {
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
         itemCount: _filtered.length,
         // Performance: Fixed height allows Flutter to skip layout calculations
-        itemExtent: 86, 
+        itemExtent: 86,
         itemBuilder: (context, i) {
           // Pre-load top chats in background (WhatsApp-style optimization)
           if (i == 0) {
             Future.microtask(() => _preloadTopChats());
           }
-          
+
           return RepaintBoundary(
             child: _ChatCard(
               preview: _filtered[i],
@@ -623,7 +651,8 @@ class _ChatsScreenState extends State<ChatsScreen> {
             ),
           ],
         ),
-        child: const Icon(Icons.add_rounded, color: Color(0xFF001F0F), size: 32),
+        child:
+            const Icon(Icons.add_rounded, color: Color(0xFF001F0F), size: 32),
       ),
     );
   }
@@ -659,29 +688,13 @@ class _ChatCard extends StatelessWidget {
           padding: const EdgeInsets.all(16),
           child: Row(
             children: [
-              // Avatar with Online Indicator
-              Stack(
-                children: [
-                  UserAvatar(
-                    name: preview.peer.name,
-                    photoUrl: preview.peer.photoUrl,
-                    radius: 30,
-                  ),
-                  if (preview.peer.isOnline)
-                    Positioned(
-                      right: 2,
-                      bottom: 2,
-                      child: Container(
-                        width: 14,
-                        height: 14,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF00C97A),
-                          shape: BoxShape.circle,
-                          border: Border.all(color: theme.colorScheme.surface, width: 2.5),
-                        ),
-                      ),
-                    ),
-                ],
+              UserAvatar(
+                name: preview.peer.name,
+                photoUrl: preview.peer.photoUrl,
+                radius: 30,
+                showOnlineIndicator: true,
+                isOnline: preview.peer.isOnline,
+                presence: preview.peer.status,
               ),
               const SizedBox(width: 16),
 
@@ -721,12 +734,17 @@ class _ChatCard extends StatelessWidget {
                       children: [
                         Expanded(
                           child: Text(
-                            preview.lastMessage.isEmpty ? 'Start a conversation' : preview.lastMessage,
+                            preview.lastMessage.isEmpty
+                                ? 'Start a conversation'
+                                : preview.lastMessage,
                             style: TextStyle(
                               fontFamily: 'Inter',
                               fontSize: 14,
-                              color: onSurface.withOpacity(hasUnread ? 0.8 : 0.4),
-                              fontWeight: hasUnread ? FontWeight.w600 : FontWeight.normal,
+                              color:
+                                  onSurface.withOpacity(hasUnread ? 0.8 : 0.4),
+                              fontWeight: hasUnread
+                                  ? FontWeight.w600
+                                  : FontWeight.normal,
                             ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -735,7 +753,8 @@ class _ChatCard extends StatelessWidget {
                         if (hasUnread) ...[
                           const SizedBox(width: 8),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 3),
                             decoration: BoxDecoration(
                               color: theme.colorScheme.primary,
                               borderRadius: BorderRadius.circular(10),
@@ -770,7 +789,8 @@ class _HeaderAction extends StatelessWidget {
   final VoidCallback onTap;
   final bool active;
 
-  const _HeaderAction({required this.icon, required this.onTap, this.active = false});
+  const _HeaderAction(
+      {required this.icon, required this.onTap, this.active = false});
 
   @override
   Widget build(BuildContext context) {
@@ -783,27 +803,27 @@ class _HeaderAction extends StatelessWidget {
         width: 36,
         height: 36,
         decoration: BoxDecoration(
-          color: active 
-            ? const Color(0xFF00C97A).withValues(alpha: 0.12) 
-            : onSurface.withValues(alpha: isDark ? 0.06 : 0.04),
+          color: active
+              ? const Color(0xFF00C97A).withValues(alpha: 0.12)
+              : onSurface.withValues(alpha: isDark ? 0.06 : 0.04),
           shape: BoxShape.circle,
           border: Border.all(
-            color: active 
-              ? const Color(0xFF00C97A).withValues(alpha: 0.2) 
-              : onSurface.withValues(alpha: isDark ? 0.08 : 0.06),
+            color: active
+                ? const Color(0xFF00C97A).withValues(alpha: 0.2)
+                : onSurface.withValues(alpha: isDark ? 0.08 : 0.06),
           ),
         ),
         child: Icon(
-          icon, 
-          size: 18, 
-          color: active ? const Color(0xFF00C97A) : onSurface.withValues(alpha: 0.75),
+          icon,
+          size: 18,
+          color: active
+              ? const Color(0xFF00C97A)
+              : onSurface.withValues(alpha: 0.75),
         ),
       ),
     );
   }
 }
-
-
 
 class _StoryCard extends StatelessWidget {
   final String name;
@@ -813,9 +833,9 @@ class _StoryCard extends StatelessWidget {
   final VoidCallback? onTap;
 
   const _StoryCard({
-    required this.name, 
-    required this.initials, 
-    required this.color, 
+    required this.name,
+    required this.initials,
+    required this.color,
     this.ringColors,
     this.onTap,
   });
@@ -825,7 +845,7 @@ class _StoryCard extends StatelessWidget {
     final theme = Theme.of(context);
     final onSurface = theme.colorScheme.onSurface;
     final pageBg = NovynTheme.pageBg(context);
-    
+
     return GestureDetector(
       onTap: () {
         HapticFeedback.lightImpact();
@@ -895,7 +915,7 @@ class _StoryAddButton extends StatelessWidget {
           color: pageBg,
           child: Center(
             child: Icon(
-              Icons.add_rounded, 
+              Icons.add_rounded,
               color: onSurface.withOpacity(0.4),
               size: 20,
             ),

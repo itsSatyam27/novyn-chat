@@ -1,6 +1,8 @@
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'auth_service.dart';
 
 // Top-level handler — must be a top-level function
 @pragma('vm:entry-point')
@@ -11,35 +13,49 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 
 class NotificationService {
   static final FirebaseMessaging _fcm = FirebaseMessaging.instance;
-  static final FirebaseFirestore _db  = FirebaseFirestore.instance;
+  static final FirebaseFirestore _db = FirebaseFirestore.instance;
+  static AuthService? _presenceAuth;
+  static bool? _muted;
+
+  static void _syncPresentation() {
+    final muted = _presenceAuth?.user?.presenceMode == 'busy';
+    if (_muted == muted) return;
+    _muted = muted;
+    _fcm
+        .setForegroundNotificationPresentationOptions(
+          alert: true,
+          badge: true,
+          sound: !muted,
+        )
+        .catchError((Object _) {});
+  }
 
   // ── Initialize ────────────────────────────────────────────────────────────
   static Future<void> init(BuildContext context) async {
     // 1. Request permission
     final settings = await _fcm.requestPermission(
-      alert:         true,
-      badge:         true,
-      sound:         true,
-      criticalAlert: true,
-    );
-
-    if (settings.authorizationStatus == AuthorizationStatus.denied) return;
-
-    // 2. Set foreground notification presentation (iOS)
-    await _fcm.setForegroundNotificationPresentationOptions(
       alert: true,
       badge: true,
       sound: true,
+      criticalAlert: true,
     );
+
+    if (settings.authorizationStatus == AuthorizationStatus.denied || !context.mounted) return;
+
+    // 2. Set foreground notification presentation (iOS)
+    _presenceAuth?.removeListener(_syncPresentation);
+    _presenceAuth = context.read<AuthService>();
+    _presenceAuth!.addListener(_syncPresentation);
+    _syncPresentation();
 
     // 3. Handle foreground messages
     FirebaseMessaging.onMessage.listen((message) {
-      _handleForegroundMessage(message, context);
+      if (context.mounted) _handleForegroundMessage(message, context);
     });
 
     // 4. App opened from background notification tap
     FirebaseMessaging.onMessageOpenedApp.listen((message) {
-      _handleNotificationTap(message, context);
+      if (context.mounted) _handleNotificationTap(message, context);
     });
 
     // 5. App opened from terminated state
@@ -77,7 +93,8 @@ class NotificationService {
   }
 
   // ── Handle foreground message ─────────────────────────────────────────────
-  static void _handleForegroundMessage(RemoteMessage message, BuildContext context) {
+  static void _handleForegroundMessage(
+      RemoteMessage message, BuildContext context) {
     final type = message.data['type'];
 
     // For calls in foreground — Socket.IO already handles showing the call screen
@@ -89,7 +106,8 @@ class NotificationService {
   }
 
   // ── Handle notification tap ───────────────────────────────────────────────
-  static void _handleNotificationTap(RemoteMessage message, BuildContext context) {
+  static void _handleNotificationTap(
+      RemoteMessage message, BuildContext context) {
     final type = message.data['type'];
 
     if (type == 'call') {

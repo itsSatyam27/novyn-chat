@@ -1879,7 +1879,7 @@ async function sendPushToUser(userKey, payload) {
   const user = users.get(userKey);
   if (!user || !Array.isArray(user.pushSubs) || user.pushSubs.length === 0) return;
 
-  const body = JSON.stringify(payload || {});
+  const body = JSON.stringify({ ...payload, silent: payload?.silent === true || normalizePresenceMode(user.presenceMode) === "busy" });
   const remaining = [];
   let changed = false;
 
@@ -2554,11 +2554,15 @@ function getEffectivePresence(userKey) {
     return "offline";
   }
   const mode = normalizePresenceMode(user.presenceMode);
-  return mode === "offline" ? "offline" : mode;
+  return mode === "invisible" ? "offline" : mode;
 }
 
 function isUserAvailable(userKey) {
   return getEffectivePresence(userKey) !== "offline";
+}
+
+function getVisibleLastSeen(user) {
+  return normalizePresenceMode(user?.presenceMode) === "invisible" ? "" : user?.lastSeenAt || "";
 }
 
 function buildGroupInfoForViewer(group, viewerKey) {
@@ -2576,7 +2580,7 @@ function buildGroupInfoForViewer(group, viewerKey) {
       avatarId: user?.avatarId || "",
       online: presence !== "offline",
       presence,
-      lastSeenAt: user?.lastSeenAt || "",
+      lastSeenAt: getVisibleLastSeen(user),
       role,
       isOwner: role === "owner",
       isAdmin: role === "owner" || role === "admin",
@@ -3442,13 +3446,13 @@ function buildFriendList(forUser) {
       avatarId: friend?.avatarId || "",
       displayName: friend?.displayName || "",
       bio: friend?.bio || "",
-      lastSeenAt: friend?.lastSeenAt || "",
+      lastSeenAt: getVisibleLastSeen(friend),
       publicKey: friend?.publicKey || "",
       muted: isMutedBy(user, friendKey),
       blockedByMe: isBlockedBy(user, friendKey),
       blockedYou: isBlockedBy(friend, userKey),
       memberCount: 2,
-      onlineCount: onlineUsers.has(friendKey) ? 1 : 0,
+      onlineCount: presence !== "offline" ? 1 : 0,
     };
   });
 
@@ -3595,7 +3599,7 @@ function emitStatusToFriends(username) {
       username: user.username,
       online,
       presence,
-      lastSeenAt: user.lastSeenAt || null,
+      lastSeenAt: getVisibleLastSeen(user) || null,
     });
   }
 }
@@ -6566,7 +6570,7 @@ io.on("connection", (socket) => {
 
     const to = toDisplayName(payload?.to);
     const toType = normalizeChatKind(payload?.toType || "friend");
-    const isTyping = Boolean(payload?.isTyping);
+    const isTyping = Boolean(payload?.isTyping) && normalizePresenceMode(users.get(userKey)?.presenceMode) !== "invisible";
 
     if (toType === "group") {
       const groupId = normalizeGroupId(to);

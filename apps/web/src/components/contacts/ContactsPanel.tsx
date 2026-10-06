@@ -86,6 +86,7 @@ export const ContactsPanel: React.FC<ContactsPanelProps> = ({ isCompact = false,
                 name={friend.displayName || friend.username}
                 avatarUrl={friend.avatarId}
                 online={friend.online}
+                presence={friend.presence}
                 size="md"
               />
             </div>
@@ -256,6 +257,7 @@ export const ContactsPanel: React.FC<ContactsPanelProps> = ({ isCompact = false,
                       name={friend.displayName || friend.username}
                       avatarUrl={friend.avatarId}
                       online={friend.online}
+                      presence={friend.presence}
                       size="md"
                     />
                     <div style={{ minWidth: 0 }}>

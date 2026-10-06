@@ -1,4 +1,4 @@
-const CACHE_NAME = "novyn-shell-v41";
+const CACHE_NAME = "novyn-shell-v42";
 const APP_SHELL = [
   "/",
   "/index.html",
@@ -128,6 +128,7 @@ self.addEventListener("push", (event) => {
     icon: payload.icon || "/icons/icon-192.png",
     badge: payload.badge || "/icons/novyn-badge.svg",
     tag: payload.tag || payload.type || "novyn",
+    silent: payload.silent === true,
     data: {
       url: payload.url || "/",
       type: payload.type || "",

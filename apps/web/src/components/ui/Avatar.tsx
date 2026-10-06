@@ -5,7 +5,7 @@ interface AvatarProps {
   avatarUrl?: string;
   size?: 'sm' | 'md' | 'lg' | 'xl';
   online?: boolean;
-  presence?: 'online' | 'away' | 'dnd' | 'offline';
+  presence?: 'online' | 'away' | 'busy' | 'invisible' | 'dnd' | 'offline';
   className?: string;
   isGroup?: boolean;
   hidePresence?: boolean;
@@ -70,9 +70,9 @@ export const Avatar: React.FC<AvatarProps> = ({
       ? '#10b981'
       : effectivePresence === 'away'
       ? '#f59e0b'
-      : effectivePresence === 'dnd'
-      ? '#ef4444'
-      : effectivePresence === 'offline'
+      : effectivePresence === 'busy' || effectivePresence === 'dnd'
+      ? '#ec4899'
+      : effectivePresence === 'offline' || effectivePresence === 'invisible'
       ? '#64748b'
       : undefined;
 
@@ -128,6 +128,9 @@ export const Avatar: React.FC<AvatarProps> = ({
 
       {dotColor && !hidePresence && (
         <span
+          role="img"
+          aria-label={effectivePresence === 'invisible' || effectivePresence === 'offline' ? 'Offline' : effectivePresence === 'dnd' ? 'Busy' : `${effectivePresence?.charAt(0).toUpperCase()}${effectivePresence?.slice(1)}`}
+          title={effectivePresence === 'invisible' || effectivePresence === 'offline' ? 'Offline' : effectivePresence === 'dnd' ? 'Busy' : `${effectivePresence?.charAt(0).toUpperCase()}${effectivePresence?.slice(1)}`}
           style={{
             position: 'absolute',
             bottom: '0',

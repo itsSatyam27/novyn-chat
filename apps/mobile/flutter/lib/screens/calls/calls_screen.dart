@@ -333,6 +333,7 @@ class _CallCard extends StatelessWidget {
                 radius: 27,
                 showOnlineIndicator: true,
                 isOnline: entry.peer.isOnline,
+                presence: entry.peer.status,
               ),
               const SizedBox(width: 14),
 

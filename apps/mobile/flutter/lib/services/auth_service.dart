@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'api_service.dart';
 import 'firebase_configuration.dart';
 
@@ -67,7 +68,10 @@ class NovynUser {
 }
 
 class AuthService extends ChangeNotifier {
-  final FirebaseAuth _firebaseAuth = FirebaseAuth.instance;
+  final Future<void> Function(String)? savePresence;
+  bool _updatingPresence = false;
+  bool get updatingPresence => _updatingPresence;
+  late final FirebaseAuth _firebaseAuth = FirebaseAuth.instance;
   final GoogleSignIn _googleSignIn = GoogleSignIn(
     serverClientId: FirebaseConfiguration.googleWebClientId,
   );
@@ -79,14 +83,17 @@ class AuthService extends ChangeNotifier {
   bool get isLoggedIn => _user != null;
   bool get authReady => _authReady;
 
-  AuthService() {
-    _restoreSession();
+  AuthService(
+      {this.savePresence,
+      Future<Map<String, dynamic>?> Function()? restoreSession}) {
+    _restoreSession(restoreSession ?? ApiService.getSession);
   }
 
   // ── Restore session from novyn-chat JWT cookie on app start ───────────────
-  Future<void> _restoreSession() async {
+  Future<void> _restoreSession(
+      Future<Map<String, dynamic>?> Function() loadSession) async {
     try {
-      final session = await ApiService.getSession();
+      final session = await loadSession();
       if (session != null && session['authenticated'] == true) {
         _user = NovynUser.fromMap(session);
       }
@@ -188,8 +195,8 @@ class AuthService extends ChangeNotifier {
     } else {
       _user = NovynUser(
         username: result['username'].toString(),
-        displayName: result['displayName']?.toString() ??
-            result['username'].toString(),
+        displayName:
+            result['displayName']?.toString() ?? result['username'].toString(),
         email: result['email']?.toString() ?? '',
       );
     }
@@ -261,17 +268,31 @@ class AuthService extends ChangeNotifier {
   // kept so screens that call auth.setOnline() compile without changes.
   Future<void> setOnline(bool online) async {}
 
-  // ── updateStatus — emits set_presence_mode via the backend ──────────────
+  // ── updateStatus — saves through the shared backend socket ──────────────
   // Screens call auth.updateStatus('Online'|'Away'|'Busy'|'Invisible').
-  // We update locally and persist via the server session refresh.
+  // Update locally, wait for server confirmation, and undo failed saves.
   Future<void> updateStatus(String status) async {
-    if (_user == null) return;
-    _user = _user!.copyWith(presenceMode: status.toLowerCase());
+    final mode = status.trim().toLowerCase();
+    if (!['online', 'away', 'busy', 'invisible'].contains(mode)) {
+      throw ArgumentError.value(status, 'status', 'Unknown presence mode');
+    }
+    if (_user == null || savePresence == null) {
+      throw StateError('Sign in and reconnect before changing your status.');
+    }
+    if (_updatingPresence || _user!.presenceMode == mode) return;
+    final previous = _user!.presenceMode;
+    _updatingPresence = true;
+    _user = _user!.copyWith(presenceMode: mode);
     notifyListeners();
-    // Fire-and-forget — the socket will broadcast the change
     try {
-      await ApiService.updatePresence(status.toLowerCase());
-    } catch (_) {}
+      await savePresence!(mode);
+    } catch (_) {
+      _user = _user?.copyWith(presenceMode: previous);
+      rethrow;
+    } finally {
+      _updatingPresence = false;
+      notifyListeners();
+    }
   }
 
   // ── isUsernameAvailable ───────────────────────────────────────────────────
@@ -443,7 +464,7 @@ extension NovynUserCompat on NovynUser {
   String get name => displayName;
   String get status => presenceMode;
   String get photoUrl => avatarId; // avatarId stores the photo URL
-  String get gender => '';         // not stored in this model; stub
-  int? get age => null;            // not stored in this model; stub
+  String get gender => ''; // not stored in this model; stub
+  int? get age => null; // not stored in this model; stub
   bool get isOnline => presenceMode != 'invisible' && presenceMode != 'offline';
 }

@@ -122,6 +122,38 @@ test('localhost discovery, requests, reconnect state, and private media', { time
   bob.socket.emit('accept_friend', 'alice');
   assert.equal((await accepted).by, 'bob');
 
+  // Visibility is independent of the connection used to receive messages.
+  for (const mode of ['busy', 'invisible', 'away', 'online']) {
+    const updated = event(bob.socket, 'profile_updated', value => value.presenceMode === mode);
+    const statusChanged = event(alice.socket, 'user_status', value => value.username === 'bob' && value.presence === (mode === 'invisible' ? 'offline' : mode));
+    const summary = event(alice.socket, 'friend_list_updated', value => value.friends.some(friend => friend.username === 'bob' && friend.presence === (mode === 'invisible' ? 'offline' : mode)));
+    bob.socket.emit('update_profile', { presenceMode: mode });
+    assert.equal((await updated).presenceMode, mode);
+    const status = await statusChanged;
+    assert.equal(status.online, mode !== 'invisible');
+    const friend = (await summary).friends.find(friend => friend.username === 'bob');
+    assert.equal(friend.online, mode !== 'invisible');
+    assert.equal(friend.onlineCount, mode === 'invisible' ? 0 : 1);
+    if (mode === 'invisible') {
+      assert.equal(friend.lastSeenAt, '');
+      const discovery = event(alice.socket, 'discover_online');
+      alice.socket.emit('discover_online');
+      assert.ok(!(await discovery).users.some(item => item.username === 'bob'));
+      const received = event(bob.socket, 'private_message', message => message.text === 'Invisible delivery check');
+      assert.equal((await alice.socket.timeout(3000).emitWithAck('private_message', { to: 'bob', text: 'Invisible delivery check' })).ok, true);
+      assert.equal((await received).text, 'Invisible delivery check');
+      const noTyping = event(alice.socket, 'typing', value => value.from === 'bob');
+      bob.socket.emit('typing', { to: 'alice', isTyping: true });
+      assert.equal((await noTyping).isTyping, false);
+      bob.socket.disconnect();
+      const invisibleReconnect = await connect(bob.cookie);
+      bob.socket = invisibleReconnect.socket;
+      assert.equal(invisibleReconnect.state.presenceMode, 'invisible');
+      const session = await fetch(`${base}/api/auth/session`, { headers: { Cookie: bob.cookie } });
+      assert.equal((await session.json()).presenceMode, 'invisible');
+    }
+  }
+
   // Both participants receive an encrypted preview envelope, including after a
   // reload. The relay keeps its legacy placeholder and never returns plaintext.
   const { webcrypto } = require('node:crypto');

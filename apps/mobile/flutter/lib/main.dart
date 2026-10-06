@@ -39,7 +39,7 @@ void main() async {
   HapticService.init(settings);
   // Initialize Hive first (required for adapters)
   await Hive.initFlutter();
-  
+
   // Register Hive adapters
   Hive.registerAdapter(ChatAdapter());
   Hive.registerAdapter(MessageAdapter());
@@ -69,13 +69,21 @@ class NovynApp extends StatelessWidget {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider<SettingsService>.value(value: settings),
-        ChangeNotifierProvider<AuthService>(create: (_) => AuthService()),
         ChangeNotifierProvider<SocketService>(create: (ctx) {
           final socket = SocketService();
           // Connect once auth is ready via post-frame callback
           return socket;
         }),
-        Provider<FriendService>(create: (_) => FriendService()),
+        ChangeNotifierProvider<AuthService>(create: (ctx) {
+          final socket = ctx.read<SocketService>();
+          final auth = AuthService(savePresence: socket.updatePresence);
+          socket.onProfileData = auth.applyProfileUpdate;
+          socket.notificationsMuted = () => auth.user?.presenceMode == 'busy';
+          return auth;
+        }),
+        Provider<FriendService>(
+          create: (ctx) => FriendService(ctx.read<SocketService>()),
+        ),
         ChangeNotifierProvider<SyncService>(create: (_) => SyncService()),
       ],
       child: Consumer<SettingsService>(

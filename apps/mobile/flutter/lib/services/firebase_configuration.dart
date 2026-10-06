@@ -36,7 +36,9 @@ class FirebaseConfiguration {
       if (kIsWeb) return web;
       if (defaultTargetPlatform == TargetPlatform.android) return android;
       if (defaultTargetPlatform == TargetPlatform.iOS ||
-          defaultTargetPlatform == TargetPlatform.macOS) return null;
+          defaultTargetPlatform == TargetPlatform.macOS) {
+        return null;
+      }
     }
     if (values.any((value) => value.isEmpty)) {
       throw StateError(

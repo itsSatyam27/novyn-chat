@@ -247,6 +247,7 @@ class _FriendCard extends StatelessWidget {
               radius: 25,
               showOnlineIndicator: true,
               isOnline: user.isOnline,
+              presence: user.status,
             ),
             const SizedBox(width: 14),
             Expanded(

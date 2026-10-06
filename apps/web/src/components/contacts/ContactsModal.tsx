@@ -280,6 +280,7 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose })
                     name={friend.displayName || friend.username}
                     avatarUrl={friend.avatarId}
                     online={friend.online}
+                    presence={friend.presence}
                     size="sm"
                   />
                   <div>

@@ -427,7 +427,9 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                     <span style={{ color: '#087fac', fontWeight: 600 }}>{activeContact.memberCount || 2} members</span>
                   ) : activeContact?.presence === 'away' ? (
                     <span style={{ color: '#a86d0b', fontWeight: 600 }}>Away</span>
-                  ) : activeContact?.online ? (
+                  ) : activeContact?.presence === 'busy' ? (
+                    <span style={{ color: '#ec4899', fontWeight: 600 }}>Busy</span>
+                  ) : activeContact?.online && activeContact?.presence !== 'invisible' ? (
                     <span style={{ color: '#0e9f8a', fontWeight: 600 }}>Online</span>
                   ) : (
                     'Offline'

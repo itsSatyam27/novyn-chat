@@ -76,6 +76,9 @@ const ChatContext = createContext<ChatContextType | null>(null);
 
 export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, setUser } = useAuth();
+  const presenceModeRef = useRef(user?.presenceMode || 'online');
+  presenceModeRef.current = user?.presenceMode || 'online';
+  useEffect(() => { if (user?.presenceMode === 'busy') stopRingtone(); }, [user?.presenceMode]);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeChat, setActiveChat] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -655,7 +658,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 ...c,
                 displayName: profile.displayName || c.displayName,
                 avatarId: profile.avatarId || c.avatarId,
-                online: profile.presenceMode ? profile.presenceMode !== 'offline' : c.online,
+                online: profile.presenceMode ? !['offline', 'invisible'].includes(profile.presenceMode) : c.online,
                 presence: profile.presenceMode || c.presence,
               }
             : c
@@ -725,7 +728,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
           return m;
         })
       );
-      if (updatedBy?.toLowerCase() !== user?.username.toLowerCase()) {
+      if (updatedBy?.toLowerCase() !== user?.username.toLowerCase() && presenceModeRef.current !== 'busy') {
         playMessageNotification();
         triggerHaptic('light');
       }
@@ -974,7 +977,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
 
       if (sender?.toLowerCase() !== user.username.toLowerCase()) {
-        playMessageNotification();
+        if (presenceModeRef.current !== 'busy') playMessageNotification();
 
         // Show visual desktop notification when tab is in background or another chat is active
         if (
@@ -989,6 +992,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
             const senderName = partnerConv?.displayName || sender;
             const notifBody = msg.text || (msg.isVoice ? '🎤 Voice message' : '📎 Attachment');
             const notif = new Notification(senderName, {
+              silent: presenceModeRef.current === 'busy',
               body: notifBody,
               icon: '/favicon.ico',
               badge: '/favicon.ico',
@@ -1004,7 +1008,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
         }
       }
-      triggerHaptic('light');
+      if (presenceModeRef.current !== 'busy') triggerHaptic('light');
     });
 
     // Typing Indicators
@@ -1019,12 +1023,15 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // User presence
     socket.on('user_status', ({ username, online, presence, lastSeenAt }: any) => {
+      if (!online || presence === 'offline' || presence === 'invisible') {
+        setTypingUsers(prev => { const next = new Set(prev); next.delete(username); return next; });
+      }
       setConversations((prev) =>
         prev.map((c) =>
           c.username.toLowerCase() === username?.toLowerCase()
             ? {
                 ...c,
-                online: Boolean(online && presence !== 'offline'),
+                online: Boolean(online && presence !== 'offline' && presence !== 'invisible'),
                 presence: presence || (online ? 'online' : 'offline'),
                 lastSeenAt: lastSeenAt || c.lastSeenAt,
               }
@@ -1056,8 +1063,10 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         remoteStream: null,
       });
 
-      playRingtone();
-      triggerHaptic('heavy');
+      if (presenceModeRef.current !== 'busy') {
+        playRingtone();
+        triggerHaptic('heavy');
+      }
 
       // Auto-cut after 30 seconds if not answered
       if (callTimeoutTimerRef.current) clearTimeout(callTimeoutTimerRef.current);
@@ -1158,6 +1167,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const updateProfile = useCallback(
     (payload: { displayName?: string; bio?: string; status?: string; avatarId?: string }) => {
       const socket = getSocket();
+      if (payload.status !== undefined) presenceModeRef.current = payload.status as typeof presenceModeRef.current;
       if (setUser) {
         setUser((prev) =>
           prev

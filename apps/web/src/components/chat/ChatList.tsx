@@ -1,3 +1,4 @@
+import { getPreferredLocale } from '../../services/regionalPreferences';
 import React, { useState, useEffect, useRef } from 'react';
 import { useChat } from '../../context/ChatContext';
 import { Avatar } from '../ui/Avatar';
@@ -98,8 +99,8 @@ export const ChatList: React.FC<ChatListProps> = ({
       const now = new Date();
       const isToday = d.toDateString() === now.toDateString();
       return isToday
-        ? d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-        : d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+        ? d.toLocaleTimeString(getPreferredLocale(), { hour: '2-digit', minute: '2-digit' })
+        : d.toLocaleDateString(getPreferredLocale(), { month: 'short', day: 'numeric' });
     } catch {
       return '';
     }

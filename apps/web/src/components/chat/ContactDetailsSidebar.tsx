@@ -1,3 +1,4 @@
+import { getPreferredLocale } from '../../services/regionalPreferences';
 import React, { useState, useEffect } from 'react';
 import { Conversation, Message } from '../../types';
 import { Avatar } from '../ui/Avatar';
@@ -757,7 +758,7 @@ export const ContactDetailsSidebar: React.FC<ContactDetailsSidebarProps> = ({
                     >
                       <Mic style={{ width: '14px', height: '14px', color: '#087fac' }} />
                       <span style={{ fontSize: '0.78rem', color: 'var(--text-main)', flex: 1 }}>
-                        Voice message ({new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})
+                        Voice message ({new Date(item.timestamp).toLocaleTimeString(getPreferredLocale(), { hour: '2-digit', minute: '2-digit' })})
                       </span>
                     </div>
                   ))

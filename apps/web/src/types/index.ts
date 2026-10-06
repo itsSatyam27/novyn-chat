@@ -90,7 +90,7 @@ export interface UserProfile {
   gender?: string;
   online?: boolean;
   lastSeenAt?: string;
-  presenceMode?: 'online' | 'away' | 'dnd' | 'offline';
+  presenceMode?: 'online' | 'away' | 'busy' | 'invisible' | 'dnd' | 'offline';
   publicKey?: string;
   retentionDays?: 7 | 15 | 30;
 }
@@ -102,7 +102,7 @@ export interface Conversation {
   lastMessage?: Message;
   unreadCount: number;
   online: boolean;
-  presence?: 'online' | 'away' | 'dnd' | 'offline';
+  presence?: 'online' | 'away' | 'busy' | 'invisible' | 'dnd' | 'offline';
   lastSeenAt?: string;
   typing?: boolean;
   bio?: string;

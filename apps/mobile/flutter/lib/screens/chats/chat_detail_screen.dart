@@ -268,6 +268,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
               radius: 20,
               showOnlineIndicator: true,
               isOnline: widget.peer.isOnline,
+              presence: widget.peer.status,
             ),
           ),
           const SizedBox(width: 12),

@@ -364,6 +364,7 @@ class _DiscoverItem extends StatelessWidget {
             fallbackColor: const Color(0xFFF59E0B),
             showOnlineIndicator: true,
             isOnline: user.isOnline,
+            presence: user.status,
           ),
           const SizedBox(width: 12),
           Expanded(
