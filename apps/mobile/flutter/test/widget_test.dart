@@ -20,10 +20,16 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  test('Android uses native Firebase registration when no build values supplied', () {
+  test('Android uses its registration in the same project as Novyn web', () {
     debugDefaultTargetPlatformOverride = TargetPlatform.android;
     addTearDown(() => debugDefaultTargetPlatformOverride = null);
-    expect(FirebaseConfiguration.options, isNull);
+    final options = FirebaseConfiguration.options!;
+    expect(options.projectId, FirebaseConfiguration.web.projectId);
+    expect(options.messagingSenderId, FirebaseConfiguration.web.messagingSenderId);
+    expect(options.storageBucket, FirebaseConfiguration.web.storageBucket);
+    expect(options.appId, contains(':android:'));
+    expect(options.appId, isNot(FirebaseConfiguration.web.appId));
+    expect(options.apiKey, isNotEmpty);
   });
 
   test('Missing desktop Firebase registration produces an actionable error', () {

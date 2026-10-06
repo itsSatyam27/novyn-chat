@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter/foundation.dart';
 import 'api_service.dart';
+import 'firebase_configuration.dart';
 
 /// Novyn Auth Service — bridges Firebase Auth with novyn-chat's backend.
 ///
@@ -67,7 +68,9 @@ class NovynUser {
 
 class AuthService extends ChangeNotifier {
   final FirebaseAuth _firebaseAuth = FirebaseAuth.instance;
-  final GoogleSignIn _googleSignIn = GoogleSignIn();
+  final GoogleSignIn _googleSignIn = GoogleSignIn(
+    serverClientId: FirebaseConfiguration.googleWebClientId,
+  );
 
   NovynUser? _user;
   bool _authReady = false;
@@ -154,6 +157,8 @@ class AuthService extends ChangeNotifier {
       return null; // success
     } on FirebaseAuthException catch (e) {
       return _friendlyFirebaseError(e.code);
+    } on PlatformException catch (e) {
+      return _friendlyGoogleSignInError(e);
     } catch (e) {
       return 'Google sign-in failed: ${e.toString()}';
     }
@@ -401,6 +406,27 @@ class AuthService extends ChangeNotifier {
       default:
         return 'Authentication failed. Please try again.';
     }
+  }
+
+  String _friendlyGoogleSignInError(PlatformException e) {
+    final code = e.code.toLowerCase();
+    final details = e.message ?? '';
+
+    if (code.contains('sign_in_failed') ||
+        details.toLowerCase().contains('apiexception') ||
+        details.toLowerCase().contains('10:')) {
+      return 'Google Sign-In is not configured correctly. In Firebase, add the Android SHA-1 certificate and download the matching google-services.json for the app package used by this build.';
+    }
+
+    if (code.contains('network_error')) {
+      return 'Google Sign-In could not reach Google. Check your connection and try again.';
+    }
+
+    if (code.contains('cancelled')) {
+      return 'Sign-in cancelled.';
+    }
+
+    return 'Google sign-in failed: ${e.message ?? e.code}';
   }
 }
 

@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../models/chat_models.dart';
+
 /// REST API service for the shared novyn-chat backend (server.js).
 ///
 /// Identity model: username-based (not Firebase UID).
@@ -24,30 +25,84 @@ class ApiService {
   // Flutter's http package does not persist cookies automatically on mobile,
   // so we store and forward them manually.
   static String? _sessionCookie;
+  static String? _csrfToken;
 
   static Map<String, String> get _authHeaders => {
         'Content-Type': 'application/json',
-        if (_sessionCookie != null) 'Cookie': _sessionCookie!,
+        if (_cookieHeader.isNotEmpty) 'Cookie': _cookieHeader,
       };
+
+  static String get _cookieHeader {
+    final cookies = (_sessionCookie ?? '')
+        .split(';')
+        .map((cookie) => cookie.trim())
+        .where((cookie) =>
+            cookie.isNotEmpty &&
+            !cookie.toLowerCase().startsWith('novyn_csrf='))
+        .toList();
+    if (_csrfToken != null) cookies.add('novyn_csrf=$_csrfToken');
+    return cookies.join('; ');
+  }
+
+  static Future<Map<String, String>> _csrfHeaders() async {
+    if (_csrfToken == null) {
+      final response = await http
+          .get(Uri.parse('$baseUrl/api/auth/session'))
+          .timeout(const Duration(seconds: 10));
+      _storeSessionCookie(response);
+      _storeCsrfToken(response);
+    }
+
+    final token = _csrfToken;
+    if (token == null) {
+      throw StateError(
+          'Could not initialize the authentication security token.');
+    }
+
+    return {
+      'Content-Type': 'application/json',
+      'Cookie': _cookieHeader,
+      'x-novyn-csrf': token,
+    };
+  }
 
   // ── Expose cookie for socket handshake ───────────────────────────────────
   static String? get sessionCookie => _sessionCookie;
 
   // ── Store session cookie from a response ─────────────────────────────────
   static void _storeSessionCookie(http.Response res) {
+    _storeCsrfToken(res);
     final raw = res.headers['set-cookie'];
     if (raw != null && raw.isNotEmpty) {
       // Extract name=value pairs; drop path/expires/httponly etc.
-      final parts = raw.split(',').expand((s) => s.split(';')).map((s) => s.trim());
+      final parts =
+          raw.split(',').expand((s) => s.split(';')).map((s) => s.trim());
       final cookies = parts
-          .where((s) => s.contains('=') && !RegExp(r'^(path|expires|max-age|httponly|samesite|secure)$', caseSensitive: false).hasMatch(s.split('=').first.trim()))
+          .where((s) =>
+              s.contains('=') &&
+              !RegExp(r'^(path|expires|max-age|httponly|samesite|secure)$',
+                      caseSensitive: false)
+                  .hasMatch(s.split('=').first.trim()))
           .join('; ');
       if (cookies.isNotEmpty) _sessionCookie = cookies;
     }
   }
 
+  static void _storeCsrfToken(http.Response res) {
+    final raw = res.headers['set-cookie'];
+    if (raw == null || raw.isEmpty) return;
+    final match = RegExp(
+      r'(?:^|,\s*)novyn_csrf=([^;,\s]+)',
+      caseSensitive: false,
+    ).firstMatch(raw);
+    if (match != null) _csrfToken = Uri.decodeComponent(match.group(1)!);
+  }
+
   // ── Clear session (on logout) ─────────────────────────────────────────────
-  static void clearSession() => _sessionCookie = null;
+  static void clearSession() {
+    _sessionCookie = null;
+    _csrfToken = null;
+  }
 
   // ── Health check / wake-up ping ───────────────────────────────────────────
   static Future<void> ping() async {
@@ -70,7 +125,7 @@ class ApiService {
       final res = await http
           .post(
             Uri.parse('$baseUrl/api/auth/google'),
-            headers: {'Content-Type': 'application/json'},
+            headers: await _csrfHeaders(),
             body: jsonEncode({'idToken': idToken, 'remember': remember}),
           )
           .timeout(const Duration(seconds: 15));
@@ -101,7 +156,7 @@ class ApiService {
       final res = await http
           .post(
             Uri.parse('$baseUrl/api/auth/signin'),
-            headers: {'Content-Type': 'application/json'},
+            headers: await _csrfHeaders(),
             body: jsonEncode({
               'identifier': identifier,
               'password': password,
@@ -135,7 +190,7 @@ class ApiService {
       final res = await http
           .post(
             Uri.parse('$baseUrl/api/auth/signup'),
-            headers: {'Content-Type': 'application/json'},
+            headers: await _csrfHeaders(),
             body: jsonEncode({
               'name': name,
               'username': username,
@@ -169,9 +224,8 @@ class ApiService {
             headers: _authHeaders,
           )
           .timeout(const Duration(seconds: 10));
-
+      _storeSessionCookie(res);
       if (res.statusCode == 200) {
-        _storeSessionCookie(res);
         return Map<String, dynamic>.from(jsonDecode(res.body));
       }
     } catch (_) {}
@@ -184,7 +238,7 @@ class ApiService {
       final res = await http
           .post(
             Uri.parse('$baseUrl/api/auth/refresh'),
-            headers: _authHeaders,
+            headers: await _csrfHeaders(),
           )
           .timeout(const Duration(seconds: 10));
       if (res.statusCode == 200) {
@@ -201,7 +255,7 @@ class ApiService {
       await http
           .post(
             Uri.parse('$baseUrl/api/auth/logout'),
-            headers: _authHeaders,
+            headers: await _csrfHeaders(),
           )
           .timeout(const Duration(seconds: 10));
     } catch (_) {}
@@ -281,8 +335,8 @@ class ApiService {
   }
 
   // ── Upload media (multipart) ──────────────────────────────────────────────
-  static Future<String?> uploadMedia(List<int> bytes, String filename,
-      String mimeType) async {
+  static Future<String?> uploadMedia(
+      List<int> bytes, String filename, String mimeType) async {
     try {
       final uri = Uri.parse('$baseUrl/api/upload');
       final request = http.MultipartRequest('POST', uri)
@@ -292,7 +346,8 @@ class ApiService {
           bytes,
           filename: filename,
         ));
-      final streamed = await request.send().timeout(const Duration(seconds: 30));
+      final streamed =
+          await request.send().timeout(const Duration(seconds: 30));
       final res = await http.Response.fromStream(streamed);
       if (res.statusCode == 200) {
         final body = jsonDecode(res.body);

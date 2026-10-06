@@ -27,6 +27,14 @@ registered for the platform being built. Optional values are `FIREBASE_AUTH_DOMA
 explicit values. Do not reuse the web Firebase app ID for Android or iOS, and
 never embed server private keys or service-account credentials in the app.
 
+Google Sign-In troubleshooting: if the app fails with `sign_in_failed` /
+`ApiException: 10`, the Firebase Android app configuration is mismatched. Ensure the
+Android package name matches the one in `google-services.json`, add the SHA-1 for
+the signing key used by the device or build, and download a fresh
+`google-services.json` from the Firebase console. The default app package in this
+repo is `com.example.novyn`; if you changed the package ID, update the Firebase app
+and regenerate the config file to match.
+
 Use Node 24 or newer, install with `npm ci`, and start `npm run dev`.
 On Windows PowerShell with scripts disabled, use `npm.cmd`.
 The backend listens on port 3000; Vite proxies API, uploads, and Socket.IO there.

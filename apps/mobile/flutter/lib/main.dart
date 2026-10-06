@@ -70,12 +70,12 @@ class NovynApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider<SettingsService>.value(value: settings),
         ChangeNotifierProvider<AuthService>(create: (_) => AuthService()),
-        Provider<FriendService>(create: (_) => FriendService()),
         ChangeNotifierProvider<SocketService>(create: (ctx) {
           final socket = SocketService();
           // Connect once auth is ready via post-frame callback
           return socket;
         }),
+        Provider<FriendService>(create: (_) => FriendService()),
         ChangeNotifierProvider<SyncService>(create: (_) => SyncService()),
       ],
       child: Consumer<SettingsService>(

@@ -7,6 +7,7 @@ import '../models/chat_preview.dart';
 import '../models/user_model.dart';
 import 'hybrid_db_service.dart';
 import 'api_service.dart';
+import 'backend_contacts.dart';
 
 /// Socket service for the shared novyn-chat backend (server.js).
 ///
@@ -51,6 +52,7 @@ import 'api_service.dart';
 ///   ON    error_message            — { message }
 
 class SocketService extends ChangeNotifier {
+  final BackendContacts contacts = BackendContacts();
   io.Socket? _socket;
   bool _isConnected = false;
   String? _myUsername; // novyn-chat username (not Firebase UID)
@@ -119,8 +121,6 @@ class SocketService extends ChangeNotifier {
       'reconnection': false, // manual reconnection
     });
 
-    _socket!.connect();
-
     _socket!.onConnect((_) {
       _isConnected = true;
       _reconnectTimer?.cancel();
@@ -146,6 +146,7 @@ class SocketService extends ChangeNotifier {
     });
 
     _registerEventHandlers();
+    _socket!.connect();
   }
 
   void _scheduleReconnect(int seconds) {
@@ -157,6 +158,14 @@ class SocketService extends ChangeNotifier {
 
   // ── Register all incoming event handlers ─────────────────────────────────
   void _registerEventHandlers() {
+    for (final event in ['register_success', 'init', 'friend_list',
+      'friend_list_updated', 'requests_updated', 'discover_online',
+      'friend_request_sent', 'friend_request_cancelled', 'user_status']) {
+      _socket!.on(event, (data) => contacts.applyEvent(event, data));
+    }
+    _socket!.on('register_success', (data) {
+      if (data is Map) _handleFriendList(data['friends']);
+    });
     // ── Initial data + friend list ────────────────────────────────────────
     _socket!.on('init', (data) {
       if (data is Map && data['friends'] != null) {
@@ -611,16 +620,46 @@ class SocketService extends ChangeNotifier {
   }
 
   // ── Friend management ─────────────────────────────────────────────────────
-  void sendFriendRequest(String username) {
-    _socket?.emit('add_friend', username);
+  Future<void> sendFriendRequest(String username) async {
+    _requireConnection();
+    final result = Completer<void>();
+    _socket!.emitWithAck('add_friend', username, ack: (dynamic data) {
+      if (result.isCompleted) return;
+      if (data is Map && data['ok'] == true) {
+        contacts.applyEvent('friend_request_sent', {'to': data['username'] ?? username});
+        result.complete();
+      } else {
+        result.completeError(StateError(data is Map
+            ? data['message']?.toString() ?? 'Friend request failed.'
+            : 'Friend request failed.'));
+      }
+    });
+    await result.future.timeout(const Duration(seconds: 15));
   }
 
   void acceptFriendRequest(String fromUsername) {
+    _requireConnection();
     _socket?.emit('accept_friend', fromUsername);
   }
 
   void rejectFriendRequest(String fromUsername) {
+    _requireConnection();
     _socket?.emit('reject_friend', fromUsername);
+  }
+
+  void removeFriend(String username) {
+    _requireConnection();
+    _socket!.emit('remove_friend', username);
+  }
+
+  void requestDiscover() {
+    if (_isConnected) _socket?.emit('discover_online');
+  }
+
+  void _requireConnection() {
+    if (!_isConnected || _socket == null) {
+      throw StateError('Connect to Novyn before changing contacts.');
+    }
   }
 
   // ── Call signaling ────────────────────────────────────────────────────────
@@ -741,6 +780,7 @@ class SocketService extends ChangeNotifier {
 
   // ── Disconnect ────────────────────────────────────────────────────────────
   void disconnect() {
+    contacts.clear();
     _reconnectTimer?.cancel();
     _typingDebounce?.cancel();
     _typingStopTimer?.cancel();
@@ -753,6 +793,7 @@ class SocketService extends ChangeNotifier {
   @override
   void dispose() {
     disconnect();
+    contacts.dispose();
     super.dispose();
   }
 }
