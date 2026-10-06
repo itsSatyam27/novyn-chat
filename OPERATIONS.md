@@ -2,6 +2,31 @@
 
 ## Local development
 
+Application code lives in `apps/web`, `apps/api`, and `apps/mobile`.
+Run npm commands from the repository root. Keep Render's root directory unset,
+build with `npm ci --include=dev && npm run build`, and start with `npm start`.
+The web output is `apps/web/dist`. Static hosting must publish that directory.
+The shared `.env` remains at the repository root. Default local storage is now
+`apps/api/runtime/data` and `apps/api/runtime/uploads`. Existing explicit
+`DATA_DIR` and `UPLOADS_DIR` settings continue to take precedence; persistent
+production volume paths do not need to change.
+
+After the Flutter move, run `npm run flutter:get` to regenerate local package
+metadata. Open Android Studio at `apps/mobile/capacitor/android` for Capacitor
+or `apps/mobile/flutter/android` for Flutter. The Flutter iOS project is in
+`apps/mobile/flutter/ios`; iOS builds require macOS/Xcode.
+
+Flutter Firebase setup is required before running the app: put your project's
+Android `google-services.json` in `apps/mobile/flutter/android/app` and its iOS
+`GoogleService-Info.plist` in `apps/mobile/flutter/ios/Runner` (add it to the Runner
+target in Xcode). Both files are ignored by Git. Alternatively, supply
+`FIREBASE_API_KEY`, `FIREBASE_APP_ID`, `FIREBASE_MESSAGING_SENDER_ID`, and
+`FIREBASE_PROJECT_ID` using Flutter `--dart-define` arguments, with the app ID
+registered for the platform being built. Optional values are `FIREBASE_AUTH_DOMAIN`,
+`FIREBASE_STORAGE_BUCKET`, and `FIREBASE_IOS_BUNDLE_ID`. Web/desktop builds require
+explicit values. Do not reuse the web Firebase app ID for Android or iOS, and
+never embed server private keys or service-account credentials in the app.
+
 Use Node 24 or newer, install with `npm ci`, and start `npm run dev`.
 On Windows PowerShell with scripts disabled, use `npm.cmd`.
 The backend listens on port 3000; Vite proxies API, uploads, and Socket.IO there.

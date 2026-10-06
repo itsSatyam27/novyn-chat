@@ -5,7 +5,7 @@ const { MongoClient } = require("mongodb");
 
 const STATE_FILE = process.env.STATE_FILE
   ? path.resolve(process.cwd(), process.env.STATE_FILE)
-  : path.join(process.cwd(), "data", "chat-state.json");
+  : path.join(process.cwd(), "apps", "api", "runtime", "data", "chat-state.json");
 const MONGODB_URI = String(process.env.MONGODB_URI || "").trim();
 const MONGODB_DB = String(process.env.MONGODB_DB || "novyn").trim() || "novyn";
 const LEGACY_COLLECTION =

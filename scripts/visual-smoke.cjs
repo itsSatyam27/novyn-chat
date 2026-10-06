@@ -19,7 +19,7 @@ const { io } = require('socket.io-client');
   const port = probe.address().port;
   await new Promise((resolve) => probe.close(resolve));
   const base = `http://127.0.0.1:${port}`;
-  const child = spawn(process.execPath, ['server.js'], {
+  const child = spawn(process.execPath, ['apps/api/server.js'], {
     cwd: path.resolve(__dirname, '..'), windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'],
     env: {
       ...process.env, NOVYN_ENV_FILE: envFile, NODE_ENV: 'development', PORT: String(port),
@@ -220,7 +220,7 @@ const { io } = require('socket.io-client');
       await screenshot(`desktop-settings-${category.split(' ')[0].toLowerCase()}`);
     }
     await click('.desktop-sidebar [aria-label="Contacts"]');
-    await click('[title="Send Message"]');
+    await evaluate("Array.from(document.querySelectorAll('.contact-card')).find(card => card.textContent.includes('Hii')).querySelector(':scope > div').click()");
     await waitFor("!!document.querySelector('.message-textarea')");
     await waitFor("Array.from(document.querySelectorAll('.bubble')).some(bubble => bubble.textContent.includes('Encrypted previews work here'))");
     await evaluate("(() => {const input = document.querySelector('.message-textarea'); Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(input, 'My encrypted reply'); input.dispatchEvent(new Event('input', {bubbles:true}));})()");
@@ -295,7 +295,7 @@ const { io } = require('socket.io-client');
       await screenshot(`mobile-${tab.toLowerCase()}`);
     }
     await click('.mobile-bottom-nav [aria-label="Contacts"]');
-    await click('[title="Send Message"]');
+    await evaluate("Array.from(document.querySelectorAll('.contact-card')).find(card => card.textContent.includes('Hii')).querySelector(':scope > div').click()");
     await waitFor("getComputedStyle(document.querySelector('.workspace-pane')).display === 'flex'");
     await click('[title="Attach..."]');
     await clickText('Mini Games');

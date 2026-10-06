@@ -42,7 +42,7 @@ function walk(directory) {
   });
 }
 let changed = 0;
-for (const filename of walk(path.join(root, 'src/components')).filter((file) => file.endsWith('.tsx'))) {
+for (const filename of walk(path.join(root, 'apps/web/src/components')).filter((file) => file.endsWith('.tsx'))) {
   if (filename.endsWith('Avatar.tsx')) continue;
   const source = fs.readFileSync(filename, 'utf8');
   const tree = ts.createSourceFile(filename, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);

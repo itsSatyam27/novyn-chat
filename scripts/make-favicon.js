@@ -1,5 +1,5 @@
 const fs = require('fs');
-const whiteB64 = fs.readFileSync('public/icons/novyn-wings-white.png').toString('base64');
+const whiteB64 = fs.readFileSync('apps/web/public/icons/novyn-wings-white.png').toString('base64');
 
 const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
   <defs>
@@ -19,6 +19,6 @@ const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width
   <image href="data:image/png;base64,${whiteB64}" x="12" y="12" width="76" height="76" filter="url(#glow)" />
 </svg>`;
 
-fs.writeFileSync('public/favicon.svg', svg);
-fs.writeFileSync('public/icons/novyn-badge.svg', svg);
+fs.writeFileSync('apps/web/public/favicon.svg', svg);
+fs.writeFileSync('apps/web/public/icons/novyn-badge.svg', svg);
 console.log('Saved public/favicon.svg and novyn-badge.svg successfully!');

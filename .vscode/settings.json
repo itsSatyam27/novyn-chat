@@ -1,5 +1,5 @@
 {
     "liveServer.settings.port": 5501,
-    "cmake.sourceDirectory": "C:/Projects/novyn-chat/flutter/linux",
+    "cmake.sourceDirectory": "${workspaceFolder}/apps/mobile/flutter/linux",
     "java.jdt.ls.vmargs": "-XX:+UseParallelGC -XX:GCTimeRatio=4 -XX:AdaptiveSizePolicyWeight=90 -Dsun.zip.disableMemoryMapping=true -Xmx4G -Xms100m -Xlog:disable"
 }

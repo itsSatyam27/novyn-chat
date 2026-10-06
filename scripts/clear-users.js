@@ -3,7 +3,7 @@ const path = require("path");
 const { MongoClient } = require("mongodb");
 require("dotenv").config();
 
-const DATA_DIR = path.join(process.cwd(), "data");
+const DATA_DIR = path.join(process.cwd(), "apps", "api", "runtime", "data");
 const CHAT_STATE_FILE = path.join(DATA_DIR, "chat-state.json");
 const AUTH_STATE_FILE = path.join(DATA_DIR, "auth-state.json");
 

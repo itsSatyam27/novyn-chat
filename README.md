@@ -28,6 +28,11 @@
 7. [Building for Android (Capacitor)](#-building-for-android-capacitor)
 8. [Production Deployment & Environment Variables](#-production-deployment--environment-variables)
 
+> The repository is organized by application: `apps/web` (React/Vite),
+> `apps/api` (Express/Socket.IO), `apps/mobile/capacitor` (native web shell),
+> and `apps/mobile/flutter` (Flutter client). Root `package.json` commands are
+> intentionally retained as the single local-development and deployment entry point.
+
 ---
 
 ## 🏛️ Architecture & Unified Platform Design
@@ -189,44 +194,16 @@ When connected to MongoDB Atlas, Novyn Chat organizes data into high-performance
 
 ```text
 novyn-chat/
-├── android/                         # Capacitor Native Android Project Shell
-├── data/                            # Local JSON state fallback (when MongoDB is offline)
-├── uploads/                         # Local media uploads directory
-├── public/                          # Static assets, sound chimes & PWA icons
-├── src/
-│   ├── components/
-│   │   ├── auth/                    # AuthModal, SignIn/SignUp forms
-│   │   ├── calls/                   # CallModal, VideoGrid, CallHistoryPanel
-│   │   ├── chat/                    # Core Chat Components
-│   │   │   ├── ChatWindow.tsx       # Message viewport, pinning, multi-stage scroll
-│   │   │   ├── MessageBubble.tsx    # Message cards, reaction pills, status arrows
-│   │   │   ├── MessageInput.tsx     # Text area, draft auto-save, voice recorder
-│   │   │   ├── GameMessageBubble.tsx# Tic-Tac-Toe, RPS & Connect 4 mini-game cards
-│   │   │   ├── ContactDetailsSidebar.tsx # Contact metadata, media grid, danger zone
-│   │   │   ├── VerifySafetyNumberModal.tsx # E2EE 60-digit safety code & QR modal
-│   │   │   └── InChatSearch.tsx     # Real-time search & match navigation
-│   │   ├── contacts/                # Friend search & request approvals
-│   │   ├── layout/                  # AppLayout, Sidebar, BottomNav, CommandPalette
-│   │   ├── settings/                # SettingsPanel, SubPanel, SettingsDetailView
-│   │   └── ui/                      # Avatars, badges, modals, tooltips
-│   ├── context/
-│   │   ├── AuthContext.tsx          # JWT session, user registration & login
-│   │   └── ChatContext.tsx          # Socket events, E2EE encryption, call managers
-│   ├── services/
-│   │   ├── e2ee.ts                  # Web Crypto API ECDH P-256 + AES-GCM-256
-│   │   ├── webrtc.ts                # Audio/Video P2P WebRTC connection manager
-│   │   ├── socket.ts                # Socket.IO connection & reconnect handler
-│   │   ├── capacitor.ts             # Native Android haptics & back button listener
-│   │   ├── audioManager.ts          # Synthesized chimes & ringtones
-│   │   └── settingsTheme.ts         # Theme tokens, custom wallpapers & font presets
-│   ├── styles/
-│   │   └── index.css                # Glassmorphism, animations, responsive breakpoints
-│   └── types/
-│       └── index.ts                 # TypeScript type definitions
-├── server.js                        # Node.js Express + Socket.IO Server Backend
-├── capacitor.config.ts              # Capacitor Android configuration
-├── vite.config.ts                   # Vite bundler configuration
-└── package.json                     # Scripts and dependencies
+├── apps/
+│   ├── web/                  # React/Vite source, public assets, dist
+│   ├── api/                  # Express, Socket.IO, tests, runtime storage
+│   └── mobile/
+│       ├── capacitor/        # Capacitor configuration and Android shell
+│       └── flutter/          # Flutter Android, iOS, web and desktop client
+├── scripts/                  # Maintenance commands
+├── .github/                  # CI
+├── capacitor.config.ts       # Root CLI entry point
+└── package.json              # Root development and deployment commands
 ```
 
 ---
