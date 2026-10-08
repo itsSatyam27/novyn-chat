@@ -6,6 +6,12 @@
   --bg-main: #f4fafb;
   --bg-app: rgba(255, 255, 255, 0.5);
   --bg-canvas: transparent;
+  --chat-default-wallpaper:
+    radial-gradient(ellipse at 12% 18%, rgba(109, 93, 252, 0.09), transparent 42%),
+    radial-gradient(ellipse at 88% 82%, rgba(77, 169, 177, 0.09), transparent 44%),
+    radial-gradient(circle, transparent 10px, rgba(80, 94, 132, 0.15) 10.8px, transparent 11.6px) 0 0 / 72px 72px,
+    radial-gradient(circle at 1px 1px, rgba(71, 84, 118, 0.1) 1px, transparent 1.5px) 0 0 / 28px 28px,
+    #f3f5fb;
   --bg-surface: rgba(255, 255, 255, 0.78);
   --bg-surface-hover: rgba(225, 246, 245, 0.85);
   --bg-card: rgba(255, 255, 255, 0.8);
@@ -24,6 +30,14 @@
   --mesh: radial-gradient(ellipse at 3% 10%, #e9e4fb 0%, transparent 42%),
     radial-gradient(ellipse at 85% 27%, #f0eafd 0%, transparent 43%),
     radial-gradient(ellipse at 56% 108%, #e4eaf6 0%, transparent 44%), #fbfaff;
+}
+:root[data-color-mode="dark"] {
+  --chat-default-wallpaper:
+    radial-gradient(ellipse at 12% 18%, rgba(109, 93, 252, 0.13), transparent 43%),
+    radial-gradient(ellipse at 88% 82%, rgba(46, 118, 129, 0.12), transparent 45%),
+    radial-gradient(circle, transparent 10px, rgba(176, 182, 218, 0.14) 10.8px, transparent 11.6px) 0 0 / 72px 72px,
+    radial-gradient(circle at 1px 1px, rgba(176, 182, 218, 0.08) 1px, transparent 1.5px) 0 0 / 28px 28px,
+    #10111b;
 }
 
 html, body { background: #e6eef1; color: var(--text-main); }
@@ -2145,3 +2159,76 @@ button:disabled { cursor: not-allowed; }
 :root .message-actions-menu.opens-left.viewport-opens-below { transform-origin: top right; }
 :root .message-actions-menu.opens-right.viewport-opens-above { transform-origin: bottom left; }
 :root .message-actions-menu.opens-right.viewport-opens-below { transform-origin: top left; }
+
+/* Light chat surfaces: undo the dark-only conversation and contact panel colors. */
+:root[data-color-mode="light"] .chat-window { background: #f8f8ff !important; }
+:root[data-color-mode="light"] .chat-header,
+:root[data-color-mode="light"] .chat-input-bar {
+  background: rgba(255, 255, 255, .96) !important;
+  border-color: rgba(109, 93, 252, .14) !important;
+}
+:root[data-color-mode="light"] .chat-header-actions .header-action-btn {
+  background: #f3f1ff !important;
+  border-color: rgba(109, 93, 252, .18) !important;
+  color: #5548bb !important;
+}
+:root[data-color-mode="light"] .chat-header-actions .header-action-btn:hover {
+  background: #e9e5ff !important;
+  border-color: rgba(109, 93, 252, .32) !important;
+}
+:root[data-color-mode="light"] .input-bar-container {
+  background: #fff !important;
+  border-color: rgba(109, 93, 252, .2) !important;
+  box-shadow: 0 4px 14px rgba(49, 41, 103, .08) !important;
+}
+:root[data-color-mode="light"] .message-textarea { color: #292544 !important; }
+:root[data-color-mode="light"] .message-textarea::placeholder { color: #85809d !important; }
+:root[data-color-mode="light"] .bubble.me { color: #fff !important; }
+:root[data-color-mode="light"] .bubble.other {
+  background: rgba(255, 255, 255, .94) !important;
+  border-color: rgba(76, 67, 141, .12) !important;
+  color: #292544 !important;
+}
+:root[data-color-mode="light"] .contact-details-sidebar,
+:root[data-color-mode="light"] .contact-details-header { background: #fff !important; }
+:root[data-color-mode="light"] .contact-details-profile,
+:root[data-color-mode="light"] .contact-group-members,
+:root[data-color-mode="light"] .contact-shared-section,
+:root[data-color-mode="light"] .contact-options-section,
+:root[data-color-mode="light"] .contact-danger-section {
+  background: linear-gradient(145deg, #fff, #f7f6ff) !important;
+  border-color: rgba(109, 93, 252, .15) !important;
+  box-shadow: 0 5px 16px rgba(49, 41, 103, .055) !important;
+  color: #292544 !important;
+}
+:root[data-color-mode="light"] .contact-details-profile h2,
+:root[data-color-mode="light"] .contact-details-header h3,
+:root[data-color-mode="light"] .contact-options-card > div > div:first-child > div:nth-child(2) > div:first-child {
+  color: #292544 !important;
+}
+:root[data-color-mode="light"] .contact-details-profile p,
+:root[data-color-mode="light"] .contact-options-card > div > div:first-child > div:nth-child(2) > div:nth-child(2) {
+  color: #716b8b !important;
+}
+:root[data-color-mode="light"] .contact-details-profile .contact-presence {
+  background: #efedff !important;
+  border-color: rgba(109, 93, 252, .16) !important;
+  color: #5548bb !important;
+}
+:root[data-color-mode="light"] .contact-call-actions .btn {
+  background: #f3f1ff !important;
+  border-color: rgba(109, 93, 252, .2) !important;
+  color: #5548bb !important;
+}
+:root[data-color-mode="light"] .contact-shared-section [style*="dashed"] {
+  background: #f7f6ff !important;
+  border-color: rgba(109, 93, 252, .16) !important;
+  color: #716b8b !important;
+}
+:root[data-color-mode="light"] .contact-options-card > div {
+  background: #fff !important;
+  border-color: rgba(109, 93, 252, .14) !important;
+  color: #292544 !important;
+}
+:root[data-color-mode="light"] .contact-options-card > div:hover { background: #f3f1ff !important; }
+:root[data-color-mode="light"] .chat-retention-row { background: #faf9ff !important; }

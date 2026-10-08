@@ -117,9 +117,9 @@ const GEOMETRIC_DOODLES = encodeSvg(`
 export const WALLPAPER_PRESETS: WallpaperPreset[] = [
   {
     id: 'default',
-    name: 'Classic Dark',
+    name: 'Novyn Default',
     background: 'var(--bg-canvas)',
-    preview: '#0b0f19',
+    preview: 'var(--chat-default-wallpaper)',
   },
   {
     id: 'whatsapp_doodle',

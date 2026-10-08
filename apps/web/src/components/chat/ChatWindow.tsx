@@ -103,6 +103,9 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   const [currentMatchIndex, setCurrentMatchIndex] = useState(0);
   const [chatRetentionDays, setChatRetentionDays] = useState<number | null>(null);
   const [isAwayFromLatest, setIsAwayFromLatest] = useState(false);
+  const chatBackground = chatWallpaper && chatWallpaper !== 'var(--bg-canvas)'
+    ? chatWallpaper
+    : 'var(--chat-default-wallpaper)';
   const [firstUnreadMessageId, setFirstUnreadMessageId] = useState<string | null>(null);
   const [stickyDay, setStickyDay] = useState('');
 
@@ -561,7 +564,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         <div
           ref={messagesContainerRef}
           className="messages-container"
-          style={{ background: chatWallpaper || 'var(--bg-canvas)', position: 'relative' }}
+          style={{ background: chatBackground, position: 'relative' }}
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
