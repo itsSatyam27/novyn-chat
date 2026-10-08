@@ -24,13 +24,15 @@ class ChatAdapter extends TypeAdapter<Chat> {
       unreadCount: fields[4] as int,
       avatarUrl: fields[5] as String,
       isOnline: fields[6] as bool,
+      isGroup: fields[7] as bool,
+      memberIds: (fields[8] as List).cast<String>(),
     );
   }
 
   @override
   void write(BinaryWriter writer, Chat obj) {
     writer
-      ..writeByte(7)
+      ..writeByte(9)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -44,7 +46,11 @@ class ChatAdapter extends TypeAdapter<Chat> {
       ..writeByte(5)
       ..write(obj.avatarUrl)
       ..writeByte(6)
-      ..write(obj.isOnline);
+      ..write(obj.isOnline)
+      ..writeByte(7)
+      ..write(obj.isGroup)
+      ..writeByte(8)
+      ..write(obj.memberIds);
   }
 
   @override
@@ -81,13 +87,16 @@ class MessageAdapter extends TypeAdapter<Message> {
       replyToText: fields[9] as String?,
       replyToSender: fields[10] as String?,
       edited: fields[11] as bool,
+      isEncrypted: fields[12] as bool? ?? false,
+      ciphertext: fields[13] as String?,
+      iv: fields[14] as String?,
     );
   }
 
   @override
   void write(BinaryWriter writer, Message obj) {
     writer
-      ..writeByte(12)
+      ..writeByte(15)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -111,7 +120,13 @@ class MessageAdapter extends TypeAdapter<Message> {
       ..writeByte(10)
       ..write(obj.replyToSender)
       ..writeByte(11)
-      ..write(obj.edited);
+      ..write(obj.edited)
+      ..writeByte(12)
+      ..write(obj.isEncrypted)
+      ..writeByte(13)
+      ..write(obj.ciphertext)
+      ..writeByte(14)
+      ..write(obj.iv);
   }
 
   @override

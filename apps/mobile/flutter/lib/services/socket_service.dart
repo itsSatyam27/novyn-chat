@@ -8,6 +8,7 @@ import '../models/user_model.dart';
 import 'hybrid_db_service.dart';
 import 'api_service.dart';
 import 'backend_contacts.dart';
+import 'message_encryption_service.dart';
 
 /// Socket service for the shared novyn-chat backend (server.js).
 ///
@@ -52,6 +53,8 @@ import 'backend_contacts.dart';
 ///   ON    error_message            — { message }
 
 class SocketService extends ChangeNotifier {
+  final encryption = MessageEncryptionService();
+  final Map<String, String> _peerKeys = {};
   final BackendContacts contacts = BackendContacts();
   io.Socket? _socket;
   bool _isConnected = false;
@@ -158,9 +161,17 @@ class SocketService extends ChangeNotifier {
 
   // ── Register all incoming event handlers ─────────────────────────────────
   void _registerEventHandlers() {
-    for (final event in ['register_success', 'init', 'friend_list',
-      'friend_list_updated', 'requests_updated', 'discover_online',
-      'friend_request_sent', 'friend_request_cancelled', 'user_status']) {
+    for (final event in [
+      'register_success',
+      'init',
+      'friend_list',
+      'friend_list_updated',
+      'requests_updated',
+      'discover_online',
+      'friend_request_sent',
+      'friend_request_cancelled',
+      'user_status'
+    ]) {
       _socket!.on(event, (data) => contacts.applyEvent(event, data));
     }
     _socket!.on('register_success', (data) {
@@ -176,12 +187,20 @@ class SocketService extends ChangeNotifier {
     _socket!.on('friend_list', (data) => _handleFriendList(data));
     _socket!.on('friend_list_updated', (data) => _handleFriendList(data));
 
+    _socket!.on('peer_public_key_updated', (data) {
+      if (data is Map) {
+        _peerKeys[data['username'].toString().toLowerCase()] =
+            data['publicKey']?.toString() ?? '';
+      }
+    });
+
     // ── Chat history ──────────────────────────────────────────────────────
-    _socket!.on('history', (data) {
+    _socket!.on('history', (data) async {
       if (data is! Map) return;
       final withUser = data['with']?.toString() ??
           data['withUser']?.toString() ??
-          data['to']?.toString() ?? '';
+          data['to']?.toString() ??
+          '';
       final historyList = data['messages'];
       if (historyList is! List) return;
 
@@ -190,20 +209,22 @@ class SocketService extends ChangeNotifier {
         final parsed = historyList.map<Message>((m) {
           final sender = m['from']?.toString() ??
               m['sender']?.toString() ??
-              m['fromKey']?.toString() ?? '';
+              m['fromKey']?.toString() ??
+              '';
           return Message(
             id: m['id']?.toString() ??
                 m['messageId']?.toString() ??
                 DateTime.now().millisecondsSinceEpoch.toString(),
             chatId: withUser,
             text: m['text']?.toString() ?? '',
+            isEncrypted: m['isEncrypted'] == true,
+            ciphertext: m['ciphertext']?.toString(),
+            iv: m['iv']?.toString(),
             senderId: sender,
             isFromMe: sender.toLowerCase() == _myUsername?.toLowerCase(),
             createdAt: DateTime.tryParse(m['timestamp']?.toString() ?? '') ??
                 DateTime.now(),
-            reactions: m['reactions'] != null
-                ? Map<String, String>.from(m['reactions'])
-                : {},
+            reactions: Message.parseReactions(m['reactions']),
             replyToId: m['replyTo']?['id']?.toString(),
             replyToText: m['replyTo']?['text']?.toString(),
             replyToSender: m['replyTo']?['from']?.toString(),
@@ -211,8 +232,25 @@ class SocketService extends ChangeNotifier {
           );
         }).toList();
 
-        _messages = parsed;
-        HybridDbService.saveMessages(parsed);
+        final account = _myUsername;
+        if (account == null) return;
+        final decrypted = await Future.wait(
+            parsed.map((message) => encryption.decrypt(message, account)));
+        if (_myUsername != account ||
+            _currentChatWith?.toLowerCase() != withUser.toLowerCase()) {
+          return;
+        }
+        // Keep messages received while asynchronous history decryption ran.
+        final ids = parsed.map((message) => message.id).toSet();
+        final newest = parsed.isEmpty
+            ? DateTime.fromMillisecondsSinceEpoch(0)
+            : parsed.last.createdAt;
+        _messages = [
+          ...decrypted,
+          ..._messages.where((message) =>
+              !ids.contains(message.id) && message.createdAt.isAfter(newest))
+        ];
+        HybridDbService.saveMessages(decrypted);
         notifyListeners();
       }
     });
@@ -220,12 +258,12 @@ class SocketService extends ChangeNotifier {
     // ── Incoming / outgoing message ───────────────────────────────────────
     // novyn-chat uses 'private_message' for BOTH sending confirmation
     // and receiving from the other party.
-    _socket!.on('private_message', (data) {
+    _socket!.on('private_message', (data) async {
       if (data is! Map) return;
-      final sender = data['from']?.toString() ??
-          data['sender']?.toString() ?? '';
-      final receiver = data['to']?.toString() ??
-          data['receiver']?.toString() ?? '';
+      final sender =
+          data['from']?.toString() ?? data['sender']?.toString() ?? '';
+      final receiver =
+          data['to']?.toString() ?? data['receiver']?.toString() ?? '';
       final clientTempId = data['clientTempId']?.toString();
       final msgId = data['id']?.toString() ??
           data['messageId']?.toString() ??
@@ -235,20 +273,27 @@ class SocketService extends ChangeNotifier {
       final isOwn = sender.toLowerCase() == _myUsername?.toLowerCase();
       final chatPartner = isOwn ? receiver : sender;
 
-      final msg = Message(
+      var msg = Message(
         id: msgId,
         chatId: chatPartner,
         text: data['text']?.toString() ?? '',
+        isEncrypted: data['isEncrypted'] == true,
+        ciphertext: data['ciphertext']?.toString(),
+        iv: data['iv']?.toString(),
         senderId: sender,
         isFromMe: isOwn,
-        createdAt:
-            DateTime.tryParse(data['timestamp']?.toString() ?? '') ??
-                DateTime.now(),
+        createdAt: DateTime.tryParse(data['timestamp']?.toString() ?? '') ??
+            DateTime.now(),
         reactions: {},
         replyToId: data['replyTo']?['id']?.toString(),
         replyToText: data['replyTo']?['text']?.toString(),
         replyToSender: data['replyTo']?['from']?.toString(),
       );
+
+      final account = _myUsername;
+      if (account == null) return;
+      msg = await encryption.decrypt(msg, account);
+      if (_myUsername != account) return;
 
       // Save to local DB
       HybridDbService.saveMessage(msg);
@@ -281,7 +326,8 @@ class SocketService extends ChangeNotifier {
         msg.text,
         sender,
         msg.createdAt,
-        isCurrentChat: _currentChatWith?.toLowerCase() == chatPartner.toLowerCase(),
+        isCurrentChat:
+            _currentChatWith?.toLowerCase() == chatPartner.toLowerCase(),
       );
 
       notifyListeners();
@@ -330,9 +376,7 @@ class SocketService extends ChangeNotifier {
       final reactions = data['reactions'];
       final idx = _messages.indexWhere((m) => m.id == msgId);
       if (idx != -1) {
-        final updatedReactions = reactions != null
-            ? Map<String, String>.from(reactions)
-            : <String, String>{};
+        final updatedReactions = Message.parseReactions(reactions);
         final updated = List<Message>.from(_messages);
         updated[idx] = updated[idx].copyWith(reactions: updatedReactions);
         _messages = updated;
@@ -433,16 +477,20 @@ class SocketService extends ChangeNotifier {
   }
 
   // ── Parse friend_list payload into ChatPreview list ───────────────────────
-  void _handleFriendList(dynamic data) {
+  void _handleFriendList(dynamic data) async {
     final list = data is List ? data : (data is Map ? data['friends'] : null);
     if (list is! List) return;
 
     final previews = list.map<ChatPreview>((item) {
-      final username = item['username']?.toString() ??
-          item['groupId']?.toString() ?? '';
+      final username =
+          item['username']?.toString() ?? item['groupId']?.toString() ?? '';
       final displayName = item['displayName']?.toString() ??
-          item['name']?.toString() ?? username;
+          item['name']?.toString() ??
+          username;
       final lastMsg = item['lastMessage'];
+      if (item['publicKey'] != null) {
+        _peerKeys[username.toLowerCase()] = item['publicKey'].toString();
+      }
 
       // Build a minimal UserModel so ChatPreview's required field is satisfied
       final peerModel = UserModel(
@@ -465,8 +513,7 @@ class SocketService extends ChangeNotifier {
         lastMessage: lastMsg is Map
             ? lastMsg['text']?.toString() ?? ''
             : lastMsg?.toString() ?? '',
-        lastTime: DateTime.tryParse(
-                item['lastTimestamp']?.toString() ?? '') ??
+        lastTime: DateTime.tryParse(item['lastTimestamp']?.toString() ?? '') ??
             DateTime.now(),
         unreadCount: (item['unreadCount'] as num?)?.toInt() ?? 0,
       );
@@ -475,6 +522,36 @@ class SocketService extends ChangeNotifier {
     _conversations = previews;
     HybridDbService.saveChats(previews);
     notifyListeners();
+    final account = _myUsername;
+    if (account == null) return;
+    for (final item in list) {
+      final raw = item['lastMessage'];
+      if (raw is! Map || raw['isEncrypted'] != true) continue;
+      final peer = item['username']?.toString() ?? '';
+      final decrypted = await encryption.decrypt(
+          Message(
+            id: raw['id']?.toString() ?? '',
+            chatId: peer,
+            text: raw['text']?.toString() ?? '🔒 Encrypted message',
+            isFromMe: false,
+            isEncrypted: true,
+            ciphertext: raw['ciphertext']?.toString(),
+            iv: raw['iv']?.toString(),
+          ),
+          account);
+      if (_myUsername != account) return;
+      if (decrypted.needsMessageKey) continue;
+      final index = _conversations.indexWhere(
+          (chat) => chat.peerUid.toLowerCase() == peer.toLowerCase());
+      // Avoid replacing a newer live preview with the older friend-list snapshot.
+      if (index >= 0 && _conversations[index].lastMessage == raw['text']) {
+        final updated = List<ChatPreview>.from(_conversations);
+        updated[index] = updated[index].copyWith(lastMessage: decrypted.text);
+        _conversations = updated;
+        HybridDbService.saveChat(updated[index]);
+        notifyListeners();
+      }
+    }
   }
 
   // ── Open a chat ────────────────────────────────────────────────────────────
@@ -483,6 +560,8 @@ class SocketService extends ChangeNotifier {
     _messages = List<Message>.from(cachedHistory);
     _peerIsTyping = false;
     notifyListeners();
+
+    unawaited(decryptCurrentMessages());
 
     // Tell the server which chat is active and request latest history
     _socket?.emit('set_active_chat', {'to': peerUsername, 'kind': 'friend'});
@@ -502,7 +581,7 @@ class SocketService extends ChangeNotifier {
   }
 
   // ── Send a message ─────────────────────────────────────────────────────────
-  void sendMessage(
+  Future<void> sendMessage(
     String text,
     String toPeerUsername, {
     String? replyToId,
@@ -510,8 +589,25 @@ class SocketService extends ChangeNotifier {
     String? replyToSender,
     Map<String, dynamic>? attachment,
     bool isGroup = false,
-  }) {
-    if (_socket == null || !_isConnected || _myUsername == null) return;
+  }) async {
+    _requireConnection();
+    final account = _myUsername;
+    if (account == null) throw StateError('Sign in before sending messages.');
+    final peerKey = _peerKeys[toPeerUsername.toLowerCase()] ?? '';
+    Map<String, dynamic>? encrypted;
+    if (!isGroup && peerKey.isNotEmpty && text.isNotEmpty) {
+      final ownKey = await _requestPublicKey(account);
+      encrypted =
+          await encryption.encrypt(text, account, toPeerUsername, peerKey, accountPublicKey: ownKey);
+      if (encrypted == null) {
+        throw StateError(
+            'Import message keys from your web browser before sending to this encrypted chat.');
+      }
+      if (_myUsername != account) {
+        throw StateError('Your account changed. Please try again.');
+      }
+      _requireConnection();
+    }
 
     final clientTempId = 'tmp_${DateTime.now().millisecondsSinceEpoch}';
     final toType = isGroup ? 'group' : 'friend';
@@ -527,6 +623,9 @@ class SocketService extends ChangeNotifier {
       replyToId: replyToId,
       replyToText: replyToText,
       replyToSender: replyToSender,
+      isEncrypted: encrypted != null,
+      ciphertext: encrypted?['ciphertext'],
+      iv: encrypted?['iv'],
     );
     _messages = [..._messages, tempMsg];
     notifyListeners();
@@ -535,18 +634,63 @@ class SocketService extends ChangeNotifier {
     final payload = <String, dynamic>{
       'to': toPeerUsername,
       'toType': toType,
-      'text': text,
+      'text': encrypted == null ? text : '',
+      if (encrypted != null) ...encrypted,
       'clientTempId': clientTempId,
       if (attachment != null) 'attachment': attachment,
       if (replyToId != null)
         'replyTo': {
           'id': replyToId,
-          'text': replyToText ?? '',
+          'text': encrypted == null ? replyToText ?? '' : '🔒 Encrypted message',
           'from': replyToSender ?? '',
         },
     };
 
     _socket!.emit('private_message', payload);
+  }
+
+  Future<String> _requestPublicKey(String username) async {
+    _requireConnection();
+    final result = Completer<String>();
+    _socket!.emitWithAck('get_public_key', {'username': username}, ack: (dynamic data) {
+      if (!result.isCompleted) result.complete(data is Map ? data['publicKey']?.toString() ?? '' : '');
+    });
+    return result.future.timeout(const Duration(seconds: 10));
+  }
+
+  Future<void> decryptCurrentMessages() async {
+    final account = _myUsername;
+    final peer = _currentChatWith;
+    if (account == null || peer == null) return;
+    final snapshot = _messages;
+    final decrypted = await Future.wait(
+        snapshot.map((message) => encryption.decrypt(message, account)));
+    if (_myUsername != account || _currentChatWith != peer) return;
+    final byId = {for (final message in decrypted) message.id: message};
+    _messages = _messages
+        .map((message) => byId[message.id]?.ciphertext == message.ciphertext
+            ? byId[message.id] ?? message
+            : message)
+        .toList();
+    await HybridDbService.saveMessages(decrypted);
+    notifyListeners();
+  }
+
+  Future<int> importMessageKeys(String file, String password) async {
+    final account = _myUsername;
+    if (account == null) {
+      throw StateError('Sign in before importing message keys.');
+    }
+    final count = await encryption.importKeys(file, password, account);
+    if (_myUsername != account) {
+      throw StateError('Your account changed. Reopen this chat.');
+    }
+    await decryptCurrentMessages();
+    _socket?.emit('resume_session');
+    if (_currentChatWith != null) {
+      _socket?.emit('get_history', {'to': _currentChatWith, 'kind': 'friend'});
+    }
+    return count;
   }
 
   // ── Typing indicators (debounced) ─────────────────────────────────────────
@@ -627,7 +771,8 @@ class SocketService extends ChangeNotifier {
     _socket!.emitWithAck('add_friend', username, ack: (dynamic data) {
       if (result.isCompleted) return;
       if (data is Map && data['ok'] == true) {
-        contacts.applyEvent('friend_request_sent', {'to': data['username'] ?? username});
+        contacts.applyEvent(
+            'friend_request_sent', {'to': data['username'] ?? username});
         result.complete();
       } else {
         result.completeError(StateError(data is Map
@@ -677,7 +822,8 @@ class SocketService extends ChangeNotifier {
   }
 
   void endCall(String peerUsername, {String? reason}) {
-    _socket?.emit('call_end', {'to': peerUsername, if (reason != null) 'reason': reason});
+    _socket?.emit(
+        'call_end', {'to': peerUsername, if (reason != null) 'reason': reason});
   }
 
   // ── WebRTC signaling ──────────────────────────────────────────────────────
@@ -689,17 +835,65 @@ class SocketService extends ChangeNotifier {
   VoidCallback? onProfileUpdated;
   bool Function()? notificationsMuted;
   void Function(Map<String, dynamic>)? onProfileData;
+  bool _changingPassword = false;
+
+  Future<void> changePassword(String currentPassword, String newPassword) async {
+    _requireConnection();
+    if (_changingPassword) {
+      throw StateError('A password change is already in progress.');
+    }
+    _changingPassword = true;
+    final connection = _socket!;
+    final confirmed = Completer<void>();
+    void succeeded(dynamic _) {
+      if (!confirmed.isCompleted) confirmed.complete();
+    }
+
+    void failed(dynamic data) {
+      if (!confirmed.isCompleted) {
+        final message = data is Map ? data['message']?.toString() : null;
+        confirmed.completeError(StateError(message ?? 'Could not change your password.'));
+      }
+    }
+
+    void disconnected(dynamic _) {
+      if (!confirmed.isCompleted) {
+        confirmed.completeError(StateError('Connection lost before the password change was confirmed. Please sign in again.'));
+      }
+    }
+
+    connection.on('password_changed', succeeded);
+    connection.on('password_change_failed', failed);
+    connection.on('disconnect', disconnected);
+    try {
+      connection.emit('change_password', {
+        'currentPassword': currentPassword,
+        'newPassword': newPassword,
+      });
+      await confirmed.future.timeout(const Duration(seconds: 15));
+    } on TimeoutException {
+      throw StateError('Could not confirm the password change. Check your connection and try signing in again.');
+    } finally {
+      connection.off('password_changed', succeeded);
+      connection.off('password_change_failed', failed);
+      connection.off('disconnect', disconnected);
+      _changingPassword = false;
+    }
+  }
 
   Future<void> updatePresence(String mode) async {
     _requireConnection();
     final connection = _socket!;
     final confirmed = Completer<void>();
     void received(dynamic data) {
-      if (data is Map && data['presenceMode'] == mode &&
-          data['username'] == _myUsername && !confirmed.isCompleted) {
+      if (data is Map &&
+          data['presenceMode'] == mode &&
+          data['username'] == _myUsername &&
+          !confirmed.isCompleted) {
         confirmed.complete();
       }
     }
+
     connection.on('profile_updated', received);
     try {
       connection.emit('update_profile', {'presenceMode': mode});
@@ -710,7 +904,8 @@ class SocketService extends ChangeNotifier {
   }
 
   // messagesReadByPeer — used by chat_detail_screen for read tick color
-  bool get messagesReadByPeer => false; // novyn-chat tracks this via message_status events
+  bool get messagesReadByPeer =>
+      false; // novyn-chat tracks this via message_status events
 
   void onCallInvite(Function(Map) cb) => onCallInviteCallback = cb;
   void onCallAccepted(Function(Map) cb) => onCallAcceptedCallback = cb;
@@ -769,6 +964,7 @@ class SocketService extends ChangeNotifier {
   void prependMessages(List<Message> older) {
     _messages = [...older, ..._messages];
     notifyListeners();
+    unawaited(decryptCurrentMessages());
   }
 
   // ── Update conversations preview in memory ────────────────────────────────
@@ -779,8 +975,8 @@ class SocketService extends ChangeNotifier {
     DateTime time, {
     bool isCurrentChat = false,
   }) {
-    final idx = _conversations
-        .indexWhere((c) => c.peerUid.toLowerCase() == peerUsername.toLowerCase());
+    final idx = _conversations.indexWhere(
+        (c) => c.peerUid.toLowerCase() == peerUsername.toLowerCase());
 
     if (idx != -1) {
       final old = _conversations[idx];
@@ -802,6 +998,8 @@ class SocketService extends ChangeNotifier {
 
   // ── Disconnect ────────────────────────────────────────────────────────────
   void disconnect() {
+    _myUsername = null;
+    _peerKeys.clear();
     contacts.clear();
     _reconnectTimer?.cancel();
     _typingDebounce?.cancel();

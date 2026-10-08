@@ -1,0 +1,62 @@
+.messages-workspace { display: flex; flex: 1; min-width: 0; min-height: 0; flex-direction: column; gap: 12px; overflow-y: auto; padding: clamp(16px, 2vw, 26px) clamp(16px, 2vw, 28px) 104px; color: var(--text-main); background: var(--bg-main); }
+.messages-overview-card { min-width: 0; padding: 15px; border: 1px solid var(--border); border-radius: 20px; background: var(--bg-surface); }
+.messages-overview-card > header { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 11px; }
+.messages-overview-card > header h2 { display: flex; align-items: center; gap: 8px; margin: 0; color: var(--text-main); font-size: .88rem; }
+.messages-overview-card > header h2 > svg { color: var(--primary); }
+.messages-overview-card > header > span { min-width: 20px; padding: 3px 6px; border-radius: 999px; background: var(--primary-glow); color: var(--primary); font-size: .68rem; text-align: center; }
+.messages-overview-card > header > button { display: inline-flex; align-items: center; gap: 4px; border: 0; background: transparent; color: var(--primary); font: inherit; font-size: .7rem; cursor: pointer; }
+.messages-pinned-grid { display: flex; align-items: stretch; gap: 8px; overflow-x: auto; padding-bottom: 2px; }
+.messages-pinned-tile, .messages-pin-add { position: relative; display: flex; flex: 0 0 200px; min-width: 0; min-height: 94px; flex-direction: row; align-items: center; gap: 10px; padding: 11px; border: 1px solid color-mix(in srgb, var(--border) 85%, transparent); border-radius: 16px; background: color-mix(in srgb, var(--bg-surface-hover, var(--bg-main)) 65%, transparent); }
+.messages-pinned-tile { cursor: grab; transition: opacity .16s ease, border-color .16s ease, transform .16s ease; }
+.messages-pinned-tile:active { cursor: grabbing; }
+.messages-pinned-tile.is-dragging { opacity: .42; }
+.messages-pinned-tile.is-drag-over { border-color: var(--primary); transform: translateY(-2px); }
+.messages-pinned-open { display: flex; width: 100%; min-width: 0; flex-direction: row; align-items: center; gap: 10px; padding: 0; border: 0; background: transparent; color: var(--text-main); text-align: left; cursor: pointer; }
+.messages-pinned-copy { display: block; flex: 1; min-width: 0; }
+.messages-pinned-copy > strong { display: block; width: 100%; overflow: hidden; color: var(--text-main); font-size: .75rem; text-overflow: ellipsis; white-space: nowrap; }
+.messages-pinned-copy > small { display: block; width: 100%; margin-top: 3px; overflow: hidden; color: var(--text-muted); font-size: .66rem; line-height: 1.4; text-overflow: ellipsis; white-space: nowrap; }
+.messages-pin-toggle { position: absolute; top: 8px; right: 8px; display: grid; place-items: center; width: 24px; height: 24px; border: 0; border-radius: 8px; background: var(--bg-surface); color: var(--primary); opacity: 0; cursor: pointer; }
+.messages-pinned-tile:hover .messages-pin-toggle, .messages-pin-toggle:focus-visible { opacity: 1; }
+.messages-pin-add { flex-basis: 140px; flex-direction: column; align-items: center; justify-content: center; border-style: dashed; background: transparent; color: var(--primary); font-size: .68rem; cursor: pointer; }
+.messages-pin-add:disabled { opacity: .55; cursor: default; }
+.messages-pin-add-wrap { position: relative; min-width: 0; }
+.messages-pin-add-wrap > .messages-pin-add { width: 100%; height: 100%; }
+.messages-pin-picker { position: fixed; z-index: 10000; display: flex; width: min(300px, calc(100vw - 24px)); max-height: min(320px, calc(100vh - 24px)); flex-direction: column; gap: 3px; overflow-y: auto; padding: 6px; border: 1px solid var(--border); border-radius: 14px; background: var(--bg-surface); box-shadow: 0 14px 38px rgba(0, 0, 0, .32); animation: messages-pin-picker-in .14s ease-out; }
+.messages-pin-picker > button { display: flex; width: 100%; min-height: 42px; flex: 0 0 auto; align-items: center; gap: 9px; padding: 7px; border: 0; border-radius: 10px; background: transparent; color: var(--text-main); text-align: left; cursor: pointer; }
+.messages-pin-picker > button:hover { background: var(--primary-glow); }
+.messages-pin-picker > button span { overflow: hidden; font-size: .74rem; text-overflow: ellipsis; white-space: nowrap; }
+@keyframes messages-pin-picker-in { from { opacity: 0; transform: translateY(-4px) scale(.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+@media (prefers-reduced-motion: reduce) { .messages-pin-picker { animation: none; } }
+.messages-summary-grid { display: grid; flex: 1 1 auto; min-height: 232px; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; align-content: stretch; }
+.messages-unread-card, .messages-groups-card { display: flex; height: auto; min-height: 200px; flex-direction: column; box-sizing: border-box; overflow: hidden; }
+.messages-unread-card > header, .messages-groups-card > header { flex: 0 0 auto; }
+.messages-row-list { display: flex; min-height: 0; flex: 1 1 auto; flex-direction: column; gap: 7px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--text-muted) 42%, transparent) transparent; }
+.messages-row-list::-webkit-scrollbar { width: 5px; }
+.messages-row-list::-webkit-scrollbar-thumb { border-radius: 999px; background: color-mix(in srgb, var(--text-muted) 42%, transparent); }
+.messages-chat-tile { display: flex; min-width: 0; min-height: 48px; flex: 0 0 auto; align-items: center; gap: 9px; padding: 6px 9px; border: 0; border-radius: 13px; background: color-mix(in srgb, var(--bg-surface-hover, var(--bg-main)) 60%, transparent); color: var(--text-main); text-align: left; cursor: pointer; }
+.messages-chat-tile:hover { background: color-mix(in srgb, var(--primary) 12%, var(--bg-surface)); }
+.messages-chat-copy { flex: 1; min-width: 0; }
+.messages-chat-copy strong, .messages-chat-copy small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.messages-chat-copy strong { color: var(--text-main); font-size: .74rem; }
+.messages-chat-copy small { display: block; margin-top: 2px; overflow: hidden; color: var(--text-muted); font-size: .64rem; text-overflow: ellipsis; white-space: nowrap; }
+.messages-chat-tile > svg { flex: 0 0 auto; color: var(--text-muted); }
+.messages-unread-count { display: grid; place-items: center; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 50%; background: var(--primary); color: var(--text-on-primary, white); font-size: .65rem; font-weight: 750; }
+.messages-empty { margin: 0; padding: 14px 8px; color: var(--text-muted); font-size: .72rem; }
+.messages-compose-card { position: relative; }
+.messages-compose-card > header h2 { color: var(--primary); font-size: .7rem; letter-spacing: .1em; text-transform: uppercase; }
+.messages-recipient { display: flex; align-items: center; gap: 8px; height: 38px; padding: 0 11px; border: 1px solid var(--border); border-radius: 11px; background: var(--bg-input, var(--bg-main)); color: var(--text-muted); font-size: .72rem; }
+.messages-recipient input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--text-main); font: inherit; }
+.messages-recipient-results { position: absolute; z-index: 2; top: 66px; left: 15px; width: min(360px, 42%); max-height: 190px; overflow-y: auto; padding: 5px; border: 1px solid var(--border); border-radius: 14px; background: var(--bg-surface); box-shadow: var(--shadow-card); }
+.messages-recipient-results button { display: flex; width: 100%; align-items: center; gap: 8px; padding: 7px; border: 0; border-radius: 10px; background: transparent; color: var(--text-main); text-align: left; cursor: pointer; }
+.messages-recipient-results button:hover { background: var(--primary-glow); }
+.messages-recipient-results button span { flex: 1; font-size: .75rem; }
+.messages-recipient-results button small { color: var(--text-muted); font-size: .64rem; }
+.messages-recipient-results > p { margin: 0; padding: 10px; color: var(--text-muted); font-size: .72rem; }
+.messages-compose-row { display: flex; gap: 8px; margin-top: 8px; }
+.messages-compose-row .messages-recipient { flex: 0 1 36%; min-width: 180px; }
+.messages-compose-row .messages-recipient input { width: 100%; height: auto; padding: 0; border: 0; border-radius: 0; background: transparent; color: var(--text-main); }
+.messages-compose-row .messages-draft-input { flex: 1; min-width: 0; height: 38px; padding: 0 11px; border: 1px solid var(--border); border-radius: 11px; background: var(--bg-input, var(--bg-main)); color: var(--text-main); font: inherit; font-size: .72rem; }
+.messages-compose-row button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 0 14px; border: 0; border-radius: 11px; background: var(--primary); color: var(--text-on-primary, white); font: inherit; font-size: .72rem; font-weight: 700; cursor: pointer; }
+.messages-compose-row button:disabled { opacity: .45; cursor: default; }
+.messages-compose-card > p { margin: 8px 0 0; color: var(--text-muted); font-size: .66rem; }
+@media (max-width: 700px) { .messages-workspace { padding: 14px 12px 96px; } .messages-summary-grid { flex: 0 0 auto; min-height: 0; grid-template-columns: 1fr; } .messages-unread-card, .messages-groups-card { height: 132px; min-height: 132px; } .messages-compose-row { flex-wrap: wrap; } .messages-compose-row .messages-recipient { flex: 1 1 100%; min-width: 0; } .messages-compose-row .messages-draft-input { flex-basis: 65%; } .messages-recipient-results { top: 66px; width: calc(100% - 30px); } }

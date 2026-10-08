@@ -1,4 +1,4 @@
-import { getPreferredLocale } from '../../services/regionalPreferences';
+import { getPreferredLocale, getPreferredTimeZone } from '../../services/regionalPreferences';
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Message } from '../../types';
@@ -179,7 +179,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   const formatTime = (ts: string | number) => {
     try {
       const d = new Date(ts);
-      return d.toLocaleTimeString(getPreferredLocale(), { hour: '2-digit', minute: '2-digit' });
+      return d.toLocaleTimeString(getPreferredLocale(), { timeZone: getPreferredTimeZone(), hour: '2-digit', minute: '2-digit' });
     } catch {
       return '';
     }

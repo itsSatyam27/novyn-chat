@@ -76,7 +76,10 @@ class NovynApp extends StatelessWidget {
         }),
         ChangeNotifierProvider<AuthService>(create: (ctx) {
           final socket = ctx.read<SocketService>();
-          final auth = AuthService(savePresence: socket.updatePresence);
+          final auth = AuthService(
+            savePresence: socket.updatePresence,
+            savePassword: socket.changePassword,
+          );
           socket.onProfileData = auth.applyProfileUpdate;
           socket.notificationsMuted = () => auth.user?.presenceMode == 'busy';
           return auth;

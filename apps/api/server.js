@@ -3430,7 +3430,8 @@ function buildFriendList(forUser) {
   const directList = validFriendKeys.map((friendKey) => {
     const friend = users.get(friendKey);
     const summary = getConversationSummary(userKey, friendKey);
-    const presence = getEffectivePresence(friendKey);
+    const blocked = usersAreBlocked(userKey, friendKey);
+    const presence = blocked ? "offline" : getEffectivePresence(friendKey);
 
     return {
       username: friend?.username || friendKey,
@@ -3446,7 +3447,7 @@ function buildFriendList(forUser) {
       avatarId: friend?.avatarId || "",
       displayName: friend?.displayName || "",
       bio: friend?.bio || "",
-      lastSeenAt: getVisibleLastSeen(friend),
+      lastSeenAt: blocked ? null : getVisibleLastSeen(friend),
       publicKey: friend?.publicKey || "",
       muted: isMutedBy(user, friendKey),
       blockedByMe: isBlockedBy(user, friendKey),
@@ -3595,11 +3596,12 @@ function emitStatusToFriends(username) {
     const friendSocket = onlineUsers.get(friendKey);
     if (!friendSocket) continue;
 
+    const blocked = usersAreBlocked(userKey, friendKey);
     io.to(friendSocket).emit("user_status", {
       username: user.username,
-      online,
-      presence,
-      lastSeenAt: getVisibleLastSeen(user) || null,
+      online: !blocked && online,
+      presence: blocked ? "offline" : presence,
+      lastSeenAt: blocked ? null : getVisibleLastSeen(user) || null,
     });
   }
 }
@@ -5331,6 +5333,7 @@ io.on("connection", (socket) => {
     emitFriendList(userKey);
     emitStatusToFriends(userKey);
     for (const friendKey of user.friends) {
+      if (usersAreBlocked(userKey, friendKey)) continue;
       emitFriendList(friendKey);
       const friendSocket = onlineUsers.get(friendKey);
       if (friendSocket) {
@@ -7100,6 +7103,44 @@ io.on("connection", (socket) => {
       }
     }
     schedulePersist();
+  });
+
+  socket.on("set_block", (payload, callback) => {
+    const reply = (result) => {
+      if (typeof callback === "function") callback(result);
+      else if (!result.ok) socket.emit("error_message", { message: result.message });
+    };
+    const userKey = socket.data.userKey;
+    if (!userKey) return reply({ ok: false, message: "Please sign in first." });
+    if (!allowSocketAction(socket, "set_block", 80, 60 * 1000)) {
+      return reply({ ok: false, message: "Too many contact updates. Please try again shortly." });
+    }
+    const targetKey = normalizeName(payload?.username);
+    const user = users.get(userKey);
+    const target = users.get(targetKey);
+    if (!user || !target || targetKey === userKey || typeof payload?.blocked !== "boolean") {
+      return reply({ ok: false, message: "Choose a valid contact to block or unblock." });
+    }
+    if (!(user.blockedUsers instanceof Set)) user.blockedUsers = new Set();
+    if (payload.blocked) user.blockedUsers.add(targetKey);
+    else user.blockedUsers.delete(targetKey);
+    if (payload.blocked) {
+      const active = activeCalls.get(userKey);
+      if (active?.peerKey === targetKey) {
+        clearCallPair(userKey);
+        socket.emit("call_ended", { callId: active.callId, reason: "Contact blocked" });
+        const targetSocket = onlineUsers.get(targetKey);
+        if (targetSocket) io.to(targetSocket).emit("call_ended", { callId: active.callId, reason: "Call ended" });
+      }
+    }
+    schedulePersist();
+    socket.emit("block_updated", { username: target.username || targetKey, blocked: payload.blocked });
+    emitSafetyState(userKey);
+    emitFriendList(userKey);
+    emitFriendList(targetKey);
+    emitStatusToFriends(userKey);
+    emitStatusToFriends(targetKey);
+    reply({ ok: true });
   });
 
   socket.on("set_mute", (payload) => {

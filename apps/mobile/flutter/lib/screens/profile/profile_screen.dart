@@ -245,6 +245,19 @@ class ProfileScreen extends StatelessWidget {
               onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const LanguageRegionScreen())),
             ),
 
+            _AuroraMenuCard(
+              icon: Icons.storage_rounded,
+              title: 'Data & Storage',
+              iconColor: const Color(0xFF06B6D4),
+              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const DataStorageScreen())),
+            ),
+            _AuroraMenuCard(
+              icon: Icons.accessibility_new_rounded,
+              title: 'Accessibility',
+              iconColor: const Color(0xFF7C6FF7),
+              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AccessibilityScreen())),
+            ),
+
             // ── Account Section ───────────────────────────────────────
             _AuroraSectionLabel(label: l10n.account),
             _AuroraMenuCard(

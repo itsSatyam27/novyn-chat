@@ -28,6 +28,9 @@ class Messages extends Table {
   BoolColumn get edited => boolean().withDefault(const Constant(false))();
   // Reactions stored as JSON: {"uid":"emoji"}
   TextColumn get reactionsJson => text().withDefault(const Constant('{}'))();
+  BoolColumn get isEncrypted => boolean().withDefault(const Constant(false))();
+  TextColumn get ciphertext => text().nullable()();
+  TextColumn get iv => text().nullable()();
 
   @override
   Set<Column> get primaryKey => {id};
@@ -69,32 +72,38 @@ String _encodeReactions(Map<String, String> reactions) {
 }
 
 models.Message _toModel(DriftMessage dm) => models.Message(
-  id: dm.id,
-  chatId: dm.chatId,
-  text: dm.messageText,
-  senderId: dm.senderId,
-  createdAt: dm.createdAt,
-  isFromMe: dm.isFromMe,
-  replyToId: dm.replyToId,
-  replyToText: dm.replyToText,
-  replyToSender: dm.replyToSender,
-  edited: dm.edited,
-  reactions: _decodeReactions(dm.reactionsJson),
-);
+      id: dm.id,
+      chatId: dm.chatId,
+      text: dm.messageText,
+      senderId: dm.senderId,
+      createdAt: dm.createdAt,
+      isFromMe: dm.isFromMe,
+      replyToId: dm.replyToId,
+      replyToText: dm.replyToText,
+      replyToSender: dm.replyToSender,
+      edited: dm.edited,
+      reactions: _decodeReactions(dm.reactionsJson),
+      isEncrypted: dm.isEncrypted,
+      ciphertext: dm.ciphertext,
+      iv: dm.iv,
+    );
 
 MessagesCompanion _toCompanion(models.Message m) => MessagesCompanion.insert(
-  id: m.id,
-  chatId: m.chatId,
-  messageText: m.text,
-  senderId: m.senderId,
-  createdAt: m.createdAt,
-  isFromMe: m.isFromMe,
-  replyToId: Value(m.replyToId),
-  replyToText: Value(m.replyToText),
-  replyToSender: Value(m.replyToSender),
-  edited: Value(m.edited),
-  reactionsJson: Value(_encodeReactions(m.reactions)),
-);
+      id: m.id,
+      chatId: m.chatId,
+      messageText: m.text,
+      senderId: m.senderId,
+      createdAt: m.createdAt,
+      isFromMe: m.isFromMe,
+      replyToId: Value(m.replyToId),
+      replyToText: Value(m.replyToText),
+      replyToSender: Value(m.replyToSender),
+      edited: Value(m.edited),
+      reactionsJson: Value(_encodeReactions(m.reactions)),
+      isEncrypted: Value(m.isEncrypted),
+      ciphertext: Value(m.ciphertext),
+      iv: Value(m.iv),
+    );
 
 // ══════════════════════════════════════════════════════════════════════════
 // DATABASE CLASS
@@ -105,26 +114,32 @@ class FastDatabase extends _$FastDatabase {
   FastDatabase() : super(_openConnection());
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
-    onUpgrade: (migrator, from, to) async {
-      if (from < 2) {
-        // Add reactionsJson column to existing messages table
-        await migrator.addColumn(messages, messages.reactionsJson);
-      }
-      if (from < 3) {
-        // Add isPinned and isArchived to chats table
-        await migrator.addColumn(chats, chats.isPinned);
-        await migrator.addColumn(chats, chats.isArchived);
-      }
-    },
-  );
+        onUpgrade: (migrator, from, to) async {
+          if (from < 2) {
+            // Add reactionsJson column to existing messages table
+            await migrator.addColumn(messages, messages.reactionsJson);
+          }
+          if (from < 3) {
+            // Add isPinned and isArchived to chats table
+            await migrator.addColumn(chats, chats.isPinned);
+            await migrator.addColumn(chats, chats.isArchived);
+          }
+          if (from < 4) {
+            await migrator.addColumn(messages, messages.isEncrypted);
+            await migrator.addColumn(messages, messages.ciphertext);
+            await migrator.addColumn(messages, messages.iv);
+          }
+        },
+      );
 
   // ── MESSAGES ──────────────────────────────────────────────────────────────
 
-  Future<List<models.Message>> getMessages(String chatId, {int limit = 50}) async {
+  Future<List<models.Message>> getMessages(String chatId,
+      {int limit = 50}) async {
     final rows = await (select(messages)
           ..where((m) => m.chatId.equals(chatId))
           ..orderBy([(m) => OrderingTerm.asc(m.createdAt)])
@@ -133,9 +148,11 @@ class FastDatabase extends _$FastDatabase {
     return rows.map(_toModel).toList();
   }
 
-  Future<List<models.Message>> getOlderMessages(String chatId, DateTime before, {int limit = 30}) async {
+  Future<List<models.Message>> getOlderMessages(String chatId, DateTime before,
+      {int limit = 30}) async {
     final rows = await (select(messages)
-          ..where((m) => m.chatId.equals(chatId) & m.createdAt.isSmallerThanValue(before))
+          ..where((m) =>
+              m.chatId.equals(chatId) & m.createdAt.isSmallerThanValue(before))
           ..orderBy([(m) => OrderingTerm.asc(m.createdAt)])
           ..limit(limit))
         .get();
@@ -172,10 +189,13 @@ class FastDatabase extends _$FastDatabase {
   // ── CHATS ─────────────────────────────────────────────────────────────────
 
   Future<List<DriftChat>> getChats() async {
-    return (select(chats)..orderBy([(c) => OrderingTerm.desc(c.lastTime)])).get();
+    return (select(chats)..orderBy([(c) => OrderingTerm.desc(c.lastTime)]))
+        .get();
   }
 
-  Future<void> saveChat(String chatId, String peerUid, String lastMessage, DateTime lastTime, int unreadCount, {bool isPinned = false, bool isArchived = false}) async {
+  Future<void> saveChat(String chatId, String peerUid, String lastMessage,
+      DateTime lastTime, int unreadCount,
+      {bool isPinned = false, bool isArchived = false}) async {
     await into(chats).insertOnConflictUpdate(ChatsCompanion.insert(
       chatId: chatId,
       peerUid: peerUid,
@@ -187,10 +207,18 @@ class FastDatabase extends _$FastDatabase {
     ));
   }
 
-  Future<void> updateChat(String chatId, {String? lastMessage, DateTime? lastTime, int? unreadCount, bool? isPinned, bool? isArchived}) async {
-    final existing = await (select(chats)..where((c) => c.chatId.equals(chatId))).getSingleOrNull();
+  Future<void> updateChat(String chatId,
+      {String? lastMessage,
+      DateTime? lastTime,
+      int? unreadCount,
+      bool? isPinned,
+      bool? isArchived}) async {
+    final existing = await (select(chats)
+          ..where((c) => c.chatId.equals(chatId)))
+        .getSingleOrNull();
     if (existing != null) {
-      await (update(chats)..where((c) => c.chatId.equals(chatId))).write(ChatsCompanion.insert(
+      await (update(chats)..where((c) => c.chatId.equals(chatId)))
+          .write(ChatsCompanion.insert(
         chatId: chatId,
         peerUid: existing.peerUid,
         lastMessage: lastMessage ?? existing.lastMessage,
@@ -218,9 +246,11 @@ class FastDatabase extends _$FastDatabase {
     final msgCount = countAll();
     final chatCount = countAll();
     final msgTotal = await (selectOnly(messages)..addColumns([msgCount]))
-        .map((r) => r.read(msgCount) ?? 0).getSingle();
+        .map((r) => r.read(msgCount) ?? 0)
+        .getSingle();
     final chatTotal = await (selectOnly(chats)..addColumns([chatCount]))
-        .map((r) => r.read(chatCount) ?? 0).getSingle();
+        .map((r) => r.read(chatCount) ?? 0)
+        .getSingle();
     return {'messages': msgTotal, 'chats': chatTotal};
   }
 }

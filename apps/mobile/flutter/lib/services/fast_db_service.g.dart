@@ -81,6 +81,27 @@ class $MessagesTable extends Messages
       type: DriftSqlType.string,
       requiredDuringInsert: false,
       defaultValue: const Constant('{}'));
+  static const VerificationMeta _isEncryptedMeta =
+      const VerificationMeta('isEncrypted');
+  @override
+  late final GeneratedColumn<bool> isEncrypted = GeneratedColumn<bool>(
+      'is_encrypted', aliasedName, false,
+      type: DriftSqlType.bool,
+      requiredDuringInsert: false,
+      defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'CHECK ("is_encrypted" IN (0, 1))'),
+      defaultValue: const Constant(false));
+  static const VerificationMeta _ciphertextMeta =
+      const VerificationMeta('ciphertext');
+  @override
+  late final GeneratedColumn<String> ciphertext = GeneratedColumn<String>(
+      'ciphertext', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _ivMeta = const VerificationMeta('iv');
+  @override
+  late final GeneratedColumn<String> iv = GeneratedColumn<String>(
+      'iv', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
   @override
   List<GeneratedColumn> get $columns => [
         id,
@@ -93,7 +114,10 @@ class $MessagesTable extends Messages
         replyToText,
         replyToSender,
         edited,
-        reactionsJson
+        reactionsJson,
+        isEncrypted,
+        ciphertext,
+        iv
       ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -170,6 +194,21 @@ class $MessagesTable extends Messages
           reactionsJson.isAcceptableOrUnknown(
               data['reactions_json']!, _reactionsJsonMeta));
     }
+    if (data.containsKey('is_encrypted')) {
+      context.handle(
+          _isEncryptedMeta,
+          isEncrypted.isAcceptableOrUnknown(
+              data['is_encrypted']!, _isEncryptedMeta));
+    }
+    if (data.containsKey('ciphertext')) {
+      context.handle(
+          _ciphertextMeta,
+          ciphertext.isAcceptableOrUnknown(
+              data['ciphertext']!, _ciphertextMeta));
+    }
+    if (data.containsKey('iv')) {
+      context.handle(_ivMeta, iv.isAcceptableOrUnknown(data['iv']!, _ivMeta));
+    }
     return context;
   }
 
@@ -201,6 +240,12 @@ class $MessagesTable extends Messages
           .read(DriftSqlType.bool, data['${effectivePrefix}edited'])!,
       reactionsJson: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}reactions_json'])!,
+      isEncrypted: attachedDatabase.typeMapping
+          .read(DriftSqlType.bool, data['${effectivePrefix}is_encrypted'])!,
+      ciphertext: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}ciphertext']),
+      iv: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}iv']),
     );
   }
 
@@ -222,6 +267,9 @@ class DriftMessage extends DataClass implements Insertable<DriftMessage> {
   final String? replyToSender;
   final bool edited;
   final String reactionsJson;
+  final bool isEncrypted;
+  final String? ciphertext;
+  final String? iv;
   const DriftMessage(
       {required this.id,
       required this.chatId,
@@ -233,7 +281,10 @@ class DriftMessage extends DataClass implements Insertable<DriftMessage> {
       this.replyToText,
       this.replyToSender,
       required this.edited,
-      required this.reactionsJson});
+      required this.reactionsJson,
+      required this.isEncrypted,
+      this.ciphertext,
+      this.iv});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -254,6 +305,13 @@ class DriftMessage extends DataClass implements Insertable<DriftMessage> {
     }
     map['edited'] = Variable<bool>(edited);
     map['reactions_json'] = Variable<String>(reactionsJson);
+    map['is_encrypted'] = Variable<bool>(isEncrypted);
+    if (!nullToAbsent || ciphertext != null) {
+      map['ciphertext'] = Variable<String>(ciphertext);
+    }
+    if (!nullToAbsent || iv != null) {
+      map['iv'] = Variable<String>(iv);
+    }
     return map;
   }
 
@@ -276,6 +334,11 @@ class DriftMessage extends DataClass implements Insertable<DriftMessage> {
           : Value(replyToSender),
       edited: Value(edited),
       reactionsJson: Value(reactionsJson),
+      isEncrypted: Value(isEncrypted),
+      ciphertext: ciphertext == null && nullToAbsent
+          ? const Value.absent()
+          : Value(ciphertext),
+      iv: iv == null && nullToAbsent ? const Value.absent() : Value(iv),
     );
   }
 
@@ -294,6 +357,9 @@ class DriftMessage extends DataClass implements Insertable<DriftMessage> {
       replyToSender: serializer.fromJson<String?>(json['replyToSender']),
       edited: serializer.fromJson<bool>(json['edited']),
       reactionsJson: serializer.fromJson<String>(json['reactionsJson']),
+      isEncrypted: serializer.fromJson<bool>(json['isEncrypted']),
+      ciphertext: serializer.fromJson<String?>(json['ciphertext']),
+      iv: serializer.fromJson<String?>(json['iv']),
     );
   }
   @override
@@ -311,6 +377,9 @@ class DriftMessage extends DataClass implements Insertable<DriftMessage> {
       'replyToSender': serializer.toJson<String?>(replyToSender),
       'edited': serializer.toJson<bool>(edited),
       'reactionsJson': serializer.toJson<String>(reactionsJson),
+      'isEncrypted': serializer.toJson<bool>(isEncrypted),
+      'ciphertext': serializer.toJson<String?>(ciphertext),
+      'iv': serializer.toJson<String?>(iv),
     };
   }
 
@@ -325,7 +394,10 @@ class DriftMessage extends DataClass implements Insertable<DriftMessage> {
           Value<String?> replyToText = const Value.absent(),
           Value<String?> replyToSender = const Value.absent(),
           bool? edited,
-          String? reactionsJson}) =>
+          String? reactionsJson,
+          bool? isEncrypted,
+          Value<String?> ciphertext = const Value.absent(),
+          Value<String?> iv = const Value.absent()}) =>
       DriftMessage(
         id: id ?? this.id,
         chatId: chatId ?? this.chatId,
@@ -339,6 +411,9 @@ class DriftMessage extends DataClass implements Insertable<DriftMessage> {
             replyToSender.present ? replyToSender.value : this.replyToSender,
         edited: edited ?? this.edited,
         reactionsJson: reactionsJson ?? this.reactionsJson,
+        isEncrypted: isEncrypted ?? this.isEncrypted,
+        ciphertext: ciphertext.present ? ciphertext.value : this.ciphertext,
+        iv: iv.present ? iv.value : this.iv,
       );
   DriftMessage copyWithCompanion(MessagesCompanion data) {
     return DriftMessage(
@@ -359,6 +434,11 @@ class DriftMessage extends DataClass implements Insertable<DriftMessage> {
       reactionsJson: data.reactionsJson.present
           ? data.reactionsJson.value
           : this.reactionsJson,
+      isEncrypted:
+          data.isEncrypted.present ? data.isEncrypted.value : this.isEncrypted,
+      ciphertext:
+          data.ciphertext.present ? data.ciphertext.value : this.ciphertext,
+      iv: data.iv.present ? data.iv.value : this.iv,
     );
   }
 
@@ -375,14 +455,30 @@ class DriftMessage extends DataClass implements Insertable<DriftMessage> {
           ..write('replyToText: $replyToText, ')
           ..write('replyToSender: $replyToSender, ')
           ..write('edited: $edited, ')
-          ..write('reactionsJson: $reactionsJson')
+          ..write('reactionsJson: $reactionsJson, ')
+          ..write('isEncrypted: $isEncrypted, ')
+          ..write('ciphertext: $ciphertext, ')
+          ..write('iv: $iv')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(id, chatId, messageText, senderId, createdAt,
-      isFromMe, replyToId, replyToText, replyToSender, edited, reactionsJson);
+  int get hashCode => Object.hash(
+      id,
+      chatId,
+      messageText,
+      senderId,
+      createdAt,
+      isFromMe,
+      replyToId,
+      replyToText,
+      replyToSender,
+      edited,
+      reactionsJson,
+      isEncrypted,
+      ciphertext,
+      iv);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -397,7 +493,10 @@ class DriftMessage extends DataClass implements Insertable<DriftMessage> {
           other.replyToText == this.replyToText &&
           other.replyToSender == this.replyToSender &&
           other.edited == this.edited &&
-          other.reactionsJson == this.reactionsJson);
+          other.reactionsJson == this.reactionsJson &&
+          other.isEncrypted == this.isEncrypted &&
+          other.ciphertext == this.ciphertext &&
+          other.iv == this.iv);
 }
 
 class MessagesCompanion extends UpdateCompanion<DriftMessage> {
@@ -412,6 +511,9 @@ class MessagesCompanion extends UpdateCompanion<DriftMessage> {
   final Value<String?> replyToSender;
   final Value<bool> edited;
   final Value<String> reactionsJson;
+  final Value<bool> isEncrypted;
+  final Value<String?> ciphertext;
+  final Value<String?> iv;
   final Value<int> rowid;
   const MessagesCompanion({
     this.id = const Value.absent(),
@@ -425,6 +527,9 @@ class MessagesCompanion extends UpdateCompanion<DriftMessage> {
     this.replyToSender = const Value.absent(),
     this.edited = const Value.absent(),
     this.reactionsJson = const Value.absent(),
+    this.isEncrypted = const Value.absent(),
+    this.ciphertext = const Value.absent(),
+    this.iv = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   MessagesCompanion.insert({
@@ -439,6 +544,9 @@ class MessagesCompanion extends UpdateCompanion<DriftMessage> {
     this.replyToSender = const Value.absent(),
     this.edited = const Value.absent(),
     this.reactionsJson = const Value.absent(),
+    this.isEncrypted = const Value.absent(),
+    this.ciphertext = const Value.absent(),
+    this.iv = const Value.absent(),
     this.rowid = const Value.absent(),
   })  : id = Value(id),
         chatId = Value(chatId),
@@ -458,6 +566,9 @@ class MessagesCompanion extends UpdateCompanion<DriftMessage> {
     Expression<String>? replyToSender,
     Expression<bool>? edited,
     Expression<String>? reactionsJson,
+    Expression<bool>? isEncrypted,
+    Expression<String>? ciphertext,
+    Expression<String>? iv,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -472,6 +583,9 @@ class MessagesCompanion extends UpdateCompanion<DriftMessage> {
       if (replyToSender != null) 'reply_to_sender': replyToSender,
       if (edited != null) 'edited': edited,
       if (reactionsJson != null) 'reactions_json': reactionsJson,
+      if (isEncrypted != null) 'is_encrypted': isEncrypted,
+      if (ciphertext != null) 'ciphertext': ciphertext,
+      if (iv != null) 'iv': iv,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -488,6 +602,9 @@ class MessagesCompanion extends UpdateCompanion<DriftMessage> {
       Value<String?>? replyToSender,
       Value<bool>? edited,
       Value<String>? reactionsJson,
+      Value<bool>? isEncrypted,
+      Value<String?>? ciphertext,
+      Value<String?>? iv,
       Value<int>? rowid}) {
     return MessagesCompanion(
       id: id ?? this.id,
@@ -501,6 +618,9 @@ class MessagesCompanion extends UpdateCompanion<DriftMessage> {
       replyToSender: replyToSender ?? this.replyToSender,
       edited: edited ?? this.edited,
       reactionsJson: reactionsJson ?? this.reactionsJson,
+      isEncrypted: isEncrypted ?? this.isEncrypted,
+      ciphertext: ciphertext ?? this.ciphertext,
+      iv: iv ?? this.iv,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -541,6 +661,15 @@ class MessagesCompanion extends UpdateCompanion<DriftMessage> {
     if (reactionsJson.present) {
       map['reactions_json'] = Variable<String>(reactionsJson.value);
     }
+    if (isEncrypted.present) {
+      map['is_encrypted'] = Variable<bool>(isEncrypted.value);
+    }
+    if (ciphertext.present) {
+      map['ciphertext'] = Variable<String>(ciphertext.value);
+    }
+    if (iv.present) {
+      map['iv'] = Variable<String>(iv.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -561,6 +690,9 @@ class MessagesCompanion extends UpdateCompanion<DriftMessage> {
           ..write('replyToSender: $replyToSender, ')
           ..write('edited: $edited, ')
           ..write('reactionsJson: $reactionsJson, ')
+          ..write('isEncrypted: $isEncrypted, ')
+          ..write('ciphertext: $ciphertext, ')
+          ..write('iv: $iv, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -992,6 +1124,9 @@ typedef $$MessagesTableCreateCompanionBuilder = MessagesCompanion Function({
   Value<String?> replyToSender,
   Value<bool> edited,
   Value<String> reactionsJson,
+  Value<bool> isEncrypted,
+  Value<String?> ciphertext,
+  Value<String?> iv,
   Value<int> rowid,
 });
 typedef $$MessagesTableUpdateCompanionBuilder = MessagesCompanion Function({
@@ -1006,6 +1141,9 @@ typedef $$MessagesTableUpdateCompanionBuilder = MessagesCompanion Function({
   Value<String?> replyToSender,
   Value<bool> edited,
   Value<String> reactionsJson,
+  Value<bool> isEncrypted,
+  Value<String?> ciphertext,
+  Value<String?> iv,
   Value<int> rowid,
 });
 
@@ -1050,6 +1188,15 @@ class $$MessagesTableFilterComposer
 
   ColumnFilters<String> get reactionsJson => $composableBuilder(
       column: $table.reactionsJson, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<bool> get isEncrypted => $composableBuilder(
+      column: $table.isEncrypted, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get ciphertext => $composableBuilder(
+      column: $table.ciphertext, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get iv => $composableBuilder(
+      column: $table.iv, builder: (column) => ColumnFilters(column));
 }
 
 class $$MessagesTableOrderingComposer
@@ -1095,6 +1242,15 @@ class $$MessagesTableOrderingComposer
   ColumnOrderings<String> get reactionsJson => $composableBuilder(
       column: $table.reactionsJson,
       builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<bool> get isEncrypted => $composableBuilder(
+      column: $table.isEncrypted, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get ciphertext => $composableBuilder(
+      column: $table.ciphertext, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get iv => $composableBuilder(
+      column: $table.iv, builder: (column) => ColumnOrderings(column));
 }
 
 class $$MessagesTableAnnotationComposer
@@ -1138,6 +1294,15 @@ class $$MessagesTableAnnotationComposer
 
   GeneratedColumn<String> get reactionsJson => $composableBuilder(
       column: $table.reactionsJson, builder: (column) => column);
+
+  GeneratedColumn<bool> get isEncrypted => $composableBuilder(
+      column: $table.isEncrypted, builder: (column) => column);
+
+  GeneratedColumn<String> get ciphertext => $composableBuilder(
+      column: $table.ciphertext, builder: (column) => column);
+
+  GeneratedColumn<String> get iv =>
+      $composableBuilder(column: $table.iv, builder: (column) => column);
 }
 
 class $$MessagesTableTableManager extends RootTableManager<
@@ -1177,6 +1342,9 @@ class $$MessagesTableTableManager extends RootTableManager<
             Value<String?> replyToSender = const Value.absent(),
             Value<bool> edited = const Value.absent(),
             Value<String> reactionsJson = const Value.absent(),
+            Value<bool> isEncrypted = const Value.absent(),
+            Value<String?> ciphertext = const Value.absent(),
+            Value<String?> iv = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               MessagesCompanion(
@@ -1191,6 +1359,9 @@ class $$MessagesTableTableManager extends RootTableManager<
             replyToSender: replyToSender,
             edited: edited,
             reactionsJson: reactionsJson,
+            isEncrypted: isEncrypted,
+            ciphertext: ciphertext,
+            iv: iv,
             rowid: rowid,
           ),
           createCompanionCallback: ({
@@ -1205,6 +1376,9 @@ class $$MessagesTableTableManager extends RootTableManager<
             Value<String?> replyToSender = const Value.absent(),
             Value<bool> edited = const Value.absent(),
             Value<String> reactionsJson = const Value.absent(),
+            Value<bool> isEncrypted = const Value.absent(),
+            Value<String?> ciphertext = const Value.absent(),
+            Value<String?> iv = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               MessagesCompanion.insert(
@@ -1219,6 +1393,9 @@ class $$MessagesTableTableManager extends RootTableManager<
             replyToSender: replyToSender,
             edited: edited,
             reactionsJson: reactionsJson,
+            isEncrypted: isEncrypted,
+            ciphertext: ciphertext,
+            iv: iv,
             rowid: rowid,
           ),
           withReferenceMapper: (p0) => p0

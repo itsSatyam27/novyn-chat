@@ -23,6 +23,7 @@
     <uses-permission android:name="android.permission.VIBRATE"/>
 
     <application
+        android:allowBackup="false"
         android:label="novyn"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">

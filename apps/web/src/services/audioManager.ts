@@ -6,15 +6,61 @@ let activeCallRingAudio: HTMLAudioElement | null = null;
 let synthAudioContext: AudioContext | null = null;
 let synthInterval: any = null;
 
+export const MESSAGE_CHIMES = [
+  { id: 'drift', name: 'Drift', source: '/audio/notification.mp3' },
+  { id: 'pulse', name: 'Pulse', source: '/audio/chime-pulse.wav' },
+  { id: 'glass', name: 'Glass', source: '/audio/chime-glass.wav' },
+  { id: 'echo', name: 'Echo', source: '/audio/chime-echo.wav' },
+] as const;
+
+export function getSoundVolume(kind: 'message' | 'call'): number {
+  const saved = localStorage.getItem('novyn_' + kind + '_volume');
+  const value = saved === null || saved.trim() === '' ? NaN : Number(saved);
+  return Number.isFinite(value) ? Math.min(100, Math.max(0, value)) / 100 : kind === 'message' ? .8 : .85;
+}
+
+function messageChimeSource(): string {
+  return (MESSAGE_CHIMES.find(item => item.id === localStorage.getItem('novyn_message_chime')) || MESSAGE_CHIMES[0]).source;
+}
+
+export function refreshCallAudioVolume(): void {
+  const volume = getSoundVolume('call');
+  if (!volume) { stopAllCallAudio(); return; }
+  if (activeRingtoneAudio) activeRingtoneAudio.volume = volume;
+  if (activeCallRingAudio) activeCallRingAudio.volume = volume;
+}
+
+// Preview owns its audio; stopping it must never end an actual call's ringtone.
+export function previewSound(kind: 'message' | 'ringtone' | 'ringback', onEnd: (failed?: boolean) => void) {
+  const audio = new Audio(kind === 'message' ? messageChimeSource() : kind === 'ringtone' ? '/audio/ringtone.mp3' : '/audio/call_ring.mp3');
+  audio.volume = getSoundVolume(kind === 'message' ? 'message' : 'call');
+  let stopped = false;
+  let timer: ReturnType<typeof setTimeout>;
+  const stop = (failed = false) => {
+    if (stopped) return;
+    stopped = true;
+    clearTimeout(timer);
+    audio.onended = null; audio.onerror = null;
+    audio.pause(); audio.currentTime = 0;
+    onEnd(failed);
+  };
+  audio.onended = () => stop();
+  audio.onerror = () => stop(true);
+  timer = setTimeout(stop, 4000);
+  try { audio.play()?.catch(() => stop(true)); } catch { stop(true); }
+  return { stop, setVolume: (volume: number) => { audio.volume = Math.max(0, Math.min(1, volume)); } };
+}
+
 // 1. INCOMING CALL RINGTONE (/audio/ringtone.mp3)
 export function playIncomingRingtone(): void {
+  if (localStorage.getItem('novyn_call_sound') === 'false' || getSoundVolume('call') === 0) return;
   stopIncomingRingtone();
   stopOutgoingCallRing();
 
   try {
     const audio = new Audio('/audio/ringtone.mp3');
     audio.loop = true;
-    audio.volume = 0.85;
+    audio.volume = getSoundVolume('call');
     activeRingtoneAudio = audio;
 
     const playPromise = audio.play();
@@ -41,13 +87,14 @@ export function stopIncomingRingtone(): void {
 
 // 2. OUTGOING CALL RINGING (/audio/call_ring.mp3)
 export function playOutgoingCallRing(): void {
+  if (localStorage.getItem('novyn_call_sound') === 'false' || getSoundVolume('call') === 0) return;
   stopOutgoingCallRing();
   stopIncomingRingtone();
 
   try {
     const audio = new Audio('/audio/call_ring.mp3');
     audio.loop = true;
-    audio.volume = 0.85;
+    audio.volume = getSoundVolume('call');
     activeCallRingAudio = audio;
 
     const playPromise = audio.play();
@@ -81,11 +128,11 @@ export function stopAllCallAudio(): void {
 // 3. INCOMING MESSAGE NOTIFICATION (/audio/notification.mp3)
 export function playMessageNotification(): void {
   const isSoundEnabled = localStorage.getItem('novyn_sound') !== 'false';
-  if (!isSoundEnabled) return;
+  if (!isSoundEnabled || getSoundVolume('message') === 0) return;
 
   try {
-    const audio = new Audio('/audio/notification.mp3');
-    audio.volume = 0.8;
+    const audio = new Audio(messageChimeSource());
+    audio.volume = getSoundVolume('message');
     const p = audio.play();
     if (p !== undefined) {
       p.catch(() => playSynthesizedChime());
@@ -98,11 +145,11 @@ export function playMessageNotification(): void {
 // 4. OUTGOING MESSAGE SENT (/audio/message_sent.mp3)
 export function playMessageSentSound(): void {
   const isSoundEnabled = localStorage.getItem('novyn_sound') !== 'false';
-  if (!isSoundEnabled) return;
+  if (!isSoundEnabled || getSoundVolume('message') === 0) return;
 
   try {
     const audio = new Audio('/audio/message_sent.mp3');
-    audio.volume = 0.7;
+    audio.volume = getSoundVolume('message') * .875;
     const p = audio.play();
     if (p !== undefined) {
       p.catch(() => playSynthesizedSent());
@@ -133,7 +180,7 @@ function playSynthesizedRingtone(): void {
         osc1.frequency.setValueAtTime(440, synthAudioContext.currentTime);
         osc2.frequency.setValueAtTime(480, synthAudioContext.currentTime);
 
-        gain.gain.setValueAtTime(0.08, synthAudioContext.currentTime);
+        gain.gain.setValueAtTime(Math.max(.0001, .08 * getSoundVolume('call')), synthAudioContext.currentTime);
         gain.gain.exponentialRampToValueAtTime(0.001, synthAudioContext.currentTime + 1.2);
 
         osc1.connect(gain);
@@ -177,7 +224,7 @@ function playSynthesizedChime(): void {
     osc.frequency.setValueAtTime(587.33, ctx.currentTime); // D5
     osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.12); // A5
 
-    gain.gain.setValueAtTime(0.08, ctx.currentTime);
+    gain.gain.setValueAtTime(Math.max(.0001, .08 * getSoundVolume('message')), ctx.currentTime);
     gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
 
     osc.connect(gain);
@@ -201,7 +248,7 @@ function playSynthesizedSent(): void {
     osc.frequency.setValueAtTime(880, ctx.currentTime);
     osc.frequency.exponentialRampToValueAtTime(1174.66, ctx.currentTime + 0.08);
 
-    gain.gain.setValueAtTime(0.06, ctx.currentTime);
+    gain.gain.setValueAtTime(Math.max(.0001, .06 * getSoundVolume('message')), ctx.currentTime);
     gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
 
     osc.connect(gain);

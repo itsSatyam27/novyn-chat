@@ -84,3 +84,78 @@
 :is(.android-settings, .app-container[data-tab="settings"] .settings-detail-body, .android-settings-dialog)::-webkit-scrollbar-thumb:hover { background: #7c6ff7a3; }
 :is(.android-settings, .app-container[data-tab="settings"] .settings-detail-body, .android-settings-dialog)::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
 :is(.android-settings, .app-container[data-tab="settings"] .settings-detail-body, .android-settings-dialog)::-webkit-scrollbar-corner { background: transparent; }
+
+.mobile-managed-setting {
+  display: flex; flex-direction: column; align-items: center;
+  padding: clamp(24px, 6vw, 44px); gap: 16px;
+  border: 1px solid var(--border); border-radius: 28px;
+  background: linear-gradient(140deg, var(--primary-glow), transparent 75%);
+  text-align: center; color: var(--text-main);
+}
+.mobile-managed-setting-icon {
+  display: grid; place-items: center; width: 72px; height: 72px;
+  border-radius: 24px; color: var(--primary); background: var(--primary-glow);
+}
+.mobile-managed-setting-badge {
+  padding: 5px 12px; border-radius: 999px;
+  font-size: 12px; font-weight: 700; color: var(--primary); background: var(--primary-glow);
+}
+.mobile-managed-setting h3 { margin: 0; font-size: 22px; line-height: 1.3; }
+.mobile-managed-setting p { margin: 0; max-width: 420px; color: var(--text-muted); line-height: 1.6; }
+.mobile-managed-setting-path {
+  display: flex; justify-content: center; flex-wrap: wrap; gap: 8px;
+  padding: 12px 16px; margin: 0; border: 1px solid var(--border);
+  border-radius: 16px; list-style: none; font-size: 13px; font-weight: 600;
+}
+.mobile-managed-setting-path li { display: flex; align-items: center; gap: 8px; }
+.mobile-managed-setting .mobile-managed-setting-note { font-size: 12px; }
+.android-settings-row .android-settings-menu-copy { display: flex; flex-direction: column; gap: 3px; }
+.android-settings-menu-copy small { font-size: 10px; font-weight: 600; color: var(--text-muted); }
+
+.web-settings { color: var(--text-main); }
+.web-settings-card {
+  padding: clamp(18px, 4vw, 28px); border: 1px solid var(--border); border-radius: 24px;
+  background: var(--bg-surface); display: flex; flex-direction: column; gap: 18px;
+}
+.web-settings-card h3 { margin: 0; font-size: 19px; line-height: 1.4; }
+.web-settings-card p { margin: 0; color: var(--text-muted); font-size: 13px; line-height: 1.6; }
+.web-setting-row { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 6px 0; }
+.web-setting-row strong { font-size: 14px; }
+.web-setting-row p { margin: 5px 0 0; }
+.web-setting-row > button { flex-shrink: 0; }
+.web-settings-field { display: flex; flex-direction: column; gap: 8px; font-size: 13px; font-weight: 700; }
+.web-settings-field :is(input, select, textarea) {
+  min-height: 44px; width: 100%; padding: 11px 13px; border: 1px solid var(--border);
+  border-radius: 13px; background: var(--bg-app); color: var(--text-main); font: inherit;
+}
+.web-settings-field textarea { min-height: 100px; resize: vertical; }
+.web-settings-choices { display: flex; flex-wrap: wrap; gap: 10px; }
+.web-settings-choices button, .web-avatar-options button, .web-wallpapers button, .web-status-options button {
+  min-height: 44px; padding: 11px 16px; border: 1px solid var(--border); border-radius: 14px;
+  background: var(--bg-app); color: var(--text-main); font: inherit; font-size: 13px; cursor: pointer;
+}
+.web-settings :is(button, input, select, textarea, a):focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
+.web-settings [aria-pressed="true"] { border-color: var(--primary); background: var(--primary-glow); box-shadow: inset 0 0 0 1px var(--primary); }
+.web-settings button:disabled { opacity: .55; cursor: default; }
+.web-settings-card > .btn { align-self: flex-start; min-height: 44px; }
+.web-message-preview { padding: 18px; border-radius: 18px; background: var(--primary-glow); font-size: var(--message-font-size); line-height: 1.6; }
+.web-wallpapers { display: grid; grid-template-columns: repeat(auto-fit, minmax(125px, 1fr)); gap: 12px; }
+.web-wallpapers button { padding: 8px; display: flex; flex-direction: column; gap: 10px; }
+.web-wallpapers button > span { height: 70px; width: 100%; border-radius: 10px; }
+.web-wallpapers strong { padding: 0 3px 5px; font-size: 12px; }
+.web-avatar-options { display: flex; flex-wrap: wrap; gap: 8px; }
+.web-avatar-options button { padding: 5px 9px; }
+.web-status-options { display: flex; flex-direction: column; gap: 10px; }
+.web-status-options button { display: flex; align-items: center; gap: 14px; text-align: left; }
+.web-status-options i { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+.web-status-options span { display: flex; flex-direction: column; gap: 5px; }
+.web-status-options small { color: var(--text-muted); font-size: 12px; line-height: 1.5; }
+.web-settings-result { margin: 0 0 16px; padding: 12px 16px; border-radius: 14px; border: 1px solid var(--border); color: var(--text-main); background: var(--primary-glow); font-size: 13px; line-height: 1.6; }
+.web-settings-result.is-error { color: #e24465; background: #e2446510; }
+.web-block-form { display: flex; flex-direction: column; gap: 12px; }
+.web-block-form button { align-self: flex-start; }
+:root[data-reduce-motion="true"] *, :root[data-reduce-motion="true"] *::before, :root[data-reduce-motion="true"] *::after {
+  animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important;
+}
+:root[data-high-contrast="true"] { --text-main: #111426; --text-muted: #374052; --border: #626b80; }
+:root[data-color-mode="dark"][data-high-contrast="true"] { --text-main: #ffffff; --text-muted: #dce2ee; --border: #a5adc0; }

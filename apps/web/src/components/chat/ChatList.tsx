@@ -1,4 +1,4 @@
-import { getPreferredLocale } from '../../services/regionalPreferences';
+import { getPreferredLocale, getPreferredTimeZone, getPreferredDayKey } from '../../services/regionalPreferences';
 import React, { useState, useEffect, useRef } from 'react';
 import { useChat } from '../../context/ChatContext';
 import { Avatar } from '../ui/Avatar';
@@ -24,10 +24,12 @@ import {
   X,
   Check,
   SquarePen,
+  KeyRound,
 } from 'lucide-react';
 import { triggerHaptic } from '../../services/capacitor';
 import { CreateGroupModal } from './CreateGroupModal';
 import { Conversation } from '../../types';
+import { MessageKeyTransferDialog } from './MessageKeyTransferDialog';
 
 interface ChatListProps {
   onOpenContacts: () => void;
@@ -66,6 +68,7 @@ export const ChatList: React.FC<ChatListProps> = ({
   const [isViewingArchived, setIsViewingArchived] = useState(false);
   const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
   const [isComposeOpen, setIsComposeOpen] = useState(false);
+  const [isKeyTransferOpen, setIsKeyTransferOpen] = useState(false);
   const composeRef = useRef<HTMLDivElement>(null);
 
   // Context Menu State
@@ -97,10 +100,10 @@ export const ChatList: React.FC<ChatListProps> = ({
     try {
       const d = new Date(ts);
       const now = new Date();
-      const isToday = d.toDateString() === now.toDateString();
+      const isToday = getPreferredDayKey(d) === getPreferredDayKey(now);
       return isToday
-        ? d.toLocaleTimeString(getPreferredLocale(), { hour: '2-digit', minute: '2-digit' })
-        : d.toLocaleDateString(getPreferredLocale(), { month: 'short', day: 'numeric' });
+        ? d.toLocaleTimeString(getPreferredLocale(), { timeZone: getPreferredTimeZone(), hour: '2-digit', minute: '2-digit' })
+        : d.toLocaleDateString(getPreferredLocale(), { timeZone: getPreferredTimeZone(), month: 'short', day: 'numeric' });
     } catch {
       return '';
     }
@@ -374,6 +377,10 @@ export const ChatList: React.FC<ChatListProps> = ({
           <h2 className="chat-list-title">Messages</h2>
         )}
 
+        <button type="button" className="header-action-btn" title="Transfer message keys"
+          aria-label="Transfer message keys" onClick={() => setIsKeyTransferOpen(true)}>
+          <KeyRound size={19} />
+        </button>
         <div className="inbox-compose" ref={composeRef} onKeyDown={(event) => {
           if (event.key === 'Escape') {
             setIsComposeOpen(false);
@@ -1021,6 +1028,7 @@ export const ChatList: React.FC<ChatListProps> = ({
       )}
 
       {/* Create Group Modal */}
+      <MessageKeyTransferDialog isOpen={isKeyTransferOpen} onClose={() => setIsKeyTransferOpen(false)} />
       <CreateGroupModal
         isOpen={isGroupModalOpen}
         onClose={() => setIsGroupModalOpen(false)}

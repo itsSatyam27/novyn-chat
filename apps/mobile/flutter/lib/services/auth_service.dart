@@ -69,6 +69,7 @@ class NovynUser {
 
 class AuthService extends ChangeNotifier {
   final Future<void> Function(String)? savePresence;
+  final Future<void> Function(String, String)? savePassword;
   bool _updatingPresence = false;
   bool get updatingPresence => _updatingPresence;
   late final FirebaseAuth _firebaseAuth = FirebaseAuth.instance;
@@ -85,6 +86,7 @@ class AuthService extends ChangeNotifier {
 
   AuthService(
       {this.savePresence,
+      this.savePassword,
       Future<Map<String, dynamic>?> Function()? restoreSession}) {
     _restoreSession(restoreSession ?? ApiService.getSession);
   }
@@ -350,17 +352,22 @@ class AuthService extends ChangeNotifier {
   // ── changePassword ────────────────────────────────────────────────────────
   Future<String?> changePassword(
       String currentPassword, String newPassword) async {
+    if (_user == null) return 'Please sign in before changing your password.';
+    if (currentPassword.isEmpty) return 'Enter your current password.';
+    if (newPassword.length < 12) {
+      return 'Use at least 12 characters in your new password.';
+    }
+    final change = savePassword;
+    if (change == null) {
+      return 'Password changes are unavailable. Please restart the app.';
+    }
     try {
-      final result = await ApiService.changePassword(
-        currentPassword: currentPassword,
-        newPassword: newPassword,
-      );
-      if (result != null && result['error'] != null) {
-        return result['error'].toString();
-      }
+      await change(currentPassword, newPassword);
       return null;
+    } on StateError catch (error) {
+      return error.message;
     } catch (e) {
-      return 'Failed to change password: $e';
+      return 'Could not confirm the password change. Please try again.';
     }
   }
 

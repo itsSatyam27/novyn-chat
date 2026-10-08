@@ -18,12 +18,13 @@ interface NavDockProps {
   onSelectTab: (tab: NavTab) => void;
   className: string;
   requestCount: number;
+  missedCallCount?: number;
   unreadCount?: number;
 }
 
 // A single persistent pill slides between slots. Equal expanded widths keep the
 // dock centered, and CSS transitions can reverse immediately during rapid taps.
-export const NavDock: React.FC<NavDockProps> = ({ activeTab, onSelectTab, className, requestCount, unreadCount = 0 }) => {
+export const NavDock: React.FC<NavDockProps> = ({ activeTab, onSelectTab, className, requestCount, missedCallCount = 0, unreadCount = 0 }) => {
   const alwaysVisible = useDockAlwaysVisible();
   const [phase, setPhase] = useState<'expanded' | 'compact' | 'tucked'>('expanded');
   const [hovered, setHovered] = useState(false);
@@ -61,7 +62,7 @@ export const NavDock: React.FC<NavDockProps> = ({ activeTab, onSelectTab, classN
     <button
       type="button"
       className="dock-reveal"
-      aria-label={`Show navigation${requestCount + unreadCount > 0 ? ', new activity' : ''}`}
+      aria-label={`Show navigation${requestCount + missedCallCount + unreadCount > 0 ? ', new activity' : ''}`}
       aria-expanded={phase === 'expanded'}
       tabIndex={phase === 'expanded' ? -1 : 0}
       onClick={reveal}
@@ -73,9 +74,12 @@ export const NavDock: React.FC<NavDockProps> = ({ activeTab, onSelectTab, classN
       }}
     >
       <span className="dock-reveal-bar" />
-      {requestCount + unreadCount > 0 && <span className="dock-reveal-dot" />}
+      {requestCount + missedCallCount + unreadCount > 0 && <span className="dock-reveal-dot" />}
     </button>
-    <div className="dock-surface" aria-hidden={phase !== 'expanded'}>
+    <div
+      className="dock-surface"
+      aria-hidden={phase !== 'expanded'}
+    >
     <span className="dock-active-pill" aria-hidden="true" />
     {NAV_ITEMS.map(({ id, label, icon: Icon }) => (
       <button
@@ -95,7 +99,9 @@ export const NavDock: React.FC<NavDockProps> = ({ activeTab, onSelectTab, classN
       >
         <Icon size={18} aria-hidden="true" />
         <span className="dock-label" aria-hidden="true">{label}</span>
-        {id === 'contacts' && requestCount > 0 && <span className="dock-badge" aria-label={`${requestCount} friend requests`} />}
+        {id === 'discover' && requestCount > 0 && <span className="dock-badge" aria-label={`${requestCount} pending friend requests`} />}
+        {id === 'chats' && unreadCount > 0 && <span className="dock-badge" aria-label={`${unreadCount} unread messages`} />}
+        {id === 'calls' && missedCallCount > 0 && <span className="dock-badge" aria-label={`${missedCallCount} missed calls`} />}
       </button>
     ))}
     </div>

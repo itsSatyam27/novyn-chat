@@ -8,16 +8,8 @@ export const isNativeMobile = Capacitor.isNativePlatform();
 
 export async function triggerHaptic(type: 'light' | 'medium' | 'heavy' | 'success' | 'warning' | 'error' = 'light') {
   if (typeof localStorage !== 'undefined' && localStorage.getItem('novyn_vibration') === 'false') return;
-  if (!isNativeMobile) {
-    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
-      if (type === 'light') navigator.vibrate(10);
-      else if (type === 'medium') navigator.vibrate(20);
-      else if (type === 'heavy') navigator.vibrate(35);
-      else if (type === 'success') navigator.vibrate([10, 30, 20]);
-      else if (type === 'error') navigator.vibrate([30, 40, 30]);
-    }
-    return;
-  }
+  // Vibration belongs to the installed phone app, not the browser.
+  if (!isNativeMobile) return;
 
   try {
     switch (type) {

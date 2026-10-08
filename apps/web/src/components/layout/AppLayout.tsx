@@ -1,3 +1,4 @@
+import { ContactsDashboard } from '../contacts/ContactsDashboard';
 import React, { lazy, Suspense, useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useChat } from '../../context/ChatContext';
@@ -7,11 +8,13 @@ import { Sidebar, NavTab } from './Sidebar';
 import { BottomNav } from './BottomNav';
 import { ConnectionNotice } from './ConnectionNotice';
 import { TabWelcome } from './TabWelcome';
-import { connectSocket } from '../../services/socket';
 import { ChatList } from '../chat/ChatList';
+import { MessagesWorkspace } from '../chat/MessagesWorkspace';
 const ChatWindow = lazy(() => import('../chat/ChatWindow').then((m) => ({ default: m.ChatWindow })));
 import { CallsPanel } from '../calls/CallsPanel';
+import { CallsWorkspace } from '../calls/CallsWorkspace';
 import { DiscoverPanel } from '../discover/DiscoverPanel';
+import { DiscoverWorkspace } from '../discover/DiscoverWorkspace';
 import { ContactsPanel } from '../contacts/ContactsPanel';
 import { SettingsPanel, SettingsMainCategory, SettingsSubSection } from '../settings/SettingsPanel';
 import { SettingsSubPanel } from '../settings/SettingsSubPanel';
@@ -24,11 +27,9 @@ const DEFAULT_PANEL_WIDTH = 340;
 
 export const AppLayout: React.FC = () => {
   const { isAuthenticated, isLoading } = useAuth();
-  const { activeChat, blockedUsers } = useChat();
+  const { activeChat, blockedUsers, markMissedCallsRead, callLogs } = useChat();
   const [activeTab, setActiveTab] = useState<NavTab>('chats');
   const [settingsCategory, setSettingsCategory] = useState<SettingsMainCategory>('profile');
-  const [contactsAddRequest, setContactsAddRequest] = useState(0);
-  useEffect(() => { if (activeTab !== 'contacts') setContactsAddRequest(0); }, [activeTab]);
   const [settingsSubSection, setSettingsSubSection] = useState<SettingsSubSection>('profile-details');
   const [isListCollapsed, setIsListCollapsed] = useState(false);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
@@ -41,6 +42,10 @@ export const AppLayout: React.FC = () => {
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  useEffect(() => {
+    if (activeTab === 'calls') markMissedCallsRead();
+  }, [activeTab, callLogs, markMissedCallsRead]);
 
   // The navigation panel stays a stable width. Users can collapse it with the
   // adjacent control, rather than accidentally resizing it while scrolling.
@@ -135,10 +140,10 @@ export const AppLayout: React.FC = () => {
           )}
           {activeTab === 'calls' && <CallsPanel isCompact={isCompact} onOpenContacts={() => setActiveTab('contacts')} />}
           {activeTab === 'discover' && <DiscoverPanel isCompact={isCompact} onOpenChat={() => setActiveTab('chats')} />}
-          {activeTab === 'contacts' && <ContactsPanel isCompact={isCompact} addRequest={contactsAddRequest} onOpenChat={() => setActiveTab('chats')} />}
+          {activeTab === 'contacts' && <ContactsPanel isCompact={isCompact} onOpenChat={() => setActiveTab('chats')} />}
           {activeTab === 'settings' && (
             <SettingsPanel
-              activeCategory={settingsCategory}
+              activeSubSection={settingsSubSection}
               onSelectCategory={(cat, defaultSub) => {
                 setSettingsCategory(cat);
                 setSettingsSubSection(defaultSub);
@@ -170,22 +175,28 @@ export const AppLayout: React.FC = () => {
         <Suspense fallback={<div role="status" style={{ padding: 24, color: 'var(--text-muted)' }}>Loading view…</div>}>
         {activeTab === 'settings' ? (
           <div className="settings-workspace">
-              <SettingsSubPanel
+              {!settingsSubSection.startsWith('privacy-') && !['feedback-send', 'feedback-bug', 'feedback-feature', 'appear-accessibility', 'storage-cache', 'storage-export', 'storage-security', 'profile-details', 'appear-language', 'appear-theme', 'notif-sounds', 'notif-calls', 'notif-previews'].includes(settingsSubSection) && <SettingsSubPanel
                 activeCategory={settingsCategory}
                 activeSubSection={settingsSubSection}
                 onSelectSubSection={setSettingsSubSection}
                 blockedCount={blockedUsers.size}
                 onBack={windowWidth <= 768 ? () => setIsMobileSettingsDetailOpen(false) : undefined}
-              />
+              />}
             <SettingsDetailView
               activeSubSection={settingsSubSection}
+              isVisible={windowWidth > 768 || isMobileSettingsDetailOpen}
+              onSelectSection={(category, section) => { setSettingsCategory(category); setSettingsSubSection(section); }}
+              onBack={windowWidth <= 768 && (settingsSubSection.startsWith('privacy-') || ['feedback-send', 'feedback-bug', 'feedback-feature', 'appear-accessibility', 'storage-cache', 'storage-export', 'storage-security', 'profile-details', 'appear-language', 'appear-theme', 'notif-sounds', 'notif-calls', 'notif-previews'].includes(settingsSubSection)) ? () => setIsMobileSettingsDetailOpen(false) : undefined}
             />
           </div>
+        ) : activeTab === 'calls' ? <CallsWorkspace onOpenContacts={() => setActiveTab('contacts')} /> : activeTab === 'contacts' ? <ContactsDashboard onOpenChat={() => setActiveTab('chats')} /> : activeTab === 'chats' && !activeChat ? (
+          <MessagesWorkspace />
+        ) : activeTab === 'discover' ? (
+          <DiscoverWorkspace />
         ) : activeTab !== 'chats' || !activeChat ? (
           <TabWelcome tab={activeTab} onAction={() => {
-            if (activeTab === 'discover') { const socket = connectSocket(); if (socket.connected) socket.emit('discover_online'); }
-            else if (activeTab === 'contacts') { setContactsAddRequest((count) => count + 1); setIsListCollapsed(false); }
-            else { setActiveTab('contacts'); setIsListCollapsed(false); }
+            setActiveTab('contacts');
+            setIsListCollapsed(false);
           }} />
         ) : (
           <ChatWindow

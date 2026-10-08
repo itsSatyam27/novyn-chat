@@ -170,6 +170,12 @@ export async function getMyPublicKeyJwk(): Promise<string> {
   }
 }
 
+export async function deriveSharedKeyBytes(publicKey: CryptoKey): Promise<Uint8Array> {
+  if (!cachedKeyPair) throw new Error('Message identity is not initialized.');
+  const bits = await crypto.subtle.deriveBits({ name: 'ECDH', public: publicKey }, cachedKeyPair.privateKey, 256);
+  return new Uint8Array(bits);
+}
+
 /**
  * Import a peer's public key string (JWK)
  */
@@ -205,7 +211,7 @@ export async function getDerivedSharedKey(
   peerPublicKeyJwk: string
 ): Promise<CryptoKey | null> {
   if (!cachedKeyPair || !peerPublicKeyJwk) return null;
-  const cacheId = `${currentUsernameKey}_with_${peerUsername.toLowerCase()}_${peerPublicKeyJwk.slice(-20)}`;
+  const cacheId = JSON.stringify([currentUsernameKey, peerUsername.toLowerCase(), peerPublicKeyJwk]);
 
   if (sharedKeysCache.has(cacheId)) {
     return sharedKeysCache.get(cacheId)!;

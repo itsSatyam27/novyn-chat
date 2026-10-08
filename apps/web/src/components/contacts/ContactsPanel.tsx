@@ -1,34 +1,22 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useChat } from '../../context/ChatContext';
 import { Avatar } from '../ui/Avatar';
-import { Users, UserPlus, UserCheck, Search, MessageSquare, Phone, Video, Check, X, Plus } from 'lucide-react';
+import { Users, Search, MessageSquare, Phone, Video } from 'lucide-react';
 import { triggerHaptic } from '../../services/capacitor';
-import { CreateGroupModal } from '../chat/CreateGroupModal';
 
 interface ContactsPanelProps {
   isCompact?: boolean;
   onOpenChat: () => void;
-  addRequest?: number;
 }
 
-export const ContactsPanel: React.FC<ContactsPanelProps> = ({ isCompact = false, onOpenChat, addRequest = 0 }) => {
+export const ContactsPanel: React.FC<ContactsPanelProps> = ({ isCompact = false, onOpenChat }) => {
   const {
     conversations,
-    friendRequests,
-    sendFriendRequest,
-    acceptFriendRequest,
-    rejectFriendRequest,
     setActiveChat,
     startCall,
   } = useChat();
 
-  const [activeSubTab, setActiveSubTab] = useState<'all' | 'requests' | 'add'>('all');
-  useEffect(() => { if (addRequest > 0) setActiveSubTab('add'); }, [addRequest]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [targetUsername, setTargetUsername] = useState('');
-  const [statusMessage, setStatusMessage] = useState<{ text: string; error?: boolean } | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
 
   const friendsList = conversations.filter((c) => !c.isGroup);
 
@@ -45,27 +33,6 @@ export const ContactsPanel: React.FC<ContactsPanelProps> = ({ isCompact = false,
       c.username.toLowerCase().includes(q)
     );
   });
-
-  const handleSendRequest = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const target = targetUsername.trim();
-    if (!target) return;
-
-    setLoading(true);
-    setStatusMessage(null);
-
-    const res = await sendFriendRequest(target);
-    setLoading(false);
-
-    if (res.ok) {
-      triggerHaptic('success');
-      setStatusMessage({ text: 'Friend request sent successfully!' });
-      setTargetUsername('');
-    } else {
-      triggerHaptic('error');
-      setStatusMessage({ text: res.message || 'Could not send friend request', error: true });
-    }
-  };
 
   if (isCompact) {
     return (
@@ -110,102 +77,25 @@ export const ContactsPanel: React.FC<ContactsPanelProps> = ({ isCompact = false,
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <button
-            type="button"
-            onClick={() => {
-              triggerHaptic('light');
-              setIsGroupModalOpen(true);
-            }}
-            className="header-action-btn"
-            aria-label="Create New Group"
-            title="Create New Group"
-          >
-            <Plus style={{ width: '18px', height: '18px', color: 'var(--primary)' }} />
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              triggerHaptic('light');
-              setActiveSubTab(activeSubTab === 'add' ? 'all' : 'add');
-              setStatusMessage(null);
-            }}
-            className="header-action-btn"
-            style={activeSubTab === 'add' ? { background: 'var(--primary-glow)', color: 'var(--primary)', borderColor: 'var(--primary)' } : {}}
-            aria-label={activeSubTab === 'add' ? 'View Friends' : 'Add Friend'}
-            title={activeSubTab === 'add' ? 'View Friends' : 'Add Friend'}
-          >
-            <UserPlus style={{ width: '18px', height: '18px' }} />
-          </button>
-        </div>
       </div>
 
-      {/* Sub-Tabs: All Friends | Requests (badge) | Add New */}
+      {/* Friends view */}
       <div className="chat-filters-viewport">
-        <div className="chat-filters contacts-filters" role="group" aria-label="Filter contacts" style={{ '--filter-index': ['all', 'requests', 'add'].indexOf(activeSubTab) } as React.CSSProperties}>
+        <div className="chat-filters contacts-filters" role="group" aria-label="Contacts" style={{ '--filter-index': 0 } as React.CSSProperties}>
           <span className="chat-filter-pill" aria-hidden="true" />
           <button
             type="button"
-            onClick={() => {
-              triggerHaptic('light');
-              setActiveSubTab('all');
-            }}
-            className={`tab-btn ${activeSubTab === 'all' ? 'active' : ''}`}
-            aria-pressed={activeSubTab === 'all'}
-            style={{ fontSize: '0.8rem', padding: '8px' }}
+            className="tab-btn active"
+            aria-pressed="true"
+            style={{ fontSize: '0.8rem', padding: '8px', cursor: 'default' }}
           >
             Friends ({friendsList.length})
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              triggerHaptic('light');
-              setActiveSubTab('requests');
-            }}
-            className={`tab-btn ${activeSubTab === 'requests' ? 'active' : ''}`}
-            aria-pressed={activeSubTab === 'requests'}
-            style={{ fontSize: '0.8rem', padding: '8px', position: 'relative' }}
-          >
-            Requests
-            {friendRequests.length > 0 && (
-              <span
-                className="chat-filter-count"
-                style={{
-                  background: '#ef4444',
-                  color: 'var(--text-on-primary)',
-                  fontSize: '0.65rem',
-                  fontWeight: 800,
-                  padding: '1px 6px',
-                  borderRadius: '9999px',
-                  marginLeft: '6px',
-                }}
-              >
-                {friendRequests.length > 99 ? '99+' : friendRequests.length}
-              </span>
-            )}
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              triggerHaptic('light');
-              setActiveSubTab('add');
-              setStatusMessage(null);
-            }}
-            className={`tab-btn ${activeSubTab === 'add' ? 'active' : ''}`}
-            aria-pressed={activeSubTab === 'add'}
-            style={{ fontSize: '0.8rem', padding: '8px' }}
-          >
-            + Add
           </button>
         </div>
       </div>
 
       {/* 1. All Friends View */}
-      {activeSubTab === 'all' && (
-        <>
+      <>
           <div className="chat-search-box">
             <div className="search-input-wrapper">
               <Search className="search-icon" />
@@ -224,13 +114,11 @@ export const ContactsPanel: React.FC<ContactsPanelProps> = ({ isCompact = false,
               <div style={{ padding: '48px 20px', textAlign: 'center', color: 'var(--text-dark)' }}>
             <span className="sidebar-outline-icon is-empty" aria-hidden="true"><Users size={32} /></span>
                 <p style={{ fontSize: '0.85rem', marginBottom: '8px' }}>{searchQuery.trim() ? 'No friends match your search' : 'Your people will appear here'}</p>
-                <button
+                {searchQuery.trim() && <button
                   type="button"
-                  onClick={() => searchQuery.trim() ? setSearchQuery('') : setActiveSubTab('add')}
+                  onClick={() => setSearchQuery('')}
                   style={{ background: 'none', border: 'none', color: 'var(--primary)', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer' }}
-                >
-                  {searchQuery.trim() ? 'Clear search' : '+ Add your first friend'}
-                </button>
+                >Clear search</button>}
               </div>
             ) : (
               filteredFriends.map((friend) => (
@@ -290,167 +178,8 @@ export const ContactsPanel: React.FC<ContactsPanelProps> = ({ isCompact = false,
               ))
             )}
           </div>
-        </>
-      )}
+      </>
 
-      {/* 2. Friend Requests View */}
-      {activeSubTab === 'requests' && (
-        <div className="conversations-scroll" style={{ padding: '0 16px 16px' }}>
-          {friendRequests.length === 0 ? (
-            <div style={{ padding: '48px 20px', textAlign: 'center', color: 'var(--text-dark)' }}>
-              <UserCheck style={{ width: '36px', height: '36px', margin: '0 auto 12px', color: 'var(--primary)' }} />
-              <p style={{ fontSize: '0.85rem' }}>No pending friend requests</p>
-            </div>
-          ) : (
-            friendRequests.map((req) => (
-              <div
-                className="contact-request-card"
-                key={req.from}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '12px 14px',
-                  borderRadius: '14px',
-                  background: 'var(--bg-surface)',
-                  border: '1px solid var(--border)',
-                  marginBottom: '8px',
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <Avatar name={req.displayName || req.from} size="sm" />
-                  <div>
-                    <div style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--text-main)' }}>
-                      {req.displayName || req.from}
-                    </div>
-                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>wants to connect</div>
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', gap: '6px' }}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      triggerHaptic('success');
-                      acceptFriendRequest(req.from);
-                    }}
-                    className="contact-request-accept"
-                    style={{
-                      width: '32px',
-                      height: '32px',
-                      borderRadius: '8px',
-                      background: 'var(--primary)',
-                      border: 'none',
-                      color: 'var(--text-on-primary)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      cursor: 'pointer',
-                    }}
-                    aria-label="Accept"
-                    title="Accept"
-                  >
-                    <Check style={{ width: '16px', height: '16px' }} />
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      triggerHaptic('medium');
-                      rejectFriendRequest(req.from);
-                    }}
-                    className="contact-request-decline"
-                    style={{
-                      width: '32px',
-                      height: '32px',
-                      borderRadius: '8px',
-                      background: 'var(--bg-surface)',
-                      border: 'none',
-                      color: '#ef4444',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      cursor: 'pointer',
-                    }}
-                    aria-label="Decline"
-                    title="Decline"
-                  >
-                    <X style={{ width: '16px', height: '16px' }} />
-                  </button>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-      )}
-
-      {/* 3. Add Friend Form View */}
-      {activeSubTab === 'add' && (
-        <div style={{ padding: '0 20px 20px', flex: 1, overflowY: 'auto' }}>
-          <form onSubmit={handleSendRequest}>
-            <div className="input-wrapper" style={{ marginBottom: '14px' }}>
-              <label className="input-label" htmlFor="contact-identifier">Username or email</label>
-              <input
-                type="text"
-                required
-                id="contact-identifier"
-                value={targetUsername}
-                onChange={(e) => setTargetUsername(e.target.value)}
-                placeholder="Username or email address"
-                className="input-field"
-                style={{ paddingLeft: '16px' }}
-              />
-            </div>
-
-            {statusMessage && (
-              <div
-                className={statusMessage.error ? 'alert-error' : ''}
-                style={
-                  !statusMessage.error
-                    ? {
-                        background: 'var(--primary-glow)',
-                        border: '1px solid var(--primary)',
-                        color: 'var(--primary)',
-                        padding: '10px 14px',
-                        borderRadius: 'var(--radius-md)',
-                        fontSize: '0.8rem',
-                        textAlign: 'center',
-                        marginBottom: '16px',
-                      }
-                    : { marginBottom: '16px' }
-                }
-              >
-                {statusMessage.text}
-              </div>
-            )}
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="btn btn-primary"
-              style={{ width: '100%', padding: '12px', borderRadius: '12px' }}
-            >
-              {loading ? (
-                <span style={{ display: 'inline-block', width: '16px', height: '16px', border: '2px solid #ffffff', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
-              ) : (
-                <>
-                  <UserPlus style={{ width: '16px', height: '16px' }} /> Send Friend Request
-                </>
-              )}
-            </button>
-          </form>
-
-          <p style={{ marginTop: '16px', fontSize: '0.75rem', color: 'var(--text-muted)', lineHeight: 1.6, textAlign: 'center' }}>
-            Connect using their exact username or email.
-          </p>
-        </div>
-      )}
-
-      {/* Create Group Modal */}
-      <CreateGroupModal
-        isOpen={isGroupModalOpen}
-        onClose={() => setIsGroupModalOpen(false)}
-      />
     </div>
   );
 };

@@ -1,10 +1,9 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { useChat } from '../../context/ChatContext';
-import { ShieldCheck, QrCode, Palette, Volume2, Bell, Globe, CircleHelp,
-  LogOut, ChevronRight, Pencil, X, Download, HardDrive, Check } from 'lucide-react';
-import { getSocket } from '../../services/socket';
+import { ShieldCheck, Palette, Volume2, Globe, MessageSquarePlus,
+  LogOut, UserRound, X, HardDrive, Accessibility } from 'lucide-react';
 import { triggerHaptic } from '../../services/capacitor';
+import { useBrowserPreference } from '../../services/browserPreferences';
 import './androidSettings.css';
 
 export type SettingsMainCategory = 'profile' | 'privacy' | 'notifications' | 'appearance' | 'storage' | 'feedback';
@@ -14,9 +13,15 @@ export type SettingsSubSection =
   | 'profile-username'
   | 'profile-email'
   | 'profile-presence'
+  | 'profile-qr'
   // Privacy
   | 'privacy-blocked'
   | 'privacy-password'
+  | 'privacy-app-lock'
+  | 'privacy-visibility'
+  | 'privacy-stealth'
+  | 'privacy-two-factor'
+  | 'privacy-message-keys'
   | 'privacy-receipts'
   | 'privacy-retention'
   | 'privacy-sessions'
@@ -30,6 +35,8 @@ export type SettingsSubSection =
   | 'appear-theme'
   | 'appear-wallpaper'
   | 'appear-font'
+  | 'appear-language'
+  | 'appear-accessibility'
   // Storage
   | 'storage-cache'
   | 'storage-export'
@@ -41,7 +48,7 @@ export type SettingsSubSection =
 
 
 interface SettingsPanelProps {
-  activeCategory: SettingsMainCategory;
+  activeSubSection: SettingsSubSection;
   onSelectCategory: (category: SettingsMainCategory, defaultSub: SettingsSubSection) => void;
   isCompact?: boolean;
 }
@@ -55,88 +62,54 @@ const presence = [
 const hindi: Record<string, string> = {
   Settings: 'सेटिंग्स', ACCOUNT: 'खाता', PREFERENCES: 'पसंद', SUPPORT: 'सहायता', DANGER: 'खाता कार्रवाई',
   'Security & Privacy': 'सुरक्षा और गोपनीयता', 'QR Code': 'QR कोड', Appearance: 'दिखावट',
-  'Sound & Vibration': 'ध्वनि और कंपन', Notifications: 'सूचनाएं', 'Language & Region': 'भाषा और क्षेत्र',
+  'Sounds & Notifications': 'ध्वनियाँ और सूचनाएँ', 'Language & Region': 'भाषा और क्षेत्र',
   'Help & Support': 'मदद और सहायता', 'Log Out': 'लॉग आउट', 'Data & Storage': 'डेटा और स्टोरेज',
+  Accessibility: 'सुलभता',
+  Profile: 'प्रोफ़ाइल', 'Presence & Status': 'उपस्थिति और स्थिति',
   Online: 'ऑनलाइन', Away: 'दूर', Busy: 'व्यस्त', Invisible: 'अदृश्य',
 };
 
-export const SettingsPanel: React.FC<SettingsPanelProps> = ({
-  activeCategory, onSelectCategory, isCompact = false,
-}) => {
+export const SettingsPanel: React.FC<SettingsPanelProps> = ({ activeSubSection, onSelectCategory, isCompact = false }) => {
   const { user, logout } = useAuth();
-  const { updateProfile } = useChat();
-  const [modal, setModal] = useState<'qr' | 'language' | 'logout' | null>(null);
-  const [language, setLanguage] = useState(() => localStorage.getItem('novyn_settings_language') || 'en');
-  const [region, setRegion] = useState(() => localStorage.getItem('novyn_region') || 'IN');
-  const [qr, setQr] = useState('');
-  const [error, setError] = useState('');
+  const [signOutOpen, setSignOutOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [error, setError] = useState('');
   const dialog = useRef<HTMLDialogElement>(null);
   const orbitGradient = useId();
-  const [presenceExpanded, setPresenceExpanded] = useState(false);
-  const presenceDock = useRef<HTMLDivElement>(null);
-  const presenceOptionsId = useId();
-  const presenceTrigger = useRef<HTMLButtonElement>(null);
+  const language = useBrowserPreference('novyn_settings_language', 'en');
   const t = (text: string) => language === 'hi' ? hindi[text] || text : text;
   const name = user?.displayName || user?.username || 'You';
-  const status = user?.presenceMode === 'dnd' ? 'busy' :
-    user?.presenceMode === 'offline' ? 'invisible' : user?.presenceMode || 'online';
-  const statusColor = presence.find((item) => item.value === status)?.color || '#00c69a';
-  const profileUrl = `https://novyn.app/user/${encodeURIComponent(user?.username || '')}`;
-  const avatar = user?.avatarId || (user?.username ? localStorage.getItem(`novyn_avatar_${user.username}`) : '');
-
+  const status = user?.presenceMode === 'dnd' ? 'busy' : user?.presenceMode === 'offline' ? 'invisible' : user?.presenceMode || 'online';
+  const selectedPresence = presence.find(item => item.value === status) || presence[0];
+  const statusColor = selectedPresence.color;
+  const avatar = user?.avatarId || (user?.username ? localStorage.getItem('novyn_avatar_' + user.username) : '');
+  const activeMenuSection = activeSubSection.startsWith('privacy-') ? 'privacy-blocked'
+    : activeSubSection.startsWith('storage-') ? 'storage-cache'
+    : activeSubSection.startsWith('feedback-') ? 'feedback-send'
+    : activeSubSection.startsWith('profile-') ? 'profile-details'
+    : ['appear-wallpaper', 'appear-font'].includes(activeSubSection) ? 'appear-theme'
+    : activeSubSection.startsWith('notif-') ? 'notif-sounds' : activeSubSection;
   useEffect(() => {
-    document.documentElement.lang = language;
-  }, [language]);
-
-  useEffect(() => {
-    if (!presenceExpanded) return;
-    const dismiss = (event: PointerEvent) => {
-      if (!presenceDock.current?.contains(event.target as Node)) setPresenceExpanded(false);
-    };
-    document.addEventListener('pointerdown', dismiss);
-    requestAnimationFrame(() => presenceDock.current?.querySelector<HTMLButtonElement>('[role="menuitemradio"][aria-checked="true"]')?.focus());
-    return () => document.removeEventListener('pointerdown', dismiss);
-  }, [presenceExpanded]);
-
-  useEffect(() => {
-    if (modal) dialog.current?.showModal();
+    if (signOutOpen) dialog.current?.showModal();
     else dialog.current?.close();
-  }, [modal]);
-
-  useEffect(() => {
-    if (modal !== 'qr') return;
-    let cancelled = false;
-    setQr('');
-    import('qrcode').then((module) => module.toDataURL(profileUrl, {
-      width: 280, margin: 3, errorCorrectionLevel: 'M',
-      color: { dark: '#18152d', light: '#ffffff' },
-    })).then((data) => { if (!cancelled) setQr(data); })
-      .catch(() => { if (!cancelled) setError('Could not generate your QR code. Please try again.'); });
-    return () => { cancelled = true; };
-  }, [modal, profileUrl]);
-
-  const open = (value: typeof modal) => { setError(''); setModal(value); };
+  }, [signOutOpen]);
   const select = (category: SettingsMainCategory, section: SettingsSubSection) => {
     triggerHaptic('light'); onSelectCategory(category, section);
   };
-  const row = (label: string, Icon: typeof Palette, color: string, action: () => void,
-    category?: SettingsMainCategory) => (
-    <button type="button" className="android-settings-row" onClick={action}
+  const row = (label: string, Icon: typeof Palette, color: string, category: SettingsMainCategory, section: SettingsSubSection) => (
+    <button type="button" className="android-settings-row" onClick={() => select(category, section)}
       title={label} style={{ '--row-accent': color } as React.CSSProperties}
-      data-selected={category === activeCategory ? 'true' : undefined}>
-      <span className="android-settings-icon"><Icon size={20} aria-hidden="true" /></span>
-      <strong>{t(label)}</strong><ChevronRight size={19} aria-hidden="true" />
+      data-selected={section === activeMenuSection ? 'true' : undefined}>
+      <Icon size={18} strokeWidth={1.8} aria-hidden="true" />
+      <span className="settings-menu-label">{t(label)}</span>
     </button>
   );
   const heading = (label: string) => <h3 className="android-settings-section">{t(label)}</h3>;
-
   return (
-    <section className={`android-settings ${isCompact ? 'is-compact' : ''}`} aria-label="Settings">
+    <section className={'android-settings settings-sidebar ' + (isCompact ? 'is-compact' : '')} aria-label="Settings">
       <h1>{t('Settings')}</h1>
-      <div className="android-profile-card">
-        <button className="android-profile-edit" type="button" aria-label="Edit your profile"
-          onClick={() => select('profile', 'profile-details')}><Pencil size={18} /></button>
+      <button className="android-profile-card android-profile-edit" type="button" aria-label="Edit your profile"
+        onClick={() => select('profile', 'profile-details')}>
         <div className="android-profile-orbit" style={{ '--presence-color': statusColor } as React.CSSProperties}>
           <div className="android-profile-avatar">
             <span>{name.charAt(0).toUpperCase()}</span>
@@ -147,93 +120,54 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
               <stop offset="0" stopColor="var(--presence-color)" stopOpacity="0" />
               <stop offset="1" stopColor="var(--presence-color)" />
             </linearGradient></defs>
-            <path d="M106 54 A52 52 0 0 1 70.07 103.45" fill="none" stroke={`url(#${orbitGradient})`} strokeWidth="2.5" strokeLinecap="round" />
+            <path d="M106 54 A52 52 0 0 1 70.07 103.45" fill="none" stroke={'url(#' + orbitGradient + ')'} strokeWidth="2.5" strokeLinecap="round" />
             <circle cx="70.07" cy="103.45" r="4.5" fill="var(--presence-color)" />
             <circle cx="70.07" cy="103.45" r="2.5" fill="white" />
           </svg>
         </div>
-        <h2>{name}</h2><span className="android-profile-handle">@{user?.username}</span>
-        <div ref={presenceDock} className="android-presence" style={{ '--presence-color': statusColor } as React.CSSProperties}
-          onKeyDown={(event) => {
-            if (event.key === 'Escape') { setPresenceExpanded(false); presenceTrigger.current?.focus(); }
-            if (presenceExpanded && ['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) {
-              event.preventDefault();
-              const items = Array.from(presenceDock.current?.querySelectorAll<HTMLButtonElement>('[role="menuitemradio"]') || []);
-              const index = items.indexOf(document.activeElement as HTMLButtonElement);
-              const next = event.key === 'Home' ? 0 : event.key === 'End' ? items.length - 1 :
-                (index + (event.key === 'ArrowUp' ? -1 : 1) + items.length) % items.length;
-              items[next]?.focus();
-            }
-          }}>
-          <button ref={presenceTrigger} type="button" className="android-presence-badge"
-            aria-haspopup="menu" aria-expanded={presenceExpanded} aria-controls={presenceOptionsId}
-            onClick={() => setPresenceExpanded(!presenceExpanded)}>
-            <i aria-hidden="true" /><span>{t(presence.find(item => item.value === status)?.label || 'Online')}</span>
-            <ChevronRight className="android-presence-chevron" size={16} aria-hidden="true" />
-          </button>
-          {presenceExpanded && <div className="android-presence-menu" id={presenceOptionsId} role="menu" aria-label="Presence status">
-            {presence.map(item => <button type="button" key={item.value} role="menuitemradio" aria-checked={status === item.value}
-              style={{ '--presence-color': item.color } as React.CSSProperties}
-              onClick={() => {
-                if (!getSocket()?.connected) { setError('Reconnect to change your status.'); return; }
-                setError(''); updateProfile({ status: item.value });
-                setPresenceExpanded(false); presenceTrigger.current?.focus();
-              }}>
-              <i aria-hidden="true" /><span>{t(item.label)}</span>
-              {status === item.value && <Check size={16} aria-hidden="true" />}
-            </button>)}
-          </div>}
-        </div>
-      </div>
-      {error && !modal && <p className="android-settings-error" role="alert">{error}</p>}
+        <span className="settings-sidebar-user-copy"><h2>{name}</h2>
+          <span className="settings-sidebar-user-status" style={{ color: statusColor }}><i style={{ background: statusColor }} aria-hidden="true" />{t(selectedPresence.label)}</span>
+        </span>
+      </button>
+      <nav className="settings-menu-scroll" aria-label="Settings navigation">
+      {row('Profile', UserRound, '#7c6ff7', 'profile', 'profile-details')}
       {heading('PREFERENCES')}
-      {row('Appearance', Palette, '#7c6ff7', () => select('appearance', 'appear-theme'), 'appearance')}
-      {row('Sound & Vibration', Volume2, '#00cdbb', () => select('notifications', 'notif-sounds'))}
-      {row('Notifications', Bell, '#ec4899', () => select('notifications', 'notif-previews'))}
-      {row('Language & Region', Globe, '#8b5cf6', () => open('language'))}
-      {row('Data & Storage', HardDrive, '#6386bb', () => select('storage', 'storage-cache'), 'storage')}
+      {row('Appearance', Palette, '#7c6ff7', 'appearance', 'appear-theme')}
+      {row('Sounds & Notifications', Volume2, '#00cdbb', 'notifications', 'notif-sounds')}
+      {row('Language & Region', Globe, '#8b5cf6', 'appearance', 'appear-language')}
+      {row('Data & Storage', HardDrive, '#6386bb', 'storage', 'storage-cache')}
+      {row('Accessibility', Accessibility, '#7c6ff7', 'appearance', 'appear-accessibility')}
       {heading('ACCOUNT')}
-      {row('Security & Privacy', ShieldCheck, '#10b981', () => select('privacy', 'privacy-blocked'), 'privacy')}
-      {row('QR Code', QrCode, '#7c6ff7', () => open('qr'))}
+      {row('Security & Privacy', ShieldCheck, '#10b981', 'privacy', 'privacy-blocked')}
       {heading('SUPPORT')}
-      {row('Help & Support', CircleHelp, '#f59e0b', () => select('feedback', 'feedback-send'), 'feedback')}
-      {heading('DANGER')}
-      {row('Log Out', LogOut, '#ef4444', () => open('logout'))}
-
-      <dialog ref={dialog} className="android-settings-dialog" onClose={() => setModal(null)}
+      {row('Help & Support', MessageSquarePlus, '#f59e0b', 'feedback', 'feedback-send')}
+      </nav>
+      <footer className="settings-sidebar-footer">
+      <button type="button" className="android-settings-row android-settings-logout" title="Log Out"
+        style={{ '--row-accent': '#ef4444' } as React.CSSProperties}
+        onClick={() => { triggerHaptic('light'); setError(''); setSignOutOpen(true); }}>
+        <LogOut size={18} strokeWidth={1.8} aria-hidden="true" />
+        <span className="settings-menu-label">{t('Log Out')}</span>
+      </button>
+      </footer>
+      <dialog ref={dialog} className="android-settings-dialog" onClose={() => setSignOutOpen(false)}
         aria-labelledby="android-settings-dialog-title"
-        onClick={(event) => { if (event.target === event.currentTarget) setModal(null); }}>
-        <header><h2 id="android-settings-dialog-title">{t(modal === 'qr' ? 'QR Code' :
-          modal === 'language' ? 'Language & Region' : 'Log Out')}</h2>
-          <button type="button" aria-label="Close" onClick={() => setModal(null)}><X size={20} /></button></header>
-        {modal === 'qr' && <div className="android-qr">
-          <p>Scan to find @{user?.username} in Novyn.</p>
-          {qr ? <img src={qr} alt={`Profile QR code for @${user?.username}`} width="240" height="240" /> : <p role="status">Generating QR code…</p>}
-          {qr && <a className="android-settings-primary" download={`novyn-${user?.username}-qr.png`} href={qr}><Download size={17} />Download QR code</a>}
-          <p className="android-settings-caption">Profile sharing code, not a device login code.</p>
-        </div>}
-        {modal === 'language' && <div className="android-region-form">
-          <label>Settings language<select value={language} onChange={(event) => {
-            setLanguage(event.target.value); localStorage.setItem('novyn_settings_language', event.target.value);
-          }}><option value="en">English</option><option value="hi">हिन्दी</option></select></label>
-          <label>Region<select value={region} onChange={(event) => {
-            setRegion(event.target.value); localStorage.setItem('novyn_region', event.target.value);
-            window.dispatchEvent(new Event('novyn-region-change'));
-          }}><option value="IN">India</option><option value="US">United States</option><option value="GB">United Kingdom</option></select></label>
-          <p>Saved for this browser. Dates in settings use your selected region.</p>
-          <output>{new Intl.DateTimeFormat(`${language}-${region}`, { dateStyle: 'long' }).format(new Date())}</output>
-        </div>}
-        {modal === 'logout' && <div className="android-region-form">
+        onClick={(event) => { if (event.target === event.currentTarget && !loggingOut) setSignOutOpen(false); }}>
+        <header><h2 id="android-settings-dialog-title">Sign out of this browser</h2>
+          <button type="button" aria-label="Close" disabled={loggingOut} onClick={() => setSignOutOpen(false)}><X size={20} /></button></header>
+        <div className="android-region-form">
           <p>Log out of Novyn on this browser?</p>
-          <div className="android-dialog-actions"><button type="button" onClick={() => setModal(null)}>Cancel</button>
+          <div className="android-dialog-actions">
+            <button type="button" disabled={loggingOut} onClick={() => setSignOutOpen(false)}>Cancel</button>
             <button type="button" className="android-settings-primary is-danger" disabled={loggingOut} onClick={async () => {
               setLoggingOut(true);
-              try { await logout(); setModal(null); }
+              try { await logout(); setSignOutOpen(false); }
               catch { setError('Could not log out. Please try again.'); }
               finally { setLoggingOut(false); }
-            }}>{loggingOut ? 'Logging out…' : 'Log Out'}</button></div>
-        </div>}
-        {error && modal && <p role="alert" className="android-settings-error">{error}</p>}
+            }}>{loggingOut ? 'Logging out…' : 'Sign out'}</button>
+          </div>
+        </div>
+        {error && <p role="alert" className="android-settings-error">{error}</p>}
       </dialog>
     </section>
   );

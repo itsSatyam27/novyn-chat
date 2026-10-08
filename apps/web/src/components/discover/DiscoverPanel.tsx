@@ -160,7 +160,7 @@ export const DiscoverPanel: React.FC<DiscoverPanelProps> = ({ isCompact = false,
           <span className="sidebar-outline-icon" aria-hidden="true"><Compass size={18} /></span>
           <div>
             <h2 className="chat-list-title" style={{ fontSize: '1.2rem' }}>Discover</h2>
-            <span style={{ fontSize: '0.72rem', color: '#0e9f8a', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <span style={{ fontSize: '0.72rem', color: 'var(--primary)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
               <Radio style={{ width: '12px', height: '12px' }} /> Live Online Radar
             </span>
           </div>
@@ -211,7 +211,7 @@ export const DiscoverPanel: React.FC<DiscoverPanelProps> = ({ isCompact = false,
                   gap: '12px',
                   padding: '12px 14px',
                   borderRadius: '16px',
-                  background: 'rgba(255, 255, 255, 0.55)',
+                  background: 'var(--bg-surface)',
                   border: '1px solid var(--border)',
                   marginBottom: '10px',
                   transition: 'all 0.2s ease',

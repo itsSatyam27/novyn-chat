@@ -64,6 +64,32 @@ class Message extends HiveObject {
   @HiveField(11)
   final bool edited;
 
+  @HiveField(12, defaultValue: false)
+  final bool isEncrypted;
+  @HiveField(13)
+  final String? ciphertext;
+  @HiveField(14)
+  final String? iv;
+
+  bool get needsMessageKey => isEncrypted && text == '🔒 Encrypted message';
+
+  // The shared backend sends emoji -> usernames[], while the mobile UI uses
+  // username -> emoji. Preserve the older mobile shape too.
+  static Map<String, String> parseReactions(dynamic raw) {
+    if (raw is! Map) return {};
+    final reactions = <String, String>{};
+    for (final entry in raw.entries) {
+      if (entry.value is List) {
+        for (final username in entry.value) {
+          if (username is String) reactions[username] = entry.key.toString();
+        }
+      } else if (entry.value is String) {
+        reactions[entry.key.toString()] = entry.value;
+      }
+    }
+    return reactions;
+  }
+
   Message({
     required this.id,
     required this.text,
@@ -77,8 +103,11 @@ class Message extends HiveObject {
     this.replyToText,
     this.replyToSender,
     this.edited = false,
-  }) : createdAt = createdAt ?? DateTime.now(),
-       reactions = reactions ?? {};
+    this.isEncrypted = false,
+    this.ciphertext,
+    this.iv,
+  })  : createdAt = createdAt ?? DateTime.now(),
+        reactions = reactions ?? {};
 
   Message copyWith({
     String? id,
@@ -88,18 +117,21 @@ class Message extends HiveObject {
     bool? edited,
   }) {
     return Message(
-      id:            id ?? this.id,
-      text:          text ?? this.text,
-      time:          time,
-      isFromMe:      isFromMe ?? this.isFromMe,
-      chatId:        chatId,
-      senderId:      senderId,
-      createdAt:     createdAt,
-      reactions:     reactions ?? this.reactions,
-      replyToId:     replyToId,
-      replyToText:   replyToText,
+      id: id ?? this.id,
+      text: text ?? this.text,
+      time: time,
+      isFromMe: isFromMe ?? this.isFromMe,
+      chatId: chatId,
+      senderId: senderId,
+      createdAt: createdAt,
+      reactions: reactions ?? this.reactions,
+      replyToId: replyToId,
+      replyToText: replyToText,
       replyToSender: replyToSender,
-      edited:        edited ?? this.edited,
+      edited: edited ?? this.edited,
+      isEncrypted: isEncrypted,
+      ciphertext: ciphertext,
+      iv: iv,
     );
   }
 }

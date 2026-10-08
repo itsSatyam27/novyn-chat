@@ -287,13 +287,14 @@ class ApiService {
             id: m['id']?.toString() ?? m['messageId']?.toString() ?? '',
             chatId: to,
             text: m['text'] ?? '',
+            isEncrypted: m['isEncrypted'] == true,
+            ciphertext: m['ciphertext']?.toString(),
+            iv: m['iv']?.toString(),
             senderId: sender,
             isFromMe: myUsername != null && sender == myUsername,
             createdAt: DateTime.tryParse(m['timestamp']?.toString() ?? '') ??
                 DateTime.now(),
-            reactions: m['reactions'] != null
-                ? Map<String, String>.from(m['reactions'])
-                : {},
+            reactions: Message.parseReactions(m['reactions']),
             replyToId: m['replyTo']?['id']?.toString(),
             replyToText: m['replyTo']?['text']?.toString(),
             replyToSender: m['replyTo']?['from']?.toString(),

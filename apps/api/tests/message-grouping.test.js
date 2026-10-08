@@ -17,3 +17,10 @@ test('grouping respects day boundaries, replies, games, polls and invalid timest
   assert.equal(groupsWithPrevious({ sender: 'alice', timestamp: '2026-10-01T23:59:00' }, { sender: 'alice', timestamp: '2026-10-02T00:00:00' }), false);
   for (const extra of [{ replyTo: {} }, { game: {} }, { poll: {} }, { timestamp: 'bad date' }]) assert.equal(groupsWithPrevious(first, { ...first, ...extra }), false);
 });
+
+test('grouping follows midnight in the selected time zone', () => {
+  const before = { sender: 'alice', timestamp: '2026-07-02T06:59:00Z' };
+  const after = { sender: 'alice', timestamp: '2026-07-02T07:00:00Z' };
+  assert.equal(groupsWithPrevious(before, after, 'America/Los_Angeles'), false);
+  assert.equal(groupsWithPrevious(before, after, 'Asia/Kolkata'), true);
+});

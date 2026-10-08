@@ -1,4 +1,4 @@
-import { getPreferredLocale } from '../../services/regionalPreferences';
+import { getPreferredLocale, getPreferredTimeZone } from '../../services/regionalPreferences';
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Message, Conversation } from '../../types';
@@ -429,7 +429,7 @@ export const SharedMediaModal: React.FC<SharedMediaModalProps> = ({
                             textAlign: 'right',
                           }}
                         >
-                          {new Date(item.timestamp).toLocaleDateString(getPreferredLocale(), { month: 'short', day: 'numeric' })}
+                          {new Date(item.timestamp).toLocaleDateString(getPreferredLocale(), { timeZone: getPreferredTimeZone(), month: 'short', day: 'numeric' })}
                         </div>
                       </motion.div>
                     );
@@ -513,7 +513,7 @@ export const SharedMediaModal: React.FC<SharedMediaModalProps> = ({
                           {item.attachment?.name || 'Document'}
                         </div>
                         <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '3px' }}>
-                          {formatFileSize(item.attachment?.size)} • {new Date(item.timestamp).toLocaleDateString(getPreferredLocale(), { month: 'short', day: 'numeric', year: 'numeric' })}
+                          {formatFileSize(item.attachment?.size)} • {new Date(item.timestamp).toLocaleDateString(getPreferredLocale(), { timeZone: getPreferredTimeZone(), month: 'short', day: 'numeric', year: 'numeric' })}
                         </div>
                       </div>
 
@@ -590,10 +590,10 @@ export const SharedMediaModal: React.FC<SharedMediaModalProps> = ({
 
                       <div className="shared-media-voice-date" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', flexShrink: 0 }}>
                         <span style={{ fontSize: '0.74rem', color: 'var(--text-main)', fontWeight: 600 }}>
-                          {new Date(item.timestamp).toLocaleDateString(getPreferredLocale(), { month: 'short', day: 'numeric' })}
+                          {new Date(item.timestamp).toLocaleDateString(getPreferredLocale(), { timeZone: getPreferredTimeZone(), month: 'short', day: 'numeric' })}
                         </span>
                         <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
-                          {new Date(item.timestamp).toLocaleTimeString(getPreferredLocale(), { hour: '2-digit', minute: '2-digit' })}
+                          {new Date(item.timestamp).toLocaleTimeString(getPreferredLocale(), { timeZone: getPreferredTimeZone(), hour: '2-digit', minute: '2-digit' })}
                         </span>
                       </div>
                     </div>

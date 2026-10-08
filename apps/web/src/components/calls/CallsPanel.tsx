@@ -1,5 +1,5 @@
-import { getPreferredLocale } from '../../services/regionalPreferences';
-import React from 'react';
+import { getPreferredLocale, getPreferredTimeZone, getPreferredDayKey } from '../../services/regionalPreferences';
+import React, { useState } from 'react';
 import { useChat } from '../../context/ChatContext';
 import { Avatar } from '../ui/Avatar';
 import {
@@ -9,6 +9,7 @@ import {
   PhoneOutgoing,
   PhoneMissed,
   Trash2,
+  Search,
 } from 'lucide-react';
 import { triggerHaptic } from '../../services/capacitor';
 
@@ -18,15 +19,22 @@ interface CallsPanelProps {
 }
 
 export const CallsPanel: React.FC<CallsPanelProps> = ({ isCompact = false, onOpenContacts }) => {
-  const { startCall, callLogs, clearCallLogs } = useChat();
+  const { startCall, callLogs, clearCallLogs, unreadMissedCallCount } = useChat();
+  const [query, setQuery] = useState('');
+  const [filter, setFilter] = useState<'all' | 'missed' | 'audio' | 'video'>('all');
+  const filteredLogs = callLogs.filter(log => {
+    const matchesQuery = (log.partnerDisplayName || log.partner).toLowerCase().includes(query.trim().toLowerCase());
+    const matchesFilter = filter === 'all' || (filter === 'missed' ? log.type === 'missed' : filter === 'video' ? log.isVideo : !log.isVideo);
+    return matchesQuery && matchesFilter;
+  });
 
   const formatTimestamp = (ts: string | number) => {
     try {
       const d = new Date(ts);
       const now = new Date();
-      const isToday = d.toDateString() === now.toDateString();
-      const time = d.toLocaleTimeString(getPreferredLocale(), { hour: '2-digit', minute: '2-digit' });
-      return isToday ? time : `${d.toLocaleDateString(getPreferredLocale(), { month: 'short', day: 'numeric' })}, ${time}`;
+      const isToday = getPreferredDayKey(d) === getPreferredDayKey(now);
+      const time = d.toLocaleTimeString(getPreferredLocale(), { timeZone: getPreferredTimeZone(), hour: '2-digit', minute: '2-digit' });
+      return isToday ? time : `${d.toLocaleDateString(getPreferredLocale(), { timeZone: getPreferredTimeZone(), month: 'short', day: 'numeric' })}, ${time}`;
     } catch {
       return '';
     }
@@ -97,7 +105,14 @@ export const CallsPanel: React.FC<CallsPanelProps> = ({ isCompact = false, onOpe
       </div>
 
       {/* Main Scroll Stream - Recent Calls Only */}
-      <div className="conversations-scroll" style={{ padding: '10px 14px' }}>
+      <div className="calls-history-tools">
+        <label className="calls-history-search"><Search size={15} /><input value={query} onChange={event => setQuery(event.target.value)} placeholder="Search calls..." /></label>
+        <div className="calls-history-filters">
+          {(['all', 'missed', 'audio', 'video'] as const).map(value => <button key={value} type="button" aria-pressed={filter === value} onClick={() => setFilter(value)}>{value === 'missed' ? `Missed${unreadMissedCallCount > 0 ? ` ${unreadMissedCallCount}` : ''}` : value.charAt(0).toUpperCase() + value.slice(1)}</button>)}
+        </div>
+      </div>
+
+      <div className="conversations-scroll" style={{ padding: '4px 14px 10px' }}>
         {callLogs.length === 0 ? (
           <div style={{ padding: '60px 20px', textAlign: 'center', color: 'var(--text-dark)' }}>
             <span className="sidebar-outline-icon is-empty" aria-hidden="true"><Phone size={32} /></span>
@@ -109,9 +124,9 @@ export const CallsPanel: React.FC<CallsPanelProps> = ({ isCompact = false, onOpe
             </p>
             {onOpenContacts && <button type="button" className="empty-state-action" style={{ marginTop: 16 }} onClick={onOpenContacts}>Choose someone to call</button>}
           </div>
-        ) : (
+        ) : filteredLogs.length === 0 ? <p style={{ padding: '28px 14px', color: 'var(--text-muted)', fontSize: '0.8rem', textAlign: 'center' }}>No calls match your search.</p> : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {callLogs.map((log) => {
+            {filteredLogs.map((log) => {
               const isMissed = log.type === 'missed';
               const isIncoming = log.type === 'incoming';
 

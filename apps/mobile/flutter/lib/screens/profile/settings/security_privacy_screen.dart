@@ -7,6 +7,7 @@ import '../../../services/auth_service.dart';
 import '../../../services/local_auth_service.dart';
 import '../../../services/security_service.dart';
 import '../../../widgets/novyn_empty_state.dart';
+import '../../../widgets/import_message_keys_dialog.dart';
 import '../../security/setup_pin_screen.dart';
 import '../widgets/profile_widgets.dart';
 
@@ -55,6 +56,12 @@ class SecurityPrivacyScreen extends StatelessWidget {
         physics: const BouncingScrollPhysics(),
         children: [
           const SectionLabel(label: 'Security'),
+          MenuCard(
+            icon: Icons.key_rounded,
+            title: 'Import message keys',
+            subtitle: 'Read encrypted messages from your web app',
+            onTap: () => showImportMessageKeys(context),
+          ),
           MenuCard(
             icon: Icons.lock_rounded,
             iconColor: const Color(0xFF10B981),
@@ -949,7 +956,7 @@ class _ChangePasswordDialogState extends State<_ChangePasswordDialog> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                'Re-establishing your security node credentials.',
+                'Use at least 12 characters for your new password.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontFamily: 'Outfit',
@@ -1047,19 +1054,20 @@ class _ChangePasswordDialogState extends State<_ChangePasswordDialog> {
                         _newPasswordController.text,
                       );
 
-                      if (mounted) {
+                      if (mounted && context.mounted) {
                         setState(() => _isLoading = false);
+                        final messenger = ScaffoldMessenger.of(context);
                         if (error == null) {
                           Navigator.pop(context);
-                          ScaffoldMessenger.of(context).showSnackBar(
+                          messenger.showSnackBar(
                             const SnackBar(
-                              content: Text('Password synthesized successfully'),
+                              content: Text('Password updated successfully'),
                               behavior: SnackBarBehavior.floating,
                               backgroundColor: Color(0xFF10B981),
                             ),
                           );
                         } else {
-                          ScaffoldMessenger.of(context).showSnackBar(
+                          messenger.showSnackBar(
                             SnackBar(
                               content: Text(error),
                               backgroundColor: const Color(0xFFEF4444),
@@ -1079,7 +1087,7 @@ class _ChangePasswordDialogState extends State<_ChangePasswordDialog> {
                     child: _isLoading 
                       ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                       : const Text(
-                          'Synthesize', 
+                          'Update Password',
                           style: TextStyle(
                             fontFamily: 'Outfit', 
                             fontWeight: FontWeight.w900,

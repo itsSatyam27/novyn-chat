@@ -14,37 +14,38 @@ import { GameLauncherModal } from './GameLauncherModal';
 import { CommandPaletteModal } from '../layout/CommandPaletteModal';
 import { Avatar } from '../ui/Avatar';
 import { Message } from '../../types';
-import { Phone, Video, ChevronLeft, PanelLeftOpen, Info, Search, Command, Lock, ArrowDown } from 'lucide-react';
+import { Phone, Video, ChevronLeft, PanelLeftOpen, Info, Search, Command, Lock, ArrowDown, X } from 'lucide-react';
 import { triggerHaptic } from '../../services/capacitor';
 import { getSocket } from '../../services/socket';
 import { uploadMediaFile } from '../../services/api';
 import { groupsWithPrevious } from '../../services/messageGrouping';
 import { resolveReplyPreviews } from '../../services/messagePresentation';
 import { TabWelcome } from '../layout/TabWelcome';
+import { getPreferredDayKey, getPreferredLocale, getPreferredTimeZone } from '../../services/regionalPreferences';
 
 const messageDayKey = (timestamp: string | number) => {
   const date = new Date(timestamp);
   if (Number.isNaN(date.getTime())) return '';
-  return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+  return getPreferredDayKey(date);
 };
 
 const messageDayLabel = (timestamp: string | number) => {
   const date = new Date(timestamp);
   if (Number.isNaN(date.getTime())) return '';
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const yesterday = new Date(today);
-  yesterday.setDate(today.getDate() - 1);
-  const messageDay = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const today = getPreferredDayKey(new Date());
+  const yesterday = new Date(today + 'T12:00:00Z');
+  yesterday.setUTCDate(yesterday.getUTCDate() - 1);
+  const day = getPreferredDayKey(date);
 
-  if (messageDay.getTime() === today.getTime()) return 'Today';
-  if (messageDay.getTime() === yesterday.getTime()) return 'Yesterday';
+  if (day === today) return 'Today';
+  if (day === yesterday.toISOString().slice(0, 10)) return 'Yesterday';
 
-  return new Intl.DateTimeFormat(undefined, {
+  return new Intl.DateTimeFormat(getPreferredLocale(), {
+    timeZone: getPreferredTimeZone(),
     day: 'numeric',
     month: 'long',
-    year: date.getFullYear() === today.getFullYear() ? undefined : 'numeric',
+    year: day.slice(0, 4) === today.slice(0, 4) ? undefined : 'numeric',
   }).format(date);
 };
 
@@ -512,6 +513,19 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             >
               <Info style={{ width: '16px', height: '16px' }} />
             </button>
+
+            <button
+              type="button"
+              className="header-action-btn"
+              onClick={() => {
+                triggerHaptic('light');
+                setActiveChat(null);
+              }}
+              aria-label="Close chat"
+              title="Close chat"
+            >
+              <X style={{ width: '16px', height: '16px' }} />
+            </button>
           </div>
         </div>
 
@@ -605,7 +619,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                 )}
               <MessageBubble
                 message={msg}
-                grouped={groupsWithPrevious(visibleMessages[index - 1], msg)}
+                grouped={groupsWithPrevious(visibleMessages[index - 1], msg, getPreferredTimeZone())}
                 onRetry={retryMessage}
                 isMe={msg.sender?.toLowerCase() === user?.username.toLowerCase()}
                 onReply={(m) => setReplyMessage(m)}
