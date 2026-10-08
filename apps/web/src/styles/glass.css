@@ -2076,3 +2076,72 @@ button:disabled { cursor: not-allowed; }
   :root .contact-options-card > div:nth-child(3),
   :root .contact-options-card > div:nth-child(4) { min-height: 70px !important; padding: 8px !important; }
 }
+
+/* Phone chat: keep the contact and every header action in one compact row;
+   fit message actions between the header and fixed composer. */
+@media (max-width: 680px) {
+  :root .chat-window { min-width: 0; min-height: 0; }
+  :root .chat-header {
+    height: 62px !important;
+    min-height: 62px !important;
+    flex-wrap: nowrap !important;
+    gap: 6px !important;
+    padding: 6px 8px !important;
+  }
+  :root .chat-header > div:first-child {
+    flex: 1 1 auto;
+    min-width: 0;
+    gap: 7px !important;
+  }
+  :root .chat-header > div:first-child > div:last-child {
+    flex: 1 1 auto;
+    min-width: 0;
+    gap: 7px !important;
+    padding: 0 !important;
+  }
+  :root .chat-header > div:first-child > div:last-child > div:last-child { min-width: 0; }
+  :root .chat-header-name { max-width: clamp(42px, 17vw, 90px) !important; font-size: .84rem !important; }
+  :root .chat-header-status { max-width: clamp(42px, 17vw, 90px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .66rem !important; }
+  :root .chat-header > div:first-child .header-action-btn { width: 32px !important; height: 32px !important; flex: 0 0 32px; }
+  :root .chat-header-actions { flex: 0 0 auto; gap: 3px !important; flex-wrap: nowrap !important; margin-left: auto; }
+  :root .chat-header-actions .header-action-btn { width: 31px !important; height: 32px !important; min-width: 31px !important; min-height: 32px !important; flex: 0 0 31px; padding: 0 !important; }
+  :root .chat-header-actions .header-action-btn svg { width: 15px !important; height: 15px !important; }
+  :root .messages-container { min-height: 0; overflow-x: hidden !important; padding: 12px 9px max(12px, env(safe-area-inset-bottom)) !important; }
+  :root .bubble-row { min-width: 0; }
+  :root .msg-wrapper { min-width: 0; max-width: min(86%, 460px) !important; }
+  :root .message-actions-menu {
+    z-index: 1000 !important;
+    width: min(270px, calc(100vw - 28px)) !important;
+    min-width: min(220px, calc(100vw - 28px)) !important;
+    max-height: calc(100dvh - 150px) !important;
+    overflow-y: auto !important;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+  :root .message-actions-menu.mobile-opens-above { top: auto !important; bottom: calc(100% + 8px) !important; }
+  :root .message-actions-menu.mobile-opens-below { top: calc(100% + 8px) !important; bottom: auto !important; }
+  :root .chat-input-bar { position: relative; z-index: 60; padding: 8px 9px max(8px, env(safe-area-inset-bottom)) !important; }
+  :root .input-bar-container { min-height: 48px !important; }
+}
+@media (max-width: 370px) {
+  :root .chat-header { gap: 4px !important; padding-inline: 6px !important; }
+  :root .chat-header > div:first-child { gap: 4px !important; }
+  :root .chat-header > div:first-child > div:last-child { gap: 5px !important; }
+  :root .chat-header-name, :root .chat-header-status { max-width: 40px !important; }
+  :root .chat-header-actions { gap: 2px !important; }
+  :root .chat-header-actions .header-action-btn { width: 28px !important; min-width: 28px !important; flex-basis: 28px; }
+}
+
+/* Keep message menus inside the visible conversation area on every viewport. */
+:root .message-actions-menu {
+  max-height: var(--message-menu-max-height, min(60dvh, calc(100dvh - 150px))) !important;
+  overflow-y: auto !important;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+:root .message-actions-menu.viewport-opens-above { top: auto !important; bottom: calc(100% + 8px) !important; }
+:root .message-actions-menu.viewport-opens-below { top: calc(100% + 8px) !important; bottom: auto !important; }
+:root .message-actions-menu.opens-left.viewport-opens-above { transform-origin: bottom right; }
+:root .message-actions-menu.opens-left.viewport-opens-below { transform-origin: top right; }
+:root .message-actions-menu.opens-right.viewport-opens-above { transform-origin: bottom left; }
+:root .message-actions-menu.opens-right.viewport-opens-below { transform-origin: top left; }

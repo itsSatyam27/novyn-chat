@@ -217,61 +217,17 @@ export const GameMessageBubble: React.FC<GameMessageBubbleProps> = ({
   // ----------------------------------------------------
   const handleRPSPick = (move: 'rock' | 'paper' | 'scissors') => {
     if (state === 'finished') return;
-
-    let p1 = data.player1 || createdBy;
-    let p2 = data.player2 || (currentUsername !== p1 ? currentUsername : opponent || '');
-
-    // Assign second player if open
-    if (!data.player2 && currentUsername !== p1) {
-      p2 = currentUsername;
-    }
-
-    let p1Move = data.p1Move;
-    let p2Move = data.p2Move;
-
-    if (currentUsername === p1) {
-      p1Move = move;
-    } else if (currentUsername === p2) {
-      p2Move = move;
-    } else {
-      p2 = currentUsername;
-      p2Move = move;
-    }
-
-    let gameWinner: string | 'draw' | undefined;
-    let newState: 'in_progress' | 'finished' = 'in_progress';
-
-    if (p1Move && p2Move) {
-      newState = 'finished';
-      if (p1Move === p2Move) {
-        gameWinner = 'draw';
-      } else if (
-        (p1Move === 'rock' && p2Move === 'scissors') ||
-        (p1Move === 'paper' && p2Move === 'rock') ||
-        (p1Move === 'scissors' && p2Move === 'paper')
-      ) {
-        gameWinner = p1;
-      } else {
-        gameWinner = p2;
-      }
-    }
-
     triggerHaptic('medium');
-    onMove(messageId, {
-      player1: p1,
-      player2: p2,
-      p1Move,
-      p2Move,
-      state: newState,
-      winner: gameWinner,
-    });
+    // The server resolves both hidden choices and the result. Sending a
+    // client-computed snapshot bypassed its `{ move }` protocol and was rejected.
+    onMove(messageId, { move });
   };
 
   const renderRPS = () => {
     const p1 = data.player1 || createdBy;
     const p2 = data.player2 || opponent || 'Opponent';
-    const isP1 = currentUsername === p1;
-    const isP2 = currentUsername === p2;
+    const isP1 = currentUsername.toLowerCase() === p1.toLowerCase();
+    const isP2 = currentUsername.toLowerCase() === p2.toLowerCase();
     const myMove = isP1 ? data.p1Move : isP2 ? data.p2Move : undefined;
     const bothPicked = Boolean(data.p1Move && data.p2Move);
 

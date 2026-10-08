@@ -1,5 +1,5 @@
 import { getPreferredLocale, getPreferredTimeZone } from '../../services/regionalPreferences';
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Message } from '../../types';
 import {
@@ -97,14 +97,39 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   onRetry,
 }) => {
   const [showActionsMenu, setShowActionsMenu] = useState(false);
+  const [mobileMenuPlacement, setMobileMenuPlacement] = useState<{ side: 'above' | 'below'; maxHeight: number } | null>(null);
   const [showReactions, setShowReactions] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [copied, setCopied] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(message.text || '');
   const containerRef = useRef<HTMLDivElement>(null);
+  const actionsMenuRef = useRef<HTMLDivElement>(null);
   const lastTapRef = useRef<number>(0);
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+
+  useLayoutEffect(() => {
+    if (!showActionsMenu) {
+      setMobileMenuPlacement(null);
+      return;
+    }
+
+    const placeMenu = () => {
+      const anchor = containerRef.current?.getBoundingClientRect();
+      const menu = actionsMenuRef.current?.getBoundingClientRect();
+      const messageViewport = containerRef.current?.closest('.messages-container')?.getBoundingClientRect();
+      if (!anchor || !menu || !messageViewport) return;
+      const above = Math.max(0, anchor.top - messageViewport.top - 8);
+      const below = Math.max(0, messageViewport.bottom - anchor.bottom - 8);
+      const side = above >= menu.height ? 'above' : below >= menu.height ? 'below' : above >= below ? 'above' : 'below';
+      const maxHeight = Math.max(80, Math.floor(side === 'above' ? above : below));
+      setMobileMenuPlacement((current) => current?.side === side && current.maxHeight === maxHeight ? current : { side, maxHeight });
+    };
+
+    placeMenu();
+    window.addEventListener('resize', placeMenu);
+    return () => window.removeEventListener('resize', placeMenu);
+  }, [showActionsMenu]);
 
   const toggleActionsMenu = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -377,11 +402,12 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           <AnimatePresence>
             {showActionsMenu && (
               <motion.div
-                className={`message-actions-menu ${isMe ? 'opens-left' : 'opens-right'}`}
-                initial={{ opacity: 0, scale: 0.94, x: isMe ? 8 : -8 }}
-                animate={{ opacity: 1, scale: 1, x: 0 }}
-                exit={{ opacity: 0, scale: 0.94, x: isMe ? 8 : -8 }}
-                transition={{ duration: 0.15 }}
+                ref={actionsMenuRef}
+                className={`message-actions-menu ${isMe ? 'opens-left' : 'opens-right'}${mobileMenuPlacement ? ` viewport-opens-${mobileMenuPlacement.side}` : ''}`}
+                initial={{ opacity: 0, scale: 0.97, y: 5 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.98, y: 3 }}
+                transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
                 onClick={(e) => e.stopPropagation()}
                 style={{
                   position: 'absolute',
@@ -401,7 +427,8 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                   boxShadow: '0 16px 36px rgba(36, 76, 96, 0.1), 0 0 0 1px rgba(255, 255, 255, 0.05)',
                   zIndex: 1000,
                   backdropFilter: 'blur(16px)',
-                }}
+                  '--message-menu-max-height': mobileMenuPlacement ? `${mobileMenuPlacement.maxHeight}px` : undefined,
+                } as React.CSSProperties}
               >
                 {/* Quick Reactions Bar at Top */}
                 <div

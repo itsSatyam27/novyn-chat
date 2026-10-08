@@ -745,19 +745,16 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       triggerHaptic('light');
     });
 
-    socket.on('game_move_updated', ({ messageId, moveData, updatedBy }: any) => {
+    socket.on('game_move_updated', ({ messageId, moveData, updatedBy, game }: any) => {
       setMessages((prev) =>
         prev.map((m) => {
           if (m.id === messageId && m.game) {
-            const updatedGame: GameData = {
+            const updatedGame: GameData = game || {
               ...m.game,
               state: moveData.state || m.game.state,
               turn: moveData.turn !== undefined ? moveData.turn : m.game.turn,
               winner: moveData.winner !== undefined ? moveData.winner : m.game.winner,
-              data: {
-                ...m.game.data,
-                ...moveData,
-              },
+              data: { ...m.game.data, ...moveData },
               lastMoveBy: updatedBy,
               updatedAt: Date.now(),
             };
@@ -937,6 +934,9 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const sender = rawMsg.from || rawMsg.sender || rawMsg.fromKey;
       const receiver = rawMsg.to || rawMsg.receiver || rawMsg.toKey;
       const clientTempId = rawMsg.clientTempId;
+      const pendingSend = sender?.toLowerCase() === user.username.toLowerCase() && clientTempId
+        ? pendingSendsRef.current.get(clientTempId)
+        : undefined;
       if (sender?.toLowerCase() === user.username.toLowerCase() && clientTempId) pendingSendsRef.current.delete(clientTempId);
       const msgId = rawMsg.id || rawMsg.messageId || clientTempId || String(Date.now());
       const status: MessageStatus = rawMsg.seenAt ? 'seen' : rawMsg.deliveredAt ? 'delivered' : rawMsg.status || 'sent';
@@ -945,7 +945,9 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         id: msgId,
         sender,
         receiver,
-        text: rawMsg.isEncrypted ? ENCRYPTED_MESSAGE_PLACEHOLDER : rawMsg.text || '',
+        // Keep the already-visible local plaintext when reconciling our own
+        // encrypted echo; otherwise the placeholder flashes until decryption.
+        text: rawMsg.isEncrypted ? pendingSend?.text || ENCRYPTED_MESSAGE_PLACEHOLDER : rawMsg.text || '',
         timestamp: rawMsg.timestamp || new Date().toISOString(),
         status,
         attachment: rawMsg.attachment,
@@ -1624,15 +1626,27 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setMessages((prev) =>
         prev.map((m) => {
           if ((m.id === messageId || (m.game && m.game.id === messageId)) && m.game) {
+            let nextData = { ...m.game.data, ...moveData };
+            let nextTurn = moveData.turn !== undefined ? moveData.turn : m.game.turn;
+            if (m.game.gameType === 'rps' && moveData.move) {
+              const player1 = m.game.data.player1 || m.game.createdBy;
+              const player2 = m.game.data.player2 || m.game.opponent || user.username;
+              const choseAsPlayer1 = player1.toLowerCase() === user.username.toLowerCase();
+              nextData = {
+                ...m.game.data,
+                player1,
+                player2,
+                p1Move: choseAsPlayer1 ? moveData.move : m.game.data.p1Move,
+                p2Move: choseAsPlayer1 ? m.game.data.p2Move : moveData.move,
+              };
+              nextTurn = choseAsPlayer1 ? player2 : player1;
+            }
             const updatedGame: GameData = {
               ...m.game,
               state: moveData.state || m.game.state,
-              turn: moveData.turn !== undefined ? moveData.turn : m.game.turn,
+              turn: nextTurn,
               winner: moveData.winner !== undefined ? moveData.winner : m.game.winner,
-              data: {
-                ...m.game.data,
-                ...moveData,
-              },
+              data: nextData,
               lastMoveBy: user.username,
               updatedAt: Date.now(),
             };

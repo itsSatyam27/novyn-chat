@@ -114,10 +114,10 @@ function applyRps(game, userKey, moveData) {
   const player1 = current.player1 || game.createdBy;
   let player2 = current.player2 || game.opponent || null;
 
-  if (userKey === player1) {
+  if (sameUser(userKey, player1)) {
     if (current.p1Move) return { ok: false, reason: "Your move is already locked." };
   } else if (player2) {
-    if (userKey !== player2) return { ok: false, reason: "You are not a player in this game." };
+    if (!sameUser(userKey, player2)) return { ok: false, reason: "You are not a player in this game." };
     if (current.p2Move) return { ok: false, reason: "Your move is already locked." };
   } else {
     player2 = userKey;
