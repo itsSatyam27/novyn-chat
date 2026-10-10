@@ -1,4 +1,4 @@
-import { MessageSquarePlus, Bug, Lightbulb, Send } from 'lucide-react';
+import { MessageSquarePlus, Bug, Lightbulb, Search, Send, UserX } from 'lucide-react';
 import { SettingsToast } from './SettingsToast';
 import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
@@ -10,13 +10,16 @@ import { saveAccountSettings, setBlockedContact } from '../../services/accountSe
 import { MessageKeyTransfer } from './MessageKeyTransfer';
 import { FontSelect } from './FontSelect';
 import { MessageSizeSlider } from './MessageSizeSlider';
+import { Modal } from '../ui/Modal';
 
-export function WebSettings({ section }: { section: SettingsSubSection }) {
-  const { user } = useAuth();
+export function WebSettings({ section, privacyGroup }: { section: SettingsSubSection; privacyGroup?: 'reach' | 'visibility' }) {
+  const { user, setUser } = useAuth();
   const { blockedUsers } = useChat();
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<{ text: string; error: boolean } | null>(null);
   const [contact, setContact] = useState('');
+  const [blockedListOpen, setBlockedListOpen] = useState(false);
+  const [blockedSearch, setBlockedSearch] = useState('');
   const [qr, setQr] = useState('');
   const [feedbackType, setFeedbackType] = useState(section === 'feedback-bug' ? 'bug' : section === 'feedback-feature' ? 'feature' : 'general');
   const dismissResult = useCallback(() => setResult(null), []);
@@ -25,6 +28,9 @@ export function WebSettings({ section }: { section: SettingsSubSection }) {
   const font = useBrowserPreference('novyn_font_family', 'plus-jakarta');
   const wallpaper = useBrowserPreference('novyn_wallpaper', 'glass');
   const currentPresence = user?.presenceMode === 'dnd' ? 'busy' : user?.presenceMode === 'offline' ? 'invisible' : user?.presenceMode || 'online';
+  const privacyNotice = section.startsWith('privacy-');
+  const blockedContacts = Array.from(blockedUsers).sort((a, b) => a.localeCompare(b));
+  const filteredBlockedContacts = blockedContacts.filter(username => username.toLowerCase().includes(blockedSearch.trim().toLowerCase()));
 
   const run = async (action: () => Promise<void>, success: string) => {
     if (busy) return;
@@ -38,7 +44,7 @@ export function WebSettings({ section }: { section: SettingsSubSection }) {
     catch { setResult({ text: 'This browser could not save your preference.', error: true }); }
   };
   const account = (change: Parameters<typeof saveAccountSettings>[1], message: string) => {
-    if (user) void run(() => saveAccountSettings(user.username, change), message);
+    if (user) void run(async () => { await saveAccountSettings(user.username, change); setUser(current => current ? ({ ...current, ...change } as typeof current) : current); }, message);
   };
   useEffect(() => {
     if (section !== 'profile-qr' || !user) return;
@@ -51,8 +57,17 @@ export function WebSettings({ section }: { section: SettingsSubSection }) {
   }, [section, user?.username]);
 
   return <section className={"web-settings" + (section.startsWith("feedback-") ? " feedback-dashboard" : "")} aria-label="Web settings controls">
-    {result && section.startsWith("feedback-") && <SettingsToast notice={result} onDismiss={dismissResult} />}
-    {result && !section.startsWith("feedback-") && <p role={result.error ? 'alert' : 'status'} className={'web-settings-result ' + (result.error ? 'is-error' : '')}>{result.text}</p>}
+    {result && (section.startsWith("feedback-") || privacyNotice) && <SettingsToast notice={result} onDismiss={dismissResult} />}
+    {result && !section.startsWith("feedback-") && !privacyNotice && <p role={result.error ? 'alert' : 'status'} className={'web-settings-result ' + (result.error ? 'is-error' : '')}>{result.text}</p>}
+    <Modal isOpen={blockedListOpen} onClose={() => { setBlockedListOpen(false); setBlockedSearch(''); }} title="Blocked contacts" className="blocked-contacts-modal" maxWidth="520px">
+      <div className="blocked-list-summary"><span>{blockedContacts.length} blocked {blockedContacts.length === 1 ? 'contact' : 'contacts'}</span></div>
+      <label className="blocked-list-search"><Search size={17} aria-hidden="true" /><input autoFocus value={blockedSearch} onChange={event => setBlockedSearch(event.target.value)} placeholder="Search blocked contacts" aria-label="Search blocked contacts" /></label>
+      <div className="blocked-list-results">
+        {blockedContacts.length === 0 && <div className="blocked-list-empty"><UserX size={25} aria-hidden="true" /><strong>No blocked contacts</strong><span>People you block will appear here.</span></div>}
+        {blockedContacts.length > 0 && filteredBlockedContacts.length === 0 && <div className="blocked-list-empty"><Search size={24} aria-hidden="true" /><strong>No matches found</strong><span>Try another username.</span></div>}
+        {filteredBlockedContacts.map(username => <div className="blocked-list-row" key={username}><span><i>{username.charAt(0).toUpperCase()}</i><strong>@{username}</strong></span><button type="button" disabled={busy} onClick={() => void run(() => setBlockedContact(username, false), `${username} unblocked.`)}>{busy ? 'Updating…' : 'Unblock'}</button></div>)}
+      </div>
+    </Modal>
 
     {section === 'appear-wallpaper' && <div className="web-settings-card">
       <h3>Chat background</h3><div className="web-wallpapers" role="group" aria-label="Chat wallpaper">
@@ -84,14 +99,46 @@ export function WebSettings({ section }: { section: SettingsSubSection }) {
           onClick={() => account({ retentionDays: days }, 'Message retention updated.')}>{days} days</button>)}
       </div><p>Older messages are hidden from your account. Other people keep their own history preference.</p>
     </div>}
+    {(section === 'privacy-controls' || section === 'privacy-receipts') && <div className="web-settings-card privacy-controls">
+      {(privacyGroup !== 'visibility') && <div className="privacy-choice-list">{([
+        ['callPrivacy', 'Who can call me', 'friends'],
+        ['messagePrivacy', 'Who can message me', 'friends'],
+        ['groupInvitePrivacy', 'Who can add me to groups', 'friends'],
+        ['friendRequestPrivacy', 'Who can send friend requests', 'everyone'],
+      ] as const).map(([key, label, fallback]) => {
+        const value = user?.[key] || fallback;
+        const choices = key === 'friendRequestPrivacy'
+          ? [['everyone', 'Everyone'], ['mutuals', 'Mutuals'], ['nobody', 'No one']]
+          : [['everyone', 'Everyone'], ['friends', 'Friends'], ['nobody', 'No one']];
+        return <div className="privacy-choice-row" key={key}>
+          <strong>{label}</strong>
+          <div className="privacy-choice-buttons" role="group" aria-label={label}>{choices.map(([choice, choiceLabel]) =>
+            <button type="button" key={choice} disabled={busy} aria-pressed={value === choice} onClick={() => account({ [key]: choice } as Parameters<typeof saveAccountSettings>[1], `${label} updated.`)}>{choiceLabel}</button>
+          )}</div>
+        </div>;
+      })}</div>}
+      {(privacyGroup !== 'reach') && <div className="privacy-choice-list">{([
+        ['profilePhotoPrivacy', 'Profile photo', 'everyone'],
+        ['presencePrivacy', 'Online & last seen', 'everyone'],
+      ] as const).map(([key, label, fallback]) => {
+        const value = user?.[key] || fallback;
+        return <div className="privacy-choice-row" key={key}>
+          <strong>{label}</strong><div className="privacy-choice-buttons" role="group" aria-label={label}>{[['everyone', 'Everyone'], ['friends', 'Friends'], ['nobody', 'No one']].map(([choice, choiceLabel]) =>
+            <button type="button" key={choice} disabled={busy} aria-pressed={value === choice} onClick={() => account({ [key]: choice } as Parameters<typeof saveAccountSettings>[1], `${label} updated.`)}>{choiceLabel}</button>
+          )}</div>
+        </div>;
+      })}</div>}
+      {(privacyGroup !== 'reach') && <div className="privacy-toggle-list">{([['readReceiptsEnabled', 'Read receipts', 'Let friends know when you’ve read their messages.'], ['typingIndicatorsEnabled', 'Typing status', 'Let friends know when you’re typing.']] as const).map(([key, label, description]) => <div className="privacy-toggle-row" key={key}>
+        <span><strong>{label}</strong><small>{description}</small></span>
+        <button type="button" role="switch" aria-checked={user?.[key] !== false} aria-label={label} disabled={busy} className={'privacy-switch' + (user?.[key] !== false ? ' is-on' : '')} onClick={() => account({ [key]: user?.[key] === false } as Parameters<typeof saveAccountSettings>[1], `${label} updated.`)}><i /></button>
+      </div>)}</div>}
+    </div>}
     {section === 'privacy-blocked' && <div className="web-settings-card">
       <form className="web-block-form" onSubmit={event => { event.preventDefault(); void run(async () => { await setBlockedContact(contact.trim(), true); setContact(''); }, 'Contact blocked.'); }}>
         <label className="web-settings-field">Username<input value={contact} required disabled={busy} placeholder="Enter a username" onChange={event => setContact(event.target.value)} /></label>
         <button className="btn btn-primary" type="submit" disabled={busy || !contact.trim()}>Block contact</button>
       </form>
-      {blockedUsers.size === 0 && <p>No blocked contacts.</p>}
-      {Array.from(blockedUsers).map(username => <div key={username} className="web-setting-row"><strong>@{username}</strong>
-        <button type="button" className="btn btn-secondary" disabled={busy} onClick={() => void run(() => setBlockedContact(username, false), 'Contact unblocked.')}>Unblock</button></div>)}
+      <div className="blocked-list-launch"><span>{blockedContacts.length === 0 ? 'No blocked contacts.' : `${blockedContacts.length} blocked ${blockedContacts.length === 1 ? 'contact' : 'contacts'}`}</span><button type="button" onClick={() => setBlockedListOpen(true)}>Manage blocked contacts</button></div>
     </div>}
     {section === 'profile-qr' && <div className="web-settings-card android-qr">
       <h3>@{user?.username}</h3>{qr ? <img src={qr} alt={'Profile QR code for @' + user?.username} width={240} height={240} /> : <p role="status">Generating QR code…</p>}

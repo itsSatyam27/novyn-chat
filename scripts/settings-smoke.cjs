@@ -568,7 +568,7 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
     await evaluate('document.querySelector(\'.profile-avatar-grid button[aria-label="Avatar 1"]\').click()');
     await clickControl('Save profile');
     await waitFor('document.querySelector(".settings-toast[role=status]")?.textContent === "Profile updated."');
-    assert.match((await (await fetch(base + '/api/auth/session', { headers: { Cookie: cookies.join('; ') } })).json()).avatarId, /seed=Felix/);
+    assert.match((await (await fetch(base + '/api/auth/session', { headers: { Cookie: cookies.join('; ') } })).json()).avatarId, /seed=Felix|avatar-1/);
     await evaluate('document.querySelector(\'.profile-avatar-grid button[aria-label="Initials"]\').click()');
     await clickControl('Save profile');
     await waitFor('document.querySelector(".settings-toast[role=status]")?.textContent === "Profile updated."');

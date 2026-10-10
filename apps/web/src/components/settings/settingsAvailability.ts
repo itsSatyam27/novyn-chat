@@ -6,6 +6,8 @@ export const webSettings: Partial<Record<SettingsSubSection, { title: string; sc
   'profile-presence': { title: 'Presence & Status', scope: 'account' },
   'profile-qr': { title: 'QR Code', scope: 'tool' },
   'privacy-blocked': { title: 'Blocked Contacts', scope: 'account' },
+  'privacy-controls': { title: 'Privacy Controls', scope: 'account' },
+  'privacy-receipts': { title: 'Read Receipts & Activity', scope: 'account' },
   'privacy-retention': { title: 'Message Retention', scope: 'account' },
   'privacy-message-keys': { title: 'Sync Message Keys', scope: 'tool' },
   'appear-theme': { title: 'Appearance', scope: 'browser' },

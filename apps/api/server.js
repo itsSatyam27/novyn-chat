@@ -225,8 +225,20 @@ function saveMediaMetadata(filename, ownerKey, remote = null) {
 
 function userCanReadMedia(filename, userKey) {
   const metadata = mediaMetadata(filename);
+  const ownerKey = resolveCurrentUserKey(metadata?.ownerKey);
+  if (ownerKey && ownerKey !== userKey) {
+    const owner = users.get(ownerKey);
+    if (
+      owner &&
+      mediaNames(owner.avatarId).includes(filename) &&
+      privacyAllows(owner, userKey, "profilePhotoPrivacy") &&
+      !usersAreBlocked(ownerKey, userKey)
+    ) {
+      return true;
+    }
+  }
   return canReadMedia({
-    filename, userKey, ownerKey: resolveCurrentUserKey(metadata?.ownerKey),
+    filename, userKey, ownerKey,
     conversations, wallpapers: conversationWallpapers,
     canReadConversation: (key, viewer) => isGroupConversationKey(key)
       ? Boolean(groups.get(key.slice(GROUP_CONVERSATION_PREFIX.length))?.members.has(viewer))
@@ -1238,6 +1250,14 @@ function createUserRecord(username) {
     presenceMode: "online",
     publicKey: "",
     retentionDays: 30,
+    callPrivacy: "friends",
+    messagePrivacy: "friends",
+    profilePhotoPrivacy: "everyone",
+    presencePrivacy: "everyone",
+    readReceiptsEnabled: true,
+    typingIndicatorsEnabled: true,
+    groupInvitePrivacy: "friends",
+    friendRequestPrivacy: "everyone",
   };
 }
 
@@ -1269,6 +1289,10 @@ function serializeState() {
       presenceMode: normalizePresenceMode(user.presenceMode),
       publicKey: toDisplayName(user.publicKey),
       retentionDays: [7, 15, 30].includes(Number(user.retentionDays)) ? Number(user.retentionDays) : 30,
+      callPrivacy: user.callPrivacy || "friends", messagePrivacy: user.messagePrivacy || "friends",
+      profilePhotoPrivacy: user.profilePhotoPrivacy || "everyone", presencePrivacy: user.presencePrivacy || "everyone",
+      readReceiptsEnabled: user.readReceiptsEnabled !== false, typingIndicatorsEnabled: user.typingIndicatorsEnabled !== false,
+      groupInvitePrivacy: user.groupInvitePrivacy || "friends", friendRequestPrivacy: user.friendRequestPrivacy || "everyone",
     })),
     conversations: Array.from(conversations.entries()).map(([key, messages]) => ({
       key,
@@ -2008,6 +2032,14 @@ function applyLoadedState(parsed) {
     user.presenceMode = normalizePresenceMode(entry.presenceMode);
     user.publicKey = toDisplayName(entry.publicKey);
     user.retentionDays = [7, 15, 30].includes(Number(entry.retentionDays)) ? Number(entry.retentionDays) : 30;
+    user.callPrivacy = ["everyone", "friends", "nobody"].includes(entry.callPrivacy) ? entry.callPrivacy : "friends";
+    user.messagePrivacy = ["everyone", "friends", "nobody"].includes(entry.messagePrivacy) ? entry.messagePrivacy : "friends";
+    user.profilePhotoPrivacy = ["everyone", "friends", "nobody"].includes(entry.profilePhotoPrivacy) ? entry.profilePhotoPrivacy : "everyone";
+    user.presencePrivacy = ["everyone", "friends", "nobody"].includes(entry.presencePrivacy) ? entry.presencePrivacy : "everyone";
+    user.readReceiptsEnabled = entry.readReceiptsEnabled !== false;
+    user.typingIndicatorsEnabled = entry.typingIndicatorsEnabled !== false;
+    user.groupInvitePrivacy = ["everyone", "friends", "nobody"].includes(entry.groupInvitePrivacy) ? entry.groupInvitePrivacy : "friends";
+    user.friendRequestPrivacy = ["everyone", "mutuals", "nobody"].includes(entry.friendRequestPrivacy) ? entry.friendRequestPrivacy : "everyone";
     user.pushSubs = Array.isArray(entry.pushSubs)
       ? entry.pushSubs.filter((sub) => sub && sub.endpoint && sub.keys)
       : [];
@@ -2190,6 +2222,10 @@ function toSerializedUserEntry(doc) {
     lastSeenAt: toDisplayName(doc?.lastSeenAt),
     presenceMode: normalizePresenceMode(doc?.presenceMode),
     publicKey: toDisplayName(doc?.publicKey),
+    callPrivacy: doc?.callPrivacy || "friends", messagePrivacy: doc?.messagePrivacy || "friends",
+    profilePhotoPrivacy: doc?.profilePhotoPrivacy || "everyone", presencePrivacy: doc?.presencePrivacy || "everyone",
+    readReceiptsEnabled: doc?.readReceiptsEnabled !== false, typingIndicatorsEnabled: doc?.typingIndicatorsEnabled !== false,
+    groupInvitePrivacy: doc?.groupInvitePrivacy || "friends", friendRequestPrivacy: doc?.friendRequestPrivacy || "everyone",
   };
 }
 
@@ -2562,7 +2598,17 @@ function isUserAvailable(userKey) {
 }
 
 function getVisibleLastSeen(user) {
-  return normalizePresenceMode(user?.presenceMode) === "invisible" ? "" : user?.lastSeenAt || "";
+  return normalizePresenceMode(user?.presenceMode) === "invisible" || user?.presencePrivacy === "nobody" ? "" : user?.lastSeenAt || "";
+}
+
+function privacyAllows(owner, viewerKey, privacyKey) {
+  const viewer = normalizeName(viewerKey);
+  if (!owner || !viewer) return false;
+  if (normalizeName(owner.username) === viewer) return true;
+  const setting = owner[privacyKey] || "everyone";
+  if (setting === "nobody") return false;
+  if (setting === "friends") return owner.friends instanceof Set && owner.friends.has(viewer);
+  return true;
 }
 
 function buildGroupInfoForViewer(group, viewerKey) {
@@ -2573,14 +2619,16 @@ function buildGroupInfoForViewer(group, viewerKey) {
     const user = users.get(memberKey);
     const username = user?.username || memberKey;
     const role = getGroupMemberRole(group, memberKey);
-    const presence = getEffectivePresence(memberKey);
+    const presenceAllowed = privacyAllows(user, viewer, "presencePrivacy");
+    const photoAllowed = privacyAllows(user, viewer, "profilePhotoPrivacy");
+    const presence = presenceAllowed ? getEffectivePresence(memberKey) : "offline";
     members.push({
       username,
       displayName: user?.displayName || "",
-      avatarId: user?.avatarId || "",
+      avatarId: photoAllowed ? (user?.avatarId || "") : "",
       online: presence !== "offline",
       presence,
-      lastSeenAt: getVisibleLastSeen(user),
+      lastSeenAt: presenceAllowed ? getVisibleLastSeen(user) : "",
       role,
       isOwner: role === "owner",
       isAdmin: role === "owner" || role === "admin",
@@ -2687,6 +2735,7 @@ const resolveChatTargetForUser = createChatAuthorization({
   toDisplayName,
   isGroupMember,
   getConversationKey,
+  conversations,
   getGroupConversationKey,
 });
 
@@ -2742,8 +2791,9 @@ function deliverFriendMessage(params = {}) {
   const me = users.get(fromKey);
   const friend = users.get(toKey);
   const isSelf = fromKey === toKey;
-  if (!me || !friend || (!isSelf && !me.friends.has(toKey))) {
-    return { ok: false, message: "You can message only your friends." };
+  const canReceiveMessage = isSelf || friend?.messagePrivacy === "everyone" || (friend?.messagePrivacy === "friends" && me?.friends?.has(toKey));
+  if (!me || !friend || (!isSelf && !canReceiveMessage)) {
+    return { ok: false, code: "privacy", message: "This user only accepts messages from friends." };
   }
   if (usersAreBlocked(fromKey, toKey)) {
     return { ok: false, code: "blocked", friend };
@@ -2776,7 +2826,7 @@ function deliverFriendMessage(params = {}) {
     text,
     timestamp,
     deliveredAt: recipientSocketId ? timestamp : null,
-    seenAt: recipientViewing ? timestamp : null,
+    seenAt: recipientViewing && friend.readReceiptsEnabled !== false ? timestamp : null,
     attachment: params.attachment,
     replyTo: params.replyTo,
     poll: params.poll,
@@ -3427,15 +3477,25 @@ function buildFriendList(forUser) {
     schedulePersist();
   }
 
-  const directList = validFriendKeys.map((friendKey) => {
+  const knownDirectKeys = new Set(validFriendKeys);
+  for (const [otherKey, other] of users.entries()) {
+    if (otherKey === userKey || !other?.isRegistered || knownDirectKeys.has(otherKey)) continue;
+    if (!conversations.get(getConversationKey(userKey, otherKey))?.length) continue;
+    if (usersAreBlocked(userKey, otherKey)) continue;
+    knownDirectKeys.add(otherKey);
+  }
+  const directList = Array.from(knownDirectKeys).map((friendKey) => {
     const friend = users.get(friendKey);
     const summary = getConversationSummary(userKey, friendKey);
     const blocked = usersAreBlocked(userKey, friendKey);
-    const presence = blocked ? "offline" : getEffectivePresence(friendKey);
+    const presenceAllowed = privacyAllows(friend, userKey, "presencePrivacy");
+    const photoAllowed = privacyAllows(friend, userKey, "profilePhotoPrivacy");
+    const presence = blocked || !presenceAllowed ? "offline" : getEffectivePresence(friendKey);
 
     return {
       username: friend?.username || friendKey,
       kind: "friend",
+      isFriend: user.friends.has(friendKey),
       groupId: "",
       online: presence !== "offline",
       presence,
@@ -3444,10 +3504,10 @@ function buildFriendList(forUser) {
       lastMessageData: summary.lastMessageData,
       lastTimestamp: summary.lastTimestamp,
       lastFrom: summary.lastFrom,
-      avatarId: friend?.avatarId || "",
+      avatarId: photoAllowed ? (friend?.avatarId || "") : "",
       displayName: friend?.displayName || "",
       bio: friend?.bio || "",
-      lastSeenAt: blocked ? null : getVisibleLastSeen(friend),
+      lastSeenAt: blocked || !presenceAllowed ? null : getVisibleLastSeen(friend),
       publicKey: friend?.publicKey || "",
       muted: isMutedBy(user, friendKey),
       blockedByMe: isBlockedBy(user, friendKey),
@@ -3465,7 +3525,8 @@ function buildFriendList(forUser) {
       let onlineCount = 0;
       for (const memberKey of group.members) {
         if (memberKey === userKey) continue;
-        if (isUserAvailable(memberKey)) onlineCount += 1;
+        const member = users.get(memberKey);
+        if (privacyAllows(member, userKey, "presencePrivacy") && isUserAvailable(memberKey)) onlineCount += 1;
       }
       return {
         username: group.id,
@@ -3518,16 +3579,19 @@ function buildDiscoverOnlineList(forUser, limit = 20) {
     const user = users.get(onlineKey);
     if (!user || !user.isRegistered) continue;
     if (isBlockedBy(me, onlineKey) || isBlockedBy(user, userKey)) continue;
+    const presenceAllowed = privacyAllows(user, userKey, "presencePrivacy");
+    if (!presenceAllowed) continue;
     const presence = getEffectivePresence(onlineKey);
     if (presence === "offline") continue;
     list.push({
       username: user.username || onlineKey,
       displayName: user.displayName || "",
-      avatarId: user.avatarId || "",
+      avatarId: privacyAllows(user, userKey, "profilePhotoPrivacy") ? (user.avatarId || "") : "",
       bio: user.bio || "",
-      lastSeenAt: user.lastSeenAt || "",
+      lastSeenAt: getVisibleLastSeen(user),
       online: true,
       presence,
+      canMessage: user.messagePrivacy === "everyone",
     });
   }
 
@@ -3597,11 +3661,12 @@ function emitStatusToFriends(username) {
     if (!friendSocket) continue;
 
     const blocked = usersAreBlocked(userKey, friendKey);
+    const presenceAllowed = privacyAllows(user, friendKey, "presencePrivacy");
     io.to(friendSocket).emit("user_status", {
       username: user.username,
-      online: !blocked && online,
-      presence: blocked ? "offline" : presence,
-      lastSeenAt: blocked ? null : getVisibleLastSeen(user) || null,
+      online: !blocked && presenceAllowed && online,
+      presence: blocked || !presenceAllowed ? "offline" : presence,
+      lastSeenAt: blocked || !presenceAllowed ? null : getVisibleLastSeen(user) || null,
     });
   }
 }
@@ -3690,9 +3755,11 @@ function markConversationAsSeen(viewerKey, targetKey, targetType = "friend") {
     const conversation = conversations.get(key) || [];
     const unreadChanged = setUnreadCount(viewer, groupId, 0);
     let seenChanged = false;
+    const canSendReceipts = viewer.readReceiptsEnabled !== false;
     const touchedMessages = [];
     for (const message of conversation) {
       if (!message || normalizeName(message.fromKey) === viewerKey) continue;
+      if (!canSendReceipts) continue;
       if (!Array.isArray(message.seenBy)) message.seenBy = [];
       if (!message.seenBy.includes(viewerKey)) {
         message.seenBy.push(viewerKey);
@@ -3721,6 +3788,7 @@ function markConversationAsSeen(viewerKey, targetKey, targetType = "friend") {
 
   const unreadChanged = setUnreadCount(viewer, friendKey, 0);
   let statusChanged = false;
+  const canSendReceipts = viewer?.readReceiptsEnabled !== false;
 
   for (const message of conversation) {
     if (message.toKey === viewerKey && message.fromKey === friendKey && !message.seenAt) {
@@ -3728,9 +3796,9 @@ function markConversationAsSeen(viewerKey, targetKey, targetType = "friend") {
       if (!message.deliveredAt) {
         message.deliveredAt = seenAt;
       }
-      message.seenAt = seenAt;
+      if (canSendReceipts) message.seenAt = seenAt;
       statusChanged = true;
-      emitMessageStatus(message);
+      if (canSendReceipts) emitMessageStatus(message);
     }
   }
 
@@ -3808,6 +3876,10 @@ function buildRegisterSuccessPayload(userKey, user) {
     username: user.username,
     email: user.email || "",
     presenceMode: normalizePresenceMode(user.presenceMode),
+    callPrivacy: user.callPrivacy || "friends", messagePrivacy: user.messagePrivacy || "friends",
+    profilePhotoPrivacy: user.profilePhotoPrivacy || "everyone", presencePrivacy: user.presencePrivacy || "everyone",
+    readReceiptsEnabled: user.readReceiptsEnabled !== false, typingIndicatorsEnabled: user.typingIndicatorsEnabled !== false,
+    groupInvitePrivacy: user.groupInvitePrivacy || "friends", friendRequestPrivacy: user.friendRequestPrivacy || "everyone",
     friends: buildFriendList(userKey),
     requests: Array.from(user.requests).map((requesterKey) => {
       const requester = users.get(requesterKey);
@@ -4388,6 +4460,10 @@ app.get("/api/auth/session", (req, res) => {
     bio: user.bio || "",
     presenceMode: user.presenceMode || "online",
     retentionDays: [7, 15, 30].includes(Number(user.retentionDays)) ? Number(user.retentionDays) : 30,
+    callPrivacy: user.callPrivacy || "friends", messagePrivacy: user.messagePrivacy || "friends",
+    profilePhotoPrivacy: user.profilePhotoPrivacy || "everyone", presencePrivacy: user.presencePrivacy || "everyone",
+    readReceiptsEnabled: user.readReceiptsEnabled !== false, typingIndicatorsEnabled: user.typingIndicatorsEnabled !== false,
+    groupInvitePrivacy: user.groupInvitePrivacy || "friends", friendRequestPrivacy: user.friendRequestPrivacy || "everyone",
   });
 });
 
@@ -5295,11 +5371,12 @@ io.on("connection", (socket) => {
     socket.emit("friend_suggestions", { query, suggestions });
   });
 
-  socket.on("update_profile", (payload) => {
+  socket.on("update_profile", (payload, callback) => {
+    const respond = (result) => { if (typeof callback === "function") callback(result); };
     const userKey = socket.data.userKey;
-    if (!userKey) return;
+    if (!userKey) { respond({ ok: false, message: "Sign in again before changing account settings." }); return; }
     const user = users.get(userKey);
-    if (!user) return;
+    if (!user) { respond({ ok: false, message: "Account not found." }); return; }
 
     if (payload?.displayName !== undefined) {
       user.displayName = toDisplayName(payload.displayName).slice(0, 50);
@@ -5317,6 +5394,10 @@ io.on("connection", (socket) => {
       const days = Number(payload.retentionDays);
       if ([7, 15, 30].includes(days)) user.retentionDays = days;
     }
+    const privacyChoices = { callPrivacy: ["everyone", "friends", "nobody"], messagePrivacy: ["everyone", "friends", "nobody"], profilePhotoPrivacy: ["everyone", "friends", "nobody"], presencePrivacy: ["everyone", "friends", "nobody"], groupInvitePrivacy: ["everyone", "friends", "nobody"], friendRequestPrivacy: ["everyone", "mutuals", "nobody"] };
+    for (const [key, choices] of Object.entries(privacyChoices)) if (choices.includes(payload?.[key])) user[key] = payload[key];
+    if (typeof payload?.readReceiptsEnabled === "boolean") user.readReceiptsEnabled = payload.readReceiptsEnabled;
+    if (typeof payload?.typingIndicatorsEnabled === "boolean") user.typingIndicatorsEnabled = payload.typingIndicatorsEnabled;
 
     schedulePersist();
 
@@ -5328,10 +5409,16 @@ io.on("connection", (socket) => {
       presenceMode: user.presenceMode,
       email: user.email || "",
       retentionDays: [7, 15, 30].includes(Number(user.retentionDays)) ? Number(user.retentionDays) : 30,
+      callPrivacy: user.callPrivacy || "friends", messagePrivacy: user.messagePrivacy || "friends",
+      profilePhotoPrivacy: user.profilePhotoPrivacy || "everyone", presencePrivacy: user.presencePrivacy || "everyone",
+      readReceiptsEnabled: user.readReceiptsEnabled !== false, typingIndicatorsEnabled: user.typingIndicatorsEnabled !== false,
+      groupInvitePrivacy: user.groupInvitePrivacy || "friends", friendRequestPrivacy: user.friendRequestPrivacy || "everyone",
     });
+    respond({ ok: true });
 
     emitFriendList(userKey);
     emitStatusToFriends(userKey);
+    emitGroupListUpdatesForUser(userKey);
     for (const friendKey of user.friends) {
       if (usersAreBlocked(userKey, friendKey)) continue;
       emitFriendList(friendKey);
@@ -5341,8 +5428,8 @@ io.on("connection", (socket) => {
           username: user.username,
           displayName: user.displayName,
           bio: user.bio,
-          avatarId: user.avatarId,
-          presenceMode: getEffectivePresence(userKey),
+          avatarId: privacyAllows(user, friendKey, "profilePhotoPrivacy") ? user.avatarId : "",
+          presenceMode: privacyAllows(user, friendKey, "presencePrivacy") ? getEffectivePresence(userKey) : "offline",
         });
       }
     }
@@ -5480,6 +5567,10 @@ io.on("connection", (socket) => {
     }
     if (targetKey === userKey) {
       reply({ ok: false, message: "You cannot add yourself." });
+      return;
+    }
+    if (target.friendRequestPrivacy === "nobody" || (target.friendRequestPrivacy === "mutuals" && !Array.from(me.friends || []).some(friendKey => target.friends.has(friendKey)))) {
+      reply({ ok: false, message: target.friendRequestPrivacy === "nobody" ? "This user is not accepting friend requests." : "Friend requests are limited to people with mutual friends." });
       return;
     }
     if (usersAreBlocked(userKey, targetKey)) {
@@ -5659,6 +5750,48 @@ io.on("connection", (socket) => {
     }
 
     schedulePersist();
+  });
+
+  socket.on("get_storage_inventory", (callback) => {
+    const respond = typeof callback === "function" ? callback : () => {};
+    const userKey = normalizeName(socket.data.userKey || "");
+    if (!userKey) { respond({ ok: false, message: "Please sign in again." }); return; }
+    if (!allowSocketAction(socket, "get_storage_inventory", 6, 60 * 1000)) {
+      respond({ ok: false, message: "Please wait before refreshing storage details." });
+      return;
+    }
+    const me = users.get(userKey);
+    if (!me) { respond({ ok: false, message: "Account not found." }); return; }
+    const files = [];
+    const addConversationFiles = (conversationKey, chatKey, chatName, chatType) => {
+      const history = conversations.get(conversationKey) || [];
+      for (const message of history) {
+        if (!message || message.deletedAt || !message.attachment) continue;
+        const attachment = sanitizeMessageAttachment(message.attachment, message.text);
+        if (!attachment) continue;
+        files.push({
+          chatKey,
+          chatName,
+          chatType,
+          isMine: normalizeName(message.fromKey || message.from || "") === userKey,
+          messageId: String(message.id || message.clientTempId || ""),
+          name: attachment.name || "File",
+          mime: attachment.mime || "",
+          size: Math.max(0, Number(attachment.size) || 0),
+          kind: message.isVoice || attachment.kind === "audio" ? "audio" : attachment.kind,
+          timestamp: message.timestamp || null,
+        });
+      }
+    };
+    for (const friendKey of me.friends instanceof Set ? me.friends : []) {
+      const friend = users.get(friendKey);
+      if (friend) addConversationFiles(getConversationKey(userKey, friendKey), friendKey, friend.username || friendKey, "friend");
+    }
+    for (const groupId of me.groups instanceof Set ? me.groups : []) {
+      const group = groups.get(normalizeGroupId(groupId));
+      if (group?.members?.has(userKey)) addConversationFiles(getGroupConversationKey(group.id), group.id, group.name || group.id, "group");
+    }
+    respond({ ok: true, files });
   });
 
   socket.on("get_history", (rawTarget) => {
@@ -6319,7 +6452,8 @@ io.on("connection", (socket) => {
     setCallPair,
     clearCallPair,
     io,
-    allowSocketAction
+    allowSocketAction,
+    usersAreBlocked
   });
 
   socket.on("private_message", (payload, callback) => {
@@ -6573,7 +6707,7 @@ io.on("connection", (socket) => {
 
     const to = toDisplayName(payload?.to);
     const toType = normalizeChatKind(payload?.toType || "friend");
-    const isTyping = Boolean(payload?.isTyping) && normalizePresenceMode(users.get(userKey)?.presenceMode) !== "invisible";
+    const isTyping = Boolean(payload?.isTyping) && normalizePresenceMode(users.get(userKey)?.presenceMode) !== "invisible" && users.get(userKey)?.typingIndicatorsEnabled !== false;
 
     if (toType === "group") {
       const groupId = normalizeGroupId(to);
@@ -6598,7 +6732,7 @@ io.on("connection", (socket) => {
 
     const toKey = normalizeName(to);
     const me = users.get(userKey);
-    if (!me || !me.friends.has(toKey)) {
+    if (!me || (!me.friends.has(toKey) && !conversations.get(getConversationKey(userKey, toKey))?.length)) {
       return;
     }
     if (usersAreBlocked(userKey, toKey)) {
@@ -6767,8 +6901,10 @@ io.on("connection", (socket) => {
     for (const rawMember of requestedMembers) {
       const memberKey = normalizeName(rawMember);
       if (!memberKey || memberKey === userKey) continue;
-      if (!me.friends.has(memberKey)) continue;
-      if (!users.get(memberKey)?.isRegistered) continue;
+      const invitee = users.get(memberKey);
+      if (!invitee?.isRegistered) continue;
+      if (!me.friends.has(memberKey) && invitee.groupInvitePrivacy !== "everyone") continue;
+      if (invitee.groupInvitePrivacy === "nobody" || (invitee.groupInvitePrivacy === "friends" && !invitee.friends.has(userKey))) continue;
       memberKeys.add(memberKey);
       if (memberKeys.size >= MAX_GROUP_MEMBERS) break;
     }
@@ -6836,9 +6972,10 @@ io.on("connection", (socket) => {
     for (const rawMember of requestedMembers) {
       const memberKey = normalizeName(rawMember);
       if (!memberKey || group.members.has(memberKey)) continue;
-      if (!me.friends.has(memberKey)) continue;
       const member = users.get(memberKey);
       if (!member?.isRegistered) continue;
+      if (!me.friends.has(memberKey) && member.groupInvitePrivacy !== "everyone") continue;
+      if (member.groupInvitePrivacy === "nobody" || (member.groupInvitePrivacy === "friends" && !member.friends.has(userKey))) continue;
       if (group.members.size >= MAX_GROUP_MEMBERS) break;
       group.members.add(memberKey);
       if (!(member.groups instanceof Set)) member.groups = new Set();

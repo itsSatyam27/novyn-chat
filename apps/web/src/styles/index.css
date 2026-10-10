@@ -1693,3 +1693,69 @@ html, body {
     display: flex !important;
   }
 }
+
+/* =========================================
+   PINNED PICKER POPOVER (Messages, Calls, Contacts)
+========================================= */
+.messages-pin-picker {
+  position: fixed;
+  z-index: 10000;
+  display: flex;
+  width: min(300px, calc(100vw - 24px));
+  max-height: min(320px, calc(100vh - 24px));
+  flex-direction: column;
+  gap: 3px;
+  overflow-y: auto;
+  padding: 6px;
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.12));
+  border-radius: 14px;
+  background: var(--bg-surface, #130e26);
+  box-shadow: 0 14px 38px rgba(0, 0, 0, 0.45);
+  animation: messages-pin-picker-in 0.14s ease-out;
+}
+
+.messages-pin-picker > button {
+  display: flex;
+  width: 100%;
+  min-height: 42px;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-main, #ffffff);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.12s ease;
+}
+
+.messages-pin-picker > button:hover {
+  background: var(--primary-glow, rgba(167, 139, 250, 0.15));
+}
+
+.messages-pin-picker > button span {
+  overflow: hidden;
+  font-size: 0.78rem;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@keyframes messages-pin-picker-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .messages-pin-picker {
+    animation: none;
+  }
+}

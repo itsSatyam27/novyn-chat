@@ -1,20 +1,15 @@
 import { getSocket } from './socket';
 
-type ProfileChange = { displayName?: string; bio?: string; avatarId?: string; presenceMode?: string; retentionDays?: number };
+type ProfileChange = { displayName?: string; bio?: string; avatarId?: string; presenceMode?: string; retentionDays?: number; callPrivacy?: string; messagePrivacy?: string; profilePhotoPrivacy?: string; presencePrivacy?: string; readReceiptsEnabled?: boolean; typingIndicatorsEnabled?: boolean; groupInvitePrivacy?: string; friendRequestPrivacy?: string };
 export function saveAccountSettings(username: string, change: ProfileChange): Promise<void> {
   const socket = getSocket();
   if (!socket.connected) return Promise.reject(new Error('Reconnect before saving account settings.'));
   return new Promise((resolve, reject) => {
-    const clear = () => { clearTimeout(timer); socket.off('profile_updated', updated); socket.off('disconnect', disconnected); };
-    const updated = (profile: any) => {
-      if (profile?.username?.toLowerCase() === username.toLowerCase() &&
-          Object.entries(change).every(([key, value]) => profile[key] === value)) { clear(); resolve(); }
-    };
-    const disconnected = () => { clear(); reject(new Error('Connection lost before the change was confirmed.')); };
-    const timer = setTimeout(() => { clear(); reject(new Error('The change could not be confirmed. Please try again.')); }, 10000);
-    socket.on('profile_updated', updated);
-    socket.on('disconnect', disconnected);
-    socket.emit('update_profile', change);
+    socket.timeout(10000).emit('update_profile', change, (error: Error | null, result: any) => {
+      if (error) reject(new Error('The server did not confirm the change. Restart the chat server and try again.'));
+      else if (!result?.ok) reject(new Error(result?.message || 'Could not save account settings.'));
+      else resolve();
+    });
   });
 }
 export function setBlockedContact(username: string, blocked: boolean): Promise<void> {

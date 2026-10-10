@@ -1,4 +1,4 @@
-﻿.contacts-dashboard { flex: 1; min-width: 0; overflow-y: auto; padding: 32px 28px 110px; color: var(--text-main); background: radial-gradient(ellipse at 100% 0, var(--primary-glow), transparent 55%); }
+.contacts-dashboard { flex: 1; min-width: 0; overflow-y: auto; padding: 32px 28px 110px; color: var(--text-main); background: radial-gradient(ellipse at 100% 0, var(--primary-glow), transparent 55%); }
 .contacts-overview-card { padding: 20px; border: 1px solid var(--border); border-radius: 24px; background: #fcfbff; min-width: 0; }
 :root[data-color-mode="dark"] .contacts-overview-card { background: #13111e; }
 .contacts-overview-card > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
@@ -9,18 +9,175 @@
 .contacts-dashboard button:disabled { opacity: .4; cursor: default; }
 .contacts-dashboard button:focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
 .contacts-text-button { border: 0; background: transparent; color: var(--primary); }
-.contacts-pinned-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; }
-.contacts-pin-tile { min-width: 0; padding: 14px 10px 10px; border: 1px solid var(--border); border-radius: 20px; background: var(--primary-glow); }
-.contacts-person { display: flex; width: 100%; align-items: center; flex-direction: column; gap: 6px; padding: 0; border: 0; background: transparent; color: var(--text-main); }
-.contacts-person strong { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; margin-top: 6px; }
-.contacts-pin-actions { display: flex; gap: 6px; margin-top: 10px; }
-.contacts-pin-actions button { flex: 1; display: grid; place-items: center; height: 32px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg-surface); color: var(--text-main); }
-.contacts-pin-add { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; min-height: 170px; border: 1px dashed var(--border); border-radius: 20px; background: transparent; color: var(--primary); font-size: 12px; }
-.contacts-pin-picker { margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--border); }
-.contacts-pin-picker label { display: flex; flex-direction: column; gap: 8px; font-size: 12px; }
-.contacts-pin-picker input { padding: 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg-app); color: var(--text-main); }
-.contacts-pin-picker > div { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
-.contacts-pin-picker button { display: flex; align-items: center; gap: 6px; padding: 9px 12px; border: 1px solid var(--border); border-radius: 12px; color: var(--text-main); background: var(--primary-glow); }
+.contacts-pinned-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 12px;
+}
+
+.contacts-pin-tile {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  min-height: 148px;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 14px 10px 10px;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: var(--primary-glow);
+  cursor: grab;
+  transition: transform 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
+}
+
+.contacts-pin-tile:active {
+  cursor: grabbing;
+}
+
+.contacts-pin-tile.is-drag-over {
+  border-color: var(--primary);
+  transform: translateY(-2px);
+}
+
+.contacts-pin-tile.is-dragging {
+  opacity: 0.42;
+}
+
+.contacts-pin-toggle {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  background: rgba(239, 68, 68, 0.18);
+  color: #ef4444;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: opacity 0.16s ease, transform 0.14s ease, background-color 0.14s ease;
+  z-index: 5;
+  padding: 0;
+  opacity: 0;
+}
+
+.contacts-pin-tile:hover .contacts-pin-toggle,
+.contacts-pin-toggle:focus-visible,
+.contacts-pinned-grid.is-editing .contacts-pin-toggle {
+  opacity: 1;
+}
+
+.contacts-pin-toggle:hover {
+  background: #ef4444;
+  color: #ffffff;
+  transform: scale(1.12);
+}
+
+.contacts-person {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  flex-direction: column;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-main);
+}
+
+.contacts-person strong {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  margin-top: 6px;
+}
+
+.contacts-pin-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 10px;
+  width: 100%;
+}
+
+.contacts-pin-actions button {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  height: 32px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-surface);
+  color: var(--text-main);
+  transition: background 0.15s ease, transform 0.12s ease;
+}
+
+.contacts-pin-actions button:hover:not(:disabled) {
+  background: var(--primary-glow);
+  transform: translateY(-1px);
+}
+
+.contacts-pin-add {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-height: 148px;
+  border: 1.5px dashed var(--border);
+  border-radius: 20px;
+  background: transparent;
+  color: var(--primary);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.contacts-pin-add:hover {
+  border-color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 8%, transparent);
+}
+
+.contacts-pinned-empty {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 28px 16px;
+  color: var(--text-muted);
+  font-size: 13px;
+  border: 1px dashed var(--border);
+  border-radius: 20px;
+}
+
+.contacts-pinned-empty p {
+  margin: 0;
+}
+
+.contacts-pinned-empty-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 16px;
+  border-radius: 10px;
+  border: 0;
+  background: var(--primary);
+  color: var(--text-on-primary, #ffffff);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+
+.contacts-pinned-empty-btn:hover {
+  opacity: 0.9;
+}
 .contacts-overview-bottom { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; margin-top: 18px; }
 .contacts-game { padding: 18px 20px; }
 .contacts-game > header { margin-bottom: 10px; }

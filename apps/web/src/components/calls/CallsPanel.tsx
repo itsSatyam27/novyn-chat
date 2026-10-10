@@ -12,6 +12,7 @@ import {
   Search,
 } from 'lucide-react';
 import { triggerHaptic } from '../../services/capacitor';
+import './callsPanel.css';
 
 interface CallsPanelProps {
   isCompact?: boolean;

@@ -1,17 +1,23 @@
 import React, { useState } from 'react';
-import { Check, RefreshCw, Send, Sparkles, X } from 'lucide-react';
+import { Check, QrCode, RefreshCw, Send, Sparkles, X } from 'lucide-react';
 import { useChat } from '../../context/ChatContext';
+import { useAuth } from '../../context/AuthContext';
 import { Avatar } from '../ui/Avatar';
+import { QRScannerModal } from './QRScannerModal';
+import { QRCodeModal } from '../profile/QRCodeModal';
 import './discoverWorkspace.css';
 
 export const DiscoverWorkspace: React.FC = () => {
   const { friendRequests, sentRequests, acceptFriendRequest, rejectFriendRequest, cancelFriendRequest, sendFriendRequest } = useChat();
+  const { user } = useAuth();
   const [friendInput, setFriendInput] = useState('');
   const [friendMessage, setFriendMessage] = useState('');
   const [isSending, setIsSending] = useState(false);
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
+  const [isMyQrOpen, setIsMyQrOpen] = useState(false);
 
-  const handleSendRequest = async () => {
-    const username = friendInput.trim().replace(/^@/, '');
+  const handleSendRequest = async (value = friendInput) => {
+    const username = value.trim().replace(/^@/, '');
     if (!username || isSending) return;
     setIsSending(true);
     setFriendMessage('');
@@ -23,6 +29,12 @@ export const DiscoverWorkspace: React.FC = () => {
     } else {
       setFriendMessage(result.message || 'Unable to send friend request.');
     }
+  };
+
+  const handleScannedUsername = (username: string) => {
+    setIsScannerOpen(false);
+    setFriendInput(username);
+    void handleSendRequest(username);
   };
 
   return (
@@ -134,20 +146,22 @@ export const DiscoverWorkspace: React.FC = () => {
           </section>
 
           <section className="discover-card discover-qr-card">
-            <div className="qr-box" aria-label="QR code preview">
-              <div className="qr-pattern" />
-            </div>
+            <button type="button" className="qr-box" aria-label="Show my profile QR code" onClick={() => setIsMyQrOpen(true)}>
+              <QrCode size={34} />
+            </button>
             <div className="qr-copy">
               <h3>Share my QR</h3>
               <p>Friends can scan to add you</p>
             </div>
-            <button type="button" className="discover-qr-button">
+            <button type="button" className="discover-qr-button" onClick={() => setIsScannerOpen(true)}>
               <Sparkles size={16} />
               Scan a code
             </button>
           </section>
         </div>
       </div>
+      <QRScannerModal isOpen={isScannerOpen} onClose={() => setIsScannerOpen(false)} onFoundUsername={handleScannedUsername} />
+      {user?.username && <QRCodeModal isOpen={isMyQrOpen} onClose={() => setIsMyQrOpen(false)} username={user.username} displayName={user.displayName} avatarUrl={user.avatarId} />}
     </div>
   );
 };

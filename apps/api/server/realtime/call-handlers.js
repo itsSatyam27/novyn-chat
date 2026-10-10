@@ -9,7 +9,8 @@ function registerCallHandlers(socket, deps) {
     activeCalls,
     setCallPair,
     clearCallPair,
-    io
+    io,
+    usersAreBlocked
   } = deps;
 
   socket.on("call_start", (payload) => {
@@ -24,14 +25,18 @@ function registerCallHandlers(socket, deps) {
       return;
     }
 
-    const callTarget = resolveChatTargetForUser(userKey, to, "friend", { inferGroup: false });
-    if (!callTarget.ok || callTarget.type !== "friend") {
+    const me = users.get(userKey);
+    const friendKey = normalizeName(to);
+    const target = users.get(friendKey);
+    const areFriends = Boolean(me?.friends?.has(friendKey));
+    if (usersAreBlocked?.(userKey, friendKey) || !target || target.callPrivacy === "nobody" || (target.callPrivacy !== "everyone" && !areFriends)) {
+      socket.emit("call_ended", { callId, reason: "This user is not accepting calls from you." });
+      return;
+    }
+    if (!target.isRegistered) {
       socket.emit("call_ended", { callId, reason: "You are not authorized to call this user." });
       return;
     }
-
-    const me = users.get(userKey);
-    const friendKey = normalizeName(to);
     const friendSocketId = onlineUsers.get(friendKey);
 
     console.log(`[Call] Call started from ${userKey} to ${friendKey} (socket: ${friendSocketId})`);

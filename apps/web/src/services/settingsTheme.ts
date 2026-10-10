@@ -132,14 +132,14 @@ export const FONT_PRESETS: FontOption[] = [
 ];
 
 export const PRESET_AVATARS = [
-  'https://api.dicebear.com/7.x/bottts/svg?seed=Felix',
-  'https://api.dicebear.com/7.x/bottts/svg?seed=Luna',
-  'https://api.dicebear.com/7.x/bottts/svg?seed=Nova',
-  'https://api.dicebear.com/7.x/bottts/svg?seed=Echo',
-  'https://api.dicebear.com/7.x/bottts/svg?seed=Astra',
-  'https://api.dicebear.com/7.x/bottts/svg?seed=Cyber',
-  'https://api.dicebear.com/7.x/bottts/svg?seed=Shadow',
-  'https://api.dicebear.com/7.x/bottts/svg?seed=Zenith',
+  '/avatars/avatar-1.png',
+  '/avatars/avatar-2.png',
+  '/avatars/avatar-3.png',
+  '/avatars/avatar-4.png',
+  '/avatars/avatar-5.png',
+  '/avatars/avatar-6.png',
+  '/avatars/avatar-7.png',
+  '/avatars/avatar-8.png',
 ];
 
 export function applyThemeAccent(key: string): void {

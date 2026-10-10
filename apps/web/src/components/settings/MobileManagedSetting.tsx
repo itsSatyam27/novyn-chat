@@ -16,9 +16,10 @@ export const mobileManagedSettings: Record<SettingsSubSection, MobileSetting> = 
   'profile-email': { title: 'Linked Email', path: ['Settings', 'Edit Profile'] },
   'profile-presence': { title: 'Presence & Status', path: ['Settings', 'Presence & Status'] },
   'profile-qr': { title: 'QR Code', path: ['Settings', 'QR Code'] },
+  'security-dashboard': { title: 'Security', path: ['Settings', 'Security'] },
   'privacy-message-keys': {
     title: 'Sync Message Keys',
-    path: ['Settings', 'Security & Privacy', 'Import message keys'],
+    path: ['Settings', 'Security', 'Import message keys'],
     note: 'To export keys from your original browser, use Transfer message keys on the Messages screen.',
   },
   'privacy-blocked': { title: 'Blocked Contacts', path: ['Settings', 'Security & Privacy', 'Blocked Users'] },
@@ -35,6 +36,10 @@ export const mobileManagedSettings: Record<SettingsSubSection, MobileSetting> = 
   'privacy-visibility': {
     title: 'Last Seen & Profile Photo',
     path: ['Settings', 'Security & Privacy'],
+  },
+  'privacy-controls': {
+    title: 'Privacy Controls',
+    path: ['Settings', 'Security & Privacy', 'Privacy Controls'],
   },
   'privacy-stealth': {
     title: 'Stealth Mode',

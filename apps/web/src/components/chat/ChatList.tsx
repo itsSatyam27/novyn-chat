@@ -374,7 +374,10 @@ export const ChatList: React.FC<ChatListProps> = ({
             <h2 className="chat-list-title">Archived</h2>
           </div>
         ) : (
-          <h2 className="chat-list-title">Messages</h2>
+          <div className="chat-list-heading-copy">
+            <h2 className="chat-list-title">Messages</h2>
+            <p>{conversations.length} chats · {unreadCountTotal ? `${unreadCountTotal} unread` : 'all caught up'}</p>
+          </div>
         )}
 
         <button type="button" className="header-action-btn" title="Transfer message keys"
@@ -619,17 +622,23 @@ export const ChatList: React.FC<ChatListProps> = ({
             )}
           </div>
         ) : (
-          filteredConversations.map((conv) => {
+          filteredConversations.map((conv, index) => {
             const isSelected = activeChat?.toLowerCase() === conv.username.toLowerCase();
             const key = conv.username.toLowerCase();
             const isPinned = pinnedChats.has(key);
             const isMuted = mutedUsers.has(key);
             const isFav = favouriteChats.has(key);
             const isUnread = conv.unreadCount > 0 || manualUnreadChats.has(key);
+            const showSections = activeFilter === 'all' && !searchQuery.trim() && !isViewingArchived;
+            const pinnedVisible = filteredConversations.filter((item) => pinnedChats.has(item.username.toLowerCase())).length;
+            const previousPinned = index > 0 && pinnedChats.has(filteredConversations[index - 1].username.toLowerCase());
 
             return (
+              <React.Fragment key={conv.username}>
+              {showSections && index === 0 && isPinned && <div className="chat-list-section-label"><span><Pin size={11} /> PINNED</span><small>{pinnedVisible}</small></div>}
+              {showSections && index === 0 && !isPinned && <div className="chat-list-section-label"><span>OTHER CHATS</span></div>}
+              {showSections && previousPinned && !isPinned && <div className="chat-list-section-label other-chats-label"><span>OTHER CHATS</span></div>}
               <div
-                key={conv.username}
                 onClick={() => {
                   triggerHaptic('light');
                   setActiveChat(conv.username);
@@ -727,6 +736,8 @@ export const ChatList: React.FC<ChatListProps> = ({
                   </div>
                 </div>
               </div>
+              {showSections && index === filteredConversations.length - 1 && isPinned && pinnedVisible > 0 && <div className="chat-list-other-empty"><span>OTHER CHATS</span><small>Chats you haven’t pinned will show up here.</small></div>}
+              </React.Fragment>
             );
           })
         )}
@@ -909,7 +920,7 @@ export const ChatList: React.FC<ChatListProps> = ({
             type="button"
             onClick={() => {
               setConfirmAction({
-                type: selectedMenuConv.isGroup ? 'leave' : 'delete',
+                type: selectedMenuConv.isGroup ? 'leave' : selectedMenuConv.isFriend === false ? 'clear' : 'delete',
                 target: selectedMenuConv,
               });
               setMenuOpenFor(null);
@@ -924,7 +935,7 @@ export const ChatList: React.FC<ChatListProps> = ({
             ) : (
               <>
                 <Trash2 style={{ width: '15px', height: '15px', color: '#ef4444' }} />
-                <span style={{ color: '#ef4444' }}>Delete chat</span>
+                <span style={{ color: '#ef4444' }}>{selectedMenuConv.isFriend === false ? 'Clear chat' : 'Delete chat'}</span>
               </>
             )}
           </button>

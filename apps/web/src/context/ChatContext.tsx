@@ -21,12 +21,15 @@ interface ChatContextType {
   activeChat: string | null;
   setActiveChat: (username: string | null) => void;
   messages: Message[];
+  getLoadedMessageSnapshot: () => Record<string, Message[]>;
   friendRequests: FriendRequest[];
   sentRequests: Set<string>;
   typingUsers: Set<string>;
   mutedUsers: Set<string>;
   blockedUsers: Set<string>;
   callState: CallState;
+  callNotice: { text: string; error: boolean } | null;
+  dismissCallNotice: () => void;
   callLogs: CallLog[];
   unreadMissedCallCount: number;
   markMissedCallsRead: () => void;
@@ -103,18 +106,45 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [favouriteChats, setFavouriteChats] = useState<Set<string>>(new Set());
   const [manualUnreadChats, setManualUnreadChats] = useState<Set<string>>(new Set());
 
+  const removeChatPreferences = useCallback((username: string) => {
+    const key = username.toLowerCase();
+    const update = (setter: React.Dispatch<React.SetStateAction<Set<string>>>, storageKey: string) => {
+      setter(previous => {
+        const preferenceKey = user?.username ? `novyn_${storageKey}_${user.username}` : '';
+        let stored: string[] = [];
+        if (preferenceKey) {
+          try {
+            const parsed = JSON.parse(localStorage.getItem(preferenceKey) || '[]');
+            if (Array.isArray(parsed)) stored = parsed.filter((value): value is string => typeof value === 'string');
+          } catch { /* Ignore malformed local preferences and repair them below. */ }
+        }
+        const next = new Set([...previous, ...stored].map(value => value.toLowerCase()).filter(value => value !== key));
+        if (preferenceKey) localStorage.setItem(preferenceKey, JSON.stringify([...next]));
+        return next;
+      });
+    };
+    update(setPinnedChats, 'pinned');
+    update(setArchivedChats, 'archived');
+    update(setFavouriteChats, 'fav');
+    update(setManualUnreadChats, 'unread');
+  }, [user?.username]);
+
   // Load chat preferences from localStorage
   useEffect(() => {
     if (!user?.username) return;
+    const readPreferenceSet = (key: string) => {
+      try {
+        const parsed = JSON.parse(localStorage.getItem(key) || '[]');
+        return new Set<string>(Array.isArray(parsed) ? parsed.filter((value): value is string => typeof value === 'string').map(value => value.toLowerCase()) : []);
+      } catch {
+        return new Set<string>();
+      }
+    };
     try {
-      const p = localStorage.getItem(`novyn_pinned_${user.username}`);
-      if (p) setPinnedChats(new Set(JSON.parse(p)));
-      const a = localStorage.getItem(`novyn_archived_${user.username}`);
-      if (a) setArchivedChats(new Set(JSON.parse(a)));
-      const f = localStorage.getItem(`novyn_fav_${user.username}`);
-      if (f) setFavouriteChats(new Set(JSON.parse(f)));
-      const u = localStorage.getItem(`novyn_unread_${user.username}`);
-      if (u) setManualUnreadChats(new Set(JSON.parse(u)));
+      setPinnedChats(readPreferenceSet(`novyn_pinned_${user.username}`));
+      setArchivedChats(readPreferenceSet(`novyn_archived_${user.username}`));
+      setFavouriteChats(readPreferenceSet(`novyn_fav_${user.username}`));
+      setManualUnreadChats(readPreferenceSet(`novyn_unread_${user.username}`));
       const missedRead = localStorage.getItem(`novyn_missed_read_${user.username}`);
       setReadMissedCallIds(new Set(missedRead ? JSON.parse(missedRead) : []));
     } catch {}
@@ -136,8 +166,15 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setPinnedChats((prev) => {
       const next = new Set(prev);
       const key = username.toLowerCase();
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        if (next.size >= 5) {
+          triggerHaptic('warning');
+          return prev;
+        }
+        next.add(key);
+      }
       if (user?.username) {
         localStorage.setItem(`novyn_pinned_${user.username}`, JSON.stringify(Array.from(next)));
       }
@@ -218,6 +255,8 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStream: null,
     remoteStream: null,
   });
+  const [callNotice, setCallNotice] = useState<{ text: string; error: boolean } | null>(null);
+  const dismissCallNotice = useCallback(() => setCallNotice(null), []);
 
   const activeChatRef = useRef<string | null>(null);
   activeChatRef.current = activeChat;
@@ -599,6 +638,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const list = Array.isArray(data) ? data : data?.friends || [];
       const formatted: Conversation[] = list.map((item: any) => ({
         username: item.username || item.groupId || item.key,
+        isFriend: item.isFriend !== false,
         displayName: item.displayName || item.name || item.username || item.key,
         avatarId: item.avatarId,
         online: Boolean(item.online && item.presence !== 'offline'),
@@ -833,6 +873,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
 
     socket.on('friend_removed', ({ username }: { username: string }) => {
+      removeChatPreferences(username);
       setConversations((prev) => prev.filter((c) => c.username.toLowerCase() !== username.toLowerCase()));
       if (activeChatRef.current?.toLowerCase() === username.toLowerCase()) {
         setActiveChat(null);
@@ -929,6 +970,20 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
     });
 
+    socket.on('message_deleted', (data: any) => {
+      const targetKey = String(data?.with || '').toLowerCase();
+      const messageId = String(data?.messageId || '');
+      if (!targetKey || !messageId) return;
+      const updateDeleted = (list: Message[]) => list.map(message => message.id === messageId
+        ? { ...message, text: data.text || 'This message was deleted.', attachment: null, pinnedAt: null, reactions: {} }
+        : message);
+      messagesCacheRef.current[targetKey] = updateDeleted(messagesCacheRef.current[targetKey] || []);
+      if (activeChatRef.current?.toLowerCase() === targetKey) setMessages(updateDeleted);
+      setConversations(previous => previous.map(conversation => conversation.username.toLowerCase() === targetKey
+        ? { ...conversation, lastMessage: conversation.lastMessage?.id === messageId ? { ...conversation.lastMessage, text: data.text || 'This message was deleted.', attachment: null } : conversation.lastMessage }
+        : conversation));
+    });
+
     // Private Message Incoming
     socket.on('private_message', (rawMsg: any) => {
       const sender = rawMsg.from || rawMsg.sender || rawMsg.fromKey;
@@ -996,6 +1051,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
             {
               username: partner,
               displayName: partner,
+              isFriend: false,
               online: true,
               unreadCount: isCurrentConversation ? 0 : 1,
               lastMessage: msg,
@@ -1169,6 +1225,9 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     socket.on('call_ended', ({ reason, callId }: { reason?: string; callId?: string }) => {
       if (!callId || callStateRef.current.callId !== callId) return;
+      if (reason === 'This user is not accepting calls from you.') {
+        setCallNotice({ text: 'This user only accepts calls from friends.', error: true });
+      }
       endCall(reason || 'Call ended', false);
     });
 
@@ -1196,6 +1255,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       socket.off('safety_state_updated');
       socket.off('history', handleHistory);
       socket.off('message_status');
+      socket.off('message_deleted');
       socket.off('private_message');
       socket.off('typing');
       socket.off('user_status');
@@ -1204,7 +1264,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       socket.off('call_ended');
       socket.off('webrtc_signal');
     };
-  }, [user, setUser, endCall]);
+  }, [user, setUser, endCall, removeChatPreferences]);
 
   const updateProfile = useCallback(
     (payload: { displayName?: string; bio?: string; status?: string; avatarId?: string }) => {
@@ -1476,10 +1536,11 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const socket = getSocket();
     if (!socket) return;
     socket.emit('remove_friend', username);
+    removeChatPreferences(username);
     setConversations((prev) => prev.filter((c) => c.username.toLowerCase() !== username.toLowerCase()));
     setActiveChat(null);
     triggerHaptic('heavy');
-  }, []);
+  }, [removeChatPreferences]);
 
   const clearChat = useCallback((username: string) => {
     const socket = getSocket();
@@ -1878,12 +1939,15 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         activeChat,
         setActiveChat,
         messages,
+        getLoadedMessageSnapshot: () => ({ ...messagesCacheRef.current }),
         friendRequests,
         sentRequests,
         typingUsers,
         mutedUsers,
         blockedUsers,
         callState,
+        callNotice,
+        dismissCallNotice,
         callLogs,
         unreadMissedCallCount,
         markMissedCallsRead,

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ArrowUpRight, Pin, Plus, Send } from 'lucide-react';
+import { ArrowUpRight, Check, Pin, Plus, Send } from 'lucide-react';
 import { useChat } from '../../context/ChatContext';
 import { Avatar } from '../ui/Avatar';
 import { CreateGroupModal } from './CreateGroupModal';
@@ -39,7 +39,6 @@ export const MessagesWorkspace: React.FC = () => {
   const unread = allUnread.slice(0, 5);
   const groups = allChats.filter(chat => chat.isGroup).slice(0, 4);
   const recipientMatches = allChats.filter(chat => !chat.isGroup && (chat.displayName + ' ' + chat.username).toLowerCase().includes(recipientSearch.trim().toLowerCase())).slice(0, 5);
-  const selectedChat = allChats.find(chat => chat.username.toLowerCase() === selectedRecipient.toLowerCase());
 
   useEffect(() => {
     if (!isPinPickerOpen) return;
@@ -93,7 +92,7 @@ export const MessagesWorkspace: React.FC = () => {
   return (
     <main className="messages-workspace">
       <section className="messages-overview-card messages-pinned-card">
-        <header><h2><Pin size={16} />Pinned chats</h2><span>{pinned.length}</span></header>
+        <header><h2><Pin size={16} />Pinned chats</h2><div className="messages-pinned-meta"><small>Drag to reorder</small><span>{pinned.length}</span></div></header>
         <div className="messages-pinned-grid">
           {pinned.map(chat => <article
             className={`messages-pinned-tile${dragOverPinned === chat.username ? ' is-drag-over' : ''}${draggedPinned === chat.username ? ' is-dragging' : ''}`}
@@ -114,7 +113,7 @@ export const MessagesWorkspace: React.FC = () => {
             </button>
             <button type="button" className="messages-pin-toggle" aria-label={`Unpin ${chat.displayName || chat.username}`} onClick={() => togglePinChat(chat.username)}><Pin size={13} /></button>
           </article>)}
-          {availableToPin.length > 0 && <div className="messages-pin-add-wrap">
+          {availableToPin.length > 0 && pinned.length < 5 && <div className="messages-pin-add-wrap">
             <button ref={pinButtonRef} type="button" className="messages-pin-add" aria-expanded={isPinPickerOpen} aria-haspopup="listbox" onClick={() => setIsPinPickerOpen(open => !open)}><Plus size={20} /><span>Pin a chat</span></button>
           </div>}
         </div>
@@ -129,7 +128,7 @@ export const MessagesWorkspace: React.FC = () => {
       <div className="messages-summary-grid">
         <section className="messages-overview-card messages-unread-card">
           <header><h2>Unread <span>{allUnread.reduce((sum, chat) => sum + (chat.unreadCount || 1), 0)}</span></h2></header>
-          <div className="messages-row-list">{unread.length ? unread.map(chat => renderChatTile(chat, 'unread')) : <p className="messages-empty">You’re all caught up.</p>}</div>
+          <div className="messages-row-list">{unread.length ? unread.map(chat => renderChatTile(chat, 'unread')) : <div className="messages-caught-up"><span><Check size={18} /></span><div><small>Unread · 0</small><strong>You’re all caught up</strong><p>New unread chats will show up here.</p></div></div>}</div>
         </section>
         <section className="messages-overview-card messages-groups-card">
           <header><h2>Groups</h2><button type="button" onClick={() => setIsGroupModalOpen(true)}><Plus size={13} />New group</button></header>
@@ -138,16 +137,23 @@ export const MessagesWorkspace: React.FC = () => {
       </div>
 
       <section className="messages-overview-card messages-compose-card">
-        <header><h2>New message</h2></header>
+        <header><h2>New message</h2><small>Suggested</small></header>
         <form onSubmit={handleCompose}>
-          <div className="messages-compose-row">
-            <label className="messages-recipient"><span>To:</span><input value={selectedChat ? selectedChat.displayName || selectedChat.username : recipientSearch} onChange={event => { setSelectedRecipient(''); setRecipientSearch(event.target.value); }} placeholder="Search a contact..." /></label>
-            <input className="messages-draft-input" aria-label="Write a message" value={draft} onChange={event => setDraft(event.target.value)} placeholder="Write a message..." />
-            <button type="submit" disabled={!selectedRecipient || !draft.trim()}><Send size={15} />Send</button>
+          <div className="messages-recipient-line">
+            <span className="messages-recipient-prefix">To:</span>
+            {allChats.slice(0, 4).map(chat => {
+              const isSelected = selectedRecipient.toLowerCase() === chat.username.toLowerCase();
+              return <button type="button" key={chat.username} className={`messages-recipient-chip${isSelected ? ' is-selected' : ''}`} aria-pressed={isSelected} onClick={() => { setSelectedRecipient(chat.username); setRecipientSearch(''); }}>
+                <Avatar name={chat.displayName || chat.username} avatarUrl={chat.avatarId} isGroup={chat.isGroup} hidePresence={chat.isSelf} size="sm" />
+                <span>{chat.isSelf ? 'Saved' : chat.displayName || chat.username}</span>
+              </button>;
+            })}
+            <input className="messages-recipient-search" value={recipientSearch} onChange={event => { setSelectedRecipient(''); setRecipientSearch(event.target.value); }} placeholder="Search a contact..." aria-label="Search recipient" />
           </div>
           {recipientSearch && !selectedRecipient && <div className="messages-recipient-results">{recipientMatches.map(chat => <button type="button" key={chat.username} onClick={() => { setSelectedRecipient(chat.username); setRecipientSearch(''); }}><Avatar name={chat.displayName || chat.username} avatarUrl={chat.avatarId} size="sm" /><span>{chat.displayName || chat.username}</span><small>@{chat.username}</small></button>)}{recipientMatches.length === 0 && <p>No matching contacts.</p>}</div>}
+          <textarea className="messages-draft-input" aria-label="Write a message" value={draft} onChange={event => setDraft(event.target.value.slice(0, 250))} maxLength={250} placeholder="Write a message..." />
+          <div className="messages-compose-actions"><small>{draft.length} / 250</small><button type="submit" disabled={!selectedRecipient || !draft.trim()}><Send size={15} />Send</button></div>
         </form>
-        <p>Or open any pinned chat above to continue a conversation.</p>
       </section>
       <CreateGroupModal isOpen={isGroupModalOpen} onClose={() => setIsGroupModalOpen(false)} />
     </main>

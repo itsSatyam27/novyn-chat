@@ -11,10 +11,9 @@ import { InChatSearch } from './InChatSearch';
 import { DropZoneOverlay } from './DropZoneOverlay';
 import { WallpaperPickerModal } from './WallpaperPickerModal';
 import { GameLauncherModal } from './GameLauncherModal';
-import { CommandPaletteModal } from '../layout/CommandPaletteModal';
 import { Avatar } from '../ui/Avatar';
 import { Message } from '../../types';
-import { Phone, Video, ChevronLeft, PanelLeftOpen, Info, Search, Command, Lock, ArrowDown, X } from 'lucide-react';
+import { Phone, Video, ChevronLeft, PanelLeftOpen, Info, Search, Lock, ArrowDown, X, Sun, Moon, Star, MessageCircle, Mic, Gamepad2, Sunset } from 'lucide-react';
 import { triggerHaptic } from '../../services/capacitor';
 import { getSocket } from '../../services/socket';
 import { uploadMediaFile } from '../../services/api';
@@ -47,6 +46,20 @@ const messageDayLabel = (timestamp: string | number) => {
     month: 'long',
     year: day.slice(0, 4) === today.slice(0, 4) ? undefined : 'numeric',
   }).format(date);
+};
+
+const getTimeGreeting = (hour: number) => {
+  if (hour >= 5 && hour < 12) return { label: 'Good morning', Icon: Sun };
+  if (hour >= 12 && hour < 17) return { label: 'Good afternoon', Icon: Sun };
+  if (hour >= 17 && hour < 21) return { label: 'Good evening', Icon: Moon };
+  return { label: 'Good night', Icon: Star };
+};
+
+const getPresenceGreeting = (presence?: string, online?: boolean) => {
+  if (presence === 'busy' || presence === 'dnd') return "is busy. They'll reply later.";
+  if (presence === 'away') return 'is away right now. Leave a message for later.';
+  if ((online && presence !== 'invisible' && presence !== 'offline') || presence === 'online') return 'is online now. Say hi!';
+  return "will see this when they're back.";
 };
 
 interface ChatWindowProps {
@@ -97,7 +110,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isWallpaperModalOpen, setIsWallpaperModalOpen] = useState(false);
   const [isGameLauncherOpen, setIsGameLauncherOpen] = useState(false);
-  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [currentMatchIndex, setCurrentMatchIndex] = useState(0);
@@ -134,6 +146,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   const isTyping = activeChat ? typingUsers.has(activeChat) : false;
   const isMuted = activeChat ? mutedUsers.has(activeChat.toLowerCase()) : false;
   const isBlocked = activeChat ? blockedUsers.has(activeChat.toLowerCase()) : false;
+  const timeGreeting = getTimeGreeting(new Date().getHours());
 
   // Instant scroll on initial load / chat switch, smooth scroll ONLY for single new live messages
   useLayoutEffect(() => {
@@ -240,17 +253,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
       }
     }
   }, [isTyping]);
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
-        e.preventDefault();
-        setIsCommandPaletteOpen((prev) => !prev);
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
 
   const handleWallpaperChange = (newBg: string) => {
     if (activeChat) {
@@ -493,19 +495,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             <button
               type="button"
               className="header-action-btn"
-              onClick={() => {
-                triggerHaptic('light');
-                setIsCommandPaletteOpen(true);
-              }}
-              aria-label="Quick Actions (Ctrl+K)"
-              title="Quick Actions (Ctrl+K)"
-            >
-              <Command style={{ width: '16px', height: '16px', color: '#087fac' }} />
-            </button>
-
-            <button
-              type="button"
-              className="header-action-btn"
               style={isDetailsOpen ? { background: 'rgba(16, 185, 129, 0.2)', color: '#0e9f8a', borderColor: 'rgba(16, 185, 129, 0.4)' } : {}}
               onClick={() => {
                 triggerHaptic('light');
@@ -603,9 +592,32 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           </div>}
 
           {visibleMessages.length === 0 ? (
-            <div style={{ margin: 'auto', textAlign: 'center', color: 'var(--text-dark)', fontSize: '0.85rem' }}>
-              No messages yet. Send a message to start! 👋
-            </div>
+            activeContact && !activeContact.isGroup && !activeContact.isSelf ? (
+              <section className="chat-first-contact" aria-label={`Start a conversation with ${activeContact.displayName || activeContact.username}`}>
+                <div className="chat-first-contact-sky" aria-hidden="true"><span /><span /><span /></div>
+                <div className="chat-first-contact-greeting"><timeGreeting.Icon size={15} aria-hidden="true" /> {timeGreeting.label}</div>
+                <div className="chat-first-contact-card">
+                  <div className="chat-first-contact-avatar"><Avatar name={activeContact.displayName || activeContact.username} avatarUrl={activeContact.avatarId} online={activeContact.online} presence={activeContact.presence} size="xl" /></div>
+                  <h2>{activeContact.displayName || activeContact.username}</h2>
+                  <span className="chat-first-contact-handle">@{activeContact.username}</span>
+                  <p className="chat-first-contact-presence"><i data-presence={activeContact.presence || (activeContact.online ? 'online' : 'offline')} />{activeContact.displayName || activeContact.username} {getPresenceGreeting(activeContact.presence, activeContact.online)}</p>
+                  <div className="chat-first-contact-badges">
+                    <span><i className="chat-first-contact-presence-dot" data-presence={activeContact.presence || (activeContact.online ? 'online' : 'offline')} />{activeContact.online && activeContact.presence !== 'invisible' ? (activeContact.presence === 'busy' || activeContact.presence === 'dnd' ? 'Busy' : activeContact.presence === 'away' ? 'Away' : 'Online') : 'Offline'}</span>
+                    <span>{activeContact.publicKey ? <><Lock size={11} aria-hidden="true" /> Encrypted</> : 'Private chat'}</span>
+                  </div>
+                  <button type="button" className="chat-first-contact-cta" onClick={() => { triggerHaptic('light'); sendMessage('Hi!'); }}>
+                    <MessageCircle size={15} aria-hidden="true" /> Say hi to {activeContact.displayName || activeContact.username}
+                  </button>
+                </div>
+                <div className="chat-first-contact-shortcuts">
+                  <button type="button" onClick={() => document.querySelector<HTMLButtonElement>('[aria-label="Voice Message"]')?.click()}><Mic size={12} aria-hidden="true" /> Send a voice note</button>
+                  <span aria-hidden="true">·</span>
+                  <button type="button" onClick={() => setIsGameLauncherOpen(true)}><Gamepad2 size={12} aria-hidden="true" /> Play a game</button>
+                </div>
+              </section>
+            ) : (
+              <div style={{ margin: 'auto', textAlign: 'center', color: 'var(--text-dark)', fontSize: '0.85rem' }}>No messages yet. Send a message to start! 👋</div>
+            )
           ) : (
             visibleMessages.map((msg, index) => {
               const showDayChip = index === 0 || messageDayKey(visibleMessages[index - 1].timestamp) !== messageDayKey(msg.timestamp);
@@ -690,7 +702,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
       <ContactDetailsSidebar
         isOpen={isDetailsOpen}
         onClose={() => setIsDetailsOpen(false)}
-        contact={activeContact || { username: activeChat, displayName: activeChat, unreadCount: 0, online: false }}
+        contact={activeContact || { username: activeChat, displayName: activeChat, unreadCount: 0, online: false, isFriend: false }}
         messages={visibleMessages}
         onAudioCall={(u) => startCall(u, false)}
         onVideoCall={(u) => startCall(u, true)}
@@ -744,24 +756,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         onSelectWallpaper={handleWallpaperChange}
       />
 
-      {/* Command Palette Modal (Ctrl+K) */}
-      <CommandPaletteModal
-        isOpen={isCommandPaletteOpen}
-        onClose={() => setIsCommandPaletteOpen(false)}
-        conversations={conversations}
-        activeChat={activeChat}
-        onSelectChat={(u) => setActiveChat(u)}
-        onAudioCall={(u) => startCall(u, false)}
-        onVideoCall={(u) => startCall(u, true)}
-        onOpenPollModal={() => {
-          const el = document.querySelector('.input-actions') as HTMLElement;
-          if (el) el.scrollIntoView();
-        }}
-        onOpenWallpaperModal={() => setIsWallpaperModalOpen(true)}
-        onOpenQRModal={() => setIsDetailsOpen(true)}
-        onOpenExportModal={() => setIsDetailsOpen(true)}
-        onOpenSearch={() => setIsSearchOpen(true)}
-      />
     </div>
   );
 };

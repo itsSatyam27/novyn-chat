@@ -78,6 +78,10 @@ export const ContactDetailsSidebar: React.FC<ContactDetailsSidebarProps> = ({
   const { user } = useAuth();
   const {
     conversations,
+    friendRequests,
+    sentRequests,
+    sendFriendRequest,
+    acceptFriendRequest,
     chatWallpaper,
     setChatWallpaper,
     addGroupMembers,
@@ -94,6 +98,8 @@ export const ContactDetailsSidebar: React.FC<ContactDetailsSidebarProps> = ({
   const [showConfirmUnfriend, setShowConfirmUnfriend] = useState(false);
   const [showConfirmClear, setShowConfirmClear] = useState(false);
   const [showConfirmLeave, setShowConfirmLeave] = useState(false);
+  const [isFriendRequestSending, setIsFriendRequestSending] = useState(false);
+  const [friendRequestMessage, setFriendRequestMessage] = useState('');
 
   // Group Details & Members State
   const [groupInfo, setGroupInfo] = useState<any>(null);
@@ -102,6 +108,13 @@ export const ContactDetailsSidebar: React.FC<ContactDetailsSidebarProps> = ({
   const [memberToRemove, setMemberToRemove] = useState<string | null>(null);
 
   const isGroup = Boolean(contact.isGroup);
+  const friendRequestPending = sentRequests.has(contact.username.toLowerCase());
+  const incomingFriendRequest = friendRequests.some(request => request.from.toLowerCase() === contact.username.toLowerCase());
+
+  useEffect(() => {
+    setFriendRequestMessage('');
+    setIsFriendRequestSending(false);
+  }, [contact.username]);
 
   useEffect(() => {
     if (!isGroup) return;
@@ -300,6 +313,32 @@ export const ContactDetailsSidebar: React.FC<ContactDetailsSidebarProps> = ({
                 >
                   <Video style={{ width: '15px', height: '15px', color: '#087fac' }} /> Video
                 </button>
+              </div>
+            )}
+            {!isGroup && contact.isFriend === false && (
+              <div style={{ width: '100%', marginTop: '10px' }}>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  disabled={isFriendRequestSending || friendRequestPending || isBlocked}
+                  onClick={async () => {
+                    if (incomingFriendRequest) {
+                      acceptFriendRequest(contact.username);
+                      setFriendRequestMessage('You are now friends.');
+                      return;
+                    }
+                    setIsFriendRequestSending(true);
+                    setFriendRequestMessage('');
+                    const result = await sendFriendRequest(contact.username);
+                    setFriendRequestMessage(result.ok ? 'Friend request sent.' : result.message || 'Could not send friend request.');
+                    setIsFriendRequestSending(false);
+                  }}
+                  style={{ width: '100%', justifyContent: 'center', padding: '9px 12px', borderRadius: '12px', fontSize: '0.8rem' }}
+                >
+                  <UserPlus style={{ width: '15px', height: '15px' }} />
+                  {incomingFriendRequest ? 'Accept friend request' : friendRequestPending ? 'Request sent' : isFriendRequestSending ? 'Sending request…' : 'Add friend'}
+                </button>
+                {friendRequestMessage && <p role="status" style={{ margin: '7px 0 0', fontSize: '0.72rem' }}>{friendRequestMessage}</p>}
               </div>
             )}
           </div>
@@ -1247,7 +1286,7 @@ export const ContactDetailsSidebar: React.FC<ContactDetailsSidebarProps> = ({
                   </div>
 
                   {/* 3. Unfriend */}
-                  {showConfirmUnfriend ? (
+                  {contact.isFriend !== false && (showConfirmUnfriend ? (
                     <div
                       style={{
                         padding: '14px',
@@ -1316,7 +1355,7 @@ export const ContactDetailsSidebar: React.FC<ContactDetailsSidebarProps> = ({
                       </div>
                       <ExternalLink style={{ width: '15px', height: '15px', color: '#ef4444' }} />
                     </div>
-                  )}
+                  ))}
                 </>
               )}
             </div>

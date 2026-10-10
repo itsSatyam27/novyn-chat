@@ -215,17 +215,18 @@ function registerMessageMutationHandlers(socket, deps) {
     schedulePersist();
   });
 
-  socket.on("delete_message", (payload) => {
+  socket.on("delete_message", (payload, callback) => {
+    const respond = typeof callback === "function" ? callback : () => {};
     const userKey = socket.data.userKey;
-    if (!userKey) return;
+    if (!userKey) { respond({ ok: false, message: "Please sign in again." }); return; }
 
     const messageId = toDisplayName(payload?.messageId);
     const to = toDisplayName(payload?.to);
     const toType = normalizeChatKind(payload?.toType || "friend");
-    if (!messageId || !to) return;
+    if (!messageId || !to) { respond({ ok: false, message: "Message not found." }); return; }
 
     const me = users.get(userKey);
-    if (!me) return;
+    if (!me) { respond({ ok: false, message: "Account not found." }); return; }
     let conversationKey = "";
     let emitTargets = [];
     let withLabel = "";
@@ -234,6 +235,7 @@ function registerMessageMutationHandlers(socket, deps) {
       const group = groups.get(groupId);
       if (!group || !isGroupMember(group, userKey)) {
         socket.emit("error_message", { message: "You can delete messages only in active group chats." });
+        respond({ ok: false, message: "You can delete messages only in active group chats." });
         return;
       }
       conversationKey = getGroupConversationKey(group.id);
@@ -244,6 +246,7 @@ function registerMessageMutationHandlers(socket, deps) {
       const friend = users.get(toKey);
       if (!friend || !me.friends.has(toKey)) {
         socket.emit("error_message", { message: "You can delete messages only in active friend chats." });
+        respond({ ok: false, message: "You can delete messages only in active friend chats." });
         return;
       }
       conversationKey = getConversationKey(userKey, toKey);
@@ -255,15 +258,18 @@ function registerMessageMutationHandlers(socket, deps) {
     const message = conversation.find((entry) => entry.id === messageId);
     if (!message) {
       socket.emit("error_message", { message: "Message not found." });
+      respond({ ok: false, message: "Message not found." });
       return;
     }
 
     if (message.fromKey !== userKey) {
       socket.emit("error_message", { message: "You can delete only your own messages." });
+      respond({ ok: false, message: "You can delete only your own messages." });
       return;
     }
 
     if (message.deletedAt) {
+      respond({ ok: true, alreadyDeleted: true });
       return;
     }
 
@@ -304,6 +310,7 @@ function registerMessageMutationHandlers(socket, deps) {
       emitFriendList(withLabel);
     }
     schedulePersist();
+    respond({ ok: true });
   });
 }
 

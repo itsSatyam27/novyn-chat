@@ -56,11 +56,17 @@ export const SettingsSubPanel: React.FC<SettingsSubPanelProps> = ({
       icon: User,
       color: '#10b981',
     },
-    privacy: {
-      title: 'Security & Privacy',
-      subtitle: 'Your account, your control',
+    security: {
+      title: 'Security',
+      subtitle: 'Protect your account and message keys',
       icon: Shield,
-      color: '#a855f7',
+      color: '#10b981',
+    },
+    privacy: {
+      title: 'Privacy',
+      subtitle: 'Control who can reach you and what they can see',
+      icon: Eye,
+      color: '#8b5cf6',
     },
     notifications: {
       title: 'Notification Alerts',
@@ -75,8 +81,8 @@ export const SettingsSubPanel: React.FC<SettingsSubPanelProps> = ({
       color: '#f59e0b',
     },
     storage: {
-      title: 'Data & Security',
-      subtitle: 'Storage & Encryption',
+      title: 'Data & Storage',
+      subtitle: 'Manage local files and your chat data',
       icon: HardDrive,
       color: '#ec4899',
     },
@@ -92,6 +98,7 @@ export const SettingsSubPanel: React.FC<SettingsSubPanelProps> = ({
     SettingsMainCategory,
     { id: SettingsSubSection; label: string; icon: LucideIcon; desc: string; badge?: string | number }[]
   > = {
+    security: [],
     profile: [
       {
         id: 'profile-details',
@@ -141,11 +148,11 @@ export const SettingsSubPanel: React.FC<SettingsSubPanelProps> = ({
         badge: 'Mobile app',
       },
       {
-        id: 'privacy-visibility',
-        label: 'Last Seen & Profile Photo',
-        desc: 'Choose who can see your details',
+        id: 'privacy-controls',
+        label: 'Privacy Controls',
+        desc: 'Choose who can contact you and see your activity',
         icon: Eye,
-        badge: 'Mobile app',
+        badge: 'Account',
       },
       {
         id: 'privacy-stealth',
@@ -164,9 +171,9 @@ export const SettingsSubPanel: React.FC<SettingsSubPanelProps> = ({
       {
         id: 'privacy-receipts',
         label: 'Read Receipts & Activity',
-        desc: 'Control read and activity indicators',
+        desc: 'Control read receipts and typing status',
         icon: CheckCircle2,
-        badge: 'Mobile app',
+        badge: 'Account',
       },
       {
         id: 'privacy-retention',
@@ -251,12 +258,6 @@ export const SettingsSubPanel: React.FC<SettingsSubPanelProps> = ({
         desc: 'Download profile and currently loaded chat data',
         icon: Download,
       },
-      {
-        id: 'storage-security',
-        label: 'Encryption Status',
-        desc: 'WebRTC P2P & TLS security',
-        icon: Shield,
-      },
     ],
     feedback: [
       {
@@ -285,8 +286,8 @@ export const SettingsSubPanel: React.FC<SettingsSubPanelProps> = ({
   const list = sectionsByCategory[activeCategory] || [];
   const groups = [
     { label: 'Available here', items: list.filter(item => webSettings[item.id]) },
-    { label: 'Mobile app', items: list.filter(item => !webSettings[item.id] && !mobileManagedSettings[item.id].pending) },
-    { label: 'Coming soon', items: list.filter(item => !webSettings[item.id] && mobileManagedSettings[item.id].pending) },
+    { label: 'Mobile app', items: list.filter(item => !webSettings[item.id] && mobileManagedSettings[item.id] && !mobileManagedSettings[item.id]?.pending) },
+    { label: 'Coming soon', items: list.filter(item => !webSettings[item.id] && (!mobileManagedSettings[item.id] || Boolean(mobileManagedSettings[item.id]?.pending))) },
   ].filter(group => group.items.length > 0);
   const selectSection = (section: SettingsSubSection) => { triggerHaptic('light'); onSelectSubSection(section); };
 

@@ -34,6 +34,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           bio: res.data.bio || '',
           presenceMode: res.data.presenceMode || 'online',
           retentionDays: res.data.retentionDays,
+          callPrivacy: res.data.callPrivacy, messagePrivacy: res.data.messagePrivacy,
+          profilePhotoPrivacy: res.data.profilePhotoPrivacy, presencePrivacy: res.data.presencePrivacy,
+          readReceiptsEnabled: res.data.readReceiptsEnabled, typingIndicatorsEnabled: res.data.typingIndicatorsEnabled,
+          groupInvitePrivacy: res.data.groupInvitePrivacy, friendRequestPrivacy: res.data.friendRequestPrivacy,
         });
         connectSocket();
       } else {
@@ -50,6 +54,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               bio: secondSession.data.bio || '',
               presenceMode: secondSession.data.presenceMode || 'online',
               retentionDays: secondSession.data.retentionDays,
+              callPrivacy: secondSession.data.callPrivacy, messagePrivacy: secondSession.data.messagePrivacy,
+              profilePhotoPrivacy: secondSession.data.profilePhotoPrivacy, presencePrivacy: secondSession.data.presencePrivacy,
+              readReceiptsEnabled: secondSession.data.readReceiptsEnabled, typingIndicatorsEnabled: secondSession.data.typingIndicatorsEnabled,
+              groupInvitePrivacy: secondSession.data.groupInvitePrivacy, friendRequestPrivacy: secondSession.data.friendRequestPrivacy,
             });
             connectSocket();
           }

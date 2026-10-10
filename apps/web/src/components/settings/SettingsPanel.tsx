@@ -1,12 +1,12 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { ShieldCheck, Palette, Volume2, Globe, MessageSquarePlus,
+import { ShieldCheck, Eye, Palette, Volume2, Globe, MessageSquarePlus,
   LogOut, UserRound, X, HardDrive, Accessibility } from 'lucide-react';
 import { triggerHaptic } from '../../services/capacitor';
 import { useBrowserPreference } from '../../services/browserPreferences';
 import './androidSettings.css';
 
-export type SettingsMainCategory = 'profile' | 'privacy' | 'notifications' | 'appearance' | 'storage' | 'feedback';
+export type SettingsMainCategory = 'profile' | 'security' | 'privacy' | 'notifications' | 'appearance' | 'storage' | 'feedback';
 export type SettingsSubSection =
   // Profile
   | 'profile-details'
@@ -14,11 +14,13 @@ export type SettingsSubSection =
   | 'profile-email'
   | 'profile-presence'
   | 'profile-qr'
+  | 'security-dashboard'
   // Privacy
   | 'privacy-blocked'
   | 'privacy-password'
   | 'privacy-app-lock'
   | 'privacy-visibility'
+  | 'privacy-controls'
   | 'privacy-stealth'
   | 'privacy-two-factor'
   | 'privacy-message-keys'
@@ -83,7 +85,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ activeSubSection, 
   const selectedPresence = presence.find(item => item.value === status) || presence[0];
   const statusColor = selectedPresence.color;
   const avatar = user?.avatarId || (user?.username ? localStorage.getItem('novyn_avatar_' + user.username) : '');
-  const activeMenuSection = activeSubSection.startsWith('privacy-') ? 'privacy-blocked'
+  const activeMenuSection = activeSubSection.startsWith('privacy-') ? 'privacy-controls'
     : activeSubSection.startsWith('storage-') ? 'storage-cache'
     : activeSubSection.startsWith('feedback-') ? 'feedback-send'
     : activeSubSection.startsWith('profile-') ? 'profile-details'
@@ -135,10 +137,11 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ activeSubSection, 
       {row('Appearance', Palette, '#7c6ff7', 'appearance', 'appear-theme')}
       {row('Sounds & Notifications', Volume2, '#00cdbb', 'notifications', 'notif-sounds')}
       {row('Language & Region', Globe, '#8b5cf6', 'appearance', 'appear-language')}
-      {row('Data & Storage', HardDrive, '#6386bb', 'storage', 'storage-cache')}
       {row('Accessibility', Accessibility, '#7c6ff7', 'appearance', 'appear-accessibility')}
       {heading('ACCOUNT')}
-      {row('Security & Privacy', ShieldCheck, '#10b981', 'privacy', 'privacy-blocked')}
+      {row('Data & Storage', HardDrive, '#6386bb', 'storage', 'storage-cache')}
+      {row('Security', ShieldCheck, '#10b981', 'security', 'security-dashboard')}
+      {row('Privacy', Eye, '#8b5cf6', 'privacy', 'privacy-controls')}
       {heading('SUPPORT')}
       {row('Help & Support', MessageSquarePlus, '#f59e0b', 'feedback', 'feedback-send')}
       </nav>

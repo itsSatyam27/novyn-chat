@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useChat } from '../../context/ChatContext';
 import { useAuth } from '../../context/AuthContext';
 import { connectSocket, getSocket } from '../../services/socket';
 import { Avatar } from '../ui/Avatar';
-import { Compass, UserPlus, MessageSquare, Radio, Sparkles, UserCheck, X } from 'lucide-react';
+import { Compass, UserPlus, MessageSquare, Radio, Sparkles, UserCheck, X, Check, Send } from 'lucide-react';
 import { triggerHaptic } from '../../services/capacitor';
+import { SettingsToast, type SettingsNotice } from '../settings/SettingsToast';
 
 interface DiscoverUser {
   username: string;
@@ -12,6 +13,7 @@ interface DiscoverUser {
   avatarId?: string;
   online?: boolean;
   bio?: string;
+  canMessage?: boolean;
 }
 
 interface DiscoverPanelProps {
@@ -21,12 +23,16 @@ interface DiscoverPanelProps {
 
 export const DiscoverPanel: React.FC<DiscoverPanelProps> = ({ isCompact = false, onOpenChat }) => {
   const { user } = useAuth();
-  const { conversations, sentRequests, sendFriendRequest, cancelFriendRequest, setActiveChat } = useChat();
+  const { conversations, friendRequests, sentRequests, sendFriendRequest, cancelFriendRequest, acceptFriendRequest, rejectFriendRequest, setActiveChat } = useChat();
   const [onlineUsers, setOnlineUsers] = useState<DiscoverUser[]>([]);
   const [hoveredUser, setHoveredUser] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [actionNotice, setActionNotice] = useState<SettingsNotice | null>(null);
+  const dismissActionNotice = useCallback(() => setActionNotice(null), []);
   const [pendingUser, setPendingUser] = useState<string | null>(null);
+  const [friendInput, setFriendInput] = useState('');
+  const [isSendingFriend, setIsSendingFriend] = useState(false);
 
   const fetchOnlineUsers = () => {
     setLoading(true);
@@ -51,6 +57,7 @@ export const DiscoverPanel: React.FC<DiscoverPanelProps> = ({ isCompact = false,
           avatarId: u.avatarId,
           online: true,
           bio: u.bio || 'Active on Novyn',
+          canMessage: Boolean(u.canMessage),
         }));
       setOnlineUsers(list);
       setLoading(false);
@@ -97,7 +104,7 @@ export const DiscoverPanel: React.FC<DiscoverPanelProps> = ({ isCompact = false,
     triggerHaptic('medium');
     try {
       const result = await sendFriendRequest(username);
-      if (!result.ok) setError(result.message || 'Unable to send request.');
+      if (!result.ok) setActionNotice({ text: result.message || 'Unable to send request.', error: true });
     } finally {
       setPendingUser(null);
     }
@@ -106,11 +113,26 @@ export const DiscoverPanel: React.FC<DiscoverPanelProps> = ({ isCompact = false,
   const handleUnsend = async (username: string) => {
     triggerHaptic('light');
     const result = await cancelFriendRequest(username);
-    if (!result.ok) setError(result.message || 'Unable to cancel request.');
+    if (!result.ok) setActionNotice({ text: result.message || 'Unable to cancel request.', error: true });
+  };
+
+  const handleManualFriendRequest = async (event: React.FormEvent) => {
+    event.preventDefault();
+    const username = friendInput.trim().replace(/^@/, '');
+    if (!username || isSendingFriend) return;
+    setIsSendingFriend(true);
+    const result = await sendFriendRequest(username);
+    setIsSendingFriend(false);
+    if (result.ok) {
+      setFriendInput('');
+      setActionNotice({ text: 'Friend request sent.', error: false });
+    } else {
+      setActionNotice({ text: result.message || 'Unable to send friend request.', error: true });
+    }
   };
 
   const isFriend = (username: string) => {
-    return conversations.some((c) => c.username.toLowerCase() === username.toLowerCase());
+    return conversations.some((c) => c.username.toLowerCase() === username.toLowerCase() && c.isFriend !== false && !c.isGroup);
   };
 
   const isRequested = (username: string) => {
@@ -130,6 +152,9 @@ export const DiscoverPanel: React.FC<DiscoverPanelProps> = ({ isCompact = false,
               key={person.username}
               onClick={() => {
                 if (isFriend(person.username)) {
+                  setActiveChat(person.username);
+                  onOpenChat?.();
+                } else if (person.canMessage) {
                   setActiveChat(person.username);
                   onOpenChat?.();
                 } else if (!isRequested(person.username)) {
@@ -154,6 +179,7 @@ export const DiscoverPanel: React.FC<DiscoverPanelProps> = ({ isCompact = false,
 
   return (
     <div className="chat-list-panel discover-panel" style={{ width: '100%' }}>
+      {actionNotice && <SettingsToast notice={actionNotice} onDismiss={dismissActionNotice} />}
       {/* Header */}
       <div className="chat-list-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -180,6 +206,40 @@ export const DiscoverPanel: React.FC<DiscoverPanelProps> = ({ isCompact = false,
       {/* Users List */}
       {error && <p role="alert" style={{ padding: '12px 16px', color: '#bd3750' }}>{error}</p>}
       <div className="conversations-scroll" style={{ padding: '4px 16px 16px' }}>
+        <div className="discover-mobile-tools" aria-label="Friend management">
+          <details>
+            <summary>Friend requests <span>{friendRequests.length}</span></summary>
+            <div className="discover-mobile-tools-content">
+              {friendRequests.length === 0 ? <p>No pending friend requests.</p> : friendRequests.map(request => (
+                <div className="discover-mobile-request" key={request.from}>
+                  <Avatar name={request.displayName || request.from} size="sm" />
+                  <span>@{request.from}</span>
+                  <button type="button" aria-label={`Accept ${request.from}`} onClick={() => acceptFriendRequest(request.from)}><Check size={15} /></button>
+                  <button type="button" aria-label={`Reject ${request.from}`} onClick={() => rejectFriendRequest(request.from)}><X size={15} /></button>
+                </div>
+              ))}
+            </div>
+          </details>
+          <details>
+            <summary>Sent requests <span>{sentRequests.size}</span></summary>
+            <div className="discover-mobile-tools-content">
+              {sentRequests.size === 0 ? <p>You haven’t sent any friend requests.</p> : [...sentRequests].map(username => (
+                <div className="discover-mobile-request" key={username}>
+                  <Avatar name={username} size="sm" />
+                  <span>@{username}</span>
+                  <button type="button" onClick={() => void handleUnsend(username)}>Cancel</button>
+                </div>
+              ))}
+            </div>
+          </details>
+          <details>
+            <summary>Add a friend</summary>
+            <form className="discover-mobile-add-form" onSubmit={handleManualFriendRequest}>
+              <input aria-label="Friend username" placeholder="Enter username" value={friendInput} onChange={event => setFriendInput(event.target.value)} />
+              <button type="submit" disabled={isSendingFriend || !friendInput.trim()}><Send size={14} />{isSendingFriend ? 'Sending' : 'Add'}</button>
+            </form>
+          </details>
+        </div>
         {loading ? (
           <div style={{ padding: '48px 20px', textAlign: 'center', color: 'var(--text-muted)' }}>
             <div style={{ width: '28px', height: '28px', border: '3px solid #10b981', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 12px' }} />
@@ -248,69 +308,71 @@ export const DiscoverPanel: React.FC<DiscoverPanelProps> = ({ isCompact = false,
                     >
                       <MessageSquare style={{ width: '13px', height: '13px' }} /> Chat
                     </button>
-                  ) : requested ? (
-                    <button
-                      className="discover-person-action discover-person-action--requested"
-                      type="button"
-                      onMouseEnter={() => setHoveredUser(person.username)}
-                      onMouseLeave={() => setHoveredUser(null)}
-                      onClick={() => handleUnsend(person.username)}
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '5px',
-                        padding: '6px 14px',
-                        borderRadius: '9999px',
-                        background: isHovered ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.1)',
-                        border: isHovered ? '1px solid rgba(239, 68, 68, 0.35)' : '1px solid rgba(16, 185, 129, 0.25)',
-                        fontSize: '0.78rem',
-                        color: isHovered ? '#bd3750' : '#078779',
-                        fontWeight: 600,
-                        cursor: 'pointer',
-                        transition: 'all 0.2s ease',
-                      }}
-                      aria-label="Click to unsend friend request"
-                      title="Click to unsend friend request"
-                    >
-                      {isHovered ? (
-                        <>
-                          <X style={{ width: '13px', height: '13px' }} /> Unsend
-                        </>
-                      ) : (
-                        <>
-                          <UserCheck style={{ width: '13px', height: '13px' }} /> Requested
-                        </>
-                      )}
-                    </button>
                   ) : (
-                    <button
-                      className="btn discover-person-action discover-person-action--add"
-                      type="button"
-                      onClick={() => handleAdd(person.username)}
-                      disabled={pendingUser !== null}
-                      style={{
-                        background: 'rgba(16, 185, 129, 0.12)',
-                        border: '1px solid rgba(16, 185, 129, 0.3)',
-                        color: '#078779',
-                        padding: '6px 14px',
-                        fontSize: '0.78rem',
-                        borderRadius: '9999px',
-                        fontWeight: 700,
-                        boxShadow: 'none',
-                        cursor: 'pointer',
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.background = '#10b981';
-                        e.currentTarget.style.color = 'var(--text-main)';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.background = 'rgba(16, 185, 129, 0.12)';
-                        e.currentTarget.style.color = '#078779';
-                      }}
-                    >
-                      <UserPlus style={{ width: '14px', height: '14px' }} /> Add
-                    </button>
+                    <div style={{ display: 'flex', gap: 7, alignItems: 'center' }}>
+                      <button
+                        className="btn btn-secondary discover-person-action discover-person-action--chat"
+                        type="button"
+                        disabled={!person.canMessage}
+                        title={person.canMessage ? 'Message' : 'This user only accepts messages from friends'}
+                        aria-label={person.canMessage ? `Message ${person.username}` : `${person.username} only accepts messages from friends`}
+                        onClick={() => {
+                          if (!person.canMessage) return;
+                          triggerHaptic('light');
+                          setActiveChat(person.username);
+                          onOpenChat?.();
+                        }}
+                        style={{
+                          padding: '6px 9px',
+                          minWidth: '34px',
+                          fontSize: '0.78rem',
+                          borderRadius: '9999px',
+                          opacity: person.canMessage ? 1 : 0.55,
+                          cursor: person.canMessage ? 'pointer' : 'not-allowed',
+                        }}
+                      >
+                        <MessageSquare style={{ width: '15px', height: '15px' }} aria-hidden="true" />
+                      </button>
+                      {requested ? (
+                        <button
+                          className="discover-person-action discover-person-action--requested"
+                          type="button"
+                          onMouseEnter={() => setHoveredUser(person.username)}
+                          onMouseLeave={() => setHoveredUser(null)}
+                          onClick={() => handleUnsend(person.username)}
+                          style={{
+                            display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '6px 10px',
+                            borderRadius: '9999px',
+                            background: isHovered ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.1)',
+                            border: isHovered ? '1px solid rgba(239, 68, 68, 0.35)' : '1px solid rgba(16, 185, 129, 0.25)',
+                            fontSize: '0.78rem', color: isHovered ? '#bd3750' : '#078779', fontWeight: 600,
+                            cursor: 'pointer', transition: 'all 0.2s ease',
+                          }}
+                          aria-label="Click to unsend friend request"
+                          title="Click to unsend friend request"
+                        >
+                          {isHovered ? <><X style={{ width: '13px', height: '13px' }} /> Unsend</> : <><UserCheck style={{ width: '13px', height: '13px' }} /> Requested</>}
+                        </button>
+                      ) : (
+                        <button
+                          className="btn discover-person-action discover-person-action--add"
+                          type="button"
+                          onClick={() => handleAdd(person.username)}
+                          disabled={pendingUser !== null}
+                          style={{
+                            background: 'rgba(16, 185, 129, 0.12)', border: '1px solid rgba(16, 185, 129, 0.3)',
+                            color: '#078779', padding: '6px 10px', fontSize: '0.78rem', borderRadius: '9999px',
+                            fontWeight: 700, boxShadow: 'none', cursor: 'pointer',
+                          }}
+                          onMouseEnter={(e) => { e.currentTarget.style.background = '#10b981'; e.currentTarget.style.color = 'var(--text-main)'; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(16, 185, 129, 0.12)'; e.currentTarget.style.color = '#078779'; }}
+                        >
+                          <UserPlus style={{ width: '14px', height: '14px' }} /> Add
+                        </button>
+                      )}
+                    </div>
                   )}
+                  {}
                 </div>
               </div>
             );

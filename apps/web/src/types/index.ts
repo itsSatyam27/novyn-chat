@@ -93,6 +93,14 @@ export interface UserProfile {
   presenceMode?: 'online' | 'away' | 'busy' | 'invisible' | 'dnd' | 'offline';
   publicKey?: string;
   retentionDays?: 7 | 15 | 30;
+  callPrivacy?: 'everyone' | 'friends' | 'nobody';
+  messagePrivacy?: 'everyone' | 'friends' | 'nobody';
+  profilePhotoPrivacy?: 'everyone' | 'friends' | 'nobody';
+  presencePrivacy?: 'everyone' | 'friends' | 'nobody';
+  readReceiptsEnabled?: boolean;
+  typingIndicatorsEnabled?: boolean;
+  groupInvitePrivacy?: 'everyone' | 'friends' | 'nobody';
+  friendRequestPrivacy?: 'everyone' | 'mutuals' | 'nobody';
 }
 
 export interface Conversation {
@@ -114,6 +122,8 @@ export interface Conversation {
   publicKey?: string;
   /** Built-in private notes conversation addressed to the signed-in user. */
   isSelf?: boolean;
+  /** False when this is a direct message thread without a friend connection. */
+  isFriend?: boolean;
 }
 
 export interface FriendRequest {

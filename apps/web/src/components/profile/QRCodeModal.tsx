@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { QrCode, X, Copy, Check, Share2 } from 'lucide-react';
 import { Avatar } from '../ui/Avatar';
@@ -12,59 +12,6 @@ interface QRCodeModalProps {
   avatarUrl?: string;
 }
 
-// Generates a decorative procedural QR matrix from string
-function generateProceduralQR(input: string, size = 21): boolean[][] {
-  const grid: boolean[][] = Array.from({ length: size }, () => Array(size).fill(false));
-
-  // Position markers (7x7 in 3 corners)
-  const drawMarker = (r: number, c: number) => {
-    for (let i = 0; i < 7; i++) {
-      for (let j = 0; j < 7; j++) {
-        if (
-          i === 0 ||
-          i === 6 ||
-          j === 0 ||
-          j === 6 ||
-          (i >= 2 && i <= 4 && j >= 2 && j <= 4)
-        ) {
-          grid[r + i][c + j] = true;
-        }
-      }
-    }
-  };
-
-  drawMarker(0, 0);
-  drawMarker(0, size - 7);
-  drawMarker(size - 7, 0);
-
-  // Timing patterns
-  for (let i = 8; i < size - 8; i++) {
-    grid[6][i] = i % 2 === 0;
-    grid[i][6] = i % 2 === 0;
-  }
-
-  // Hash-based data fills
-  let hash = 0;
-  for (let i = 0; i < input.length; i++) {
-    hash = (hash << 5) - hash + input.charCodeAt(i);
-    hash |= 0;
-  }
-
-  for (let r = 0; r < size; r++) {
-    for (let c = 0; c < size; c++) {
-      const inTopLeft = r < 8 && c < 8;
-      const inTopRight = r < 8 && c >= size - 8;
-      const inBottomLeft = r >= size - 8 && c < 8;
-      if (!inTopLeft && !inTopRight && !inBottomLeft) {
-        const bit = ((hash ^ (r * 31 + c * 17)) & 1) === 1;
-        grid[r][c] = bit;
-      }
-    }
-  }
-
-  return grid;
-}
-
 export const QRCodeModal: React.FC<QRCodeModalProps> = ({
   isOpen,
   onClose,
@@ -73,11 +20,31 @@ export const QRCodeModal: React.FC<QRCodeModalProps> = ({
   avatarUrl,
 }) => {
   const [copied, setCopied] = useState(false);
+  const [qr, setQr] = useState('');
+  const [qrFailed, setQrFailed] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen || !username) return;
+    let cancelled = false;
+    setQr('');
+    setQrFailed(false);
+    const profileUrl = `${window.location.origin}/user/${encodeURIComponent(username)}`;
+    import('qrcode').then((module) => module.toDataURL(profileUrl, {
+      width: 240,
+      margin: 2,
+      errorCorrectionLevel: 'M',
+      color: { dark: '#18152d', light: '#ffffff' },
+    })).then((value) => {
+      if (!cancelled) setQr(value);
+    }).catch(() => {
+      if (!cancelled) setQrFailed(true);
+    });
+    return () => { cancelled = true; };
+  }, [isOpen, username]);
 
   if (!isOpen) return null;
 
-  const profileUrl = `${window.location.origin}/?user=${encodeURIComponent(username)}`;
-  const qrMatrix = generateProceduralQR(username);
+  const profileUrl = `${window.location.origin}/user/${encodeURIComponent(username)}`;
 
   const handleCopyLink = async () => {
     try {
@@ -114,7 +81,7 @@ export const QRCodeModal: React.FC<QRCodeModalProps> = ({
           style={{
             width: '100%',
             maxWidth: '380px',
-            background: 'linear-gradient(180deg, var(--bg-surface) 0%, #0a0f1d 100%)',
+            background: 'var(--bg-surface)',
             border: '1px solid var(--border)',
             borderRadius: '24px',
             boxShadow: '0 25px 50px -12px rgba(36, 76, 96, 0.1)',
@@ -171,23 +138,8 @@ export const QRCodeModal: React.FC<QRCodeModalProps> = ({
               justifyContent: 'center',
             }}
           >
-            <svg viewBox="0 0 21 21" style={{ width: '180px', height: '180px', display: 'block' }}>
-              {qrMatrix.map((row, r) =>
-                row.map((cell, c) =>
-                  cell ? (
-                    <rect
-                      key={`${r}-${c}`}
-                      x={c}
-                      y={r}
-                      width={1}
-                      height={1}
-                      fill="#0f172a"
-                      shapeRendering="crispEdges"
-                    />
-                  ) : null
-                )
-              )}
-            </svg>
+            {qr ? <img src={qr} alt={`Scannable profile QR code for @${username}`} style={{ width: '180px', height: '180px', display: 'block' }} />
+              : <span role={qrFailed ? 'alert' : 'status'} style={{ width: '180px', height: '180px', display: 'grid', placeItems: 'center', color: '#625a80', fontSize: '.8rem', textAlign: 'center' }}>{qrFailed ? 'Could not create QR code.' : 'Creating QR code…'}</span>}
           </div>
 
           <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', textAlign: 'center', maxWidth: '260px' }}>

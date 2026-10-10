@@ -8,6 +8,7 @@ function createChatAuthorization(deps) {
     toDisplayName,
     isGroupMember,
     getConversationKey,
+    conversations,
     getGroupConversationKey,
   } = deps;
 
@@ -80,7 +81,9 @@ function createChatAuthorization(deps) {
       }
     }
 
-    if (!friend || !me.friends.has(resolvedFriendKey)) {
+    const hasConversation = Boolean(friend && conversations?.get(getConversationKey(userKey, resolvedFriendKey))?.length);
+    const canMessage = friend && (hasConversation || (friend.messagePrivacy !== "nobody" && (me.friends.has(resolvedFriendKey) || friend.messagePrivacy === "everyone")));
+    if (!friend || !canMessage) {
       return { ok: false, message: "You can message only your friends." };
     }
 

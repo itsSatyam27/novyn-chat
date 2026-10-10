@@ -22,12 +22,13 @@ const SettingsDetailView = lazy(() => import('../settings/SettingsDetailView').t
 const CallModal = lazy(() => import('../calls/CallModal').then((m) => ({ default: m.CallModal })));
 import { setupMobileEnvironment } from '../../services/capacitor';
 import { NovynLogo } from '../ui/NovynLogo';
+import { SettingsToast } from '../settings/SettingsToast';
 
 const DEFAULT_PANEL_WIDTH = 340;
 
 export const AppLayout: React.FC = () => {
   const { isAuthenticated, isLoading } = useAuth();
-  const { activeChat, blockedUsers, markMissedCallsRead, callLogs } = useChat();
+  const { activeChat, blockedUsers, markMissedCallsRead, callLogs, callNotice, dismissCallNotice } = useChat();
   const [activeTab, setActiveTab] = useState<NavTab>('chats');
   const [settingsCategory, setSettingsCategory] = useState<SettingsMainCategory>('profile');
   const [settingsSubSection, setSettingsSubSection] = useState<SettingsSubSection>('profile-details');
@@ -175,7 +176,7 @@ export const AppLayout: React.FC = () => {
         <Suspense fallback={<div role="status" style={{ padding: 24, color: 'var(--text-muted)' }}>Loading view…</div>}>
         {activeTab === 'settings' ? (
           <div className="settings-workspace">
-              {!settingsSubSection.startsWith('privacy-') && !['feedback-send', 'feedback-bug', 'feedback-feature', 'appear-accessibility', 'storage-cache', 'storage-export', 'storage-security', 'profile-details', 'appear-language', 'appear-theme', 'notif-sounds', 'notif-calls', 'notif-previews'].includes(settingsSubSection) && <SettingsSubPanel
+              {!settingsSubSection.startsWith('privacy-') && !['security-dashboard', 'feedback-send', 'feedback-bug', 'feedback-feature', 'appear-accessibility', 'storage-cache', 'storage-export', 'storage-security', 'profile-details', 'appear-language', 'appear-theme', 'notif-sounds', 'notif-calls', 'notif-previews'].includes(settingsSubSection) && <SettingsSubPanel
                 activeCategory={settingsCategory}
                 activeSubSection={settingsSubSection}
                 onSelectSubSection={setSettingsSubSection}
@@ -186,7 +187,7 @@ export const AppLayout: React.FC = () => {
               activeSubSection={settingsSubSection}
               isVisible={windowWidth > 768 || isMobileSettingsDetailOpen}
               onSelectSection={(category, section) => { setSettingsCategory(category); setSettingsSubSection(section); }}
-              onBack={windowWidth <= 768 && (settingsSubSection.startsWith('privacy-') || ['feedback-send', 'feedback-bug', 'feedback-feature', 'appear-accessibility', 'storage-cache', 'storage-export', 'storage-security', 'profile-details', 'appear-language', 'appear-theme', 'notif-sounds', 'notif-calls', 'notif-previews'].includes(settingsSubSection)) ? () => setIsMobileSettingsDetailOpen(false) : undefined}
+              onBack={windowWidth <= 768 && (settingsSubSection.startsWith('privacy-') || ['security-dashboard', 'feedback-send', 'feedback-bug', 'feedback-feature', 'appear-accessibility', 'storage-cache', 'storage-export', 'storage-security', 'profile-details', 'appear-language', 'appear-theme', 'notif-sounds', 'notif-calls', 'notif-previews'].includes(settingsSubSection)) ? () => setIsMobileSettingsDetailOpen(false) : undefined}
             />
           </div>
         ) : activeTab === 'calls' ? <CallsWorkspace onOpenContacts={() => setActiveTab('contacts')} /> : activeTab === 'contacts' ? <ContactsDashboard onOpenChat={() => setActiveTab('chats')} /> : activeTab === 'chats' && !activeChat ? (
@@ -219,6 +220,7 @@ export const AppLayout: React.FC = () => {
       />
 
       {/* WebRTC Audio/Video Call Overlay */}
+      {callNotice && <SettingsToast notice={callNotice} onDismiss={dismissCallNotice} />}
       <CallModal />
     </div>
   );

@@ -1,0 +1,123 @@
+/* CallsPanel CSS - Sleek modern sidebar for Calls */
+
+.calls-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  width: 100%;
+}
+
+.calls-history-tools {
+  padding: 8px 16px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.calls-history-search {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  height: 38px;
+  padding: 0 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.35);
+  color: var(--text-muted, #94a3b8);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  cursor: text;
+}
+
+.calls-history-search:focus-within {
+  border-color: #8b5cf6;
+  box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.25);
+  color: #c4b5fd;
+}
+
+.calls-history-search svg {
+  flex-shrink: 0;
+  color: #94a3b8;
+  transition: color 0.15s ease;
+}
+
+.calls-history-search:focus-within svg {
+  color: #8b5cf6;
+}
+
+.calls-history-search input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: #ffffff;
+  font: inherit;
+  font-size: 0.8rem;
+}
+
+.calls-history-search input::placeholder {
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.calls-history-filters {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding-bottom: 2px;
+}
+
+.calls-history-filters::-webkit-scrollbar {
+  display: none;
+}
+
+.calls-history-filters button {
+  flex: 0 0 auto;
+  padding: 5px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  color: #94a3b8;
+  font: inherit;
+  font-size: 0.74rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.calls-history-filters button:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.calls-history-filters button[aria-pressed="true"] {
+  border-color: transparent;
+  background: #7c3aed;
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(124, 58, 237, 0.35);
+}
+
+.calls-panel .header-action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--primary, #a78bfa);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.calls-panel .header-action-btn:hover {
+  background: rgba(139, 92, 246, 0.2);
+  border-color: rgba(139, 92, 246, 0.4);
+  color: #ffffff;
+  transform: scale(1.04);
+}
+

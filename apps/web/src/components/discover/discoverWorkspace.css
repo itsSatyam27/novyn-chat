@@ -37,11 +37,14 @@
   position: relative;
   display: grid;
   place-items: center;
+  justify-self: center;
+  align-self: center;
   width: min(100%, 240px);
   aspect-ratio: 1;
   border: 1px solid color-mix(in srgb, var(--discover-accent) 38%, transparent);
   border-radius: 50%;
   background: radial-gradient(circle, color-mix(in srgb, var(--discover-accent) 17%, transparent), transparent 68%);
+  transform: translate(-8px, -16px);
 }
 
 .radar-scan,
@@ -119,14 +122,39 @@
 .qr-copy p { margin: 0; color: var(--text-muted); font-size: .72rem; }
 .discover-qr-button { justify-self: start; display: inline-flex; align-items: center; gap: 6px; min-height: 28px; padding: 0 9px; border: 1px solid var(--border); border-radius: 999px; background: transparent; color: var(--text-main); font: inherit; font-size: .68rem; }
 
+.discover-mobile-tools { display: none; flex: 0 0 auto; flex-direction: column; gap: 7px; padding: 2px 0 12px; }
+.discover-mobile-tools details { overflow: hidden; border: 1px solid var(--border); border-radius: 13px; background: var(--bg-surface); }
+.discover-mobile-tools summary { display: flex; min-height: 42px; align-items: center; justify-content: space-between; gap: 10px; padding: 0 13px; color: var(--text-main); font-size: .8rem; font-weight: 700; cursor: pointer; list-style: none; }
+.discover-mobile-tools summary::-webkit-details-marker { display: none; }
+.discover-mobile-tools summary::after { content: '⌄'; color: var(--text-muted); font-size: 1rem; }
+.discover-mobile-tools details[open] summary { border-bottom: 1px solid var(--border); }
+.discover-mobile-tools summary span { display: inline-grid; min-width: 20px; height: 20px; margin-left: auto; place-items: center; padding: 0 5px; border-radius: 999px; background: var(--primary-glow); color: var(--primary); font-size: .68rem; }
+.discover-mobile-tools-content { display: grid; gap: 7px; padding: 9px; }
+.discover-mobile-tools-content > p { margin: 3px; color: var(--text-muted); font-size: .74rem; }
+.discover-mobile-request { display: flex; min-width: 0; align-items: center; gap: 8px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 11px; color: var(--text-main); font-size: .75rem; }
+.discover-mobile-request > span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.discover-mobile-request > button, .discover-mobile-add-form > button { display: inline-flex; min-height: 30px; align-items: center; justify-content: center; gap: 5px; padding: 0 9px; border: 1px solid var(--border); border-radius: 9px; background: var(--bg-surface-hover, var(--bg-main)); color: var(--text-main); font: inherit; font-size: .7rem; cursor: pointer; }
+.discover-mobile-request > button:first-of-type { color: var(--primary); }
+.discover-mobile-add-form { display: flex; gap: 7px; padding: 9px; }
+.discover-mobile-add-form > input { flex: 1; min-width: 0; height: 38px; padding: 0 11px; border: 1px solid var(--border); border-radius: 10px; outline: none; background: var(--bg-input, var(--bg-main)); color: var(--text-main); font: inherit; font-size: .78rem; }
+.discover-mobile-add-form > input:focus { border-color: var(--primary); }
+.discover-mobile-add-form > button { min-height: 38px; padding-inline: 12px; border-color: transparent; background: var(--primary); color: #fff; font-weight: 700; }
+.discover-mobile-add-form > button:disabled { opacity: .5; cursor: not-allowed; }
+
 @media (max-width: 1050px) {
   .discover-lower-grid { grid-template-columns: 1fr; }
   .discover-requests-card, .discover-add-card, .discover-sent-card, .discover-qr-card { grid-column: auto; grid-row: auto; }
 }
+@media (max-width: 768px) {
+  .discover-mobile-tools { display: flex; }
+  .discover-panel .conversations-scroll { overflow-y: auto !important; }
+  .discover-panel .discover-empty-state { flex: 0 0 auto; }
+  .discover-panel .conversations-scroll > div[style*="text-align: center"] { padding-top: 30px !important; padding-bottom: 30px !important; }
+}
 @media (max-width: 650px) {
   .discover-workspace { padding: 14px 12px 88px; }
   .discover-hero-card { grid-template-columns: 1fr; min-height: 0; gap: 14px; padding: 20px; }
-  .discover-radar { width: 112px; justify-self: center; }
+  .discover-radar { width: 112px; justify-self: center; transform: none; }
   .discover-hero-card h1 { font-size: 1.5rem; }
   .discover-request-row { grid-template-columns: minmax(0, 1fr) auto; }
   .request-actions { gap: 4px; }
