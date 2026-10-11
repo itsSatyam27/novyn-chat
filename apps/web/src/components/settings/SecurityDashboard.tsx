@@ -17,9 +17,12 @@ import {
 import { MessageKeyTransferDialog } from '../chat/MessageKeyTransferDialog';
 import { getMyPublicKeyJwk } from '../../services/e2ee';
 import { SettingsToast, type SettingsNotice } from './SettingsToast';
+import type { SettingsMainCategory, SettingsSubSection } from './SettingsPanel';
 import './securityDashboard.css';
 
-export function SecurityDashboard() {
+export function SecurityDashboard({ onSelectSection }: {
+  onSelectSection?: (category: SettingsMainCategory, section: SettingsSubSection) => void;
+} = {}) {
   const [keysOpen, setKeysOpen] = useState(false);
   const [keysReady, setKeysReady] = useState<boolean | null>(null);
   const [notice, setNotice] = useState<SettingsNotice | null>(null);
@@ -39,21 +42,37 @@ export function SecurityDashboard() {
   }, []);
 
   const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
+  const isLocalhost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 
   const handleUseHttps = () => {
+    if (isLocalhost) {
+      setNotice({
+        text: 'HTTPS is enforced in production. Local development runs on HTTP.',
+        error: false,
+      });
+      return;
+    }
     if (!isHttps && typeof window !== 'undefined') {
       window.location.href = window.location.href.replace('http:', 'https:');
     }
   };
 
-  const handleMobileFeatureClick = (title: string, path: string) => {
+  const handleMobileFeatureClick = (title: string, path: string, section?: SettingsSubSection) => {
+    if (section && onSelectSection) {
+      onSelectSection('privacy', section);
+      return;
+    }
     setNotice({
       text: `${title}: Manage this in the Novyn mobile app (${path}).`,
       error: false,
     });
   };
 
-  const handleComingSoonClick = (title: string) => {
+  const handleComingSoonClick = (title: string, section?: SettingsSubSection) => {
+    if (section && onSelectSection) {
+      onSelectSection('privacy', section);
+      return;
+    }
     setNotice({
       text: `${title}: This feature is currently in development.`,
       error: false,
@@ -214,7 +233,7 @@ export function SecurityDashboard() {
                 <button
                   type="button"
                   className="security-mobile-tile"
-                  onClick={() => handleMobileFeatureClick('Change Password', 'Settings > Security & Privacy > Change Password')}
+                  onClick={() => handleMobileFeatureClick('Change Password', 'Settings > Security & Privacy > Change Password', 'privacy-password')}
                 >
                   <div className="security-mobile-tile-icon">
                     <User size={18} />
@@ -226,7 +245,7 @@ export function SecurityDashboard() {
                 <button
                   type="button"
                   className="security-mobile-tile"
-                  onClick={() => handleMobileFeatureClick('App Lock', 'Settings > Security & Privacy > App Lock')}
+                  onClick={() => handleMobileFeatureClick('App Lock', 'Settings > Security & Privacy > App Lock', 'privacy-app-lock')}
                 >
                   <div className="security-mobile-tile-icon">
                     <Lock size={18} />
@@ -238,7 +257,7 @@ export function SecurityDashboard() {
                 <button
                   type="button"
                   className="security-mobile-tile"
-                  onClick={() => handleMobileFeatureClick('Stealth Mode', 'Settings > Security & Privacy > Stealth Mode')}
+                  onClick={() => handleMobileFeatureClick('Stealth Mode', 'Settings > Security & Privacy > Stealth Mode', 'privacy-stealth')}
                 >
                   <div className="security-mobile-tile-icon">
                     <EyeOff size={18} />
@@ -262,7 +281,7 @@ export function SecurityDashboard() {
             <button
               type="button"
               className="security-soon-item"
-              onClick={() => handleComingSoonClick('Two-Factor Authentication')}
+              onClick={() => handleComingSoonClick('Two-Factor Authentication', 'privacy-two-factor')}
             >
               <div className="security-soon-item-left">
                 <FileText size={16} />
@@ -274,7 +293,7 @@ export function SecurityDashboard() {
             <button
               type="button"
               className="security-soon-item"
-              onClick={() => handleComingSoonClick('Active Sessions')}
+              onClick={() => handleComingSoonClick('Active Sessions', 'privacy-sessions')}
             >
               <div className="security-soon-item-left">
                 <Clock size={16} />
@@ -286,7 +305,7 @@ export function SecurityDashboard() {
             <button
               type="button"
               className="security-soon-item"
-              onClick={() => handleComingSoonClick('Linked Devices')}
+              onClick={() => handleComingSoonClick('Linked Devices', 'privacy-linked-devices')}
             >
               <div className="security-soon-item-left">
                 <Laptop size={16} />
@@ -298,7 +317,7 @@ export function SecurityDashboard() {
             <button
               type="button"
               className="security-soon-item"
-              onClick={() => handleComingSoonClick('Account Actions')}
+              onClick={() => handleComingSoonClick('Account Actions', 'privacy-danger')}
             >
               <div className="security-soon-item-left">
                 <Sliders size={16} />

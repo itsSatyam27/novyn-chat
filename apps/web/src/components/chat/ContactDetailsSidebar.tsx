@@ -1074,6 +1074,47 @@ export const ContactDetailsSidebar: React.FC<ContactDetailsSidebarProps> = ({
                 </div>
                 <ExternalLink style={{ width: '15px', height: '15px', color: 'var(--text-dark)' }} />
               </div>
+
+              {/* Export Chat History */}
+              <div
+                onClick={() => {
+                  triggerHaptic('light');
+                  setIsExportModalOpen(true);
+                }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '12px 14px',
+                  cursor: 'pointer',
+                  borderTop: '1px solid var(--border)',
+                  transition: 'background 0.15s ease',
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255, 255, 255, 0.55)')}
+                onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <div
+                    style={{
+                      width: '32px',
+                      height: '32px',
+                      borderRadius: '8px',
+                      background: 'rgba(99, 102, 241, 0.15)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: '#6366f1',
+                    }}
+                  >
+                    <Download style={{ width: '16px', height: '16px' }} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '0.86rem', fontWeight: 600, color: 'var(--text-main)' }}>Export Chat History</div>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Download transcript (.txt or .json)</div>
+                  </div>
+                </div>
+                <ExternalLink style={{ width: '15px', height: '15px', color: 'var(--text-dark)' }} />
+              </div>
             </div>
           </div>
 

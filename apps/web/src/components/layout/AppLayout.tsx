@@ -1,5 +1,5 @@
 import { ContactsDashboard } from '../contacts/ContactsDashboard';
-import React, { lazy, Suspense, useState, useEffect } from 'react';
+import React, { lazy, Suspense, useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useChat } from '../../context/ChatContext';
 const LandingPage = lazy(() => import('../landing/LandingPage').then((m) => ({ default: m.LandingPage })));
@@ -23,20 +23,150 @@ const CallModal = lazy(() => import('../calls/CallModal').then((m) => ({ default
 import { setupMobileEnvironment } from '../../services/capacitor';
 import { NovynLogo } from '../ui/NovynLogo';
 import { SettingsToast } from '../settings/SettingsToast';
+import { parseHash, subSectionToSlug } from '../../services/router';
+import { handleModalPopState } from '../../services/modalStack';
 
 const DEFAULT_PANEL_WIDTH = 340;
 
 export const AppLayout: React.FC = () => {
   const { isAuthenticated, isLoading } = useAuth();
-  const { activeChat, blockedUsers, markMissedCallsRead, callLogs, callNotice, dismissCallNotice } = useChat();
-  const [activeTab, setActiveTab] = useState<NavTab>('chats');
-  const [settingsCategory, setSettingsCategory] = useState<SettingsMainCategory>('profile');
-  const [settingsSubSection, setSettingsSubSection] = useState<SettingsSubSection>('profile-details');
+  const { activeChat, setActiveChat, blockedUsers, markMissedCallsRead, callLogs, callNotice, dismissCallNotice, conversations, unreadMissedCallCount } = useChat();
+
+  const [initialRoute] = useState(() => parseHash());
+  const [activeTab, setActiveTab] = useState<NavTab>(() => initialRoute.tab);
+  const [settingsCategory, setSettingsCategory] = useState<SettingsMainCategory>(() =>
+    initialRoute.tab === 'settings' ? initialRoute.category : 'profile'
+  );
+  const [settingsSubSection, setSettingsSubSection] = useState<SettingsSubSection>(() =>
+    initialRoute.tab === 'settings' ? initialRoute.subSection : 'profile-details'
+  );
   const [isListCollapsed, setIsListCollapsed] = useState(false);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
-  const [isMobileSettingsDetailOpen, setIsMobileSettingsDetailOpen] = useState(false);
+  const [isMobileSettingsDetailOpen, setIsMobileSettingsDetailOpen] = useState<boolean>(() =>
+    initialRoute.tab === 'settings' ? Boolean(initialRoute.isDetailOpen) : false
+  );
   const [windowWidth, setWindowWidth] = useState(window.innerWidth);
+
+  const isInternalNavRef = useRef(false);
+
+  // Restore initial chat if specified in deep link
+  useEffect(() => {
+    if (initialRoute.tab === 'chats' && initialRoute.chat && isAuthenticated) {
+      setActiveChat(initialRoute.chat);
+    }
+  }, [isAuthenticated, initialRoute, setActiveChat]);
+
+  // Handle browser Back / Forward buttons and mobile gestures
+  useEffect(() => {
+    const handlePopState = () => {
+      if (isInternalNavRef.current) return;
+      // If an open modal was dismissed by Back button, do not navigate the underlying page
+      if (handleModalPopState()) return;
+
+      const route = parseHash();
+      setActiveTab(route.tab);
+      if (route.tab === 'chats') {
+        setActiveChat(route.chat);
+      } else {
+        setActiveChat(null);
+      }
+      if (route.tab === 'settings') {
+        setSettingsCategory(route.category);
+        setSettingsSubSection(route.subSection);
+        setIsMobileSettingsDetailOpen(Boolean(route.isDetailOpen));
+      } else {
+        setIsMobileSettingsDetailOpen(false);
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    window.addEventListener('hashchange', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+      window.removeEventListener('hashchange', handlePopState);
+    };
+  }, [setActiveChat]);
+
+  const totalUnreadMessages = conversations.reduce((acc, conv) => acc + (conv.unreadCount || 0), 0);
+
+  // Dynamic document.title synchronization
+  useEffect(() => {
+    if (!isAuthenticated) {
+      document.title = 'Novyn Chat';
+      return;
+    }
+    let title = 'Novyn Chat';
+    if (activeTab === 'chats') {
+      if (activeChat) {
+        title = `${activeChat} — Novyn Chat`;
+      } else {
+        title = totalUnreadMessages > 0 ? `(${totalUnreadMessages}) Novyn Chat` : 'Novyn Chat';
+      }
+    } else if (activeTab === 'calls') {
+      title = unreadMissedCallCount > 0 ? `(${unreadMissedCallCount}) Calls — Novyn` : 'Calls — Novyn';
+    } else if (activeTab === 'contacts') {
+      title = 'Contacts — Novyn';
+    } else if (activeTab === 'discover') {
+      title = 'Discover — Novyn';
+    } else if (activeTab === 'settings') {
+      const sectionName =
+        settingsSubSection === 'security-dashboard' ? 'Security' :
+        settingsSubSection === 'profile-details' ? 'Profile' :
+        settingsSubSection.startsWith('privacy-') ? 'Privacy & Security' :
+        settingsSubSection.startsWith('appear-') ? 'Appearance' :
+        settingsSubSection.startsWith('notif-') ? 'Notifications' :
+        settingsSubSection.startsWith('storage-') ? 'Storage' : 'Settings';
+      title = `${sectionName} — Novyn Settings`;
+    }
+    document.title = title;
+  }, [isAuthenticated, activeTab, activeChat, settingsSubSection, totalUnreadMessages, unreadMissedCallCount]);
+
+  // Synchronize internal state changes with browser URL and history
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    let targetHash: string;
+    if (activeTab === 'chats') {
+      targetHash = activeChat ? `#/chats/${encodeURIComponent(activeChat)}` : '#/chats';
+    } else if (activeTab === 'calls') {
+      targetHash = '#/calls';
+    } else if (activeTab === 'contacts') {
+      targetHash = '#/contacts';
+    } else if (activeTab === 'discover') {
+      targetHash = '#/discover';
+    } else {
+      if (windowWidth <= 768 && !isMobileSettingsDetailOpen) {
+        targetHash = '#/settings';
+      } else {
+        targetHash = `#/settings/${subSectionToSlug(settingsSubSection)}`;
+      }
+    }
+
+    if (window.location.hash !== targetHash) {
+      isInternalNavRef.current = true;
+      window.history.pushState(null, '', targetHash);
+      setTimeout(() => {
+        isInternalNavRef.current = false;
+      }, 50);
+    }
+  }, [isAuthenticated, activeTab, activeChat, settingsSubSection, isMobileSettingsDetailOpen, windowWidth]);
+
+  // Escape key handler for desktop & tablet keyboards
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (activeChat) {
+          if (window.history.length > 1) window.history.back();
+          else setActiveChat(null);
+        } else if (isMobileSettingsDetailOpen) {
+          if (window.history.length > 1) window.history.back();
+          else setIsMobileSettingsDetailOpen(false);
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [activeChat, isMobileSettingsDetailOpen, setActiveChat]);
 
   useEffect(() => {
     const handleResize = () => setWindowWidth(window.innerWidth);
@@ -181,13 +311,19 @@ export const AppLayout: React.FC = () => {
                 activeSubSection={settingsSubSection}
                 onSelectSubSection={setSettingsSubSection}
                 blockedCount={blockedUsers.size}
-                onBack={windowWidth <= 768 ? () => setIsMobileSettingsDetailOpen(false) : undefined}
+                onBack={windowWidth <= 768 ? () => {
+                  if (window.history.length > 1) window.history.back();
+                  else setIsMobileSettingsDetailOpen(false);
+                } : undefined}
               />}
             <SettingsDetailView
               activeSubSection={settingsSubSection}
               isVisible={windowWidth > 768 || isMobileSettingsDetailOpen}
               onSelectSection={(category, section) => { setSettingsCategory(category); setSettingsSubSection(section); }}
-              onBack={windowWidth <= 768 && (settingsSubSection.startsWith('privacy-') || ['security-dashboard', 'feedback-send', 'feedback-bug', 'feedback-feature', 'appear-accessibility', 'storage-cache', 'storage-export', 'storage-security', 'profile-details', 'appear-language', 'appear-theme', 'notif-sounds', 'notif-calls', 'notif-previews'].includes(settingsSubSection)) ? () => setIsMobileSettingsDetailOpen(false) : undefined}
+              onBack={windowWidth <= 768 && (settingsSubSection.startsWith('privacy-') || ['security-dashboard', 'feedback-send', 'feedback-bug', 'feedback-feature', 'appear-accessibility', 'storage-cache', 'storage-export', 'storage-security', 'profile-details', 'appear-language', 'appear-theme', 'notif-sounds', 'notif-calls', 'notif-previews'].includes(settingsSubSection)) ? () => {
+                if (window.history.length > 1) window.history.back();
+                else setIsMobileSettingsDetailOpen(false);
+              } : undefined}
             />
           </div>
         ) : activeTab === 'calls' ? <CallsWorkspace onOpenContacts={() => setActiveTab('contacts')} /> : activeTab === 'contacts' ? <ContactsDashboard onOpenChat={() => setActiveTab('chats')} /> : activeTab === 'chats' && !activeChat ? (

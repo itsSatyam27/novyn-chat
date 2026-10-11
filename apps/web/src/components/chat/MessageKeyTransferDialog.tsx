@@ -1,10 +1,19 @@
 import { useEffect, useId, useRef } from 'react';
 import { X } from 'lucide-react';
 import { MessageKeyTransfer } from '../settings/MessageKeyTransfer';
+import { registerModal } from '../../services/modalStack';
 
 export function MessageKeyTransferDialog({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const titleId = useId();
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
+
+  useEffect(() => {
+    if (!isOpen) return;
+    return registerModal(titleId, () => closeRef.current());
+  }, [isOpen, titleId]);
+
   useEffect(() => {
     if (isOpen) dialog.current?.showModal();
     else dialog.current?.close();

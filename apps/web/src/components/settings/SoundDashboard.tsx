@@ -3,6 +3,7 @@ import { BellOff, BellRing, Phone, Play, Square, Volume2 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { setBrowserPreference, useBrowserPreference } from '../../services/browserPreferences';
 import { getSoundVolume, MESSAGE_CHIMES, previewSound, refreshCallAudioVolume, stopAllCallAudio } from '../../services/audioManager';
+import { triggerHaptic } from '../../services/capacitor';
 import { SettingsToast, type SettingsNotice } from './SettingsToast';
 import { NotificationSettings } from './NotificationSettings';
 
@@ -96,7 +97,7 @@ export function SoundDashboard({ active = true }: { active?: boolean }) {
           onLiveChange={volume => { if (playing === 'message') { if (!volume) stop(); else preview.current?.setVolume(volume); } }} /></div>
         <div className="sound-chime-options" role="group" aria-label="Message chime">
           {MESSAGE_CHIMES.map(item => <button key={item.id} type="button" aria-pressed={item.id === chime}
-            onClick={() => { if (save('novyn_message_chime', item.id) && sound && getSoundVolume('message') > 0) play('message'); }}>{item.name}</button>)}
+            onClick={() => { triggerHaptic('light'); if (save('novyn_message_chime', item.id) && sound && getSoundVolume('message') > 0) play('message'); }}>{item.name}</button>)}
         </div>
       </article>
       <article className={'appearance-card sound-busy-card' + (busy ? ' is-active' : '')}>
@@ -115,7 +116,7 @@ export function SoundDashboard({ active = true }: { active?: boolean }) {
           onLiveChange={volume => { if (playing && playing !== 'message') { if (!volume) stop(); else preview.current?.setVolume(volume); } }} /></div>
         <div className="sound-call-previews" role="group" aria-label="Call preview type">
           {(['ringtone', 'ringback'] as const).map(kind => <button key={kind} type="button" aria-pressed={callPreview === kind}
-            onClick={() => { setCallPreview(kind); if (calls && getSoundVolume('call') > 0) play(kind); }}>
+            onClick={() => { triggerHaptic('light'); setCallPreview(kind); if (calls && getSoundVolume('call') > 0) play(kind); }}>
             {kind === 'ringtone' ? <Phone size={15} /> : <Volume2 size={15} />}
             {kind === 'ringtone' ? 'Ringtone' : 'Ringback'}
           </button>)}

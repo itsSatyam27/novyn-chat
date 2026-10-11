@@ -578,10 +578,22 @@
 
 :root .app-container[data-tab="settings"] .settings-detail--storage .settings-detail-body > .storage-dashboard { width: 100%; max-width: 1160px !important; }
 .storage-dashboard { --storage-card-bg: #fcfbff; }
-:root[data-color-mode="dark"] .storage-dashboard { --storage-card-bg: #13111e; }
+:root[data-color-mode="dark"] .storage-dashboard { --storage-card-bg: #130e24; }
+:root[data-color-mode="dark"] .storage-card,
+:root[data-color-mode="dark"] .storage-inventory {
+  background: #130e24;
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.32);
+}
+:root[data-color-mode="light"] .storage-card,
+:root[data-color-mode="light"] .storage-inventory {
+  background: #ffffff;
+  border-color: rgba(124, 58, 237, 0.14);
+  box-shadow: 0 4px 20px rgba(99, 102, 241, 0.06);
+}
 .storage-grid { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-areas: 'usage'; gap: 14px; }
 .storage-utility-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-top: 14px; }
-.storage-card { min-width: 0; padding: 24px; border: 1px solid var(--border); border-radius: 24px; background: var(--storage-card-bg); }
+.storage-card { min-width: 0; padding: 24px; border: 1px solid var(--border); border-radius: 24px; background: var(--storage-card-bg); transition: border-color 0.2s ease, box-shadow 0.2s ease; }
 .storage-card h3 { margin: 0; color: var(--text-main); font-size: 18px; line-height: 1.35; letter-spacing: -.3px; }
 .storage-card p { margin: 8px 0 0; color: var(--text-muted); font-size: 12px; line-height: 1.65; }
 .storage-eyebrow { display: block; margin-bottom: 7px; color: var(--primary); font-size: 10px; letter-spacing: 1.1px; text-transform: uppercase; }
@@ -766,7 +778,7 @@
 .privacy-overview-grid > .security-card { padding: 22px; border-radius: 24px; text-align: left; }
 .privacy-preview-card, .privacy-reach-card, .privacy-blocked-card, .privacy-retention-card { grid-column: span 2; }
 .privacy-overview-grid .security-card h3 { display: flex; align-items: center; gap: 10px; margin: 0 0 16px; font-size: 17px; font-weight: 700; line-height: 1.4; letter-spacing: -.3px; }
-.privacy-heading-icon { display: grid; place-items: center; flex-shrink: 0; width: 28px; height: 28px; border-radius: 9px; background: var(--primary-glow); color: var(--primary); }
+.privacy-heading-icon { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 32px; height: 32px; border-radius: 10px; background: rgba(124, 58, 237, 0.14); color: #a78bfa; border: 1px solid rgba(167, 139, 250, 0.2); }
 .privacy-preview-layout { display: grid; grid-template-columns: minmax(120px, .85fr) minmax(0, 1.1fr); gap: 14px; }
 .privacy-profile-preview { display: flex; flex-direction: column; align-items: center; min-height: 220px; padding: 16px 10px; border: 1px solid color-mix(in srgb, var(--primary) 35%, var(--border)); border-radius: 20px; background: linear-gradient(145deg, var(--primary-glow), transparent); text-align: center; }
 .privacy-preview-avatar { position: relative; display: grid; place-items: center; width: 64px; height: 64px; margin-bottom: 10px; border: 4px solid #a77aff44; border-radius: 50%; background: linear-gradient(145deg, #c1a3ff, #8041ed); color: white; font-size: 30px; font-weight: 800; }
@@ -848,8 +860,17 @@
   .privacy-blocked-card .web-block-form .btn { justify-self: start; }
   .blocked-list-launch { align-items: flex-start; flex-direction: column; }
 }
-.security-card { min-width: 0; padding: 20px; border: 1px solid var(--border); border-radius: 22px; background: #fcfbff; }
-:root[data-color-mode="dark"] .security-card { background: #13111e; }
+.security-card { min-width: 0; padding: 20px; border: 1px solid var(--border); border-radius: 22px; background: #fcfbff; transition: border-color 0.2s ease, box-shadow 0.2s ease; }
+:root[data-color-mode="dark"] .security-card {
+  background: #130e24;
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.32);
+}
+:root[data-color-mode="light"] .security-card {
+  background: #ffffff;
+  border-color: rgba(124, 58, 237, 0.14);
+  box-shadow: 0 4px 20px rgba(99, 102, 241, 0.06);
+}
 .security-card h3 { display: flex; align-items: center; gap: 10px; font-size: 16px; margin: 0 0 8px; }
 .security-card h3 svg { color: var(--primary); flex-shrink: 0; }
 .security-card > p { color: var(--text-muted); font-size: 11px; line-height: 1.55; margin: 0 0 12px; }

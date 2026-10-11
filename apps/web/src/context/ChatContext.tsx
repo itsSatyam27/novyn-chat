@@ -985,24 +985,50 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
 
     // Private Message Incoming
-    socket.on('private_message', (rawMsg: any) => {
+    socket.on('private_message', async (rawMsg: any) => {
       const sender = rawMsg.from || rawMsg.sender || rawMsg.fromKey;
       const receiver = rawMsg.to || rawMsg.receiver || rawMsg.toKey;
       const clientTempId = rawMsg.clientTempId;
-      const pendingSend = sender?.toLowerCase() === user.username.toLowerCase() && clientTempId
+      const isMine = sender?.toLowerCase() === user.username.toLowerCase();
+      const pendingSend = isMine && clientTempId
         ? pendingSendsRef.current.get(clientTempId)
         : undefined;
-      if (sender?.toLowerCase() === user.username.toLowerCase() && clientTempId) pendingSendsRef.current.delete(clientTempId);
+      if (isMine && clientTempId) pendingSendsRef.current.delete(clientTempId);
       const msgId = rawMsg.id || rawMsg.messageId || clientTempId || String(Date.now());
       const status: MessageStatus = rawMsg.seenAt ? 'seen' : rawMsg.deliveredAt ? 'delivered' : rawMsg.status || 'sent';
+
+      const partner = isMine ? receiver : sender;
+      let resolvedText = rawMsg.text || '';
+
+      if (rawMsg.isEncrypted) {
+        if (pendingSend?.text) {
+          resolvedText = pendingSend.text;
+        } else if (rawMsg.ciphertext && rawMsg.iv && partner) {
+          const partnerConv = conversationsRef.current.find(
+            (c) => c.username.toLowerCase() === partner.toLowerCase()
+          );
+          const peerKey = rawMsg.publicKey || partnerConv?.publicKey;
+          if (peerKey) {
+            try {
+              const clearText = await decryptMessageContent(rawMsg.ciphertext, rawMsg.iv, partner.toLowerCase(), peerKey);
+              if (clearText) {
+                resolvedText = clearText;
+              }
+            } catch (err) {
+              console.warn('[E2EE] Immediate decrypt failed:', err);
+            }
+          }
+        }
+        if (!resolvedText) {
+          resolvedText = ENCRYPTED_MESSAGE_PLACEHOLDER;
+        }
+      }
 
       const msg: Message = {
         id: msgId,
         sender,
         receiver,
-        // Keep the already-visible local plaintext when reconciling our own
-        // encrypted echo; otherwise the placeholder flashes until decryption.
-        text: rawMsg.isEncrypted ? pendingSend?.text || ENCRYPTED_MESSAGE_PLACEHOLDER : rawMsg.text || '',
+        text: resolvedText,
         timestamp: rawMsg.timestamp || new Date().toISOString(),
         status,
         attachment: rawMsg.attachment,
@@ -1087,7 +1113,11 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
               (c) => c.username.toLowerCase() === sender.toLowerCase()
             );
             const senderName = partnerConv?.displayName || sender;
-            const notifBody = messagePreviewsEnabled() ? msg.text || (msg.isVoice ? '🎤 Voice message' : '📎 Attachment') : 'New message';
+            const notifBody = messagePreviewsEnabled()
+              ? (msg.text && msg.text !== ENCRYPTED_MESSAGE_PLACEHOLDER
+                  ? msg.text
+                  : (msg.isVoice ? '🎤 Voice message' : msg.attachment ? '📎 Attachment' : 'New message'))
+              : 'New message';
             const notif = new Notification(senderName, {
               silent: presenceModeRef.current === 'busy' || localStorage.getItem('novyn_sound') === 'false' || getSoundVolume('message') === 0,
               body: notifBody,

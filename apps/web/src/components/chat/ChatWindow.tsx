@@ -366,10 +366,44 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     triggerHaptic('success');
   };
 
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length === 1) {
+      const touch = e.touches[0];
+      // Only initiate swipe back if gesture starts near the left screen edge (within 35px)
+      if (touch.clientX <= 35) {
+        touchStartRef.current = { x: touch.clientX, y: touch.clientY };
+      }
+    }
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (!touchStartRef.current || e.changedTouches.length === 0) return;
+    const touch = e.changedTouches[0];
+    const deltaX = touch.clientX - touchStartRef.current.x;
+    const deltaY = Math.abs(touch.clientY - touchStartRef.current.y);
+    touchStartRef.current = null;
+
+    // Distinct rightward swipe from edge
+    if (deltaX > 70 && deltaY < 50) {
+      triggerHaptic('light');
+      if (window.history.length > 1) {
+        window.history.back();
+      } else {
+        setActiveChat(null);
+      }
+    }
+  };
+
   if (!activeChat) return <TabWelcome tab="chats" onAction={onStartChat} />;
 
   return (
-    <div style={{ display: 'flex', width: '100%', height: '100%', overflow: 'hidden' }}>
+    <div
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+      style={{ display: 'flex', width: '100%', height: '100%', overflow: 'hidden' }}
+    >
       {/* Central Conversation Column */}
       <div className="chat-window" style={{ flex: 1, minWidth: 0, height: '100%', display: 'flex', flexDirection: 'column' }}>
         {/* Header */}
@@ -380,7 +414,11 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
               className="header-action-btn mobile-only-btn"
               onClick={() => {
                 triggerHaptic('light');
-                setActiveChat(null);
+                if (window.history.length > 1) {
+                  window.history.back();
+                } else {
+                  setActiveChat(null);
+                }
               }}
               aria-label="Back to chats"
               title="Back to chats"

@@ -41,7 +41,7 @@ export const SettingsDetailView: React.FC<SettingsDetailViewProps> = ({ activeSu
         </div>
       </header>
       <div className="conversations-scroll settings-detail-body" key={activeSubSection}>
-        {security ? <SecurityDashboard /> : activeSubSection === 'privacy-controls' ? <PrivacyDashboard /> : privacy ? <MobileManagedSetting setting={mobileManagedSettings[activeSubSection]} /> : activeSubSection === 'appear-accessibility' ? <AccessibilityDashboard /> : storage ? <StorageDashboard /> : activeSubSection === 'appear-language' ? <LanguageDashboard /> : activeSubSection === 'appear-theme' ? <AppearanceDashboard /> : ['notif-sounds', 'notif-calls', 'notif-previews'].includes(activeSubSection) ? <SoundDashboard active={isVisible} /> : available ? <WebSettings key={activeSubSection} section={activeSubSection} /> : <MobileManagedSetting setting={mobileManagedSettings[activeSubSection]} />}
+        {security ? <SecurityDashboard onSelectSection={onSelectSection} /> : activeSubSection === 'privacy-controls' ? <PrivacyDashboard /> : privacy ? <MobileManagedSetting setting={mobileManagedSettings[activeSubSection]} /> : activeSubSection === 'appear-accessibility' ? <AccessibilityDashboard /> : storage ? <StorageDashboard /> : activeSubSection === 'appear-language' ? <LanguageDashboard /> : activeSubSection === 'appear-theme' ? <AppearanceDashboard /> : ['notif-sounds', 'notif-calls', 'notif-previews'].includes(activeSubSection) ? <SoundDashboard active={isVisible} /> : available ? <WebSettings key={activeSubSection} section={activeSubSection} /> : <MobileManagedSetting setting={mobileManagedSettings[activeSubSection]} />}
       </div>
     </div>
   );

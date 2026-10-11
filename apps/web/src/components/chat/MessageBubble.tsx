@@ -5,6 +5,7 @@ import { Message } from '../../types';
 import {
   Check,
   CheckCheck,
+  Clock,
   FileText,
   CornerDownRight,
   MoreVertical,
@@ -212,34 +213,31 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
 
   const renderStatus = () => {
     if (!isMe) return null;
-    if (message.status === 'sending') return <span className="message-send-state" role="status">Sending…</span>;
+    if (message.status === 'sending') {
+      return (
+        <span title="Sending / Queued" style={{ display: 'inline-flex', alignItems: 'center', marginLeft: '3px', opacity: 0.75 }}>
+          <Clock style={{ width: '11px', height: '11px', color: 'var(--text-muted)' }} />
+        </span>
+      );
+    }
     if (message.status === 'failed') return <button type="button" className="message-retry" title={message.sendError} onClick={() => onRetry?.(message.id)}>Couldn’t send · Retry</button>;
     if (message.status === 'seen') {
       return (
-        <span title="Seen" style={{ display: 'inline-flex', alignItems: 'center', marginLeft: '2px' }}>
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="5" y1="12" x2="19" y2="12"></line>
-            <polyline points="12 5 19 12 12 19"></polyline>
-          </svg>
+        <span title="Seen" style={{ display: 'inline-flex', alignItems: 'center', marginLeft: '3px' }}>
+          <CheckCheck style={{ width: '13px', height: '13px', color: '#22c55e', strokeWidth: 2.6 }} />
         </span>
       );
     }
     if (message.status === 'delivered') {
       return (
-        <span title="Delivered" style={{ display: 'inline-flex', alignItems: 'center', marginLeft: '2px' }}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M4 8h14M14 4l4 4-4 4" />
-            <path d="M20 16H6M10 12l-4 4 4 4" />
-          </svg>
+        <span title="Delivered" style={{ display: 'inline-flex', alignItems: 'center', marginLeft: '3px' }}>
+          <CheckCheck style={{ width: '13px', height: '13px', color: '#a78bfa', strokeWidth: 2.4 }} />
         </span>
       );
     }
     return (
-      <span title="Sent" style={{ display: 'inline-flex', alignItems: 'center', marginLeft: '2px' }}>
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-          <line x1="5" y1="12" x2="19" y2="12"></line>
-          <polyline points="12 5 19 12 12 19"></polyline>
-        </svg>
+      <span title="Sent" style={{ display: 'inline-flex', alignItems: 'center', marginLeft: '3px' }}>
+        <Check style={{ width: '12px', height: '12px', color: '#94a3b8', strokeWidth: 2.4 }} />
       </span>
     );
   };

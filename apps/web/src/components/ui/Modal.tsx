@@ -1,7 +1,8 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useId, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X } from 'lucide-react';
 import { triggerHaptic } from '../../services/capacitor';
+import { registerModal } from '../../services/modalStack';
 
 interface ModalProps {
   isOpen: boolean;
@@ -21,8 +22,15 @@ export const Modal: React.FC<ModalProps> = ({
   className = '',
 }) => {
   const dialogRef = useRef<HTMLDivElement>(null);
+  const modalId = useId();
   const closeRef = useRef(onClose);
   closeRef.current = onClose;
+
+  useEffect(() => {
+    if (!isOpen) return;
+    return registerModal(modalId, () => closeRef.current());
+  }, [isOpen, modalId]);
+
   useEffect(() => {
     if (!isOpen) return;
     const previous = document.activeElement as HTMLElement | null;
