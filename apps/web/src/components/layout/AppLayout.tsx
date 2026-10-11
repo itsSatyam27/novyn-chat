@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useChat } from '../../context/ChatContext';
 const LandingPage = lazy(() => import('../landing/LandingPage').then((m) => ({ default: m.LandingPage })));
 const AuthModal = lazy(() => import('../auth/AuthModal').then((m) => ({ default: m.AuthModal })));
+const MobileAuthPage = lazy(() => import('../auth/MobileAuthPage').then((m) => ({ default: m.MobileAuthPage })));
 import { Sidebar, NavTab } from './Sidebar';
 import { BottomNav } from './BottomNav';
 import { ConnectionNotice } from './ConnectionNotice';
@@ -25,6 +26,7 @@ import { NovynLogo } from '../ui/NovynLogo';
 import { SettingsToast } from '../settings/SettingsToast';
 import { parseHash, subSectionToSlug } from '../../services/router';
 import { handleModalPopState } from '../../services/modalStack';
+import { AppLockOverlay } from './AppLockOverlay';
 
 const DEFAULT_PANEL_WIDTH = 340;
 
@@ -43,10 +45,12 @@ export const AppLayout: React.FC = () => {
   const [isListCollapsed, setIsListCollapsed] = useState(false);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
+  const [showDesktopLandingOnMobile, setShowDesktopLandingOnMobile] = useState(false);
   const [isMobileSettingsDetailOpen, setIsMobileSettingsDetailOpen] = useState<boolean>(() =>
     initialRoute.tab === 'settings' ? Boolean(initialRoute.isDetailOpen) : false
   );
   const [windowWidth, setWindowWidth] = useState(window.innerWidth);
+  const isMobile = windowWidth <= 768;
 
   const isInternalNavRef = useRef(false);
 
@@ -212,8 +216,31 @@ export const AppLayout: React.FC = () => {
 
   // Unauthenticated landing & auth modal flow
   if (!isAuthenticated) {
+    if (isMobile && !showDesktopLandingOnMobile) {
+      return (
+        <Suspense fallback={null}>
+          <MobileAuthPage
+            initialMode={authMode}
+            onSwitchToDesktopLanding={() => setShowDesktopLandingOnMobile(true)}
+          />
+        </Suspense>
+      );
+    }
+
     return (
-      <>
+      <Suspense fallback={null}>
+        {isMobile && showDesktopLandingOnMobile && (
+          <header className="mobile-landing-return-bar">
+            <button
+              type="button"
+              onClick={() => setShowDesktopLandingOnMobile(false)}
+              className="mobile-landing-return-btn"
+            >
+              ← Back to Sign In / Sign Up
+            </button>
+            <span className="mobile-landing-return-tag">Novyn Web</span>
+          </header>
+        )}
         <LandingPage
           onOpenAuth={(mode = 'signin') => {
             setAuthMode(mode);
@@ -225,7 +252,7 @@ export const AppLayout: React.FC = () => {
           initialMode={authMode}
           onClose={() => setIsAuthOpen(false)}
         />
-      </>
+      </Suspense>
     );
   }
 
@@ -358,6 +385,9 @@ export const AppLayout: React.FC = () => {
       {/* WebRTC Audio/Video Call Overlay */}
       {callNotice && <SettingsToast notice={callNotice} onDismiss={dismissCallNotice} />}
       <CallModal />
+
+      {/* Screen Passcode & App Lock Shield */}
+      <AppLockOverlay />
     </div>
   );
 };

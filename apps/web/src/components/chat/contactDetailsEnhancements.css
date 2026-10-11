@@ -1,0 +1,266 @@
+/* Contact Details Sidebar enhancements */
+
+/* Click-to-copy Handle */
+.contact-handle-copy-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(99, 102, 241, 0.08);
+  border: 1px solid rgba(99, 102, 241, 0.18);
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  font-weight: 500;
+  padding: 3px 10px;
+  border-radius: 9999px;
+  cursor: pointer;
+  margin-bottom: 8px;
+  transition: all 0.2s ease;
+}
+
+.contact-handle-copy-btn:hover {
+  background: rgba(99, 102, 241, 0.16);
+  border-color: rgba(99, 102, 241, 0.35);
+  color: var(--text-main);
+  transform: translateY(-1px);
+}
+
+.contact-handle-copy-btn.is-copied {
+  background: rgba(16, 185, 129, 0.16);
+  border-color: rgba(16, 185, 129, 0.35);
+  color: #10b981;
+}
+
+:root[data-color-mode="light"] .contact-handle-copy-btn {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+  color: #475569;
+}
+
+:root[data-color-mode="light"] .contact-handle-copy-btn:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+/* User Bio / Status Card */
+.contact-bio-card {
+  width: 100%;
+  box-sizing: border-box;
+  background: rgba(255, 255, 255, 0.65);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 12px 14px;
+  margin-bottom: 14px;
+  text-align: left;
+}
+
+:root[data-color-mode="dark"] .contact-bio-card {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.contact-bio-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: var(--text-dark);
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+.contact-bio-text {
+  font-size: 0.84rem;
+  color: var(--text-main);
+  line-height: 1.45;
+  margin: 0;
+  word-break: break-word;
+}
+
+/* E2EE Verification Card */
+.contact-e2ee-card {
+  width: 100%;
+  box-sizing: border-box;
+  background: rgba(16, 185, 129, 0.06);
+  border: 1px solid rgba(16, 185, 129, 0.2);
+  border-radius: 14px;
+  padding: 12px 14px;
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: left;
+}
+
+.contact-e2ee-card:hover {
+  background: rgba(16, 185, 129, 0.12);
+  border-color: rgba(16, 185, 129, 0.35);
+  transform: translateY(-1px);
+}
+
+.contact-e2ee-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: rgba(16, 185, 129, 0.18);
+  color: #10b981;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.contact-e2ee-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.contact-e2ee-title {
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: var(--text-main);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 2px;
+}
+
+.contact-e2ee-badge {
+  font-size: 0.65rem;
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: #10b981;
+  color: #ffffff;
+  font-weight: 800;
+}
+
+.contact-e2ee-desc {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  line-height: 1.35;
+}
+
+/* Mutual Groups Section */
+.contact-mutual-groups-section {
+  width: 100%;
+  margin-bottom: 20px;
+  text-align: left;
+}
+
+.contact-section-label {
+  font-size: 0.74rem;
+  font-weight: 800;
+  color: var(--text-dark);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  display: block;
+  margin-bottom: 8px;
+}
+
+.contact-mutual-groups-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.55);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 6px;
+}
+
+:root[data-color-mode="dark"] .contact-mutual-groups-list {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.contact-mutual-group-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.contact-mutual-group-item:hover {
+  background: rgba(99, 102, 241, 0.08);
+}
+
+.contact-mutual-group-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.contact-mutual-group-name {
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: var(--text-main);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.contact-mutual-group-members {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+/* Saved Messages Sidebar View */
+.saved-messages-details-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 18px 12px;
+  margin-bottom: 16px;
+}
+
+.saved-messages-details-icon {
+  width: 68px;
+  height: 68px;
+  border-radius: 20px;
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #38bdf8 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  margin-bottom: 12px;
+  box-shadow: 0 10px 24px rgba(99, 102, 241, 0.35);
+}
+
+.saved-messages-details-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  width: 100%;
+  margin: 14px 0 6px;
+}
+
+.saved-messages-stat-box {
+  background: rgba(99, 102, 241, 0.06);
+  border: 1px solid rgba(99, 102, 241, 0.14);
+  border-radius: 12px;
+  padding: 8px 4px;
+  text-align: center;
+}
+
+:root[data-color-mode="light"] .saved-messages-stat-box {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+}
+
+.saved-messages-stat-num {
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--text-main);
+}
+
+.saved-messages-stat-label {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-top: 2px;
+}

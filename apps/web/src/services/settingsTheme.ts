@@ -1,18 +1,127 @@
 // Settings Preferences and Dynamic Theme & Typography Engine
 
 export interface ThemeConfig {
+  id: string;
+  name: string;
+  description: string;
   accent: string;
   accentHover: string;
   accentGlow: string;
-  name: string;
+  soft: string;
+  border: string;
+  gradient: string;
 }
 
 export const THEME_PRESETS: Record<string, ThemeConfig> = {
   purple: {
-    name: 'Purple',
+    id: 'purple',
+    name: 'Electric Violet',
+    description: 'Signature vibrant violet glow',
     accent: '#6d5dfc',
     accentHover: '#5746e8',
-    accentGlow: 'rgba(109, 93, 252, 0.24)',
+    accentGlow: 'rgba(109, 93, 252, 0.28)',
+    soft: 'rgba(109, 93, 252, 0.16)',
+    border: 'rgba(109, 93, 252, 0.28)',
+    gradient: 'linear-gradient(135deg, #6d5dfc 0%, #9d4edd 100%)',
+  },
+  emerald: {
+    id: 'emerald',
+    name: 'Emerald Mint',
+    description: 'Fresh botanical green energy',
+    accent: '#10b981',
+    accentHover: '#059669',
+    accentGlow: 'rgba(16, 185, 129, 0.28)',
+    soft: 'rgba(16, 185, 129, 0.16)',
+    border: 'rgba(16, 185, 129, 0.28)',
+    gradient: 'linear-gradient(135deg, #10b981 0%, #06d6a0 100%)',
+  },
+  ocean: {
+    id: 'ocean',
+    name: 'Ocean Azure',
+    description: 'Deep maritime & crystal blue',
+    accent: '#0ea5e9',
+    accentHover: '#0284c7',
+    accentGlow: 'rgba(14, 165, 233, 0.28)',
+    soft: 'rgba(14, 165, 233, 0.16)',
+    border: 'rgba(14, 165, 233, 0.28)',
+    gradient: 'linear-gradient(135deg, #0ea5e9 0%, #38bdf8 100%)',
+  },
+  rose: {
+    id: 'rose',
+    name: 'Neon Rose',
+    description: 'Punchy vivid magenta-rose',
+    accent: '#f43f5e',
+    accentHover: '#e11d48',
+    accentGlow: 'rgba(244, 63, 94, 0.28)',
+    soft: 'rgba(244, 63, 94, 0.16)',
+    border: 'rgba(244, 63, 94, 0.28)',
+    gradient: 'linear-gradient(135deg, #f43f5e 0%, #fb7185 100%)',
+  },
+  amber: {
+    id: 'amber',
+    name: 'Sunset Amber',
+    description: 'Warm twilight golden radiance',
+    accent: '#f59e0b',
+    accentHover: '#d97706',
+    accentGlow: 'rgba(245, 158, 11, 0.28)',
+    soft: 'rgba(245, 158, 11, 0.16)',
+    border: 'rgba(245, 158, 11, 0.28)',
+    gradient: 'linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%)',
+  },
+  cyan: {
+    id: 'cyan',
+    name: 'Cyber Cyan',
+    description: 'Futuristic electric cyan pulse',
+    accent: '#06b6d4',
+    accentHover: '#0891b2',
+    accentGlow: 'rgba(6, 182, 212, 0.28)',
+    soft: 'rgba(6, 182, 212, 0.16)',
+    border: 'rgba(6, 182, 212, 0.28)',
+    gradient: 'linear-gradient(135deg, #06b6d4 0%, #22d3ee 100%)',
+  },
+  crimson: {
+    id: 'crimson',
+    name: 'Crimson Ruby',
+    description: 'Bold dynamic scarlet passion',
+    accent: '#ef4444',
+    accentHover: '#dc2626',
+    accentGlow: 'rgba(239, 68, 68, 0.28)',
+    soft: 'rgba(239, 68, 68, 0.16)',
+    border: 'rgba(239, 68, 68, 0.28)',
+    gradient: 'linear-gradient(135deg, #ef4444 0%, #f87171 100%)',
+  },
+  indigo: {
+    id: 'indigo',
+    name: 'Midnight Indigo',
+    description: 'Sophisticated deep cosmic indigo',
+    accent: '#4f46e5',
+    accentHover: '#4338ca',
+    accentGlow: 'rgba(79, 70, 229, 0.28)',
+    soft: 'rgba(79, 70, 229, 0.16)',
+    border: 'rgba(79, 70, 229, 0.28)',
+    gradient: 'linear-gradient(135deg, #4f46e5 0%, #6366f1 100%)',
+  },
+  teal: {
+    id: 'teal',
+    name: 'Turquoise Teal',
+    description: 'Calming balanced oceanic turquoise',
+    accent: '#14b8a6',
+    accentHover: '#0d9488',
+    accentGlow: 'rgba(20, 184, 166, 0.28)',
+    soft: 'rgba(20, 184, 166, 0.16)',
+    border: 'rgba(20, 184, 166, 0.28)',
+    gradient: 'linear-gradient(135deg, #14b8a6 0%, #2dd4bf 100%)',
+  },
+  slate: {
+    id: 'slate',
+    name: 'Titanium Slate',
+    description: 'Minimalist industrial monochrome',
+    accent: '#64748b',
+    accentHover: '#475569',
+    accentGlow: 'rgba(100, 116, 139, 0.28)',
+    soft: 'rgba(100, 116, 139, 0.16)',
+    border: 'rgba(100, 116, 139, 0.28)',
+    gradient: 'linear-gradient(135deg, #64748b 0%, #94a3b8 100%)',
   },
 };
 
@@ -143,13 +252,19 @@ export const PRESET_AVATARS = [
 ];
 
 export function applyThemeAccent(key: string): void {
-  const theme = THEME_PRESETS.purple;
+  const theme = THEME_PRESETS[key] || THEME_PRESETS.purple;
   const root = document.documentElement;
   root.style.setProperty('--primary', theme.accent);
   root.style.setProperty('--primary-hover', theme.accentHover);
   root.style.setProperty('--primary-glow', theme.accentGlow);
+  root.style.setProperty('--primary-gradient', theme.gradient);
   root.style.setProperty('--border-focus', theme.accent);
-  localStorage.setItem('novyn_theme_accent', 'purple');
+  root.style.setProperty('--chat-indigo', theme.accent);
+  root.style.setProperty('--chat-indigo-deep', theme.accentHover);
+  root.style.setProperty('--chat-indigo-soft', theme.soft);
+  root.style.setProperty('--chat-indigo-border', theme.border);
+  root.style.setProperty('--welcome-ink', theme.accent);
+  localStorage.setItem('novyn_theme_accent', theme.id);
 }
 
 /** Apply the app-wide light/dark colour mode and remember the user's choice. */
@@ -201,7 +316,8 @@ export function initializeUserPreferences(): void {
       if (localStorage.getItem('novyn_color_mode') === 'system') applyColorMode('system');
     });
 
-    applyThemeAccent('purple');
+    const savedAccent = localStorage.getItem('novyn_theme_accent') || 'purple';
+    applyThemeAccent(savedAccent);
 
     const isFirstGlassLaunch = localStorage.getItem('novyn_design_version') !== 'lagoon-1';
     const previousWallpaper = localStorage.getItem('novyn_wallpaper');

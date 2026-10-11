@@ -1,0 +1,362 @@
+/* Mobile Auth Page - Direct Sign In / Sign Up for Phone View */
+
+.mobile-auth-container {
+  min-height: 100dvh;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 18px;
+  padding-top: max(24px, env(safe-area-inset-top, 24px));
+  padding-bottom: max(24px, env(safe-area-inset-bottom, 24px));
+  position: relative;
+  overflow-x: hidden;
+  box-sizing: border-box;
+  background: radial-gradient(circle at 50% 8%, #1f1a3f 0%, #0d0a1c 100%);
+  color: #ffffff;
+}
+
+:root[data-color-mode="light"] .mobile-auth-container {
+  background: radial-gradient(circle at 50% 8%, #ede9fe 0%, #f8fafc 100%);
+  color: #0f172a;
+}
+
+/* Ambient glow accents */
+.mobile-auth-glow-top {
+  position: absolute;
+  top: -120px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 380px;
+  height: 280px;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--primary-glow) 0%, transparent 70%);
+  opacity: 0.8;
+  pointer-events: none;
+  filter: blur(40px);
+}
+
+.mobile-auth-card {
+  width: 100%;
+  max-width: 420px;
+  border-radius: 28px;
+  padding: 30px 22px 24px;
+  background: rgba(23, 18, 44, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  box-sizing: border-box;
+  position: relative;
+  z-index: 2;
+}
+
+:root[data-color-mode="light"] .mobile-auth-card {
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid rgba(124, 58, 237, 0.18);
+  box-shadow: 0 20px 50px rgba(99, 102, 241, 0.12), 0 0 0 1px rgba(124, 58, 237, 0.05);
+}
+
+/* Brand Header */
+.mobile-auth-brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  margin-bottom: 22px;
+}
+
+.mobile-auth-logo-badge {
+  width: 58px;
+  height: 58px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 8px 24px var(--primary-glow);
+  margin-bottom: 12px;
+  transition: transform 0.2s ease;
+}
+
+.mobile-auth-logo-badge:active {
+  transform: scale(0.95);
+}
+
+.mobile-auth-title {
+  margin: 0;
+  font-size: 1.55rem;
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  color: #ffffff;
+}
+
+:root[data-color-mode="light"] .mobile-auth-title {
+  color: #0f172a;
+}
+
+.mobile-auth-subtitle {
+  margin: 4px 0 0;
+  font-size: 0.8rem;
+  color: #94a3b8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+
+:root[data-color-mode="light"] .mobile-auth-subtitle {
+  color: #64748b;
+}
+
+/* Tab Switcher */
+.mobile-auth-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 5px;
+  border-radius: 16px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  margin-bottom: 20px;
+}
+
+:root[data-color-mode="light"] .mobile-auth-tabs {
+  background: #f1f5f9;
+  border-color: rgba(0, 0, 0, 0.08);
+}
+
+.mobile-auth-tab-btn {
+  padding: 10px 14px;
+  border: none;
+  border-radius: 12px;
+  background: transparent;
+  color: #94a3b8;
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+:root[data-color-mode="light"] .mobile-auth-tab-btn {
+  color: #64748b;
+}
+
+.mobile-auth-tab-btn.is-active {
+  background: var(--primary);
+  color: #ffffff;
+  box-shadow: 0 4px 14px var(--primary-glow);
+}
+
+:root[data-color-mode="light"] .mobile-auth-tab-btn.is-active {
+  background: var(--primary);
+  color: #ffffff;
+}
+
+/* Google Sign In */
+.mobile-auth-btn-google {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 12px 18px;
+  border-radius: 14px;
+  background: #1c1836;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  margin-bottom: 18px;
+}
+
+.mobile-auth-btn-google:hover:not(:disabled) {
+  background: #252047;
+  border-color: rgba(167, 139, 250, 0.4);
+  transform: translateY(-1px);
+}
+
+:root[data-color-mode="light"] .mobile-auth-btn-google {
+  background: #ffffff;
+  border-color: rgba(0, 0, 0, 0.12);
+  color: #0f172a;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04);
+}
+
+:root[data-color-mode="light"] .mobile-auth-btn-google:hover:not(:disabled) {
+  background: #f8fafc;
+  border-color: var(--primary);
+}
+
+/* Divider */
+.mobile-auth-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.mobile-auth-divider-line {
+  flex: 1;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+:root[data-color-mode="light"] .mobile-auth-divider-line {
+  background: rgba(0, 0, 0, 0.08);
+}
+
+.mobile-auth-divider-text {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #64748b;
+  text-transform: uppercase;
+}
+
+/* Alert Error */
+.mobile-auth-alert-error {
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: rgba(239, 68, 68, 0.14);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  color: #ef4444;
+  font-size: 0.82rem;
+  font-weight: 600;
+  margin-bottom: 16px;
+  text-align: center;
+  animation: authShake 0.4s ease;
+}
+
+:root[data-color-mode="light"] .mobile-auth-alert-error {
+  background: #fef2f2;
+  border-color: rgba(239, 68, 68, 0.3);
+  color: #dc2626;
+}
+
+@keyframes authShake {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-6px); }
+  40%, 80% { transform: translateX(6px); }
+}
+
+/* Form inputs reuse standard novyn input classes with enhanced mobile touch-target */
+.mobile-auth-card .input-wrapper {
+  margin-bottom: 15px;
+}
+
+.mobile-auth-card .input-field {
+  height: 46px;
+  font-size: 16px !important; /* Prevents auto-zoom on iOS safari */
+}
+
+/* Bottom Actions & Desktop Switch */
+.mobile-auth-footer {
+  margin-top: 22px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  text-align: center;
+}
+
+.mobile-auth-desktop-link-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #94a3b8;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 8px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.mobile-auth-desktop-link-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+:root[data-color-mode="light"] .mobile-auth-desktop-link-btn {
+  border-color: rgba(0, 0, 0, 0.1);
+  color: #64748b;
+}
+
+:root[data-color-mode="light"] .mobile-auth-desktop-link-btn:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.mobile-auth-security-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.72rem;
+  color: #64748b;
+}
+
+/* Floating Return Bar on Mobile when browsing desktop landing */
+.mobile-landing-return-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 10001;
+  padding: 10px 16px;
+  padding-top: max(10px, env(safe-area-inset-top, 10px));
+  background: rgba(13, 10, 28, 0.9);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+}
+
+:root[data-color-mode="light"] .mobile-landing-return-bar {
+  background: rgba(255, 255, 255, 0.92);
+  border-bottom-color: rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.06);
+}
+
+.mobile-landing-return-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 15px;
+  border-radius: 999px;
+  background: var(--primary);
+  color: #ffffff;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 3px 12px var(--primary-glow);
+  transition: all 0.15s ease;
+}
+
+.mobile-landing-return-btn:active {
+  transform: scale(0.96);
+}
+
+.mobile-landing-return-tag {
+  font-size: 0.74rem;
+  color: #94a3b8;
+  font-weight: 600;
+}
+
+:root[data-color-mode="light"] .mobile-landing-return-tag {
+  color: #64748b;
+}

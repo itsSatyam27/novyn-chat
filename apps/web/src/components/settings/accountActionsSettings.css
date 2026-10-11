@@ -1,0 +1,624 @@
+/* Account Actions & Danger Zone Settings - Adaptive Themes */
+
+.account-actions-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  width: 100%;
+}
+
+.account-actions-top-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: 20px;
+}
+
+/* Base Action Cards */
+.account-action-card {
+  background: #130e24;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 20px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.32);
+  transition: all 0.2s ease;
+}
+
+:root[data-color-mode="light"] .account-action-card {
+  background: #ffffff;
+  border-color: rgba(124, 58, 237, 0.14);
+  box-shadow: 0 4px 20px rgba(99, 102, 241, 0.06);
+}
+
+.account-action-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.account-action-header-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.account-action-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.account-action-icon.is-blue {
+  background: rgba(56, 189, 248, 0.12);
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  color: #38bdf8;
+}
+
+.account-action-icon.is-amber {
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.25);
+  color: #f59e0b;
+}
+
+.account-action-icon.is-red {
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  color: #ef4444;
+}
+
+.account-action-card-title {
+  margin: 0;
+  font-size: 1.18rem;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+:root[data-color-mode="light"] .account-action-card-title {
+  color: #0f172a;
+}
+
+.account-action-card-sub {
+  margin: 3px 0 0;
+  color: #94a3b8;
+  font-size: 0.84rem;
+}
+
+:root[data-color-mode="light"] .account-action-card-sub {
+  color: #64748b;
+}
+
+/* Inset Stats / Lists Containers */
+.account-cache-stat-box,
+.account-actions-sessions-grid {
+  background: rgba(0, 0, 0, 0.38);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 14px;
+  padding: 16px 18px;
+  margin-top: 18px;
+}
+
+:root[data-color-mode="light"] .account-cache-stat-box,
+:root[data-color-mode="light"] .account-actions-sessions-grid {
+  background: #f8fafc;
+  border-color: rgba(0, 0, 0, 0.06);
+}
+
+.account-cache-stat-label {
+  color: #94a3b8;
+  font-size: 0.86rem;
+}
+
+:root[data-color-mode="light"] .account-cache-stat-label {
+  color: #64748b;
+}
+
+.account-cache-stat-val {
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 0.96rem;
+}
+
+:root[data-color-mode="light"] .account-cache-stat-val {
+  color: #0f172a;
+}
+
+.account-cache-track {
+  width: 100%;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 9999px;
+  margin-top: 12px;
+  position: relative;
+}
+
+:root[data-color-mode="light"] .account-cache-track {
+  background: #e2e8f0;
+}
+
+.account-cache-thumb {
+  width: 10px;
+  height: 10px;
+  border-radius: 9999px;
+  background: #38bdf8;
+  position: absolute;
+  top: -3px;
+  left: 0;
+  box-shadow: 0 0 8px #38bdf8;
+}
+
+.account-cache-note {
+  color: #64748b;
+  font-size: 0.78rem;
+  margin-top: 10px;
+}
+
+/* Status Pills */
+.account-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  border-radius: 9999px;
+  padding: 4px 12px;
+  color: #10b981;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+:root[data-color-mode="light"] .account-status-pill {
+  background: #dcfce7;
+  border-color: rgba(16, 185, 129, 0.35);
+  color: #047857;
+}
+
+/* Action Buttons */
+.account-btn-clear-cache {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: #ffffff;
+  border-radius: 12px;
+  padding: 10px 18px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.account-btn-clear-cache:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.09);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+:root[data-color-mode="light"] .account-btn-clear-cache {
+  background: #f1f5f9;
+  border-color: rgba(0, 0, 0, 0.1);
+  color: #0f172a;
+}
+
+:root[data-color-mode="light"] .account-btn-clear-cache:hover:not(:disabled) {
+  background: #e2e8f0;
+  border-color: rgba(0, 0, 0, 0.2);
+}
+
+.account-btn-manage-sessions {
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.25);
+  color: #f59e0b;
+  border-radius: 10px;
+  padding: 5px 10px;
+  font-size: 0.74rem;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.15s ease;
+}
+
+.account-btn-manage-sessions:hover {
+  background: rgba(245, 158, 11, 0.2);
+}
+
+:root[data-color-mode="light"] .account-btn-manage-sessions {
+  background: #fef3c7;
+  border-color: rgba(217, 119, 6, 0.3);
+  color: #b45309;
+}
+
+.account-btn-signout-all {
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  color: #f59e0b;
+  border-radius: 12px;
+  padding: 10px 18px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.account-btn-signout-all:hover {
+  background: rgba(245, 158, 11, 0.18);
+  border-color: rgba(245, 158, 11, 0.6);
+  transform: translateY(-1px);
+}
+
+:root[data-color-mode="light"] .account-btn-signout-all {
+  background: #fef3c7;
+  border-color: rgba(217, 119, 6, 0.4);
+  color: #b45309;
+}
+
+:root[data-color-mode="light"] .account-btn-signout-all:hover {
+  background: #fde68a;
+  border-color: #d97706;
+}
+
+/* Session Items */
+.account-session-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 4px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  min-height: 46px;
+  box-sizing: border-box;
+}
+
+:root[data-color-mode="light"] .account-session-row {
+  border-bottom-color: rgba(0, 0, 0, 0.05);
+}
+
+.account-session-name {
+  color: #ffffff;
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+:root[data-color-mode="light"] .account-session-name {
+  color: #0f172a;
+}
+
+.account-session-sub {
+  color: #64748b;
+  font-size: 0.74rem;
+}
+
+.account-session-icon-wrap {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #94a3b8;
+  flex-shrink: 0;
+}
+
+:root[data-color-mode="light"] .account-session-icon-wrap {
+  background: #e2e8f0;
+  color: #64748b;
+}
+
+.account-session-protected-title {
+  color: #cbd5e1;
+  font-size: 0.82rem;
+  font-weight: 500;
+}
+
+:root[data-color-mode="light"] .account-session-protected-title {
+  color: #334155;
+}
+
+/* =========================================
+   DANGER ZONE: DELETE ACCOUNT CARD
+   ========================================= */
+
+.account-card-danger {
+  background: rgba(239, 68, 68, 0.02);
+  border: 1px solid rgba(239, 68, 68, 0.28);
+  border-radius: 20px;
+  padding: 24px;
+  box-shadow: 0 4px 24px rgba(239, 68, 68, 0.04);
+}
+
+:root[data-color-mode="light"] .account-card-danger {
+  background: linear-gradient(180deg, #fff5f5 0%, #fee2e2 100%);
+  border-color: rgba(239, 68, 68, 0.3);
+  box-shadow: 0 6px 24px rgba(239, 68, 68, 0.08);
+}
+
+.account-danger-title {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #f87171;
+}
+
+:root[data-color-mode="light"] .account-danger-title {
+  color: #dc2626;
+}
+
+/* Consequence Cards 2x2 Grid */
+.account-danger-consequence-card {
+  background: rgba(239, 68, 68, 0.04);
+  border: 1px solid rgba(239, 68, 68, 0.14);
+  border-radius: 14px;
+  padding: 14px 16px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+:root[data-color-mode="light"] .account-danger-consequence-card {
+  background: #ffffff;
+  border-color: rgba(239, 68, 68, 0.2);
+  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.04);
+}
+
+.account-danger-consequence-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  background: rgba(239, 68, 68, 0.12);
+  color: #f87171;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+:root[data-color-mode="light"] .account-danger-consequence-icon {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.account-danger-consequence-text {
+  color: #e2e8f0;
+  font-size: 0.83rem;
+  line-height: 1.45;
+  font-weight: 500;
+}
+
+:root[data-color-mode="light"] .account-danger-consequence-text {
+  color: #334155;
+}
+
+:root[data-color-mode="light"] .account-danger-consequence-text strong {
+  color: #dc2626 !important;
+}
+
+/* Step 1 & 2 Boxes */
+.account-danger-step-box {
+  background: rgba(0, 0, 0, 0.38);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 14px;
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+:root[data-color-mode="light"] .account-danger-step-box {
+  background: #ffffff;
+  border-color: rgba(0, 0, 0, 0.08);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+}
+
+.account-danger-step-box.is-step2 {
+  padding: 14px 16px;
+  flex-direction: column;
+  align-items: stretch;
+  margin-bottom: 16px;
+}
+
+.account-danger-step-num {
+  width: 24px;
+  height: 24px;
+  border-radius: 9999px;
+  background: var(--primary);
+  color: #ffffff;
+  font-size: 0.75rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.account-danger-step-label {
+  color: #ffffff;
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+:root[data-color-mode="light"] .account-danger-step-label {
+  color: #0f172a;
+}
+
+.account-btn-export-copy {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: #cbd5e1;
+  border-radius: 8px;
+  padding: 6px 14px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+:root[data-color-mode="light"] .account-btn-export-copy {
+  background: #f1f5f9;
+  border-color: rgba(0, 0, 0, 0.1);
+  color: #334155;
+}
+
+:root[data-color-mode="light"] .account-btn-export-copy:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.account-danger-confirm-input {
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 12px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+  font-size: 0.9rem;
+  font-family: monospace;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+:root[data-color-mode="light"] .account-danger-confirm-input {
+  background: #f8fafc;
+  border-color: rgba(0, 0, 0, 0.14);
+  color: #0f172a;
+}
+
+:root[data-color-mode="light"] .account-danger-confirm-input::placeholder {
+  color: #94a3b8;
+}
+
+.account-danger-confirm-input.is-confirmed {
+  border-color: rgba(239, 68, 68, 0.65) !important;
+}
+
+:root[data-color-mode="light"] .account-danger-confirm-input.is-confirmed {
+  border-color: #ef4444 !important;
+  background: #ffffff !important;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.12) !important;
+}
+
+.account-btn-delete-confirm {
+  background: rgba(239, 68, 68, 0.14);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  color: #ef4444;
+  border-radius: 12px;
+  padding: 12px 20px;
+  font-size: 0.88rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.2s;
+}
+
+.account-btn-delete-confirm:enabled {
+  background: #ef4444;
+  color: #ffffff;
+  box-shadow: 0 4px 16px rgba(239, 68, 68, 0.4);
+  cursor: pointer;
+}
+
+:root[data-color-mode="light"] .account-btn-delete-confirm {
+  background: #ffffff;
+  border-color: rgba(239, 68, 68, 0.35);
+  color: #dc2626;
+}
+
+:root[data-color-mode="light"] .account-btn-delete-confirm:enabled {
+  background: #dc2626;
+  border-color: #dc2626;
+  color: #ffffff;
+  box-shadow: 0 4px 16px rgba(220, 38, 38, 0.3);
+}
+
+.account-danger-step-tag {
+  color: #f87171;
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+}
+
+:root[data-color-mode="light"] .account-danger-step-tag {
+  color: #dc2626;
+}
+
+/* Modal Confirmation */
+.account-delete-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(0, 0, 0, 0.82);
+  backdrop-filter: blur(10px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+:root[data-color-mode="light"] .account-delete-modal-backdrop {
+  background: rgba(15, 23, 42, 0.45);
+}
+
+.account-delete-modal-card {
+  background: #130e24;
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  border-radius: 20px;
+  padding: 28px;
+  max-width: 440px;
+  width: 100%;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.75);
+  box-sizing: border-box;
+}
+
+:root[data-color-mode="light"] .account-delete-modal-card {
+  background: #ffffff;
+  border-color: rgba(239, 68, 68, 0.35);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.16);
+}
+
+:root[data-color-mode="light"] .account-delete-modal-card p {
+  color: #475569 !important;
+}
+
+:root[data-color-mode="light"] .account-delete-modal-card strong {
+  color: #0f172a !important;
+}
+
+:root[data-color-mode="light"] .account-delete-modal-card label {
+  color: #334155 !important;
+}
+
+.account-delete-modal-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 12px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #fff;
+  outline: none;
+}
+
+:root[data-color-mode="light"] .account-delete-modal-input {
+  background: #f8fafc;
+  border-color: rgba(0, 0, 0, 0.15);
+  color: #0f172a;
+}
+

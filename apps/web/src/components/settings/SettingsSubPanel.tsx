@@ -234,9 +234,9 @@ export const SettingsSubPanel: React.FC<SettingsSubPanelProps> = ({
       },
       {
         id: 'appear-wallpaper',
-        label: 'Chat Wallpapers',
-        desc: 'Background patterns & mesh tints',
-        icon: Sparkles,
+        label: 'Themes & Accents',
+        desc: 'App color themes & accent palette',
+        icon: Palette,
       },
       {
         id: 'appear-font',

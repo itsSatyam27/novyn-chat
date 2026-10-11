@@ -1,0 +1,220 @@
+/* App Lock Screen Styles - Adaptive Dark & Light Modes */
+
+.app-lock-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 999999;
+  backdrop-filter: blur(32px);
+  -webkit-backdrop-filter: blur(32px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  user-select: none;
+  background: radial-gradient(ellipse at 50% 20%, #151126 0%, #080612 100%);
+  color: #ffffff;
+  transition: background 0.25s ease;
+}
+
+:root[data-color-mode="light"] .app-lock-overlay {
+  background: radial-gradient(ellipse at 50% 15%, #ede9fe 0%, #f8fafc 100%);
+  color: #0f172a;
+}
+
+.app-lock-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  max-width: 340px;
+  width: 100%;
+}
+
+/* Avatar Badge */
+.app-lock-avatar-wrap {
+  position: relative;
+  margin-bottom: 18px;
+}
+
+.app-lock-status-badge {
+  position: absolute;
+  bottom: -3px;
+  right: -3px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--primary);
+  display: grid;
+  place-items: center;
+  color: #ffffff;
+  box-shadow: 0 0 12px var(--primary-glow);
+  transition: background 0.22s ease, box-shadow 0.22s ease;
+}
+
+.app-lock-status-badge.is-error {
+  background: #ef4444;
+  box-shadow: 0 0 14px rgba(239, 68, 68, 0.7);
+}
+
+.app-lock-title {
+  margin: 0 0 4px;
+  font-size: 1.35rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: #ffffff;
+}
+
+:root[data-color-mode="light"] .app-lock-title {
+  color: #0f172a;
+}
+
+.app-lock-subtitle-wrap {
+  height: 26px;
+  margin-bottom: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.app-lock-subtitle {
+  margin: 0;
+  font-size: 0.82rem;
+  color: #9d94be;
+}
+
+:root[data-color-mode="light"] .app-lock-subtitle {
+  color: #64748b;
+}
+
+.app-lock-error-msg {
+  margin: 0;
+  font-size: 0.84rem;
+  color: #f87171;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  animation: errorTextFade 0.2s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.app-lock-error-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #ef4444;
+  box-shadow: 0 0 6px #ef4444;
+}
+
+/* 4 PIN Dots */
+.app-lock-dots-row {
+  display: flex;
+  gap: 18px;
+  margin-bottom: 38px;
+}
+
+.app-lock-dots-row.is-shaking {
+  animation: appLockShake 0.58s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+}
+
+.app-lock-pin-dot {
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.24);
+  background: transparent;
+  transform: scale(1);
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+:root[data-color-mode="light"] .app-lock-pin-dot {
+  border-color: rgba(0, 0, 0, 0.2);
+}
+
+.app-lock-pin-dot.is-filled {
+  border-color: var(--primary);
+  background: var(--primary);
+  transform: scale(1.18);
+  box-shadow: 0 0 14px var(--primary-glow);
+}
+
+.app-lock-pin-dot.is-error {
+  border-color: #ef4444 !important;
+  background: #ef4444 !important;
+  transform: scale(1.15) !important;
+  box-shadow: 0 0 16px rgba(239, 68, 68, 0.8), 0 0 4px #ef4444 !important;
+  transition: none;
+}
+
+/* Keypad Grid */
+.app-lock-keypad {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px 22px;
+  width: 100%;
+}
+
+.app-lock-key-btn {
+  width: 68px;
+  height: 68px;
+  border-radius: 50%;
+  margin: 0 auto;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+  font-size: 1.45rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.12s ease, transform 0.1s ease, border-color 0.12s ease, box-shadow 0.12s ease;
+}
+
+.app-lock-key-btn:active {
+  transform: scale(0.9);
+  background: var(--primary-glow);
+  border-color: var(--primary);
+}
+
+:root[data-color-mode="light"] .app-lock-key-btn {
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  color: #0f172a;
+  box-shadow: 0 3px 12px rgba(99, 102, 241, 0.06);
+}
+
+:root[data-color-mode="light"] .app-lock-key-btn:active {
+  background: var(--primary-glow);
+  border-color: var(--primary);
+  color: var(--primary);
+  box-shadow: 0 0 14px var(--primary-glow);
+}
+
+.app-lock-backspace-btn {
+  width: 68px;
+  height: 68px;
+  border-radius: 50%;
+  margin: 0 auto;
+  background: transparent;
+  border: none;
+  color: #a79ec7;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.12s ease, transform 0.1s ease;
+}
+
+.app-lock-backspace-btn:active {
+  transform: scale(0.88);
+  color: #ffffff;
+}
+
+:root[data-color-mode="light"] .app-lock-backspace-btn {
+  color: #64748b;
+}
+
+:root[data-color-mode="light"] .app-lock-backspace-btn:active {
+  color: var(--primary);
+}

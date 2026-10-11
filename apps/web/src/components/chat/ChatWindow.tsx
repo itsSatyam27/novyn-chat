@@ -13,7 +13,8 @@ import { WallpaperPickerModal } from './WallpaperPickerModal';
 import { GameLauncherModal } from './GameLauncherModal';
 import { Avatar } from '../ui/Avatar';
 import { Message } from '../../types';
-import { Phone, Video, ChevronLeft, PanelLeftOpen, Info, Search, Lock, ArrowDown, X, Sun, Moon, Star, MessageCircle, Mic, Gamepad2, Sunset } from 'lucide-react';
+import { Phone, Video, ChevronLeft, PanelLeftOpen, Info, Search, Lock, ArrowDown, X, Sun, Moon, Star, MessageCircle, Mic, Gamepad2, Sunset, Bookmark } from 'lucide-react';
+import './savedMessages.css';
 import { triggerHaptic } from '../../services/capacitor';
 import { getSocket } from '../../services/socket';
 import { uploadMediaFile } from '../../services/api';
@@ -449,18 +450,25 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
               style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' }}
               title="Click to toggle contact details sidebar"
             >
-              <Avatar
-                name={activeContact?.displayName || activeChat}
-                avatarUrl={activeContact?.avatarId}
-                online={activeContact?.online}
-                presence={activeContact?.presence}
-                isGroup={Boolean(activeContact?.isGroup)}
-                size="md"
-              />
+              {activeContact?.isSelf ? (
+                <div className="saved-messages-header-avatar" aria-label="Saved Messages">
+                  <Bookmark style={{ width: '18px', height: '18px' }} fill="currentColor" />
+                </div>
+              ) : (
+                <Avatar
+                  name={activeContact?.displayName || activeChat}
+                  avatarUrl={activeContact?.avatarId}
+                  online={activeContact?.online}
+                  presence={activeContact?.presence}
+                  isGroup={Boolean(activeContact?.isGroup)}
+                  size="md"
+                />
+              )}
 
               <div>
-                <div className="chat-header-name">
-                  {activeContact?.displayName || activeChat}
+                <div className="chat-header-name" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span>{activeContact?.displayName || activeChat}</span>
+                  {activeContact?.isSelf && <span className="saved-messages-pill">YOU</span>}
                 </div>
                 <div className={`chat-header-status ${activeContact?.online && !activeContact?.isGroup ? 'online' : ''}`}>
                   {activeContact?.isSelf ? (
@@ -651,6 +659,28 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                   <button type="button" onClick={() => document.querySelector<HTMLButtonElement>('[aria-label="Voice Message"]')?.click()}><Mic size={12} aria-hidden="true" /> Send a voice note</button>
                   <span aria-hidden="true">·</span>
                   <button type="button" onClick={() => setIsGameLauncherOpen(true)}><Gamepad2 size={12} aria-hidden="true" /> Play a game</button>
+                </div>
+              </section>
+            ) : activeContact?.isSelf ? (
+              <section className="saved-messages-welcome-card" aria-label="Saved Messages Welcome">
+                <div className="saved-messages-welcome-icon">
+                  <Bookmark style={{ width: '36px', height: '36px' }} fill="currentColor" />
+                </div>
+                <h2>Saved Messages</h2>
+                <p>Your private encrypted notebook & cloud scratchpad</p>
+                <div className="saved-messages-tips">
+                  <div className="saved-messages-tip-item">
+                    <span>📌</span>
+                    <div>Forward messages and media here to save them</div>
+                  </div>
+                  <div className="saved-messages-tip-item">
+                    <span>📎</span>
+                    <div>Store files, photos, links & audio notes locally</div>
+                  </div>
+                  <div className="saved-messages-tip-item">
+                    <span>🔒</span>
+                    <div>Private to you • Encrypted on this device</div>
+                  </div>
                 </div>
               </section>
             ) : (

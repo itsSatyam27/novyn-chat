@@ -21,11 +21,13 @@ import {
   LogOut,
   ChevronDown,
   ArrowLeft,
-  X,
   Check,
   SquarePen,
   KeyRound,
+  Bookmark,
+  Cloud,
 } from 'lucide-react';
+import './savedMessages.css';
 import { triggerHaptic } from '../../services/capacitor';
 import { CreateGroupModal } from './CreateGroupModal';
 import { Conversation } from '../../types';
@@ -647,7 +649,7 @@ export const ChatList: React.FC<ChatListProps> = ({
                   }
                 }}
                 onContextMenu={(e) => handleOpenMenu(e, conv.username, true)}
-                className={`chat-list-item ${isSelected ? 'selected' : ''}`}
+                className={`chat-list-item ${isSelected ? 'selected' : ''} ${conv.isSelf ? 'is-saved-messages' : ''}`}
                 tabIndex={0}
                 role="link"
                 aria-label={`Open conversation with ${conv.displayName || conv.username}`}
@@ -656,20 +658,32 @@ export const ChatList: React.FC<ChatListProps> = ({
                 }}
                 style={{ position: 'relative', overflow: 'visible' }}
               >
-                <Avatar
-                  name={conv.displayName || conv.username}
-                  avatarUrl={conv.avatarId}
-                  online={conv.online}
-                  presence={conv.presence}
-                  isGroup={conv.isGroup}
-                  hidePresence={conv.isSelf}
-                  size="md"
-                />
+                {conv.isSelf ? (
+                  <div className="saved-messages-avatar-wrapper" aria-label="Saved Messages">
+                    <div className="saved-messages-avatar">
+                      <Bookmark style={{ width: '20px', height: '20px' }} fill="currentColor" />
+                    </div>
+                    <span className="saved-messages-cloud-badge" title="Cloud Synced">
+                      <Cloud style={{ width: '10px', height: '10px' }} />
+                    </span>
+                  </div>
+                ) : (
+                  <Avatar
+                    name={conv.displayName || conv.username}
+                    avatarUrl={conv.avatarId}
+                    online={conv.online}
+                    presence={conv.presence}
+                    isGroup={conv.isGroup}
+                    hidePresence={conv.isSelf}
+                    size="md"
+                  />
+                )}
 
                 <div className="chat-item-info">
                   <div className="chat-item-top">
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0, flex: 1 }}>
                       <span className="chat-item-name">{conv.displayName || conv.username}</span>
+                      {conv.isSelf && <span className="saved-messages-pill">YOU</span>}
                       {isFav && <Star style={{ width: '12px', height: '12px', color: '#a86d0b', fill: '#a86d0b', flexShrink: 0 }} />}
                     </div>
 
@@ -690,6 +704,8 @@ export const ChatList: React.FC<ChatListProps> = ({
                         ) : (
                           conv.lastMessage.text
                         )
+                      ) : conv.isSelf ? (
+                        <span className="saved-messages-preview-hint">Cloud notes & forwarded media</span>
                       ) : (
                         'Tap to chat'
                       )}

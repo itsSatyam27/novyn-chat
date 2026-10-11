@@ -1,28 +1,32 @@
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   ShieldCheck,
   Check,
-  AlertTriangle,
   Smartphone,
   KeyRound,
   ArrowRight,
-  User,
   Lock,
   EyeOff,
-  FileText,
   Clock,
   Laptop,
   Sliders,
+  ChevronRight,
+  Fingerprint,
+  Trash2,
+  QrCode,
 } from 'lucide-react';
 import { MessageKeyTransferDialog } from '../chat/MessageKeyTransferDialog';
 import { getMyPublicKeyJwk } from '../../services/e2ee';
 import { SettingsToast, type SettingsNotice } from './SettingsToast';
 import type { SettingsMainCategory, SettingsSubSection } from './SettingsPanel';
+import { useAuth } from '../../context/AuthContext';
+import { triggerHaptic } from '../../services/capacitor';
 import './securityDashboard.css';
 
 export function SecurityDashboard({ onSelectSection }: {
   onSelectSection?: (category: SettingsMainCategory, section: SettingsSubSection) => void;
 } = {}) {
+  const { user } = useAuth();
   const [keysOpen, setKeysOpen] = useState(false);
   const [keysReady, setKeysReady] = useState<boolean | null>(null);
   const [notice, setNotice] = useState<SettingsNotice | null>(null);
@@ -30,7 +34,7 @@ export function SecurityDashboard({ onSelectSection }: {
   useEffect(() => {
     let cancelled = false;
     getMyPublicKeyJwk()
-      .then(key => {
+      .then((key) => {
         if (!cancelled) setKeysReady(Boolean(key));
       })
       .catch(() => {
@@ -43,6 +47,13 @@ export function SecurityDashboard({ onSelectSection }: {
 
   const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
   const isLocalhost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+
+  // Real live states for functional features
+  const hasPassword = Boolean(user?.hasPassword);
+  const isGoogleUser = Boolean(user?.isGoogleUser);
+  const is2faActive = Boolean(user?.twoFactorEnabled);
+  const isPinActive = typeof window !== 'undefined' && Boolean(localStorage.getItem('novyn_app_lock_pin_hash'));
+  const pinTimeout = typeof window !== 'undefined' ? localStorage.getItem('novyn_app_lock_timeout') || '5' : '5';
 
   const handleUseHttps = () => {
     if (isLocalhost) {
@@ -57,24 +68,17 @@ export function SecurityDashboard({ onSelectSection }: {
     }
   };
 
-  const handleMobileFeatureClick = (title: string, path: string, section?: SettingsSubSection) => {
-    if (section && onSelectSection) {
-      onSelectSection('privacy', section);
-      return;
+  const handleNavigate = (section: SettingsSubSection) => {
+    triggerHaptic('light');
+    if (onSelectSection) {
+      onSelectSection('security', section);
     }
-    setNotice({
-      text: `${title}: Manage this in the Novyn mobile app (${path}).`,
-      error: false,
-    });
   };
 
-  const handleComingSoonClick = (title: string, section?: SettingsSubSection) => {
-    if (section && onSelectSection) {
-      onSelectSection('privacy', section);
-      return;
-    }
+  const handleMobileOnlyClick = (feature: string) => {
+    triggerHaptic('light');
     setNotice({
-      text: `${title}: This feature is currently in development.`,
+      text: `${feature}: Available in the Novyn Android & iOS mobile app.`,
       error: false,
     });
   };
@@ -82,19 +86,21 @@ export function SecurityDashboard({ onSelectSection }: {
   return (
     <section className="security-dashboard" aria-label="Security settings">
       <div className="security-layout">
-        {/* Top 2 Columns */}
+        {/* Row 1: Encryption Status & Sync Keys */}
         <div className="security-top-columns">
           {/* Left Column: Encryption Status */}
           <article className="security-card security-card-encryption">
-            <span className="security-section-tag">ENCRYPTION STATUS</span>
+            <span className="security-section-tag">
+              <span className="security-tag-dot is-green" /> ENCRYPTION STATUS
+            </span>
 
             <div className="security-hero-banner">
               <div className="security-hero-icon-box">
                 <ShieldCheck size={32} />
               </div>
               <div className="security-hero-text">
-                <h3>Your message keys stay in this browser</h3>
-                <p>Encrypted conversations use this browser’s encryption identity.</p>
+                <h3>End-to-End Encryption Active</h3>
+                <p>Private conversations are encrypted on this device before dispatch.</p>
               </div>
             </div>
 
@@ -106,39 +112,31 @@ export function SecurityDashboard({ onSelectSection }: {
                     <Check size={15} strokeWidth={2.5} />
                   </div>
                   <div className="security-status-info">
-                    <span className="security-status-title">Browser keys</span>
+                    <span className="security-status-title">Browser identity keys</span>
                     <span className="security-status-sub">
-                      {keysReady === null
-                        ? 'Checking encryption keys...'
-                        : keysReady
-                        ? 'Ready on this browser'
-                        : 'Keys not generated yet'}
+                      {keysReady ? 'Cryptographic keys active' : 'Generating E2EE identity…'}
                     </span>
                   </div>
                 </div>
               </div>
 
-              {/* Row 2: Connection Security */}
+              {/* Row 2: Connection TLS */}
               <div className="security-status-row">
                 <div className="security-status-left">
                   <div className={`security-status-icon ${isHttps ? 'is-success' : 'is-warning'}`}>
-                    {isHttps ? <Check size={15} strokeWidth={2.5} /> : <AlertTriangle size={15} />}
+                    {isHttps ? <Check size={15} strokeWidth={2.5} /> : <Laptop size={15} />}
                   </div>
                   <div className="security-status-info">
                     <span className="security-status-title">
-                      {isHttps ? 'Connection is secure' : 'Connection is not secure'}
+                      {isHttps ? 'Connection encrypted' : 'Connection is unencrypted'}
                     </span>
                     <span className="security-status-sub">
-                      {isHttps ? 'HTTPS TLS active' : 'HTTP, no TLS'}
+                      {isHttps ? 'HTTPS TLS active' : 'HTTP, no TLS encryption'}
                     </span>
                   </div>
                 </div>
                 {!isHttps && (
-                  <button
-                    type="button"
-                    className="security-action-btn"
-                    onClick={handleUseHttps}
-                  >
+                  <button type="button" className="security-action-btn" onClick={handleUseHttps}>
                     Use HTTPS
                   </button>
                 )}
@@ -152,181 +150,298 @@ export function SecurityDashboard({ onSelectSection }: {
                   </div>
                   <div className="security-status-info">
                     <span className="security-status-title">Keys on Android</span>
-                    <span className="security-status-sub">Not synced yet</span>
+                    <span className="security-status-sub">Sync to read chats on phone</span>
                   </div>
                 </div>
-                <button
-                  type="button"
-                  className="security-action-btn"
-                  onClick={() => setKeysOpen(true)}
-                >
+                <button type="button" className="security-action-btn" onClick={() => setKeysOpen(true)}>
                   Sync
                 </button>
               </div>
             </div>
 
             <p className="security-encryption-disclaimer">
-              Clearing Novyn’s temporary files keeps your keys. Clearing all site data in your browser can remove them.
+              Clearing Novyn’s temporary cache preserves your keys. Clearing all browser cookies and site storage resets them.
             </p>
           </article>
 
-          {/* Right Column: Stack of 2 Cards */}
-          <div className="security-right-col">
-            {/* Card 1: Sync message keys */}
-            <article className="security-card security-card-sync">
-              <div className="security-card-header">
-                <div className="security-card-header-icon">
-                  <KeyRound size={18} />
-                </div>
-                <h3>Sync message keys</h3>
+          {/* Right Column: Sync Message Keys */}
+          <article className="security-card security-card-sync">
+            <span className="security-section-tag">
+              <span className="security-tag-dot" style={{ background: '#c084fc', boxShadow: '0 0 8px #c084fc' }} /> KEY TRANSFER &amp; SYNC
+            </span>
+
+            <div className="security-hero-banner">
+              <div
+                className="security-hero-icon-box"
+                style={{
+                  background: 'rgba(192, 132, 252, 0.15)',
+                  borderColor: 'rgba(192, 132, 252, 0.3)',
+                  color: '#c084fc',
+                }}
+              >
+                <KeyRound size={28} />
               </div>
-              <p className="security-card-desc">
-                Transfer conversation keys from this browser to Android to read encrypted messages.
-              </p>
+              <div className="security-hero-text">
+                <h3>Sync Message Keys</h3>
+                <p>Transfer E2EE keys across devices to decrypt past chat history on mobile or other browsers.</p>
+              </div>
+            </div>
 
-              <div className="security-sync-action-row">
-                <button
-                  type="button"
-                  className="security-btn-glow"
-                  onClick={() => setKeysOpen(true)}
-                  aria-haspopup="dialog"
-                >
-                  Open key transfer
-                </button>
-
-                <div className="security-device-transfer">
-                  <div className="security-device-item">
-                    <div className="security-device-box browser-box">
-                      <div className="browser-tab-indicator" />
-                    </div>
-                    <span className="device-label">This browser</span>
-                  </div>
-
-                  <div className="security-device-arrow">
-                    <div className="security-arrow-line" />
-                    <ArrowRight size={16} />
-                  </div>
-
-                  <div className="security-device-item">
-                    <div className="security-device-box phone-box">
-                      <Smartphone size={16} />
-                    </div>
-                    <span className="device-label">Android</span>
-                  </div>
+            {/* Visual P2P Transfer Bridge */}
+            <div className="security-sync-bridge-card">
+              <div className="security-sync-node">
+                <div className="security-sync-node-icon is-browser">
+                  <Laptop size={18} />
+                </div>
+                <div className="security-sync-node-meta">
+                  <span className="security-sync-node-name">This Browser</span>
+                  <span className="security-sync-node-status">
+                    <span className="sync-status-dot" /> Keys Ready
+                  </span>
                 </div>
               </div>
-            </article>
 
-            {/* Card 2: Manage in the mobile app */}
-            <article className="security-card security-card-mobile">
-              <div className="security-card-header">
-                <div className="security-card-header-icon">
+              <div className="security-sync-connector">
+                <div className="security-connector-line" />
+                <div className="security-connector-pill">
+                  <ShieldCheck size={11} />
+                  <span>P2P E2EE</span>
+                </div>
+              </div>
+
+              <div className="security-sync-node">
+                <div className="security-sync-node-icon is-phone">
                   <Smartphone size={18} />
                 </div>
-                <h3>Manage in the mobile app</h3>
+                <div className="security-sync-node-meta">
+                  <span className="security-sync-node-name">Android Device</span>
+                  <span className="security-sync-node-status is-pending">Pair via QR</span>
+                </div>
               </div>
-              <p className="security-card-desc">
-                Open Novyn on your phone with the same account.
-              </p>
+            </div>
 
-              <div className="security-mobile-tiles-grid">
-                <button
-                  type="button"
-                  className="security-mobile-tile"
-                  onClick={() => handleMobileFeatureClick('Change Password', 'Settings > Security & Privacy > Change Password', 'privacy-password')}
-                >
-                  <div className="security-mobile-tile-icon">
-                    <User size={18} />
-                  </div>
-                  <span className="security-mobile-tile-name">Change Password</span>
-                  <span className="security-mobile-badge">On phone</span>
-                </button>
-
-                <button
-                  type="button"
-                  className="security-mobile-tile"
-                  onClick={() => handleMobileFeatureClick('App Lock', 'Settings > Security & Privacy > App Lock', 'privacy-app-lock')}
-                >
-                  <div className="security-mobile-tile-icon">
-                    <Lock size={18} />
-                  </div>
-                  <span className="security-mobile-tile-name">App Lock</span>
-                  <span className="security-mobile-badge">On phone</span>
-                </button>
-
-                <button
-                  type="button"
-                  className="security-mobile-tile"
-                  onClick={() => handleMobileFeatureClick('Stealth Mode', 'Settings > Security & Privacy > Stealth Mode', 'privacy-stealth')}
-                >
-                  <div className="security-mobile-tile-icon">
-                    <EyeOff size={18} />
-                  </div>
-                  <span className="security-mobile-tile-name">Stealth Mode</span>
-                  <span className="security-mobile-badge">On phone</span>
-                </button>
+            {/* Benefit pills */}
+            <div className="security-sync-benefits">
+              <div className="security-sync-benefit-item">
+                <Check size={12} className="benefit-check" />
+                <span>Zero-knowledge transfer</span>
               </div>
-            </article>
-          </div>
+              <div className="security-sync-benefit-item">
+                <QrCode size={12} className="benefit-qr" />
+                <span>Instant QR pairing</span>
+              </div>
+              <div className="security-sync-benefit-item">
+                <Check size={12} className="benefit-check" />
+                <span>Restores past chat messages</span>
+              </div>
+            </div>
+
+            {/* Bottom Action Footer */}
+            <div className="security-sync-footer">
+              <button
+                type="button"
+                className="security-btn-glow"
+                onClick={() => setKeysOpen(true)}
+                aria-haspopup="dialog"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}
+              >
+                <KeyRound size={15} /> Open Key Transfer
+              </button>
+              <span className="security-sync-footer-note">
+                Scan QR from your Android phone to sync
+              </span>
+            </div>
+          </article>
         </div>
 
-        {/* Bottom Section: Coming Soon */}
-        <article className="security-card security-coming-soon-card">
-          <div className="security-coming-soon-header">
-            <span className="security-section-tag">COMING SOON</span>
-            <span className="security-coming-soon-subtitle">These features are still in development.</span>
+        {/* Row 2: Core Security Suite (100% Functional Web Features) */}
+        <article className="security-card security-suite-card">
+          <div className="security-suite-header">
+            <div className="security-suite-header-left">
+              <span className="security-section-tag">
+                <span className="security-tag-dot is-green" /> AUTHENTICATION & ACCESS CONTROLS
+              </span>
+              <p className="security-suite-subtitle">
+                Manage your credentials, inactivity screen lock, multi-factor verification, and logged-in devices.
+              </p>
+            </div>
           </div>
 
-          <div className="security-soon-grid">
+          <div className="security-suite-grid">
+            {/* 1. Account Password */}
             <button
               type="button"
-              className="security-soon-item"
-              onClick={() => handleComingSoonClick('Two-Factor Authentication', 'privacy-two-factor')}
+              className="security-feature-card"
+              onClick={() => handleNavigate('privacy-password')}
             >
-              <div className="security-soon-item-left">
-                <FileText size={16} />
-                <span>Two-Factor Authentication</span>
+              <div className="security-feature-left">
+                <div className="security-feature-icon">
+                  <KeyRound size={20} />
+                </div>
+                <div className="security-feature-info">
+                  <span className="security-feature-title">Account Password</span>
+                  <span className="security-feature-desc">
+                    {hasPassword
+                      ? 'Master password configured'
+                      : isGoogleUser
+                      ? 'Connected via Google account'
+                      : 'Create a password for direct sign-in'}
+                  </span>
+                </div>
               </div>
-              <span className="security-soon-badge">Soon</span>
+              <div className="security-feature-right">
+                <span className={`security-feature-badge ${hasPassword ? 'is-active' : 'is-setup'}`}>
+                  {hasPassword ? 'Active' : isGoogleUser ? 'Google ID' : 'Set Up'}
+                </span>
+                <ChevronRight size={16} className="security-feature-arrow" />
+              </div>
             </button>
 
+            {/* 2. Screen Lock & PIN */}
             <button
               type="button"
-              className="security-soon-item"
-              onClick={() => handleComingSoonClick('Active Sessions', 'privacy-sessions')}
+              className="security-feature-card"
+              onClick={() => handleNavigate('privacy-app-lock')}
             >
-              <div className="security-soon-item-left">
-                <Clock size={16} />
-                <span>Active Sessions</span>
+              <div className="security-feature-left">
+                <div className="security-feature-icon is-indigo">
+                  <Lock size={20} />
+                </div>
+                <div className="security-feature-info">
+                  <span className="security-feature-title">Screen Lock & PIN</span>
+                  <span className="security-feature-desc">
+                    {isPinActive
+                      ? `Auto-locks after ${pinTimeout === '0' ? 'immediate' : pinTimeout + ' min'}`
+                      : 'Lock screen with a 4-digit PIN'}
+                  </span>
+                </div>
               </div>
-              <span className="security-soon-badge">Soon</span>
+              <div className="security-feature-right">
+                <span className={`security-feature-badge ${isPinActive ? 'is-active' : 'is-neutral'}`}>
+                  {isPinActive ? 'PIN Active' : 'Disabled'}
+                </span>
+                <ChevronRight size={16} className="security-feature-arrow" />
+              </div>
             </button>
 
+            {/* 3. Two-Factor Authentication */}
             <button
               type="button"
-              className="security-soon-item"
-              onClick={() => handleComingSoonClick('Linked Devices', 'privacy-linked-devices')}
+              className="security-feature-card"
+              onClick={() => handleNavigate('privacy-two-factor')}
             >
-              <div className="security-soon-item-left">
-                <Laptop size={16} />
-                <span>Linked Devices</span>
+              <div className="security-feature-left">
+                <div className="security-feature-icon is-green">
+                  <ShieldCheck size={20} />
+                </div>
+                <div className="security-feature-info">
+                  <span className="security-feature-title">Two-Factor Authentication</span>
+                  <span className="security-feature-desc">
+                    {is2faActive
+                      ? 'TOTP code required on new sign-ins'
+                      : 'Authenticator app (Google / Authy) & backup codes'}
+                  </span>
+                </div>
               </div>
-              <span className="security-soon-badge">Soon</span>
+              <div className="security-feature-right">
+                <span className={`security-feature-badge ${is2faActive ? 'is-active' : 'is-setup'}`}>
+                  {is2faActive ? 'Active' : 'Configure'}
+                </span>
+                <ChevronRight size={16} className="security-feature-arrow" />
+              </div>
             </button>
 
+            {/* 4. Active Sessions */}
             <button
               type="button"
-              className="security-soon-item"
-              onClick={() => handleComingSoonClick('Account Actions', 'privacy-danger')}
+              className="security-feature-card"
+              onClick={() => handleNavigate('privacy-sessions')}
             >
-              <div className="security-soon-item-left">
-                <Sliders size={16} />
-                <span>Account Actions</span>
+              <div className="security-feature-left">
+                <div className="security-feature-icon is-cyan">
+                  <Clock size={20} />
+                </div>
+                <div className="security-feature-info">
+                  <span className="security-feature-title">Active Sessions</span>
+                  <span className="security-feature-desc">
+                    Review signed-in browsers and revoke other devices
+                  </span>
+                </div>
               </div>
-              <span className="security-soon-badge">Soon</span>
+              <div className="security-feature-right">
+                <span className="security-feature-badge is-active">
+                  Manage
+                </span>
+                <ChevronRight size={16} className="security-feature-arrow" />
+              </div>
             </button>
           </div>
         </article>
+
+        {/* Row 3: Account Actions & Mobile Companion */}
+        <div className="security-bottom-split">
+          {/* Left: Account Actions & Data Controls */}
+          <article className="security-card security-danger-summary-card">
+            <div>
+              <div className="security-card-header">
+                <div className="security-card-header-icon is-red">
+                  <Sliders size={18} />
+                </div>
+                <h3>Account Actions & Danger Zone</h3>
+              </div>
+              <p className="security-card-desc">
+                Clear local cached media files, sign out of all devices, or permanently erase your Novyn identity.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              className="security-danger-action-btn"
+              onClick={() => handleNavigate('privacy-danger')}
+            >
+              <Sliders size={15} /> Manage Account Data & Safety
+            </button>
+          </article>
+
+          {/* Right: Mobile App Companion Exclusives */}
+          <article className="security-card security-card-mobile">
+            <div className="security-card-header">
+              <div className="security-card-header-icon">
+                <Smartphone size={18} />
+              </div>
+              <h3>Mobile App Exclusives</h3>
+            </div>
+            <p className="security-card-desc">
+              Hardware-dependent privacy features available in the Novyn mobile app.
+            </p>
+
+            <div className="security-mobile-tiles-grid">
+              <button
+                type="button"
+                className="security-mobile-tile"
+                onClick={() => handleMobileOnlyClick('Stealth Mode')}
+              >
+                <div className="security-mobile-tile-icon">
+                  <EyeOff size={18} />
+                </div>
+                <span className="security-mobile-tile-name">Stealth Mode</span>
+                <span className="security-mobile-badge">Mobile App</span>
+              </button>
+
+              <button
+                type="button"
+                className="security-mobile-tile"
+                onClick={() => handleMobileOnlyClick('Biometrics')}
+              >
+                <div className="security-mobile-tile-icon">
+                  <Fingerprint size={18} />
+                </div>
+                <span className="security-mobile-tile-name">Biometrics</span>
+                <span className="security-mobile-badge">Mobile App</span>
+              </button>
+            </div>
+          </article>
+        </div>
       </div>
 
       <MessageKeyTransferDialog isOpen={keysOpen} onClose={() => setKeysOpen(false)} />

@@ -85,7 +85,19 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ activeSubSection, 
   const selectedPresence = presence.find(item => item.value === status) || presence[0];
   const statusColor = selectedPresence.color;
   const avatar = user?.avatarId || (user?.username ? localStorage.getItem('novyn_avatar_' + user.username) : '');
-  const activeMenuSection = activeSubSection.startsWith('privacy-') ? 'privacy-controls'
+  const isSecuritySection = [
+    'security-dashboard',
+    'privacy-password',
+    'privacy-app-lock',
+    'privacy-two-factor',
+    'privacy-sessions',
+    'privacy-danger',
+    'privacy-linked-devices',
+    'privacy-message-keys',
+  ].includes(activeSubSection);
+
+  const activeMenuSection = isSecuritySection ? 'security-dashboard'
+    : activeSubSection.startsWith('privacy-') ? 'privacy-controls'
     : activeSubSection.startsWith('storage-') ? 'storage-cache'
     : activeSubSection.startsWith('feedback-') ? 'feedback-send'
     : activeSubSection.startsWith('profile-') ? 'profile-details'

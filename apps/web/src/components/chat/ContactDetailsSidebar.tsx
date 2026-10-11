@@ -27,7 +27,11 @@ import {
   Lock,
   ShieldCheck,
   Clock3,
+  Bookmark,
+  Copy,
+  Star,
 } from 'lucide-react';
+import './contactDetailsEnhancements.css';
 import { SharedMediaModal } from './SharedMediaModal';
 import { ExportChatModal } from './ExportChatModal';
 import { QRCodeModal } from '../profile/QRCodeModal';
@@ -100,6 +104,7 @@ export const ContactDetailsSidebar: React.FC<ContactDetailsSidebarProps> = ({
   const [showConfirmLeave, setShowConfirmLeave] = useState(false);
   const [isFriendRequestSending, setIsFriendRequestSending] = useState(false);
   const [friendRequestMessage, setFriendRequestMessage] = useState('');
+  const [isHandleCopied, setIsHandleCopied] = useState(false);
 
   // Group Details & Members State
   const [groupInfo, setGroupInfo] = useState<any>(null);
@@ -108,8 +113,32 @@ export const ContactDetailsSidebar: React.FC<ContactDetailsSidebarProps> = ({
   const [memberToRemove, setMemberToRemove] = useState<string | null>(null);
 
   const isGroup = Boolean(contact.isGroup);
+  const isSelf = Boolean(contact.isSelf);
   const friendRequestPending = sentRequests.has(contact.username.toLowerCase());
   const incomingFriendRequest = friendRequests.some(request => request.from.toLowerCase() === contact.username.toLowerCase());
+
+  // Mutual groups (groups both this user and the contact are members of)
+  const mutualGroups = React.useMemo(() => {
+    if (isSelf || isGroup) return [];
+    return conversations.filter(
+      c => c.isGroup && c.members && c.members.includes(contact.username)
+    );
+  }, [conversations, contact.username, isSelf, isGroup]);
+
+  // Stats for Saved Messages
+  const savedMsgStats = React.useMemo(() => {
+    if (!isSelf) return null;
+    const imgs = messages.filter(m => m.attachment?.kind === 'image');
+    const docs = messages.filter(m => m.attachment && m.attachment.kind === 'file');
+    return { total: messages.length, images: imgs.length, docs: docs.length };
+  }, [messages, isSelf]);
+
+  const copyHandle = () => {
+    navigator.clipboard.writeText(`@${contact.username}`).then(() => {
+      setIsHandleCopied(true);
+      setTimeout(() => setIsHandleCopied(false), 2000);
+    });
+  };
 
   useEffect(() => {
     setFriendRequestMessage('');
@@ -250,98 +279,172 @@ export const ContactDetailsSidebar: React.FC<ContactDetailsSidebarProps> = ({
         <div className="conversations-scroll contact-details-content" style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
           {/* Group Profile or User Card */}
           <div className="contact-details-profile" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', marginBottom: '22px' }}>
-            <div style={{ marginBottom: '12px' }}>
-              <Avatar
-                name={contact.displayName || contact.username}
-                avatarUrl={contact.avatarId}
-                online={contact.online}
-                presence={contact.presence}
-                isGroup={isGroup}
-                size="xl"
-              />
-            </div>
 
-            <h2 style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--text-main)', marginBottom: '2px' }}>
-              {contact.displayName || contact.username}
-            </h2>
-            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '6px' }}>
-              @{contact.username}
-            </p>
-
-            <span
-              className="contact-presence"
-              style={{
-                fontSize: '0.72rem',
-                fontWeight: 700,
-                color: '#087fac',
-                background: 'rgba(56, 189, 248, 0.12)',
-                padding: '2px 10px',
-                borderRadius: '9999px',
-                marginBottom: isGroup ? '12px' : '16px',
-              }}
-            >
-              {isGroup
-                ? `👥 ${groupInfo?.members?.length || contact.memberCount || 2} members`
-                : contact.online
-                ? '● Online'
-                : 'Offline'}
-            </span>
-
-            {/* Quick 1-on-1 Call Actions (only for direct contacts) */}
-            {!isGroup && (
-              <div className="contact-call-actions" style={{ display: 'flex', gap: '10px', width: '100%' }}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    triggerHaptic('medium');
-                    onAudioCall(contact.username);
-                  }}
-                  className="btn btn-secondary"
-                  style={{ flex: 1, padding: '9px', borderRadius: '12px', fontSize: '0.8rem' }}
-                >
-                  <Phone style={{ width: '15px', height: '15px', color: '#078779' }} /> Call
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    triggerHaptic('medium');
-                    onVideoCall(contact.username);
-                  }}
-                  className="btn btn-secondary"
-                  style={{ flex: 1, padding: '9px', borderRadius: '12px', fontSize: '0.8rem' }}
-                >
-                  <Video style={{ width: '15px', height: '15px', color: '#087fac' }} /> Video
-                </button>
+            {/* Saved Messages: special hero */}
+            {isSelf ? (
+              <div className="saved-messages-details-hero">
+                <div className="saved-messages-details-icon">
+                  <Bookmark style={{ width: '32px', height: '32px' }} fill="currentColor" />
+                </div>
+                <h2 style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--text-main)', margin: '0 0 4px' }}>Saved Messages</h2>
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '0 0 12px' }}>Your private encrypted notebook</p>
+                {savedMsgStats && (
+                  <div className="saved-messages-details-stats">
+                    <div className="saved-messages-stat-box">
+                      <div className="saved-messages-stat-num">{savedMsgStats.total}</div>
+                      <div className="saved-messages-stat-label">Notes</div>
+                    </div>
+                    <div className="saved-messages-stat-box">
+                      <div className="saved-messages-stat-num">{savedMsgStats.images}</div>
+                      <div className="saved-messages-stat-label">Photos</div>
+                    </div>
+                    <div className="saved-messages-stat-box">
+                      <div className="saved-messages-stat-num">{savedMsgStats.docs}</div>
+                      <div className="saved-messages-stat-label">Files</div>
+                    </div>
+                  </div>
+                )}
               </div>
-            )}
-            {!isGroup && contact.isFriend === false && (
-              <div style={{ width: '100%', marginTop: '10px' }}>
+            ) : (
+              <>
+                <div style={{ marginBottom: '12px' }}>
+                  <Avatar
+                    name={contact.displayName || contact.username}
+                    avatarUrl={contact.avatarId}
+                    online={contact.online}
+                    presence={contact.presence}
+                    isGroup={isGroup}
+                    size="xl"
+                  />
+                </div>
+
+                <h2 style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--text-main)', marginBottom: '2px' }}>
+                  {contact.displayName || contact.username}
+                </h2>
+
+                {/* Click-to-copy handle */}
                 <button
                   type="button"
-                  className="btn btn-primary"
-                  disabled={isFriendRequestSending || friendRequestPending || isBlocked}
-                  onClick={async () => {
-                    if (incomingFriendRequest) {
-                      acceptFriendRequest(contact.username);
-                      setFriendRequestMessage('You are now friends.');
-                      return;
-                    }
-                    setIsFriendRequestSending(true);
-                    setFriendRequestMessage('');
-                    const result = await sendFriendRequest(contact.username);
-                    setFriendRequestMessage(result.ok ? 'Friend request sent.' : result.message || 'Could not send friend request.');
-                    setIsFriendRequestSending(false);
-                  }}
-                  style={{ width: '100%', justifyContent: 'center', padding: '9px 12px', borderRadius: '12px', fontSize: '0.8rem' }}
+                  className={`contact-handle-copy-btn ${isHandleCopied ? 'is-copied' : ''}`}
+                  onClick={copyHandle}
+                  title="Click to copy handle"
                 >
-                  <UserPlus style={{ width: '15px', height: '15px' }} />
-                  {incomingFriendRequest ? 'Accept friend request' : friendRequestPending ? 'Request sent' : isFriendRequestSending ? 'Sending request…' : 'Add friend'}
+                  {isHandleCopied ? <Check style={{ width: '12px', height: '12px' }} /> : <Copy style={{ width: '12px', height: '12px' }} />}
+                  @{contact.username}
                 </button>
-                {friendRequestMessage && <p role="status" style={{ margin: '7px 0 0', fontSize: '0.72rem' }}>{friendRequestMessage}</p>}
-              </div>
+
+                {/* Bio / Status */}
+                {contact.bio && (
+                  <div className="contact-bio-card" style={{ width: '100%', boxSizing: 'border-box' }}>
+                    <div className="contact-bio-header">
+                      <Star style={{ width: '11px', height: '11px' }} /> About
+                    </div>
+                    <p className="contact-bio-text">{contact.bio}</p>
+                  </div>
+                )}
+
+                <span
+                  className="contact-presence"
+                  style={{
+                    fontSize: '0.72rem',
+                    fontWeight: 700,
+                    color: '#087fac',
+                    background: 'rgba(56, 189, 248, 0.12)',
+                    padding: '2px 10px',
+                    borderRadius: '9999px',
+                    marginBottom: isGroup ? '12px' : '16px',
+                  }}
+                >
+                  {isGroup
+                    ? `👥 ${groupInfo?.members?.length || contact.memberCount || 2} members`
+                    : contact.online
+                    ? '● Online'
+                    : 'Offline'}
+                </span>
+
+                {/* Quick 1-on-1 Call Actions (only for direct contacts) */}
+                {!isGroup && (
+                  <div className="contact-call-actions" style={{ display: 'flex', gap: '10px', width: '100%' }}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        triggerHaptic('medium');
+                        onAudioCall(contact.username);
+                      }}
+                      className="btn btn-secondary"
+                      style={{ flex: 1, padding: '9px', borderRadius: '12px', fontSize: '0.8rem' }}
+                    >
+                      <Phone style={{ width: '15px', height: '15px', color: '#078779' }} /> Call
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        triggerHaptic('medium');
+                        onVideoCall(contact.username);
+                      }}
+                      className="btn btn-secondary"
+                      style={{ flex: 1, padding: '9px', borderRadius: '12px', fontSize: '0.8rem' }}
+                    >
+                      <Video style={{ width: '15px', height: '15px', color: '#087fac' }} /> Video
+                    </button>
+                  </div>
+                )}
+                {!isGroup && contact.isFriend === false && (
+                  <div style={{ width: '100%', marginTop: '10px' }}>
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      disabled={isFriendRequestSending || friendRequestPending || isBlocked}
+                      onClick={async () => {
+                        if (incomingFriendRequest) {
+                          acceptFriendRequest(contact.username);
+                          setFriendRequestMessage('You are now friends.');
+                          return;
+                        }
+                        setIsFriendRequestSending(true);
+                        setFriendRequestMessage('');
+                        const result = await sendFriendRequest(contact.username);
+                        setFriendRequestMessage(result.ok ? 'Friend request sent.' : result.message || 'Could not send friend request.');
+                        setIsFriendRequestSending(false);
+                      }}
+                      style={{ width: '100%', justifyContent: 'center', padding: '9px 12px', borderRadius: '12px', fontSize: '0.8rem' }}
+                    >
+                      <UserPlus style={{ width: '15px', height: '15px' }} />
+                      {incomingFriendRequest ? 'Accept friend request' : friendRequestPending ? 'Request sent' : isFriendRequestSending ? 'Sending request…' : 'Add friend'}
+                    </button>
+                    {friendRequestMessage && <p role="status" style={{ margin: '7px 0 0', fontSize: '0.72rem' }}>{friendRequestMessage}</p>}
+                  </div>
+                )}
+              </>
             )}
           </div>
+
+          {/* Mutual Groups Section — for 1-on-1 contacts who share groups */}
+          {!isGroup && !isSelf && mutualGroups.length > 0 && (
+            <div className="contact-mutual-groups-section">
+              <span className="contact-section-label">
+                <Users style={{ width: '12px', height: '12px', display: 'inline', marginRight: '5px', verticalAlign: 'middle' }} />
+                {mutualGroups.length} GROUP{mutualGroups.length !== 1 ? 'S' : ''} IN COMMON
+              </span>
+              <div className="contact-mutual-groups-list">
+                {mutualGroups.slice(0, 4).map(g => (
+                  <div key={g.username} className="contact-mutual-group-item">
+                    <Avatar name={g.displayName || g.username} avatarUrl={g.avatarId} isGroup size="sm" />
+                    <div className="contact-mutual-group-info">
+                      <div className="contact-mutual-group-name">{g.displayName || g.username}</div>
+                      <div className="contact-mutual-group-members">{g.memberCount || 2} members</div>
+                    </div>
+                  </div>
+                ))}
+                {mutualGroups.length > 4 && (
+                  <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', padding: '4px 10px', textAlign: 'center' }}>
+                    +{mutualGroups.length - 4} more groups
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Group Members Section */}
           {isGroup && (

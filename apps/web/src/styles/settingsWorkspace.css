@@ -293,7 +293,7 @@
 }
 :root .app-container[data-tab="settings"] .settings-sidebar > h1 {
   margin: 0 8px 20px;
-  color: #9561fa;
+  color: var(--primary);
   background: none;
   font-size: 26px;
   letter-spacing: -.7px;
@@ -346,7 +346,15 @@
 :root .app-container[data-tab="settings"] .settings-sidebar .android-settings-row > svg { color: inherit; flex-shrink: 0; }
 .settings-menu-label { text-align: left; }
 :root .app-container[data-tab="settings"] .settings-sidebar .android-settings-row:hover { background: var(--settings-sidebar-hover); color: var(--text-main); }
-:root .app-container[data-tab="settings"] .settings-sidebar .android-settings-row[data-selected="true"] { background: var(--settings-sidebar-active); color: var(--text-main); box-shadow: inset 2px 0 0 #9561fa; }
+:root .app-container[data-tab="settings"] .settings-sidebar .android-settings-row[data-selected="true"] {
+  background: var(--primary-glow) !important;
+  color: var(--text-main) !important;
+  box-shadow: inset 3px 0 0 var(--primary) !important;
+  border-color: var(--primary) !important;
+}
+:root .app-container[data-tab="settings"] .settings-sidebar .android-settings-row[data-selected="true"] > svg {
+  color: var(--primary) !important;
+}
 :root .app-container[data-tab="settings"] .settings-sidebar .android-settings-section { margin: 20px 12px 8px; font-size: 10px; font-weight: 500; letter-spacing: 1px; color: var(--text-muted); }
 :root .app-container[data-tab="settings"] .settings-sidebar .android-settings-section::before,
 :root .app-container[data-tab="settings"] .settings-sidebar .android-settings-section::after { display: none; }
@@ -772,7 +780,25 @@
 :root .app-container[data-tab="settings"] .settings-detail--security .settings-detail-body > .security-dashboard { width: 100%; max-width: 1160px !important; }
 .security-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-areas: 'encryption phone' 'keys phone' 'upcoming upcoming'; gap: 14px; align-items: start; }
 .privacy-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-areas: 'reach visibility' 'blocked retention'; gap: 14px; align-items: start; }
-:root .app-container[data-tab="settings"] .settings-detail--security .settings-detail-body > .privacy-dashboard { width: 100%; max-width: none !important; min-width: 0; }
+:root .app-container[data-tab="settings"] .settings-detail--security .settings-detail-body > .privacy-dashboard,
+:root .app-container[data-tab="settings"] .settings-detail--security .settings-detail-body > .account-actions-dashboard { width: 100%; max-width: none !important; min-width: 0; }
+.account-actions-sessions-grid {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+}
+.account-actions-sessions-grid::-webkit-scrollbar {
+  width: 5px;
+}
+.account-actions-sessions-grid::-webkit-scrollbar-track {
+  background: transparent;
+}
+.account-actions-sessions-grid::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 6px;
+}
+.account-actions-sessions-grid::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.35);
+}
 .privacy-dashboard { font-family: var(--app-font-family, 'Plus Jakarta Sans', system-ui, sans-serif); }
 .privacy-overview-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px; }
 .privacy-overview-grid > .security-card { padding: 22px; border-radius: 24px; text-align: left; }
@@ -1001,7 +1027,7 @@
 @media (max-width: 768px) { .accessibility-card { padding: 20px; border-radius: 20px; } .accessibility-control { flex-wrap: wrap; } .accessibility-control > div { flex-basis: calc(100% - 60px); } .accessibility-control > button { margin-left: 58px; } }
 .appearance-theme-preview i { height: 10px; border-radius: 7px; }
 .theme-preview-incoming { width: 60%; background: #9a94ae99; }
-.theme-preview-outgoing { width: 58%; align-self: flex-end; background: #9460ff; }
+.theme-preview-outgoing { width: 58%; align-self: flex-end; background: var(--primary); }
 .theme-preview-incoming.is-short { width: 40%; }
 .appearance-theme-label { display: flex; align-items: center; gap: 6px; padding: 12px 10px; color: inherit; font: inherit; font-size: 12px; font-weight: 600; }
 .appearance-theme-label > svg { flex-shrink: 0; }
@@ -1049,15 +1075,22 @@
 .appearance-wallpaper-card .appearance-card-heading { margin-bottom: 18px; }
 .appearance-wallpaper-card .appearance-card-heading > span { color: var(--text-muted); }
 .appearance-wallpaper-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(128px, 1fr)); gap: 12px; }
-.appearance-dashboard .appearance-wallpaper-options button { display: flex; flex-direction: column; align-items: stretch; gap: 0; min-width: 0; padding: 4px; border: 2px solid var(--border); border-radius: 16px; background: transparent; color: var(--text-muted); box-shadow: none; cursor: pointer; transition: border-color 160ms ease; }
-.appearance-dashboard .appearance-wallpaper-options button[aria-pressed="true"] { border-color: var(--primary); color: var(--primary); background: transparent; box-shadow: none; }
-.appearance-dashboard .appearance-wallpaper-options button:hover:not([aria-pressed="true"]) { border-color: var(--text-muted); }
+.appearance-dashboard .appearance-wallpaper-options button { display: flex; flex-direction: column; align-items: stretch; gap: 0; min-width: 0; padding: 4px; border: 2px solid var(--border); border-radius: 16px; background: rgba(255, 255, 255, 0.015); color: var(--text-muted); box-shadow: none; cursor: pointer; transition: transform 180ms cubic-bezier(0.16, 1, 0.3, 1), border-color 160ms ease, box-shadow 180ms ease; }
+.appearance-dashboard .appearance-wallpaper-options button:hover { transform: translateY(-2px); }
+.appearance-dashboard .appearance-wallpaper-options button[aria-pressed="true"] { border-color: var(--primary); color: var(--primary); background: rgba(255, 255, 255, 0.03); box-shadow: 0 6px 20px var(--primary-glow); }
+.appearance-dashboard .appearance-wallpaper-options button:hover:not([aria-pressed="true"]) { border-color: rgba(255, 255, 255, 0.2); }
 .appearance-wallpaper-swatch { position: relative; display: block; width: 100%; height: 88px; border: 0; border-radius: 10px; overflow: hidden; }
 .appearance-wallpaper-swatch > i { position: absolute; height: 12px; border-radius: 8px; box-shadow: 0 1px 3px #0000001a; }
 .wallpaper-preview-incoming { top: 39px; left: 12px; width: 36px; background: #ffffffdc; }
 .wallpaper-preview-outgoing { top: 58px; right: 12px; width: 46px; background: #9460ff; }
 .appearance-wallpaper-swatch > svg { position: absolute; top: 7px; right: 7px; padding: 3px; width: 21px; height: 21px; border-radius: 50%; background: var(--primary); color: #fff; }
 .appearance-wallpaper-options strong { display: grid; place-items: center; min-height: 34px; padding: 8px 2px 4px; color: inherit; font-size: 11px; font-weight: 600; line-height: 1.4; text-align: center; }
+.appearance-accent-swatch { background: radial-gradient(ellipse at 80% 20%, rgba(255, 255, 255, 0.04), transparent 70%), #0c1220; border: 1px solid rgba(255, 255, 255, 0.06); }
+:root[data-color-mode="light"] .appearance-accent-swatch { background: radial-gradient(ellipse at 80% 20%, rgba(255, 255, 255, 0.8), transparent 70%), #eef2f8 !important; border-color: rgba(0, 0, 0, 0.07) !important; }
+:root[data-color-mode="light"] .appearance-accent-swatch .wallpaper-preview-incoming { background: #ffffff !important; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12) !important; }
+:root[data-color-mode="light"] .appearance-dashboard .appearance-wallpaper-options button { background: #ffffff; border-color: rgba(0, 0, 0, 0.08); color: #334155; }
+:root[data-color-mode="light"] .appearance-dashboard .appearance-wallpaper-options button:hover:not([aria-pressed="true"]) { border-color: rgba(0, 0, 0, 0.22); }
+:root[data-color-mode="light"] .appearance-dashboard .appearance-wallpaper-options button[aria-pressed="true"] { border-color: var(--primary); color: var(--primary); background: #ffffff; box-shadow: 0 6px 18px var(--primary-glow); }
 @media (min-width: 769px) and (max-width: 1100px) {
   .appearance-grid { grid-template-areas: 'theme theme' 'dock typography' 'wallpaper wallpaper'; }
   .appearance-theme-options { min-height: 180px; }

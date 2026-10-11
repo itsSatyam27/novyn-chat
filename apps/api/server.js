@@ -1181,6 +1181,7 @@ function getRtcIceServersForClient(authenticated) {
 }
 
 const { createPasswordSecret, verifyPassword } = require("./server/auth/password");
+const { verifyTotpCode } = require("./server/auth/totp");
 
 function nowIso() {
   return new Date().toISOString();
@@ -1240,6 +1241,9 @@ function createUserRecord(username) {
     isRegistered: false,
     passwordSalt: "",
     passwordHash: "",
+    twoFactorEnabled: false,
+    twoFactorSecret: "",
+    twoFactorBackupCodes: [],
     avatarId: "",
     age: "",
     gender: "",
@@ -1279,6 +1283,9 @@ function serializeState() {
       isRegistered: Boolean(user.isRegistered),
       passwordSalt: toDisplayName(user.passwordSalt),
       passwordHash: toDisplayName(user.passwordHash),
+      twoFactorEnabled: Boolean(user.twoFactorEnabled),
+      twoFactorSecret: toDisplayName(user.twoFactorSecret),
+      twoFactorBackupCodes: Array.isArray(user.twoFactorBackupCodes) ? user.twoFactorBackupCodes : [],
       avatarId: toDisplayName(user.avatarId),
       age: toDisplayName(user.age),
       gender: toDisplayName(user.gender),
@@ -1471,6 +1478,9 @@ async function persistMongoNow() {
               isRegistered: Boolean(entry.isRegistered),
               passwordSalt: toDisplayName(entry.passwordSalt),
               passwordHash: toDisplayName(entry.passwordHash),
+              twoFactorEnabled: Boolean(entry.twoFactorEnabled),
+              twoFactorSecret: toDisplayName(entry.twoFactorSecret),
+              twoFactorBackupCodes: Array.isArray(entry.twoFactorBackupCodes) ? entry.twoFactorBackupCodes : [],
               avatarId: toDisplayName(entry.avatarId),
               age: toDisplayName(entry.age),
               gender: toDisplayName(entry.gender),
@@ -2020,6 +2030,9 @@ function applyLoadedState(parsed) {
     user.isRegistered = Boolean(entry.isRegistered);
     user.passwordSalt = toDisplayName(entry.passwordSalt);
     user.passwordHash = toDisplayName(entry.passwordHash);
+    user.twoFactorEnabled = Boolean(entry.twoFactorEnabled);
+    user.twoFactorSecret = toDisplayName(entry.twoFactorSecret);
+    user.twoFactorBackupCodes = Array.isArray(entry.twoFactorBackupCodes) ? entry.twoFactorBackupCodes : [];
     user.email = normalizeEmail(entry.email);
     user.googleUid = toDisplayName(entry.googleUid);
     user.avatarId = toDisplayName(entry.avatarId);
@@ -2213,6 +2226,9 @@ function toSerializedUserEntry(doc) {
     isRegistered: Boolean(doc?.isRegistered),
     passwordSalt: toDisplayName(doc?.passwordSalt),
     passwordHash: toDisplayName(doc?.passwordHash),
+    twoFactorEnabled: Boolean(doc?.twoFactorEnabled),
+    twoFactorSecret: toDisplayName(doc?.twoFactorSecret),
+    twoFactorBackupCodes: Array.isArray(doc?.twoFactorBackupCodes) ? doc.twoFactorBackupCodes : [],
     avatarId: toDisplayName(doc?.avatarId),
     age: toDisplayName(doc?.age),
     gender: toDisplayName(doc?.gender),
@@ -4459,6 +4475,9 @@ app.get("/api/auth/session", (req, res) => {
     avatarId: user.avatarId || "",
     bio: user.bio || "",
     presenceMode: user.presenceMode || "online",
+    hasPassword: Boolean(user.passwordHash && user.passwordSalt),
+    isGoogleUser: Boolean(user.googleUid),
+    twoFactorEnabled: Boolean(user.twoFactorEnabled),
     retentionDays: [7, 15, 30].includes(Number(user.retentionDays)) ? Number(user.retentionDays) : 30,
     callPrivacy: user.callPrivacy || "friends", messagePrivacy: user.messagePrivacy || "friends",
     profilePhotoPrivacy: user.profilePhotoPrivacy || "everyone", presencePrivacy: user.presencePrivacy || "everyone",
@@ -5413,6 +5432,7 @@ io.on("connection", (socket) => {
       profilePhotoPrivacy: user.profilePhotoPrivacy || "everyone", presencePrivacy: user.presencePrivacy || "everyone",
       readReceiptsEnabled: user.readReceiptsEnabled !== false, typingIndicatorsEnabled: user.typingIndicatorsEnabled !== false,
       groupInvitePrivacy: user.groupInvitePrivacy || "friends", friendRequestPrivacy: user.friendRequestPrivacy || "everyone",
+      twoFactorEnabled: Boolean(user.twoFactorEnabled),
     });
     respond({ ok: true });
 
@@ -5448,9 +5468,12 @@ io.on("connection", (socket) => {
     const currentPassword = toDisplayName(payload?.currentPassword || payload?.password);
     const desired = toDisplayName(payload?.newUsername);
 
-    if (!currentPassword || !verifyPassword(currentPassword, user.passwordSalt, user.passwordHash)) {
-      socket.emit("username_change_failed", { message: "Incorrect password." });
-      return;
+    const hasExistingPassword = Boolean(user.passwordHash && user.passwordSalt);
+    if (hasExistingPassword) {
+      if (!currentPassword || !verifyPassword(currentPassword, user.passwordSalt, user.passwordHash)) {
+        socket.emit("username_change_failed", { message: "Incorrect password." });
+        return;
+      }
     }
 
     const result = applyUsernameChange(userKey, desired);
@@ -5523,9 +5546,12 @@ io.on("connection", (socket) => {
     const currentPassword = toDisplayName(payload?.currentPassword || payload?.password);
     const nextPassword = toDisplayName(payload?.newPassword);
 
-    if (!currentPassword || !verifyPassword(currentPassword, user.passwordSalt, user.passwordHash)) {
-      socket.emit("password_change_failed", { message: "Incorrect password." });
-      return;
+    const hasExistingPassword = Boolean(user.passwordHash && user.passwordSalt);
+    if (hasExistingPassword) {
+      if (!currentPassword || !verifyPassword(currentPassword, user.passwordSalt, user.passwordHash)) {
+        socket.emit("password_change_failed", { message: "Incorrect current password." });
+        return;
+      }
     }
     if (!nextPassword || nextPassword.length < MIN_PASSWORD_LENGTH) {
       socket.emit("password_change_failed", {
@@ -5540,7 +5566,169 @@ io.on("connection", (socket) => {
     revokeAllRefreshSessionsForUser(userKey);
     schedulePersist();
 
-    socket.emit("password_changed");
+    socket.emit("password_changed", { hasPassword: true });
+  });
+
+  socket.on("delete_account", (payload) => {
+    const userKey = socket.data.userKey;
+    if (!userKey) return;
+    const user = users.get(userKey);
+    if (!user) {
+      socket.emit("account_deletion_failed", { message: "User not found." });
+      return;
+    }
+
+    const currentPassword = toDisplayName(payload?.currentPassword || payload?.password);
+    const confirmationText = toDisplayName(payload?.confirmationText || payload?.confirm);
+    const hasExistingPassword = Boolean(user.passwordHash && user.passwordSalt);
+
+    if (hasExistingPassword) {
+      if (!currentPassword || !verifyPassword(currentPassword, user.passwordSalt, user.passwordHash)) {
+        socket.emit("account_deletion_failed", { message: "Incorrect password." });
+        return;
+      }
+    } else {
+      const isHandleMatch = confirmationText === `@${user.username}` || confirmationText === user.username;
+      if (confirmationText !== "DELETE" && !isHandleMatch && !payload?.confirmed) {
+        socket.emit("account_deletion_failed", { message: `Please type @${user.username} to confirm account deletion.` });
+        return;
+      }
+    }
+
+    const callPeerKey = clearCallPair(userKey);
+    if (callPeerKey && onlineUsers.has(callPeerKey)) {
+      io.to(onlineUsers.get(callPeerKey)).emit("call_ended", { by: userKey, reason: "ended" });
+    }
+
+    const impacted = new Set();
+    users.forEach((other, otherKey) => {
+      if (!other || otherKey === userKey) return;
+      let touched = false;
+      if (other.friends && other.friends.has(userKey)) {
+        other.friends.delete(userKey);
+        touched = true;
+      }
+      if (other.requests && other.requests.has(userKey)) {
+        other.requests.delete(userKey);
+        touched = true;
+      }
+      if (other.unread && other.unread.has(userKey)) {
+        other.unread.delete(userKey);
+        touched = true;
+      }
+      if (other.blockedUsers instanceof Set && other.blockedUsers.has(userKey)) {
+        other.blockedUsers.delete(userKey);
+        touched = true;
+      }
+      if (other.mutedUsers instanceof Set && other.mutedUsers.has(userKey)) {
+        other.mutedUsers.delete(userKey);
+        touched = true;
+      }
+      if (touched) impacted.add(otherKey);
+    });
+
+    for (const [groupId, group] of groups.entries()) {
+      if (group.members instanceof Set && group.members.has(userKey)) {
+        group.members.delete(userKey);
+        if (group.admins instanceof Set) group.admins.delete(userKey);
+        if (group.ownerKey === userKey) {
+          const nextOwner = [...(group.admins || [])][0] || [...(group.members || [])][0];
+          if (nextOwner) {
+            group.ownerKey = nextOwner;
+            if (group.admins instanceof Set) group.admins.add(nextOwner);
+          } else {
+            groups.delete(groupId);
+          }
+        }
+        group.updatedAt = nowIso();
+      }
+    }
+
+    for (const [sId, scheduled] of scheduledMessages.entries()) {
+      if (scheduled.fromKey === userKey || scheduled.toKey === userKey) {
+        scheduledMessages.delete(sId);
+      }
+    }
+
+    revokeAllRefreshSessionsForUser(userKey);
+    onlineUsers.delete(userKey);
+    users.delete(userKey);
+    schedulePersist();
+
+    impacted.forEach((key) => {
+      emitFriendList(key);
+      emitRequests(key);
+    });
+    emitDiscoverOnlineToAll();
+
+    socket.emit("account_deleted", { success: true });
+    setTimeout(() => {
+      try { socket.disconnect(true); } catch (_) {}
+    }, 500);
+  });
+
+  socket.on("enable_2fa", (payload) => {
+    const userKey = socket.data.userKey;
+    if (!userKey) return;
+    const user = users.get(userKey);
+    if (!user) {
+      socket.emit("2fa_error", { message: "User not found." });
+      return;
+    }
+
+    const secret = toDisplayName(payload?.secret);
+    const code = toDisplayName(payload?.code);
+    const backupCodes = Array.isArray(payload?.backupCodes) ? payload.backupCodes.map(toDisplayName).filter(Boolean) : [];
+
+    if (!verifyTotpCode(secret, code)) {
+      socket.emit("2fa_error", { message: "Invalid 6-digit verification code. Please check your authenticator app and device time." });
+      return;
+    }
+
+    user.twoFactorEnabled = true;
+    user.twoFactorSecret = secret;
+    user.twoFactorBackupCodes = backupCodes;
+    schedulePersist();
+
+    socket.emit("2fa_status", { enabled: true, backupCodesCount: backupCodes.length, backupCodes });
+  });
+
+  socket.on("disable_2fa", (payload) => {
+    const userKey = socket.data.userKey;
+    if (!userKey) return;
+    const user = users.get(userKey);
+    if (!user) {
+      socket.emit("2fa_error", { message: "User not found." });
+      return;
+    }
+
+    const hasExistingPassword = Boolean(user.passwordHash && user.passwordSalt);
+    if (hasExistingPassword) {
+      const currentPassword = toDisplayName(payload?.currentPassword || payload?.password);
+      if (!currentPassword || !verifyPassword(currentPassword, user.passwordSalt, user.passwordHash)) {
+        socket.emit("2fa_error", { message: "Incorrect password." });
+        return;
+      }
+    }
+
+    user.twoFactorEnabled = false;
+    user.twoFactorSecret = "";
+    user.twoFactorBackupCodes = [];
+    schedulePersist();
+
+    socket.emit("2fa_status", { enabled: false, backupCodesCount: 0, backupCodes: [] });
+  });
+
+  socket.on("get_2fa_status", () => {
+    const userKey = socket.data.userKey;
+    if (!userKey) return;
+    const user = users.get(userKey);
+    if (!user) return;
+    socket.emit("2fa_status", {
+      enabled: Boolean(user.twoFactorEnabled),
+      backupCodesCount: Array.isArray(user.twoFactorBackupCodes) ? user.twoFactorBackupCodes.length : 0,
+      backupCodes: Boolean(user.twoFactorEnabled) && Array.isArray(user.twoFactorBackupCodes) ? user.twoFactorBackupCodes : [],
+    });
   });
 
   socket.on("add_friend", (rawTarget, callback) => {
@@ -5776,6 +5964,7 @@ io.on("connection", (socket) => {
           isMine: normalizeName(message.fromKey || message.from || "") === userKey,
           messageId: String(message.id || message.clientTempId || ""),
           name: attachment.name || "File",
+          url: attachment.url || "",
           mime: attachment.mime || "",
           size: Math.max(0, Number(attachment.size) || 0),
           kind: message.isVoice || attachment.kind === "audio" ? "audio" : attachment.kind,

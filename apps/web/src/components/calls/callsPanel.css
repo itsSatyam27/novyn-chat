@@ -30,8 +30,8 @@
 }
 
 .calls-history-search:focus-within {
-  border-color: #8b5cf6;
-  box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.25);
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px var(--primary-glow);
   color: #c4b5fd;
 }
 
@@ -42,7 +42,7 @@
 }
 
 .calls-history-search:focus-within svg {
-  color: #8b5cf6;
+  color: var(--primary);
 }
 
 .calls-history-search input {
@@ -95,9 +95,9 @@
 
 .calls-history-filters button[aria-pressed="true"] {
   border-color: transparent;
-  background: #7c3aed;
+  background: var(--primary);
   color: #ffffff;
-  box-shadow: 0 2px 8px rgba(124, 58, 237, 0.35);
+  box-shadow: 0 2px 8px var(--primary-glow);
 }
 
 .calls-panel .header-action-btn {
@@ -119,5 +119,65 @@
   border-color: rgba(139, 92, 246, 0.4);
   color: #ffffff;
   transform: scale(1.04);
+}
+
+/* Light Mode Adaptations */
+:root[data-color-mode="light"] .calls-history-search {
+  background: #f1f5f9;
+  border-color: rgba(0, 0, 0, 0.08);
+  color: #64748b;
+}
+
+:root[data-color-mode="light"] .calls-history-search:focus-within {
+  background: #ffffff;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px var(--primary-glow);
+}
+
+:root[data-color-mode="light"] .calls-history-search svg {
+  color: #64748b;
+}
+
+:root[data-color-mode="light"] .calls-history-search:focus-within svg {
+  color: var(--primary);
+}
+
+:root[data-color-mode="light"] .calls-history-search input {
+  color: #0f172a;
+}
+
+:root[data-color-mode="light"] .calls-history-search input::placeholder {
+  color: #94a3b8;
+}
+
+:root[data-color-mode="light"] .calls-history-filters button {
+  background: #f1f5f9;
+  border-color: rgba(0, 0, 0, 0.08);
+  color: #64748b;
+}
+
+:root[data-color-mode="light"] .calls-history-filters button:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+  border-color: rgba(0, 0, 0, 0.12);
+}
+
+:root[data-color-mode="light"] .calls-history-filters button[aria-pressed="true"] {
+  background: var(--primary);
+  color: #ffffff;
+  border-color: transparent;
+  box-shadow: 0 2px 8px var(--primary-glow);
+}
+
+:root[data-color-mode="light"] .calls-panel .header-action-btn {
+  background: #f1f5f9;
+  border-color: rgba(0, 0, 0, 0.08);
+  color: var(--primary);
+}
+
+:root[data-color-mode="light"] .calls-panel .header-action-btn:hover {
+  background: var(--primary-glow);
+  border-color: var(--primary);
+  color: var(--primary);
 }
 

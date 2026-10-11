@@ -101,6 +101,9 @@ export interface UserProfile {
   typingIndicatorsEnabled?: boolean;
   groupInvitePrivacy?: 'everyone' | 'friends' | 'nobody';
   friendRequestPrivacy?: 'everyone' | 'mutuals' | 'nobody';
+  hasPassword?: boolean;
+  isGoogleUser?: boolean;
+  twoFactorEnabled?: boolean;
 }
 
 export interface Conversation {

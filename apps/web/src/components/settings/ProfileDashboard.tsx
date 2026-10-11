@@ -256,7 +256,7 @@ export function ProfileDashboard({ onBack, onSelectSection }: {
             <button type="button" onClick={() => onSelectSection?.('profile', 'profile-username')}>Change</button></div>
           <div className="profile-account-row"><div><small>Linked email</small><strong>{user?.email || 'No linked email'}</strong></div>
             <button type="button" onClick={() => onSelectSection?.('profile', 'profile-email')}>Manage</button></div>
-          <p>Manage your username and email in the Novyn mobile app.</p>
+          <p>Update your public handle or manage your connected email address.</p>
         </article>
         </div>
       </div>

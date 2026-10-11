@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useChat } from '../../context/ChatContext';
 import type { SettingsSubSection } from './SettingsPanel';
-import { applyFontFamily, applyWallpaper, WALLPAPER_PRESETS } from '../../services/settingsTheme';
+import { applyFontFamily, applyWallpaper, applyThemeAccent, THEME_PRESETS, WALLPAPER_PRESETS } from '../../services/settingsTheme';
 import { setBrowserPreference, useBrowserPreference } from '../../services/browserPreferences';
 import { saveAccountSettings, setBlockedContact } from '../../services/accountSettings';
 import { MessageKeyTransfer } from './MessageKeyTransfer';
@@ -27,6 +27,7 @@ export function WebSettings({ section, privacyGroup }: { section: SettingsSubSec
   const [email, setEmail] = useState(user?.email || '');
   const font = useBrowserPreference('novyn_font_family', 'plus-jakarta');
   const wallpaper = useBrowserPreference('novyn_wallpaper', 'glass');
+  const accent = useBrowserPreference('novyn_theme_accent', 'purple');
   const currentPresence = user?.presenceMode === 'dnd' ? 'busy' : user?.presenceMode === 'offline' ? 'invisible' : user?.presenceMode || 'online';
   const privacyNotice = section.startsWith('privacy-');
   const blockedContacts = Array.from(blockedUsers).sort((a, b) => a.localeCompare(b));
@@ -70,10 +71,15 @@ export function WebSettings({ section, privacyGroup }: { section: SettingsSubSec
     </Modal>
 
     {section === 'appear-wallpaper' && <div className="web-settings-card">
-      <h3>Chat background</h3><div className="web-wallpapers" role="group" aria-label="Chat wallpaper">
-        {Object.entries(WALLPAPER_PRESETS).map(([id, preset]) => <button key={id} type="button" aria-pressed={wallpaper === id}
-          onClick={() => preference('novyn_wallpaper', id, () => applyWallpaper(id))}>
-          <span style={{ background: id === 'glass' ? 'linear-gradient(135deg, #dfe7fa, #c6efec)' : preset.background }} /><strong>{preset.name}</strong>
+      <h3>App Themes &amp; Accent Colors</h3>
+      <div className="appearance-wallpaper-options" role="group" aria-label="Theme accent color">
+        {Object.entries(THEME_PRESETS).map(([id, preset]) => <button key={id} type="button" aria-pressed={accent === id}
+          onClick={() => preference('novyn_theme_accent', id, () => applyThemeAccent(id))}>
+          <span className="appearance-wallpaper-swatch" style={{ background: '#0c1220' }}>
+            <i className="wallpaper-preview-incoming" />
+            <i className="wallpaper-preview-outgoing" style={{ background: preset.gradient }} />
+          </span>
+          <strong>{preset.name}</strong>
         </button>)}
       </div>
     </div>}

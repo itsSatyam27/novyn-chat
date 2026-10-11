@@ -98,12 +98,13 @@ html, body {
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  background: var(--primary-gradient, linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%));
   color: #ffffff;
   box-shadow: 0 4px 20px var(--primary-glow);
 }
 .btn-primary:hover {
-  background: linear-gradient(135deg, #34d399 0%, #10b981 100%);
+  background: var(--primary-gradient, linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%));
+  filter: brightness(1.1);
   transform: translateY(-1px);
   box-shadow: 0 6px 24px rgba(16, 185, 129, 0.35);
 }
