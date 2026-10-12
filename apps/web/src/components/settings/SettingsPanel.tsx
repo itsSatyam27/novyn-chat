@@ -5,6 +5,7 @@ import { ShieldCheck, Eye, Palette, Volume2, Globe, MessageSquarePlus,
 import { triggerHaptic } from '../../services/capacitor';
 import { useBrowserPreference } from '../../services/browserPreferences';
 import './androidSettings.css';
+import { SettingsToast, type SettingsNotice } from './SettingsToast';
 
 export type SettingsMainCategory = 'profile' | 'security' | 'privacy' | 'notifications' | 'appearance' | 'storage' | 'feedback';
 export type SettingsSubSection =
@@ -75,7 +76,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ activeSubSection, 
   const { user, logout } = useAuth();
   const [signOutOpen, setSignOutOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
-  const [error, setError] = useState('');
+  const [notice, setNotice] = useState<SettingsNotice | null>(null);
   const dialog = useRef<HTMLDialogElement>(null);
   const orbitGradient = useId();
   const language = useBrowserPreference('novyn_settings_language', 'en');
@@ -121,6 +122,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ activeSubSection, 
   const heading = (label: string) => <h3 className="android-settings-section">{t(label)}</h3>;
   return (
     <section className={'android-settings settings-sidebar ' + (isCompact ? 'is-compact' : '')} aria-label="Settings">
+      {notice && <SettingsToast notice={notice} onDismiss={() => setNotice(null)} />}
       <h1>{t('Settings')}</h1>
       <button className="android-profile-card android-profile-edit" type="button" aria-label="Edit your profile"
         onClick={() => select('profile', 'profile-details')}>
@@ -160,7 +162,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ activeSubSection, 
       <footer className="settings-sidebar-footer">
       <button type="button" className="android-settings-row android-settings-logout" title="Log Out"
         style={{ '--row-accent': '#ef4444' } as React.CSSProperties}
-        onClick={() => { triggerHaptic('light'); setError(''); setSignOutOpen(true); }}>
+        onClick={() => { triggerHaptic('light'); setNotice(null); setSignOutOpen(true); }}>
         <LogOut size={18} strokeWidth={1.8} aria-hidden="true" />
         <span className="settings-menu-label">{t('Log Out')}</span>
       </button>
@@ -177,12 +179,11 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ activeSubSection, 
             <button type="button" className="android-settings-primary is-danger" disabled={loggingOut} onClick={async () => {
               setLoggingOut(true);
               try { await logout(); setSignOutOpen(false); }
-              catch { setError('Could not log out. Please try again.'); }
+              catch { setNotice({ text: 'Could not log out. Please try again.', error: true }); }
               finally { setLoggingOut(false); }
             }}>{loggingOut ? 'Logging out…' : 'Sign out'}</button>
           </div>
         </div>
-        {error && <p role="alert" className="android-settings-error">{error}</p>}
       </dialog>
     </section>
   );

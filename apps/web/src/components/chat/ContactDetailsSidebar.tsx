@@ -41,6 +41,7 @@ import { useChat } from '../../context/ChatContext';
 import { useAuth } from '../../context/AuthContext';
 import { triggerHaptic } from '../../services/capacitor';
 import { getSocket } from '../../services/socket';
+import { SettingsToast, type SettingsNotice } from '../settings/SettingsToast';
 
 interface ContactDetailsSidebarProps {
   isOpen: boolean;
@@ -103,7 +104,7 @@ export const ContactDetailsSidebar: React.FC<ContactDetailsSidebarProps> = ({
   const [showConfirmClear, setShowConfirmClear] = useState(false);
   const [showConfirmLeave, setShowConfirmLeave] = useState(false);
   const [isFriendRequestSending, setIsFriendRequestSending] = useState(false);
-  const [friendRequestMessage, setFriendRequestMessage] = useState('');
+  const [friendRequestNotice, setFriendRequestNotice] = useState<SettingsNotice | null>(null);
   const [isHandleCopied, setIsHandleCopied] = useState(false);
 
   // Group Details & Members State
@@ -141,7 +142,7 @@ export const ContactDetailsSidebar: React.FC<ContactDetailsSidebarProps> = ({
   };
 
   useEffect(() => {
-    setFriendRequestMessage('');
+    setFriendRequestNotice(null);
     setIsFriendRequestSending(false);
   }, [contact.username]);
 
@@ -231,6 +232,7 @@ export const ContactDetailsSidebar: React.FC<ContactDetailsSidebarProps> = ({
 
   return (
     <>
+      {friendRequestNotice && <SettingsToast notice={friendRequestNotice} onDismiss={() => setFriendRequestNotice(null)} />}
       <div
         className="contact-details-sidebar"
         style={{
@@ -399,13 +401,13 @@ export const ContactDetailsSidebar: React.FC<ContactDetailsSidebarProps> = ({
                       onClick={async () => {
                         if (incomingFriendRequest) {
                           acceptFriendRequest(contact.username);
-                          setFriendRequestMessage('You are now friends.');
+                          setFriendRequestNotice({ text: 'You are now friends.', error: false });
                           return;
                         }
                         setIsFriendRequestSending(true);
-                        setFriendRequestMessage('');
+                        setFriendRequestNotice(null);
                         const result = await sendFriendRequest(contact.username);
-                        setFriendRequestMessage(result.ok ? 'Friend request sent.' : result.message || 'Could not send friend request.');
+                        setFriendRequestNotice({ text: result.ok ? 'Friend request sent.' : result.message || 'Could not send friend request.', error: !result.ok });
                         setIsFriendRequestSending(false);
                       }}
                       style={{ width: '100%', justifyContent: 'center', padding: '9px 12px', borderRadius: '12px', fontSize: '0.8rem' }}
@@ -413,7 +415,6 @@ export const ContactDetailsSidebar: React.FC<ContactDetailsSidebarProps> = ({
                       <UserPlus style={{ width: '15px', height: '15px' }} />
                       {incomingFriendRequest ? 'Accept friend request' : friendRequestPending ? 'Request sent' : isFriendRequestSending ? 'Sending request…' : 'Add friend'}
                     </button>
-                    {friendRequestMessage && <p role="status" style={{ margin: '7px 0 0', fontSize: '0.72rem' }}>{friendRequestMessage}</p>}
                   </div>
                 )}
               </>

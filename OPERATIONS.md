@@ -79,10 +79,11 @@ have not been implemented in this patch.
 
 Set `NODE_ENV=production`, `AUTH_SECRET`, `UPLOAD_TOKEN_SECRET`, and
 `ALLOWED_ORIGIN=https://your-chat-host`. Terminate HTTPS at your hosting platform.
-Set `DATA_DIR` and `UPLOADS_DIR` to persistent volumes and back them up along
-with MongoDB. `DATA_DIR` contains refresh sessions even when MongoDB stores chat
-history. `UPLOADS_DIR` contains local files and access metadata for new Cloudinary
-objects, so it must be durable even with Cloudinary enabled.
+When MongoDB is configured, refresh sessions are stored in its `auth_sessions`
+collection and existing `auth-state.json` sessions are migrated automatically.
+Without MongoDB, set `DATA_DIR` to a persistent volume so refresh sessions
+survive restarts. Keep `UPLOADS_DIR` on persistent storage and back it up:
+it contains local uploads and access metadata for new Cloudinary objects.
 
 Configure both stable VAPID keys to enable push. Missing keys now disable push
 instead of generating a new subscription identity or logging a private key.

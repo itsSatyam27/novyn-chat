@@ -890,6 +890,7 @@ let mongoLegacyCollection = null;
 let mongoUsersCollection = null;
 let mongoConversationsCollection = null;
 let mongoMessagesCollection = null;
+let mongoAuthSessionsCollection = null;
 
 let persistTimer = null;
 let persistInFlight = Promise.resolve();
@@ -1397,7 +1398,17 @@ async function persistFileNow() {
 }
 
 async function persistAuthStateNow() {
-  const payload = JSON.stringify(serializeAuthRuntimeState(), null, 2);
+  const state = serializeAuthRuntimeState();
+  if (mongoAuthSessionsCollection) {
+    await mongoAuthSessionsCollection.updateOne(
+      { _id: "runtime" },
+      { $set: { state, updatedAt: new Date() } },
+      { upsert: true }
+    );
+    return;
+  }
+
+  const payload = JSON.stringify(state, null, 2);
   await fsp.mkdir(DATA_DIR, { recursive: true });
   await fsp.writeFile(`${AUTH_STATE_FILE}.tmp`, payload, "utf8");
   await fsp.rename(`${AUTH_STATE_FILE}.tmp`, AUTH_STATE_FILE);
@@ -2223,6 +2234,26 @@ async function loadAuthStateFromFile() {
   }
 }
 
+async function loadAuthState() {
+  if (mongoAuthSessionsCollection) {
+    const stored = await mongoAuthSessionsCollection.findOne(
+      { _id: "runtime" },
+      { projection: { state: 1 } }
+    );
+    if (stored?.state) {
+      applyLoadedAuthRuntimeState(stored.state);
+      return true;
+    }
+  }
+
+  const loadedFromFile = await loadAuthStateFromFile();
+  if (loadedFromFile && mongoAuthSessionsCollection) {
+    await persistAuthStateNow();
+    console.log("Migrated local auth session state into MongoDB.");
+  }
+  return loadedFromFile;
+}
+
 function toSerializedUserEntry(doc) {
   const key = normalizeName(doc?._id || doc?.key || doc?.username);
   if (!key) return null;
@@ -2382,6 +2413,7 @@ async function initializeMongo() {
     mongoUsersCollection = mongoStorage.getCollection("users");
     mongoConversationsCollection = mongoStorage.getCollection("conversations");
     mongoMessagesCollection = mongoStorage.getCollection("messages");
+    mongoAuthSessionsCollection = mongoStorage.getCollection("auth_sessions");
 
     console.log(`Connected to MongoDB database: ${MONGODB_DB}`);
   } catch (err) {
@@ -2390,6 +2422,7 @@ async function initializeMongo() {
     mongoUsersCollection = null;
     mongoConversationsCollection = null;
     mongoMessagesCollection = null;
+    mongoAuthSessionsCollection = null;
     if (process.env.NODE_ENV === 'production') throw err;
     console.error("Failed to connect MongoDB, falling back to local file storage:", err);
   }
@@ -2441,7 +2474,7 @@ async function loadState() {
     }
   }
 
-  await loadAuthStateFromFile();
+  await loadAuthState();
 }
 
 function getOrCreateUser(username) {
@@ -7718,6 +7751,7 @@ async function closeStorage() {
     mongoUsersCollection = null;
     mongoConversationsCollection = null;
     mongoMessagesCollection = null;
+    mongoAuthSessionsCollection = null;
   }
 }
 

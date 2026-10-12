@@ -6,6 +6,7 @@ import { Avatar } from '../ui/Avatar';
 import { QRScannerModal } from './QRScannerModal';
 import { QRCodeModal } from '../profile/QRCodeModal';
 import { connectSocket } from '../../services/socket';
+import { SettingsToast, type SettingsNotice } from '../settings/SettingsToast';
 import './discoverWorkspace.css';
 
 const RADAR_BLIPS = [
@@ -95,7 +96,7 @@ export const DiscoverWorkspace: React.FC = () => {
   const { friendRequests, sentRequests, acceptFriendRequest, rejectFriendRequest, cancelFriendRequest, sendFriendRequest } = useChat();
   const { user } = useAuth();
   const [friendInput, setFriendInput] = useState('');
-  const [friendMessage, setFriendMessage] = useState('');
+  const [friendNotice, setFriendNotice] = useState<SettingsNotice | null>(null);
   const [isSending, setIsSending] = useState(false);
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [isMyQrOpen, setIsMyQrOpen] = useState(false);
@@ -129,14 +130,14 @@ export const DiscoverWorkspace: React.FC = () => {
     const username = value.trim().replace(/^@/, '');
     if (!username || isSending) return;
     setIsSending(true);
-    setFriendMessage('');
+    setFriendNotice(null);
     const result = await sendFriendRequest(username);
     setIsSending(false);
     if (result.ok) {
       setFriendInput('');
-      setFriendMessage('Friend request sent.');
+      setFriendNotice({ text: 'Friend request sent.', error: false });
     } else {
-      setFriendMessage(result.message || 'Unable to send friend request.');
+      setFriendNotice({ text: result.message || 'Unable to send friend request.', error: true });
     }
   };
 
@@ -148,6 +149,7 @@ export const DiscoverWorkspace: React.FC = () => {
 
   return (
     <div className="discover-workspace">
+      {friendNotice && <SettingsToast notice={friendNotice} onDismiss={() => setFriendNotice(null)} />}
       <div className="discover-hero-card">
         <DiscoverRadar />
 
@@ -245,7 +247,7 @@ export const DiscoverWorkspace: React.FC = () => {
                 {isSending ? 'Sending…' : 'Send'}
               </button>
             </div>
-            <p className="discover-inline-hint" role="status">{friendMessage || 'Usernames are not case-sensitive.'}</p>
+            <p className="discover-inline-hint">Usernames are not case-sensitive.</p>
           </section>
 
           <section className="discover-card discover-qr-card">

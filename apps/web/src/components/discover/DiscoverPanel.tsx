@@ -37,6 +37,7 @@ export const DiscoverPanel: React.FC<DiscoverPanelProps> = ({ isCompact = false,
   const fetchOnlineUsers = () => {
     setLoading(true);
     setError('');
+    setActionNotice(null);
     const socket = connectSocket();
     if (socket && socket.connected) {
       socket.emit('discover_online');
@@ -69,7 +70,9 @@ export const DiscoverPanel: React.FC<DiscoverPanelProps> = ({ isCompact = false,
     };
     const handleConnectionError = () => {
       setLoading(false);
-      setError('Unable to connect. Check that the chat server is running, then refresh.');
+      const message = 'Unable to connect. Check that the chat server is running, then refresh.';
+      setError(message);
+      setActionNotice({ text: message, error: true });
     };
 
     socket.on('discover_online', handleDiscoverOnline);
@@ -204,7 +207,6 @@ export const DiscoverPanel: React.FC<DiscoverPanelProps> = ({ isCompact = false,
       </div>
 
       {/* Users List */}
-      {error && <p role="alert" style={{ padding: '12px 16px', color: '#bd3750' }}>{error}</p>}
       <div className="conversations-scroll" style={{ padding: '4px 16px 16px' }}>
         <div className="discover-mobile-tools" aria-label="Friend management">
           <details>
