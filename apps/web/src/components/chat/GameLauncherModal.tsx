@@ -1,62 +1,36 @@
-import React from 'react';
-import { ArrowRight, Grid3X3, Swords, Disc, Users, Gamepad2, Palette, Binary, TrendingUp } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { ArrowRight, Grid3X3, Swords, Disc, Gamepad2, Palette, Binary, TrendingUp, Shuffle } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 import { GameType } from '../../types';
 import { triggerHaptic } from '../../services/capacitor';
 
-interface GameLauncherModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onLaunchGame: (gameType: GameType) => void;
-  opponentName?: string;
-  isGroup?: boolean;
-}
-
+interface GameLauncherModalProps { isOpen: boolean; onClose: () => void; onLaunchGame: (gameType: GameType) => void; opponentName?: string; isGroup?: boolean; }
 const games = [
-  { type: 'tictactoe', title: 'Tic-Tac-Toe', description: 'Three in a row. Make every move count.', tag: 'Quick match', icon: Grid3X3, accent: '#087f70', tint: 'rgba(16, 185, 129, 0.1)' },
-  { type: 'rps', title: 'Rock, Paper, Scissors', description: 'Pick in secret. Reveal when you’re both ready.', tag: 'Instant showdown', icon: Swords, accent: '#9e650d', tint: 'rgba(245, 158, 11, 0.1)' },
-  { type: 'connect4', title: 'Connect 4', description: 'Drop a chip. Be the first to line up four.', tag: 'Strategy', icon: Disc, accent: '#087fac', tint: 'rgba(56, 189, 248, 0.1)' },
-  { type: 'doodle', title: 'Doodle Duel', description: 'Draw a secret word while your friend tries to guess it before time runs out.', tag: 'Draw & Guess', icon: Palette, accent: '#db2777', tint: 'rgba(236, 72, 153, 0.1)' },
-  { type: 'numberclash', title: 'Number Clash', description: 'Pick your number, outsmart your friend, and get closest to the secret target.', tag: 'Number Battle', icon: Binary, accent: '#7c3aed', tint: 'rgba(124, 58, 237, 0.1)' },
-  { type: 'updown', title: 'Up or Down', description: 'Predict whether the next card will be higher or lower and build your winning streak.', tag: 'Higher or Lower', icon: TrendingUp, accent: '#ea580c', tint: 'rgba(234, 88, 12, 0.1)' },
-] satisfies { type: GameType; title: string; description: string; tag: string; icon: typeof Grid3X3; accent: string; tint: string }[];
+  { type: 'tictactoe', title: 'Tic-Tac-Toe', description: 'Three in a row. Make every move count.', tag: 'Quick match', icon: Grid3X3, accent: '#7457f5' },
+  { type: 'rps', title: 'Rock, Paper, Scissors', description: 'Pick in secret. Reveal when you’re both ready.', tag: 'Instant showdown', icon: Swords, accent: '#7952e8' },
+  { type: 'connect4', title: 'Connect 4', description: 'Drop a chip. Be the first to line up four.', tag: 'Strategy', icon: Disc, accent: '#9b4bd0' },
+  { type: 'doodle', title: 'Doodle Duel', description: 'Draw a secret word while your friend guesses before time runs out.', tag: 'Draw & guess', icon: Palette, accent: '#bc4fc0' },
+  { type: 'numberclash', title: 'Number Clash', description: 'Pick a number and get closest to the secret target.', tag: 'Number battle', icon: Binary, accent: '#6242d7' },
+  { type: 'updown', title: 'Up or Down', description: 'Predict if the next card is higher or lower. Build a streak.', tag: 'Higher or lower', icon: TrendingUp, accent: '#5141b8' },
+] satisfies { type: GameType; title: string; description: string; tag: string; icon: typeof Grid3X3; accent: string }[];
 
-export const GameLauncherModal: React.FC<GameLauncherModalProps> = ({
-  isOpen, onClose, onLaunchGame, opponentName, isGroup,
-}) => (
-  <Modal isOpen={isOpen} onClose={onClose} title="Play together" className="game-launcher-modal">
+export const GameLauncherModal: React.FC<GameLauncherModalProps> = ({ isOpen, onClose, onLaunchGame, opponentName, isGroup }) => {
+  const [selected, setSelected] = useState<GameType>('connect4');
+  useEffect(() => { if (isOpen) setSelected('connect4'); }, [isOpen]);
+  const launch = (type: GameType) => { triggerHaptic('medium'); onLaunchGame(type); onClose(); };
+  return <Modal isOpen={isOpen} onClose={onClose} title="🎮  Play together" className="game-launcher-modal" maxWidth="680px">
     <div className="game-launcher">
-      <div className="game-launcher-intro">
-        <span className="game-launcher-context"><Users size={14} aria-hidden="true" />
-          {isGroup ? 'Challenge your group' : `Challenge @${opponentName || 'friend'}`}
-        </span>
-        <p>Pick a game and make the first move.</p>
-      </div>
+      <div className="game-launcher-intro"><p>Pick a game and make the first move.</p></div>
+      <div className="game-opponent-strip"><span className="game-opponent-avatar">{(opponentName || 'F').charAt(0).toUpperCase()}</span><span><small>Challenging</small><strong>{isGroup ? 'Your group' : `@${opponentName || 'friend'}`}</strong></span><i/><em>{isGroup ? 'Group match' : 'Online'}</em></div>
       <div className="game-launcher-options">
-        {games.map(({ type, title, description, tag, icon: Icon, accent, tint }) => (
-          <button
-            key={type}
-            type="button"
-            className="game-launcher-option"
-            aria-label={`Play ${title}`}
-            style={{ '--game-accent': accent, '--game-tint': tint } as React.CSSProperties}
-            onClick={() => {
-              triggerHaptic('medium');
-              onLaunchGame(type);
-              onClose();
-            }}
-          >
-            <span className="game-launcher-icon" aria-hidden="true"><Icon size={25} /></span>
-            <span className="game-launcher-copy">
-              <span className="game-launcher-meta">2 players <span aria-hidden="true">·</span> {tag}</span>
-              <span className="game-launcher-title">{title}</span>
-              <span className="game-launcher-description">{description}</span>
-            </span>
-            <span className="game-launcher-play" aria-hidden="true"><ArrowRight size={18} /></span>
-          </button>
-        ))}
+        {games.map(({ type, title, description, tag, icon: Icon, accent }) => <button key={type} type="button" className={'game-launcher-option' + (selected === type ? ' is-selected' : '')} aria-pressed={selected === type} style={{ '--game-accent': accent } as React.CSSProperties} onClick={() => setSelected(type)}>
+          <span className="game-launcher-art" aria-hidden="true"><span className="game-launcher-meta"><b>{tag}</b><i>2 players</i></span><Icon size={44}/><strong>{type === 'numberclash' ? '42  VS  17' : type === 'updown' ? '↑  ?  ↓' : type === 'doodle' ? '〰 〰 ✦' : ''}</strong></span>
+          <span className="game-launcher-copy"><span className="game-launcher-title">{title}</span><span className="game-launcher-description">{description}</span></span>
+          <span className="game-launcher-play" aria-hidden="true">{selected === type ? <>Challenge <ArrowRight size={15}/></> : <ArrowRight size={17}/>}</span>
+        </button>)}
       </div>
-      <p className="game-launcher-footer"><Gamepad2 size={16} aria-hidden="true" /> Play right here. Your moves stay in the chat.</p>
+      <div className="game-launcher-footer"><p><Gamepad2 size={16}/>Play right here. Your moves stay in the chat.</p><button type="button" onClick={() => launch(games[Math.floor(Math.random()*games.length)].type)}><Shuffle size={14}/>Surprise me</button></div>
+      <button className="game-launcher-primary" type="button" onClick={() => launch(selected)}>Challenge to {games.find(game => game.type === selected)?.title}<ArrowRight size={16}/></button>
     </div>
-  </Modal>
-);
+  </Modal>;
+};
