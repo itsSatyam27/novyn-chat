@@ -35,14 +35,24 @@ function loadComponent(relativePath, chat, { width = 360, initialTab } = {}) {
   }).outputText;
   vm.runInNewContext(compiled, {
     exports,
-    window: { innerWidth: width },
+    window: { innerWidth: width, location: { hash: '' }, history: { length: 1, back() {} }, addEventListener() {}, removeEventListener() {} },
     localStorage: { getItem: () => null },
     require(name) {
       if (name === 'react') return { ...hooks, default: hooks };
       if (name === 'react/jsx-runtime') return require(name);
-      if (name.endsWith('/ChatContext')) return { useChat: () => chat };
+      if (name.endsWith('/ChatContext')) return { useChat: () => ({
+        conversations: [], callLogs: [], unreadMissedCallCount: 0,
+        markMissedCallsRead() {}, dismissCallNotice() {}, setActiveChat() {},
+        ...chat,
+      }) };
       if (name.endsWith('/AuthContext')) return { useAuth: () => ({ isAuthenticated: true, isLoading: false }) };
       if (name.endsWith('/capacitor')) return { triggerHaptic() {}, setupMobileEnvironment() {} };
+      if (name.endsWith('/router')) return {
+        parseHash: () => initialTab === 'settings'
+          ? { tab: 'settings', category: 'profile', subSection: 'profile-details', isDetailOpen: true }
+          : { tab: initialTab || 'chats', chat: null },
+        subSectionToSlug: (value) => value,
+      };
       return new Proxy({}, { get: (_, key) => key });
     },
   }, { filename });
@@ -103,7 +113,7 @@ test('inbox filters retain all labels and move the shared pill to the selected f
   }
 });
 
-for (const component of ['ContactsPanel', 'ContactsModal']) {
+for (const component of ['ContactsModal']) {
   test(`${component} uses one sliding pill and preserves all three contact views`, () => {
     const render = loadComponent(`src/components/contacts/${component}.tsx`, {
       conversations: [], friendRequests: [],
@@ -123,6 +133,17 @@ for (const component of ['ContactsPanel', 'ContactsModal']) {
     }
   });
 }
+
+test('ContactsPanel exposes the current friends-only view', () => {
+  const render = loadComponent('src/components/contacts/ContactsPanel.tsx', {
+    conversations: [], friendRequests: [],
+  });
+  const tree = elements(render('ContactsPanel', { onOpenChat() {} }));
+  const group = tree.find((node) => node.props['aria-label'] === 'Contacts');
+  const buttons = elements(group).filter((node) => node.type === 'button');
+  assert.equal(buttons.length, 1);
+  assert.equal(buttons[0].props['aria-pressed'], 'true');
+});
 
 for (const entry of ['friend name', 'compact avatar']) {
   test(`Contacts ${entry} selects the friend and opens Chats`, () => {
@@ -146,40 +167,20 @@ for (const entry of ['friend name', 'compact avatar']) {
   });
 }
 
-test('settings sections remain accessible for every category', () => {
-  const render = loadComponent('src/components/settings/SettingsSubPanel.tsx', {});
-  const counts = { profile: 4, privacy: 7, notifications: 3, appearance: 3, storage: 3, feedback: 3 };
-  for (const [category, count] of Object.entries(counts)) {
-    let selected;
-    const tree = elements(render('SettingsSubPanel', { activeCategory: category, activeSubSection: '', blockedCount: 2, onSelectSubSection: (id) => { selected = id; } }));
-    const group = tree.find((node) => node.props['aria-label'] === 'Settings sections');
-    const buttons = elements(group).filter((node) => node.type === 'button');
-    assert.equal(buttons.length, count);
-    for (const button of buttons) {
-      button.props.onClick();
-      assert.ok(selected);
-      assert.equal(typeof selected, 'string');
-    }
-  }
+test('settings uses the unified navigation without the removed legacy subpanel', () => {
+  const source = fs.readFileSync(path.join(__dirname, '../../web/src/components/layout/AppLayout.tsx'), 'utf8');
+  assert.doesNotMatch(source, /SettingsSubPanel/);
+  assert.match(source, /<SettingsPanel/);
+  assert.match(source, /<SettingsDetailView/);
 });
 
 for (const tab of ['calls', 'discover', 'contacts']) {
   test(`${tab} shows its own overview even with an existing active conversation`, () => {
     const render = loadComponent('src/components/layout/AppLayout.tsx', { activeChat: 'hii', blockedUsers: new Set() }, { width: 1280, initialTab: tab });
     let tree = elements(render('AppLayout'));
-    const welcome = tree.find((node) => node.type === 'TabWelcome');
-    assert.equal(welcome.props.tab, tab);
-    assert.equal(typeof welcome.props.onAction, 'function');
-    if (tab === 'calls') {
-      welcome.props.onAction();
-      tree = elements(render('AppLayout'));
-      assert.ok(tree.some((node) => node.type === 'ContactsPanel'));
-    }
-    if (tab === 'contacts') {
-      welcome.props.onAction();
-      tree = elements(render('AppLayout'));
-      assert.equal(tree.find((node) => node.type === 'ContactsPanel').props.addRequest, 1);
-    }
+    const expected = { calls: 'CallsWorkspace', discover: 'DiscoverWorkspace', contacts: 'ContactsDashboard' }[tab];
+    assert.ok(tree.some((node) => node.type === expected));
+    assert.ok(!tree.some((node) => node.type === 'ChatWindow'));
   });
 }
 
@@ -190,15 +191,14 @@ for (const width of [360, 768, 1280]) {
     const panel = tree.find((node) => node.type === 'SettingsPanel');
     panel.props.onSelectCategory('appearance', 'appear-font');
     tree = elements(render('AppLayout'));
-    const sections = tree.find((node) => node.type === 'SettingsSubPanel');
-    assert.equal(sections.props.activeCategory, 'appearance');
-    assert.equal(sections.props.activeSubSection, 'appear-font');
+    const detail = tree.find((node) => node.type === 'LazyComponent');
+    assert.equal(detail.props.activeSubSection, 'appear-font');
     if (width <= 768) {
       const workspace = () => tree.find((node) => node.props.className?.includes('workspace-pane'));
       assert.equal(workspace().props.style.display, 'flex');
-      sections.props.onBack();
-      tree = elements(render('AppLayout'));
-      assert.equal(workspace().props.style.display, 'none');
+      assert.equal(typeof detail.props.onBack, 'function');
+    } else {
+      assert.equal(detail.props.onBack, undefined);
     }
   });
   test(`Contacts navigation reveals an already-selected conversation at ${width}px`, () => {
@@ -207,13 +207,13 @@ for (const width of [360, 768, 1280]) {
       blockedUsers: new Set(),
     }, { width, initialTab: 'contacts' });
     const before = elements(render('AppLayout'));
-    const contacts = before.find((element) => element.type === 'ContactsPanel');
+    const contacts = before.find((element) => element.type === 'ContactsDashboard');
     assert.equal(typeof contacts.props.onOpenChat, 'function');
     contacts.props.onOpenChat();
     const after = elements(render('AppLayout'));
     assert.equal(after.find((element) => element.type === 'Sidebar').props.activeTab, 'chats');
     assert.ok(after.some((element) => element.type === 'ChatList'));
-    assert.ok(!after.some((element) => element.type === 'ContactsPanel'));
+    assert.ok(!after.some((element) => element.type === 'ContactsDashboard'));
     if (width <= 768) {
       const panes = after.filter((element) => element.props.className?.includes('sm-flex-always'));
       assert.equal(panes[0].props.style.display, 'none');

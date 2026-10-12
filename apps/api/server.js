@@ -901,10 +901,13 @@ const authSessions = createAuthSessions({
   refreshByUser,
   authUserAliases,
   schedulePersist: () => scheduleAuthStatePersist(),
+  aliasTtlMs: AUTH_ALIAS_TTL_MS,
 });
 
 const {
   revokeRefreshSession,
+  moveRefreshSessionsToUser,
+  linkAuthAlias,
   pruneExpiredAuthState,
 } = authSessions;
 
@@ -1998,6 +2001,18 @@ function hydrateMessage(rawMessage) {
       text: toDisplayName(message.replyTo.text),
     };
   }
+  if (message.riddle && typeof message.riddle === "object") {
+    hydrated.riddle = {
+      question: toDisplayName(message.riddle.question).slice(0, 160),
+      hint: toDisplayName(message.riddle.hint).slice(0, 160),
+      secret: toDisplayName(message.riddle.secret).slice(0, MAX_MESSAGE_LENGTH),
+      answerSalt: toDisplayName(message.riddle.answerSalt),
+      answerHash: toDisplayName(message.riddle.answerHash),
+      maxTries: Number(message.riddle.maxTries) === 5 ? 5 : 3,
+      attemptsBy: message.riddle.attemptsBy && typeof message.riddle.attemptsBy === "object" ? message.riddle.attemptsBy : {},
+      unlockedBy: Array.isArray(message.riddle.unlockedBy) ? message.riddle.unlockedBy.map(normalizeName).filter(Boolean) : [],
+    };
+  }
   return hydrated;
 }
 
@@ -2274,6 +2289,7 @@ function toSerializedMessageEntry(doc) {
     iv: toDisplayName(doc?.iv) || undefined,
     isEncrypted: Boolean(doc?.isEncrypted),
     seenBy: Array.isArray(doc?.seenBy) ? doc.seenBy : undefined,
+    riddle: doc?.riddle || undefined,
   };
 }
 
@@ -2787,12 +2803,29 @@ function createStoredMessage(params = {}) {
   if (replyTo) message.replyTo = replyTo;
   if (params.poll) message.poll = params.poll;
   if (params.game) message.game = params.game;
+  if (params.riddle) message.riddle = params.riddle;
   if (params.ciphertext) message.ciphertext = toDisplayName(params.ciphertext);
   if (params.iv) message.iv = toDisplayName(params.iv);
   if (params.isEncrypted) message.isEncrypted = Boolean(params.isEncrypted);
   const temp = toDisplayName(params.clientTempId).slice(0, 64);
   if (temp) message.clientTempId = temp;
   return message;
+}
+
+function riddleForViewer(message, viewerKey) {
+  if (!message?.riddle) return message;
+  const key = normalizeName(viewerKey);
+  const isSender = key === normalizeName(message.fromKey);
+  const unlocked = isSender || Boolean(message.riddle.unlockedBy?.includes(key));
+  const used = Math.max(0, Number(message.riddle.attemptsBy?.[key]) || 0);
+  return { ...message, riddle: {
+    question: message.riddle.question,
+    hint: message.riddle.hint || "",
+    maxTries: message.riddle.maxTries,
+    triesLeft: Math.max(0, message.riddle.maxTries - used),
+    unlocked,
+    secret: unlocked ? message.riddle.secret : "",
+  } };
 }
 
 function deliverFriendMessage(params = {}) {
@@ -2847,6 +2880,7 @@ function deliverFriendMessage(params = {}) {
     replyTo: params.replyTo,
     poll: params.poll,
     game: params.game,
+    riddle: params.riddle,
     ciphertext: params.ciphertext,
     iv: params.iv,
     isEncrypted: params.isEncrypted,
@@ -2864,10 +2898,10 @@ function deliverFriendMessage(params = {}) {
 
   const senderSocketId = onlineUsers.get(fromKey);
   if (senderSocketId) {
-    io.to(senderSocketId).emit("private_message", message);
+    io.to(senderSocketId).emit("private_message", riddleForViewer(message, fromKey));
   }
   if (recipientSocketId && recipientSocketId !== senderSocketId) {
-    io.to(recipientSocketId).emit("private_message", message);
+    io.to(recipientSocketId).emit("private_message", riddleForViewer(message, toKey));
   } else if (!isSelf && !isMutedBy(friend, fromKey)) {
     const bodyText = formatPushBody(text);
     void sendPushToUser(toKey, {
@@ -3033,6 +3067,26 @@ function applyUsernameChange(userKey, newUsername) {
     return { ok: false, message: "End your call before changing username." };
   }
 
+  // Keep an in-memory rollback point because a username touches several related
+  // indexes. A failure must never leave only part of the account renamed.
+  const snapshot = {
+    users: structuredClone(Array.from(users.entries())),
+    conversations: structuredClone(Array.from(conversations.entries())),
+    groups: structuredClone(Array.from(groups.entries())),
+    scheduledMessages: structuredClone(Array.from(scheduledMessages.entries())),
+    onlineUsers: structuredClone(Array.from(onlineUsers.entries())),
+    refreshSessions: structuredClone(Array.from(refreshSessions.entries())),
+    refreshByUser: structuredClone(Array.from(refreshByUser.entries())),
+    authUserAliases: structuredClone(Array.from(authUserAliases.entries())),
+  };
+
+  const restoreMap = (target, entries) => {
+    target.clear();
+    for (const [key, value] of entries) target.set(key, value);
+  };
+
+  try {
+
   if (!sameKey) {
     users.delete(oldKey);
     users.set(newKey, user);
@@ -3115,8 +3169,9 @@ function applyUsernameChange(userKey, newUsername) {
     const newB = b === oldKey ? newKey : b;
     const nextKey = containsOld ? getConversationKey(newA, newB) : key;
 
-    if (containsOld) {
-      for (const msg of messages) {
+    // Group conversation keys do not contain usernames, so message references
+    // must be migrated for every conversation rather than direct chats only.
+    for (const msg of messages) {
         if (normalizeName(msg.fromKey) === oldKey) {
           msg.fromKey = newKey;
           msg.from = desired;
@@ -3135,7 +3190,6 @@ function applyUsernameChange(userKey, newUsername) {
             )
           );
         }
-      }
     }
 
     if (nextConversations.has(nextKey)) {
@@ -3154,6 +3208,17 @@ function applyUsernameChange(userKey, newUsername) {
     oldUsername,
     newUsername: desired,
   };
+  } catch (error) {
+    restoreMap(users, snapshot.users);
+    restoreMap(conversations, snapshot.conversations);
+    restoreMap(groups, snapshot.groups);
+    restoreMap(scheduledMessages, snapshot.scheduledMessages);
+    restoreMap(onlineUsers, snapshot.onlineUsers);
+    restoreMap(refreshSessions, snapshot.refreshSessions);
+    restoreMap(refreshByUser, snapshot.refreshByUser);
+    restoreMap(authUserAliases, snapshot.authUserAliases);
+    throw error;
+  }
 }
 
 function getRetentionCutoffMs() {
@@ -5457,6 +5522,7 @@ io.on("connection", (socket) => {
   });
 
   socket.on("change_username", (payload) => {
+    try {
     const userKey = socket.data.userKey;
     if (!userKey) return;
     const user = users.get(userKey);
@@ -5466,7 +5532,13 @@ io.on("connection", (socket) => {
     }
 
     const currentPassword = toDisplayName(payload?.currentPassword || payload?.password);
-    const desired = toDisplayName(payload?.newUsername);
+    const desired = normalizeHandleInput(payload?.newUsername);
+    if (!/^[a-z0-9_]{3,24}$/.test(desired)) {
+      socket.emit("username_change_failed", {
+        message: "Username must be 3–24 characters using lowercase letters, numbers, or underscores.",
+      });
+      return;
+    }
 
     const hasExistingPassword = Boolean(user.passwordHash && user.passwordSalt);
     if (hasExistingPassword) {
@@ -5532,6 +5604,12 @@ io.on("connection", (socket) => {
     emitStatusToFriends(result.newKey);
     emitDiscoverOnlineToAll();
     schedulePersist();
+    } catch (err) {
+      console.error("Username change failed unexpectedly:", err);
+      socket.emit("username_change_failed", {
+        message: "Could not change username. Your account remains available; please try again.",
+      });
+    }
   });
 
   socket.on("change_password", (payload) => {
@@ -6030,7 +6108,7 @@ io.on("connection", (socket) => {
     }
 
     const startIndex = Math.max(0, endIndex - limit);
-    const messages = allMessages.slice(startIndex, endIndex);
+    const messages = allMessages.slice(startIndex, endIndex).map((message) => riddleForViewer(message, userKey));
     const hasMore = startIndex > 0;
     const nextBefore = hasMore ? String(messages[0]?.id || messages[0]?.clientTempId || "") : null;
     const wallpaper = conversationWallpapers.get(resolved.conversationKey) || "";
@@ -6749,6 +6827,58 @@ io.on("connection", (socket) => {
       socket.emit("private_message", result.message);
       emitMessageStatus(result.message);
     }
+  });
+
+  socket.on("riddle_message", (payload, callback) => {
+    const respond = typeof callback === "function" ? callback : () => {};
+    const userKey = normalizeName(socket.data.userKey || "");
+    if (!userKey) return respond({ ok: false, message: "Please sign in again." });
+    if (!allowSocketAction(socket, "riddle_message", 20, 60 * 1000)) return respond({ ok: false, message: "Too many riddles. Try again shortly." });
+    const to = normalizeName(payload?.to);
+    const secret = toDisplayName(payload?.secret).slice(0, MAX_MESSAGE_LENGTH);
+    const question = toDisplayName(payload?.question).slice(0, 160);
+    const hint = toDisplayName(payload?.hint).slice(0, 160);
+    const answer = toDisplayName(payload?.answer).trim().toLowerCase().replace(/\s+/g, " ").slice(0, 80);
+    const maxTries = Number(payload?.maxTries) === 5 ? 5 : 3;
+    if (!to || !secret || !question || !answer) return respond({ ok: false, message: "Recipient, secret message, question, and answer are required." });
+    const answerSalt = crypto.randomBytes(16).toString("hex");
+    const answerHash = crypto.scryptSync(answer, answerSalt, 32).toString("hex");
+    const result = deliverFriendMessage({
+      fromKey: userKey, toKey: to, text: "[Riddle Lock]",
+      clientTempId: toDisplayName(payload?.clientTempId).slice(0, 64),
+      riddle: { question, hint, secret, answerSalt, answerHash, maxTries, attemptsBy: {}, unlockedBy: [] },
+    });
+    if (!result.ok) return respond({ ok: false, message: result.message || "Could not send riddle." });
+    respond({ ok: true, id: result.message.id });
+  });
+
+  socket.on("unlock_riddle", (payload, callback) => {
+    const respond = typeof callback === "function" ? callback : () => {};
+    const userKey = normalizeName(socket.data.userKey || "");
+    if (!userKey) return respond({ ok: false, message: "Please sign in again." });
+    if (!allowSocketAction(socket, "unlock_riddle", 20, 60 * 1000)) return respond({ ok: false, message: "Too many attempts. Try again later." });
+    const fromKey = normalizeName(payload?.from);
+    const messageId = toDisplayName(payload?.messageId);
+    const answer = toDisplayName(payload?.answer).trim().toLowerCase().replace(/\s+/g, " ").slice(0, 80);
+    const message = (conversations.get(getConversationKey(userKey, fromKey)) || []).find((entry) => entry.id === messageId);
+    if (!message?.riddle || normalizeName(message.toKey) !== userKey) return respond({ ok: false, message: "Riddle not found." });
+    if (message.riddle.unlockedBy.includes(userKey)) return respond({ ok: true, riddle: riddleForViewer(message, userKey).riddle });
+    const used = Math.max(0, Number(message.riddle.attemptsBy[userKey]) || 0);
+    if (used >= message.riddle.maxTries) return respond({ ok: false, locked: true, triesLeft: 0, message: "No tries left." });
+    const candidate = crypto.scryptSync(answer, message.riddle.answerSalt, 32).toString("hex");
+    if (!safeTimingEqual(candidate, message.riddle.answerHash)) {
+      message.riddle.attemptsBy[userKey] = used + 1;
+      schedulePersist();
+      const triesLeft = Math.max(0, message.riddle.maxTries - used - 1);
+      return respond({ ok: false, locked: triesLeft === 0, triesLeft, message: triesLeft ? "That answer is not right." : "No tries left." });
+    }
+    message.riddle.unlockedBy.push(userKey);
+    schedulePersist();
+    const recipientView = riddleForViewer(message, userKey);
+    socket.emit("riddle_updated", recipientView);
+    const senderSocketId = onlineUsers.get(fromKey);
+    if (senderSocketId) io.to(senderSocketId).emit("riddle_updated", riddleForViewer(message, fromKey));
+    respond({ ok: true, riddle: recipientView.riddle });
   });
 
   socket.on("register_public_key", (payload, callback) => {

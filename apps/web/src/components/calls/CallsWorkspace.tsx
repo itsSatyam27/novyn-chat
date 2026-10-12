@@ -35,6 +35,7 @@ export const CallsWorkspace: React.FC<CallsWorkspaceProps> = ({ onOpenContacts }
     pinnedChats,
     togglePinChat,
     reorderPinnedChats,
+    blockedUsers,
   } = useChat();
 
   const [isEditingQuick, setIsEditingQuick] = useState(false);
@@ -45,10 +46,10 @@ export const CallsWorkspace: React.FC<CallsWorkspaceProps> = ({ onOpenContacts }
   const [draggedPinned, setDraggedPinned] = useState<string | null>(null);
   const [dragOverPinned, setDragOverPinned] = useState<string | null>(null);
 
-  // All valid direct conversations (friends + self notebook)
+  // Shared pinned-contact source used by Messages, Calls, and Contacts.
   const allChats = useMemo(
-    () => conversations.filter(person => !person.isGroup),
-    [conversations]
+    () => conversations.filter(person => !person.isGroup && !person.isSelf && person.isFriend !== false && !blockedUsers.has(person.username.toLowerCase())),
+    [conversations, blockedUsers]
   );
 
   // Quick contacts MUST be exact same list & order as pinnedChats in Messages and Contacts
@@ -456,20 +457,6 @@ export const CallsWorkspace: React.FC<CallsWorkspaceProps> = ({ onOpenContacts }
             </button>
           )}
 
-          {quickContacts.length === 0 && (
-            <div className="calls-quick-empty">
-              <p>No quick call contacts pinned yet.</p>
-              {availableToPin.length > 0 && (
-                <button
-                  type="button"
-                  className="calls-quick-empty-btn"
-                  onClick={() => setIsPinPickerOpen(true)}
-                >
-                  <Plus size={14} /> Pin a contact
-                </button>
-              )}
-            </div>
-          )}
         </div>
 
         {/* Floating Portal Pin Picker matching Messages tab */}

@@ -142,42 +142,6 @@
   background: color-mix(in srgb, var(--primary) 8%, transparent);
 }
 
-.contacts-pinned-empty {
-  grid-column: 1 / -1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  padding: 28px 16px;
-  color: var(--text-muted);
-  font-size: 13px;
-  border: 1px dashed var(--border);
-  border-radius: 20px;
-}
-
-.contacts-pinned-empty p {
-  margin: 0;
-}
-
-.contacts-pinned-empty-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 7px 16px;
-  border-radius: 10px;
-  border: 0;
-  background: var(--primary);
-  color: var(--text-on-primary, #ffffff);
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: opacity 0.15s ease;
-}
-
-.contacts-pinned-empty-btn:hover {
-  opacity: 0.9;
-}
 .contacts-overview-bottom { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; margin-top: 18px; }
 .contacts-game { padding: 18px 20px; }
 .contacts-game > header { margin-bottom: 10px; }

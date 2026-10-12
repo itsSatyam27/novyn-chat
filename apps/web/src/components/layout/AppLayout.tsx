@@ -17,8 +17,7 @@ import { CallsWorkspace } from '../calls/CallsWorkspace';
 import { DiscoverPanel } from '../discover/DiscoverPanel';
 import { DiscoverWorkspace } from '../discover/DiscoverWorkspace';
 import { ContactsPanel } from '../contacts/ContactsPanel';
-import { SettingsPanel, SettingsMainCategory, SettingsSubSection } from '../settings/SettingsPanel';
-import { SettingsSubPanel } from '../settings/SettingsSubPanel';
+import { SettingsPanel, SettingsSubSection } from '../settings/SettingsPanel';
 const SettingsDetailView = lazy(() => import('../settings/SettingsDetailView').then((m) => ({ default: m.SettingsDetailView })));
 const CallModal = lazy(() => import('../calls/CallModal').then((m) => ({ default: m.CallModal })));
 import { setupMobileEnvironment } from '../../services/capacitor';
@@ -32,13 +31,10 @@ const DEFAULT_PANEL_WIDTH = 340;
 
 export const AppLayout: React.FC = () => {
   const { isAuthenticated, isLoading } = useAuth();
-  const { activeChat, setActiveChat, blockedUsers, markMissedCallsRead, callLogs, callNotice, dismissCallNotice, conversations, unreadMissedCallCount } = useChat();
+  const { activeChat, setActiveChat, markMissedCallsRead, callLogs, callNotice, dismissCallNotice, conversations, unreadMissedCallCount } = useChat();
 
   const [initialRoute] = useState(() => parseHash());
   const [activeTab, setActiveTab] = useState<NavTab>(() => initialRoute.tab);
-  const [settingsCategory, setSettingsCategory] = useState<SettingsMainCategory>(() =>
-    initialRoute.tab === 'settings' ? initialRoute.category : 'profile'
-  );
   const [settingsSubSection, setSettingsSubSection] = useState<SettingsSubSection>(() =>
     initialRoute.tab === 'settings' ? initialRoute.subSection : 'profile-details'
   );
@@ -76,7 +72,6 @@ export const AppLayout: React.FC = () => {
         setActiveChat(null);
       }
       if (route.tab === 'settings') {
-        setSettingsCategory(route.category);
         setSettingsSubSection(route.subSection);
         setIsMobileSettingsDetailOpen(Boolean(route.isDetailOpen));
       } else {
@@ -302,8 +297,7 @@ export const AppLayout: React.FC = () => {
           {activeTab === 'settings' && (
             <SettingsPanel
               activeSubSection={settingsSubSection}
-              onSelectCategory={(cat, defaultSub) => {
-                setSettingsCategory(cat);
+              onSelectCategory={(_cat, defaultSub) => {
                 setSettingsSubSection(defaultSub);
                 setIsMobileSettingsDetailOpen(true);
               }}
@@ -333,23 +327,12 @@ export const AppLayout: React.FC = () => {
         <Suspense fallback={<div role="status" style={{ padding: 24, color: 'var(--text-muted)' }}>Loading view…</div>}>
         {activeTab === 'settings' ? (
           <div className="settings-workspace">
-              {!settingsSubSection.startsWith('privacy-') && !['security-dashboard', 'feedback-send', 'feedback-bug', 'feedback-feature', 'appear-accessibility', 'storage-cache', 'storage-export', 'storage-security', 'profile-details', 'appear-language', 'appear-theme', 'notif-sounds', 'notif-calls', 'notif-previews'].includes(settingsSubSection) && <SettingsSubPanel
-                activeCategory={settingsCategory}
-                activeSubSection={settingsSubSection}
-                onSelectSubSection={setSettingsSubSection}
-                blockedCount={blockedUsers.size}
-                onBack={windowWidth <= 768 ? () => {
-                  if (window.history.length > 1) window.history.back();
-                  else setIsMobileSettingsDetailOpen(false);
-                } : undefined}
-              />}
             <SettingsDetailView
               activeSubSection={settingsSubSection}
               isVisible={windowWidth > 768 || isMobileSettingsDetailOpen}
-              onSelectSection={(category, section) => { setSettingsCategory(category); setSettingsSubSection(section); }}
-              onBack={windowWidth <= 768 && (settingsSubSection.startsWith('privacy-') || ['security-dashboard', 'feedback-send', 'feedback-bug', 'feedback-feature', 'appear-accessibility', 'storage-cache', 'storage-export', 'storage-security', 'profile-details', 'appear-language', 'appear-theme', 'notif-sounds', 'notif-calls', 'notif-previews'].includes(settingsSubSection)) ? () => {
-                if (window.history.length > 1) window.history.back();
-                else setIsMobileSettingsDetailOpen(false);
+              onSelectSection={(_category, section) => { setSettingsSubSection(section); }}
+              onBack={windowWidth <= 768 && isMobileSettingsDetailOpen ? () => {
+                setIsMobileSettingsDetailOpen(false);
               } : undefined}
             />
           </div>

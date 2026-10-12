@@ -1,0 +1,14 @@
+.riddle-message { width: min(360px, 72vw); display: flex; flex-direction: column; gap: 9px; color: var(--text-main); }
+.riddle-secret { display: flex; align-items: center; gap: 9px; min-height: 45px; padding: 9px 11px; border-radius: 12px; background: color-mix(in srgb, var(--primary) 12%, var(--bg-main)); overflow: hidden; }
+.riddle-secret > span { display: grid; place-items: center; width: 30px; height: 30px; flex: 0 0 30px; border-radius: 10px; background: var(--primary); color: white; }
+.riddle-secret strong { font-size: .78rem; line-height: 1.45; }
+.riddle-secret:not(.is-unlocked) strong { filter: blur(4px); user-select: none; opacity: .58; }
+.riddle-question { margin: 0; font-size: .82rem; font-weight: 750; }
+.riddle-hint { display: inline-flex; align-self: flex-start; align-items: center; gap: 5px; padding: 5px 8px; border-radius: 999px; background: rgba(245, 158, 11, .14); color: #f5a623; font-size: .68rem; }
+.riddle-answer-row { display: flex; gap: 7px; }
+.riddle-answer-row label { display: flex; flex: 1; align-items: center; gap: 7px; min-width: 0; padding: 0 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg-input); }
+.riddle-answer-row input { width: 100%; min-width: 0; height: 36px; border: 0; outline: 0; background: transparent; color: var(--text-main); font: inherit; }
+.riddle-answer-row button { padding: 0 14px; border: 0; border-radius: 10px; background: var(--primary); color: white; font-weight: 750; cursor: pointer; }
+.riddle-answer-row button:disabled { opacity: .45; cursor: default; }
+.riddle-feedback { color: #fb7185; }
+.riddle-tries { color: var(--text-muted); text-align: center; font-size: .65rem; }

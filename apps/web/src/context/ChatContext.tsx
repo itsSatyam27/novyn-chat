@@ -35,6 +35,8 @@ interface ChatContextType {
   markMissedCallsRead: () => void;
   clearCallLogs: () => void;
   sendMessage: (text: string, options?: { attachment?: any; replyTo?: any; isVoice?: boolean; to?: string }) => void;
+  sendRiddle: (payload: { to: string; secret: string; question: string; answer: string; hint?: string; maxTries: 3 | 5 }) => Promise<{ ok: boolean; message?: string }>;
+  unlockRiddle: (messageId: string, from: string, answer: string) => Promise<{ ok: boolean; message?: string; triesLeft?: number }>;
   retryMessage: (id: string) => void;
   sendTyping: (isTyping: boolean) => void;
   sendFriendRequest: (username: string) => Promise<{ ok: boolean; message?: string }>;
@@ -939,6 +941,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
           pinnedBy: m.pinnedBy || '',
           poll: m.poll || null,
           game: m.game || null,
+          riddle: m.riddle || null,
           ciphertext: !m.deletedAt ? m.ciphertext : undefined,
           iv: !m.deletedAt ? m.iv : undefined,
           isEncrypted: Boolean(m.isEncrypted && !m.deletedAt),
@@ -968,6 +971,14 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
         return next;
       });
+    });
+
+    socket.on('riddle_updated', (rawMessage: any) => {
+      const messageId = String(rawMessage?.id || '');
+      if (!messageId || !rawMessage?.riddle) return;
+      const update = (list: Message[]) => list.map(message => message.id === messageId ? { ...message, riddle: rawMessage.riddle } : message);
+      for (const [key, list] of Object.entries(messagesCacheRef.current)) messagesCacheRef.current[key] = update(list);
+      setMessages(update);
     });
 
     socket.on('message_deleted', (data: any) => {
@@ -1039,6 +1050,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         pinnedBy: rawMsg.pinnedBy || '',
         poll: rawMsg.poll || null,
         game: rawMsg.game || null,
+        riddle: rawMsg.riddle || null,
         ciphertext: rawMsg.ciphertext,
         iv: rawMsg.iv,
         isEncrypted: Boolean(rawMsg.isEncrypted),
@@ -1285,6 +1297,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       socket.off('safety_state_updated');
       socket.off('history', handleHistory);
       socket.off('message_status');
+      socket.off('riddle_updated');
       socket.off('message_deleted');
       socket.off('private_message');
       socket.off('typing');
@@ -1485,6 +1498,36 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const pending = pendingSendsRef.current.get(id);
     if (pending && pending.to === activeChat && pending.sender === user?.username) sendMessage(pending.text, { ...pending.options, retryId: id });
   }, [activeChat, user?.username, sendMessage]);
+
+  const sendRiddle = useCallback((payload: { to: string; secret: string; question: string; answer: string; hint?: string; maxTries: 3 | 5 }) => {
+    const socket = getSocket();
+    if (!socket.connected) return Promise.resolve({ ok: false, message: 'Reconnect before sending.' });
+    return new Promise<{ ok: boolean; message?: string }>((resolve) => {
+      socket.timeout(15000).emit('riddle_message', { ...payload, clientTempId: `riddle_${crypto.randomUUID()}` }, (error: Error | null, result: { ok?: boolean; message?: string }) => {
+        if (error) resolve({ ok: false, message: 'Riddle send timed out.' });
+        else resolve({ ok: Boolean(result?.ok), message: result?.message });
+      });
+    });
+  }, []);
+
+  const unlockRiddle = useCallback((messageId: string, from: string, answer: string) => {
+    const socket = getSocket();
+    if (!socket.connected) return Promise.resolve({ ok: false, message: 'Reconnect before unlocking.' });
+    return new Promise<{ ok: boolean; message?: string; triesLeft?: number }>((resolve) => {
+      socket.timeout(15000).emit('unlock_riddle', { messageId, from, answer }, (error: Error | null, result: { ok?: boolean; message?: string; triesLeft?: number; riddle?: Message['riddle'] }) => {
+        if (error) return resolve({ ok: false, message: 'Unlock timed out.' });
+        if (result?.riddle) {
+          const update = (list: Message[]) => list.map(message => message.id === messageId ? { ...message, riddle: result.riddle } : message);
+          setMessages(previous => {
+            const next = update(previous);
+            if (activeChatRef.current) messagesCacheRef.current[activeChatRef.current.toLowerCase()] = next;
+            return next;
+          });
+        }
+        resolve({ ok: Boolean(result?.ok), message: result?.message, triesLeft: result?.triesLeft });
+      });
+    });
+  }, []);
 
   const sendTyping = useCallback(
     (isTyping: boolean) => {
@@ -1983,6 +2026,8 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         markMissedCallsRead,
         clearCallLogs,
         sendMessage,
+        sendRiddle,
+        unlockRiddle,
         retryMessage,
         sendTyping,
         sendFriendRequest,

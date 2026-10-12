@@ -27,7 +27,7 @@ export function ContactsDashboard({ onOpenChat }: { onOpenChat: () => void }) {
   const pinPickerRef = useRef<HTMLDivElement | null>(null);
   const [pinPickerPosition, setPinPickerPosition] = useState({ top: 0, left: 0 });
 
-  const friends = conversations.filter(c => !c.isGroup && !blockedUsers.has(c.username));
+  const friends = conversations.filter(c => !c.isGroup && !c.isSelf && c.isFriend !== false && !blockedUsers.has(c.username.toLowerCase()));
   const pinned = [...pinnedChats]
     .map(username => friends.find(c => c.username.toLowerCase() === username.toLowerCase()))
     .filter((c): c is Conversation => Boolean(c));
@@ -146,20 +146,6 @@ export function ContactsDashboard({ onOpenChat }: { onOpenChat: () => void }) {
             </button>
           )}
 
-          {pinned.length === 0 && (
-            <div className="contacts-pinned-empty">
-              <p>No contacts pinned yet.</p>
-              {availableToPin.length > 0 && (
-                <button
-                  type="button"
-                  className="contacts-pinned-empty-btn"
-                  onClick={() => setIsPinPickerOpen(true)}
-                >
-                  <Plus size={14} /> Pin a friend
-                </button>
-              )}
-            </div>
-          )}
         </div>
 
         {/* Floating Portal Pin Picker matching Messages tab */}

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ArrowUpRight, Check, Pin, Plus, Send } from 'lucide-react';
+import { ArrowUpRight, Check, HelpCircle, KeyRound, Lightbulb, LockKeyhole, MessageCircle, Phone, Pin, Plus, X } from 'lucide-react';
 import { useChat } from '../../context/ChatContext';
 import { Avatar } from '../ui/Avatar';
 import { CreateGroupModal } from './CreateGroupModal';
@@ -15,7 +15,7 @@ const preview = (conversation: Conversation) => {
 };
 
 export const MessagesWorkspace: React.FC = () => {
-  const { conversations, pinnedChats, manualUnreadChats, setActiveChat, togglePinChat, reorderPinnedChats, sendMessage } = useChat();
+  const { conversations, pinnedChats, manualUnreadChats, blockedUsers, setActiveChat, togglePinChat, reorderPinnedChats, startCall, sendRiddle } = useChat();
   const [recipientSearch, setRecipientSearch] = useState('');
   const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
   const [isPinPickerOpen, setIsPinPickerOpen] = useState(false);
@@ -24,6 +24,13 @@ export const MessagesWorkspace: React.FC = () => {
   const pinPickerRef = useRef<HTMLDivElement>(null);
   const [selectedRecipient, setSelectedRecipient] = useState('');
   const [draft, setDraft] = useState('');
+  const [riddleQuestion, setRiddleQuestion] = useState('');
+  const [riddleAnswer, setRiddleAnswer] = useState('');
+  const [riddleHint, setRiddleHint] = useState('');
+  const [riddleTries, setRiddleTries] = useState<3 | 5>(3);
+  const [riddleBusy, setRiddleBusy] = useState(false);
+  const [riddleNotice, setRiddleNotice] = useState('');
+  const [editingPinned, setEditingPinned] = useState(false);
   const [draggedPinned, setDraggedPinned] = useState<string | null>(null);
   const [dragOverPinned, setDragOverPinned] = useState<string | null>(null);
   const allChats = useMemo(() => [...conversations].sort((a, b) => {
@@ -31,14 +38,20 @@ export const MessagesWorkspace: React.FC = () => {
     const bTime = new Date(b.lastMessage?.timestamp || 0).getTime();
     return bTime - aTime;
   }), [conversations]);
+  const pinnableContacts = allChats.filter(chat => !chat.isGroup && !chat.isSelf && chat.isFriend !== false && !blockedUsers.has(chat.username.toLowerCase()));
   const pinned = [...pinnedChats]
-    .map(username => allChats.find(chat => chat.username.toLowerCase() === username))
+    .map(username => pinnableContacts.find(chat => chat.username.toLowerCase() === username))
     .filter((chat): chat is Conversation => Boolean(chat));
-  const availableToPin = allChats.filter(chat => !pinnedChats.has(chat.username.toLowerCase()));
+  const availableToPin = pinnableContacts.filter(chat => !pinnedChats.has(chat.username.toLowerCase()));
   const allUnread = allChats.filter(chat => chat.unreadCount > 0 || manualUnreadChats.has(chat.username.toLowerCase()));
   const unread = allUnread.slice(0, 5);
   const groups = allChats.filter(chat => chat.isGroup).slice(0, 4);
-  const recipientMatches = allChats.filter(chat => !chat.isGroup && (chat.displayName + ' ' + chat.username).toLowerCase().includes(recipientSearch.trim().toLowerCase())).slice(0, 5);
+  const directChats = allChats.filter(chat => !chat.isGroup && !chat.isSelf);
+  const recipientMatches = directChats.filter(chat => (chat.displayName + ' ' + chat.username).toLowerCase().includes(recipientSearch.trim().toLowerCase())).slice(0, 5);
+
+  useEffect(() => {
+    if (!selectedRecipient && directChats[0]) setSelectedRecipient(directChats[0].username);
+  }, [selectedRecipient, directChats]);
 
   useEffect(() => {
     if (!isPinPickerOpen) return;
@@ -72,13 +85,16 @@ export const MessagesWorkspace: React.FC = () => {
   }, [isPinPickerOpen, availableToPin.length]);
 
   const openChat = (username: string) => setActiveChat(username);
-  const handleCompose = (event: React.FormEvent) => {
+  const handleCompose = async (event: React.FormEvent) => {
     event.preventDefault();
-    const text = draft.trim();
-    if (!selectedRecipient || !text) return;
-    sendMessage(text, { to: selectedRecipient });
-    setDraft('');
-    setActiveChat(selectedRecipient);
+    if (!selectedRecipient || !draft.trim() || !riddleQuestion.trim() || !riddleAnswer.trim() || riddleBusy) return;
+    setRiddleBusy(true);
+    setRiddleNotice('');
+    const result = await sendRiddle({ to: selectedRecipient, secret: draft.trim(), question: riddleQuestion.trim(), answer: riddleAnswer.trim(), hint: riddleHint.trim(), maxTries: riddleTries });
+    setRiddleBusy(false);
+    if (!result.ok) { setRiddleNotice(result.message || 'Could not send riddle.'); return; }
+    setDraft(''); setRiddleQuestion(''); setRiddleAnswer(''); setRiddleHint('');
+    setRiddleNotice('Riddle sent.');
   };
   const renderChatTile = (chat: Conversation, kind: 'pinned' | 'unread' | 'group') => (
     <button type="button" key={chat.username} className={`messages-chat-tile messages-chat-tile-${kind}`} onClick={() => openChat(chat.username)}>
@@ -92,8 +108,8 @@ export const MessagesWorkspace: React.FC = () => {
   return (
     <main className="messages-workspace">
       <section className="messages-overview-card messages-pinned-card">
-        <header><h2><Pin size={16} />Pinned chats</h2><div className="messages-pinned-meta"><small>Drag to reorder</small><span>{pinned.length}</span></div></header>
-        <div className="messages-pinned-grid">
+        <header><h2><Pin size={16} />Pinned contacts <small>{pinned.length} / 5</small></h2><div className="messages-pinned-meta"><small>Drag to reorder</small><button type="button" onClick={() => setEditingPinned(value => !value)}>{editingPinned ? 'Done' : 'Edit'}</button></div></header>
+        <div className={`messages-pinned-grid${editingPinned ? ' is-editing' : ''}`}>
           {pinned.map(chat => <article
             className={`messages-pinned-tile${dragOverPinned === chat.username ? ' is-drag-over' : ''}${draggedPinned === chat.username ? ' is-dragging' : ''}`}
             key={chat.username}
@@ -111,7 +127,8 @@ export const MessagesWorkspace: React.FC = () => {
                 <small>{preview(chat)}</small>
               </span>
             </button>
-            <button type="button" className="messages-pin-toggle" aria-label={`Unpin ${chat.displayName || chat.username}`} onClick={() => togglePinChat(chat.username)}><Pin size={13} /></button>
+            <button type="button" className="messages-pin-toggle" aria-label={`Unpin ${chat.displayName || chat.username}`} onClick={() => togglePinChat(chat.username)}><X size={13} /></button>
+            <div className="messages-pinned-actions"><button type="button" aria-label={`Message ${chat.username}`} onClick={() => openChat(chat.username)}><MessageCircle size={16} /></button><button type="button" aria-label={`Call ${chat.username}`} onClick={() => void startCall(chat.username, false)}><Phone size={16} /></button></div>
           </article>)}
           {availableToPin.length > 0 && pinned.length < 5 && <div className="messages-pin-add-wrap">
             <button ref={pinButtonRef} type="button" className="messages-pin-add" aria-expanded={isPinPickerOpen} aria-haspopup="listbox" onClick={() => setIsPinPickerOpen(open => !open)}><Plus size={20} /><span>Pin a chat</span></button>
@@ -136,12 +153,12 @@ export const MessagesWorkspace: React.FC = () => {
         </section>
       </div>
 
-      <section className="messages-overview-card messages-compose-card">
-        <header><h2>New message</h2><small>Suggested</small></header>
+      <section className="messages-overview-card messages-compose-card riddle-compose-card">
+        <header><h2><LockKeyhole size={14} />Riddle lock <span>New</span></h2><small>Just for fun. For private info, send normally.</small></header>
         <form onSubmit={handleCompose}>
-          <div className="messages-recipient-line">
+          <div className="riddle-compose-grid"><div className="riddle-compose-form"><div className="messages-recipient-line">
             <span className="messages-recipient-prefix">To:</span>
-            {allChats.slice(0, 4).map(chat => {
+            {directChats.slice(0, 4).map(chat => {
               const isSelected = selectedRecipient.toLowerCase() === chat.username.toLowerCase();
               return <button type="button" key={chat.username} className={`messages-recipient-chip${isSelected ? ' is-selected' : ''}`} aria-pressed={isSelected} onClick={() => { setSelectedRecipient(chat.username); setRecipientSearch(''); }}>
                 <Avatar name={chat.displayName || chat.username} avatarUrl={chat.avatarId} isGroup={chat.isGroup} hidePresence={chat.isSelf} size="sm" />
@@ -151,8 +168,11 @@ export const MessagesWorkspace: React.FC = () => {
             <input className="messages-recipient-search" value={recipientSearch} onChange={event => { setSelectedRecipient(''); setRecipientSearch(event.target.value); }} placeholder="Search a contact..." aria-label="Search recipient" />
           </div>
           {recipientSearch && !selectedRecipient && <div className="messages-recipient-results">{recipientMatches.map(chat => <button type="button" key={chat.username} onClick={() => { setSelectedRecipient(chat.username); setRecipientSearch(''); }}><Avatar name={chat.displayName || chat.username} avatarUrl={chat.avatarId} size="sm" /><span>{chat.displayName || chat.username}</span><small>@{chat.username}</small></button>)}{recipientMatches.length === 0 && <p>No matching contacts.</p>}</div>}
-          <textarea className="messages-draft-input" aria-label="Write a message" value={draft} onChange={event => setDraft(event.target.value.slice(0, 250))} maxLength={250} placeholder="Write a message..." />
-          <div className="messages-compose-actions"><small>{draft.length} / 250</small><button type="submit" disabled={!selectedRecipient || !draft.trim()}><Send size={15} />Send</button></div>
+          <textarea className="messages-draft-input" aria-label="Secret message" value={draft} onChange={event => setDraft(event.target.value.slice(0, 250))} maxLength={250} placeholder="Write the secret message..." />
+          <div className="riddle-input-row"><label><HelpCircle size={15} /><input value={riddleQuestion} maxLength={160} onChange={event => setRiddleQuestion(event.target.value)} placeholder="Ask a question (e.g. our first movie?)" aria-label="Riddle question" /></label><label><KeyRound size={15} /><input type="password" value={riddleAnswer} maxLength={80} onChange={event => setRiddleAnswer(event.target.value)} placeholder="Answer" aria-label="Riddle answer" /></label></div>
+          <div className="riddle-options-row"><label><Lightbulb size={15} /><input value={riddleHint} maxLength={160} onChange={event => setRiddleHint(event.target.value)} placeholder="Hint (optional)" aria-label="Riddle hint" /></label><span>Tries</span><button type="button" className={riddleTries === 3 ? 'is-selected' : ''} onClick={() => setRiddleTries(3)}>3</button><button type="button" className={riddleTries === 5 ? 'is-selected' : ''} onClick={() => setRiddleTries(5)}>5</button></div>
+          <div className="messages-compose-actions"><small>{draft.length} / 250</small><button type="submit" disabled={!selectedRecipient || !draft.trim() || !riddleQuestion.trim() || !riddleAnswer.trim() || riddleBusy}><LockKeyhole size={15} />{riddleBusy ? 'Sending…' : 'Lock & send'}</button></div>{riddleNotice && <p className="riddle-compose-notice">{riddleNotice}</p>}
+          </div><aside className="riddle-preview"><small>What they’ll see</small><div className="riddle-preview-secret"><span><LockKeyhole size={16} /></span><i>{draft || 'Your secret message'}</i></div><strong>{riddleQuestion || 'Your question appears here'}</strong>{riddleHint && <em><Lightbulb size={12} />Hint: {riddleHint}</em>}<div><input disabled placeholder="Your answer" /><button type="button" disabled>Unlock</button></div><small>{riddleTries} tries left</small></aside></div>
         </form>
       </section>
       <CreateGroupModal isOpen={isGroupModalOpen} onClose={() => setIsGroupModalOpen(false)} />

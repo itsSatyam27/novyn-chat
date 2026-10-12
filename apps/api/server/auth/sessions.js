@@ -1,6 +1,6 @@
 const { normalizeName, toDisplayName } = require("../core/normalization");
 
-function createAuthSessions({ refreshSessions, refreshByUser, authUserAliases, schedulePersist }) {
+function createAuthSessions({ refreshSessions, refreshByUser, authUserAliases, schedulePersist, aliasTtlMs = 30 * 24 * 60 * 60 * 1000 }) {
   const persist = typeof schedulePersist === "function" ? schedulePersist : () => {};
 
   function trackRefreshSession(userKey, jti, expiresAt, remember) {
@@ -49,6 +49,17 @@ function createAuthSessions({ refreshSessions, refreshByUser, authUserAliases, s
     persist();
   }
 
+  function linkAuthAlias(oldUserKey, nextUserKey, ttlMs = aliasTtlMs) {
+    const oldKey = normalizeName(oldUserKey);
+    const newKey = normalizeName(nextUserKey);
+    if (!oldKey || !newKey || oldKey === newKey) return;
+    authUserAliases.set(oldKey, {
+      newKey,
+      expiresAt: Date.now() + Math.max(60_000, Number(ttlMs) || 0),
+    });
+    persist();
+  }
+
   function pruneExpiredAuthState() {
     const now = Date.now();
     let touched = false;
@@ -70,6 +81,7 @@ function createAuthSessions({ refreshSessions, refreshByUser, authUserAliases, s
     trackRefreshSession,
     revokeRefreshSession,
     moveRefreshSessionsToUser,
+    linkAuthAlias,
     pruneExpiredAuthState,
   };
 }

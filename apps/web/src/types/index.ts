@@ -75,6 +75,14 @@ export interface Message {
   expiresAt?: string | null;
   poll?: Poll | null;
   game?: GameData | null;
+  riddle?: {
+    question: string;
+    hint?: string;
+    secret?: string;
+    maxTries: 3 | 5;
+    triesLeft: number;
+    unlocked: boolean;
+  } | null;
   ciphertext?: string;
   iv?: string;
   isEncrypted?: boolean;

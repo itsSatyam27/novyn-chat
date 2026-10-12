@@ -22,6 +22,7 @@ import { VoicePlayer } from './VoicePlayer';
 import { LinkPreviewCard, extractFirstUrl } from './LinkPreviewCard';
 import { PollMessageBubble } from './PollMessageBubble';
 import { GameMessageBubble } from './GameMessageBubble';
+import { RiddleMessageBubble } from './RiddleMessageBubble';
 import { triggerHaptic } from '../../services/capacitor';
 
 interface MessageBubbleProps {
@@ -830,6 +831,8 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                 </button>
               </div>
             </div>
+          ) : message.riddle ? (
+            <RiddleMessageBubble message={message} isMe={isMe} />
           ) : message.poll ? (
             <PollMessageBubble
               poll={message.poll}

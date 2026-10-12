@@ -55,7 +55,7 @@ for (const className of ['desktop-sidebar', 'mobile-bottom-nav']) {
       assert.equal(selected.length, index, 'reselecting the active tab does not restart navigation');
       buttons[(index + 1) % buttons.length].props.onClick();
       assert.equal(selected[index], NAV_ITEMS[(index + 1) % buttons.length].id);
-      assert.ok(tree.some((node) => node.props['aria-label'] === '2 friend requests'));
+      assert.ok(tree.some((node) => node.props['aria-label'] === '2 pending friend requests'));
     }
     assert.equal(haptics.length, 5);
   });

@@ -7,10 +7,19 @@
   min-height: 0;
   height: 100%;
   overflow: auto;
-  padding: clamp(16px, 2.2vw, 30px);
-  gap: 14px;
+  padding: clamp(16px, 2vw, 26px);
+  gap: 16px;
   color: var(--text-main);
   background: var(--bg-main);
+  box-sizing: border-box;
+  scrollbar-gutter: stable;
+  overscroll-behavior: contain;
+}
+
+/* The workspace shell hides direct children by default; Discover owns its scroll. */
+.workspace-pane > .discover-workspace {
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .discover-hero-card,
@@ -18,59 +27,55 @@
   border: 1px solid var(--border);
   border-radius: 22px;
   background: var(--bg-surface);
-  box-shadow: var(--shadow-card, 0 8px 24px rgba(0, 0, 0, .08));
+  box-shadow: var(--shadow-card, 0 10px 30px rgba(0, 0, 0, .07));
 }
 
 .discover-hero-card {
   position: relative;
   display: grid;
-  grid-template-columns: minmax(150px, 220px) minmax(0, 1fr);
+  grid-template-columns: minmax(260px, 360px) minmax(0, 1fr);
   align-items: center;
   gap: clamp(22px, 4vw, 46px);
-  min-height: 224px;
-  padding: clamp(22px, 3vw, 32px);
+  min-height: 294px;
+  padding: clamp(18px, 2.4vw, 28px);
   overflow: hidden;
   background: color-mix(in srgb, var(--bg-surface) 88%, var(--discover-accent) 12%);
 }
+.discover-hero-card::after { content: ''; position: absolute; right: -90px; top: -120px; width: 280px; height: 280px; border-radius: 50%; background: color-mix(in srgb, var(--discover-accent) 8%, transparent); filter: blur(4px); pointer-events: none; }
 
-.discover-radar {
-  position: relative;
-  display: grid;
-  place-items: center;
-  justify-self: center;
-  align-self: center;
-  width: min(100%, 240px);
-  aspect-ratio: 1;
-  border: 1px solid color-mix(in srgb, var(--discover-accent) 38%, transparent);
-  border-radius: 50%;
-  background: radial-gradient(circle, color-mix(in srgb, var(--discover-accent) 17%, transparent), transparent 68%);
-  transform: translate(-8px, -16px);
-}
+.discover-radar-stage { position: relative; z-index: 1; display: grid; width: 100%; height: 250px; place-items: center; perspective: 900px; cursor: grab; touch-action: none; user-select: none; transform: scale(.8); }
+.discover-radar-stage:active { cursor: grabbing; }
+.discover-radar-stage:focus-visible { outline: 3px solid color-mix(in srgb, var(--discover-accent) 55%, transparent); outline-offset: 3px; border-radius: 22px; }
+.discover-radar-scene { position: relative; width: 300px; height: 300px; transform-style: preserve-3d; transform: rotateX(var(--radar-rx)) rotateZ(var(--radar-rz)); transition: transform .14s ease-out; }
+.discover-radar-layer { position: absolute; inset: 0; border-radius: 50%; transform-style: preserve-3d; }
+.discover-radar-shadow { transform: translateZ(-58px) scale(1.12); background: radial-gradient(circle, color-mix(in srgb, var(--discover-accent) 35%, transparent), transparent 66%); filter: blur(15px); }
+.discover-radar-slab { border: 1px solid color-mix(in srgb, var(--discover-accent) 45%, transparent); background: radial-gradient(circle, color-mix(in srgb, var(--bg-surface) 70%, white), color-mix(in srgb, var(--discover-accent) 34%, var(--bg-surface))); }
+.discover-radar-slab-back { opacity: .58; transform: translateZ(-18px); }
+.discover-radar-slab-mid { opacity: .78; transform: translateZ(-9px); }
+.discover-radar-face { border: 1.5px solid color-mix(in srgb, var(--discover-accent) 60%, transparent); background: radial-gradient(circle, color-mix(in srgb, var(--bg-surface) 85%, white), color-mix(in srgb, var(--discover-accent) 24%, var(--bg-surface))); box-shadow: inset 0 0 42px color-mix(in srgb, var(--discover-accent) 20%, transparent); }
+.discover-radar-ring { position: absolute; left: 50%; top: 50%; border: 1px solid color-mix(in srgb, var(--discover-accent) 48%, transparent); border-radius: 50%; transform: translate(-50%, -50%); }
+.discover-radar-cross::before, .discover-radar-cross::after { content: ''; position: absolute; background: color-mix(in srgb, var(--discover-accent) 32%, transparent); }
+.discover-radar-cross::before { left: 50%; top: 0; bottom: 0; width: 1px; }
+.discover-radar-cross::after { top: 50%; left: 0; right: 0; height: 1px; }
+.discover-radar-sweep { transform: translateZ(2px); background: conic-gradient(from 0deg, transparent 0 250deg, color-mix(in srgb, var(--discover-accent) 4%, transparent) 270deg, color-mix(in srgb, var(--discover-accent) 55%, transparent) 358deg, color-mix(in srgb, var(--discover-accent) 80%, transparent) 360deg); animation: discover-radar-sweep 6s linear infinite; -webkit-mask: radial-gradient(circle, #000 98%, transparent); mask: radial-gradient(circle, #000 98%, transparent); }
+.discover-radar-sweep::after { content: ''; position: absolute; left: 50%; top: 0; width: 2px; height: 50%; margin-left: -1px; background: linear-gradient(var(--discover-accent), transparent); box-shadow: 0 0 12px var(--discover-accent); }
+.discover-radar-hub { position: absolute; left: 50%; top: 50%; width: 0; height: 0; transform-style: preserve-3d; }
+.discover-radar-pin { position: absolute; width: 0; height: 0; transform-style: preserve-3d; }
+.discover-radar-pin-stem { position: absolute; left: -1px; bottom: 0; width: 2px; height: var(--pin-height); transform: rotateX(-90deg); transform-origin: 50% 100%; background: linear-gradient(#34d399, transparent); }
+.discover-radar-pin-dot { position: absolute; left: -7px; top: -7px; width: 14px; height: 14px; border-radius: 50%; background: #34d399; box-shadow: 0 0 14px #34d399; transform: translateZ(var(--pin-height)); animation: discover-radar-pin-pulse 6s linear infinite; animation-delay: var(--pin-delay); }
+.discover-radar-pin-base { position: absolute; left: -5px; top: -5px; width: 10px; height: 10px; border: 2px solid #34d399; border-radius: 50%; animation: discover-radar-ripple 6s linear infinite; animation-delay: var(--pin-delay); }
+.discover-radar-you { display: block; width: 18px; height: 18px; margin: -9px; border-radius: 50%; background: var(--discover-accent); box-shadow: 0 0 0 6px color-mix(in srgb, var(--discover-accent) 20%, transparent), 0 0 24px var(--discover-accent); transform: translateZ(14px); }
+.discover-radar-drag-hint { position: absolute; bottom: 2px; color: var(--text-muted); font-size: .68rem; opacity: 0; transition: opacity .2s; }
+.discover-radar-stage:hover .discover-radar-drag-hint { opacity: 1; }
+@keyframes discover-radar-sweep { to { transform: translateZ(2px) rotate(1turn); } }
+@keyframes discover-radar-pin-pulse { 0%, 100% { filter: brightness(1); } 2% { filter: brightness(1.8); scale: 1.5; } 20% { filter: brightness(1); scale: 1; } }
+@keyframes discover-radar-ripple { 0% { opacity: 1; transform: scale(1); } 25% { opacity: 0; transform: scale(5); } 100% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .discover-radar-sweep, .discover-radar-pin-dot, .discover-radar-pin-base { animation: none; } }
 
-.radar-scan,
-.radar-orbit {
-  position: absolute;
-  border: 1px solid color-mix(in srgb, var(--discover-accent) 30%, transparent);
-  border-radius: 50%;
-}
-.radar-scan { inset: 17%; overflow: hidden; background: radial-gradient(circle, transparent 58%, color-mix(in srgb, var(--discover-accent) 8%, transparent)); }
-.radar-scan::after { content: ""; position: absolute; inset: -1px; border-radius: 50%; background: conic-gradient(from 0deg, transparent 0deg 278deg, color-mix(in srgb, var(--discover-accent) 3%, transparent) 300deg, color-mix(in srgb, var(--discover-accent) 28%, transparent) 350deg, transparent 360deg); -webkit-mask: radial-gradient(circle, transparent 0 8%, #000 9% 100%); mask: radial-gradient(circle, transparent 0 8%, #000 9% 100%); transform-origin: center; animation: discover-radar-sweep 8s linear infinite; }
-.orbit-one { width: 62%; height: 62%; }
-.orbit-two { width: 35%; height: 35%; }
-.radar-dot { position: absolute; width: 8px; height: 8px; border-radius: 50%; background: #34d399; box-shadow: 0 0 12px rgba(52, 211, 153, .65); animation: discover-radar-pulse 2.8s ease-in-out infinite; }
-.dot-one { top: 21%; left: 30%; }
-.dot-two { top: 38%; right: 24%; animation-delay: .65s; }
-.dot-three { bottom: 25%; left: 42%; animation-delay: 1.3s; }
-.dot-four { bottom: 35%; right: 36%; animation-delay: 1.95s; }
-.radar-center { z-index: 1; width: 9px; height: 9px; border-radius: 50%; background: var(--discover-accent); box-shadow: 0 0 14px var(--discover-accent); }
-@keyframes discover-radar-sweep { to { transform: rotate(1turn); } }
-@keyframes discover-radar-pulse { 0%, 100% { opacity: .72; transform: scale(.86); } 50% { opacity: 1; transform: scale(1.3); } }
-@media (prefers-reduced-motion: reduce) { .radar-scan::after, .radar-dot { animation: none; } }
-
-.discover-hero-copy { min-width: 0; }
+.discover-hero-copy { position: relative; z-index: 1; min-width: 0; }
 .discover-eyebrow { margin: 0 0 8px; color: var(--discover-accent); font-size: .7rem; font-weight: 750; letter-spacing: .14em; text-transform: uppercase; }
-.discover-hero-card h1 { margin: 0 0 7px; color: var(--text-main); font-size: clamp(1.45rem, 2.5vw, 2rem); line-height: 1.16; letter-spacing: -.04em; }
-.discover-subtitle { max-width: 560px; margin: 0 0 16px; color: var(--text-muted); font-size: .9rem; line-height: 1.55; }
+.discover-hero-card h1 { margin: 0 0 9px; color: var(--text-main); font-family: var(--font-display); font-size: clamp(1.65rem, 2.7vw, 2.35rem); line-height: 1.1; letter-spacing: -.04em; }
+.discover-subtitle { max-width: 520px; margin: 0 0 20px; color: var(--text-muted); font-size: .9rem; line-height: 1.55; }
 .discover-refresh-btn,
 .discover-send-btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
@@ -78,21 +83,28 @@
   background: var(--discover-accent); color: #fff; font: inherit; font-size: .82rem; font-weight: 700; cursor: pointer;
 }
 .discover-refresh-btn:hover, .discover-send-btn:hover { filter: brightness(1.08); }
+.discover-refresh-btn:focus-visible, .discover-send-btn:focus-visible, .request-action:focus-visible, .discover-qr-button:focus-visible, .qr-box:focus-visible { outline: 3px solid color-mix(in srgb, var(--discover-accent) 40%, transparent); outline-offset: 2px; }
 
-.discover-lower-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: repeat(2, 218px); gap: 12px; align-content: start; }
+.discover-lower-grid { display: grid; grid-template-columns: minmax(0, 1.12fr) minmax(320px, .88fr); grid-template-rows: 190px 164px; gap: 14px; align-content: start; padding-bottom: max(24px, env(safe-area-inset-bottom)); }
 .discover-main-column, .discover-side-column { display: contents; }
-.discover-card { display: flex; flex-direction: column; min-width: 0; height: 218px; min-height: 0; padding: 14px 16px; overflow: hidden; box-sizing: border-box; }
-.discover-requests-card { grid-column: 1; grid-row: 1; }
-.discover-add-card { grid-column: 2; grid-row: 1; }
-.discover-sent-card { grid-column: 1; grid-row: 2; }
-.discover-qr-card { grid-column: 2; grid-row: 2; }
-.discover-card header { display: flex; align-items: center; gap: 8px; margin: 0 0 12px; }
-.discover-empty-state { margin: 0; padding: 14px 10px; color: var(--text-muted); font-size: .8rem; }
+.discover-card { position: relative; display: flex; flex-direction: column; min-width: 0; height: 100%; min-height: 0; padding: 18px 20px; overflow: hidden; box-sizing: border-box; transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease; }
+.discover-card:hover { border-color: color-mix(in srgb, var(--discover-accent) 22%, var(--border)); box-shadow: 0 12px 32px rgba(0, 0, 0, .09); }
+.discover-requests-card { grid-column: 1; grid-row: 1; background: linear-gradient(135deg, color-mix(in srgb, var(--bg-surface) 95%, #a78bfa 5%), var(--bg-surface)); }
+.discover-add-card { grid-column: 2; grid-row: 1; background: linear-gradient(135deg, color-mix(in srgb, var(--bg-surface) 88%, #38bdf8 12%), var(--bg-surface)); }
+.discover-sent-card { grid-column: 1; grid-row: 2; background: linear-gradient(135deg, color-mix(in srgb, var(--bg-surface) 94%, #f59e0b 6%), var(--bg-surface)); }
+.discover-qr-card { grid-column: 2; grid-row: 2; background: linear-gradient(135deg, color-mix(in srgb, var(--bg-surface) 92%, #34d399 8%), var(--bg-surface)); }
+.discover-card header { display: flex; align-items: center; gap: 11px; margin: 0 0 13px; }
+.discover-card header > div { min-width: 0; }
+.discover-card header p { margin: 2px 0 0; color: var(--text-muted); font-size: .66rem; line-height: 1.35; }
+.discover-card-icon { display: grid; flex: 0 0 38px; width: 38px; height: 38px; place-items: center; border-radius: 12px; background: color-mix(in srgb, #8b5cf6 16%, transparent); color: #8b5cf6; }
+.discover-card-icon.is-blue { background: color-mix(in srgb, #0ea5e9 15%, transparent); color: #0ea5e9; }
+.discover-card-icon.is-warm { background: color-mix(in srgb, #f59e0b 15%, transparent); color: #d98200; }
+.discover-count { display: grid; min-width: 27px; height: 27px; margin-left: auto; place-items: center; padding: 0 7px; border: 1px solid color-mix(in srgb, var(--discover-accent) 28%, var(--border)); border-radius: 999px; background: color-mix(in srgb, var(--bg-surface) 65%, transparent); color: var(--text-main); font-size: .7rem; font-weight: 750; }
+.discover-empty-state { display: flex; flex: 1; align-items: center; margin: 0; padding: 6px 12px; color: var(--text-muted); font-size: .8rem; }
 .discover-request-list { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--text-muted) 45%, transparent) transparent; }
 .discover-request-list::-webkit-scrollbar { width: 5px; }
 .discover-request-list::-webkit-scrollbar-thumb { border-radius: 999px; background: color-mix(in srgb, var(--text-muted) 45%, transparent); }
-.discover-card h2 { margin: 0; color: var(--discover-accent); font-size: .68rem; font-weight: 750; letter-spacing: .12em; text-transform: uppercase; }
-.discover-card header span { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 5px; border: 1px solid color-mix(in srgb, var(--discover-accent) 45%, transparent); border-radius: 999px; color: var(--text-main); font-size: .68rem; }
+.discover-card h2 { margin: 0; color: var(--discover-accent); font-size: .71rem; font-weight: 800; letter-spacing: .13em; text-transform: uppercase; }
 .discover-request-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 9px; min-height: 48px; padding: 7px 9px; border: 1px solid color-mix(in srgb, var(--border) 75%, transparent); border-radius: 13px; background: color-mix(in srgb, var(--bg-surface-hover, var(--bg-main)) 65%, transparent); }
 .discover-request-row + .discover-request-row { margin-top: 8px; }
 .request-meta { display: flex; align-items: center; gap: 9px; min-width: 0; }
@@ -111,16 +123,19 @@
 .sent-row { grid-template-columns: minmax(0, 1fr) auto; }
 .discover-add-card { display: flex; flex-direction: column; justify-content: center; }
 .discover-input-row { display: flex; gap: 8px; }
-.discover-input-row input { flex: 1; min-width: 0; height: 40px; padding: 0 12px; border: 1px solid var(--border); border-radius: 12px; outline: none; background: var(--bg-input, var(--bg-main)); color: var(--text-main); font: inherit; font-size: .8rem; }
-.discover-input-row input:focus { border-color: var(--discover-accent); }
+.discover-input-row input { flex: 1; min-width: 0; height: 44px; padding: 0 14px; border: 1px solid var(--border); border-radius: 14px; outline: none; background: color-mix(in srgb, var(--bg-input, var(--bg-main)) 88%, transparent); color: var(--text-main); font: inherit; font-size: .8rem; transition: border-color .16s, box-shadow .16s; }
+.discover-input-row input:focus { border-color: var(--discover-accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--discover-accent) 12%, transparent); }
 .discover-input-row input::placeholder { color: var(--text-dark); }
 .discover-inline-hint { margin: 10px 0 0; color: var(--text-muted); font-size: .7rem; }
-.discover-qr-card { display: grid; grid-template-columns: 70px minmax(0, 1fr); align-content: center; align-items: center; gap: 10px 14px; }
-.qr-box { display: grid; place-items: center; grid-row: span 2; width: 70px; height: 70px; border: 5px solid var(--text-main); border-radius: 12px; background: repeating-conic-gradient(var(--text-main) 0 25%, var(--bg-surface) 0 50%) 0 / 11px 11px; }
+.discover-qr-card { display: grid; grid-template-columns: 70px minmax(0, 1fr) auto; align-content: center; align-items: center; gap: 8px 14px; }
+.qr-box { display: grid; place-items: center; grid-row: span 2; width: 76px; height: 76px; padding: 5px; overflow: hidden; border: 1px solid color-mix(in srgb, var(--discover-accent) 22%, var(--border)); border-radius: 16px; background: #fff; box-shadow: 0 8px 22px rgba(20, 73, 92, .12); cursor: pointer; transition: transform .16s ease, box-shadow .16s ease; }
+.qr-box:hover { transform: translateY(-2px); box-shadow: 0 12px 26px rgba(20, 73, 92, .16); }
+.qr-box img { display: block; width: 100%; height: 100%; object-fit: contain; }
 .qr-pattern { width: 100%; height: 100%; background: repeating-conic-gradient(var(--text-main) 0 25%, transparent 0 50%) 0 / 12px 12px; }
-.qr-copy h3 { margin: 0 0 3px; color: var(--text-main); font-size: .9rem; }
+.qr-copy h3 { margin: 0 0 3px; color: var(--text-main); font-size: .96rem; }
 .qr-copy p { margin: 0; color: var(--text-muted); font-size: .72rem; }
-.discover-qr-button { justify-self: start; display: inline-flex; align-items: center; gap: 6px; min-height: 28px; padding: 0 9px; border: 1px solid var(--border); border-radius: 999px; background: transparent; color: var(--text-main); font: inherit; font-size: .68rem; }
+.discover-qr-button { grid-column: 3; grid-row: 1 / span 2; justify-self: end; display: inline-flex; align-items: center; gap: 7px; min-height: 40px; padding: 0 15px; border: 1px solid color-mix(in srgb, var(--discover-accent) 24%, var(--border)); border-radius: 13px; background: color-mix(in srgb, var(--discover-accent) 9%, var(--bg-surface)); color: var(--text-main); font: inherit; font-size: .72rem; font-weight: 700; cursor: pointer; transition: background .16s, transform .16s; }
+.discover-qr-button:hover { background: color-mix(in srgb, var(--discover-accent) 15%, var(--bg-surface)); transform: translateY(-1px); }
 
 .discover-mobile-tools { display: none; flex: 0 0 auto; flex-direction: column; gap: 7px; padding: 2px 0 12px; }
 .discover-mobile-tools details { overflow: hidden; border: 1px solid var(--border); border-radius: 13px; background: var(--bg-surface); }
@@ -142,8 +157,10 @@
 .discover-mobile-add-form > button:disabled { opacity: .5; cursor: not-allowed; }
 
 @media (max-width: 1050px) {
-  .discover-lower-grid { grid-template-columns: 1fr; }
+  .discover-hero-card { grid-template-columns: minmax(260px, 320px) minmax(0, 1fr); }
+  .discover-lower-grid { grid-template-columns: 1fr; grid-template-rows: repeat(4, minmax(164px, auto)); }
   .discover-requests-card, .discover-add-card, .discover-sent-card, .discover-qr-card { grid-column: auto; grid-row: auto; }
+  .discover-card { min-height: 164px; }
 }
 @media (max-width: 768px) {
   .discover-mobile-tools { display: flex; }
@@ -154,10 +171,13 @@
 @media (max-width: 650px) {
   .discover-workspace { padding: 14px 12px 88px; }
   .discover-hero-card { grid-template-columns: 1fr; min-height: 0; gap: 14px; padding: 20px; }
-  .discover-radar { width: 112px; justify-self: center; transform: none; }
+  .discover-radar-stage { height: 236px; transform: scale(.72); margin-block: -30px -18px; }
   .discover-hero-card h1 { font-size: 1.5rem; }
   .discover-request-row { grid-template-columns: minmax(0, 1fr) auto; }
   .request-actions { gap: 4px; }
-  .discover-lower-grid { grid-template-rows: repeat(4, 200px); }
-  .discover-card { height: 200px; padding: 14px; }
+  .discover-lower-grid { grid-template-rows: repeat(4, minmax(164px, auto)); }
+  .discover-card { min-height: 164px; padding: 16px; }
+  .discover-qr-card { grid-template-columns: 62px minmax(0, 1fr); }
+  .qr-box { width: 62px; height: 62px; }
+  .discover-qr-button { grid-column: 2; grid-row: auto; justify-self: start; }
 }
