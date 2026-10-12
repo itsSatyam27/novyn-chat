@@ -22,49 +22,61 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  const applySessionUser = (data: any) => {
+    setUser({
+      username: data.username,
+      displayName: data.displayName || data.username,
+      email: data.email,
+      avatarId: data.avatarId || '',
+      bio: data.bio || '',
+      presenceMode: data.presenceMode || 'online',
+      retentionDays: data.retentionDays,
+      callPrivacy: data.callPrivacy, messagePrivacy: data.messagePrivacy,
+      profilePhotoPrivacy: data.profilePhotoPrivacy, presencePrivacy: data.presencePrivacy,
+      readReceiptsEnabled: data.readReceiptsEnabled, typingIndicatorsEnabled: data.typingIndicatorsEnabled,
+      groupInvitePrivacy: data.groupInvitePrivacy, friendRequestPrivacy: data.friendRequestPrivacy,
+    });
+    connectSocket();
+  };
+
   const refreshSession = async () => {
+    setIsLoading(true);
+    const maxAttempts = 10;
+
     try {
+      for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
       const res = await apiRequest('/api/auth/session');
       if (res.ok && res.data?.username) {
-        setUser({
-          username: res.data.username,
-          displayName: res.data.displayName || res.data.username,
-          email: res.data.email,
-          avatarId: res.data.avatarId || '',
-          bio: res.data.bio || '',
-          presenceMode: res.data.presenceMode || 'online',
-          retentionDays: res.data.retentionDays,
-          callPrivacy: res.data.callPrivacy, messagePrivacy: res.data.messagePrivacy,
-          profilePhotoPrivacy: res.data.profilePhotoPrivacy, presencePrivacy: res.data.presencePrivacy,
-          readReceiptsEnabled: res.data.readReceiptsEnabled, typingIndicatorsEnabled: res.data.typingIndicatorsEnabled,
-          groupInvitePrivacy: res.data.groupInvitePrivacy, friendRequestPrivacy: res.data.friendRequestPrivacy,
-        });
-        connectSocket();
-      } else {
-        // Try refresh token
+        applySessionUser(res.data);
+        return;
+      }
+
+      // Only a confirmed unauthorized response should enter the refresh-token
+      // flow. Render can briefly return a network error or 5xx while replacing
+      // an instance; retry those responses without treating them as a logout.
+      if (res.status === 401 || res.status === 403) {
         const refreshRes = await apiRequest('/api/auth/refresh', { method: 'POST' });
         if (refreshRes.ok) {
           const secondSession = await apiRequest('/api/auth/session');
           if (secondSession.ok && secondSession.data?.username) {
-            setUser({
-              username: secondSession.data.username,
-              displayName: secondSession.data.displayName || secondSession.data.username,
-              email: secondSession.data.email,
-              avatarId: secondSession.data.avatarId || '',
-              bio: secondSession.data.bio || '',
-              presenceMode: secondSession.data.presenceMode || 'online',
-              retentionDays: secondSession.data.retentionDays,
-              callPrivacy: secondSession.data.callPrivacy, messagePrivacy: secondSession.data.messagePrivacy,
-              profilePhotoPrivacy: secondSession.data.profilePhotoPrivacy, presencePrivacy: secondSession.data.presencePrivacy,
-              readReceiptsEnabled: secondSession.data.readReceiptsEnabled, typingIndicatorsEnabled: secondSession.data.typingIndicatorsEnabled,
-              groupInvitePrivacy: secondSession.data.groupInvitePrivacy, friendRequestPrivacy: secondSession.data.friendRequestPrivacy,
-            });
-            connectSocket();
+            applySessionUser(secondSession.data);
+            return;
           }
         }
+
+        if (refreshRes.status === 401 || refreshRes.status === 403) {
+          setUser(null);
+          disconnectSocket();
+          return;
+        }
+      }
+
+      if (attempt < maxAttempts - 1) {
+        await new Promise(resolve => window.setTimeout(resolve, Math.min(1000 * (attempt + 1), 5000)));
+      }
       }
     } catch {
-      setUser(null);
+      // Keep the existing authenticated UI during a transient server restart.
     } finally {
       setIsLoading(false);
     }
