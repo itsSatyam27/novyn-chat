@@ -920,6 +920,11 @@ button:disabled { cursor: not-allowed; }
 .game-picker-footer{display:flex;align-items:center;justify-content:space-between;color:#aaa4ca}.game-picker-footer p{display:flex;align-items:center;gap:6px;margin:0;font-size:.62rem}.game-picker-footer button,.game-picker-primary{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1px solid rgba(170,150,255,.3);border-radius:10px;background:#30245e;color:#fff;font:inherit;font-size:.66rem;font-weight:700;cursor:pointer}.game-picker-footer button{height:32px;padding:0 11px}.game-picker-primary{min-height:42px;padding:0 16px;background:#7551ec}.game-picker-primary:hover,.game-picker-footer button:hover{filter:brightness(1.12)}
 @media(max-width:600px){.game-picker-grid{grid-template-columns:1fr}.game-picker-card{min-height:158px}.game-picker-footer p{display:none}}
 
+/* Keep game launch actions immediately reachable inside the scrolling modal. */
+.game-picker-action{width:30px!important;min-width:30px!important;padding:0!important;gap:0!important;cursor:pointer;transition:background .16s ease,border-color .16s ease,transform .16s ease}
+.game-picker-action:hover,.game-picker-action:focus-visible{border-color:rgba(190,176,255,.55);background:#33265f;outline:none;transform:translateX(1px)}
+.game-picker-primary{position:sticky;z-index:5;bottom:0;box-shadow:0 -10px 22px #15132b}
+
 /* Interactive games inside the conversation use the same high-contrast indigo treatment. */
 :root .game-message { width: 248px !important; padding: 5px 1px !important; gap: 12px !important; color: var(--chat-ink); }
 :root .game-message-header { padding: 2px 2px 9px !important; border-color: var(--chat-indigo-border) !important; }
