@@ -833,6 +833,13 @@ if (process.env.NODE_ENV !== "production" && !process.env.AUTH_SECRET) {
   console.warn("AUTH_SECRET is not set. Development fallback is enabled only outside production.");
 }
 
+if (process.env.RENDER && !MONGODB_URI) {
+  console.warn(
+    `Render deployment is using file-based auth sessions in "${DATA_DIR}". ` +
+      "Mount a persistent disk at this path or configure MONGODB_URI; otherwise every deploy logs users out."
+  );
+}
+
 const passwordResetEmailConfigured = Boolean(
   nodemailer && SMTP_HOST && SMTP_USER && SMTP_PASS && SMTP_FROM
 );

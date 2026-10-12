@@ -280,10 +280,21 @@ Deploy to **Render**, **Railway**, **Fly.io**, or any VPS:
    - **Build Command**: `npm install && npm run build`
    - **Start Command**: `npm start`
 3. Add the following environment variables in your cloud provider's dashboard:
+   - `AUTH_SECRET` *(one long random value; keep the same value across deploys)*
    - `MONGODB_URI` *(MongoDB connection string)*
+   - `MONGODB_DB` *(Default: `novyn`)*
    - `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` *(For persistent media uploads)*
    - `UPLOAD_TOKEN_SECRET` *(Stable secret string for signed media URLs)*
    - `CHAT_RETENTION_DAYS` *(Default: 30 days)*
+
+### Keeping users signed in on Render
+
+Novyn validates browser cookies against a server-side session record. Use a stable
+`AUTH_SECRET` and configure `MONGODB_URI`; Novyn stores auth sessions in MongoDB as
+well as users and chats. If you intentionally run without MongoDB, attach a Render
+persistent disk and set `DATA_DIR` to its mount path (for example,
+`/var/data/novyn`). Render's normal service filesystem is replaced during a deploy,
+so file-based sessions on that filesystem cause every account to be signed out.
 
 ---
 
