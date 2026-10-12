@@ -1,10 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, Paperclip, Mic, X, Smile, Sparkles, BarChart3, Image as ImageIcon, FileText, Gamepad2 } from 'lucide-react';
+import { Send, Paperclip, Mic, X, Smile, Sparkles, BarChart3, Image as ImageIcon, FileText, Gamepad2, LockKeyhole } from 'lucide-react';
 import { Message } from '../../types';
 import { VoiceRecorder } from './VoiceRecorder';
 import { GifPickerModal } from './GifPickerModal';
 import { CreatePollModal } from './CreatePollModal';
+import { RiddleComposerModal } from './RiddleComposerModal';
 import { uploadMediaFile } from '../../services/api';
 import { triggerHaptic } from '../../services/capacitor';
 
@@ -15,6 +16,7 @@ interface MessageInputProps {
   onCancelReply: () => void;
   onCreatePoll?: (question: string, options: string[]) => void;
   onOpenGames?: () => void;
+  onSendRiddle?: (payload: { secret: string; question: string; answer: string; hint?: string; maxTries: 3 | 5 }) => Promise<{ ok: boolean; message?: string }>;
   activeChatId?: string | null;
   mentionMembers?: string[];
 }
@@ -37,6 +39,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   onCancelReply,
   onCreatePoll,
   onOpenGames,
+  onSendRiddle,
   activeChatId,
   mentionMembers = [],
 }) => {
@@ -53,6 +56,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   const [showAttachMenu, setShowAttachMenu] = useState(false);
   const [showGifModal, setShowGifModal] = useState(false);
   const [showPollModal, setShowPollModal] = useState(false);
+  const [showRiddleModal, setShowRiddleModal] = useState(false);
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
   const [mentionIndex, setMentionIndex] = useState(0);
   const typingTimerRef = useRef<any>(null);
@@ -466,6 +470,25 @@ export const MessageInput: React.FC<MessageInputProps> = ({
               </button>
             )}
 
+            {onSendRiddle && activeChatId && (
+              <button
+                type="button"
+                onClick={() => {
+                  triggerHaptic('light');
+                  setShowAttachMenu(false);
+                  setShowRiddleModal(true);
+                }}
+                style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '9px 12px', borderRadius: '10px', background: 'transparent', border: 'none', color: 'var(--text-main)', fontSize: '0.84rem', fontWeight: 600, cursor: 'pointer', textAlign: 'left', transition: 'background 0.12s ease' }}
+                onMouseEnter={(event) => (event.currentTarget.style.background = 'rgba(255, 255, 255, 0.55)')}
+                onMouseLeave={(event) => (event.currentTarget.style.background = 'transparent')}
+              >
+                <div style={{ width: '28px', height: '28px', borderRadius: '8px', background: 'rgba(109, 93, 252, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6d5dfc' }}>
+                  <LockKeyhole style={{ width: '15px', height: '15px' }} />
+                </div>
+                <span>Riddle Lock</span>
+              </button>
+            )}
+
             {/* In-Chat Mini Games */}
             {onOpenGames && (
               <button
@@ -676,6 +699,9 @@ export const MessageInput: React.FC<MessageInputProps> = ({
             onCreatePoll(question, options);
           }}
         />
+      )}
+      {onSendRiddle && activeChatId && (
+        <RiddleComposerModal isOpen={showRiddleModal} recipient={activeChatId} onClose={() => setShowRiddleModal(false)} onSend={onSendRiddle} />
       )}
     </div>
   );

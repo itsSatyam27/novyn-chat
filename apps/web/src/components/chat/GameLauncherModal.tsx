@@ -1,5 +1,5 @@
 import React from 'react';
-import { ArrowRight, Grid3X3, Swords, Disc, Users, Gamepad2 } from 'lucide-react';
+import { ArrowRight, Grid3X3, Swords, Disc, Users, Gamepad2, Palette, Binary, TrendingUp } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 import { GameType } from '../../types';
 import { triggerHaptic } from '../../services/capacitor';
@@ -16,6 +16,9 @@ const games = [
   { type: 'tictactoe', title: 'Tic-Tac-Toe', description: 'Three in a row. Make every move count.', tag: 'Quick match', icon: Grid3X3, accent: '#087f70', tint: 'rgba(16, 185, 129, 0.1)' },
   { type: 'rps', title: 'Rock, Paper, Scissors', description: 'Pick in secret. Reveal when you’re both ready.', tag: 'Instant showdown', icon: Swords, accent: '#9e650d', tint: 'rgba(245, 158, 11, 0.1)' },
   { type: 'connect4', title: 'Connect 4', description: 'Drop a chip. Be the first to line up four.', tag: 'Strategy', icon: Disc, accent: '#087fac', tint: 'rgba(56, 189, 248, 0.1)' },
+  { type: 'doodle', title: 'Doodle Duel', description: 'Draw a secret word while your friend tries to guess it before time runs out.', tag: 'Draw & Guess', icon: Palette, accent: '#db2777', tint: 'rgba(236, 72, 153, 0.1)' },
+  { type: 'numberclash', title: 'Number Clash', description: 'Pick your number, outsmart your friend, and get closest to the secret target.', tag: 'Number Battle', icon: Binary, accent: '#7c3aed', tint: 'rgba(124, 58, 237, 0.1)' },
+  { type: 'updown', title: 'Up or Down', description: 'Predict whether the next card will be higher or lower and build your winning streak.', tag: 'Higher or Lower', icon: TrendingUp, accent: '#ea580c', tint: 'rgba(234, 88, 12, 0.1)' },
 ] satisfies { type: GameType; title: string; description: string; tag: string; icon: typeof Grid3X3; accent: string; tint: string }[];
 
 export const GameLauncherModal: React.FC<GameLauncherModalProps> = ({

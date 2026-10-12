@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { GameData, GameType } from '../../types';
 import { Swords, RotateCcw, Trophy, Sparkles, User, Users, Gamepad2 } from 'lucide-react';
 import { triggerHaptic } from '../../services/capacitor';
+import { NewGamesBoard } from './NewGamesBoard';
 
 interface GameMessageBubbleProps {
   game: GameData;
@@ -615,6 +616,7 @@ export const GameMessageBubble: React.FC<GameMessageBubbleProps> = ({
       {gameType === 'tictactoe' && renderTicTacToe()}
       {gameType === 'rps' && renderRPS()}
       {gameType === 'connect4' && renderConnect4()}
+      {(gameType === 'doodle' || gameType === 'numberclash' || gameType === 'updown') && <NewGamesBoard game={game} messageId={messageId} username={currentUsername} onMove={onMove} />}
 
       {/* Rematch button if finished */}
       {state === 'finished' && onRematch && (

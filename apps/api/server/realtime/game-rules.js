@@ -1,6 +1,6 @@
 "use strict";
 
-const GAME_TYPES = new Set(["tictactoe", "rps", "connect4"]);
+const GAME_TYPES = new Set(["tictactoe", "rps", "connect4", "doodle", "numberclash", "updown"]);
 const RPS_MOVES = new Set(["rock", "paper", "scissors"]);
 
 function sameUser(a, b) {
@@ -266,6 +266,43 @@ function applyGameMove(game, userKey, moveData) {
       return applyRps(game, userKey, moveData);
     case "connect4":
       return applyConnect4(game, userKey, moveData);
+    case "doodle": {
+      const current = cloneData(game.data);
+      const player1 = current.player1 || game.createdBy;
+      const player2 = current.player2 || game.opponent;
+      if (![player1, player2].some(player => sameUser(player, userKey))) return { ok: false, reason: "You are not a player in this game." };
+      if (moveData.action === "draw" && sameUser(player1, userKey)) {
+        const strokes = Array.isArray(moveData.strokes) ? moveData.strokes.slice(-800).filter(s => [s?.x1,s?.y1,s?.x2,s?.y2].every(Number.isFinite)) : null;
+        if (!strokes) return { ok: false, reason: "Invalid drawing." };
+        return { ok: true, game: { ...game, data: { ...current, player1, player2, strokes }, lastMoveBy: userKey, updatedAt: Date.now() } };
+      }
+      if (moveData.action === "guess" && sameUser(player2, userKey)) {
+        const guess = String(moveData.guess || "").trim().slice(0, 40);
+        if (!guess) return { ok: false, reason: "Enter a guess." };
+        const won = guess.toLowerCase() === String(current.word || "").toLowerCase();
+        return { ok: true, game: { ...game, state: won ? "finished" : "in_progress", turn: won ? "" : player2, winner: won ? player2 : undefined, data: { ...current, player1, player2, guesses: [...(current.guesses || []), guess].slice(-8) }, lastMoveBy: userKey, updatedAt: Date.now() } };
+      }
+      return { ok: false, reason: "Invalid Doodle Duel move." };
+    }
+    case "numberclash": {
+      const current = cloneData(game.data); const player1 = current.player1 || game.createdBy; const player2 = current.player2 || game.opponent;
+      if (![player1, player2].some(player => sameUser(player, userKey))) return { ok: false, reason: "You are not a player in this game." };
+      const number = Number(moveData.number); if (!Number.isInteger(number) || number < 1 || number > 100) return { ok: false, reason: "Pick a number from 1 to 100." };
+      if (sameUser(player1, userKey) && current.p1Number) return { ok: false, reason: "Your number is locked." };
+      if (sameUser(player2, userKey) && current.p2Number) return { ok: false, reason: "Your number is locked." };
+      const p1Number = sameUser(player1, userKey) ? number : current.p1Number; const p2Number = sameUser(player2, userKey) ? number : current.p2Number;
+      let winner; if (p1Number && p2Number) { const a=Math.abs(p1Number-current.target), b=Math.abs(p2Number-current.target); winner=a===b?"draw":a<b?player1:player2; }
+      return { ok: true, game: { ...game, state: winner ? "finished" : "in_progress", turn: winner ? "" : (p1Number ? player2 : player1), winner, data: { ...current, player1, player2, p1Number, p2Number }, lastMoveBy:userKey, updatedAt:Date.now() } };
+    }
+    case "updown": {
+      const current=cloneData(game.data); const player1=current.player1||game.createdBy; const player2=current.player2||game.opponent;
+      if (![player1,player2].some(player=>sameUser(player,userKey))) return {ok:false,reason:"You are not a player in this game."};
+      const prediction=moveData.prediction; if (!["higher","lower"].includes(prediction)) return {ok:false,reason:"Choose higher or lower."};
+      if (sameUser(player1,userKey)&&current.p1Prediction) return {ok:false,reason:"Prediction already locked."}; if (sameUser(player2,userKey)&&current.p2Prediction) return {ok:false,reason:"Prediction already locked."};
+      const p1Prediction=sameUser(player1,userKey)?prediction:current.p1Prediction; const p2Prediction=sameUser(player2,userKey)?prediction:current.p2Prediction; let winner;
+      if(p1Prediction&&p2Prediction){const result=current.nextCard>=current.currentCard?"higher":"lower";const a=p1Prediction===result,b=p2Prediction===result;winner=a===b?"draw":a?player1:player2;}
+      return {ok:true,game:{...game,state:winner?"finished":"in_progress",turn:winner?"":(p1Prediction?player2:player1),winner,data:{...current,player1,player2,p1Prediction,p2Prediction},lastMoveBy:userKey,updatedAt:Date.now()}};
+    }
     default:
       return { ok: false, reason: "Unsupported game." };
   }
@@ -289,6 +326,9 @@ function createGameChallenge(input = {}) {
     tictactoe: "Tic-Tac-Toe",
     rps: "Rock • Paper • Scissors",
     connect4: "Connect 4",
+    doodle: "Doodle Duel",
+    numberclash: "Number Clash",
+    updown: "Up or Down",
   };
 
   const board = gameType === "tictactoe" ? Array(9).fill(null) : gameType === "connect4" ? Array(42).fill(null) : undefined;
@@ -296,6 +336,12 @@ function createGameChallenge(input = {}) {
     ? { board, playerX: userName }
     : gameType === "connect4"
     ? { board, player1: userName }
+    : gameType === "doodle"
+    ? { player1: userName, player2: to, word: ["star","house","tree","rocket","cat"][Math.floor(Math.random()*5)], strokes: [], guesses: [] }
+    : gameType === "numberclash"
+    ? { player1: userName, player2: to, target: 1 + Math.floor(Math.random()*100) }
+    : gameType === "updown"
+    ? { player1: userName, player2: to, currentCard: 1 + Math.floor(Math.random()*13), nextCard: 1 + Math.floor(Math.random()*13) }
     : { player1: userName };
 
   return {

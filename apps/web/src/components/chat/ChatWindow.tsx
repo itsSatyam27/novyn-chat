@@ -87,6 +87,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     pinMessage,
     unpinMessage,
     createPoll,
+    sendRiddle,
     votePoll,
     sendGameChallenge,
     makeGameMove,
@@ -760,6 +761,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             onCancelReply={() => setReplyMessage(null)}
             onCreatePoll={activeContact?.isSelf ? undefined : createPoll}
             onOpenGames={activeContact?.isSelf ? undefined : () => setIsGameLauncherOpen(true)}
+            onSendRiddle={activeContact?.isSelf || activeContact?.isGroup || !activeChat ? undefined : (payload) => sendRiddle({ to: activeChat, ...payload })}
             activeChatId={activeChat}
             mentionMembers={activeContact?.isGroup ? activeContact.members || [] : []}
           />

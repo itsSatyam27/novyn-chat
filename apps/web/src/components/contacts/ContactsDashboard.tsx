@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Pin, Plus, MessageCircle, Phone, Gamepad2, Activity, Lock, X, Grid3X3, Circle, Hand } from 'lucide-react';
+import { Pin, Plus, MessageCircle, Phone, Gamepad2, Activity, Lock, X, Grid3X3, Circle, Hand, Palette, Binary, TrendingUp } from 'lucide-react';
 import { useChat } from '../../context/ChatContext';
 import { Avatar } from '../ui/Avatar';
 import type { Conversation, GameType } from '../../types';
@@ -12,6 +12,9 @@ const gameOptions: { type: GameType; label: string; icon: typeof Gamepad2 }[] = 
   { type: 'tictactoe', label: 'Tic-Tac-Toe', icon: Grid3X3 },
   { type: 'connect4', label: 'Connect 4', icon: Circle },
   { type: 'rps', label: 'Rock Paper Scissors', icon: Hand },
+  { type: 'doodle', label: 'Doodle Duel', icon: Palette },
+  { type: 'numberclash', label: 'Number Clash', icon: Binary },
+  { type: 'updown', label: 'Up or Down', icon: TrendingUp },
 ];
 
 export function ContactsDashboard({ onOpenChat }: { onOpenChat: () => void }) {

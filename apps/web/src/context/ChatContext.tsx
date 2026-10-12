@@ -1707,6 +1707,9 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         tictactoe: 'Tic-Tac-Toe',
         rps: 'Rock • Paper • Scissors',
         connect4: 'Connect 4',
+        doodle: 'Doodle Duel',
+        numberclash: 'Number Clash',
+        updown: 'Up or Down',
       };
 
       const gameData: GameData = {
@@ -1721,6 +1724,8 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
           board: gameType === 'tictactoe' ? Array(9).fill(null) : gameType === 'connect4' ? Array(42).fill(null) : undefined,
           playerX: user.username,
           player1: user.username,
+          strokes: gameType === 'doodle' ? [] : undefined,
+          guesses: gameType === 'doodle' ? [] : undefined,
         },
       };
 

@@ -26,7 +26,7 @@ export interface Poll {
   totalVotes: number;
 }
 
-export type GameType = 'tictactoe' | 'rps' | 'connect4';
+export type GameType = 'tictactoe' | 'rps' | 'connect4' | 'doodle' | 'numberclash' | 'updown';
 
 export interface GameData {
   id: string;
@@ -47,6 +47,16 @@ export interface GameData {
     p2Move?: 'rock' | 'paper' | 'scissors';
     winningLine?: number[];
     movesCount?: number;
+    strokes?: Array<{ x1: number; y1: number; x2: number; y2: number }>;
+    word?: string;
+    guesses?: string[];
+    target?: number;
+    p1Number?: number;
+    p2Number?: number;
+    currentCard?: number;
+    nextCard?: number;
+    p1Prediction?: 'higher' | 'lower';
+    p2Prediction?: 'higher' | 'lower';
   };
   lastMoveBy?: string;
   updatedAt?: number;
