@@ -386,6 +386,7 @@ class _ChatsScreenState extends State<ChatsScreen> {
     return NovynSearchField(
       hint: 'Search conversations…',
       controller: _searchController,
+      focusNode: _searchFocusNode,
       onChanged: _onSearch,
     );
   }
