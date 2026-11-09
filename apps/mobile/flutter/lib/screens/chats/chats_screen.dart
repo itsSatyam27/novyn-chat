@@ -431,7 +431,7 @@ class _ChatsScreenState extends State<ChatsScreen> {
               color: chat.peer.avatarColor,
               initials: chat.peer.initials,
               ringColors: const [
-                Color(0xFFA173FF),
+                Color(0xFFE5E5E5),
                 Color(0xFF3DDC97),
               ],
               onTap: () => _openChat(chat),
