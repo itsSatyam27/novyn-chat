@@ -78,7 +78,7 @@ export const ContactDetailsSidebar: React.FC<ContactDetailsSidebarProps> = ({
   isMuted = false,
   isBlocked = false,
   retentionDays = null,
-  accountRetentionDays = 30,
+  accountRetentionDays = 0,
   onRetentionChange,
 }) => {
   const { user } = useAuth();
@@ -1000,7 +1000,7 @@ export const ContactDetailsSidebar: React.FC<ContactDetailsSidebarProps> = ({
                   <div className="chat-retention-icon"><Clock3 style={{ width: '16px', height: '16px' }} /></div>
                   <div>
                     <div style={{ fontSize: '0.86rem', fontWeight: 600, color: 'var(--text-main)' }}>Disappearing Messages</div>
-                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{retentionDays === null ? `Using account default (${accountRetentionDays} days)` : `This chat keeps messages for ${retentionDays === 1 ? '24 hours' : `${retentionDays} days`}`}</div>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{retentionDays === null ? `Using account default (${accountRetentionDays > 0 ? `${accountRetentionDays} days` : 'forever'})` : `This chat keeps messages for ${retentionDays === 1 ? '24 hours' : `${retentionDays} days`}`}</div>
                   </div>
                 </div>
                 <div className="chat-retention-options" role="group" aria-label="Disappearing message period">
