@@ -75,9 +75,6 @@ class _AppLockScreenState extends State<AppLockScreen> {
     if (_inputPin == settings.appLockPin) {
       HapticFeedback.mediumImpact();
       settings.unlockWithDecoy(false);
-    } else if (settings.panicPin != null && _inputPin == settings.panicPin) {
-      HapticFeedback.mediumImpact();
-      settings.unlockWithDecoy(true);
     } else {
       HapticFeedback.vibrate();
       setState(() {
