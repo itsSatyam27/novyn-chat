@@ -1969,7 +1969,38 @@ class _MessageBubble extends StatelessWidget {
         : kind == 'audio'
             ? Icons.audio_file_outlined
             : Icons.insert_drive_file_outlined;
-    return _attachmentFileTile(name, icon);
+    return InkWell(
+      borderRadius: BorderRadius.circular(10),
+      onTap: url.isEmpty
+          ? null
+          : () async {
+              final uri = Uri.tryParse(url);
+              if (uri == null) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('This attachment link is invalid.')),
+                );
+                return;
+              }
+              try {
+                final opened = await launchUrl(
+                  uri,
+                  mode: LaunchMode.externalApplication,
+                );
+                if (!opened && context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('No app could open this attachment.')),
+                  );
+                }
+              } catch (_) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Could not open this attachment.')),
+                  );
+                }
+              }
+            },
+      child: _attachmentFileTile(name, icon),
+    );
   }
 
   Widget _attachmentFileTile(String name, IconData icon) {
