@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'auth_service.dart';
+import 'settings_service.dart';
 
 // Top-level handler — must be a top-level function
 @pragma('vm:entry-point')
@@ -15,16 +16,43 @@ class NotificationService {
   static final FirebaseMessaging _fcm = FirebaseMessaging.instance;
   static final FirebaseFirestore _db = FirebaseFirestore.instance;
   static AuthService? _presenceAuth;
+  static SettingsService? _settings;
+  static String? _activeUid;
   static bool? _muted;
 
+  static void _onSettingsChanged() {
+    _syncPresentation();
+    _syncUserPreferences();
+  }
+
+  static Future<void> _syncUserPreferences() async {
+    final uid = _activeUid;
+    final settings = _settings;
+    if (uid == null || settings == null) return;
+    try {
+      await _db.collection('users').doc(uid).set({
+        'notificationPreferences': {
+          'enabled': settings.notificationsOn,
+          'messagePreview': settings.notificationsOn && settings.messagePreview && !settings.hideNotificationContent,
+          'groupNotifications': settings.notificationsOn && settings.groupNotifications,
+        },
+      }, SetOptions(merge: true));
+    } catch (_) {
+      // Local preferences remain effective even if cloud sync is unavailable.
+    }
+  }
+
   static void _syncPresentation() {
-    final muted = _presenceAuth?.user?.presenceMode == 'busy';
+    final settings = _settings;
+    final notificationsEnabled = settings?.notificationsOn ?? true;
+    final soundsEnabled = settings?.inAppSounds ?? true;
+    final muted = !notificationsEnabled || !soundsEnabled || _presenceAuth?.user?.presenceMode == 'busy';
     if (_muted == muted) return;
     _muted = muted;
     _fcm
         .setForegroundNotificationPresentationOptions(
-          alert: true,
-          badge: true,
+          alert: notificationsEnabled,
+          badge: notificationsEnabled,
           sound: !muted,
         )
         .catchError((Object _) {});
@@ -32,21 +60,26 @@ class NotificationService {
 
   // ── Initialize ────────────────────────────────────────────────────────────
   static Future<void> init(BuildContext context) async {
-    // 1. Request permission
-    final settings = await _fcm.requestPermission(
-      alert: true,
-      badge: true,
-      sound: true,
-      criticalAlert: true,
-    );
+    if (!context.mounted) return;
 
-    if (settings.authorizationStatus == AuthorizationStatus.denied || !context.mounted) return;
-
-    // 2. Set foreground notification presentation (iOS)
+    // 1. Bind local preferences before requesting permission.
+    _settings?.removeListener(_onSettingsChanged);
+    _settings = context.read<SettingsService>();
+    _settings!.addListener(_onSettingsChanged);
     _presenceAuth?.removeListener(_syncPresentation);
     _presenceAuth = context.read<AuthService>();
     _presenceAuth!.addListener(_syncPresentation);
     _syncPresentation();
+
+    // 2. Ask the OS only when the user has enabled notifications.
+    if (_settings!.notificationsOn) {
+      final permission = await _fcm.requestPermission(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
+      if (permission.authorizationStatus == AuthorizationStatus.denied || !context.mounted) return;
+    }
 
     // 3. Handle foreground messages
     FirebaseMessaging.onMessage.listen((message) {
@@ -67,6 +100,8 @@ class NotificationService {
 
   // ── Save FCM token for a user ─────────────────────────────────────────────
   static Future<void> saveTokenForUser(String uid) async {
+    _activeUid = uid;
+    await _syncUserPreferences();
     try {
       final token = await _fcm.getToken();
       if (token == null) return;
