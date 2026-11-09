@@ -77,7 +77,7 @@ class SettingsService extends ChangeNotifier {
   bool _messagePreview = true;
   bool _readReceipts = true;
   bool _onlineStatus = true;
-  ThemeMode _themeMode = ThemeMode.system;
+  ThemeMode _themeMode = ThemeMode.dark;
   String _displayName = '';
   String _bio = '';
   List<SavedSession> _savedSessions = [];
@@ -160,7 +160,7 @@ class SettingsService extends ChangeNotifier {
     _messagePreview = _prefs.getBool(_kMessagePreview) ?? true;
     _readReceipts = _prefs.getBool(_kReadReceipts) ?? true;
     _onlineStatus = _prefs.getBool(_kOnlineStatus) ?? true;
-    _themeMode = ThemeMode.values[_prefs.getInt(_kThemeMode) ?? 0];
+    _themeMode = ThemeMode.values[_prefs.getInt(_kThemeMode) ?? ThemeMode.dark.index];
     _displayName = _prefs.getString(_kDisplayName) ?? '';
     _bio = _prefs.getString(_kBio) ?? '';
     
