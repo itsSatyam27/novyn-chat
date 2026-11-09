@@ -231,6 +231,7 @@ class SocketService extends ChangeNotifier {
             replyToText: m['replyTo']?['text']?.toString(),
             replyToSender: m['replyTo']?['from']?.toString(),
             edited: m['edited'] == true,
+            attachment: m['attachment'] is Map ? Map<String, dynamic>.from(m['attachment']) : null,
           );
         }).toList();
 
@@ -290,6 +291,7 @@ class SocketService extends ChangeNotifier {
         replyToId: data['replyTo']?['id']?.toString(),
         replyToText: data['replyTo']?['text']?.toString(),
         replyToSender: data['replyTo']?['from']?.toString(),
+        attachment: data['attachment'] is Map ? Map<String, dynamic>.from(data['attachment']) : null,
       );
 
       final account = _myUsername;
@@ -609,6 +611,7 @@ class SocketService extends ChangeNotifier {
       replyToId: replyToId,
       replyToText: replyToText,
       replyToSender: replyToSender,
+      attachment: attachment,
     );
     _messages = [..._messages, tempMsg];
     notifyListeners();
