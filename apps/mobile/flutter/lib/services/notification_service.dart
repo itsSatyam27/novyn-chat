@@ -57,7 +57,11 @@ class NotificationService {
       final token = await _fcm.getToken();
       if (token == null || token == _lastRegisteredToken) return;
       final result = await socket.registerFcmToken(token);
-      if (result['ok'] == true) _lastRegisteredToken = token;
+      if (result['ok'] == true) {
+        _lastRegisteredToken = token;
+      } else {
+        Future.delayed(const Duration(seconds: 2), () => unawaited(_syncDeviceToken()));
+      }
     } catch (_) {
       // Retry after the socket reconnects.
     }
@@ -81,7 +85,11 @@ class NotificationService {
         'messagePreviewEnabled': messagePreview,
         'groupNotificationsEnabled': groupNotifications,
       });
-      if (result['ok'] == true) _lastSyncedPreferences = signature;
+      if (result['ok'] == true) {
+        _lastSyncedPreferences = signature;
+      } else {
+        Future.delayed(const Duration(seconds: 2), () => unawaited(_syncUserPreferences()));
+      }
     } catch (_) {
       // Retry on the next socket connection or preference change.
     } finally {
@@ -164,6 +172,7 @@ class NotificationService {
 
   // ── Clear token on logout ─────────────────────────────────────────────────
   static Future<void> clearToken(String uid) async {
+    if (_activeUsername != null && _activeUsername != uid) return;
     await _tokenRefreshSubscription?.cancel();
     _tokenRefreshSubscription = null;
     if (_socket?.isConnected == true) {
