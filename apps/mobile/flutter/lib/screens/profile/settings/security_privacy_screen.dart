@@ -165,7 +165,7 @@ class SecurityPrivacyScreen extends StatelessWidget {
             iconBgColor: const Color(0xFFEF4444).withValues(alpha: 0.1),
             title: 'Blocked Users',
             subtitle: 'Manage people you\'ve blocked',
-            onTap: () => _showBlockedUsers(context, settings),
+            onTap: () => _showBlockedUsers(context, context.read<SocketService>()),
           ),
           _SelectionCard(
             icon: Icons.visibility_rounded,
@@ -353,19 +353,19 @@ class SecurityPrivacyScreen extends StatelessWidget {
     );
   }
 
-  void _showBlockedUsers(BuildContext context, SettingsService settings) {
+  void _showBlockedUsers(BuildContext context, SocketService socket) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      builder: (_) => BackdropFilter(
+      builder: (sheetContext) => BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
         child: Container(
-          height: MediaQuery.of(context).size.height * 0.75,
+          height: MediaQuery.of(sheetContext).size.height * 0.75,
           decoration: BoxDecoration(
-            color: isDark 
-                ? const Color(0xFF1A1D2B).withValues(alpha: 0.8) 
+            color: isDark
+                ? const Color(0xFF1A1D2B).withValues(alpha: 0.8)
                 : Colors.white.withValues(alpha: 0.8),
             borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
             border: Border.all(color: Colors.white.withValues(alpha: 0.1), width: 1.5),
@@ -377,72 +377,97 @@ class SecurityPrivacyScreen extends StatelessWidget {
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.1),
+                  color: Theme.of(sheetContext).colorScheme.onSurface.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
               Padding(
                 padding: const EdgeInsets.all(24),
                 child: Text(
-                  'Blocked Nodes',
+                  'Blocked Users',
                   style: TextStyle(
                     fontFamily: 'Outfit',
                     fontWeight: FontWeight.w900,
                     fontSize: 22,
-                    color: Theme.of(context).colorScheme.onSurface,
+                    color: Theme.of(sheetContext).colorScheme.onSurface,
                   ),
                 ),
               ),
               Expanded(
-                child: settings.blockedUids.isEmpty
-                    ? const NovynEmptyState(
+                child: AnimatedBuilder(
+                  animation: socket,
+                  builder: (context, _) {
+                    final blockedUsers = socket.blockedUsers;
+                    if (blockedUsers.isEmpty) {
+                      return const NovynEmptyState(
                         icon: Icons.block_rounded,
                         title: 'No blocked users',
-                        description: 'Your isolation list is empty',
-                      )
-                    : ListView.builder(
-                        itemCount: settings.blockedUids.length,
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        itemBuilder: (context, i) {
-                          final uid = settings.blockedUids[i];
-                          return Container(
-                            margin: const EdgeInsets.only(bottom: 12),
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(20),
-                              color: isDark 
-                                  ? Colors.white.withValues(alpha: 0.05) 
-                                  : Colors.black.withValues(alpha: 0.05),
+                        description: 'Your server-synced block list is empty',
+                      );
+                    }
+                    return ListView.builder(
+                      itemCount: blockedUsers.length,
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      itemBuilder: (context, index) {
+                        final username = blockedUsers[index];
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(20),
+                            color: isDark
+                                ? Colors.white.withValues(alpha: 0.05)
+                                : Colors.black.withValues(alpha: 0.05),
+                          ),
+                          child: ListTile(
+                            leading: CircleAvatar(
+                              backgroundColor: const Color(0xFF7C6FF7).withValues(alpha: 0.1),
+                              child: const Icon(Icons.person_rounded, color: Color(0xFF7C6FF7)),
                             ),
-                            child: ListTile(
-                              leading: CircleAvatar(
-                                backgroundColor: const Color(0xFF7C6FF7).withValues(alpha: 0.1),
-                                child: const Icon(Icons.person_rounded, color: Color(0xFF7C6FF7)),
+                            title: Text(
+                              '@$username',
+                              style: const TextStyle(
+                                fontFamily: 'Outfit',
+                                fontWeight: FontWeight.w700,
                               ),
-                              title: Text(
-                                'User $uid',
-                                style: const TextStyle(
+                            ),
+                            trailing: TextButton(
+                              onPressed: () async {
+                                HapticFeedback.mediumImpact();
+                                try {
+                                  final result = await socket.setBlockedUser(
+                                    username,
+                                    blocked: false,
+                                  );
+                                  if (result['ok'] != true && sheetContext.mounted) {
+                                    ScaffoldMessenger.of(sheetContext).showSnackBar(
+                                      SnackBar(
+                                        content: Text(result['message']?.toString() ?? 'Could not unblock user.'),
+                                      ),
+                                    );
+                                  }
+                                } catch (error) {
+                                  if (sheetContext.mounted) {
+                                    ScaffoldMessenger.of(sheetContext).showSnackBar(
+                                      SnackBar(content: Text(error.toString().replaceFirst('Bad state: ', ''))),
+                                    );
+                                  }
+                                }
+                              },
+                              child: const Text(
+                                'Unblock',
+                                style: TextStyle(
                                   fontFamily: 'Outfit',
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                              trailing: TextButton(
-                                onPressed: () {
-                                  HapticFeedback.mediumImpact();
-                                  settings.unblockUser(uid);
-                                },
-                                child: const Text(
-                                  'Unblock',
-                                  style: TextStyle(
-                                    fontFamily: 'Outfit',
-                                    fontWeight: FontWeight.w900,
-                                    color: Color(0xFFEF4444),
-                                  ),
+                                  fontWeight: FontWeight.w900,
+                                  color: Color(0xFFEF4444),
                                 ),
                               ),
                             ),
-                          );
-                        },
-                      ),
+                          ),
+                        );
+                      },
+                    );
+                  },
+                ),
               ),
             ],
           ),

@@ -86,6 +86,8 @@ class SocketService extends ChangeNotifier {
   // Conversations list (mirrors novyn-chat's friend_list)
   List<ChatPreview> _conversations = [];
   List<ChatPreview> get conversations => List.unmodifiable(_conversations);
+  List<String> _blockedUsers = [];
+  List<String> get blockedUsers => List.unmodifiable(_blockedUsers);
 
   // Call event callbacks
   Function(Map)? onCallInviteCallback;
@@ -191,6 +193,28 @@ class SocketService extends ChangeNotifier {
 
     _socket!.on('friend_list', (data) => _handleFriendList(data));
     _socket!.on('friend_list_updated', (data) => _handleFriendList(data));
+
+    _socket!.on('safety_state_updated', (data) {
+      if (data is! Map) return;
+      final blocked = data['blocked'];
+      if (blocked is List) {
+        _blockedUsers = blocked
+            .map((value) => value.toString().trim())
+            .where((value) => value.isNotEmpty)
+            .toSet()
+            .toList();
+        notifyListeners();
+      }
+    });
+    _socket!.on('block_updated', (data) {
+      if (data is! Map) return;
+      final username = data['username']?.toString().trim() ?? '';
+      if (username.isEmpty) return;
+      final key = username.toLowerCase();
+      _blockedUsers.removeWhere((value) => value.toLowerCase() == key);
+      if (data['blocked'] == true) _blockedUsers.add(username);
+      notifyListeners();
+    });
 
     _socket!.on('peer_public_key_updated', (data) {
       if (data is Map) {
@@ -1200,6 +1224,37 @@ class SocketService extends ChangeNotifier {
     );
   }
 
+  Future<Map<String, dynamic>> setBlockedUser(
+    String username, {
+    required bool blocked,
+  }) async {
+    _requireConnection();
+    final value = username.trim().replaceFirst(RegExp(r'^@+'), '');
+    if (value.isEmpty) {
+      return {'ok': false, 'message': 'Enter a valid username.'};
+    }
+    final completer = Completer<Map<String, dynamic>>();
+    _socket!.emitWithAck('set_block', {
+      'username': value,
+      'blocked': blocked,
+    }, ack: (dynamic result) {
+      completer.complete(result is Map
+          ? Map<String, dynamic>.from(result)
+          : {'ok': false, 'message': 'The server did not confirm this change.'});
+    });
+    final result = await completer.future.timeout(
+      const Duration(seconds: 10),
+      onTimeout: () => {'ok': false, 'message': 'Block update timed out.'},
+    );
+    if (result['ok'] == true) {
+      final key = value.toLowerCase();
+      _blockedUsers.removeWhere((entry) => entry.toLowerCase() == key);
+      if (blocked) _blockedUsers.add(value);
+      notifyListeners();
+    }
+    return result;
+  }
+
   Future<Map<String, dynamic>> updateAccountSettings(Map<String, dynamic> changes) async {
     _requireConnection();
     final completer = Completer<Map<String, dynamic>>();
@@ -1333,6 +1388,7 @@ class SocketService extends ChangeNotifier {
   void disconnect() {
     _myUsername = null;
     _peerKeys.clear();
+    _blockedUsers.clear();
     contacts.clear();
     _reconnectTimer?.cancel();
     _typingDebounce?.cancel();
