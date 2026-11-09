@@ -100,10 +100,10 @@ export function WebSettings({ section, privacyGroup }: { section: SettingsSubSec
       </div>
     </div>}
     {section === 'privacy-retention' && <div className="web-settings-card">
-      <h3>Keep messages for</h3><div className="web-settings-choices" role="group" aria-label="Message retention">
-        {[7, 15, 30].map(days => <button type="button" key={days} aria-pressed={(user?.retentionDays || 30) === days} disabled={busy}
-          onClick={() => account({ retentionDays: days }, 'Message retention updated.')}>{days} days</button>)}
-      </div><p>Older messages are hidden from your account. Other people keep their own history preference.</p>
+      <h3>Message history</h3><div className="web-settings-choices" role="group" aria-label="Message retention">
+        <button type="button" aria-pressed={(user?.retentionDays ?? 0) === 0} disabled={busy}
+          onClick={() => account({ retentionDays: 0 }, 'Messages will be kept until explicitly deleted.')}>Forever</button>
+      </div><p>Messages stay in your chat history until you or the chat participants explicitly delete them. Disappearing-message settings still apply when enabled in an individual chat.</p>
     </div>}
     {(section === 'privacy-controls' || section === 'privacy-receipts') && <div className="web-settings-card privacy-controls">
       {(privacyGroup !== 'visibility') && <div className="privacy-choice-list">{([
