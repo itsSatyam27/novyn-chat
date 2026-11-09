@@ -2045,7 +2045,7 @@ async function sendPushToUser(userKey, payload) {
             priority: safePayload.silent ? "normal" : "high",
             notification: {
               tag: toDisplayName(safePayload.tag) || undefined,
-              sound: safePayload.silent ? "" : "default",
+              ...(safePayload.silent ? {} : { sound: "default" }),
             },
           },
           apns: {
@@ -3101,6 +3101,7 @@ function deliverFriendMessage(params = {}) {
       title: `New message from ${me.username}`,
       body: bodyText,
       tag: `msg-${fromKey}`,
+      chat: me.username,
       url: `/?source=push&chat=${encodeURIComponent(me.username)}`,
       icon: "/icons/icon-192.png",
       badge: "/icons/novyn-badge.svg",
@@ -3195,6 +3196,7 @@ function deliverGroupMessage(params = {}) {
         title: `New message in ${group.name}`,
         body: `${me.username}: ${bodyText}`,
         tag: `grp-${group.id}`,
+        groupId: group.id,
         url: `/?source=push&chat=${encodeURIComponent(group.id)}&kind=group`,
         icon: "/icons/icon-192.png",
         badge: "/icons/novyn-badge.svg",
