@@ -27,6 +27,8 @@ class NotificationService {
   static int _preferenceRetryCount = 0;
   static int _tokenRetryCount = 0;
   static StreamSubscription<String>? _tokenRefreshSubscription;
+  static StreamSubscription<RemoteMessage>? _foregroundSubscription;
+  static StreamSubscription<RemoteMessage>? _openedSubscription;
   static bool? _lastAlertsEnabled;
   static bool? _lastSoundEnabled;
 
@@ -147,13 +149,15 @@ class NotificationService {
       if (!context.mounted) return;
     }
 
-    // 3. Handle foreground messages
-    FirebaseMessaging.onMessage.listen((message) {
+    // 3. Handle foreground messages and notification taps once per app session.
+    await _foregroundSubscription?.cancel();
+    await _openedSubscription?.cancel();
+    _foregroundSubscription = FirebaseMessaging.onMessage.listen((message) {
       if (context.mounted) _handleForegroundMessage(message, context);
     });
 
     // 4. App opened from background notification tap
-    FirebaseMessaging.onMessageOpenedApp.listen((message) {
+    _openedSubscription = FirebaseMessaging.onMessageOpenedApp.listen((message) {
       if (context.mounted) unawaited(_handleNotificationTap(message, context));
     });
 
@@ -180,7 +184,11 @@ class NotificationService {
   static Future<void> clearToken(String uid) async {
     if (_activeUsername != null && _activeUsername != uid) return;
     await _tokenRefreshSubscription?.cancel();
+    await _foregroundSubscription?.cancel();
+    await _openedSubscription?.cancel();
     _tokenRefreshSubscription = null;
+    _foregroundSubscription = null;
+    _openedSubscription = null;
     if (_socket?.isConnected == true) {
       try {
         await _socket!.clearFcmToken();
