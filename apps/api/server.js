@@ -1264,6 +1264,9 @@ function createUserRecord(username) {
     twoFactorEnabled: false,
     twoFactorSecret: "",
     twoFactorBackupCodes: [],
+    notificationsEnabled: true,
+    messagePreviewEnabled: true,
+    groupNotificationsEnabled: true,
     avatarId: "",
     age: "",
     gender: "",
@@ -1300,6 +1303,9 @@ function serializeState() {
       blockedUsers: Array.from(user.blockedUsers || []),
       mutedUsers: Array.from(user.mutedUsers || []),
       pushSubs: Array.isArray(user.pushSubs) ? user.pushSubs : [],
+      notificationsEnabled: user.notificationsEnabled !== false,
+      messagePreviewEnabled: user.messagePreviewEnabled !== false,
+      groupNotificationsEnabled: user.groupNotificationsEnabled !== false,
       isRegistered: Boolean(user.isRegistered),
       passwordSalt: toDisplayName(user.passwordSalt),
       passwordHash: toDisplayName(user.passwordHash),
@@ -1509,6 +1515,9 @@ async function persistMongoNow() {
               blockedUsers: Array.isArray(entry.blockedUsers) ? entry.blockedUsers : [],
               mutedUsers: Array.isArray(entry.mutedUsers) ? entry.mutedUsers : [],
               pushSubs: Array.isArray(entry.pushSubs) ? entry.pushSubs : [],
+              notificationsEnabled: entry.notificationsEnabled !== false,
+              messagePreviewEnabled: entry.messagePreviewEnabled !== false,
+              groupNotificationsEnabled: entry.groupNotificationsEnabled !== false,
               isRegistered: Boolean(entry.isRegistered),
               passwordSalt: toDisplayName(entry.passwordSalt),
               passwordHash: toDisplayName(entry.passwordHash),
@@ -1974,9 +1983,17 @@ function formatPushBody(text, fallback = "New message") {
 async function sendPushToUser(userKey, payload) {
   if (!pushEnabled || !userKey) return;
   const user = users.get(userKey);
-  if (!user || !Array.isArray(user.pushSubs) || user.pushSubs.length === 0) return;
+  if (!user || user.notificationsEnabled === false || !Array.isArray(user.pushSubs) || user.pushSubs.length === 0) return;
+  if (payload?.group === true && user.groupNotificationsEnabled === false) return;
 
-  const body = JSON.stringify({ ...payload, silent: payload?.silent === true || normalizePresenceMode(user.presenceMode) === "busy" });
+  const safePayload = {
+    ...payload,
+    ...(payload?.type === "message" && user.messagePreviewEnabled === false
+      ? { body: payload?.group === true ? "New group message" : "You have a new message" }
+      : {}),
+    silent: payload?.silent === true || normalizePresenceMode(user.presenceMode) === "busy",
+  };
+  const body = JSON.stringify(safePayload);
   const remaining = [];
   let changed = false;
 
@@ -2131,6 +2148,9 @@ function applyLoadedState(parsed) {
     user.pushSubs = Array.isArray(entry.pushSubs)
       ? entry.pushSubs.filter((sub) => sub && sub.endpoint && sub.keys)
       : [];
+    user.notificationsEnabled = entry.notificationsEnabled !== false;
+    user.messagePreviewEnabled = entry.messagePreviewEnabled !== false;
+    user.groupNotificationsEnabled = entry.groupNotificationsEnabled !== false;
 
     for (const unreadEntry of entry.unread || []) {
       if (!Array.isArray(unreadEntry) || unreadEntry.length < 2) continue;
@@ -3117,6 +3137,7 @@ function deliverGroupMessage(params = {}) {
       const bodyText = formatPushBody(text);
       void sendPushToUser(memberKey, {
         type: "message",
+        group: true,
         title: `New message in ${group.name}`,
         body: `${me.username}: ${bodyText}`,
         tag: `grp-${group.id}`,
@@ -5550,6 +5571,9 @@ io.on("connection", (socket) => {
     }
     const privacyChoices = { callPrivacy: ["everyone", "friends", "nobody"], messagePrivacy: ["everyone", "friends", "nobody"], profilePhotoPrivacy: ["everyone", "friends", "nobody"], presencePrivacy: ["everyone", "friends", "nobody"], groupInvitePrivacy: ["everyone", "friends", "nobody"], friendRequestPrivacy: ["everyone", "mutuals", "nobody"] };
     for (const [key, choices] of Object.entries(privacyChoices)) if (choices.includes(payload?.[key])) user[key] = payload[key];
+    if (typeof payload?.notificationsEnabled === "boolean") user.notificationsEnabled = payload.notificationsEnabled;
+    if (typeof payload?.messagePreviewEnabled === "boolean") user.messagePreviewEnabled = payload.messagePreviewEnabled;
+    if (typeof payload?.groupNotificationsEnabled === "boolean") user.groupNotificationsEnabled = payload.groupNotificationsEnabled;
     if (typeof payload?.readReceiptsEnabled === "boolean") user.readReceiptsEnabled = payload.readReceiptsEnabled;
     if (typeof payload?.typingIndicatorsEnabled === "boolean") user.typingIndicatorsEnabled = payload.typingIndicatorsEnabled;
 
