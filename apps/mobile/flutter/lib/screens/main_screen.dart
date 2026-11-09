@@ -138,7 +138,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
         children: [
           Positioned.fill(
             child: DecoratedBox(
-              decoration: const BoxDecoration(
+              decoration: BoxDecoration(
                 color: NovynTheme.pageBg(context),
               ),
             ),
