@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'dart:ui';
 import '../../../services/settings_service.dart';
 import '../../../services/auth_service.dart';
+import '../../../services/socket_service.dart';
 import '../../../services/local_auth_service.dart';
 import '../../../services/security_service.dart';
 import '../../../widgets/novyn_empty_state.dart';
@@ -68,9 +69,9 @@ class SecurityPrivacyScreen extends StatelessWidget {
             iconColor: const Color(0xFF7C6FF7),
             iconBgColor: const Color(0xFF7C6FF7).withValues(alpha: 0.1),
             title: 'Two-Factor Authentication',
-            subtitle: 'Extra layer of security',
-            value: settings.twoFactorAuth,
-            onChanged: (v) => _handleTwoFactorAuth(context, settings, v),
+            subtitle: 'Unavailable until sign-in verification is enforced',
+            value: false,
+            onChanged: null,
           ),
           
           _ToggleCard(
@@ -428,73 +429,124 @@ class SecurityPrivacyScreen extends StatelessWidget {
     );
   }
 
-  void _showDeleteAccount(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    showDialog(
+  Future<void> _showDeleteAccount(BuildContext context) async {
+    final auth = context.read<AuthService>();
+    final socket = context.read<SocketService>();
+    final username = auth.user?.username ?? '';
+    if (username.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please sign in again before deleting your account.')),
+      );
+      return;
+    }
+
+    final confirmationController = TextEditingController();
+    final passwordController = TextEditingController();
+    String? errorText;
+    bool deleting = false;
+    final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
-        child: AlertDialog(
-          backgroundColor: isDark 
-              ? const Color(0xFF1A1D2B).withValues(alpha: 0.9) 
-              : Colors.white.withValues(alpha: 0.9),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(32),
-            side: BorderSide(color: const Color(0xFFEF4444).withValues(alpha: 0.2)),
-          ),
-          title: const Row(
-            children: [
-              Icon(Icons.warning_amber_rounded, color: Color(0xFFEF4444)),
-              SizedBox(width: 12),
-              Text('Purge Node?', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w900)),
-            ],
-          ),
-          content: Text(
-            'This action is irreversible. All messages, media, and cryptographic keys associated with this node will be permanently deleted from the Novyn grid.',
-            style: TextStyle(
-              fontFamily: 'Outfit',
-              fontWeight: FontWeight.w500,
-              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+      barrierDismissible: false,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) {
+          final matches = confirmationController.text.trim().toLowerCase() == username.toLowerCase() ||
+              confirmationController.text.trim().toLowerCase() == '@${username.toLowerCase()}';
+          return AlertDialog(
+            title: const Row(
+              children: [
+                Icon(Icons.warning_amber_rounded, color: Color(0xFFEF4444)),
+                SizedBox(width: 10),
+                Expanded(child: Text('Delete Novyn account?')),
+              ],
             ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text(
-                'Cancel',
-                style: TextStyle(
-                  fontFamily: 'Outfit',
-                  fontWeight: FontWeight.w700,
-                  color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5),
-                ),
-              ),
-            ),
-            TextButton(
-              onPressed: () {
-                HapticFeedback.heavyImpact();
-                // Logic to delete account would go here
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Node purge initiated...'),
-                    backgroundColor: Color(0xFFEF4444),
-                    behavior: SnackBarBehavior.floating,
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('This permanently deletes your account and associated server data. This cannot be undone.'),
+                  const SizedBox(height: 18),
+                  Text('Type @${username} or ${username} to confirm.'),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: confirmationController,
+                    autofocus: true,
+                    onChanged: (_) => setDialogState(() => errorText = null),
+                    decoration: const InputDecoration(
+                      hintText: '@username',
+                      border: OutlineInputBorder(),
+                    ),
                   ),
-                );
-              },
-              child: const Text(
-                'Purge Node',
-                style: TextStyle(
-                  fontFamily: 'Outfit',
-                  fontWeight: FontWeight.w900,
-                  color: Color(0xFFEF4444),
-                ),
+                  const SizedBox(height: 12),
+                  const Text('Account password (required if your account has one).'),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: passwordController,
+                    obscureText: true,
+                    decoration: const InputDecoration(
+                      hintText: 'Current password',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  if (errorText != null) ...[
+                    const SizedBox(height: 10),
+                    Text(errorText!, style: const TextStyle(color: Color(0xFFEF4444))),
+                  ],
+                ],
               ),
             ),
-          ],
-        ),
+            actions: [
+              TextButton(
+                onPressed: deleting ? null : () => Navigator.pop(dialogContext, false),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                style: FilledButton.styleFrom(backgroundColor: const Color(0xFFEF4444)),
+                onPressed: !matches || deleting
+                    ? null
+                    : () async {
+                        setDialogState(() {
+                          deleting = true;
+                          errorText = null;
+                        });
+                        try {
+                          await socket.deleteAccount(
+                            confirmationText: confirmationController.text.trim(),
+                            currentPassword: passwordController.text,
+                          );
+                          if (dialogContext.mounted) Navigator.pop(dialogContext, true);
+                        } catch (error) {
+                          setDialogState(() {
+                            deleting = false;
+                            errorText = error.toString().replaceFirst('Bad state: ', '');
+                          });
+                        }
+                      },
+                child: deleting
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      )
+                    : const Text('Delete permanently'),
+              ),
+            ],
+          );
+        },
       ),
     );
+    confirmationController.dispose();
+    passwordController.dispose();
+
+    if (confirmed == true && context.mounted) {
+      await auth.logout();
+      if (context.mounted) {
+        Navigator.of(context).popUntil((route) => route.isFirst);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Your Novyn account has been deleted.')),
+        );
+      }
+    }
   }
 }
 
