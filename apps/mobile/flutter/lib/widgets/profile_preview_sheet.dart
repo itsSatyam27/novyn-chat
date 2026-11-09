@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../models/user_model.dart';
+import '../services/socket_service.dart';
 import '../widgets/user_avatar.dart';
 
 class ProfilePreviewSheet extends StatefulWidget {
@@ -23,11 +24,14 @@ class ProfilePreviewSheet extends StatefulWidget {
 
 class _ProfilePreviewSheetState extends State<ProfilePreviewSheet> {
   bool _muted = false;
-  bool _blocked = false;
 
   @override
   Widget build(BuildContext context) {
     final user = widget.user;
+    final socket = context.watch<SocketService>();
+    final isBlocked = socket.blockedUsers.any(
+      (username) => username.toLowerCase() == user.username.toLowerCase(),
+    );
     final theme = Theme.of(context);
     final statusColor = user.isOnline
         ? const Color(0xFF10B981)
@@ -173,9 +177,9 @@ class _ProfilePreviewSheetState extends State<ProfilePreviewSheet> {
                   const SizedBox(width: 10),
                   _QuickAction(
                     icon: Icons.block_rounded,
-                    label: _blocked ? 'Unblock' : 'Block',
+                    label: isBlocked ? 'Unblock' : 'Block',
                     color: const Color(0xFFEF4444),
-                    onTap: () => _confirmBlock(context),
+                    onTap: () => _confirmBlock(context, isBlocked),
                   ),
                 ],
               ),
@@ -224,39 +228,66 @@ class _ProfilePreviewSheetState extends State<ProfilePreviewSheet> {
     );
   }
 
-  void _confirmBlock(BuildContext context) {
-    showDialog(
+  Future<void> _confirmBlock(BuildContext context, bool currentlyBlocked) async {
+    final action = currentlyBlocked ? 'Unblock' : 'Block';
+    final confirmed = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text(
-          _blocked ? 'Unblock ${widget.user.name}?' : 'Block ${widget.user.name}?',
+          '$action ${widget.user.name}?',
           style: const TextStyle(fontWeight: FontWeight.bold),
         ),
         content: Text(
-          _blocked
+          currentlyBlocked
               ? 'They will be able to message and call you again.'
               : 'They won\'t be able to message or call you.',
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogContext, false),
             child: const Text('Cancel'),
           ),
           TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              setState(() => _blocked = !_blocked);
-            },
+            onPressed: () => Navigator.pop(dialogContext, true),
             child: Text(
-              _blocked ? 'Unblock' : 'Block',
+              action,
               style: const TextStyle(
-                  color: Color(0xFFEF4444), fontWeight: FontWeight.bold),
+                color: Color(0xFFEF4444),
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ),
         ],
       ),
     );
+    if (confirmed != true || !context.mounted) return;
+
+    try {
+      final result = await context.read<SocketService>().setBlockedUser(
+        widget.user.username,
+        blocked: !currentlyBlocked,
+      );
+      if (!context.mounted) return;
+      if (result['ok'] == true) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(currentlyBlocked
+              ? 'User unblocked successfully.'
+              : 'User blocked successfully.')),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(
+            result['message']?.toString() ?? 'Could not update block settings.',
+          )),
+        );
+      }
+    } catch (error) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.toString().replaceFirst('Bad state: ', ''))),
+      );
+    }
   }
 }
 
