@@ -47,8 +47,8 @@ class NovynGradients {
 
 class AvatarPalette {
   static const List<Color> blue = [Color(0xFF777777), Color(0xFF444444)];
-  static const List<Color> pink = [Color(0xFF999999), Color(0xFF555555)];
-  static const List<Color> green = [Color(0xFF2EC48A), Color(0xFF12805A)];
+  static const List<Color> pink = [Color(0xFF777777), Color(0xFF444444)];
+  static const List<Color> green = [Color(0xFF777777), Color(0xFF444444)];
   static const List<Color> purple = [Color(0xFF777777), Color(0xFF444444)];
 }
 
@@ -134,34 +134,8 @@ class _Backdrop extends StatelessWidget {
   const _Backdrop();
 
   @override
-  Widget build(BuildContext context) {
-    return const Stack(
-      children: [
-        Positioned.fill(
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: RadialGradient(
-                center: Alignment(0, -1.1),
-                radius: 0.95,
-                colors: [Color(0xFF555555), Color(0x008F5BFF)],
-              ),
-            ),
-          ),
-        ),
-        Positioned.fill(
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: RadialGradient(
-                center: Alignment(1, 1),
-                radius: 0.8,
-                colors: [Color(0x00000000), Color(0x00000000)],
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
+  Widget build(BuildContext context) =>
+      const ColoredBox(color: NovynColors.bg);
 }
 
 class NovynDock extends StatelessWidget {
@@ -584,7 +558,7 @@ class NovynAvatar extends StatelessWidget {
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFF1F6F66), Color(0xFF0F3B38)],
+          colors: [Color(0xFF555555), Color(0xFF303030)],
         ),
         border: Border.all(color: NovynColors.mint, width: 2),
       ),
