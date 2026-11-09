@@ -1850,23 +1850,32 @@ class _MessageBubble extends StatelessWidget {
             ? 'video'
             : declaredKind;
     if (kind == 'image' && url.isNotEmpty) {
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(12),
-        child: Image.network(
-          url,
-          width: 220,
-          height: 180,
-          fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => _attachmentFileTile(name, Icons.broken_image_outlined),
-          loadingBuilder: (context, child, progress) => progress == null
-              ? child
-              : Container(
-                  width: 220,
-                  height: 130,
-                  alignment: Alignment.center,
-                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                  child: const CircularProgressIndicator(strokeWidth: 2),
-                ),
+      return GestureDetector(
+        onTap: () => showDialog<void>(
+          context: context,
+          builder: (_) => Dialog(
+            backgroundColor: Colors.transparent,
+            child: InteractiveViewer(child: Image.network(url)),
+          ),
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: Image.network(
+            url,
+            width: 220,
+            height: 180,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => _attachmentFileTile(name, Icons.broken_image_outlined),
+            loadingBuilder: (context, child, progress) => progress == null
+                ? child
+                : Container(
+                    width: 220,
+                    height: 130,
+                    alignment: Alignment.center,
+                    color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                    child: const CircularProgressIndicator(strokeWidth: 2),
+                  ),
+          ),
         ),
       );
     }
@@ -1875,7 +1884,11 @@ class _MessageBubble extends StatelessWidget {
         : kind == 'audio'
             ? Icons.audio_file_outlined
             : Icons.insert_drive_file_outlined;
-    return _attachmentFileTile(name, icon);
+    return InkWell(
+      onTap: url.isEmpty ? null : () => launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication),
+      borderRadius: BorderRadius.circular(10),
+      child: _attachmentFileTile(name, icon),
+    );
   }
 
   Widget _attachmentFileTile(String name, IconData icon) {
