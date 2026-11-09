@@ -366,13 +366,21 @@ function sanitizeMessageAttachment(rawAttachment, fallbackUrl = "") {
   const mime = toDisplayName(attachment.mime).toLowerCase().slice(0, 120);
   const fallbackName = path.basename(String(url).split("?")[0] || "file");
   const name = sanitizeAttachmentName(attachment.name || fallbackName || "file");
-  const kind = String(attachment.kind || "").toLowerCase() === "image"
-    || mime.startsWith("image/")
+  const declaredKind = String(attachment.kind || "").toLowerCase();
+  const kind = declaredKind === "image" || mime.startsWith("image/")
     || /\.(?:png|jpe?g|gif|webp|bmp|svg)(?:[?#].*)?$/i.test(String(url || ""))
     ? "image"
-    : "file";
+    : declaredKind === "audio" || mime.startsWith("audio/")
+      ? "audio"
+      : declaredKind === "video" || mime.startsWith("video/")
+        ? "video"
+        : "file";
   const numericSize = Number(attachment.size);
   const size = Number.isFinite(numericSize) ? Math.max(0, Math.floor(numericSize)) : 0;
+  const numericDuration = Number(attachment.duration);
+  const duration = Number.isFinite(numericDuration)
+    ? Math.max(0, Math.min(86400, Math.floor(numericDuration)))
+    : null;
 
   return {
     url,
@@ -380,6 +388,7 @@ function sanitizeMessageAttachment(rawAttachment, fallbackUrl = "") {
     mime,
     size,
     kind,
+    ...(duration !== null ? { duration } : {}),
   };
 }
 
