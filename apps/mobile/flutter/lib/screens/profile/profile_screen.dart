@@ -86,7 +86,7 @@ class ProfileScreen extends StatelessWidget {
                         Text(
                           'Settings',
                           style: TextStyle(
-                            fontFamily: 'Syne',
+                            fontFamily: 'Inter',
                             fontSize: 28,
                             fontWeight: FontWeight.w900,
                             foreground: Paint()..shader = const LinearGradient(
