@@ -111,7 +111,11 @@ class SecurityPrivacyScreen extends StatelessWidget {
             icon: Icons.visibility_off_rounded,
             title: 'Stealth Mode',
             subtitle: 'Blur recents, block screenshots & hide alerts',
-            onTap: () {},
+            onTap: () {
+              final enabled = !settings.stealthModeEnabled;
+              settings.setStealthMode(enabled);
+              SecurityService.setSafeMode(enabled);
+            },
             trailing: Switch(
               value: settings.stealthModeEnabled,
               activeColor: const Color(0xFF7C6FF7),
@@ -126,7 +130,11 @@ class SecurityPrivacyScreen extends StatelessWidget {
               icon: Icons.app_registration_rounded,
               title: 'Stealth Icon',
               subtitle: 'Disguise Novyn as a Calculator',
-              onTap: () {},
+              onTap: () {
+                final enabled = !settings.stealthIconEnabled;
+                settings.setStealthIconEnabled(enabled);
+                SecurityService.setStealthIcon(enabled);
+              },
               trailing: Switch(
                 value: settings.stealthIconEnabled,
                 activeColor: const Color(0xFF7C6FF7),
@@ -140,7 +148,7 @@ class SecurityPrivacyScreen extends StatelessWidget {
               icon: Icons.notifications_paused_rounded,
               title: 'Incognito Alerts',
               subtitle: 'Hide sender & message in notifications',
-              onTap: () {},
+              onTap: () => settings.setHideNotificationContent(!settings.hideNotificationContent),
               trailing: Switch(
                 value: settings.hideNotificationContent,
                 activeColor: const Color(0xFF7C6FF7),
@@ -150,13 +158,10 @@ class SecurityPrivacyScreen extends StatelessWidget {
             MenuCard(
               icon: Icons.emergency_rounded,
               title: 'Panic PIN',
-              subtitle: settings.panicPin == null ? 'Set emergency decoy code' : 'Decoy code active',
-              onTap: () async {
-                 await Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const SetupPinScreen(isPanic: true)),
-                );
-              },
+              subtitle: 'Unavailable until a separate decoy workspace is implemented',
+              onTap: () => ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Panic PIN is not active yet. Your normal app remains protected by App Lock.')),
+              ),
             ),
           ],
           const SizedBox(height: 24),
