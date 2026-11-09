@@ -81,7 +81,12 @@ class NovynApp extends StatelessWidget {
             savePassword: socket.changePassword,
           );
           socket.onProfileData = auth.applyProfileUpdate;
-          socket.notificationsMuted = () => auth.user?.presenceMode == 'busy';
+          // Respect both the user's global notification switch and Busy presence.
+          // Settings are loaded before runApp and provided above AuthService.
+          socket.notificationsMuted = () =>
+              !ctx.read<SettingsService>().notificationsOn ||
+              !ctx.read<SettingsService>().inAppSounds ||
+              auth.user?.presenceMode == 'busy';
           return auth;
         }),
         Provider<FriendService>(
