@@ -46,8 +46,8 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                     child: Text(
                       'Discover',
                       style: TextStyle(
-                        fontFamily: 'Inter',
-                        fontSize: 32,
+                        fontFamily: 'Syne',
+                        fontSize: 28,
                         fontWeight: FontWeight.bold,
                         color: Theme.of(context).colorScheme.onSurface,
                       ),
