@@ -336,6 +336,20 @@ class ApiService {
     return [];
   }
 
+  static Future<Map<String, dynamic>?> getLinkPreview(String url) async {
+    try {
+      final uri = Uri.parse('$baseUrl/api/link-preview').replace(
+        queryParameters: {'url': url},
+      );
+      final response = await http.get(uri, headers: _authHeaders).timeout(const Duration(seconds: 8));
+      if (response.statusCode != 200) return null;
+      final body = jsonDecode(response.body);
+      return body is Map ? Map<String, dynamic>.from(body) : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
   static Future<Map<String, dynamic>> getGiphy({
     String query = '',
     String type = 'gifs',
