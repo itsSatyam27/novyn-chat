@@ -332,9 +332,11 @@ class SocketService extends ChangeNotifier {
             _messages = [..._messages, msg];
           }
         }
-      } else if (!isOwn && !(notificationsMuted?.call() ?? false)) {
-        // Message for a different chat — play notification sound and haptic.
-        _audioPlayer.play(AssetSource('audio/notification.mp3'));
+      } else if (!isOwn) {
+        // Message for a different chat — sound and vibration are independent preferences.
+        if (!(notificationsMuted?.call() ?? false)) {
+          _audioPlayer.play(AssetSource('audio/notification.mp3'));
+        }
         if (notificationsVibrate?.call() ?? false) {
           unawaited(HapticFeedback.vibrate());
         }
