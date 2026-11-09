@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 // Lightweight saved session — no password stored, just identity info
 class SavedSession {
@@ -61,6 +62,9 @@ class SettingsService extends ChangeNotifier {
   static const _kAppLockEnabled = 'app_lock_enabled';
   static const _kAppLockTimeout = 'app_lock_timeout';
   static const _kAppLockPin = 'app_lock_pin';
+  static const _secureAppLockPin = 'app_lock_pin';
+  static const _securePanicPin = 'panic_pin';
+  static const FlutterSecureStorage _secureStorage = FlutterSecureStorage();
   static const _kStealthMode = 'stealth_mode_enabled';
   static const _kPanicPin = 'panic_pin';
   static const _kHideNotificationContent = 'hide_notification_content';
@@ -193,10 +197,23 @@ class SettingsService extends ChangeNotifier {
     _hapticIntensity = _prefs.getDouble(_kHapticIntensity) ?? 0.8;
     _appLockEnabled = _prefs.getBool(_kAppLockEnabled) ?? false;
     _appLockTimeout = _prefs.getInt(_kAppLockTimeout) ?? 0;
-    _appLockPin = _prefs.getString(_kAppLockPin);
+    // Migrate legacy PINs from plain preferences into encrypted storage.
+    _appLockPin = await _secureStorage.read(key: _secureAppLockPin);
+    final legacyAppPin = _prefs.getString(_kAppLockPin);
+    if (_appLockPin == null && legacyAppPin != null) {
+      _appLockPin = legacyAppPin;
+      await _secureStorage.write(key: _secureAppLockPin, value: legacyAppPin);
+    }
+    if (legacyAppPin != null) await _prefs.remove(_kAppLockPin);
     _isLocked = _appLockEnabled && _appLockPin != null; // Initial state
     _stealthModeEnabled = _prefs.getBool(_kStealthMode) ?? false;
-    _panicPin = _prefs.getString(_kPanicPin);
+    _panicPin = await _secureStorage.read(key: _securePanicPin);
+    final legacyPanicPin = _prefs.getString(_kPanicPin);
+    if (_panicPin == null && legacyPanicPin != null) {
+      _panicPin = legacyPanicPin;
+      await _secureStorage.write(key: _securePanicPin, value: legacyPanicPin);
+    }
+    if (legacyPanicPin != null) await _prefs.remove(_kPanicPin);
     _hideNotificationContent = _prefs.getBool(_kHideNotificationContent) ?? false;
     _stealthIconEnabled = _prefs.getBool(_kStealthIcon) ?? false;
     
@@ -473,11 +490,320 @@ class SettingsService extends ChangeNotifier {
   }
 
   Future<void> setAppLockPin(String? pin) async {
+    if (pin != null && !RegExp(r'^\\d{4}
+
+  void setLocked(bool v) {
+    _isLocked = v;
+    notifyListeners();
+  }
+
+  Future<void> setStealthMode(bool v) async {
+    _stealthModeEnabled = v;
+    await _prefs.setBool(_kStealthMode, v);
+    notifyListeners();
+  }
+
+  Future<void> setPanicPin(String? pin) async {
+    if (pin != null && !RegExp(r'^\\d{4}
+
+  Future<void> setHideNotificationContent(bool v) async {
+    _hideNotificationContent = v;
+    await _prefs.setBool(_kHideNotificationContent, v);
+    notifyListeners();
+  }
+
+  void setDecoyMode(bool v) {
+    _decoyMode = v;
+    notifyListeners();
+  }
+
+  Future<void> setStealthIconEnabled(bool v) async {
+    _stealthIconEnabled = v;
+    await _prefs.setBool(_kStealthIcon, v);
+    notifyListeners();
+  }
+
+  void unlockWithDecoy(bool isDecoy) {
+    _decoyMode = isDecoy;
+    _isLocked = false;
+    notifyListeners();
+  }
+
+  bool isBlocked(String uid) => _blockedUids.contains(uid);
+
+  // ── Saved sessions ───────────────────────────────────────────────────────
+  Future<void> saveSession(SavedSession session) async {
+    // Remove existing entry for same uid/email, then add fresh
+    _savedSessions.removeWhere(
+        (s) => s.uid == session.uid || s.email == session.email);
+    _savedSessions.insert(0, session); // most recent first
+    // Keep max 5 saved accounts
+    if (_savedSessions.length > 5) _savedSessions = _savedSessions.sublist(0, 5);
+    await _persistSessions();
+    notifyListeners();
+  }
+
+  Future<void> removeSession(String uid) async {
+    _savedSessions.removeWhere((s) => s.uid == uid);
+    await _persistSessions();
+    notifyListeners();
+  }
+
+  Future<void> _persistSessions() async {
+    final encoded = jsonEncode(_savedSessions.map((s) => s.toJson()).toList());
+    await _prefs.setString(_kSavedSessions, encoded);
+  }
+
+  Future<void> clearAll() async {
+    await _prefs.clear();
+    await _secureStorage.delete(key: _secureAppLockPin);
+    await _secureStorage.delete(key: _securePanicPin);
+    _notificationsOn = true;
+    _messagePreview = true;
+    _readReceipts = true;
+    _onlineStatus = true;
+    _themeMode = ThemeMode.system;
+    _displayName = '';
+    _bio = '';
+    _savedSessions = [];
+    
+    // Reset new settings
+    _inAppSounds = true;
+    _inAppVibration = true;
+    _groupNotifications = true;
+    _autoDownloadWifi = 'all';
+    _autoDownloadMobile = 'photos';
+    _photoQuality = 'high';
+    _language = 'en';
+    _fontSize = 1.0;
+    _twoFactorAuth = false;
+    _lastSeenVisibility = 'everyone';
+    _profilePhotoVisibility = 'everyone';
+    _blockedUids = [];
+    _notificationTone = 'Aurora';
+    _vibrationPattern = 'standard';
+    _hapticIntensity = 0.8;
+    _appLockEnabled = false;
+    _appLockTimeout = 0;
+    
+    notifyListeners();
+  }
+}
+).hasMatch(pin)) {
+      throw ArgumentError('App lock PIN must contain exactly 4 digits.');
+    }
     _appLockPin = pin;
     if (pin == null) {
-      await _prefs.remove(_kAppLockPin);
+      await _secureStorage.delete(key: _secureAppLockPin);
     } else {
-      await _prefs.setString(_kAppLockPin, pin);
+      await _secureStorage.write(key: _secureAppLockPin, value: pin);
+    }
+    notifyListeners();
+  }
+
+  void setLocked(bool v) {
+    _isLocked = v;
+    notifyListeners();
+  }
+
+  Future<void> setStealthMode(bool v) async {
+    _stealthModeEnabled = v;
+    await _prefs.setBool(_kStealthMode, v);
+    notifyListeners();
+  }
+
+  Future<void> setPanicPin(String? pin) async {
+    _panicPin = pin;
+    if (pin == null) {
+      await _prefs.remove(_kPanicPin);
+    } else {
+      await _prefs.setString(_kPanicPin, pin);
+    }
+    notifyListeners();
+  }
+
+  Future<void> setHideNotificationContent(bool v) async {
+    _hideNotificationContent = v;
+    await _prefs.setBool(_kHideNotificationContent, v);
+    notifyListeners();
+  }
+
+  void setDecoyMode(bool v) {
+    _decoyMode = v;
+    notifyListeners();
+  }
+
+  Future<void> setStealthIconEnabled(bool v) async {
+    _stealthIconEnabled = v;
+    await _prefs.setBool(_kStealthIcon, v);
+    notifyListeners();
+  }
+
+  void unlockWithDecoy(bool isDecoy) {
+    _decoyMode = isDecoy;
+    _isLocked = false;
+    notifyListeners();
+  }
+
+  bool isBlocked(String uid) => _blockedUids.contains(uid);
+
+  // ── Saved sessions ───────────────────────────────────────────────────────
+  Future<void> saveSession(SavedSession session) async {
+    // Remove existing entry for same uid/email, then add fresh
+    _savedSessions.removeWhere(
+        (s) => s.uid == session.uid || s.email == session.email);
+    _savedSessions.insert(0, session); // most recent first
+    // Keep max 5 saved accounts
+    if (_savedSessions.length > 5) _savedSessions = _savedSessions.sublist(0, 5);
+    await _persistSessions();
+    notifyListeners();
+  }
+
+  Future<void> removeSession(String uid) async {
+    _savedSessions.removeWhere((s) => s.uid == uid);
+    await _persistSessions();
+    notifyListeners();
+  }
+
+  Future<void> _persistSessions() async {
+    final encoded = jsonEncode(_savedSessions.map((s) => s.toJson()).toList());
+    await _prefs.setString(_kSavedSessions, encoded);
+  }
+
+  Future<void> clearAll() async {
+    await _prefs.clear();
+    _notificationsOn = true;
+    _messagePreview = true;
+    _readReceipts = true;
+    _onlineStatus = true;
+    _themeMode = ThemeMode.system;
+    _displayName = '';
+    _bio = '';
+    _savedSessions = [];
+    
+    // Reset new settings
+    _inAppSounds = true;
+    _inAppVibration = true;
+    _groupNotifications = true;
+    _autoDownloadWifi = 'all';
+    _autoDownloadMobile = 'photos';
+    _photoQuality = 'high';
+    _language = 'en';
+    _fontSize = 1.0;
+    _twoFactorAuth = false;
+    _lastSeenVisibility = 'everyone';
+    _profilePhotoVisibility = 'everyone';
+    _blockedUids = [];
+    _notificationTone = 'Aurora';
+    _vibrationPattern = 'standard';
+    _hapticIntensity = 0.8;
+    _appLockEnabled = false;
+    _appLockTimeout = 0;
+    
+    notifyListeners();
+  }
+}
+).hasMatch(pin)) {
+      throw ArgumentError('Panic PIN must contain exactly 4 digits.');
+    }
+    _panicPin = pin;
+    if (pin == null) {
+      await _secureStorage.delete(key: _securePanicPin);
+    } else {
+      await _secureStorage.write(key: _securePanicPin, value: pin);
+    }
+    notifyListeners();
+  }
+
+  Future<void> setHideNotificationContent(bool v) async {
+    _hideNotificationContent = v;
+    await _prefs.setBool(_kHideNotificationContent, v);
+    notifyListeners();
+  }
+
+  void setDecoyMode(bool v) {
+    _decoyMode = v;
+    notifyListeners();
+  }
+
+  Future<void> setStealthIconEnabled(bool v) async {
+    _stealthIconEnabled = v;
+    await _prefs.setBool(_kStealthIcon, v);
+    notifyListeners();
+  }
+
+  void unlockWithDecoy(bool isDecoy) {
+    _decoyMode = isDecoy;
+    _isLocked = false;
+    notifyListeners();
+  }
+
+  bool isBlocked(String uid) => _blockedUids.contains(uid);
+
+  // ── Saved sessions ───────────────────────────────────────────────────────
+  Future<void> saveSession(SavedSession session) async {
+    // Remove existing entry for same uid/email, then add fresh
+    _savedSessions.removeWhere(
+        (s) => s.uid == session.uid || s.email == session.email);
+    _savedSessions.insert(0, session); // most recent first
+    // Keep max 5 saved accounts
+    if (_savedSessions.length > 5) _savedSessions = _savedSessions.sublist(0, 5);
+    await _persistSessions();
+    notifyListeners();
+  }
+
+  Future<void> removeSession(String uid) async {
+    _savedSessions.removeWhere((s) => s.uid == uid);
+    await _persistSessions();
+    notifyListeners();
+  }
+
+  Future<void> _persistSessions() async {
+    final encoded = jsonEncode(_savedSessions.map((s) => s.toJson()).toList());
+    await _prefs.setString(_kSavedSessions, encoded);
+  }
+
+  Future<void> clearAll() async {
+    await _prefs.clear();
+    _notificationsOn = true;
+    _messagePreview = true;
+    _readReceipts = true;
+    _onlineStatus = true;
+    _themeMode = ThemeMode.system;
+    _displayName = '';
+    _bio = '';
+    _savedSessions = [];
+    
+    // Reset new settings
+    _inAppSounds = true;
+    _inAppVibration = true;
+    _groupNotifications = true;
+    _autoDownloadWifi = 'all';
+    _autoDownloadMobile = 'photos';
+    _photoQuality = 'high';
+    _language = 'en';
+    _fontSize = 1.0;
+    _twoFactorAuth = false;
+    _lastSeenVisibility = 'everyone';
+    _profilePhotoVisibility = 'everyone';
+    _blockedUids = [];
+    _notificationTone = 'Aurora';
+    _vibrationPattern = 'standard';
+    _hapticIntensity = 0.8;
+    _appLockEnabled = false;
+    _appLockTimeout = 0;
+    
+    notifyListeners();
+  }
+}
+).hasMatch(pin)) {
+      throw ArgumentError('App lock PIN must contain exactly 4 digits.');
+    }
+    _appLockPin = pin;
+    if (pin == null) {
+      await _secureStorage.delete(key: _secureAppLockPin);
+    } else {
+      await _secureStorage.write(key: _secureAppLockPin, value: pin);
     }
     notifyListeners();
   }
