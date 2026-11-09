@@ -247,7 +247,11 @@ class AuthService extends ChangeNotifier {
   Future<void> logout() async {
     final username = _user?.username;
     if (username != null && clearNotificationsToken != null) {
-      await clearNotificationsToken!(username);
+      try {
+        await clearNotificationsToken!(username);
+      } catch (_) {
+        // A push-token cleanup failure must not block account logout.
+      }
     }
 
     // Sign out from Firebase (Google SSO cleanup)
