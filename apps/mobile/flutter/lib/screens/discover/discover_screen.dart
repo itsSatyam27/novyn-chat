@@ -7,6 +7,7 @@ import '../../services/auth_service.dart';
 import '../../services/friend_service.dart';
 import '../../models/user_model.dart';
 import '../../widgets/novyn_shimmer.dart';
+import '../../widgets/novyn_ui.dart';
 import '../../widgets/novyn_empty_state.dart';
 import '../../widgets/profile_preview_sheet.dart';
 import '../people/discover_people_screen.dart';
@@ -38,142 +39,62 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // ── Header ──────────────────────────────────────────────
-            Padding(
-              padding: const EdgeInsets.fromLTRB(24, 20, 16, 4),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Discover',
-                      style: TextStyle(
-                        fontFamily: 'Inter',
-                        fontSize: 28,
-                        fontWeight: FontWeight.bold,
-                        color: Theme.of(context).colorScheme.onSurface,
-                      ),
-                    ),
-                  ),
-                  StreamBuilder<int>(
-                    stream: friends.pendingRequestsCountStream(myUid),
-                    builder: (context, snap) {
-                      final count = snap.data ?? 0;
-                      return Row(
-                        children: [
-                          GestureDetector(
-                            onTap: () => Navigator.push(
-                              context,
-                              MaterialPageRoute(builder: (_) => DiscoverPeopleScreen(myUid: myUid)),
-                            ),
-                            child: Stack(
-                              clipBehavior: Clip.none,
-                              children: [
-                                Container(
-                                  width: 44,
-                                  height: 44,
-                                  decoration: BoxDecoration(
-                                    color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                                    borderRadius: BorderRadius.circular(14),
-                                    border: Border.all(
-                                      color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.2),
-                                      width: 1,
-                                    ),
-                                  ),
-                                  child: Icon(
-                                    Icons.notifications_none_rounded,
-                                    color: count > 0 ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.onSurface,
-                                    size: 22,
-                                  ),
-                                ),
-                                if (count > 0)
-                                  Positioned(
-                                    top: -4,
-                                    right: -4,
-                                    child: Container(
-                                      padding: const EdgeInsets.all(4),
-                                      decoration: BoxDecoration(
-                                        color: Theme.of(context).colorScheme.error,
-                                        shape: BoxShape.circle,
-                                        border: Border.all(color: Colors.white, width: 2),
-                                      ),
-                                      constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
-                                      child: Center(
-                                        child: Text(
-                                          '$count',
-                                          style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                              ],
+            StreamBuilder<int>(
+              stream: friends.pendingRequestsCountStream(myUid),
+              builder: (context, snap) {
+                final count = snap.data ?? 0;
+                return NovynHeader(
+                  title: 'Discover',
+                  subtitle: 'Find new people to connect with',
+                  actions: [
+                    Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        NovynIconButton(
+                          icon: Icons.notifications_none_rounded,
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => DiscoverPeopleScreen(myUid: myUid),
                             ),
                           ),
-                          const SizedBox(width: 12),
-                          GestureDetector(
-                            onTap: () => _showScanPlaceholder(context),
+                        ),
+                        if (count > 0)
+                          Positioned(
+                            top: -4,
+                            right: -4,
                             child: Container(
-                              width: 44,
-                              height: 44,
+                              constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+                              padding: const EdgeInsets.all(4),
                               decoration: BoxDecoration(
-                                color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                                borderRadius: BorderRadius.circular(14),
-                                border: Border.all(
-                                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.2),
-                                  width: 1,
-                                ),
+                                color: NovynColors.danger,
+                                shape: BoxShape.circle,
+                                border: Border.all(color: NovynColors.bg, width: 2),
                               ),
-                              child: Icon(
-                                Icons.qr_code_scanner_rounded,
-                                color: Theme.of(context).colorScheme.onSurface,
-                                size: 22,
+                              child: Center(
+                                child: Text(
+                                  '$count',
+                                  style: NovynText.body(10, weight: FontWeight.w800, color: Colors.white),
+                                ),
                               ),
                             ),
                           ),
-                        ],
-                      );
-                    },
-                  ),
-                ],
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
-              child: Text(
-                'Find new people to connect with',
-                style: TextStyle(
-                  fontFamily: 'Inter',
-                  fontSize: 14,
-                  color: const Color(0xFF94A3B8).withValues(alpha: 0.8),
-                ),
-              ),
+                      ],
+                    ),
+                    NovynIconButton(
+                      icon: Icons.qr_code_scanner_rounded,
+                      onTap: () => _showScanPlaceholder(context),
+                    ),
+                  ],
+                );
+              },
             ),
 
             // ── Search ──────────────────────────────────────────────
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
-                  borderRadius: BorderRadius.circular(18),
-                ),
-                child: TextField(
-                  onChanged: (v) => setState(() => _search = v.toLowerCase()),
-                  decoration: const InputDecoration(
-                    icon: Icon(Icons.search_rounded,
-                        color: Color(0xFF94A3B8), size: 20),
-                    hintText: 'Search by name or username...',
-                    hintStyle: TextStyle(
-                        fontFamily: 'Inter',
-                        color: Color(0xFF94A3B8),
-                        fontSize: 15),
-                    border: InputBorder.none,
-                    isDense: true,
-                  ),
-                ),
-              ),
+            NovynSearchField(
+              hint: 'Search by name or username...',
+              onChanged: (value) => setState(() => _search = value.trim().toLowerCase()),
             ),
-
-            const SizedBox(height: 8),
 
             // ── User list ────────────────────────────────────────────
             Expanded(
@@ -426,213 +347,124 @@ class _DiscoverCard extends StatelessWidget {
     required this.onAddFriend,
   });
 
-  // Gradient pairs per first letter bucket
-  static const _gradients = [
-    [Color(0xFF7C6FF7), Color(0xFFEC4899)],
-    [Color(0xFF0EA5E9), Color(0xFF00D4A0)],
-    [Color(0xFFF59E0B), Color(0xFFEF4444)],
-    [Color(0xFF10B981), Color(0xFF4A8FFF)],
-    [Color(0xFFEC4899), Color(0xFFF59E0B)],
+  static const _palettes = [
+    AvatarPalette.purple,
+    AvatarPalette.blue,
+    AvatarPalette.green,
+    AvatarPalette.pink,
   ];
 
   static String _lastSeenText(DateTime? lastSeen) {
     if (lastSeen == null) return 'Last seen: unknown';
-    final now = DateTime.now();
-    final diff = now.difference(lastSeen);
+    final diff = DateTime.now().difference(lastSeen);
     if (diff.inMinutes < 1) return 'Last seen: just now';
     if (diff.inMinutes < 60) return 'Last seen: ${diff.inMinutes}m ago';
     if (diff.inHours < 24) return 'Last seen: ${diff.inHours}h ago';
     if (diff.inDays == 1) return 'Last seen: yesterday';
     if (diff.inDays < 7) return 'Last seen: ${diff.inDays}d ago';
-    // Older — show date
     return 'Last seen: ${lastSeen.day}/${lastSeen.month}/${lastSeen.year}';
   }
 
   @override
   Widget build(BuildContext context) {
-    final initial = user.name.isNotEmpty        ? user.name.substring(0, 1).toUpperCase()
+    final initial = user.name.isNotEmpty
+        ? user.name.substring(0, 1).toUpperCase()
         : '?';
-    final gradientIndex =
-        (user.name.isNotEmpty ? user.name.codeUnitAt(0) : 0) %
-            _gradients.length;
-    final gradient = _gradients[gradientIndex];
+    final palette = _palettes[(user.name.isNotEmpty ? user.name.codeUnitAt(0) : 0) % _palettes.length];
 
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
+        color: NovynColors.card,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+        border: Border.all(color: NovynColors.glassBorder),
       ),
       child: Row(
         children: [
-          // ── Avatar with online ring ───────────────────────────────
-          Stack(
-            children: [
-              Container(
-                width: 54,
-                height: 54,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: user.isOnline
-                      ? LinearGradient(
-                          colors: gradient,
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        )
-                      : const LinearGradient(
-                          colors: [Color(0xFFE2E5F0), Color(0xFFCBD5E1)],
-                        ),
-                ),
-                padding: const EdgeInsets.all(2.5),
-                child: Container(
-                  decoration: const BoxDecoration(
-                      color: Colors.white, shape: BoxShape.circle),
-                  child: Center(
-                    child: Text(
-                      initial,
-                      style: TextStyle(
-                        fontFamily: 'Inter',
-                        fontWeight: FontWeight.bold,
-                        fontSize: 20,
-                        color: user.isOnline ? gradient[0] : const Color(0xFF94A3B8),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              if (user.isOnline)
-                Positioned(
-                  right: 1,
-                  bottom: 1,
-                  child: Container(
-                    width: 14,
-                    height: 14,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                          color: const Color(0xFF22C55E), width: 2),
-                    ),
-                  ),
-                ),
-            ],
+          NovynAvatar(
+            size: 54,
+            letter: initial,
+            colors: palette,
+            statusColor: user.isOnline ? NovynColors.mint : null,
           ),
-
           const SizedBox(width: 14),
-
-          // ── Name + username + bio ─────────────────────────────────
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
-                    Text(
-                      user.name,
-                      style: TextStyle(
-                        fontFamily: 'Inter',
-                        fontWeight: FontWeight.w600,
-                        fontSize: 15,
-                        color: Theme.of(context).colorScheme.onSurface,
+                    Flexible(
+                      child: Text(
+                        user.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: NovynText.body(15, weight: FontWeight.w700),
                       ),
                     ),
                     if (user.isOnline) ...[
-                      const SizedBox(width: 4),
+                      const SizedBox(width: 6),
                       Container(
-                        width: 8,
-                        height: 8,
+                        width: 7,
+                        height: 7,
                         decoration: const BoxDecoration(
-                          color: Color(0xFF10B981),
+                          color: NovynColors.mint,
                           shape: BoxShape.circle,
                         ),
                       ),
                     ],
                   ],
                 ),
-                const SizedBox(height: 2),
+                const SizedBox(height: 3),
+                Text('@${user.username}', style: NovynText.body(12, color: NovynColors.textMuted)),
+                const SizedBox(height: 5),
                 Text(
-                  '@${user.username}',
-                  style: TextStyle(
-                    fontFamily: 'Inter',
-                    fontSize: 12,
-                    color: Theme.of(context).colorScheme.outline,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                // Status / Join Date
-                Text(
-                  user.isOnline 
-                    ? 'Active Now' 
-                    : _lastSeenText(user.lastSeen),
-                  style: TextStyle(
-                    fontFamily: 'Inter',
-                    fontSize: 12,
-                    color: user.isOnline 
-                        ? const Color(0xFF10B981) 
-                        : Theme.of(context).colorScheme.outline.withValues(alpha: 0.6),
-                    fontWeight: user.isOnline ? FontWeight.w700 : FontWeight.w500,
+                  user.isOnline ? 'Active now' : _lastSeenText(user.lastSeen),
+                  style: NovynText.body(
+                    11.5,
+                    weight: user.isOnline ? FontWeight.w700 : FontWeight.w500,
+                    color: user.isOnline ? NovynColors.mint : NovynColors.timeMuted,
                   ),
                 ),
                 if (user.bio.isNotEmpty) ...[
-                  const SizedBox(height: 2),
+                  const SizedBox(height: 3),
                   Text(
                     user.bio,
-                    style: const TextStyle(
-                      fontFamily: 'Inter',
-                      fontSize: 12,
-                      color: Color(0xFF64748B),
-                    ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
+                    style: NovynText.body(11.5, color: NovynColors.textSub),
                   ),
                 ],
               ],
             ),
           ),
-
           const SizedBox(width: 10),
-
-          // ── Add friend button ─────────────────────────────────────
           GestureDetector(
             onTap: isPending ? null : onAddFriend,
             child: AnimatedContainer(
-              duration: const Duration(milliseconds: 250),
-              padding: const EdgeInsets.symmetric(
-                  horizontal: 14, vertical: 8),
+              duration: const Duration(milliseconds: 220),
+              padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
               decoration: BoxDecoration(
-                color: isPending
-                    ? Theme.of(context).colorScheme.surfaceContainerHighest
-                    : const Color(0xFFECEAFD),
+                gradient: isPending ? null : NovynGradients.primary,
+                color: isPending ? NovynColors.glass : null,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: isPending
-                      ? Theme.of(context).colorScheme.outlineVariant
-                      : const Color(0xFF7C6FF7).withValues(alpha: 0.3),
-                ),
+                border: isPending ? Border.all(color: NovynColors.glassBorder) : null,
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(
-                    isPending
-                        ? Icons.hourglass_top_rounded
-                        : Icons.person_add_rounded,
+                    isPending ? Icons.hourglass_top_rounded : Icons.person_add_alt_1_rounded,
                     size: 14,
-                    color: isPending
-                        ? const Color(0xFF94A3B8)
-                        : const Color(0xFF7C6FF7),
+                    color: isPending ? NovynColors.textMuted : Colors.white,
                   ),
                   const SizedBox(width: 5),
                   Text(
                     isPending ? 'Pending' : 'Add',
-                    style: TextStyle(
-                      fontFamily: 'Inter',
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: isPending
-                          ? const Color(0xFF94A3B8)
-                          : const Color(0xFF7C6FF7),
+                    style: NovynText.body(
+                      12,
+                      weight: FontWeight.w700,
+                      color: isPending ? NovynColors.textMuted : Colors.white,
                     ),
                   ),
                 ],
@@ -644,4 +476,3 @@ class _DiscoverCard extends StatelessWidget {
     );
   }
 }
-
