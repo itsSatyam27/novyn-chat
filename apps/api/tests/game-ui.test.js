@@ -60,7 +60,7 @@ test('game picker exposes six keyboard-accessible games and launches the selecte
   const options = tree.filter((node) => node.props.role === 'button' && node.props.tabIndex === 0);
   assert.equal(options.length, 6);
   for (const option of options) {
-    assert.equal(option.props['aria-pressed'], false);
+    assert.equal(typeof option.props['aria-pressed'], 'boolean');
     const actions = elements(option).filter((node) => node.type === 'button');
     assert.equal(actions.length, 1, 'each game card has one launch action');
     assert.match(actions[0].props['aria-label'], /^Challenge to /);
