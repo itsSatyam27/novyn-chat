@@ -1578,16 +1578,21 @@ async function persistMongoNow() {
       },
       { upsert: true, session }
     );
-    // Commit marker is written in the same transaction as every collection.
-    // Startup only trusts snapshots whose complete set of records is present.
+    // Count the exact documents written in this transaction, then publish
+    // the manifest atomically with them. Startup validates these counts.
+    const [userCount, conversationCount, messageCount] = await Promise.all([
+      mongoUsersCollection.countDocuments({ snapshotId }, { session }),
+      mongoConversationsCollection.countDocuments({ snapshotId }, { session }),
+      mongoMessagesCollection.countDocuments({ snapshotId }, { session }),
+    ]);
     await mongoLegacyCollection.updateOne(
       { _id: "snapshot_manifest" },
       {
         $set: {
           snapshotId,
-          userCount: userOps.length,
-          conversationCount: conversationOps.length,
-          messageCount: messageOrder,
+          userCount,
+          conversationCount,
+          messageCount,
           committedAt: updatedAt,
         },
       },
