@@ -1558,7 +1558,7 @@ async function persistMongoNow() {
   await bulkWriteInChunks(mongoConversationsCollection, conversationOps, session);
   await mongoConversationsCollection.deleteMany({ snapshotId: { $ne: snapshotId } }, { session });
   if (pendingMessageOps.length) {
-    await bulkWriteInChunks(mongoMessagesCollection, pendingMessageOps);
+    await bulkWriteInChunks(mongoMessagesCollection, pendingMessageOps, session);
   }
   await mongoMessagesCollection.deleteMany({ snapshotId: { $ne: snapshotId } }, { session });
 
@@ -5485,7 +5485,7 @@ io.on("connection", (socket) => {
       avatarId: user.avatarId,
       presenceMode: user.presenceMode,
       email: user.email || "",
-      retentionDays: [7, 15, 30].includes(Number(user.retentionDays)) ? Number(user.retentionDays) : 30,
+      retentionDays: 0,
       callPrivacy: user.callPrivacy || "friends", messagePrivacy: user.messagePrivacy || "friends",
       profilePhotoPrivacy: user.profilePhotoPrivacy || "everyone", presencePrivacy: user.presencePrivacy || "everyone",
       readReceiptsEnabled: user.readReceiptsEnabled !== false, typingIndicatorsEnabled: user.typingIndicatorsEnabled !== false,
