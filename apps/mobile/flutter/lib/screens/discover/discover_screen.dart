@@ -197,7 +197,8 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
   String? _usernameFromQr(String value) {
     final raw = value.trim();
     final valid = RegExp(r'^[a-zA-Z0-9_.-]{1,30}$');
-    if (valid.hasMatch(raw)) return raw.startsWith('@') ? raw.substring(1) : raw;
+    final candidate = raw.startsWith('@') ? raw.substring(1) : raw;
+    if (valid.hasMatch(candidate)) return candidate;
     final uri = Uri.tryParse(raw);
     if (uri == null) return null;
     final segments = uri.pathSegments;
