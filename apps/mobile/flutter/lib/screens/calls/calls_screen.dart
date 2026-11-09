@@ -24,6 +24,7 @@ class _CallsScreenState extends State<CallsScreen> {
   bool _loading = true;
   String _filter = 'All'; // All | Missed | Audio | Video
   String _search = '';
+  String _callPrivacy = 'friends';
   final TextEditingController _searchController = TextEditingController();
 
   @override
@@ -56,6 +57,54 @@ class _CallsScreenState extends State<CallsScreen> {
     if (confirm == true && mounted) setState(() => _calls = []);
   }
 
+  Future<void> _showCallPrivacy() async {
+    var selected = _callPrivacy;
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, refresh) => AlertDialog(
+          title: const Text('Who can call me?'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (final option in const [
+                ('everyone', 'Everyone', 'Anyone on Novyn can call you.'),
+                ('friends', 'Friends', 'Only accepted friends can call you.'),
+                ('nobody', 'Nobody', 'Decline all incoming calls.'),
+              ])
+                RadioListTile<String>(
+                  value: option.$1,
+                  groupValue: selected,
+                  onChanged: (value) => refresh(() => selected = value!),
+                  title: Text(option.$2),
+                  subtitle: Text(option.$3),
+                  contentPadding: EdgeInsets.zero,
+                ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel')),
+            FilledButton(
+              onPressed: () async {
+                try {
+                  final result = await context.read<SocketService>().updateAccountSettings({'callPrivacy': selected});
+                  if (result['ok'] != true) throw StateError(result['message']?.toString() ?? 'Could not update call privacy.');
+                  if (!mounted) return;
+                  setState(() => _callPrivacy = selected);
+                  Navigator.pop(dialogContext);
+                  ScaffoldMessenger.of(this.context).showSnackBar(const SnackBar(content: Text('Call privacy updated.')));
+                } catch (error) {
+                  if (mounted) ScaffoldMessenger.of(this.context).showSnackBar(SnackBar(content: Text(error is StateError ? error.message.toString() : 'Could not update call privacy.')));
+                }
+              },
+              child: const Text('Save'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _loadCalls() async {
     final auth = context.read<AuthService>();
     final myUsername = auth.user?.username;
@@ -64,7 +113,9 @@ class _CallsScreenState extends State<CallsScreen> {
       return;
     }
 
-    final rawLogs = await ApiService.getCallLogs();
+    final results = await Future.wait([ApiService.getCallLogs(), ApiService.getSession()]);
+    final rawLogs = results[0] as List<Map<String, dynamic>>;
+    final profile = results[1] as Map<String, dynamic>?;
     if (!mounted) return;
 
     final entriesMap = <String, _CallEntry>{};
@@ -130,6 +181,7 @@ class _CallsScreenState extends State<CallsScreen> {
     if (!mounted) return;
     setState(() {
       _calls   = entries;
+      _callPrivacy = ['everyone', 'friends', 'nobody'].contains(profile?['callPrivacy']) ? profile!['callPrivacy'].toString() : _callPrivacy;
       _loading = false;
     });
   }
@@ -147,6 +199,10 @@ class _CallsScreenState extends State<CallsScreen> {
               title: 'Calls',
               subtitle: '${_calls.length} recent conversations · $missedCount missed',
               actions: [
+                NovynIconButton(
+                  icon: Icons.shield_outlined,
+                  onTap: _showCallPrivacy,
+                ),
                 if (_calls.isNotEmpty)
                   NovynIconButton(
                     icon: Icons.delete_sweep_outlined,
