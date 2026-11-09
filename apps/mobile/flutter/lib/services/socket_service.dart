@@ -724,6 +724,17 @@ class SocketService extends ChangeNotifier {
     });
   }
 
+  void forwardMessage(Message message, String targetUsername, {bool isGroup = false}) {
+    _requireConnection();
+    _socket!.emit('private_message', {
+      'to': targetUsername,
+      'toType': isGroup ? 'group' : 'friend',
+      'text': message.text,
+      'attachment': message.attachment,
+      'clientTempId': 'tmp_forward_${DateTime.now().millisecondsSinceEpoch}',
+    });
+  }
+
   Future<void> decryptCurrentMessages() async {
     final account = _myUsername;
     final peer = _currentChatWith;
