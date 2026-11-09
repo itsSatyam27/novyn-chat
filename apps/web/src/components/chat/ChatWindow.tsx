@@ -135,7 +135,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   const forceLatestUntilRef = useRef(0);
 
   const activeContact = conversations.find((c) => c.username.toLowerCase() === activeChat?.toLowerCase()) || null;
-  const retentionDays = user?.retentionDays || 30;
+  const retentionDays = user?.retentionDays ?? 0;
   const effectiveRetentionDays = chatRetentionDays ?? retentionDays;
   useEffect(() => {
     if (!activeChat || !user?.username) {
@@ -146,6 +146,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     setChatRetentionDays([1, 7, 15].includes(saved) ? saved : null);
   }, [activeChat, user?.username]);
   const visibleMessages = useMemo(() => resolveReplyPreviews(messages.filter((message) => {
+    if (effectiveRetentionDays <= 0) return true;
     const timestamp = Date.parse(String(message.timestamp || ''));
     return Number.isNaN(timestamp) || timestamp >= Date.now() - effectiveRetentionDays * 24 * 60 * 60 * 1000;
   })), [messages, effectiveRetentionDays]);
