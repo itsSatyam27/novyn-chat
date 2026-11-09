@@ -13,7 +13,7 @@ function loadComponent(name) {
   }).outputText;
   vm.runInNewContext(code, { exports: exported, require(name) {
     if (name === 'react/jsx-runtime') return require(name);
-    if (name === 'react') return { ...React, default: React };
+    if (name === 'react') return { ...React, default: React, useState: (initial) => [initial, () => {}], useEffect: () => {} };
     if (name === 'framer-motion') return { motion: new Proxy({}, { get: (_, key) => key }) };
     if (name.endsWith('/capacitor')) return { triggerHaptic() {} };
     return new Proxy({}, { get: (_, key) => key });
@@ -54,15 +54,24 @@ test('tic-tac-toe retains equal tracks and bounded cells before and after a move
   }
 });
 
-test('game picker uses one keyboard-accessible button per game and launches once', () => {
+test('game picker exposes six keyboard-accessible games and launches the selected challenge once', () => {
   const calls = [];
   const tree = elements(GameLauncherModal({ isOpen: true, opponentName: 'bob', onLaunchGame: (type) => calls.push(type), onClose: () => calls.push('close') }));
-  const options = tree.filter((node) => node.type === 'button');
-  assert.equal(options.length, 3);
+  const options = tree.filter((node) => node.props.role === 'button' && node.props.tabIndex === 0);
+  assert.equal(options.length, 6);
   for (const option of options) {
-    assert.match(option.props['aria-label'], /^Play /);
-    assert.equal(elements(option).filter((node) => node.type === 'button').length, 1, 'no nested buttons');
-    option.props.onClick();
+    assert.equal(option.props['aria-pressed'], false);
+    const actions = elements(option).filter((node) => node.type === 'button');
+    assert.equal(actions.length, 1, 'each game card has one launch action');
+    assert.match(actions[0].props['aria-label'], /^Challenge to /);
+    actions[0].props.onClick({ stopPropagation() {} });
   }
-  assert.deepEqual(calls, ['tictactoe', 'close', 'rps', 'close', 'connect4', 'close']);
+  assert.deepEqual(calls, [
+    'tictactoe', 'close',
+    'rps', 'close',
+    'connect4', 'close',
+    'doodle', 'close',
+    'numberclash', 'close',
+    'updown', 'close',
+  ]);
 });
