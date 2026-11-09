@@ -408,7 +408,7 @@ class NovynChipRow extends StatelessWidget {
                           borderRadius: BorderRadius.circular(999),
                           boxShadow: const [
                             BoxShadow(
-                              color: Color(0x667A3EF0),
+                              color: Color(0x33000000),
                               blurRadius: 20,
                               offset: Offset(0, 8),
                             ),
