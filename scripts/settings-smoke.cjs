@@ -553,9 +553,9 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
     await waitFor('!document.querySelector(".call-modal-card")');
     assert.equal((await peer.timeout(3000).emitWithAck('set_block', { username: 'settingsuser', blocked: 'false' })).ok, false);
     assert.equal((await peer.timeout(3000).emitWithAck('set_block', { username: 'settingsuser', blocked: false })).ok, true);
-    await selectSection('Message Retention'); await clickControl('15 days');
-    await waitFor('document.querySelector(".security-retention [role=status]")?.textContent === "Message retention updated."');
-    assert.equal((await (await fetch(base + '/api/auth/session', { headers: { Cookie: cookies.join('; ') } })).json()).retentionDays, 15);
+    await selectSection('Message Retention'); await clickControl('Forever');
+    await waitFor('document.querySelector(".security-retention [role=status]")?.textContent === "Messages will be kept until explicitly deleted."');
+    assert.equal((await (await fetch(base + '/api/auth/session', { headers: { Cookie: cookies.join('; ') } })).json()).retentionDays, 0);
     for (const label of ['Change Password', 'App Lock', 'Last Seen & Profile Photo', 'Stealth Mode', 'Read Receipts & Activity', 'Two-Factor Authentication', 'Active Sessions', 'Linked Devices', 'Account Actions']) {
       await selectSection(label);
       await waitFor('document.querySelector(".security-card details[open]")');
