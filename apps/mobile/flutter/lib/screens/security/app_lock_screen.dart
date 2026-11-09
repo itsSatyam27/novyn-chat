@@ -19,13 +19,18 @@ class _AppLockScreenState extends State<AppLockScreen> {
   String _inputPin = '';
   final int _pinLength = 4;
   bool _isAuthenticating = false;
+  bool _biometricAvailable = false;
 
   @override
   void initState() {
     super.initState();
-    // We now let the user tap the "Use Biometrics" button manually
-    // to avoid the system PIN from popping up automatically.
-    // _triggerBiometrics();
+    // Keep biometric authentication user-initiated.
+    _checkBiometricAvailability();
+  }
+
+  Future<void> _checkBiometricAvailability() async {
+    final available = await LocalAuthService.isBiometricAvailable();
+    if (mounted) setState(() => _biometricAvailable = available);
   }
 
   Future<void> _triggerBiometrics() async {
@@ -153,37 +158,24 @@ class _AppLockScreenState extends State<AppLockScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    TextButton.icon(
-                      onPressed: _triggerBiometrics,
-                      icon: Icon(
-                        Theme.of(context).platform == TargetPlatform.iOS 
-                            ? Icons.face_rounded 
-                            : Icons.fingerprint_rounded,
-                        color: const Color(0xFF7C6FF7),
-                      ),
-                      label: const Text(
-                        'Use Biometrics',
-                        style: TextStyle(
-                          fontFamily: 'Outfit',
-                          fontWeight: FontWeight.w800,
-                          color: Color(0xFF7C6FF7),
+                    if (_biometricAvailable)
+                      TextButton.icon(
+                        onPressed: _isAuthenticating ? null : _triggerBiometrics,
+                        icon: Icon(
+                          Theme.of(context).platform == TargetPlatform.iOS
+                              ? Icons.face_rounded
+                              : Icons.fingerprint_rounded,
+                          color: const Color(0xFF7C6FF7),
                         ),
-                      ),
-                    ),
-                    if (context.read<SettingsService>().appLockPin == null) ...[
-                      const SizedBox(width: 16),
-                      TextButton(
-                        onPressed: widget.onUnlocked,
-                        child: const Text(
-                          'Skip (No PIN set)',
+                        label: const Text(
+                          'Use Biometrics',
                           style: TextStyle(
                             fontFamily: 'Outfit',
                             fontWeight: FontWeight.w800,
-                            color: Colors.redAccent,
+                            color: Color(0xFF7C6FF7),
                           ),
                         ),
                       ),
-                    ],
                   ],
                 ),
                 const SizedBox(height: 40),
