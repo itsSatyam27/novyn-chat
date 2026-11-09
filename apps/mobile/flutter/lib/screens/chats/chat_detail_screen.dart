@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:audioplayers/audioplayers.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:file_picker/file_picker.dart';
 import '../../models/user_model.dart';
 import '../../services/auth_service.dart';
 import '../../services/socket_service.dart';
@@ -37,6 +39,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   String? _myUid;
   bool _peerIsOnline = false;
   dynamic _replyingTo; // the message being replied to
+  bool _uploadingAttachment = false;
+  final ImagePicker _imagePicker = ImagePicker();
 
   @override
   void initState() {
@@ -511,6 +515,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
+        if (_uploadingAttachment)
+          const LinearProgressIndicator(minHeight: 2),
         // ── Reply preview bar ──────────────────────────────────────
         if (_replyingTo != null)
           Container(
@@ -693,15 +699,68 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     ); // close Column
   }
 
-  void _handleAttachment(String type) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('$type — coming soon'),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        duration: const Duration(seconds: 1),
-      ),
-    );
+  Future<void> _handleAttachment(String type) async {
+    if (_uploadingAttachment) return;
+    try {
+      List<int>? bytes;
+      String filename = 'attachment';
+      String mime = 'application/octet-stream';
+      if (type.toLowerCase().contains('photo') || type.toLowerCase().contains('image') || type.toLowerCase().contains('video')) {
+        final picked = await _imagePicker.pickMedia();
+        if (picked == null) return;
+        bytes = await picked.readAsBytes();
+        filename = picked.name;
+        final lower = filename.toLowerCase();
+        mime = lower.endsWith('.mp4') || lower.endsWith('.mov') ? 'video/mp4' : 'image/jpeg';
+      } else {
+        final result = await FilePicker.platform.pickFiles(withData: true);
+        if (result == null || result.files.isEmpty) return;
+        final file = result.files.single;
+        bytes = file.bytes;
+        filename = file.name;
+        mime = _mimeForFile(filename);
+      }
+      if (bytes == null || bytes.isEmpty) throw StateError('Could not read the selected file.');
+      setState(() => _uploadingAttachment = true);
+      final url = await ApiService.uploadMedia(bytes, filename, mime);
+      if (!mounted) return;
+      if (url == null || url.isEmpty) throw StateError('Upload failed. Please try again.');
+      final kind = mime.startsWith('image/') ? 'image' : mime.startsWith('video/') ? 'video' : 'file';
+      await context.read<SocketService>().sendMessage(
+        '',
+        widget.peer.uid.isNotEmpty ? widget.peer.uid : widget.peer.username,
+        attachment: {'url': url, 'name': filename, 'mime': mime, 'size': bytes.length, 'kind': kind},
+        replyToId: _replyingTo?.id?.toString(),
+        replyToText: _replyingTo?.text?.toString(),
+        replyToSender: _replyingTo?.isFromMe == true ? 'You' : widget.peer.name,
+      );
+      if (mounted) setState(() => _replyingTo = null);
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(error is StateError ? error.message.toString() : 'Could not attach this file.'),
+          behavior: SnackBarBehavior.floating,
+        ));
+      }
+    } finally {
+      if (mounted) setState(() => _uploadingAttachment = false);
+    }
+  }
+
+  String _mimeForFile(String filename) {
+    final name = filename.toLowerCase();
+    if (name.endsWith('.pdf')) return 'application/pdf';
+    if (name.endsWith('.doc')) return 'application/msword';
+    if (name.endsWith('.docx')) return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+    if (name.endsWith('.txt')) return 'text/plain';
+    if (name.endsWith('.mp3')) return 'audio/mpeg';
+    if (name.endsWith('.m4a')) return 'audio/mp4';
+    if (name.endsWith('.wav')) return 'audio/wav';
+    if (name.endsWith('.mp4')) return 'video/mp4';
+    if (name.endsWith('.png')) return 'image/png';
+    if (name.endsWith('.webp')) return 'image/webp';
+    if (name.endsWith('.jpg') || name.endsWith('.jpeg')) return 'image/jpeg';
+    return 'application/octet-stream';
   }
 
   void _startVoiceNote() {
