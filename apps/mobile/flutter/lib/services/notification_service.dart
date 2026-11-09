@@ -107,12 +107,12 @@ class NotificationService {
 
     // 2. Ask the OS only when the user has enabled notifications.
     if (_settings!.notificationsOn) {
-      final permission = await _fcm.requestPermission(
+      await _fcm.requestPermission(
         alert: true,
         badge: true,
         sound: true,
       );
-      if (permission.authorizationStatus == AuthorizationStatus.denied || !context.mounted) return;
+      if (!context.mounted) return;
     }
 
     // 3. Handle foreground messages
