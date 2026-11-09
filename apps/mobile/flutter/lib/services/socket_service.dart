@@ -1122,6 +1122,36 @@ class SocketService extends ChangeNotifier {
     }
   }
 
+  Future<Map<String, dynamic>> registerFcmToken(String token) async {
+    _requireConnection();
+    final completer = Completer<Map<String, dynamic>>();
+    _socket!.emitWithAck('register_fcm_token', {'token': token}, ack: (dynamic result) {
+      completer.complete(result is Map
+          ? Map<String, dynamic>.from(result)
+          : {'ok': false, 'message': 'The server did not confirm this device.'});
+    });
+    return completer.future.timeout(
+      const Duration(seconds: 10),
+      onTimeout: () => {'ok': false, 'message': 'Device registration timed out.'},
+    );
+  }
+
+  Future<Map<String, dynamic>> clearFcmToken() async {
+    if (!_isConnected || _socket == null) {
+      return {'ok': false, 'message': 'Device is offline.'};
+    }
+    final completer = Completer<Map<String, dynamic>>();
+    _socket!.emitWithAck('clear_fcm_token', ack: (dynamic result) {
+      completer.complete(result is Map
+          ? Map<String, dynamic>.from(result)
+          : {'ok': false, 'message': 'The server did not confirm device removal.'});
+    });
+    return completer.future.timeout(
+      const Duration(seconds: 5),
+      onTimeout: () => {'ok': false, 'message': 'Device removal timed out.'},
+    );
+  }
+
   Future<Map<String, dynamic>> updateAccountSettings(Map<String, dynamic> changes) async {
     _requireConnection();
     final completer = Completer<Map<String, dynamic>>();
