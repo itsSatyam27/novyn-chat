@@ -18,9 +18,14 @@ class NotificationService {
   static AuthService? _presenceAuth;
   static SettingsService? _settings;
   static String? _activeUid;
-  static bool? _muted;
+  static bool? _lastAlertsEnabled;
+  static bool? _lastSoundEnabled;
 
   static void _onSettingsChanged() {
+    final enabled = _settings?.notificationsOn ?? false;
+    if (_lastAlertsEnabled == false && enabled) {
+      _fcm.requestPermission(alert: true, badge: true, sound: true).catchError((Object _) {});
+    }
     _syncPresentation();
     _syncUserPreferences();
   }
@@ -46,14 +51,15 @@ class NotificationService {
     final settings = _settings;
     final notificationsEnabled = settings?.notificationsOn ?? true;
     final soundsEnabled = settings?.inAppSounds ?? true;
-    final muted = !notificationsEnabled || !soundsEnabled || _presenceAuth?.user?.presenceMode == 'busy';
-    if (_muted == muted) return;
-    _muted = muted;
+    final soundEnabled = notificationsEnabled && soundsEnabled && _presenceAuth?.user?.presenceMode != 'busy';
+    if (_lastAlertsEnabled == notificationsEnabled && _lastSoundEnabled == soundEnabled) return;
+    _lastAlertsEnabled = notificationsEnabled;
+    _lastSoundEnabled = soundEnabled;
     _fcm
         .setForegroundNotificationPresentationOptions(
           alert: notificationsEnabled,
           badge: notificationsEnabled,
-          sound: !muted,
+          sound: soundEnabled,
         )
         .catchError((Object _) {});
   }
