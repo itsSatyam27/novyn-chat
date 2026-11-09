@@ -57,12 +57,6 @@ class SecurityPrivacyScreen extends StatelessWidget {
         children: [
           const SectionLabel(label: 'Security'),
           MenuCard(
-            icon: Icons.key_rounded,
-            title: 'Import message keys',
-            subtitle: 'Read encrypted messages from your web app',
-            onTap: () => showImportMessageKeys(context),
-          ),
-          MenuCard(
             icon: Icons.lock_rounded,
             iconColor: const Color(0xFF10B981),
             iconBgColor: const Color(0xFF10B981).withValues(alpha: 0.1),
