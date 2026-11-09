@@ -1270,9 +1270,9 @@ class _ScanningPainter extends CustomPainter {
 class _NovynSettingsBackdrop extends StatelessWidget {
   const _NovynSettingsBackdrop();
   @override
-  Widget build(BuildContext context) => const DecoratedBox(
-    decoration: const BoxDecoration(color: Color(0xFF0B0B0B)),
-    child: SizedBox.expand(),
+  Widget build(BuildContext context) => ColoredBox(
+    color: NovynTheme.pageBg(context),
+    child: const SizedBox.expand(),
   );
 }
 
