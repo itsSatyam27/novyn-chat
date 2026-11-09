@@ -352,11 +352,13 @@ class NovynSearchField extends StatelessWidget {
     super.key,
     required this.hint,
     this.controller,
+    this.focusNode,
     this.onChanged,
   });
 
   final String hint;
   final TextEditingController? controller;
+  final FocusNode? focusNode;
   final ValueChanged<String>? onChanged;
 
   @override
@@ -379,6 +381,7 @@ class NovynSearchField extends StatelessWidget {
             Expanded(
               child: TextField(
                 controller: controller,
+                focusNode: focusNode,
                 onChanged: onChanged,
                 cursorColor: NovynColors.violet,
                 style: NovynText.body(14),
