@@ -713,12 +713,6 @@ const MONGODB_USERS_COLLECTION = toDisplayName(process.env.MONGODB_USERS_COLLECT
 const MONGODB_CONVERSATIONS_COLLECTION =
   toDisplayName(process.env.MONGODB_CONVERSATIONS_COLLECTION) || "conversations";
 const MONGODB_MESSAGES_COLLECTION = toDisplayName(process.env.MONGODB_MESSAGES_COLLECTION) || "messages";
-const CHAT_RETENTION_DAYS = Math.max(
-  1,
-  Number.isFinite(Number(process.env.CHAT_RETENTION_DAYS))
-    ? Math.floor(Number(process.env.CHAT_RETENTION_DAYS))
-    : 30
-);
 const MIN_PASSWORD_LENGTH = 12;
 const DELETED_MESSAGE_TEXT = "This message was deleted.";
 const CALL_LOG_PREFIX = "__call_log__:";
@@ -1264,7 +1258,7 @@ function createUserRecord(username) {
     lastSeenAt: "",
     presenceMode: "online",
     publicKey: "",
-    retentionDays: 30,
+    retentionDays: 0,
     callPrivacy: "friends",
     messagePrivacy: "friends",
     profilePhotoPrivacy: "everyone",
@@ -1306,7 +1300,7 @@ function serializeState() {
       lastSeenAt: toDisplayName(user.lastSeenAt),
       presenceMode: normalizePresenceMode(user.presenceMode),
       publicKey: toDisplayName(user.publicKey),
-      retentionDays: [7, 15, 30].includes(Number(user.retentionDays)) ? Number(user.retentionDays) : 30,
+      retentionDays: 0,
       callPrivacy: user.callPrivacy || "friends", messagePrivacy: user.messagePrivacy || "friends",
       profilePhotoPrivacy: user.profilePhotoPrivacy || "everyone", presencePrivacy: user.presencePrivacy || "everyone",
       readReceiptsEnabled: user.readReceiptsEnabled !== false, typingIndicatorsEnabled: user.typingIndicatorsEnabled !== false,
@@ -1425,12 +1419,12 @@ function hasMongoStorage() {
   return Boolean(mongoUsersCollection && mongoConversationsCollection && mongoMessagesCollection);
 }
 
-async function bulkWriteInChunks(collection, operations, chunkSize = 500) {
+async function bulkWriteInChunks(collection, operations, session = null, chunkSize = 500) {
   if (!collection || !Array.isArray(operations) || operations.length === 0) return;
   for (let i = 0; i < operations.length; i += chunkSize) {
     const chunk = operations.slice(i, i + chunkSize);
     // Keep unordered writes to tolerate individual bad docs without aborting the batch.
-    await collection.bulkWrite(chunk, { ordered: false });
+    await collection.bulkWrite(chunk, { ordered: false, ...(session ? { session } : {}) });
   }
 }
 
@@ -1476,6 +1470,10 @@ async function persistMongoNow() {
   const state = serializeState();
   const snapshotId = `${Date.now()}-${crypto.randomBytes(6).toString("hex")}`;
   const updatedAt = new Date();
+  const session = mongoStorage.client.startSession();
+
+  try {
+    await session.withTransaction(async () => {
 
   const userOps = state.users
     .filter((entry) => normalizeName(entry?.key || entry?.username))
@@ -1519,8 +1517,8 @@ async function persistMongoNow() {
         },
       };
     });
-  await bulkWriteInChunks(mongoUsersCollection, userOps);
-  await mongoUsersCollection.deleteMany({ snapshotId: { $ne: snapshotId } });
+  await bulkWriteInChunks(mongoUsersCollection, userOps, session);
+  await mongoUsersCollection.deleteMany({ snapshotId: { $ne: snapshotId } }, { session });
 
   const conversationOps = [];
   let messageOrder = 0;
@@ -1551,18 +1549,18 @@ async function persistMongoNow() {
         },
       });
       if (pendingMessageOps.length >= 500) {
-        await bulkWriteInChunks(mongoMessagesCollection, pendingMessageOps);
+        await bulkWriteInChunks(mongoMessagesCollection, pendingMessageOps, session);
         pendingMessageOps = [];
       }
     }
   }
 
-  await bulkWriteInChunks(mongoConversationsCollection, conversationOps);
-  await mongoConversationsCollection.deleteMany({ snapshotId: { $ne: snapshotId } });
+  await bulkWriteInChunks(mongoConversationsCollection, conversationOps, session);
+  await mongoConversationsCollection.deleteMany({ snapshotId: { $ne: snapshotId } }, { session });
   if (pendingMessageOps.length) {
     await bulkWriteInChunks(mongoMessagesCollection, pendingMessageOps);
   }
-  await mongoMessagesCollection.deleteMany({ snapshotId: { $ne: snapshotId } });
+  await mongoMessagesCollection.deleteMany({ snapshotId: { $ne: snapshotId } }, { session });
 
   if (mongoLegacyCollection) {
     await mongoLegacyCollection.updateOne(
@@ -1572,14 +1570,23 @@ async function persistMongoNow() {
           _id: "main",
           migratedToCollections: true,
           updatedAt,
-          retentionDays: CHAT_RETENTION_DAYS,
+          retentionDays: 0,
           groups: state.groups || [],
           wallpapers: state.wallpapers || [],
           scheduledMessages: state.scheduledMessages || [],
         },
       },
-      { upsert: true }
+      { upsert: true, session }
     );
+  }
+    }, {
+      readConcern: { level: "snapshot" },
+      writeConcern: { w: "majority" },
+      readPreference: "primary",
+      maxCommitTimeMS: 15000,
+    });
+  } finally {
+    await session.endSession();
   }
 }
 
@@ -2077,7 +2084,7 @@ function applyLoadedState(parsed) {
     user.lastSeenAt = toDisplayName(entry.lastSeenAt);
     user.presenceMode = normalizePresenceMode(entry.presenceMode);
     user.publicKey = toDisplayName(entry.publicKey);
-    user.retentionDays = [7, 15, 30].includes(Number(entry.retentionDays)) ? Number(entry.retentionDays) : 30;
+    user.retentionDays = 0;
     user.callPrivacy = ["everyone", "friends", "nobody"].includes(entry.callPrivacy) ? entry.callPrivacy : "friends";
     user.messagePrivacy = ["everyone", "friends", "nobody"].includes(entry.messagePrivacy) ? entry.messagePrivacy : "friends";
     user.profilePhotoPrivacy = ["everyone", "friends", "nobody"].includes(entry.profilePhotoPrivacy) ? entry.profilePhotoPrivacy : "everyone";
@@ -2468,16 +2475,10 @@ async function loadState() {
   }
 
   if (loaded) {
-    const pruned = pruneExpiredMessages();
     const scrubbed = scrubEncryptedMessagePlaintext();
-    if (pruned || scrubbed) {
+    if (scrubbed) {
       await persistNow();
-      if (pruned) {
-        console.log(`Pruned expired messages older than ${CHAT_RETENTION_DAYS} day(s).`);
-      }
-      if (scrubbed) {
-        console.log(`Removed plaintext from ${scrubbed} encrypted message field(s).`);
-      }
+      console.log(`Removed plaintext from ${scrubbed} encrypted message field(s).`);
     }
   }
 
@@ -3261,15 +3262,6 @@ function applyUsernameChange(userKey, newUsername) {
   }
 }
 
-function getRetentionCutoffMs() {
-  return Date.now() - CHAT_RETENTION_DAYS * 24 * 60 * 60 * 1000;
-}
-
-function getMessageTimestampMs(message) {
-  const value = Date.parse(toDisplayName(message?.timestamp));
-  return Number.isNaN(value) ? Date.now() : value;
-}
-
 function recomputeUnreadFromConversations() {
   for (const user of users.values()) {
     const entries = [];
@@ -3310,50 +3302,11 @@ function recomputeUnreadFromConversations() {
   }
 }
 
-function pruneExpiredMessages() {
-  const cutoffMs = getRetentionCutoffMs();
-  let changed = false;
-
-  for (const [key, messages] of conversations.entries()) {
-    const filtered = messages.filter((message) => getMessageTimestampMs(message) >= cutoffMs);
-    if (filtered.length !== messages.length) {
-      changed = true;
-    }
-
-    if (!filtered.length) {
-      if (messages.length) {
-        changed = true;
-      }
-      conversations.delete(key);
-      continue;
-    }
-
-    if (filtered.length !== messages.length) {
-      conversations.set(key, filtered);
-    }
-  }
-
-  if (changed) {
-    recomputeUnreadFromConversations();
-  }
-
-  return changed;
-}
-
 function runRetentionMaintenance() {
   pruneExpiredAuthState();
   pruneHttpRateLimits(httpRateLimits);
   pruneExpiredPasswordResetTokens();
   pruneExpiredEmailChangeTokens();
-  const pruned = pruneExpiredMessages();
-  if (!pruned) {
-    return;
-  }
-
-  schedulePersist();
-  for (const userKey of onlineUsers.keys()) {
-    emitFriendList(userKey);
-  }
 }
 
 function startRetentionMaintenanceLoop() {
@@ -4583,7 +4536,7 @@ app.get("/api/auth/session", (req, res) => {
     hasPassword: Boolean(user.passwordHash && user.passwordSalt),
     isGoogleUser: Boolean(user.googleUid),
     twoFactorEnabled: Boolean(user.twoFactorEnabled),
-    retentionDays: [7, 15, 30].includes(Number(user.retentionDays)) ? Number(user.retentionDays) : 30,
+    retentionDays: 0,
     callPrivacy: user.callPrivacy || "friends", messagePrivacy: user.messagePrivacy || "friends",
     profilePhotoPrivacy: user.profilePhotoPrivacy || "everyone", presencePrivacy: user.presencePrivacy || "everyone",
     readReceiptsEnabled: user.readReceiptsEnabled !== false, typingIndicatorsEnabled: user.typingIndicatorsEnabled !== false,
@@ -5516,7 +5469,7 @@ io.on("connection", (socket) => {
     }
     if (payload?.retentionDays !== undefined) {
       const days = Number(payload.retentionDays);
-      if ([7, 15, 30].includes(days)) user.retentionDays = days;
+      if (days === 0) user.retentionDays = 0;
     }
     const privacyChoices = { callPrivacy: ["everyone", "friends", "nobody"], messagePrivacy: ["everyone", "friends", "nobody"], profilePhotoPrivacy: ["everyone", "friends", "nobody"], presencePrivacy: ["everyone", "friends", "nobody"], groupInvitePrivacy: ["everyone", "friends", "nobody"], friendRequestPrivacy: ["everyone", "mutuals", "nobody"] };
     for (const [key, choices] of Object.entries(privacyChoices)) if (choices.includes(payload?.[key])) user[key] = payload[key];
@@ -7843,7 +7796,7 @@ async function bootstrap() {
   const usingMongo = hasMongoStorage();
   const mediaStorage = hasCloudinaryConfig ? "cloudinary" : `local(${uploadsDir})`;
   console.log(
-    `Chat app running on http://localhost:${activePort} | retention=${CHAT_RETENTION_DAYS} day(s) | storage=${usingMongo ? "mongodb(collections)" : "file"} | media=${mediaStorage}`
+    `Chat app running on http://localhost:${activePort} | retention=forever (until explicitly deleted) | storage=${usingMongo ? "mongodb(collections)" : "file"} | media=${mediaStorage}`
   );
 }
 
