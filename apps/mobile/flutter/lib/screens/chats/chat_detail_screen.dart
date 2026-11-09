@@ -193,6 +193,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
 
   @override
   void dispose() {
+    _voiceTimer?.cancel();
+    if (_isRecordingVoice) unawaited(_voiceRecorder.stop());
+    unawaited(_voiceRecorder.dispose());
     context.read<SocketService>().closeChat();
     _scroll.removeListener(_onScroll);
     _ctrl.removeListener(_saveDraft);
@@ -732,6 +735,10 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
 
   Future<void> _handleAttachment(String type) async {
     if (_uploadingAttachment) return;
+    if (type.toLowerCase() == 'poll') {
+      await _showCreatePollDialog();
+      return;
+    }
     try {
       List<int>? bytes;
       String filename = 'attachment';
@@ -775,6 +782,98 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       }
     } finally {
       if (mounted) setState(() => _uploadingAttachment = false);
+    }
+  }
+
+  Future<void> _showCreatePollDialog() async {
+    final question = TextEditingController();
+    final options = [TextEditingController(), TextEditingController()];
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, refresh) => AlertDialog(
+          title: const Row(
+            children: [
+              Icon(Icons.poll_outlined, size: 21),
+              SizedBox(width: 9),
+              Text('Create a poll'),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: question,
+                  maxLength: 500,
+                  decoration: const InputDecoration(
+                    labelText: 'Question',
+                    hintText: 'Ask your friends...',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                ...List.generate(options.length, (index) => Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: options[index],
+                          maxLength: 200,
+                          decoration: InputDecoration(
+                            labelText: 'Option ${index + 1}',
+                            counterText: '',
+                          ),
+                        ),
+                      ),
+                      if (options.length > 2)
+                        IconButton(
+                          tooltip: 'Remove option',
+                          onPressed: () => refresh(() => options.removeAt(index)),
+                          icon: const Icon(Icons.close_rounded),
+                        ),
+                    ],
+                  ),
+                )),
+                if (options.length < 8)
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton.icon(
+                      onPressed: () => refresh(() => options.add(TextEditingController())),
+                      icon: const Icon(Icons.add_rounded, size: 18),
+                      label: const Text('Add option'),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancel'),
+            ),
+            FilledButton.icon(
+              onPressed: () {
+                final cleanQuestion = question.text.trim();
+                final cleanOptions = options.map((item) => item.text.trim()).where((item) => item.isNotEmpty).toList();
+                if (cleanQuestion.isEmpty || cleanOptions.length < 2) return;
+                context.read<SocketService>().createPoll(
+                  cleanQuestion,
+                  cleanOptions,
+                  widget.peer.uid.isNotEmpty ? widget.peer.uid : widget.peer.username,
+                );
+                Navigator.pop(dialogContext);
+              },
+              icon: const Icon(Icons.send_rounded, size: 17),
+              label: const Text('Send poll'),
+            ),
+          ],
+        ),
+      ),
+    );
+    question.dispose();
+    for (final option in options) {
+      option.dispose();
     }
   }
 
@@ -1059,6 +1158,10 @@ class _MessageBubble extends StatelessWidget {
                             ),
                           ),
                         ],
+                        if (message.poll is Map) ...[
+                          _buildPollCard(context, message.poll as Map),
+                          const SizedBox(height: 6),
+                        ],
                         if (message.attachment is Map && message.attachment['url'] != null) ...[
                           _buildAttachmentPreview(context, message.attachment as Map),
                           const SizedBox(height: 6),
@@ -1245,6 +1348,89 @@ class _MessageBubble extends StatelessWidget {
               ],
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPollCard(BuildContext context, Map poll) {
+    final rawOptions = poll['options'];
+    final options = rawOptions is List ? rawOptions.whereType<Map>().toList() : <Map>[];
+    final totalVotes = options.fold<int>(0, (sum, option) {
+      final votes = option['votes'];
+      return sum + (votes is List ? votes.length : 0);
+    });
+    return Container(
+      width: 250,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.poll_rounded, size: 17),
+              const SizedBox(width: 7),
+              const Text('POLL', style: TextStyle(fontFamily: 'Inter', fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 1)),
+              const Spacer(),
+              Text('$totalVotes votes', style: const TextStyle(fontFamily: 'Inter', fontSize: 10, color: Color(0xFF94A3B8))),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            poll['question']?.toString() ?? 'Poll',
+            style: const TextStyle(fontFamily: 'Inter', fontSize: 14, fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 10),
+          ...options.map((option) {
+            final votes = option['votes'] is List ? List<String>.from(option['votes'].map((v) => v.toString())) : <String>[];
+            final count = votes.length;
+            final selected = votes.any((vote) => vote.toLowerCase() == myUid.toLowerCase());
+            final ratio = totalVotes == 0 ? 0.0 : count / totalVotes;
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 7),
+              child: InkWell(
+                onTap: () => context.read<SocketService>().votePoll(
+                  message.id.toString(),
+                  option['id']?.toString() ?? '',
+                  peer.uid.isNotEmpty ? peer.uid : peer.username,
+                ),
+                borderRadius: BorderRadius.circular(9),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 9),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(9),
+                    border: Border.all(color: selected ? Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.55) : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.12)),
+                  ),
+                  child: Column(
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(child: Text(option['text']?.toString() ?? '', style: const TextStyle(fontFamily: 'Inter', fontSize: 12, fontWeight: FontWeight.w600))),
+                          Text('$count', style: const TextStyle(fontFamily: 'Inter', fontSize: 11, color: Color(0xFF94A3B8))),
+                          if (selected) const Padding(padding: EdgeInsets.only(left: 5), child: Icon(Icons.check_circle, size: 14)),
+                        ],
+                      ),
+                      const SizedBox(height: 5),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(5),
+                        child: LinearProgressIndicator(
+                          value: ratio,
+                          minHeight: 4,
+                          backgroundColor: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.08),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          }),
+          const Text('Tap an option to vote or change your vote', style: TextStyle(fontFamily: 'Inter', fontSize: 9, color: Color(0xFF94A3B8))),
         ],
       ),
     );
