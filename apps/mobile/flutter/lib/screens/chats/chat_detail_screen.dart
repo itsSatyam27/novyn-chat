@@ -1260,7 +1260,7 @@ class _MessageBubble extends StatelessWidget {
   static final Map<String, Future<Map<String, dynamic>?>> _linkPreviewCache = {};
 
   String? _extractFirstUrl(String text) {
-    return RegExp(r'https?://\\S+', caseSensitive: false).firstMatch(text)?.group(0);
+    return RegExp(r'https?://\S+, caseSensitive: false).firstMatch(text)?.group(0);
   }
 
   Widget _buildLinkPreview(BuildContext context, String url) {
