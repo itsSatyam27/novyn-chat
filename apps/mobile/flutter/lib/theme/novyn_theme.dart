@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class NovynTheme {
-  static const Color _primary   = Color(0xFFA173FF);
-  static const Color _secondary = Color(0xFFFF5CC8);
+  static const Color _primary   = Color(0xFF222222);
+  static const Color _secondary = Color(0xFF777777);
 
   // ── Pastel color palette for splash & auth screens ────────────────────────
   static const Color pastelPurple    = Color(0xFFB8A6F3);  // Soft purple
@@ -33,10 +33,10 @@ class NovynTheme {
         primary:                _primary,
         secondary:              _secondary,
         surface:                Colors.white,
-        surfaceContainerHighest:Color(0xFFEAECF5),
-        onSurface:              Color(0xFF1A1D2E),
-        onSurfaceVariant:       Color(0xFF9A94B8),
-        outline:                Color(0xFFE2E5F0),
+        surfaceContainerHighest:Color(0xFFF2F2F2),
+        onSurface:              Color(0xFF111111),
+        onSurfaceVariant:       Color(0xFF777777),
+        outline:                Color(0xFFE5E5E5),
       ),
       // Cards
       cardColor: Colors.white,
@@ -55,10 +55,10 @@ class NovynTheme {
       // Input
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: const Color(0xFFF0F2FA),
+        fillColor: const Color(0xFFF5F5F5),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: Color(0xFFE2E5F0)),
+          borderSide: const BorderSide(color: Color(0xFFE5E5E5)),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
@@ -84,11 +84,11 @@ class NovynTheme {
       colorScheme: const ColorScheme.dark(
         primary:                _primary,
         secondary:              _secondary,
-        surface:                Color(0xFF14121F),
-        surfaceContainerHighest:Color(0xFF1E1B30),
-        onSurface:              Color(0xFFF2F0FA),
-        onSurfaceVariant:       Color(0xFF94A3B8),
-        outline:                Color(0xFF8E8AA8),
+        surface:                Color(0xFF191919),
+        surfaceContainerHighest:Color(0xFF252525),
+        onSurface:              Color(0xFFF5F5F5),
+        onSurfaceVariant:       Color(0xFF9E9E9E),
+        outline:                Color(0xFF777777),
       ),
       cardColor: const Color(0xFF14121F),
       cardTheme: CardThemeData(
@@ -97,27 +97,27 @@ class NovynTheme {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       ),
       appBarTheme: const AppBarTheme(
-        backgroundColor: Color(0xFF0E0B20),
+        backgroundColor: Color(0xFF0B0B0B),
         foregroundColor: Color(0xFFF2F0FA),
         elevation: 0,
         surfaceTintColor: Colors.transparent,
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: const Color(0xFF0B0A14),
+        fillColor: const Color(0xFF101010),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
           borderSide: const BorderSide(color: Color(0x1AFFFFFF)),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: Color(0xFF2D3142)),
+          borderSide: const BorderSide(color: Color(0xFF333333)),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
           borderSide: const BorderSide(color: _primary, width: 2),
         ),
-        hintStyle: const TextStyle(color: Color(0xFF64748B)),
+        hintStyle: const TextStyle(color: Color(0xFF888888)),
       ),
       dividerColor: const Color(0x1AFFFFFF),
       textTheme: _textTheme,
@@ -136,8 +136,8 @@ class NovynTheme {
   /// Page / section background
   static Color pageBg(BuildContext context) {
     return Theme.of(context).brightness == Brightness.dark
-        ? const Color(0xFF0A0818)
-        : const Color(0xFFF0F2FA);
+        ? const Color(0xFF0B0B0B)
+        : const Color(0xFFF5F5F5);
   }
 
   /// Input field background
