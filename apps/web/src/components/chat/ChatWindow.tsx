@@ -576,18 +576,20 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
               <Info style={{ width: '16px', height: '16px' }} />
             </button>
 
-            <button
-              type="button"
-              className="header-action-btn"
-              onClick={() => {
-                triggerHaptic('light');
-                setActiveChat(null);
-              }}
-              aria-label="Close chat"
-              title="Close chat"
-            >
-              <X style={{ width: '16px', height: '16px' }} />
-            </button>
+            {!isDetailsOpen && (
+              <button
+                type="button"
+                className="header-action-btn"
+                onClick={() => {
+                  triggerHaptic('light');
+                  setActiveChat(null);
+                }}
+                aria-label="Close chat"
+                title="Close chat"
+              >
+                <X style={{ width: '16px', height: '16px' }} />
+              </button>
+            )}
           </div>
         </div>
 
