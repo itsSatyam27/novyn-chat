@@ -24,6 +24,8 @@ class NotificationService {
   static String? _lastRegisteredToken;
   static String? _lastSyncedPreferences;
   static bool _syncingPreferences = false;
+  static int _preferenceRetryCount = 0;
+  static int _tokenRetryCount = 0;
   static StreamSubscription<String>? _tokenRefreshSubscription;
   static bool? _lastAlertsEnabled;
   static bool? _lastSoundEnabled;
@@ -59,7 +61,9 @@ class NotificationService {
       final result = await socket.registerFcmToken(token);
       if (result['ok'] == true) {
         _lastRegisteredToken = token;
-      } else {
+        _tokenRetryCount = 0;
+      } else if (_tokenRetryCount < 1) {
+        _tokenRetryCount++;
         Future.delayed(const Duration(seconds: 2), () => unawaited(_syncDeviceToken()));
       }
     } catch (_) {
@@ -87,7 +91,9 @@ class NotificationService {
       });
       if (result['ok'] == true) {
         _lastSyncedPreferences = signature;
-      } else {
+        _preferenceRetryCount = 0;
+      } else if (_preferenceRetryCount < 1) {
+        _preferenceRetryCount++;
         Future.delayed(const Duration(seconds: 2), () => unawaited(_syncUserPreferences()));
       }
     } catch (_) {
@@ -183,6 +189,8 @@ class NotificationService {
     _activeUsername = null;
     _lastRegisteredToken = null;
     _lastSyncedPreferences = null;
+    _tokenRetryCount = 0;
+    _preferenceRetryCount = 0;
     _settings?.removeListener(_onSettingsChanged);
     _socket?.removeListener(_onSocketChanged);
     _presenceAuth?.removeListener(_syncPresentation);
