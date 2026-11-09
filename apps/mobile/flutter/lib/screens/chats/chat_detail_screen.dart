@@ -9,6 +9,8 @@ import 'package:file_picker/file_picker.dart';
 import 'package:record/record.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../widgets/game_message_card.dart';
+import '../../widgets/riddle_message_card.dart';
 import '../../models/user_model.dart';
 import '../../services/auth_service.dart';
 import '../../services/socket_service.dart';
@@ -758,6 +760,14 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       await _showCreatePollDialog();
       return;
     }
+    if (type.toLowerCase() == 'riddle') {
+      await _showCreateRiddleDialog();
+      return;
+    }
+    if (type.toLowerCase() == 'games') {
+      await _showGameLauncher();
+      return;
+    }
     try {
       List<int>? bytes;
       String filename = 'attachment';
@@ -890,6 +900,79 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     search.dispose();
   }
 
+  Future<void> _showCreateRiddleDialog() async {
+    final secret = TextEditingController();
+    final question = TextEditingController();
+    final answer = TextEditingController();
+    final hint = TextEditingController();
+    var maxTries = 3;
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(builder: (context, refresh) => AlertDialog(
+        title: const Row(children: [Icon(Icons.lock_outline_rounded, size: 21), SizedBox(width: 9), Text('Lock a message')]),
+        content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+          TextField(controller: secret, maxLength: 250, maxLines: 3, decoration: const InputDecoration(labelText: 'Secret message')),
+          TextField(controller: question, maxLength: 160, decoration: const InputDecoration(labelText: 'Riddle question')),
+          TextField(controller: answer, maxLength: 80, obscureText: true, decoration: const InputDecoration(labelText: 'Answer')),
+          TextField(controller: hint, maxLength: 160, decoration: const InputDecoration(labelText: 'Hint (optional)')),
+          const SizedBox(height: 8),
+          Row(children: [const Text('Attempts', style: TextStyle(fontFamily: 'Inter', fontWeight: FontWeight.w600)), const Spacer(), ChoiceChip(label: const Text('3'), selected: maxTries == 3, onSelected: (_) => refresh(() => maxTries = 3)), const SizedBox(width: 8), ChoiceChip(label: const Text('5'), selected: maxTries == 5, onSelected: (_) => refresh(() => maxTries = 5))]),
+          const Text('For fun only. Do not use this for passwords or private information.', style: TextStyle(fontFamily: 'Inter', fontSize: 11, color: Color(0xFF94A3B8))),
+        ])),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel')),
+          FilledButton.icon(
+            onPressed: () async {
+              if (secret.text.trim().isEmpty || question.text.trim().isEmpty || answer.text.trim().isEmpty) return;
+              final result = await context.read<SocketService>().sendRiddle(
+                peerUsername: widget.peer.uid.isNotEmpty ? widget.peer.uid : widget.peer.username,
+                secret: secret.text.trim(), question: question.text.trim(), answer: answer.text.trim(),
+                hint: hint.text.trim().isEmpty ? null : hint.text.trim(), maxTries: maxTries,
+              );
+              if (!mounted) return;
+              if (result['ok'] == true) {
+                Navigator.pop(dialogContext);
+              } else {
+                ScaffoldMessenger.of(this.context).showSnackBar(SnackBar(content: Text(result['message']?.toString() ?? 'Could not send riddle.')));
+              }
+            },
+            icon: const Icon(Icons.lock_rounded, size: 17), label: const Text('Lock & send'),
+          ),
+        ],
+      )),
+    );
+    secret.dispose(); question.dispose(); answer.dispose(); hint.dispose();
+  }
+  Future<void> _showGameLauncher() async {
+    const games = <Map<String, String>>[
+      {'id': 'tictactoe', 'title': 'Tic-Tac-Toe', 'subtitle': 'Three in a row'},
+      {'id': 'rps', 'title': 'Rock, Paper, Scissors', 'subtitle': 'Secret pick showdown'},
+      {'id': 'connect4', 'title': 'Connect 4', 'subtitle': 'Line up four chips'},
+      {'id': 'doodle', 'title': 'Doodle Duel', 'subtitle': 'Draw and guess'},
+      {'id': 'numberclash', 'title': 'Number Clash', 'subtitle': 'Pick closest to the target'},
+      {'id': 'updown', 'title': 'Up or Down', 'subtitle': 'Predict the next card'},
+    ];
+    await showModalBottomSheet<void>(context: context, backgroundColor: Colors.transparent, builder: (sheetContext) => Container(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 26),
+      decoration: BoxDecoration(color: Theme.of(context).colorScheme.surface, borderRadius: const BorderRadius.vertical(top: Radius.circular(24))),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Container(width: 38, height: 4, decoration: BoxDecoration(color: Colors.grey.withValues(alpha: 0.4), borderRadius: BorderRadius.circular(4))),
+        const SizedBox(height: 14),
+        const Text('Play together', style: TextStyle(fontFamily: 'Inter', fontSize: 18, fontWeight: FontWeight.w700)),
+        const SizedBox(height: 12),
+        ...games.map((game) => ListTile(
+          leading: const CircleAvatar(child: Icon(Icons.sports_esports_rounded)),
+          title: Text(game['title']!, style: const TextStyle(fontFamily: 'Inter', fontWeight: FontWeight.w600)),
+          subtitle: Text(game['subtitle']!, style: const TextStyle(fontFamily: 'Inter', fontSize: 12)),
+          trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 15),
+          onTap: () {
+            context.read<SocketService>().sendGameChallenge(game['id']!, widget.peer.uid.isNotEmpty ? widget.peer.uid : widget.peer.username);
+            Navigator.pop(sheetContext);
+          },
+        )),
+      ]),
+    ));
+  }
   Future<void> _showCreatePollDialog() async {
     final question = TextEditingController();
     final options = [TextEditingController(), TextEditingController()];
@@ -1529,6 +1612,24 @@ class _MessageBubble extends StatelessWidget {
                               ],
                             ),
                           ),
+                        if (message.game is Map) ...[
+                          GameMessageCard(
+                            messageId: message.id.toString(),
+                            game: Map<String, dynamic>.from(message.game as Map),
+                            currentUsername: myUid,
+                            peerUsername: peer.uid.isNotEmpty ? peer.uid : peer.username,
+                          ),
+                          const SizedBox(height: 6),
+                        ],
+                        if (message.riddle is Map) ...[
+                          RiddleMessageCard(
+                            messageId: message.id.toString(),
+                            fromUsername: message.senderId.toString(),
+                            riddle: Map<String, dynamic>.from(message.riddle as Map),
+                            isMe: isMe,
+                          ),
+                          const SizedBox(height: 6),
+                        ],
                         if (message.poll is Map) ...[
                           _buildPollCard(context, message.poll as Map),
                           const SizedBox(height: 6),
@@ -2261,6 +2362,10 @@ class _AttachmentButtonState extends State<_AttachmentButton>
   static const _items = [
     _MenuItem(
         icon: Icons.poll_rounded, label: 'Poll', color: Color(0xFF7C6FF7)),
+    _MenuItem(
+        icon: Icons.lock_outline_rounded, label: 'Riddle', color: Color(0xFF64748B)),
+    _MenuItem(
+        icon: Icons.sports_esports_rounded, label: 'Games', color: Color(0xFF64748B)),
     _MenuItem(
         icon: Icons.gif_box_rounded, label: 'GIFs', color: Color(0xFF0EA5E9)),
     _MenuItem(
