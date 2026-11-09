@@ -26,6 +26,16 @@ class _GameMessageCardState extends State<GameMessageCard> {
   List<Map<String, dynamic>> _strokes = [];
 
   @override
+  void didUpdateWidget(covariant GameMessageCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final oldStrokes = oldWidget.game['data'] is Map ? (oldWidget.game['data'] as Map)['strokes'] : null;
+    final newStrokes = widget.game['data'] is Map ? (widget.game['data'] as Map)['strokes'] : null;
+    if (oldStrokes != newStrokes && newStrokes is List) {
+      _strokes = newStrokes.whereType<Map>().map((item) => Map<String, dynamic>.from(item)).toList();
+    }
+  }
+
+  @override
   void dispose() {
     _number.dispose();
     _guess.dispose();
@@ -278,7 +288,10 @@ class _GameMessageCardState extends State<GameMessageCard> {
       );
     }
     final raw = _data['strokes'];
-    final strokes = raw is List ? raw.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList() : _strokes;
+    if (_strokes.isEmpty && raw is List) {
+      _strokes = raw.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
+    }
+    final strokes = _strokes;
     return Column(
       children: [
         Text('Draw: ${_data['word'] ?? 'secret word'}', style: const TextStyle(fontFamily: 'Inter', fontSize: 11, fontWeight: FontWeight.w700)),
