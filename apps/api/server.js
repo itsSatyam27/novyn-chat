@@ -835,8 +835,8 @@ if (process.env.NODE_ENV !== "production" && !process.env.AUTH_SECRET) {
 
 if (process.env.RENDER && !MONGODB_URI) {
   console.warn(
-    `Render deployment is using file-based auth sessions in "${DATA_DIR}". ` +
-      "Mount a persistent disk at this path or configure MONGODB_URI; otherwise every deploy logs users out."
+    `Render deployment is using file-based chat and auth storage in "${DATA_DIR}". ` +
+      "Mount a persistent disk at this path or configure MONGODB_URI; otherwise deploys/restarts can lose chat history and log users out."
   );
 }
 
