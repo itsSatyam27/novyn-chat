@@ -62,7 +62,7 @@ class NovynText {
     Color color = NovynColors.text,
     double letterSpacing = 0,
   }) =>
-      GoogleFonts.syne(
+      GoogleFonts.inter(
         fontSize: size,
         fontWeight: weight,
         color: color,
@@ -76,7 +76,7 @@ class NovynText {
     Color color = NovynColors.text,
     double letterSpacing = 0,
   }) =>
-      GoogleFonts.dmSans(
+      GoogleFonts.inter(
         fontSize: size,
         fontWeight: weight,
         color: color,
