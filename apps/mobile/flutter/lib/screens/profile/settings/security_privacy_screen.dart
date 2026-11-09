@@ -249,9 +249,17 @@ class SecurityPrivacyScreen extends StatelessWidget {
         if (success != true) return; // User cancelled PIN setup
       }
 
-      settings.setAppLockEnabled(true);
+      try {
+        await settings.setAppLockEnabled(true);
+      } catch (error) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(error.toString().replaceFirst('Bad state: ', ''))),
+          );
+        }
+      }
     } else {
-      settings.setAppLockEnabled(false);
+      await settings.setAppLockEnabled(false);
     }
   }
 
