@@ -735,6 +735,10 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
 
   Future<void> _handleAttachment(String type) async {
     if (_uploadingAttachment) return;
+    if (type.toLowerCase() == 'gifs' || type.toLowerCase() == 'stickers') {
+      await _showGifPicker(type: type.toLowerCase() == 'stickers' ? 'stickers' : 'gifs');
+      return;
+    }
     if (type.toLowerCase() == 'poll') {
       await _showCreatePollDialog();
       return;
@@ -875,6 +879,38 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     for (final option in options) {
       option.dispose();
     }
+  }
+
+  Future<void> _showGifPicker({String type = 'gifs'}) async {
+    final search = TextEditingController();
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => _GifPickerSheet(
+        initialType: type,
+        onSelect: (item) async {
+          Navigator.pop(sheetContext);
+          final url = item['url']?.toString() ?? '';
+          if (url.isEmpty) return;
+          await context.read<SocketService>().sendMessage(
+            '',
+            widget.peer.uid.isNotEmpty ? widget.peer.uid : widget.peer.username,
+            attachment: {
+              'url': url,
+              'name': item['title']?.toString().isNotEmpty == true ? item['title'].toString() : 'GIF',
+              'mime': 'image/gif',
+              'kind': 'image',
+            },
+            replyToId: _replyingTo?.id?.toString(),
+            replyToText: _replyingTo?.text?.toString(),
+            replyToSender: _replyingTo?.isFromMe == true ? 'You' : widget.peer.name,
+          );
+          if (mounted) setState(() => _replyingTo = null);
+        },
+      ),
+    );
+    search.dispose();
   }
 
   String _mimeForFile(String filename) {
@@ -1650,6 +1686,200 @@ class _ActionTile extends StatelessWidget {
   }
 }
 
+class _GifPickerSheet extends StatefulWidget {
+  final String initialType;
+  final ValueChanged<Map<String, dynamic>> onSelect;
+  const _GifPickerSheet({required this.initialType, required this.onSelect});
+
+  @override
+  State<_GifPickerSheet> createState() => _GifPickerSheetState();
+}
+
+class _GifPickerSheetState extends State<_GifPickerSheet> {
+  final TextEditingController _search = TextEditingController();
+  List<Map<String, dynamic>> _items = [];
+  bool _loading = true;
+  bool _loadingMore = false;
+  String? _error;
+  String _type = 'gifs';
+  String _category = '';
+  int _nextOffset = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _type = widget.initialType;
+    _load();
+  }
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+
+  Future<void> _load({bool append = false}) async {
+    if (append) {
+      setState(() => _loadingMore = true);
+    } else {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+    }
+    final result = await ApiService.getGiphy(
+      query: _search.text.trim().isNotEmpty ? _search.text.trim() : _category,
+      type: _type,
+      offset: append ? _nextOffset : 0,
+    );
+    if (!mounted) return;
+    final raw = result['items'];
+    final incoming = raw is List
+        ? raw.whereType<Map>().map((item) => Map<String, dynamic>.from(item)).toList()
+        : <Map<String, dynamic>>[];
+    setState(() {
+      if (append) {
+        _items = [..._items, ...incoming];
+      } else {
+        _items = incoming;
+      }
+      _nextOffset = (result['nextOffset'] as num?)?.toInt() ?? _items.length;
+      _error = result['error']?.toString();
+      _loading = false;
+      _loadingMore = false;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bottom = MediaQuery.of(context).viewInsets.bottom;
+    return Container(
+      height: MediaQuery.of(context).size.height * 0.78,
+      padding: EdgeInsets.fromLTRB(16, 12, 16, 12 + bottom),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: Column(
+        children: [
+          Container(width: 38, height: 4, decoration: BoxDecoration(color: Colors.grey.withValues(alpha: 0.4), borderRadius: BorderRadius.circular(4))),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              const Icon(Icons.gif_box_rounded, size: 22),
+              const SizedBox(width: 9),
+              const Expanded(child: Text('GIFs & Stickers', style: TextStyle(fontFamily: 'Inter', fontSize: 17, fontWeight: FontWeight.w700))),
+              IconButton(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.close_rounded)),
+            ],
+          ),
+          TextField(
+            controller: _search,
+            textInputAction: TextInputAction.search,
+            onSubmitted: (_) { _category = ''; _load(); },
+            decoration: InputDecoration(
+              hintText: 'Search on GIPHY',
+              prefixIcon: const Icon(Icons.search_rounded),
+              suffixIcon: IconButton(
+                onPressed: () { _search.clear(); _category = ''; _load(); },
+                icon: const Icon(Icons.close_rounded, size: 18),
+              ),
+              filled: true,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(child: _gifTypeTab('GIFs', 'gifs')),
+              const SizedBox(width: 8),
+              Expanded(child: _gifTypeTab('Stickers', 'stickers')),
+            ],
+          ),
+          if (_search.text.isEmpty) ...[
+            const SizedBox(height: 8),
+            SizedBox(
+              height: 36,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                children: [
+                  for (final category in const ['Trending', 'Reaction', 'Funny', 'Love', 'Thumbs up', 'Party'])
+                    Padding(
+                      padding: const EdgeInsets.only(right: 7),
+                      child: ChoiceChip(
+                        label: Text(category),
+                        selected: _category.toLowerCase() == (category == 'Trending' ? '' : category.toLowerCase()),
+                        onSelected: (_) {
+                          _category = category == 'Trending' ? '' : category.toLowerCase();
+                          _search.clear();
+                          _load();
+                        },
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
+          const SizedBox(height: 8),
+          Expanded(
+            child: _loading
+                ? const Center(child: CircularProgressIndicator())
+                : _error != null
+                    ? Center(child: Text(_error!, textAlign: TextAlign.center))
+                    : _items.isEmpty
+                        ? const Center(child: Text('No results. Try another search.'))
+                        : GridView.builder(
+                            itemCount: _items.length,
+                            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 3,
+                              crossAxisSpacing: 8,
+                              mainAxisSpacing: 8,
+                              childAspectRatio: 1.05,
+                            ),
+                            itemBuilder: (context, index) {
+                              final item = _items[index];
+                              final preview = item['previewUrl']?.toString() ?? item['url']?.toString() ?? '';
+                              return InkWell(
+                                onTap: () => widget.onSelect(item),
+                                borderRadius: BorderRadius.circular(10),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(10),
+                                  child: Image.network(preview, fit: BoxFit.cover,
+                                    errorBuilder: (_, __, ___) => const Center(child: Icon(Icons.broken_image_outlined))),
+                                ),
+                              );
+                            },
+                          ),
+          ),
+          if (!_loading && _error == null && _items.isNotEmpty)
+            TextButton(
+              onPressed: _loadingMore ? null : () => _load(append: true),
+              child: Text(_loadingMore ? 'Loading…' : 'Load more'),
+            ),
+          const Text('Powered by GIPHY', style: TextStyle(fontFamily: 'Inter', fontSize: 10, color: Color(0xFF94A3B8))),
+        ],
+      ),
+    );
+  }
+
+  Widget _gifTypeTab(String label, String type) {
+    final selected = _type == type;
+    return OutlinedButton(
+      onPressed: () {
+        setState(() {
+          _type = type;
+          _category = '';
+        });
+        _load();
+      },
+      style: OutlinedButton.styleFrom(
+        backgroundColor: selected ? Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.08) : null,
+        foregroundColor: Theme.of(context).colorScheme.onSurface,
+      ),
+      child: Text(label),
+    );
+  }
+}
+
 // ── Attachment Button with popup menu ─────────────────────────────────────
 class _AttachmentButton extends StatefulWidget {
   final ValueChanged<String> onSelected;
@@ -1669,6 +1899,10 @@ class _AttachmentButtonState extends State<_AttachmentButton>
   static const _items = [
     _MenuItem(
         icon: Icons.poll_rounded, label: 'Poll', color: Color(0xFF7C6FF7)),
+    _MenuItem(
+        icon: Icons.gif_box_rounded, label: 'GIFs', color: Color(0xFF0EA5E9)),
+    _MenuItem(
+        icon: Icons.sticky_note_2_outlined, label: 'Stickers', color: Color(0xFFEC4899)),
     _MenuItem(
         icon: Icons.photo_library_rounded,
         label: 'Media',
