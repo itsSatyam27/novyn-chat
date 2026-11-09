@@ -70,6 +70,7 @@ class NovynUser {
 class AuthService extends ChangeNotifier {
   final Future<void> Function(String)? savePresence;
   final Future<void> Function(String, String)? savePassword;
+  final Future<void> Function(String)? clearNotificationsToken;
   bool _updatingPresence = false;
   bool get updatingPresence => _updatingPresence;
   late final FirebaseAuth _firebaseAuth = FirebaseAuth.instance;
@@ -87,6 +88,7 @@ class AuthService extends ChangeNotifier {
   AuthService(
       {this.savePresence,
       this.savePassword,
+      this.clearNotificationsToken,
       Future<Map<String, dynamic>?> Function()? restoreSession}) {
     _restoreSession(restoreSession ?? ApiService.getSession);
   }
@@ -243,6 +245,11 @@ class AuthService extends ChangeNotifier {
 
   // ── Logout ────────────────────────────────────────────────────────────────
   Future<void> logout() async {
+    final username = _user?.username;
+    if (username != null && clearNotificationsToken != null) {
+      await clearNotificationsToken!(username);
+    }
+
     // Sign out from Firebase (Google SSO cleanup)
     try {
       await _googleSignIn.signOut();
