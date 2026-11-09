@@ -307,7 +307,7 @@ class _SplashScreenV2State extends State<SplashScreenV2>
               },
               child: Text(
                 'Novyn',
-                style: GoogleFonts.syne(
+                style: GoogleFonts.inter(
                   fontSize: 56,
                   fontWeight: FontWeight.w800,
                   letterSpacing: -1.5,
@@ -329,7 +329,7 @@ class _SplashScreenV2State extends State<SplashScreenV2>
           opacity: _taglineFade.value,
           child: Text(
             'Connect. Chat. Vibe.',
-            style: GoogleFonts.syne(
+            style: GoogleFonts.inter(
               fontSize: 14,
               fontWeight: FontWeight.w600,
               letterSpacing: 0.5,
@@ -439,7 +439,7 @@ class _AnimatedLoadingBarState extends State<_AnimatedLoadingBar> {
             // Message
             Text(
               _messages[msgIndex],
-              style: GoogleFonts.syne(
+              style: GoogleFonts.inter(
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
                 letterSpacing: 0.5,
@@ -494,7 +494,7 @@ class _AnimatedLoadingBarState extends State<_AnimatedLoadingBar> {
             // Percentage
             Text(
               '${(fill * 100).round()}%',
-              style: GoogleFonts.syne(
+              style: GoogleFonts.inter(
                 fontSize: 10,
                 fontWeight: FontWeight.w600,
                 letterSpacing: 0.5,
