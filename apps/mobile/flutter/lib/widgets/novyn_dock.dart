@@ -18,7 +18,7 @@ class NovynDock extends StatelessWidget {
 
   static const _labels = ['Messages', 'Calls', 'Discover', 'Contacts', 'Settings'];
   static const _icons = [
-    LucideIcons.messageCircle,
+    LucideIcons.messageSquare,
     LucideIcons.phone,
     LucideIcons.compass,
     LucideIcons.users,
