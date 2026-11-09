@@ -79,6 +79,7 @@ class NovynApp extends StatelessWidget {
           final auth = AuthService(
             savePresence: socket.updatePresence,
             savePassword: socket.changePassword,
+            clearNotificationsToken: NotificationService.clearToken,
           );
           socket.onProfileData = auth.applyProfileUpdate;
           // Respect both the user's global notification switch and Busy presence.
