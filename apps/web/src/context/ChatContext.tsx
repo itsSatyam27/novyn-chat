@@ -974,9 +974,26 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const confirmedIds = new Set(historyList.map((message: any) => message.clientTempId).filter(Boolean));
         for (const id of confirmedIds) pendingSendsRef.current.delete(String(id));
         const existing = messagesCacheRef.current[targetKey] || [];
+        const existingById = new Map(existing.map((message) => [message.id, message]));
+        // History sync returns ciphertext again. Keep the already-decrypted local
+        // text for the same encrypted payload so reopening a chat never flashes
+        // the temporary "Encrypted message" placeholder over visible content.
+        const reconciledList = formattedList.map((incoming) => {
+          const cached = existingById.get(incoming.id);
+          const sameEncryptedPayload = Boolean(
+            cached?.isEncrypted &&
+            incoming.isEncrypted &&
+            cached.ciphertext === incoming.ciphertext &&
+            cached.iv === incoming.iv
+          );
+          return sameEncryptedPayload &&
+            cached!.text !== ENCRYPTED_MESSAGE_PLACEHOLDER
+            ? { ...incoming, text: cached!.text }
+            : incoming;
+        });
         const pendingMessages = existing.filter((message) => pendingSendsRef.current.has(message.id));
         const isOlderPage = Boolean(data?.before);
-        const merged = isOlderPage ? [...formattedList, ...existing] : formattedList;
+        const merged = isOlderPage ? [...reconciledList, ...existing] : reconciledList;
         const unique = new Map<string, Message>();
         [...merged, ...pendingMessages].forEach((message) => unique.set(message.id, message));
         const nextMessages = Array.from(unique.values()).sort((a, b) => {
