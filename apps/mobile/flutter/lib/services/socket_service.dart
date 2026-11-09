@@ -232,6 +232,7 @@ class SocketService extends ChangeNotifier {
             replyToSender: m['replyTo']?['from']?.toString(),
             edited: m['edited'] == true,
             attachment: m['attachment'] is Map ? Map<String, dynamic>.from(m['attachment']) : null,
+            poll: m['poll'] is Map ? Map<String, dynamic>.from(m['poll']) : null,
           );
         }).toList();
 
@@ -292,6 +293,7 @@ class SocketService extends ChangeNotifier {
         replyToText: data['replyTo']?['text']?.toString(),
         replyToSender: data['replyTo']?['from']?.toString(),
         attachment: data['attachment'] is Map ? Map<String, dynamic>.from(data['attachment']) : null,
+        poll: data['poll'] is Map ? Map<String, dynamic>.from(data['poll']) : null,
       );
 
       final account = _myUsername;
