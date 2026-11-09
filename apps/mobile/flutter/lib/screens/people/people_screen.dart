@@ -6,6 +6,7 @@ import '../../models/user_model.dart';
 import '../../widgets/novyn_shimmer.dart';
 import '../../widgets/novyn_empty_state.dart';
 import '../../widgets/user_avatar.dart';
+import '../../widgets/novyn_ui.dart';
 import '../chats/chat_detail_screen.dart';
 import 'discover_people_screen.dart';
 import 'create_group_screen.dart';
@@ -38,57 +39,27 @@ class _PeopleScreenState extends State<PeopleScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(24, 20, 16, 4),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Contacts',
-                      style: TextStyle(
-                        fontFamily: 'Inter',
-                        fontSize: 28,
-                        fontWeight: FontWeight.bold,
-                        color: Theme.of(context).colorScheme.onSurface,
+            NovynHeader(
+              title: 'Contacts',
+              subtitle: 'Your people, all in one place',
+              actions: [
+                NovynIconButton(
+                  icon: Icons.group_add_rounded,
+                  primary: true,
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => CreateGroupScreen(myUid: myUid),
                       ),
-                    ),
-                  ),
-                  // Create Group Button
-                  _HeaderAction(
-                    icon: Icons.group_add_rounded,
-                    isActive: true,
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => CreateGroupScreen(myUid: myUid),
-                        ),
-                      );
-                    },
-                  ),
-                  const SizedBox(width: 8),
-                ],
-              ),
+                    );
+                  },
+                ),
+              ],
             ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
-                  borderRadius: BorderRadius.circular(18),
-                ),
-                child: TextField(
-                  onChanged: (v) => setState(() => _search = v.toLowerCase()),
-                  decoration: InputDecoration(
-                    icon: Icon(Icons.search_rounded, color: Theme.of(context).colorScheme.outline, size: 20),
-                    hintText: 'Search friends...',
-                    hintStyle: TextStyle(fontFamily: 'Inter', color: Theme.of(context).colorScheme.outline, fontSize: 15),
-                    border: InputBorder.none,
-                    isDense: true,
-                  ),
-                ),
-              ),
+            NovynSearchField(
+              hint: 'Search friends...',
+              onChanged: (value) => setState(() => _search = value.trim().toLowerCase()),
             ),
             Expanded(
               child: StreamBuilder<List<UserModel>>(
@@ -103,7 +74,7 @@ class _PeopleScreenState extends State<PeopleScreen> {
                       itemBuilder: (_, __) => NovynShimmer.friendCard(),
                     );
                   }
-                  final all = snap.data ?? [];
+                  final all = List<UserModel>.from(snap.data ?? []);
                   // Sort alphabetically
                   all.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
                   
@@ -119,7 +90,7 @@ class _PeopleScreenState extends State<PeopleScreen> {
                     children: [
                       ListView.builder(
                         controller: _scrollController,
-                        padding: const EdgeInsets.fromLTRB(16, 8, 40, 24),
+                        padding: const EdgeInsets.fromLTRB(16, 12, 34, 100),
                         itemCount: filtered.length,
                         itemBuilder: (context, i) {
                           final user = filtered[i];
@@ -146,7 +117,7 @@ class _PeopleScreenState extends State<PeopleScreen> {
                                         fontFamily: 'Inter',
                                         fontSize: 9,
                                         fontWeight: FontWeight.bold,
-                                        color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.6),
+                                        color: NovynColors.violetSoft,
                                       ),
                                     ),
                                   ),
@@ -227,17 +198,11 @@ class _FriendCard extends StatelessWidget {
       onTap: () => _openChat(context),
       child: Container(
         margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(13),
         decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surface,
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-              color: Theme.of(context).colorScheme.shadow.withValues(alpha: 0.03),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
+          color: NovynColors.card,
+          borderRadius: BorderRadius.circular(19),
+          border: Border.all(color: NovynColors.glassBorder),
         ),
         child: Row(
           children: [
@@ -249,43 +214,56 @@ class _FriendCard extends StatelessWidget {
               isOnline: user.isOnline,
               presence: user.status,
             ),
-            const SizedBox(width: 14),
+            const SizedBox(width: 13),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     user.name,
-                    style: TextStyle(
-                      fontFamily: 'Inter',
-                      fontWeight: FontWeight.w600,
-                      fontSize: 16,
-                      color: Theme.of(context).colorScheme.onSurface,
-                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: NovynText.body(15, weight: FontWeight.w700),
                   ),
+                  const SizedBox(height: 3),
                   Text(
                     '@${user.username}',
-                    style: const TextStyle(
-                      fontFamily: 'Inter',
-                      fontSize: 13,
-                      color: Color(0xFF94A3B8),
-                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: NovynText.body(12, color: NovynColors.textMuted),
+                  ),
+                  const SizedBox(height: 5),
+                  Row(
+                    children: [
+                      Container(
+                        width: 6,
+                        height: 6,
+                        decoration: BoxDecoration(
+                          color: user.isOnline ? NovynColors.mint : NovynColors.offline,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        user.isOnline ? 'Online' : 'Offline',
+                        style: NovynText.body(
+                          11,
+                          weight: FontWeight.w600,
+                          color: user.isOnline ? NovynColors.mint : NovynColors.timeMuted,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
             ),
-            // Action (Message button)
-            GestureDetector(
+            const SizedBox(width: 8),
+            NovynIconButton(
+              icon: Icons.chat_bubble_outline_rounded,
+              size: 38,
+              radius: 12,
+              iconSize: 17,
               onTap: () => _openChat(context),
-              child: Container(
-                width: 38,
-                height: 38,
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.3),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(Icons.chat_bubble_outline_rounded, size: 18, color: Theme.of(context).colorScheme.primary),
-              ),
             ),
           ],
         ),
