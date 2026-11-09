@@ -298,8 +298,7 @@ class NovynIconButton extends StatelessWidget {
         height: size,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(radius),
-          gradient: primary ? NovynGradients.primary : null,
-          color: primary ? null : NovynColors.glass,
+          color: primary ? Colors.white : NovynColors.glass,
           border: primary ? null : Border.all(color: NovynColors.glassBorder),
           boxShadow: primary
               ? const [
