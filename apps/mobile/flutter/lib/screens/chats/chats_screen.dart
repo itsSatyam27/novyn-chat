@@ -38,7 +38,7 @@ class _ChatsScreenState extends State<ChatsScreen> {
   String _search = '';
   ChatFilter _activeFilter = ChatFilter.all;
   final FocusNode _searchFocusNode = FocusNode();
-  bool _isSearching = false;
+  bool _isSearching = true;
 
   // Static cache moved to ChatsScreen widget class
 
@@ -292,7 +292,7 @@ class _ChatsScreenState extends State<ChatsScreen> {
                       Text(
                         'Messages',
                         style: TextStyle(
-                          fontFamily: 'Inter',
+                          fontFamily: 'Syne',
                           fontSize: 28,
                           fontWeight: FontWeight.bold,
                           color: Theme.of(context).colorScheme.onSurface,
