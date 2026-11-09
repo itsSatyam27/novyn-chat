@@ -90,13 +90,14 @@ class MessageAdapter extends TypeAdapter<Message> {
       isEncrypted: fields[12] as bool? ?? false,
       ciphertext: fields[13] as String?,
       iv: fields[14] as String?,
+      attachment: (fields[15] as Map?)?.cast<String, dynamic>(),
     );
   }
 
   @override
   void write(BinaryWriter writer, Message obj) {
     writer
-      ..writeByte(15)
+      ..writeByte(16)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -126,7 +127,9 @@ class MessageAdapter extends TypeAdapter<Message> {
       ..writeByte(13)
       ..write(obj.ciphertext)
       ..writeByte(14)
-      ..write(obj.iv);
+      ..write(obj.iv)
+      ..writeByte(15)
+      ..write(obj.attachment);
   }
 
   @override
