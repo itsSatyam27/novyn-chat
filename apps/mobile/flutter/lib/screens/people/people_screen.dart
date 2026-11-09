@@ -44,10 +44,10 @@ class _PeopleScreenState extends State<PeopleScreen> {
                 children: [
                   Expanded(
                     child: Text(
-                      'People',
+                      'Contacts',
                       style: TextStyle(
-                        fontFamily: 'Inter',
-                        fontSize: 32,
+                        fontFamily: 'Syne',
+                        fontSize: 28,
                         fontWeight: FontWeight.bold,
                         color: Theme.of(context).colorScheme.onSurface,
                       ),
