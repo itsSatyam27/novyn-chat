@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class NovynTheme {
-  static const Color _primary   = Color(0xFF7C6FF7);
-  static const Color _secondary = Color(0xFFEC4899);
+  static const Color _primary   = Color(0xFFA173FF);
+  static const Color _secondary = Color(0xFFFF5CC8);
 
   // ── Pastel color palette for splash & auth screens ────────────────────────
   static const Color pastelPurple    = Color(0xFFB8A6F3);  // Soft purple
@@ -35,7 +35,7 @@ class NovynTheme {
         surface:                Colors.white,
         surfaceContainerHighest:Color(0xFFEAECF5),
         onSurface:              Color(0xFF1A1D2E),
-        onSurfaceVariant:       Color(0xFF94A3B8),
+        onSurfaceVariant:       Color(0xFF9A94B8),
         outline:                Color(0xFFE2E5F0),
       ),
       // Cards
@@ -66,7 +66,7 @@ class NovynTheme {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: _primary, width: 2),
+          borderSide: const BorderSide(color: _primary, width: 1.5),
         ),
       ),
       // Divider
@@ -84,30 +84,30 @@ class NovynTheme {
       colorScheme: const ColorScheme.dark(
         primary:                _primary,
         secondary:              _secondary,
-        surface:                Color(0xFF0C0C14),
-        surfaceContainerHighest:Color(0xFF1A1A28),
-        onSurface:              Color(0xFFF8FAFC),
+        surface:                Color(0xFF14121F),
+        surfaceContainerHighest:Color(0xFF1E1B30),
+        onSurface:              Color(0xFFF2F0FA),
         onSurfaceVariant:       Color(0xFF94A3B8),
-        outline:                Color(0xFF1A1A28),
+        outline:                Color(0xFF8E8AA8),
       ),
-      cardColor: const Color(0xFF1A1D2B),
+      cardColor: const Color(0xFF14121F),
       cardTheme: CardThemeData(
-        color: const Color(0xFF1A1D2B),
+        color: const Color(0xFF14121F),
         elevation: 0,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       ),
       appBarTheme: const AppBarTheme(
-        backgroundColor: Color(0xFF0C0C14),
-        foregroundColor: Color(0xFFF8FAFC),
+        backgroundColor: Color(0xFF0E0B20),
+        foregroundColor: Color(0xFFF2F0FA),
         elevation: 0,
         surfaceTintColor: Colors.transparent,
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: const Color(0xFF2D3142),
+        fillColor: const Color(0xFF0B0A14),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: Color(0xFF2D3142)),
+          borderSide: const BorderSide(color: Color(0x1AFFFFFF)),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
@@ -119,7 +119,7 @@ class NovynTheme {
         ),
         hintStyle: const TextStyle(color: Color(0xFF64748B)),
       ),
-      dividerColor: const Color(0xFF2D3142),
+      dividerColor: const Color(0x1AFFFFFF),
       textTheme: _textTheme,
       useMaterial3: true,
     );
@@ -129,28 +129,28 @@ class NovynTheme {
   /// Card / tile background
   static Color cardBg(BuildContext context) {
     return Theme.of(context).brightness == Brightness.dark
-        ? const Color(0xFF1E2235)
+        ? const Color(0xFF14121F)
         : Colors.white;
   }
 
   /// Page / section background
   static Color pageBg(BuildContext context) {
     return Theme.of(context).brightness == Brightness.dark
-        ? const Color(0xFF0C0C14)
+        ? const Color(0xFF0A0818)
         : const Color(0xFFF0F2FA);
   }
 
   /// Input field background
   static Color inputBg(BuildContext context) {
     return Theme.of(context).brightness == Brightness.dark
-        ? const Color(0xFF252840)
+        ? const Color(0xFF0B0A14)
         : const Color(0xFFF0F2FA);
   }
 
   /// Primary text
   static Color textPrimary(BuildContext context) {
     return Theme.of(context).brightness == Brightness.dark
-        ? const Color(0xFFF8FAFC)
+        ? const Color(0xFFF2F0FA)
         : const Color(0xFF1A1D2E);
   }
 
