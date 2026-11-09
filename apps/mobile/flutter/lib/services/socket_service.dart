@@ -1,5 +1,6 @@
 import 'package:socket_io_client/socket_io_client.dart' as io;
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'dart:async';
 import '../models/chat_models.dart';
@@ -332,8 +333,11 @@ class SocketService extends ChangeNotifier {
           }
         }
       } else if (!isOwn && !(notificationsMuted?.call() ?? false)) {
-        // Message for a different chat — play notification sound
+        // Message for a different chat — play notification sound and haptic.
         _audioPlayer.play(AssetSource('audio/notification.mp3'));
+        if (notificationsVibrate?.call() ?? false) {
+          unawaited(HapticFeedback.vibrate());
+        }
       }
 
       // Update conversations list preview
@@ -1068,6 +1072,7 @@ class SocketService extends ChangeNotifier {
   // ── Callback registrations ────────────────────────────────────────────────
   VoidCallback? onProfileUpdated;
   bool Function()? notificationsMuted;
+  bool Function()? notificationsVibrate;
   void Function(Map<String, dynamic>)? onProfileData;
   bool _changingPassword = false;
 
