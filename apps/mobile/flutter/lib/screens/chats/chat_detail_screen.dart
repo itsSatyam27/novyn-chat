@@ -778,8 +778,10 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         if (picked == null) return;
         bytes = await picked.readAsBytes();
         filename = picked.name;
-        final lower = filename.toLowerCase();
-        mime = lower.endsWith('.mp4') || lower.endsWith('.mov') ? 'video/mp4' : 'image/jpeg';
+        mime = _mimeForFile(filename);
+        if (mime == 'application/octet-stream') {
+          mime = 'image/jpeg';
+        }
       } else {
         final result = await FilePicker.platform.pickFiles(withData: true);
         if (result == null || result.files.isEmpty) return;
@@ -1104,12 +1106,21 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     if (name.endsWith('.doc')) return 'application/msword';
     if (name.endsWith('.docx')) return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
     if (name.endsWith('.txt')) return 'text/plain';
+    if (name.endsWith('.csv')) return 'text/csv';
+    if (name.endsWith('.zip')) return 'application/zip';
+    if (name.endsWith('.rar')) return 'application/vnd.rar';
     if (name.endsWith('.mp3')) return 'audio/mpeg';
     if (name.endsWith('.m4a')) return 'audio/mp4';
     if (name.endsWith('.wav')) return 'audio/wav';
+    if (name.endsWith('.ogg')) return 'audio/ogg';
+    if (name.endsWith('.aac')) return 'audio/aac';
     if (name.endsWith('.mp4')) return 'video/mp4';
+    if (name.endsWith('.mov')) return 'video/quicktime';
+    if (name.endsWith('.webm')) return 'video/webm';
+    if (name.endsWith('.gif')) return 'image/gif';
     if (name.endsWith('.png')) return 'image/png';
     if (name.endsWith('.webp')) return 'image/webp';
+    if (name.endsWith('.bmp')) return 'image/bmp';
     if (name.endsWith('.jpg') || name.endsWith('.jpeg')) return 'image/jpeg';
     return 'application/octet-stream';
   }
