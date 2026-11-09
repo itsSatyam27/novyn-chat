@@ -16,166 +16,137 @@ class NovynDock extends StatelessWidget {
     this.requestCount = 0,
   });
 
-  static const _labels = ['Chats', 'Calls', 'Discover', 'People', 'Settings'];
+  static const _labels = ['Messages', 'Calls', 'Discover', 'Contacts', 'Settings'];
   static const _icons = [
-    LucideIcons.messageSquare,
+    LucideIcons.messageCircle,
     LucideIcons.phone,
     LucideIcons.compass,
     LucideIcons.users,
-    LucideIcons.settings
+    LucideIcons.settings,
   ];
 
   @override
   Widget build(BuildContext context) {
-    final dark = Theme.of(context).brightness == Brightness.dark;
     final reduceMotion = MediaQuery.disableAnimationsOf(context);
-    final duration = Duration(milliseconds: reduceMotion ? 0 : 240);
+    final duration = Duration(milliseconds: reduceMotion ? 0 : 220);
+    final dark = Theme.of(context).brightness == Brightness.dark;
     return SafeArea(
       top: false,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-        child: Center(
-          child: RepaintBoundary(
-            child: Container(
-              width: 304,
-              height: 70,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(999),
-                boxShadow: [
-                  BoxShadow(
-                    color: dark
-                        ? const Color(0x40000000)
-                        : const Color(0x184B5E85),
-                    blurRadius: 20,
-                    offset: const Offset(0, 8),
-                  )
-                ],
+        padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
+        child: Container(
+          height: 64,
+          decoration: BoxDecoration(
+            color: dark ? const Color(0xEB18142C) : const Color(0xF2FFFFFF),
+            borderRadius: BorderRadius.circular(32),
+            border: Border.all(
+              color: dark ? const Color(0x24FFFFFF) : const Color(0xFFE8E4F4),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: dark ? .34 : .12),
+                blurRadius: 28,
+                offset: const Offset(0, 12),
               ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(999),
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: dark
-                          ? const Color(0xF011111B)
-                          : const Color(0xE6FFFFFF),
-                      borderRadius: BorderRadius.circular(999),
-                      border: Border.all(
-                          color: dark ? const Color(0x2BC9C1FF) : Colors.white),
-                    ),
-                    child: Center(
-                      child: FittedBox(
-                        fit: BoxFit.scaleDown,
-                        child: SizedBox(
-                          width: 285,
-                          height: 54,
-                          child: Stack(
-                            children: [
-                              Positioned(
-                                left: 1.5,
-                                top: 0,
-                                child: AnimatedSlide(
-                                  key: const ValueKey('dock-highlight'),
-                                  offset: Offset(selectedIndex * 57 / 54, 0),
-                                  duration: duration,
-                                  curve: Curves.easeOutCubic,
-                                  child: const RepaintBoundary(
-                                    child: SizedBox(
-                                      width: 54,
-                                      height: 54,
-                                      child: DecoratedBox(
-                                          decoration: BoxDecoration(
-                                        color: Color(0xFF6D5DFC),
-                                        borderRadius: BorderRadius.all(
-                                            Radius.circular(999)),
-                                      )),
-                                    ),
-                                  ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(32),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+              child: Row(
+                children: List.generate(_icons.length, (index) {
+                  final active = index == selectedIndex;
+                  final label = _labels[index];
+                  final width = active ? 118.0 : null;
+                  return Expanded(
+                    flex: active ? 2 : 1,
+                    child: Semantics(
+                      label: label,
+                      button: true,
+                      selected: active,
+                      child: GestureDetector(
+                        key: ValueKey('dock-tab-$index'),
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () => onSelected(index),
+                        child: Center(
+                          child: AnimatedContainer(
+                            duration: duration,
+                            curve: Curves.easeOutCubic,
+                            width: width,
+                            height: 46,
+                            padding: EdgeInsets.symmetric(
+                              horizontal: active ? 14 : 0,
+                            ),
+                            decoration: BoxDecoration(
+                              gradient: active
+                                  ? const LinearGradient(
+                                      colors: [
+                                        Color(0xFFA173FF),
+                                        Color(0xFF7A3EF0),
+                                      ],
+                                    )
+                                  : null,
+                              borderRadius: BorderRadius.circular(24),
+                              boxShadow: active
+                                  ? [
+                                      BoxShadow(
+                                        color: const Color(0xFF8F5BFF)
+                                            .withValues(alpha: .32),
+                                        blurRadius: 16,
+                                        offset: const Offset(0, 6),
+                                      ),
+                                    ]
+                                  : null,
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  _icons[index],
+                                  size: 20,
+                                  color: active
+                                      ? Colors.white
+                                      : (dark
+                                          ? const Color(0xFFB9B2D6)
+                                          : const Color(0xFF77718E)),
                                 ),
-                              ),
-                              Row(
-                                  children:
-                                      List.generate(_icons.length, (index) {
-                                final active = index == selectedIndex;
-                                return Semantics(
-                                  label: _labels[index],
-                                  button: true,
-                                  selected: active,
-                                  child: GestureDetector(
-                                    key: ValueKey('dock-tab-$index'),
-                                    behavior: HitTestBehavior.opaque,
-                                    onTap: () => onSelected(index),
-                                    child: SizedBox(
-                                      width: 57,
-                                      height: 54,
-                                      child: Stack(children: [
-                                        Center(
-                                            child: AnimatedScale(
-                                          scale: active ? 1.05 : 1,
-                                          duration: duration,
-                                          curve: Curves.easeOutCubic,
-                                          child: Icon(_icons[index],
-                                              size: 22,
-                                              color: active
-                                                  ? Colors.white
-                                                  : dark
-                                                      ? const Color(0xFFEDF8F3)
-                                                      : const Color(
-                                                          0xFF587985)),
-                                        )),
-                                        if (index == 0 && unreadCount > 0)
-                                          Positioned(
-                                              top: 1,
-                                              right: 1,
-                                              child: Container(
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                        horizontal: 4),
-                                                constraints:
-                                                    const BoxConstraints(
-                                                        minWidth: 16,
-                                                        minHeight: 16),
-                                                decoration: BoxDecoration(
-                                                  color:
-                                                      const Color(0xFFD94762),
-                                                  borderRadius:
-                                                      BorderRadius.circular(99),
-                                                ),
-                                                child: Text(
-                                                    unreadCount > 99
-                                                        ? '99+'
-                                                        : '$unreadCount',
-                                                    textAlign: TextAlign.center,
-                                                    style: const TextStyle(
-                                                        color: Colors.white,
-                                                        fontSize: 10)),
-                                              )),
-                                        if (index == 3 && requestCount > 0)
-                                          const Positioned(
-                                              top: 3,
-                                              right: 5,
-                                              child: SizedBox(
-                                                  width: 8,
-                                                  height: 8,
-                                                  child: DecoratedBox(
-                                                      decoration: BoxDecoration(
-                                                          color:
-                                                              Color(0xFFD94762),
-                                                          shape: BoxShape
-                                                              .circle)))),
-                                      ]),
+                                if (active) ...[
+                                  const SizedBox(width: 7),
+                                  Flexible(
+                                    child: Text(
+                                      label,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w700,
+                                      ),
                                     ),
                                   ),
-                                );
-                              })),
-                            ],
+                                ],
+                                if (index == 0 && unreadCount > 0 && !active)
+                                  _dotBadge(unreadCount > 99 ? '99+' : '$unreadCount'),
+                                if (index == 3 && requestCount > 0 && !active)
+                                  Container(
+                                    width: 7,
+                                    height: 7,
+                                    margin: const EdgeInsets.only(left: 3, bottom: 12),
+                                    decoration: const BoxDecoration(
+                                      color: Color(0xFFFF5C85),
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
+                              ],
+                            ),
                           ),
                         ),
                       ),
                     ),
-                  ),
-                ),
+                  );
+                }),
               ),
             ),
           ),
@@ -183,4 +154,21 @@ class NovynDock extends StatelessWidget {
       ),
     );
   }
+
+  Widget _dotBadge(String value) => Container(
+        margin: const EdgeInsets.only(left: 3, bottom: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+        decoration: BoxDecoration(
+          color: const Color(0xFFE34D73),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Text(
+          value,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 9,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      );
 }
