@@ -206,6 +206,11 @@ class SettingsService extends ChangeNotifier {
     }
     if (legacyAppPin != null) await _prefs.remove(_kAppLockPin);
     _isLocked = _appLockEnabled && _appLockPin != null; // Initial state
+    if (_appLockEnabled && _appLockPin == null) {
+      // Never leave an enabled lock without a credential that can unlock it.
+      _appLockEnabled = false;
+      await _prefs.setBool(_kAppLockEnabled, false);
+    }
     _stealthModeEnabled = _prefs.getBool(_kStealthMode) ?? false;
     _panicPin = await _secureStorage.read(key: _securePanicPin);
     final legacyPanicPin = _prefs.getString(_kPanicPin);
@@ -478,6 +483,9 @@ class SettingsService extends ChangeNotifier {
   }
 
   Future<void> setAppLockEnabled(bool v) async {
+    if (v && _appLockPin == null) {
+      throw StateError('Set an app lock PIN before enabling App Lock.');
+    }
     _appLockEnabled = v;
     await _prefs.setBool(_kAppLockEnabled, v);
     notifyListeners();
