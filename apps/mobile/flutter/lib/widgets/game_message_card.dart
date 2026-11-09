@@ -143,7 +143,6 @@ class _GameMessageCardState extends State<GameMessageCard> {
   Widget _connect4() {
     final board = _data['board'] is List ? List<dynamic>.from(_data['board']) : List<dynamic>.filled(42, null);
     final player1 = _data['player1']?.toString() ?? _creator;
-    final player2 = _data['player2']?.toString() ?? _opponent;
     final chip = widget.currentUsername.toLowerCase() == player1.toLowerCase() ? 'R' : 'Y';
     return Column(
       children: [
@@ -200,9 +199,9 @@ class _GameMessageCardState extends State<GameMessageCard> {
       return Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          Text('${choices[p1Move] ?? '…'}', style: const TextStyle(fontSize: 28)),
+          Text(choices[p1Move] ?? '…', style: const TextStyle(fontSize: 28)),
           const Text('VS', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800)),
-          Text('${choices[p2Move] ?? '…'}', style: const TextStyle(fontSize: 28)),
+          Text(choices[p2Move] ?? '…', style: const TextStyle(fontSize: 28)),
         ],
       );
     }
