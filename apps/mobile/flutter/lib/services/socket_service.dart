@@ -1141,7 +1141,7 @@ class SocketService extends ChangeNotifier {
       return {'ok': false, 'message': 'Device is offline.'};
     }
     final completer = Completer<Map<String, dynamic>>();
-    _socket!.emitWithAck('clear_fcm_token', ack: (dynamic result) {
+    _socket!.emitWithAck('clear_fcm_token', {}, ack: (dynamic result) {
       completer.complete(result is Map
           ? Map<String, dynamic>.from(result)
           : {'ok': false, 'message': 'The server did not confirm device removal.'});
