@@ -6,6 +6,8 @@ import 'package:provider/provider.dart';
 import 'auth_service.dart';
 import 'settings_service.dart';
 import 'socket_service.dart';
+import 'friend_service.dart';
+import '../screens/chats/chat_detail_screen.dart';
 
 // Top-level handler — must be a top-level function
 @pragma('vm:entry-point')
@@ -122,13 +124,13 @@ class NotificationService {
 
     // 4. App opened from background notification tap
     FirebaseMessaging.onMessageOpenedApp.listen((message) {
-      if (context.mounted) _handleNotificationTap(message, context);
+      if (context.mounted) unawaited(_handleNotificationTap(message, context));
     });
 
     // 5. App opened from terminated state
     final initial = await _fcm.getInitialMessage();
     if (initial != null && context.mounted) {
-      _handleNotificationTap(initial, context);
+      unawaited(_handleNotificationTap(initial, context));
     }
   }
 
@@ -174,18 +176,27 @@ class NotificationService {
   }
 
   // ── Handle notification tap ───────────────────────────────────────────────
-  static void _handleNotificationTap(
-      RemoteMessage message, BuildContext context) {
+  static Future<void> _handleNotificationTap(
+      RemoteMessage message, BuildContext context) async {
     final type = message.data['type'];
 
     if (type == 'call') {
-      // When user taps the call notification from terminated/background state
-      // The app opens and Socket.IO reconnects — call screen shown via socket event
-      // For a better UX you could navigate directly here using the callerId from data
+      // Socket.IO reconnects after launch; the call invite handler owns call routing.
+      return;
     }
 
-    if (type == 'message') {
-      // Could navigate to the specific chat here
+    if (type != 'message' || message.data['kind'] == 'group') return;
+    final username = message.data['chat']?.toString().trim() ?? '';
+    if (username.isEmpty || !context.mounted) return;
+
+    try {
+      final peer = await context.read<FriendService>().getUser(username);
+      if (peer == null || !context.mounted) return;
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => ChatDetailScreen(peer: peer)),
+      );
+    } catch (_) {
+      // A failed profile lookup should not interrupt app startup.
     }
   }
 
