@@ -54,17 +54,8 @@ class _SetupPinScreenState extends State<SetupPinScreen> {
     });
   }
 
-  void _verifyAndSave() {
-    if (_pin == _confirmPin) {
-      HapticFeedback.mediumImpact();
-      final settings = context.read<SettingsService>();
-      if (widget.isPanic) {
-        settings.setPanicPin(_pin);
-      } else {
-        settings.setAppLockPin(_pin);
-      }
-      Navigator.pop(context, true);
-    } else {
+  Future<void> _verifyAndSave() async {
+    if (_pin != _confirmPin) {
       HapticFeedback.vibrate();
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -77,9 +68,46 @@ class _SetupPinScreenState extends State<SetupPinScreen> {
         _confirmPin = '';
         _isConfirming = false;
       });
+      return;
+    }
+
+    final settings = context.read<SettingsService>();
+    if (widget.isPanic && _pin == settings.appLockPin) {
+      HapticFeedback.vibrate();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Panic PIN must be different from your app lock PIN.'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+      setState(() {
+        _pin = '';
+        _confirmPin = '';
+        _isConfirming = false;
+      });
+      return;
+    }
+
+    HapticFeedback.mediumImpact();
+    try {
+      if (widget.isPanic) {
+        await settings.setPanicPin(_pin);
+      } else {
+        await settings.setAppLockPin(_pin);
+      }
+      if (mounted) Navigator.pop(context, true);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _pin = '';
+        _confirmPin = '';
+        _isConfirming = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not save PIN securely: $error')),
+      );
     }
   }
-
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
