@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -24,10 +25,18 @@ class NotificationService {
   static void _onSettingsChanged() {
     final enabled = _settings?.notificationsOn ?? false;
     if (_lastAlertsEnabled == false && enabled) {
-      _fcm.requestPermission(alert: true, badge: true, sound: true).catchError((Object _) {});
+      unawaited(_requestPermission());
     }
     _syncPresentation();
-    _syncUserPreferences();
+    unawaited(_syncUserPreferences());
+  }
+
+  static Future<void> _requestPermission() async {
+    try {
+      await _fcm.requestPermission(alert: true, badge: true, sound: true);
+    } catch (_) {
+      // Permission can also be managed from the operating system settings.
+    }
   }
 
   static Future<void> _syncUserPreferences() async {
