@@ -6159,6 +6159,7 @@ io.on("connection", (socket) => {
       messages,
       hasMore,
       nextBefore,
+      before: before || null,
       kind: resolved.type,
       toType: resolved.type,
       to: resolved.targetKey,
