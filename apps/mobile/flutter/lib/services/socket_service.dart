@@ -237,6 +237,7 @@ class SocketService extends ChangeNotifier {
             poll: m['poll'] is Map ? Map<String, dynamic>.from(m['poll']) : null,
             pinnedAt: m['pinnedAt']?.toString(),
             pinnedBy: m['pinnedBy']?.toString(),
+            riddle: m['riddle'] is Map ? Map<String, dynamic>.from(m['riddle']) : null,
           );
         }).toList();
 
@@ -300,6 +301,7 @@ class SocketService extends ChangeNotifier {
         poll: data['poll'] is Map ? Map<String, dynamic>.from(data['poll']) : null,
         pinnedAt: data['pinnedAt']?.toString(),
         pinnedBy: data['pinnedBy']?.toString(),
+        riddle: data['riddle'] is Map ? Map<String, dynamic>.from(data['riddle']) : null,
       );
 
       final account = _myUsername;
@@ -342,6 +344,20 @@ class SocketService extends ChangeNotifier {
             _currentChatWith?.toLowerCase() == chatPartner.toLowerCase(),
       );
 
+      notifyListeners();
+    });
+
+    _socket!.on('riddle_updated', (data) {
+      if (data is! Map) return;
+      final messageId = data['id']?.toString() ?? data['messageId']?.toString() ?? '';
+      final rawRiddle = data['riddle'];
+      if (messageId.isEmpty || rawRiddle is! Map) return;
+      final index = _messages.indexWhere((message) => message.id == messageId);
+      if (index == -1) return;
+      final updated = List<Message>.from(_messages);
+      updated[index] = updated[index].copyWith(riddle: Map<String, dynamic>.from(rawRiddle));
+      _messages = updated;
+      HybridDbService.saveMessage(updated[index]);
       notifyListeners();
     });
 
@@ -696,6 +712,70 @@ class SocketService extends ChangeNotifier {
     };
 
     _socket!.emit('private_message', payload);
+  }
+
+  Future<Map<String, dynamic>> sendRiddle({
+    required String peerUsername,
+    required String secret,
+    required String question,
+    required String answer,
+    String? hint,
+    int maxTries = 3,
+  }) async {
+    _requireConnection();
+    final completer = Completer<Map<String, dynamic>>();
+    _socket!.emitWithAck('riddle_message', {
+      'to': peerUsername,
+      'secret': secret,
+      'question': question,
+      'answer': answer,
+      'hint': hint,
+      'maxTries': maxTries == 5 ? 5 : 3,
+      'clientTempId': 'riddle_${DateTime.now().millisecondsSinceEpoch}',
+    }, ack: (dynamic result) {
+      completer.complete(result is Map
+          ? Map<String, dynamic>.from(result)
+          : {'ok': false, 'message': 'Could not send riddle.'});
+    });
+    return completer.future.timeout(
+      const Duration(seconds: 15),
+      onTimeout: () => {'ok': false, 'message': 'Riddle send timed out.'},
+    );
+  }
+
+  Future<Map<String, dynamic>> unlockRiddle({
+    required String messageId,
+    required String fromUsername,
+    required String answer,
+  }) async {
+    _requireConnection();
+    final completer = Completer<Map<String, dynamic>>();
+    _socket!.emitWithAck('unlock_riddle', {
+      'messageId': messageId,
+      'from': fromUsername,
+      'answer': answer,
+    }, ack: (dynamic result) {
+      completer.complete(result is Map
+          ? Map<String, dynamic>.from(result)
+          : {'ok': false, 'message': 'Could not unlock riddle.'});
+    });
+    final result = await completer.future.timeout(
+      const Duration(seconds: 15),
+      onTimeout: () => {'ok': false, 'message': 'Unlock timed out.'},
+    );
+    if (result['riddle'] is Map) {
+      final index = _messages.indexWhere((message) => message.id == messageId);
+      if (index != -1) {
+        final updated = List<Message>.from(_messages);
+        updated[index] = updated[index].copyWith(
+          riddle: Map<String, dynamic>.from(result['riddle']),
+        );
+        _messages = updated;
+        await HybridDbService.saveMessage(updated[index]);
+        notifyListeners();
+      }
+    }
+    return result;
   }
 
   void setChatWallpaper(String wallpaper, String peerUsername, {bool isGroup = false}) {
