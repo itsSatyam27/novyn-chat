@@ -1,0 +1,54 @@
+name: Set up Novyn Android signing key
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  generate-signing-key:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate signing secrets
+        env:
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          test -n "$KEY_ALIAS" || (echo "Missing ANDROID_KEY_ALIAS" && exit 1)
+          test -n "$KEYSTORE_PASSWORD" || (echo "Missing ANDROID_KEYSTORE_PASSWORD" && exit 1)
+          test -n "$KEY_PASSWORD" || (echo "Missing ANDROID_KEY_PASSWORD" && exit 1)
+
+      - name: Generate keystore and export fingerprints
+        env:
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          keytool -genkeypair -v \
+            -keystore novyn-release.jks \
+            -storetype JKS \
+            -storepass "$KEYSTORE_PASSWORD" \
+            -keypass "$KEY_PASSWORD" \
+            -alias "$KEY_ALIAS" \
+            -keyalg RSA -keysize 2048 -validity 10000 \
+            -dname "CN=Novyn Android, OU=Mobile, O=Novyn, L=Patna, ST=Bihar, C=IN"
+          keytool -list -v \
+            -keystore novyn-release.jks \
+            -storepass "$KEYSTORE_PASSWORD" \
+            -alias "$KEY_ALIAS" > signing-fingerprints.txt
+          base64 -w 0 novyn-release.jks > novyn-keystore-base64.txt
+          chmod 600 novyn-release.jks novyn-keystore-base64.txt
+
+      - name: Upload signing materials (download and store securely)
+        uses: actions/upload-artifact@v4
+        with:
+          name: novyn-signing-setup
+          path: |
+            novyn-release.jks
+            novyn-keystore-base64.txt
+            signing-fingerprints.txt
+          if-no-files-found: error
+          retention-days: 1
