@@ -264,14 +264,17 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         children: [
           const ConnectionBanner(),
           Expanded(
-            child: _loading
-                ? const Center(
-                    child: CircularProgressIndicator(color: Color(0xFF7C6FF7)))
-                : messages.isEmpty
-                    ? _fetchingFromServer
-                        ? _buildLoadingShimmer()
-                        : _buildEmptyChat()
-                    : _buildMessageList(messages),
+            child: Container(
+              decoration: _wallpaperDecoration(socket.chatWallpaper),
+              child: _loading
+                  ? const Center(
+                      child: CircularProgressIndicator(color: Color(0xFF7C6FF7)))
+                  : messages.isEmpty
+                      ? _fetchingFromServer
+                          ? _buildLoadingShimmer()
+                          : _buildEmptyChat()
+                      : _buildMessageList(messages),
+            ),
           ),
           _buildInputBar(socket),
         ],
@@ -345,6 +348,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         IconButton(
           icon: const Icon(Icons.videocam_rounded, color: Color(0xFF7C6FF7)),
           onPressed: () => _startCall('video'),
+        ),
+        IconButton(
+          tooltip: 'Chat wallpaper',
+          icon: const Icon(Icons.wallpaper_rounded, color: Color(0xFF94A3B8)),
+          onPressed: _showWallpaperPicker,
         ),
         IconButton(
           icon:
@@ -1135,6 +1143,96 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     );
   }
 
+  BoxDecoration _wallpaperDecoration(String wallpaper) {
+    final value = wallpaper.trim();
+    if (value.isEmpty) return const BoxDecoration();
+    if (value.startsWith('http://') || value.startsWith('https://')) {
+      return BoxDecoration(image: DecorationImage(image: NetworkImage(value), fit: BoxFit.cover, opacity: 0.13));
+    }
+    if (value.startsWith('#') && value.length == 7) {
+      final color = Color(int.parse('FF' + value.substring(1), radix: 16));
+      return BoxDecoration(color: color);
+    }
+    return const BoxDecoration();
+  }
+
+  Future<void> _showWallpaperPicker() async {
+    const presets = <Map<String, String>>[
+      {'name': 'Default', 'value': ''},
+      {'name': 'Midnight', 'value': '#111827'},
+      {'name': 'Deep slate', 'value': '#0f172a'},
+      {'name': 'Ocean', 'value': '#0b2535'},
+      {'name': 'Warm light', 'value': '#f1f5f9'},
+      {'name': 'Soft grey', 'value': '#e5e7eb'},
+    ];
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => Container(
+        padding: const EdgeInsets.fromLTRB(18, 16, 18, 28),
+        decoration: BoxDecoration(color: Theme.of(context).colorScheme.surface, borderRadius: const BorderRadius.vertical(top: Radius.circular(24))),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Chat wallpaper', style: TextStyle(fontFamily: 'Inter', fontSize: 18, fontWeight: FontWeight.w700)),
+            const SizedBox(height: 14),
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: presets.map((preset) {
+                final value = preset['value']!;
+                final selected = context.read<SocketService>().chatWallpaper == value;
+                final color = value.isEmpty ? Theme.of(context).colorScheme.surface : Color(int.parse('FF' + value.substring(1), radix: 16));
+                return InkWell(
+                  onTap: () {
+                    context.read<SocketService>().setChatWallpaper(value, widget.peer.uid.isNotEmpty ? widget.peer.uid : widget.peer.username);
+                    Navigator.pop(sheetContext);
+                  },
+                  borderRadius: BorderRadius.circular(12),
+                  child: SizedBox(
+                    width: 92,
+                    child: Column(
+                      children: [
+                        Container(width: 76, height: 64, decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(12), border: Border.all(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.18))), child: selected ? const Icon(Icons.check_circle_rounded) : null),
+                        const SizedBox(height: 5),
+                        Text(preset['name']!, style: const TextStyle(fontFamily: 'Inter', fontSize: 11)),
+                      ],
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 14),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () async {
+                  final picked = await _imagePicker.pickImage(source: ImageSource.gallery, imageQuality: 82);
+                  if (picked == null) return;
+                  if (mounted) setState(() => _uploadingAttachment = true);
+                  try {
+                    final bytes = await picked.readAsBytes();
+                    final url = await ApiService.uploadMedia(bytes, picked.name, _mimeForFile(picked.name));
+                    if (url == null) throw StateError('Wallpaper upload failed.');
+                    if (!mounted) return;
+                    context.read<SocketService>().setChatWallpaper(url, widget.peer.uid.isNotEmpty ? widget.peer.uid : widget.peer.username);
+                    Navigator.pop(sheetContext);
+                  } catch (error) {
+                    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error is StateError ? error.message.toString() : 'Could not upload wallpaper.')));
+                  } finally {
+                    if (mounted) setState(() => _uploadingAttachment = false);
+                  }
+                },
+                icon: const Icon(Icons.photo_library_outlined),
+                label: const Text('Choose from gallery'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
   void _showContactInfo() {
     HapticFeedback.lightImpact();
     showModalBottomSheet(
