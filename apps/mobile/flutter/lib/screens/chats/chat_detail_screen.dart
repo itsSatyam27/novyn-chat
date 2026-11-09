@@ -513,6 +513,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
             messagesRead: socket.messagesReadByPeer,
             myUid: _myUid ?? '',
             onReply: (msg) => setState(() => _replyingTo = msg),
+          onForward: _showForwardDialog,
           ),
         );
       },
@@ -787,6 +788,92 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     } finally {
       if (mounted) setState(() => _uploadingAttachment = false);
     }
+  }
+
+  Future<void> _showForwardDialog(dynamic message) async {
+    final socket = context.read<SocketService>();
+    final search = TextEditingController();
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (context, refresh) {
+          final chats = socket.conversations.where((chat) {
+            if (chat.peerUid.toLowerCase() == widget.peer.uid.toLowerCase()) return false;
+            final query = search.text.trim().toLowerCase();
+            return query.isEmpty ||
+                chat.peer.name.toLowerCase().contains(query) ||
+                chat.peer.username.toLowerCase().contains(query);
+          }).toList();
+          return Container(
+            height: MediaQuery.of(context).size.height * 0.68,
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surface,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+            ),
+            child: Column(
+              children: [
+                Container(width: 38, height: 4, decoration: BoxDecoration(color: Colors.grey.withValues(alpha: 0.4), borderRadius: BorderRadius.circular(4))),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    const Expanded(child: Text('Forward message', style: TextStyle(fontFamily: 'Inter', fontSize: 17, fontWeight: FontWeight.w700))),
+                    IconButton(onPressed: () => Navigator.pop(sheetContext), icon: const Icon(Icons.close_rounded)),
+                  ],
+                ),
+                TextField(
+                  controller: search,
+                  onChanged: (_) => refresh(() {}),
+                  decoration: InputDecoration(
+                    hintText: 'Search friends',
+                    prefixIcon: const Icon(Icons.search_rounded),
+                    filled: true,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Expanded(
+                  child: chats.isEmpty
+                      ? const Center(child: Text('No other chats found'))
+                      : ListView.separated(
+                          itemCount: chats.length,
+                          separatorBuilder: (_, __) => const Divider(height: 1),
+                          itemBuilder: (context, index) {
+                            final chat = chats[index];
+                            return ListTile(
+                              leading: UserAvatar(
+                                name: chat.peer.name,
+                                photoUrl: chat.peer.photoUrl,
+                                radius: 22,
+                                isOnline: chat.peer.isOnline,
+                              ),
+                              title: Text(chat.peer.name, style: const TextStyle(fontFamily: 'Inter', fontWeight: FontWeight.w600)),
+                              subtitle: Text('@${chat.peer.username}', style: const TextStyle(fontFamily: 'Inter', fontSize: 12)),
+                              trailing: const Icon(Icons.send_rounded, size: 18),
+                              onTap: () {
+                                socket.forwardMessage(
+                                  message,
+                                  chat.peerUid,
+                                  isGroup: chat.isGroup,
+                                );
+                                Navigator.pop(sheetContext);
+                                ScaffoldMessenger.of(this.context).showSnackBar(
+                                  SnackBar(content: Text('Forwarded to ${chat.peer.name}')),
+                                );
+                              },
+                            );
+                          },
+                        ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+    search.dispose();
   }
 
   Future<void> _showCreatePollDialog() async {
@@ -1077,6 +1164,7 @@ class _MessageBubble extends StatelessWidget {
   final bool messagesRead;
   final String myUid;
   final ValueChanged<dynamic>? onReply;
+  final ValueChanged<dynamic>? onForward;
 
   const _MessageBubble({
     required this.message,
@@ -1085,6 +1173,7 @@ class _MessageBubble extends StatelessWidget {
     this.messagesRead = false,
     this.myUid = '',
     this.onReply,
+    this.onForward,
   });
 
   @override
@@ -1357,6 +1446,16 @@ class _MessageBubble extends StatelessWidget {
                   onTap: () {
                     Navigator.pop(context);
                     onReply?.call(message);
+                  },
+                ),
+                const Divider(height: 1),
+                _ActionItem(
+                  icon: Icons.forward_rounded,
+                  label: 'Forward',
+                  color: const Color(0xFF64748B),
+                  onTap: () {
+                    Navigator.pop(context);
+                    onForward?.call(message);
                   },
                 ),
                 const Divider(height: 1),
