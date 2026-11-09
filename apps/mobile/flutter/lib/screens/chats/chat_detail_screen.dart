@@ -958,7 +958,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       if (!await file.exists()) throw StateError('Voice recording file was not found.');
       final bytes = await file.readAsBytes();
       if (bytes.isEmpty) throw StateError('Voice recording is empty.');
-      final url = await ApiService.uploadMedia(bytes, 'voice_note.m4a', 'audio/mp4');
+      final url = await ApiService.uploadVoice(bytes, 'voice_note.m4a', 'audio/mp4');
       if (url == null || url.isEmpty) throw StateError('Voice note upload failed. Please try again.');
       await context.read<SocketService>().sendMessage(
         '',
