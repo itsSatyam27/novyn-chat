@@ -109,7 +109,7 @@ class NovynDock extends StatelessWidget {
                                       label,
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(
+                                      style: TextStyle(
                                         color: dark ? Colors.black : Colors.white,
                                         fontSize: 12,
                                         fontWeight: FontWeight.w700,
