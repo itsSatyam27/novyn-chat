@@ -164,6 +164,14 @@ class NotificationService {
     await _tokenRefreshSubscription?.cancel();
     _tokenRefreshSubscription = null;
     _lastSyncedPreferences = null;
+    _settings?.removeListener(_onSettingsChanged);
+    _socket?.removeListener(_onSocketChanged);
+    _presenceAuth?.removeListener(_syncPresentation);
+    _settings = null;
+    _socket = null;
+    _presenceAuth = null;
+    _lastAlertsEnabled = null;
+    _lastSoundEnabled = null;
     try {
       await _db.collection('users').doc(uid).update({'fcmToken': ''});
       await _fcm.deleteToken();
