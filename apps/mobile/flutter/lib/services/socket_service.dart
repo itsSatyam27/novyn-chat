@@ -70,6 +70,8 @@ class SocketService extends ChangeNotifier {
   // Messages for the currently open chat (immutable list — replaced on update)
   List<Message> _messages = [];
   String? _currentChatWith; // the username of the other party
+  String _chatWallpaper = '';
+  String get chatWallpaper => _chatWallpaper;
 
   // Typing
   bool _peerIsTyping = false;
@@ -370,6 +372,17 @@ class SocketService extends ChangeNotifier {
       notifyListeners();
     });
 
+    _socket!.on('chat_wallpaper_updated', (data) {
+      if (data is! Map) return;
+      final from = data['from']?.toString().toLowerCase() ?? '';
+      final to = data['to']?.toString().toLowerCase() ?? '';
+      final current = _currentChatWith?.toLowerCase();
+      if (current != null && (current == from || current == to)) {
+        _chatWallpaper = data['wallpaper']?.toString() ?? '';
+        notifyListeners();
+      }
+    });
+
     _socket!.on('poll_updated', (data) {
       if (data is! Map) return;
       final messageId = data['messageId']?.toString() ?? '';
@@ -610,6 +623,7 @@ class SocketService extends ChangeNotifier {
   // ── Open a chat ────────────────────────────────────────────────────────────
   void openChat(String peerUsername, List<Message> cachedHistory) {
     _currentChatWith = peerUsername;
+    _chatWallpaper = '';
     _messages = List<Message>.from(cachedHistory);
     _peerIsTyping = false;
     notifyListeners();
@@ -619,6 +633,7 @@ class SocketService extends ChangeNotifier {
     // Tell the server which chat is active and request latest history
     _socket?.emit('set_active_chat', {'to': peerUsername, 'kind': 'friend'});
     _socket?.emit('get_history', {'to': peerUsername, 'kind': 'friend'});
+    _socket?.emit('get_chat_wallpaper', {'to': peerUsername, 'toType': 'friend'});
   }
 
   void closeChat() {
@@ -681,6 +696,15 @@ class SocketService extends ChangeNotifier {
     };
 
     _socket!.emit('private_message', payload);
+  }
+
+  void setChatWallpaper(String wallpaper, String peerUsername, {bool isGroup = false}) {
+    _requireConnection();
+    _socket!.emit('set_chat_wallpaper', {
+      'to': peerUsername,
+      'toType': isGroup ? 'group' : 'friend',
+      'wallpaper': wallpaper,
+    });
   }
 
   void pinMessage(String messageId, String peerUsername, {bool isGroup = false}) {
