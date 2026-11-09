@@ -292,7 +292,7 @@ class _ChatsScreenState extends State<ChatsScreen> {
                       Text(
                         'Messages',
                         style: TextStyle(
-                          fontFamily: 'Syne',
+                          fontFamily: 'Inter',
                           fontSize: 28,
                           fontWeight: FontWeight.bold,
                           color: Theme.of(context).colorScheme.onSurface,
