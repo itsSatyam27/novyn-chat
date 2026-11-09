@@ -539,6 +539,7 @@ class SecurityPrivacyScreen extends StatelessWidget {
     passwordController.dispose();
 
     if (confirmed == true && context.mounted) {
+      socket.disconnect();
       await auth.logout();
       if (context.mounted) {
         Navigator.of(context).popUntil((route) => route.isFirst);
