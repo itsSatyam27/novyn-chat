@@ -82,7 +82,7 @@ class _VoiceMessagePlayerState extends State<VoiceMessagePlayer> {
         ? _duration
         : Duration(seconds: widget.durationSeconds ?? 0);
     final max = duration.inMilliseconds > 0 ? duration.inMilliseconds.toDouble() : 1.0;
-    final value = _position.inMilliseconds.toDouble().clamp(0.0, max);
+    final value = _position.inMilliseconds.toDouble().clamp(0.0, max).toDouble();
     return Container(
       width: 230,
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
