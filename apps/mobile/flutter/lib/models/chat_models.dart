@@ -72,6 +72,8 @@ class Message extends HiveObject {
   final String? iv;
   @HiveField(15)
   final Map<String, dynamic>? attachment;
+  @HiveField(16)
+  final Map<String, dynamic>? poll;
 
   bool get needsMessageKey => isEncrypted && text == '🔒 Encrypted message';
 
@@ -109,6 +111,7 @@ class Message extends HiveObject {
     this.ciphertext,
     this.iv,
     this.attachment,
+    this.poll,
   })  : createdAt = createdAt ?? DateTime.now(),
         reactions = reactions ?? {};
 
@@ -119,6 +122,7 @@ class Message extends HiveObject {
     Map<String, String>? reactions,
     bool? edited,
     Map<String, dynamic>? attachment,
+    Map<String, dynamic>? poll,
   }) {
     return Message(
       id: id ?? this.id,
@@ -137,6 +141,7 @@ class Message extends HiveObject {
       ciphertext: ciphertext,
       iv: iv,
       attachment: attachment ?? this.attachment,
+      poll: poll ?? this.poll,
     );
   }
 }
