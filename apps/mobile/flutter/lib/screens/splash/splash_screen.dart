@@ -321,7 +321,7 @@ class _SplashScreenState extends State<SplashScreen>
                   opacity: t,
                   child: Text(
                     char,
-                    style: GoogleFonts.syne(
+                    style: GoogleFonts.inter(
                       fontSize: 64,
                       fontWeight: FontWeight.w800,
                       color: isAccent
@@ -412,7 +412,7 @@ class _SplashScreenState extends State<SplashScreen>
             opacity: _taglineFade.value,
             child: Text(
               'WHERE CONVERSATIONS CONNECT',
-              style: GoogleFonts.syne(
+              style: GoogleFonts.inter(
                 fontSize: 10,
                 fontWeight: FontWeight.w700,
                 letterSpacing: 3.5,
@@ -568,7 +568,7 @@ class _LoadingBarState extends State<_LoadingBar> {
                     alignment: Alignment.centerLeft,
                     child: Text(
                       _messages[msgIndex],
-                      style: GoogleFonts.syne(
+                      style: GoogleFonts.inter(
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
                         letterSpacing: 1.2,
@@ -680,7 +680,7 @@ class _LoadingBarState extends State<_LoadingBar> {
             // ── Percentage ────────────────────────────────────────────────
             Text(
               '${(fill * 100).round()}%',
-              style: GoogleFonts.syne(
+              style: GoogleFonts.inter(
                 fontSize: 10,
                 fontWeight: FontWeight.w700,
                 letterSpacing: 1.5,
