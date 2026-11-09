@@ -90,9 +90,9 @@ class NovynTheme {
         onSurfaceVariant:       Color(0xFF9E9E9E),
         outline:                Color(0xFF777777),
       ),
-      cardColor: const Color(0xFF14121F),
+      cardColor: const Color(0xFF191919),
       cardTheme: CardThemeData(
-        color: const Color(0xFF14121F),
+        color: const Color(0xFF191919),
         elevation: 0,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       ),
@@ -129,7 +129,7 @@ class NovynTheme {
   /// Card / tile background
   static Color cardBg(BuildContext context) {
     return Theme.of(context).brightness == Brightness.dark
-        ? const Color(0xFF14121F)
+        ? const Color(0xFF191919)
         : Colors.white;
   }
 
@@ -137,21 +137,21 @@ class NovynTheme {
   static Color pageBg(BuildContext context) {
     return Theme.of(context).brightness == Brightness.dark
         ? const Color(0xFF0B0B0B)
-        : const Color(0xFFF5F5F5);
+        : Colors.white;
   }
 
   /// Input field background
   static Color inputBg(BuildContext context) {
     return Theme.of(context).brightness == Brightness.dark
-        ? const Color(0xFF0B0A14)
-        : const Color(0xFFF0F2FA);
+        ? const Color(0xFF101010)
+        : const Color(0xFFF5F5F5);
   }
 
   /// Primary text
   static Color textPrimary(BuildContext context) {
     return Theme.of(context).brightness == Brightness.dark
-        ? const Color(0xFFF2F0FA)
-        : const Color(0xFF1A1D2E);
+        ? const Color(0xFFF5F5F5)
+        : const Color(0xFF111111);
   }
 
   /// Secondary text
@@ -160,8 +160,8 @@ class NovynTheme {
   /// Divider / border
   static Color divider(BuildContext context) {
     return Theme.of(context).brightness == Brightness.dark
-        ? const Color(0xFF2D3142)
-        : const Color(0xFFE2E5F0);
+        ? const Color(0xFF333333)
+        : const Color(0xFFE5E5E5);
   }
 
   // ── Neomorphic Shadow Helpers ──────────────────────────────────────────────
