@@ -24,6 +24,7 @@ class NotificationService {
   static SocketService? _socket;
   static String? _lastSyncedPreferences;
   static bool _syncingPreferences = false;
+  static StreamSubscription<String>? _tokenRefreshSubscription;
   static bool? _lastAlertsEnabled;
   static bool? _lastSoundEnabled;
 
@@ -101,6 +102,7 @@ class NotificationService {
     _settings!.addListener(_onSettingsChanged);
     _socket?.removeListener(_onSocketChanged);
     _socket = context.read<SocketService>();
+    _lastSyncedPreferences = null;
     _socket!.addListener(_onSocketChanged);
     _presenceAuth?.removeListener(_syncPresentation);
     _presenceAuth = context.read<AuthService>();
@@ -145,17 +147,23 @@ class NotificationService {
         'fcmToken': token,
       });
 
-      // Refresh token when it changes
-      _fcm.onTokenRefresh.listen((newToken) async {
-        await _db.collection('users').doc(uid).update({
-          'fcmToken': newToken,
-        });
+      // Keep only the active account's token refresh listener.
+      await _tokenRefreshSubscription?.cancel();
+      _tokenRefreshSubscription = _fcm.onTokenRefresh.listen((newToken) async {
+        try {
+          await _db.collection('users').doc(uid).update({
+            'fcmToken': newToken,
+          });
+        } catch (_) {}
       });
     } catch (_) {}
   }
 
   // ── Clear token on logout ─────────────────────────────────────────────────
   static Future<void> clearToken(String uid) async {
+    await _tokenRefreshSubscription?.cancel();
+    _tokenRefreshSubscription = null;
+    _lastSyncedPreferences = null;
     try {
       await _db.collection('users').doc(uid).update({'fcmToken': ''});
       await _fcm.deleteToken();
