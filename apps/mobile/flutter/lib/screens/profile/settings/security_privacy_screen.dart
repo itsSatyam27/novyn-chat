@@ -111,18 +111,11 @@ class SecurityPrivacyScreen extends StatelessWidget {
             icon: Icons.visibility_off_rounded,
             title: 'Stealth Mode',
             subtitle: 'Blur recents, block screenshots & hide alerts',
-            onTap: () {
-              final enabled = !settings.stealthModeEnabled;
-              settings.setStealthMode(enabled);
-              SecurityService.setSafeMode(enabled);
-            },
+            onTap: () => _setStealthMode(context, settings, !settings.stealthModeEnabled),
             trailing: Switch(
               value: settings.stealthModeEnabled,
               activeColor: const Color(0xFF7C6FF7),
-              onChanged: (v) {
-                settings.setStealthMode(v);
-                SecurityService.setSafeMode(v);
-              },
+              onChanged: (v) => _setStealthMode(context, settings, v),
             ),
           ),
           if (settings.stealthModeEnabled) ...[
@@ -228,6 +221,22 @@ class SecurityPrivacyScreen extends StatelessWidget {
           const SizedBox(height: 60),
         ],
       ),
+    );
+  }
+
+  Future<void> _setStealthMode(
+    BuildContext context,
+    SettingsService settings,
+    bool enabled,
+  ) async {
+    final auth = context.read<AuthService>();
+    final savedLastSeen = settings.configuredLastSeenVisibility;
+    final savedProfilePhoto = settings.configuredProfilePhotoVisibility;
+    await settings.setStealthMode(enabled);
+    await SecurityService.setSafeMode(enabled);
+    await auth.updatePrivacySettings(
+      lastSeenVisibility: enabled ? 'nobody' : savedLastSeen,
+      profilePhotoVisibility: enabled ? 'nobody' : savedProfilePhoto,
     );
   }
 
