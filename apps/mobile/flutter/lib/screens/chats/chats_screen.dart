@@ -359,24 +359,17 @@ class _ChatsScreenState extends State<ChatsScreen> {
                             SliverToBoxAdapter(
                               child: _buildSectionLabel('PINNED'),
                             ),
-                            SliverList(
-                              delegate: SliverChildBuilderDelegate(
-                                (context, i) {
-                                  final pinnedChats = activeChats
-                                      .where((c) => c.isPinned)
-                                      .toList();
-                                  if (i >= pinnedChats.length) return null;
-                                  return _buildChatCard(pinnedChats[i]);
-                                },
-                                childCount:
-                                    activeChats.where((c) => c.isPinned).length,
+                            SliverToBoxAdapter(
+                              child: Padding(
+                                padding: const EdgeInsets.only(bottom: 8),
+                                child: _buildStories(),
                               ),
                             ),
                           ],
 
-                          // ── Recent Section ─────────────────────────────────
+                          // ── All chats ──────────────────────────────────────
                           SliverToBoxAdapter(
-                            child: _buildSectionLabel('RECENT'),
+                            child: _buildSectionLabel('ALL CHATS'),
                           ),
                           activeChats.isEmpty && !_loading
                               ? SliverFillRemaining(child: _buildEmpty())
@@ -472,59 +465,28 @@ class _ChatsScreenState extends State<ChatsScreen> {
   }
 
   Widget _buildStories() {
-    final isDecoy = context.read<SettingsService>().decoyMode;
-    if (isDecoy) return const SizedBox.shrink();
-
-    // Get unique peers from chats for stories
-    final uniquePeers = <String, ChatPreview>{};
-    for (final chat in _chats) {
-      if (!uniquePeers.containsKey(chat.peerUid)) {
-        uniquePeers[chat.peerUid] = chat;
-      }
-    }
-    final storyPeers = uniquePeers.values.toList().take(6).toList();
+    final pinnedChats = _chats.where((chat) => chat.isPinned).toList();
+    if (pinnedChats.isEmpty) return const SizedBox.shrink();
 
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Row(
-        children: [
-          _StoryAddButton(onTap: () {
-            HapticFeedback.lightImpact();
-            widget.onNavigateToPeople?.call();
-          }),
-          const SizedBox(width: 12),
-          ...storyPeers
-              .map((chat) => Padding(
-                    padding: const EdgeInsets.only(right: 12),
-                    child: _StoryCard(
-                      name: chat.peer.name.split(' ').first,
-                      color: chat.peer.avatarColor,
-                      initials: chat.peer.initials,
-                      ringColors: chat.unreadCount > 0
-                          ? [const Color(0xFF00C97A), const Color(0xFF7B6EF6)]
-                          : null,
-                      onTap: () => _openChat(chat),
-                    ),
-                  ))
-              .toList(),
-          if (storyPeers.length < 3) ...[
-            _StoryCard(
-              name: 'Ananya',
-              color: const Color(0xFF7B6EF6),
-              initials: 'AN',
-              onTap: () => _showSnackBar('Opening story for Ananya...'),
+        children: pinnedChats.map((chat) {
+          return Padding(
+            padding: const EdgeInsets.only(right: 14),
+            child: _StoryCard(
+              name: chat.peer.name.split(' ').first,
+              color: chat.peer.avatarColor,
+              initials: chat.peer.initials,
+              ringColors: const [
+                Color(0xFFA173FF),
+                Color(0xFF3DDC97),
+              ],
+              onTap: () => _openChat(chat),
             ),
-            const SizedBox(width: 12),
-            _StoryCard(
-              name: 'Rohit',
-              color: const Color(0xFFF97316),
-              initials: 'RK',
-              ringColors: const [Color(0xFFF97316), Color(0xFFEC4899)],
-              onTap: () => _showSnackBar('Opening story for Rohit...'),
-            ),
-          ],
-        ],
+          );
+        }).toList(),
       ),
     );
   }
