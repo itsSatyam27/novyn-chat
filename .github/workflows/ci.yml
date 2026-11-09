@@ -19,3 +19,19 @@ jobs:
       - run: node --check apps/api/server.js
       - run: npm test
       - run: npm run build
+
+  flutter-validate:
+    name: Flutter analyze
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Install Flutter dependencies
+        working-directory: apps/mobile/flutter
+        run: flutter pub get
+      - name: Analyze Flutter app
+        working-directory: apps/mobile/flutter
+        run: flutter analyze --no-pub --no-fatal-infos --no-fatal-warnings
