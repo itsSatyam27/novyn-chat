@@ -37,10 +37,10 @@ class NovynDock extends StatelessWidget {
         child: Container(
           height: 64,
           decoration: BoxDecoration(
-            color: dark ? const Color(0xEB18142C) : const Color(0xF2FFFFFF),
+            color: dark ? const Color(0xF21A1A1A) : const Color(0xF2FFFFFF),
             borderRadius: BorderRadius.circular(32),
             border: Border.all(
-              color: dark ? const Color(0x24FFFFFF) : const Color(0xFFE8E4F4),
+              color: dark ? const Color(0x24FFFFFF) : const Color(0xFFE5E5E5),
             ),
             boxShadow: [
               BoxShadow(
@@ -79,20 +79,12 @@ class NovynDock extends StatelessWidget {
                               horizontal: active ? 14 : 0,
                             ),
                             decoration: BoxDecoration(
-                              gradient: active
-                                  ? const LinearGradient(
-                                      colors: [
-                                        Color(0xFFA173FF),
-                                        Color(0xFF7A3EF0),
-                                      ],
-                                    )
-                                  : null,
+                              color: active ? (dark ? Colors.white : Colors.black) : null,
                               borderRadius: BorderRadius.circular(24),
                               boxShadow: active
                                   ? [
                                       BoxShadow(
-                                        color: const Color(0xFF8F5BFF)
-                                            .withValues(alpha: .32),
+                                        color: Colors.black.withValues(alpha: .20),
                                         blurRadius: 16,
                                         offset: const Offset(0, 6),
                                       ),
@@ -107,10 +99,8 @@ class NovynDock extends StatelessWidget {
                                   _icons[index],
                                   size: 20,
                                   color: active
-                                      ? Colors.white
-                                      : (dark
-                                          ? const Color(0xFFB9B2D6)
-                                          : const Color(0xFF77718E)),
+                                      ? (dark ? Colors.black : Colors.white)
+                                      : (dark ? const Color(0xFFBDBDBD) : const Color(0xFF666666)),
                                 ),
                                 if (active) ...[
                                   const SizedBox(width: 7),
@@ -120,7 +110,7 @@ class NovynDock extends StatelessWidget {
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                       style: const TextStyle(
-                                        color: Colors.white,
+                                        color: dark ? Colors.black : Colors.white,
                                         fontSize: 12,
                                         fontWeight: FontWeight.w700,
                                       ),
