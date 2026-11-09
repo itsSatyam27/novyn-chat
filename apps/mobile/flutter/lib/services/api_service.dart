@@ -336,6 +336,30 @@ class ApiService {
     return [];
   }
 
+  static Future<Map<String, dynamic>> getGiphy({
+    String query = '',
+    String type = 'gifs',
+    int offset = 0,
+  }) async {
+    try {
+      final params = <String, String>{
+        'type': type,
+        'limit': '24',
+        'offset': offset.toString(),
+        if (query.trim().isNotEmpty) 'q': query.trim(),
+      };
+      final uri = Uri.parse('$baseUrl/api/giphy').replace(queryParameters: params);
+      final response = await http.get(uri, headers: _authHeaders).timeout(const Duration(seconds: 12));
+      final body = jsonDecode(response.body);
+      if (response.statusCode == 200 && body is Map) {
+        return Map<String, dynamic>.from(body);
+      }
+      return {'error': body is Map ? body['error']?.toString() ?? 'GIF search failed.' : 'GIF search failed.'};
+    } catch (_) {
+      return {'error': 'GIF search is temporarily unavailable.'};
+    }
+  }
+
   // ── Upload media using the authenticated shared backend route ────────────
   static Future<String?> uploadMedia(
       List<int> bytes, String filename, String mimeType) async {
