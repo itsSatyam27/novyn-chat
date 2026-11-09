@@ -39,6 +39,24 @@ class _CallsScreenState extends State<CallsScreen> {
     _loadCalls();
   }
 
+  Future<void> _confirmClearHistory() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Clear call history?'),
+        content: const Text('This clears the call list from this device. It does not affect messages or contacts.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancel')),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Clear history'),
+          ),
+        ],
+      ),
+    );
+    if (confirm == true && mounted) setState(() => _calls = []);
+  }
+
   Future<void> _loadCalls() async {
     final auth = context.read<AuthService>();
     final myUsername = auth.user?.username;
@@ -130,6 +148,11 @@ class _CallsScreenState extends State<CallsScreen> {
               title: 'Calls',
               subtitle: '${_calls.length} recent conversations · $missedCount missed',
               actions: [
+                if (_calls.isNotEmpty)
+                  NovynIconButton(
+                    icon: Icons.delete_sweep_outlined,
+                    onTap: _confirmClearHistory,
+                  ),
                 NovynIconButton(
                   icon: Icons.refresh_rounded,
                   onTap: () {
@@ -275,7 +298,11 @@ class _CallsScreenState extends State<CallsScreen> {
             _search.isNotEmpty || _filter != 'All' ? 'RESULTS' : 'RECENT CALLS',
             padding: const EdgeInsets.fromLTRB(4, 4, 4, 10),
           ),
-          for (final entry in calls) _CallCard(entry: entry),
+          for (final entry in calls)
+            _CallCard(
+              entry: entry,
+              onDismiss: () => setState(() => _calls.removeWhere((call) => call.peer.username == entry.peer.username)),
+            ),
           const SizedBox(height: 80),
         ],
       ),
@@ -332,7 +359,8 @@ class _CallEntry {
 // ── Call Card ──────────────────────────────────────────────────────────────
 class _CallCard extends StatelessWidget {
   final _CallEntry entry;
-  const _CallCard({required this.entry});
+  final VoidCallback onDismiss;
+  const _CallCard({required this.entry, required this.onDismiss});
 
   @override
   Widget build(BuildContext context) {
@@ -356,15 +384,11 @@ class _CallCard extends StatelessWidget {
         motion: const StretchMotion(),
         children: [
           SlidableAction(
-            onPressed: (_) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Delete feature coming soon')),
-              );
-            },
+            onPressed: (_) => onDismiss(),
             backgroundColor: const Color(0xFFEF4444),
             foregroundColor: Colors.white,
             icon: Icons.delete_rounded,
-            label: 'Delete',
+            label: 'Dismiss',
           ),
         ],
       ),
