@@ -132,7 +132,7 @@ class _AuthScreenState extends State<AuthScreen>
           ).createShader(bounds),
           child: Text(
             'Novyn',
-            style: GoogleFonts.syne(
+            style: GoogleFonts.inter(
               fontSize: 40,
               fontWeight: FontWeight.w800,
               color: Colors.white,
@@ -150,7 +150,7 @@ class _AuthScreenState extends State<AuthScreen>
             const SizedBox(width: 8),
             Text(
               'WHERE CONVERSATIONS CONNECT',
-              style: GoogleFonts.syne(
+              style: GoogleFonts.inter(
                 fontSize: 8.5,
                 fontWeight: FontWeight.w700,
                 letterSpacing: 2.8,
@@ -218,8 +218,8 @@ class _AuthScreenState extends State<AuthScreen>
           indicatorSize: TabBarIndicatorSize.tab,
           indicatorPadding: const EdgeInsets.all(5),
           dividerColor: Colors.transparent,
-          labelStyle: GoogleFonts.syne(fontSize: 14, fontWeight: FontWeight.w700),
-          unselectedLabelStyle: GoogleFonts.syne(fontSize: 14, fontWeight: FontWeight.w500),
+          labelStyle: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700),
+          unselectedLabelStyle: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w500),
           labelColor: _kAccent,
           unselectedLabelColor: Colors.white.withValues(alpha: 0.35),
           tabs: const [Tab(text: 'Login'), Tab(text: 'Register')],
@@ -574,7 +574,7 @@ class _RegisterTabState extends State<_RegisterTab> {
               const SizedBox(height: 20),
               Text(
                 'Account Created!',
-                style: GoogleFonts.syne(fontSize: 22, fontWeight: FontWeight.w800, color: Colors.white),
+                style: GoogleFonts.inter(fontSize: 22, fontWeight: FontWeight.w800, color: Colors.white),
               ),
               const SizedBox(height: 8),
               Text(
@@ -729,7 +729,7 @@ class _SectionLabel extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Text(
         text,
-        style: GoogleFonts.syne(
+        style: GoogleFonts.inter(
           fontSize: 11,
           fontWeight: FontWeight.w700,
           letterSpacing: 1.0,
@@ -973,7 +973,7 @@ class _PrimaryButton extends StatelessWidget {
                   )
                 : Text(
                     label,
-                    style: GoogleFonts.syne(
+                    style: GoogleFonts.inter(
                       fontSize:   15,
                       fontWeight: FontWeight.w700,
                       color:      Colors.white,
@@ -999,7 +999,7 @@ class _OrDivider extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 14),
           child: Text(
             'OR',
-            style: GoogleFonts.syne(
+            style: GoogleFonts.inter(
               fontSize:   10,
               fontWeight: FontWeight.w700,
               letterSpacing: 2,
@@ -1046,7 +1046,7 @@ class _GoogleButton extends StatelessWidget {
               const SizedBox(width: 10),
               Text(
                 'Continue with Google',
-                style: GoogleFonts.syne(
+                style: GoogleFonts.inter(
                   fontSize:   14,
                   fontWeight: FontWeight.w600,
                   color:      Colors.white.withValues(alpha: 0.75),
