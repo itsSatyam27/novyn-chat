@@ -11,6 +11,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../widgets/game_message_card.dart';
 import '../../widgets/riddle_message_card.dart';
+import '../../widgets/voice_message_player.dart';
 import '../../models/user_model.dart';
 import '../../services/auth_service.dart';
 import '../../services/socket_service.dart';
@@ -1939,6 +1940,9 @@ class _MessageBubble extends StatelessWidget {
     final url = attachment['url']?.toString() ?? '';
     final name = attachment['name']?.toString() ?? 'Attachment';
     final kind = attachment['kind']?.toString() ?? 'file';
+    if (kind == 'audio' && url.isNotEmpty) {
+      return VoiceMessagePlayer(url: url, label: name, durationSeconds: (attachment['duration'] as num?)?.toInt());
+    }
     if (kind == 'image' && url.isNotEmpty) {
       return ClipRRect(
         borderRadius: BorderRadius.circular(12),
