@@ -201,15 +201,15 @@ function applyConnect4(game, userKey, moveData) {
 
   const player1 = current.player1 || game.createdBy;
   let player2 = current.player2 || game.opponent || null;
-  if (userKey === player1) {
+  if (sameUser(userKey, player1)) {
     // creator is player 1
   } else if (player2) {
-    if (userKey !== player2) return { ok: false, reason: "You are not a player in this game." };
+    if (!sameUser(userKey, player2)) return { ok: false, reason: "You are not a player in this game." };
   } else {
     player2 = userKey;
   }
 
-  const chip = userKey === player1 ? "R" : "Y";
+  const chip = sameUser(userKey, player1) ? "R" : "Y";
   const changed = [];
   for (let i = 0; i < 42; i++) {
     if (requestedBoard[i] !== board[i]) changed.push(i);
