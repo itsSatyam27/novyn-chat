@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../widgets/profile_avatar_with_orbit.dart';
 import '../../widgets/presence_dock.dart';
+import '../../widgets/novyn_ui.dart';
 import 'dart:math' as math;
 import 'dart:ui';
 import '../../services/settings_service.dart';
@@ -28,275 +29,67 @@ class ProfileScreen extends StatelessWidget {
     final auth = context.watch<AuthService>();
     final l10n = AppLocalizations.of(context)!;
     final profile = auth.user;
-
     final displayName = profile?.displayName.isNotEmpty == true ? profile!.displayName : 'You';
     final username = profile?.username ?? 'user';
 
     return Scaffold(
-      backgroundColor: Colors.transparent,
+      backgroundColor: const Color(0xFF0E0B20),
       body: Stack(
         children: [
-          // ── Dynamic Background Glows ────────────────────────────────
-          Positioned(
-            top: -150,
-            right: -50,
-            child: Container(
-              width: 400,
-              height: 400,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(
-                  colors: [
-                    const Color(0xFF7C6FF7).withValues(alpha: 0.15),
-                    Colors.transparent,
-                  ],
-                ),
-              ),
-            ),
-          ),
-          Positioned(
-            bottom: 100,
-            left: -100,
-            child: Container(
-              width: 350,
-              height: 350,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(
-                  colors: [
-                    const Color(0xFF40E0D0).withValues(alpha: 0.1),
-                    Colors.transparent,
-                  ],
-                ),
-              ),
-            ),
-          ),
-          
+          const Positioned.fill(child: _NovynSettingsBackdrop()),
           SafeArea(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // ── Title Section ─────────────────────────────────────────
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    child: Stack(
-                      children: [
-                        Text(
-                          'Settings',
-                          style: TextStyle(
-                            fontFamily: 'Inter',
-                            fontSize: 28,
-                            fontWeight: FontWeight.w900,
-                            foreground: Paint()..shader = const LinearGradient(
-                              colors: [Color(0xFF7C6FF7), Color(0xFF40E0D0)],
-                            ).createShader(const Rect.fromLTWH(0, 0, 200, 70)),
-                            letterSpacing: -1,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                // ── Profile Glass Card ──────────────────────────────────
-                Container(
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(28),
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        Theme.of(context).brightness == Brightness.dark
-                            ? const Color(0xFF1E2235).withValues(alpha: 0.8)
-                            : Colors.white.withValues(alpha: 0.9),
-                        Theme.of(context).brightness == Brightness.dark
-                            ? const Color(0xFF0F121F).withValues(alpha: 0.9)
-                            : const Color(0xFFF0F2FA).withValues(alpha: 0.9),
-                      ],
-                    ),
-                    border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.1),
-                      width: 1.5,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.1),
-                        blurRadius: 30,
-                        offset: const Offset(0, 15),
-                      ),
-                    ],
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(28),
-                    child: Stack(
-                      children: [
-                        // ── Top Right Edit Pencil (Minimalist) ──────────
-                        Positioned(
-                          top: 16,
-                          right: 16,
-                          child: GestureDetector(
-                            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const EditProfileScreen())),
-                            child: Container(
-                              padding: const EdgeInsets.all(10),
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: Colors.white.withValues(alpha: 0.08),
-                                border: Border.all(
-                                  color: const Color(0xFF40E0D0).withValues(alpha: 0.2),
-                                  width: 1,
-                                ),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: const Color(0xFF40E0D0).withValues(alpha: 0.1),
-                                    blurRadius: 10,
-                                  ),
-                                ],
-                              ),
-                              child: const _InnovationTopEditIcon(),
-                            ),
-                          ),
-                        ),
-                        
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
-                          child: Column(
-                            children: [
-                              // Avatar with Status Orbit
-                              Center(
-                                child: ProfileAvatarWithOrbit(
-                                  photoUrl: profile?.photoUrl,
-                                  displayName: displayName,
-                                  status: profile?.presenceMode ?? 'online',
-                                ),
-                              ),
-                              const SizedBox(height: 14),
-                              Text(
-                                displayName,
-                                style: TextStyle(
-                                  fontFamily: 'Outfit',
-                                  fontSize: 22,
-                                  fontWeight: FontWeight.w900,
-                                  color: Theme.of(context).colorScheme.onSurface,
-                                  letterSpacing: -0.5,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFF40E0D0).withValues(alpha: 0.1),
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Text(
-                                  '@$username',
-                                  style: const TextStyle(
-                                    fontFamily: 'Outfit',
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w800,
-                                    color: Color(0xFF40E0D0),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: 16),
-                              
-                              PresenceDock(
-                                status: profile?.presenceMode ?? 'online',
-                                busy: auth.updatingPresence,
-                                onSelected: (mode) => _updateStatus(context, auth, mode),
-                              ),
-                              
-                              const SizedBox(height: 4),
-                              // We removed the old button here as it's now a Floating Node
-                            ],
-                          ),
-                        ),
-                        
-                      ],
-                    ),
-                  ),
+            bottom: false,
+            child: ListView(
+              physics: const BouncingScrollPhysics(),
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 120),
+              children: [
+                NovynHeader(
+                  title: 'Settings',
+                  subtitle: 'Make Novyn feel like yours',
+                  actions: [
+                    NovynIconButton(icon: Icons.qr_code_2_rounded, onTap: () => _showQRCode(context)),
+                  ],
                 ),
-
-            // ── Preferences Section ───────────────────────────────────
-            _AuroraSectionLabel(label: l10n.preferences),
-            _AuroraMenuCard(
-              icon: Icons.palette_rounded,
-              title: l10n.appearance,
-              iconColor: const Color(0xFF7C6FF7),
-              onTap: () => _showAppearanceDialog(context, settings),
+                const SizedBox(height: 20),
+                _NovynSettingsProfileCard(
+                  displayName: displayName,
+                  username: username,
+                  photoUrl: profile?.photoUrl,
+                  status: profile?.presenceMode ?? 'online',
+                  busy: auth.updatingPresence,
+                  onEdit: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const EditProfileScreen())),
+                  onStatusSelected: (mode) => _updateStatus(context, auth, mode),
+                ),
+                const SizedBox(height: 26),
+                NovynSectionLabel(l10n.preferences.toUpperCase(), padding: const EdgeInsets.fromLTRB(4, 0, 4, 10)),
+                _NovynSettingsGroup(children: [
+                  _NovynSettingsTile(icon: Icons.palette_outlined, title: l10n.appearance, subtitle: 'Theme and display', accent: const Color(0xFFA78BFA), onTap: () => _showAppearanceDialog(context, settings)),
+                  _NovynSettingsTile(icon: Icons.volume_up_outlined, title: l10n.soundVibration, subtitle: 'Ringtones and haptics', accent: const Color(0xFF5EEAD4), onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SoundVibrationScreen()))),
+                  _NovynSettingsTile(icon: Icons.notifications_none_rounded, title: l10n.notifications, subtitle: 'Messages and call alerts', accent: const Color(0xFFF472B6), onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const NotificationSettingsScreen()))),
+                  _NovynSettingsTile(icon: Icons.language_rounded, title: l10n.languageRegion, subtitle: 'App language and region', accent: const Color(0xFF93C5FD), onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const LanguageRegionScreen()))),
+                  _NovynSettingsTile(icon: Icons.storage_rounded, title: 'Data & Storage', subtitle: 'Storage usage and downloads', accent: const Color(0xFF67E8F9), onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const DataStorageScreen()))),
+                  _NovynSettingsTile(icon: Icons.accessibility_new_rounded, title: 'Accessibility', subtitle: 'Make Novyn easier to use', accent: const Color(0xFFC4B5FD), onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AccessibilityScreen())), showDivider: false),
+                ]),
+                const SizedBox(height: 24),
+                NovynSectionLabel(l10n.account.toUpperCase(), padding: const EdgeInsets.fromLTRB(4, 0, 4, 10)),
+                _NovynSettingsGroup(children: [
+                  _NovynSettingsTile(icon: Icons.shield_outlined, title: l10n.securityPrivacy, subtitle: 'Privacy and account protection', accent: const Color(0xFF34D399), onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SecurityPrivacyScreen()))),
+                  _NovynSettingsTile(icon: Icons.qr_code_2_rounded, title: l10n.qrCode, subtitle: 'Share your Novyn profile', accent: const Color(0xFFA78BFA), onTap: () => _showQRCode(context), showDivider: false),
+                ]),
+                const SizedBox(height: 24),
+                NovynSectionLabel(l10n.support.toUpperCase(), padding: const EdgeInsets.fromLTRB(4, 0, 4, 10)),
+                _NovynSettingsGroup(children: [
+                  _NovynSettingsTile(icon: Icons.help_outline_rounded, title: l10n.helpSupport, subtitle: 'FAQs and get help', accent: const Color(0xFFFBBF24), onTap: () => _showHelpSupport(context), showDivider: false),
+                ]),
+                const SizedBox(height: 24),
+                _NovynLogoutTile(title: l10n.logOut, onTap: () => _confirmLogout(context, auth)),
+                const SizedBox(height: 18),
+                Center(child: Text('NOVYN  •  YOUR SPACE, YOUR PEOPLE', style: NovynText.body(10, weight: FontWeight.w700, color: NovynColors.timeMuted, letterSpacing: 1.3))),
+              ],
             ),
-            _AuroraMenuCard(
-              icon: Icons.volume_up_rounded,
-              title: l10n.soundVibration,
-              iconColor: const Color(0xFF40E0D0),
-              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SoundVibrationScreen())),
-            ),
-            _AuroraMenuCard(
-              icon: Icons.notifications_rounded,
-              title: l10n.notifications,
-              iconColor: const Color(0xFFEC4899),
-              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const NotificationSettingsScreen())),
-            ),
-            _AuroraMenuCard(
-              icon: Icons.language_rounded,
-              title: l10n.languageRegion,
-              iconColor: const Color(0xFF8B5CF6),
-              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const LanguageRegionScreen())),
-            ),
-
-            _AuroraMenuCard(
-              icon: Icons.storage_rounded,
-              title: 'Data & Storage',
-              iconColor: const Color(0xFF06B6D4),
-              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const DataStorageScreen())),
-            ),
-            _AuroraMenuCard(
-              icon: Icons.accessibility_new_rounded,
-              title: 'Accessibility',
-              iconColor: const Color(0xFF7C6FF7),
-              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AccessibilityScreen())),
-            ),
-
-            // ── Account Section ───────────────────────────────────────
-            _AuroraSectionLabel(label: l10n.account),
-            _AuroraMenuCard(
-              icon: Icons.verified_user_rounded,
-              title: l10n.securityPrivacy,
-              iconColor: const Color(0xFF10B981),
-              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SecurityPrivacyScreen())),
-            ),
-            _AuroraMenuCard(
-              icon: Icons.qr_code_rounded,
-              title: l10n.qrCode,
-              iconColor: const Color(0xFF7C6FF7),
-              onTap: () => _showQRCode(context),
-            ),
-
-            // ── Support Section ───────────────────────────────────────
-            _AuroraSectionLabel(label: l10n.support),
-            _AuroraMenuCard(
-              icon: Icons.help_rounded,
-              title: l10n.helpSupport,
-              iconColor: const Color(0xFFF59E0B),
-              onTap: () => _showHelpSupport(context),
-            ),
-            
-            // ── Danger Section ────────────────────────────────────────
-            _AuroraSectionLabel(label: l10n.danger),
-            _AuroraMenuCard(
-              icon: Icons.logout_rounded,
-              title: l10n.logOut,
-              iconColor: const Color(0xFFEF4444),
-              onTap: () => _confirmLogout(context, auth),
-            ),
-            const SizedBox(height: 120),
-          ],
-        ),
+          ),
+        ],
       ),
-    ),
-  ],
-),
     );
   }
 
@@ -1472,3 +1265,113 @@ class _ScanningPainter extends CustomPainter {
   bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }
 
+
+class _NovynSettingsBackdrop extends StatelessWidget {
+  const _NovynSettingsBackdrop();
+  @override
+  Widget build(BuildContext context) => const DecoratedBox(
+    decoration: BoxDecoration(gradient: RadialGradient(center: Alignment(0, -1.05), radius: 1.25, colors: [Color(0xFF29204D), Color(0xFF0E0B20)], stops: [0, 1])),
+    child: SizedBox.expand(),
+  );
+}
+
+class _NovynSettingsProfileCard extends StatelessWidget {
+  const _NovynSettingsProfileCard({required this.displayName, required this.username, required this.photoUrl, required this.status, required this.busy, required this.onEdit, required this.onStatusSelected});
+  final String displayName, username, status;
+  final String? photoUrl;
+  final bool busy;
+  final VoidCallback onEdit;
+  final ValueChanged<String> onStatusSelected;
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
+    decoration: BoxDecoration(
+      borderRadius: BorderRadius.circular(26),
+      gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF292044), Color(0xFF19142D)]),
+      border: Border.all(color: const Color(0x55A78BFA)),
+      boxShadow: const [BoxShadow(color: Color(0x332A174F), blurRadius: 24, offset: Offset(0, 12))],
+    ),
+    child: Column(children: [
+      Row(children: [
+        ProfileAvatarWithOrbit(photoUrl: photoUrl, displayName: displayName, status: status),
+        const SizedBox(width: 14),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(displayName, maxLines: 1, overflow: TextOverflow.ellipsis, style: NovynText.display(19, weight: FontWeight.w700)),
+          const SizedBox(height: 4),
+          Text('@$username', maxLines: 1, overflow: TextOverflow.ellipsis, style: NovynText.body(13, color: NovynColors.violetSoft)),
+        ])),
+        NovynIconButton(icon: Icons.edit_outlined, onTap: onEdit),
+      ]),
+      const SizedBox(height: 16),
+      Align(alignment: Alignment.centerLeft, child: Text('YOUR PRESENCE', style: NovynText.body(10, weight: FontWeight.w700, color: NovynColors.textMuted, letterSpacing: 1.2))),
+      const SizedBox(height: 10),
+      PresenceDock(status: status, busy: busy, onSelected: onStatusSelected),
+    ]),
+  );
+}
+
+class _NovynSettingsGroup extends StatelessWidget {
+  const _NovynSettingsGroup({required this.children});
+  final List<Widget> children;
+  @override
+  Widget build(BuildContext context) => Container(
+    decoration: BoxDecoration(color: const Color(0xFF19152B), borderRadius: BorderRadius.circular(22), border: Border.all(color: const Color(0x1FFFFFFF))),
+    child: ClipRRect(borderRadius: BorderRadius.circular(22), child: Column(children: children)),
+  );
+}
+
+class _NovynSettingsTile extends StatelessWidget {
+  const _NovynSettingsTile({required this.icon, required this.title, required this.subtitle, required this.accent, required this.onTap, this.showDivider = true});
+  final IconData icon;
+  final String title, subtitle;
+  final Color accent;
+  final VoidCallback onTap;
+  final bool showDivider;
+  @override
+  Widget build(BuildContext context) => Material(
+    color: Colors.transparent,
+    child: InkWell(
+      onTap: onTap,
+      child: Column(children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          child: Row(children: [
+            Container(width: 42, height: 42, decoration: BoxDecoration(color: accent.withValues(alpha: 0.13), borderRadius: BorderRadius.circular(14)), child: Icon(icon, color: accent, size: 20)),
+            const SizedBox(width: 13),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(title, style: NovynText.body(14, weight: FontWeight.w600)),
+              const SizedBox(height: 3),
+              Text(subtitle, style: NovynText.body(11.5, color: NovynColors.textMuted)),
+            ])),
+            const Icon(Icons.chevron_right_rounded, color: NovynColors.chevron, size: 21),
+          ]),
+        ),
+        if (showDivider) const Padding(padding: EdgeInsets.only(left: 69), child: Divider(height: 1, thickness: 1, color: Color(0x12FFFFFF))),
+      ]),
+    ),
+  );
+}
+
+class _NovynLogoutTile extends StatelessWidget {
+  const _NovynLogoutTile({required this.title, required this.onTap});
+  final String title;
+  final VoidCallback onTap;
+  @override
+  Widget build(BuildContext context) => Material(
+    color: const Color(0x24FF718D),
+    borderRadius: BorderRadius.circular(20),
+    child: InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        decoration: BoxDecoration(borderRadius: BorderRadius.circular(20), border: Border.all(color: const Color(0x55FF718D))),
+        child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+          const Icon(Icons.logout_rounded, color: Color(0xFFFF8FA6), size: 19),
+          const SizedBox(width: 10),
+          Text(title, style: NovynText.body(14, weight: FontWeight.w700, color: const Color(0xFFFF8FA6))),
+        ]),
+      ),
+    ),
+  );
+}
