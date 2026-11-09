@@ -8,7 +8,6 @@ import '../models/user_model.dart';
 import 'hybrid_db_service.dart';
 import 'api_service.dart';
 import 'backend_contacts.dart';
-import 'message_encryption_service.dart';
 
 /// Socket service for the shared novyn-chat backend (server.js).
 ///
@@ -53,6 +52,8 @@ import 'message_encryption_service.dart';
 ///   ON    error_message            — { message }
 
 class SocketService extends ChangeNotifier {
+  // Temporary compatibility mode: Android sends plain-text messages.
+  // Incoming legacy encrypted messages still use the existing decryptor.
   final encryption = MessageEncryptionService();
   final Map<String, String> _peerKeys = {};
   final BackendContacts contacts = BackendContacts();
@@ -593,22 +594,6 @@ class SocketService extends ChangeNotifier {
     _requireConnection();
     final account = _myUsername;
     if (account == null) throw StateError('Sign in before sending messages.');
-    final peerKey = _peerKeys[toPeerUsername.toLowerCase()] ?? '';
-    Map<String, dynamic>? encrypted;
-    if (!isGroup && peerKey.isNotEmpty && text.isNotEmpty) {
-      final ownKey = await _requestPublicKey(account);
-      encrypted =
-          await encryption.encrypt(text, account, toPeerUsername, peerKey, accountPublicKey: ownKey);
-      if (encrypted == null) {
-        throw StateError(
-            'Import message keys from your web browser before sending to this encrypted chat.');
-      }
-      if (_myUsername != account) {
-        throw StateError('Your account changed. Please try again.');
-      }
-      _requireConnection();
-    }
-
     final clientTempId = 'tmp_${DateTime.now().millisecondsSinceEpoch}';
     final toType = isGroup ? 'group' : 'friend';
 
@@ -623,9 +608,6 @@ class SocketService extends ChangeNotifier {
       replyToId: replyToId,
       replyToText: replyToText,
       replyToSender: replyToSender,
-      isEncrypted: encrypted != null,
-      ciphertext: encrypted?['ciphertext'],
-      iv: encrypted?['iv'],
     );
     _messages = [..._messages, tempMsg];
     notifyListeners();
@@ -634,28 +616,18 @@ class SocketService extends ChangeNotifier {
     final payload = <String, dynamic>{
       'to': toPeerUsername,
       'toType': toType,
-      'text': encrypted == null ? text : '',
-      if (encrypted != null) ...encrypted,
+      'text': text,
       'clientTempId': clientTempId,
       if (attachment != null) 'attachment': attachment,
       if (replyToId != null)
         'replyTo': {
           'id': replyToId,
-          'text': encrypted == null ? replyToText ?? '' : '🔒 Encrypted message',
+          'text': replyToText ?? '',
           'from': replyToSender ?? '',
         },
     };
 
     _socket!.emit('private_message', payload);
-  }
-
-  Future<String> _requestPublicKey(String username) async {
-    _requireConnection();
-    final result = Completer<String>();
-    _socket!.emitWithAck('get_public_key', {'username': username}, ack: (dynamic data) {
-      if (!result.isCompleted) result.complete(data is Map ? data['publicKey']?.toString() ?? '' : '');
-    });
-    return result.future.timeout(const Duration(seconds: 10));
   }
 
   Future<void> decryptCurrentMessages() async {
