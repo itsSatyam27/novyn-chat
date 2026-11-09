@@ -158,7 +158,7 @@ class NovynDock extends StatelessWidget {
       height: 64,
       padding: const EdgeInsets.symmetric(horizontal: 8),
       decoration: BoxDecoration(
-        color: const Color(0xEB18142C),
+        color: const Color(0xFF191919),
         borderRadius: BorderRadius.circular(32),
         border: Border.all(color: const Color(0x1FFFFFFF)),
         boxShadow: const [
@@ -194,12 +194,12 @@ class NovynDock extends StatelessWidget {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(_items[i].$2, size: 18, color: Colors.white),
+                          Icon(_items[i].$2, size: 18, color: Colors.black),
                           const SizedBox(width: 7),
                           Text(
                             _items[i].$1,
                             style: NovynText.body(13,
-                                weight: FontWeight.w700, color: Colors.white),
+                                weight: FontWeight.w700, color: Colors.black),
                           ),
                         ],
                       ),
@@ -426,7 +426,7 @@ class NovynChipRow extends StatelessWidget {
                       13,
                       weight: FontWeight.w600,
                       color: i == selected
-                          ? Colors.white
+                          ? Colors.black
                           : NovynColors.textChip,
                     ),
                   ),
