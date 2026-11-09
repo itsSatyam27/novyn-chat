@@ -1115,6 +1115,20 @@ class SocketService extends ChangeNotifier {
     }
   }
 
+  Future<Map<String, dynamic>> updateAccountSettings(Map<String, dynamic> changes) async {
+    _requireConnection();
+    final completer = Completer<Map<String, dynamic>>();
+    _socket!.emitWithAck('update_profile', changes, ack: (dynamic result) {
+      completer.complete(result is Map
+          ? Map<String, dynamic>.from(result)
+          : {'ok': false, 'message': 'The server did not confirm this setting.'});
+    });
+    return completer.future.timeout(
+      const Duration(seconds: 10),
+      onTimeout: () => {'ok': false, 'message': 'Settings update timed out.'},
+    );
+  }
+
   Future<void> updatePresence(String mode) async {
     _requireConnection();
     final connection = _socket!;
