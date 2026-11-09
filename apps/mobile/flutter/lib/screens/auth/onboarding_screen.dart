@@ -177,7 +177,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                   // App name
                   Text(
                     'Novyn',
-                    style: GoogleFonts.syne(
+                    style: GoogleFonts.inter(
                       fontSize: 28,
                       fontWeight: FontWeight.w800,
                       color: const Color(0xFF1A1D2E),
@@ -342,7 +342,7 @@ class _PageContent extends StatelessWidget {
           Text(
             data.title,
             textAlign: TextAlign.center,
-            style: GoogleFonts.syne(
+            style: GoogleFonts.inter(
               fontSize: 32,
               fontWeight: FontWeight.w800,
               color: isDark ? Colors.white : const Color(0xFF1A1D2E),
