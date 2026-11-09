@@ -337,6 +337,22 @@ class SocketService extends ChangeNotifier {
       notifyListeners();
     });
 
+    _socket!.on('poll_updated', (data) {
+      if (data is! Map) return;
+      final messageId = data['messageId']?.toString() ?? '';
+      final rawPoll = data['poll'];
+      if (messageId.isEmpty || rawPoll is! Map) return;
+      final index = _messages.indexWhere((message) => message.id == messageId);
+      if (index == -1) return;
+      final updated = List<Message>.from(_messages);
+      updated[index] = updated[index].copyWith(
+        poll: Map<String, dynamic>.from(rawPoll),
+      );
+      _messages = updated;
+      HybridDbService.saveMessage(updated[index]);
+      notifyListeners();
+    });
+
     // ── Message status (delivered / seen) ──────────────────────────────────
     _socket!.on('message_status', (data) {
       if (data is! Map) return;
@@ -632,6 +648,29 @@ class SocketService extends ChangeNotifier {
     };
 
     _socket!.emit('private_message', payload);
+  }
+
+  void createPoll(String question, List<String> options, String peerUsername,
+      {bool isGroup = false}) {
+    _requireConnection();
+    _socket!.emit('create_poll', {
+      'to': peerUsername,
+      'toType': isGroup ? 'group' : 'friend',
+      'question': question,
+      'options': options,
+      'clientTempId': 'tmp_poll_${DateTime.now().millisecondsSinceEpoch}',
+    });
+  }
+
+  void votePoll(String messageId, String optionId, String peerUsername,
+      {bool isGroup = false}) {
+    _requireConnection();
+    _socket!.emit('poll_vote', {
+      'messageId': messageId,
+      'optionId': optionId,
+      'to': peerUsername,
+      'toType': isGroup ? 'group' : 'friend',
+    });
   }
 
   Future<void> decryptCurrentMessages() async {
