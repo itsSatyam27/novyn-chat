@@ -1,9 +1,13 @@
+import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:record/record.dart';
+import 'package:path_provider/path_provider.dart';
 import '../../models/user_model.dart';
 import '../../services/auth_service.dart';
 import '../../services/socket_service.dart';
@@ -41,6 +45,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   dynamic _replyingTo; // the message being replied to
   bool _uploadingAttachment = false;
   final ImagePicker _imagePicker = ImagePicker();
+  final AudioRecorder _voiceRecorder = AudioRecorder();
+  Timer? _voiceTimer;
+  bool _isRecordingVoice = false;
+  int _voiceSeconds = 0;
+  String? _voiceRecordingPath;
 
   @override
   void initState() {
@@ -517,6 +526,26 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       children: [
         if (_uploadingAttachment)
           const LinearProgressIndicator(minHeight: 2),
+        if (_isRecordingVoice)
+          Container(
+            margin: const EdgeInsets.fromLTRB(14, 8, 14, 0),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: const Color(0xFFEF4444).withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFFEF4444).withValues(alpha: 0.25)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.fiber_manual_record, color: Color(0xFFEF4444), size: 13),
+                const SizedBox(width: 9),
+                Text('Recording  ${_formatVoiceDuration(_voiceSeconds)}',
+                  style: const TextStyle(fontFamily: 'Inter', fontWeight: FontWeight.w600, color: Color(0xFFEF4444))),
+                const Spacer(),
+                const Text('Release to send', style: TextStyle(fontFamily: 'Inter', fontSize: 11, color: Color(0xFF94A3B8))),
+              ],
+            ),
+          ),
         // ── Reply preview bar ──────────────────────────────────────
         if (_replyingTo != null)
           Container(
@@ -661,7 +690,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                     gradient: LinearGradient(
                       colors: hasText
                           ? [const Color(0xFF7C6FF7), const Color(0xFF9B8FFF)]
-                          : [const Color(0xFF10B981), const Color(0xFF34D399)],
+                          : _isRecordingVoice
+                              ? [const Color(0xFFDC2626), const Color(0xFFEF4444)]
+                              : [const Color(0xFF10B981), const Color(0xFF34D399)],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                     ),
@@ -684,8 +715,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                       child: child,
                     ),
                     child: Icon(
-                      hasText ? Icons.send_rounded : Icons.mic_rounded,
-                      key: ValueKey(hasText),
+                      hasText ? Icons.send_rounded : (_isRecordingVoice ? Icons.stop_rounded : Icons.mic_rounded),
+                      key: ValueKey('$hasText-$_isRecordingVoice'),
                       color: Colors.white,
                       size: 20,
                     ),
@@ -763,21 +794,110 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     return 'application/octet-stream';
   }
 
-  void _startVoiceNote() {
-    HapticFeedback.mediumImpact();
-    // Voice note recording — coming soon
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Text('Hold to record voice note'),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        duration: const Duration(seconds: 1),
-      ),
-    );
+  Future<void> _startVoiceNote() async {
+    if (_isRecordingVoice || _uploadingAttachment) return;
+    try {
+      final allowed = await _voiceRecorder.hasPermission();
+      if (!allowed) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Microphone permission is required to record voice notes.')),
+          );
+        }
+        return;
+      }
+      final directory = await getTemporaryDirectory();
+      final path = '${directory.path}/novyn_voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
+      await _voiceRecorder.start(
+        const RecordConfig(
+          encoder: AudioEncoder.aacLc,
+          bitRate: 128000,
+          sampleRate: 44100,
+        ),
+        path: path,
+      );
+      if (!mounted) {
+        await _voiceRecorder.stop();
+        return;
+      }
+      HapticFeedback.mediumImpact();
+      setState(() {
+        _isRecordingVoice = true;
+        _voiceSeconds = 0;
+        _voiceRecordingPath = path;
+      });
+      _voiceTimer?.cancel();
+      _voiceTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+        if (mounted && _isRecordingVoice) {
+          setState(() => _voiceSeconds++);
+        }
+      });
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not start recording: $error')),
+        );
+      }
+    }
   }
 
-  void _stopVoiceNote() {
-    // Stop recording and send — coming soon
+  Future<void> _stopVoiceNote() async {
+    if (!_isRecordingVoice) return;
+    _voiceTimer?.cancel();
+    _voiceTimer = null;
+    final duration = _voiceSeconds;
+    final path = _voiceRecordingPath;
+    setState(() {
+      _isRecordingVoice = false;
+      _uploadingAttachment = true;
+    });
+    try {
+      final recordedPath = await _voiceRecorder.stop();
+      final filePath = recordedPath ?? path;
+      if (filePath == null) throw StateError('Voice recording was not saved.');
+      final file = File(filePath);
+      if (!await file.exists()) throw StateError('Voice recording file was not found.');
+      final bytes = await file.readAsBytes();
+      if (bytes.isEmpty) throw StateError('Voice recording is empty.');
+      final url = await ApiService.uploadMedia(bytes, 'voice_note.m4a', 'audio/mp4');
+      if (url == null || url.isEmpty) throw StateError('Voice note upload failed. Please try again.');
+      await context.read<SocketService>().sendMessage(
+        '',
+        widget.peer.uid.isNotEmpty ? widget.peer.uid : widget.peer.username,
+        attachment: {
+          'url': url,
+          'name': 'Voice message',
+          'mime': 'audio/mp4',
+          'size': bytes.length,
+          'kind': 'audio',
+          'duration': duration,
+        },
+        replyToId: _replyingTo?.id?.toString(),
+        replyToText: _replyingTo?.text?.toString(),
+        replyToSender: _replyingTo?.isFromMe == true ? 'You' : widget.peer.name,
+      );
+      if (mounted) setState(() => _replyingTo = null);
+      await file.delete();
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(error is StateError ? error.message.toString() : 'Could not send voice note.')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _uploadingAttachment = false;
+          _voiceRecordingPath = null;
+        });
+      }
+    }
+  }
+
+  String _formatVoiceDuration(int seconds) {
+    final minutes = (seconds ~/ 60).toString();
+    final remaining = (seconds % 60).toString().padLeft(2, '0');
+    return '$minutes:$remaining';
   }
 
   void _startCall(String type) {
