@@ -2373,6 +2373,16 @@ async function loadStateFromMongoCollections() {
       .filter(Boolean)
       .sort((a, b) => String(b.updatedAt || "").localeCompare(String(a.updatedAt || "")))[0];
     snapshotId = toDisplayName(latest?.snapshotId);
+    if (snapshotId) {
+      const [staleUsers, staleConversations, staleMessages] = await Promise.all([
+        mongoUsersCollection.countDocuments({ snapshotId: { $ne: snapshotId } }),
+        mongoConversationsCollection.countDocuments({ snapshotId: { $ne: snapshotId } }),
+        mongoMessagesCollection.countDocuments({ snapshotId: { $ne: snapshotId } }),
+      ]);
+      if (staleUsers || staleConversations || staleMessages) {
+        throw new Error("Legacy MongoDB snapshot is mixed or incomplete; refusing to overwrite existing chat data.");
+      }
+    }
   }
   const snapshotFilter = snapshotId ? { snapshotId } : {};
   if (manifest && snapshotId) {
@@ -2394,7 +2404,7 @@ async function loadStateFromMongoCollections() {
 
   const [userDocs, conversationDocs, messageDocs, legacyDoc] = await Promise.all([
     mongoUsersCollection.find(snapshotFilter, { projection: { snapshotId: 0, updatedAt: 0 } }).toArray(),
-    mongoConversationsCollection.find(snapshotFilter, { projection: { _id: 1 } }).toArray(),
+    mongoConversationsCollection.find(snapshotFilter, { projection: { _id: 1, messageCount: 1 } }).toArray(),
     mongoMessagesCollection
       .find(snapshotFilter, { projection: { _id: 0, snapshotId: 0, updatedAt: 0 } })
       .sort({ conversationKey: 1, timestamp: 1, messageId: 1 })
@@ -2408,6 +2418,15 @@ async function loadStateFromMongoCollections() {
   ]);
 
   if (!userDocs.length && !conversationDocs.length && !messageDocs.length) return false;
+  const expectedMessageCount = conversationDocs.reduce(
+    (total, conversation) => total + Math.max(0, Number(conversation.messageCount) || 0),
+    0
+  );
+  if (expectedMessageCount !== messageDocs.length) {
+    throw new Error(
+      `MongoDB snapshot ${snapshotId || "(legacy)"} has ${messageDocs.length} messages but conversations expect ${expectedMessageCount}; refusing to overwrite existing chat data.`
+    );
+  }
 
   const messageMap = new Map();
   for (const doc of messageDocs) {
