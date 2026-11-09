@@ -8,6 +8,7 @@ import '../models/user_model.dart';
 import 'hybrid_db_service.dart';
 import 'api_service.dart';
 import 'backend_contacts.dart';
+import 'message_encryption_service.dart';
 
 /// Socket service for the shared novyn-chat backend (server.js).
 ///
