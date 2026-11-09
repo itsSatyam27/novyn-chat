@@ -144,8 +144,10 @@ class SettingsService extends ChangeNotifier {
   String get photoQuality => _photoQuality;
   double get fontSize => _fontSize;
   bool get twoFactorAuth => _twoFactorAuth;
-  String get lastSeenVisibility => _stealthModeEnabled ? 'Nobody' : _lastSeenVisibility;
-  String get profilePhotoVisibility => _stealthModeEnabled ? 'Nobody' : _profilePhotoVisibility;
+  String get lastSeenVisibility => _stealthModeEnabled ? 'nobody' : _lastSeenVisibility;
+  String get profilePhotoVisibility => _stealthModeEnabled ? 'nobody' : _profilePhotoVisibility;
+  String get configuredLastSeenVisibility => _lastSeenVisibility;
+  String get configuredProfilePhotoVisibility => _profilePhotoVisibility;
   List<String> get blockedUids => _blockedUids;
   bool get appLockEnabled => _appLockEnabled;
   int get appLockTimeout => _appLockTimeout;
