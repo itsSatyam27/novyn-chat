@@ -777,7 +777,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         bytes = await picked.readAsBytes();
         filename = picked.name;
         final lower = filename.toLowerCase();
-        mime = lower.endsWith('.mp4') || lower.endsWith('.mov') ? 'video/mp4' : 'image/jpeg';
+        mime = lower.endsWith('.webm') ? 'video/webm' : lower.endsWith('.mov') ? 'video/quicktime' : lower.endsWith('.mp4') ? 'video/mp4' : 'image/jpeg';
       } else {
         final result = await FilePicker.platform.pickFiles(withData: true);
         if (result == null || result.files.isEmpty) return;
@@ -1171,6 +1171,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     if (name.endsWith('.m4a')) return 'audio/mp4';
     if (name.endsWith('.wav')) return 'audio/wav';
     if (name.endsWith('.mp4')) return 'video/mp4';
+    if (name.endsWith('.webm')) return 'video/webm';
+    if (name.endsWith('.mov')) return 'video/quicktime';
     if (name.endsWith('.png')) return 'image/png';
     if (name.endsWith('.webp')) return 'image/webp';
     if (name.endsWith('.jpg') || name.endsWith('.jpeg')) return 'image/jpeg';
