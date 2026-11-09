@@ -21,6 +21,9 @@ interface ChatContextType {
   activeChat: string | null;
   setActiveChat: (username: string | null) => void;
   messages: Message[];
+  hasMoreHistory: boolean;
+  isLoadingOlderHistory: boolean;
+  loadOlderMessages: () => void;
   getLoadedMessageSnapshot: () => Record<string, Message[]>;
   friendRequests: FriendRequest[];
   sentRequests: Set<string>;
@@ -92,6 +95,9 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeChat, setActiveChat] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
+  const [hasMoreHistory, setHasMoreHistory] = useState(false);
+  const [isLoadingOlderHistory, setIsLoadingOlderHistory] = useState(false);
+  const loadingOlderRef = useRef(false);
   const [chatWallpaper, setChatWallpaperState] = useState<string>('var(--bg-canvas)');
   const [friendRequests, setFriendRequests] = useState<FriendRequest[]>([]);
   const [sentRequests, setSentRequests] = useState<Set<string>>(new Set());
@@ -444,14 +450,31 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, []);
 
+  const loadOlderMessages = useCallback(() => {
+    const target = activeChatRef.current;
+    const current = target ? messagesCacheRef.current[target.toLowerCase()] || [] : [];
+    const oldest = current[0];
+    const socket = getSocket();
+    if (!target || !socket || !oldest?.id || !hasMoreHistory || loadingOlderRef.current) return;
+    loadingOlderRef.current = true;
+    setIsLoadingOlderHistory(true);
+    socket.emit('get_history', { to: target, kind: 'friend', before: oldest.id });
+  }, [hasMoreHistory]);
+
   // Sync active chat history & mark read (Instant 0ms cached display + background sync)
   useEffect(() => {
     if (!activeChat || !user) {
       setMessages([]);
+      setHasMoreHistory(false);
+      setIsLoadingOlderHistory(false);
+      loadingOlderRef.current = false;
       return;
     }
 
     const key = activeChat.toLowerCase();
+    setHasMoreHistory(false);
+    setIsLoadingOlderHistory(false);
+    loadingOlderRef.current = false;
     const activeConversation = conversationsRef.current.find((conversation) => conversation.username.toLowerCase() === key);
 
     // Saved Messages is a private, device-local notebook. It deliberately avoids
@@ -947,12 +970,27 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
           isEncrypted: Boolean(m.isEncrypted && !m.deletedAt),
         }));
 
+        const targetKey = target.toLowerCase();
         const confirmedIds = new Set(historyList.map((message: any) => message.clientTempId).filter(Boolean));
         for (const id of confirmedIds) pendingSendsRef.current.delete(String(id));
-        const pendingMessages = (messagesCacheRef.current[target.toLowerCase()] || []).filter((message) => pendingSendsRef.current.has(message.id));
-        formattedList.push(...pendingMessages);
-        messagesCacheRef.current[target.toLowerCase()] = formattedList;
-        setMessages(formattedList);
+        const existing = messagesCacheRef.current[targetKey] || [];
+        const pendingMessages = existing.filter((message) => pendingSendsRef.current.has(message.id));
+        const isOlderPage = Boolean(data?.before);
+        const merged = isOlderPage ? [...formattedList, ...existing] : formattedList;
+        const unique = new Map<string, Message>();
+        [...merged, ...pendingMessages].forEach((message) => unique.set(message.id, message));
+        const nextMessages = Array.from(unique.values()).sort((a, b) => {
+          const left = new Date(a.timestamp).getTime();
+          const right = new Date(b.timestamp).getTime();
+          return left - right;
+        });
+        messagesCacheRef.current[targetKey] = nextMessages;
+        setMessages(nextMessages);
+        setHasMoreHistory(Boolean(data?.hasMore));
+        if (isOlderPage) {
+          loadingOlderRef.current = false;
+          setIsLoadingOlderHistory(false);
+        }
 
       }
     };
@@ -2018,6 +2056,9 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setActiveChat,
         messages,
         getLoadedMessageSnapshot: () => ({ ...messagesCacheRef.current }),
+        hasMoreHistory,
+        isLoadingOlderHistory,
+        loadOlderMessages,
         friendRequests,
         sentRequests,
         typingUsers,

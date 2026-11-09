@@ -80,6 +80,9 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     setActiveChat,
     conversations,
     messages,
+    hasMoreHistory,
+    isLoadingOlderHistory,
+    loadOlderMessages,
     sendMessage,
     retryMessage,
     sendTyping,
@@ -128,6 +131,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   const isChatReadyRef = useRef<boolean>(false);
   const prevChatIdRef = useRef<string | null>(null);
   const prevMessagesCountRef = useRef<number>(0);
+  const olderScrollAnchorRef = useRef<{ height: number; top: number; count: number } | null>(null);
   const forceLatestUntilRef = useRef(0);
 
   const activeContact = conversations.find((c) => c.username.toLowerCase() === activeChat?.toLowerCase()) || null;
@@ -211,6 +215,25 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
     prevMessagesCountRef.current = visibleMessages.length;
   }, [visibleMessages, activeChat, user?.username]);
+
+  useLayoutEffect(() => {
+    const anchor = olderScrollAnchorRef.current;
+    const container = messagesContainerRef.current;
+    if (!anchor || !container || isLoadingOlderHistory || messages.length <= anchor.count) return;
+    container.scrollTop = anchor.top + (container.scrollHeight - anchor.height);
+    olderScrollAnchorRef.current = null;
+  }, [messages, isLoadingOlderHistory]);
+
+  const handleLoadOlder = () => {
+    const container = messagesContainerRef.current;
+    if (!container || isLoadingOlderHistory || !hasMoreHistory) return;
+    olderScrollAnchorRef.current = {
+      height: container.scrollHeight,
+      top: container.scrollTop,
+      count: messages.length,
+    };
+    loadOlderMessages();
+  };
 
   const handleMessagesScroll = () => {
     const container = messagesContainerRef.current;
@@ -606,6 +629,28 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           onDrop={handleDrop}
           onScroll={handleMessagesScroll}
         >
+          {hasMoreHistory && (
+            <div style={{ display: 'flex', justifyContent: 'center', padding: '10px 12px 14px' }}>
+              <button
+                type="button"
+                onClick={handleLoadOlder}
+                disabled={isLoadingOlderHistory}
+                style={{
+                  border: '1px solid var(--border)',
+                  borderRadius: '999px',
+                  padding: '8px 16px',
+                  background: 'var(--bg-surface)',
+                  color: 'var(--text-muted)',
+                  fontSize: '0.78rem',
+                  fontWeight: 600,
+                  cursor: isLoadingOlderHistory ? 'wait' : 'pointer',
+                  opacity: isLoadingOlderHistory ? 0.65 : 1,
+                }}
+              >
+                {isLoadingOlderHistory ? 'Loading older messages…' : '↑ Tap to load older messages'}
+              </button>
+            </div>
+          )}
           {isAwayFromLatest && stickyDay && (
             <div className="chat-sticky-day-chip" aria-hidden="true">{stickyDay}</div>
           )}
