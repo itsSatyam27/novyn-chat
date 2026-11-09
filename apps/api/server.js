@@ -1578,6 +1578,21 @@ async function persistMongoNow() {
       },
       { upsert: true, session }
     );
+    // Commit marker is written in the same transaction as every collection.
+    // Startup only trusts snapshots whose complete set of records is present.
+    await mongoLegacyCollection.updateOne(
+      { _id: "snapshot_manifest" },
+      {
+        $set: {
+          snapshotId,
+          userCount: userOps.length,
+          conversationCount: conversationOps.length,
+          messageCount: messageOrder,
+          committedAt: updatedAt,
+        },
+      },
+      { upsert: true, session }
+    );
   }
     }, {
       readConcern: { level: "snapshot" },
@@ -2343,16 +2358,39 @@ async function loadStateFromMongoCollections() {
 
   // A snapshot write spans multiple collections. Load one complete snapshot,
   // rather than accidentally mixing old/new documents after a crash.
-  const latestCandidates = await Promise.all([
-    mongoUsersCollection.findOne({}, { projection: { snapshotId: 1, updatedAt: 1 }, sort: { updatedAt: -1 } }),
-    mongoConversationsCollection.findOne({}, { projection: { snapshotId: 1, updatedAt: 1 }, sort: { updatedAt: -1 } }),
-    mongoMessagesCollection.findOne({}, { projection: { snapshotId: 1, updatedAt: 1 }, sort: { updatedAt: -1 } }),
-  ]);
-  const latest = latestCandidates
-    .filter(Boolean)
-    .sort((a, b) => String(b.updatedAt || "").localeCompare(String(a.updatedAt || "")))[0];
-  const snapshotId = toDisplayName(latest?.snapshotId);
+  const manifest = mongoLegacyCollection
+    ? await mongoLegacyCollection.findOne({ _id: "snapshot_manifest" })
+    : null;
+  let snapshotId = toDisplayName(manifest?.snapshotId);
+  if (!snapshotId) {
+    // Compatibility path for snapshots written before the manifest was introduced.
+    const latestCandidates = await Promise.all([
+      mongoUsersCollection.findOne({}, { projection: { snapshotId: 1, updatedAt: 1 }, sort: { updatedAt: -1 } }),
+      mongoConversationsCollection.findOne({}, { projection: { snapshotId: 1, updatedAt: 1 }, sort: { updatedAt: -1 } }),
+      mongoMessagesCollection.findOne({}, { projection: { snapshotId: 1, updatedAt: 1 }, sort: { updatedAt: -1 } }),
+    ]);
+    const latest = latestCandidates
+      .filter(Boolean)
+      .sort((a, b) => String(b.updatedAt || "").localeCompare(String(a.updatedAt || "")))[0];
+    snapshotId = toDisplayName(latest?.snapshotId);
+  }
   const snapshotFilter = snapshotId ? { snapshotId } : {};
+  if (manifest && snapshotId) {
+    const [actualUsers, actualConversations, actualMessages] = await Promise.all([
+      mongoUsersCollection.countDocuments(snapshotFilter),
+      mongoConversationsCollection.countDocuments(snapshotFilter),
+      mongoMessagesCollection.countDocuments(snapshotFilter),
+    ]);
+    if (
+      actualUsers !== Number(manifest.userCount) ||
+      actualConversations !== Number(manifest.conversationCount) ||
+      actualMessages !== Number(manifest.messageCount)
+    ) {
+      throw new Error(
+        `MongoDB snapshot ${snapshotId} is incomplete; refusing to load or overwrite chat data.`
+      );
+    }
+  }
 
   const [userDocs, conversationDocs, messageDocs, legacyDoc] = await Promise.all([
     mongoUsersCollection.find(snapshotFilter, { projection: { snapshotId: 0, updatedAt: 0 } }).toArray(),
