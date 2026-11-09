@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'dart:io';
+import 'package:path_provider/path_provider.dart';
 import 'dart:ui';
 import '../../../services/settings_service.dart';
 import '../widgets/profile_widgets.dart';
@@ -54,7 +56,7 @@ class DataStorageScreen extends StatelessWidget {
             iconColor: const Color(0xFFEF4444),
             iconBgColor: const Color(0xFFEF4444).withValues(alpha: 0.1),
             title: 'Clear Cache',
-            subtitle: 'Purge temporary data (79.4 MB)',
+            subtitle: 'Remove temporary files without deleting chats',
             onTap: () => _showClearCacheDialog(context),
           ),
           
@@ -145,16 +147,28 @@ class DataStorageScreen extends StatelessWidget {
               ),
             ),
             TextButton(
-              onPressed: () {
+              onPressed: () async {
                 HapticFeedback.heavyImpact();
                 Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Node cache purged successfully'),
-                    behavior: SnackBarBehavior.floating,
-                    backgroundColor: Color(0xFF10B981),
-                  ),
-                );
+                try {
+                  final temp = await getTemporaryDirectory();
+                  if (await temp.exists()) {
+                    await for (final entity in temp.list(followLinks: false)) {
+                      try { await entity.delete(recursive: true); } catch (_) {}
+                    }
+                  }
+                  PaintingBinding.instance.imageCache.clear();
+                  PaintingBinding.instance.imageCache.clearLiveImages();
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Temporary cache cleared. Chats and account data were kept.'), behavior: SnackBarBehavior.floating),
+                  );
+                } catch (error) {
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Could not clear cache: $error'), behavior: SnackBarBehavior.floating),
+                  );
+                }
               },
               child: const Text(
                 'Purge',
@@ -341,83 +355,79 @@ class _SelectionCard extends StatelessWidget {
 }
 
 class _StorageInfoCard extends StatelessWidget {
+  const _StorageInfoCard();
+
+  Future<int> _directoryBytes(Directory directory) async {
+    if (!await directory.exists()) return 0;
+    var total = 0;
+    await for (final entity in directory.list(recursive: true, followLinks: false)) {
+      if (entity is File) {
+        try { total += await entity.length(); } catch (_) {}
+      }
+    }
+    return total;
+  }
+
+  String _formatBytes(int bytes) {
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    if (bytes < 1024 * 1024 * 1024) return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(2)} GB';
+  }
+
+  Future<Map<String, int>> _loadUsage() async {
+    final docs = await getApplicationDocumentsDirectory();
+    final temp = await getTemporaryDirectory();
+    return {
+      'app': await _directoryBytes(docs),
+      'temporary': await _directoryBytes(temp),
+    };
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(24),
-        color: isDark 
-            ? const Color(0xFF1A1D2B).withValues(alpha: 0.6) 
-            : Colors.white.withValues(alpha: 0.8),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.1), width: 1),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+    final foreground = Theme.of(context).colorScheme.onSurface;
+    return FutureBuilder<Map<String, int>>(
+      future: _loadUsage(),
+      builder: (context, snapshot) {
+        final usage = snapshot.data;
+        final appBytes = usage?['app'] ?? 0;
+        final tempBytes = usage?['temporary'] ?? 0;
+        final total = appBytes + tempBytes;
+        final appRatio = total == 0 ? 0.0 : appBytes / total;
+        return Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            color: isDark ? const Color(0xFF1A1D2B) : Colors.white,
+            border: Border.all(color: foreground.withValues(alpha: 0.08)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Icon(Icons.analytics_rounded, color: Color(0xFF7C6FF7), size: 24),
-              const SizedBox(width: 12),
-              Text(
-                'Storage Breakdown',
-                style: TextStyle(
-                  fontFamily: 'Outfit',
-                  fontSize: 18,
-                  fontWeight: FontWeight.w900,
-                  color: Theme.of(context).colorScheme.onSurface,
-                ),
-              ),
+              Row(children: [
+                Icon(Icons.storage_rounded, color: foreground),
+                const SizedBox(width: 10),
+                Text('Storage used on this device', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: foreground)),
+                const Spacer(),
+                if (snapshot.connectionState == ConnectionState.waiting)
+                  const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+              ]),
+              const SizedBox(height: 18),
+              _StorageItem(label: 'App data & local database', size: _formatBytes(appBytes), color: foreground, percentage: appRatio),
+              _StorageItem(label: 'Temporary files & cache', size: _formatBytes(tempBytes), color: foreground.withValues(alpha: 0.55), percentage: total == 0 ? 0 : tempBytes / total),
+              const Divider(height: 24),
+              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                Text('Total measured usage', style: TextStyle(fontSize: 13, color: foreground.withValues(alpha: 0.65))),
+                Text(snapshot.hasError ? 'Unavailable' : _formatBytes(total), style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: foreground)),
+              ]),
+              const SizedBox(height: 6),
+              Text('Measured from this app’s documents and temporary folders. System-managed cache may vary.', style: TextStyle(fontSize: 11, color: foreground.withValues(alpha: 0.5))),
             ],
           ),
-          const SizedBox(height: 24),
-          const _StorageItem(
-            label: 'Encrypted Messages',
-            size: '45.2 MB',
-            color: Color(0xFF7C6FF7),
-            percentage: 0.6,
-          ),
-          const _StorageItem(
-            label: 'Visual Artifacts',
-            size: '23.8 MB',
-            color: Color(0xFF10B981),
-            percentage: 0.3,
-          ),
-          const _StorageItem(
-            label: 'Neural Stream Buffers',
-            size: '8.1 MB',
-            color: Color(0xFFF59E0B),
-            percentage: 0.1,
-          ),
-          const SizedBox(height: 12),
-          const Divider(color: Colors.white10),
-          const SizedBox(height: 8),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Total Node Usage',
-                style: TextStyle(
-                  fontFamily: 'Outfit',
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
-                ),
-              ),
-              Text(
-                '79.4 MB',
-                style: TextStyle(
-                  fontFamily: 'Outfit',
-                  fontSize: 16,
-                  fontWeight: FontWeight.w900,
-                  color: const Color(0xFF7C6FF7),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
@@ -428,70 +438,29 @@ class _StorageItem extends StatelessWidget {
   final Color color;
   final double percentage;
 
-  const _StorageItem({
-    required this.label,
-    required this.size,
-    required this.color,
-    required this.percentage,
-  });
+  const _StorageItem({required this.label, required this.size, required this.color, required this.percentage});
 
   @override
   Widget build(BuildContext context) {
+    final foreground = Theme.of(context).colorScheme.onSurface;
     return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
-      child: Column(
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    width: 10,
-                    height: 10,
-                    decoration: BoxDecoration(
-                      color: color,
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(color: color.withValues(alpha: 0.3), blurRadius: 4),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Text(
-                    label,
-                    style: TextStyle(
-                      fontFamily: 'Outfit',
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                      color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
-                    ),
-                  ),
-                ],
-              ),
-              Text(
-                size,
-                style: TextStyle(
-                  fontFamily: 'Outfit',
-                  fontSize: 14,
-                  fontWeight: FontWeight.w800,
-                  color: Theme.of(context).colorScheme.onSurface,
-                ),
-              ),
-            ],
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Column(children: [
+        Row(children: [
+          Expanded(child: Text(label, style: TextStyle(fontSize: 13, color: foreground.withValues(alpha: 0.75)))),
+          Text(size, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: foreground)),
+        ]),
+        const SizedBox(height: 7),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: LinearProgressIndicator(
+            value: percentage.clamp(0.0, 1.0),
+            backgroundColor: foreground.withValues(alpha: 0.08),
+            valueColor: AlwaysStoppedAnimation<Color>(color),
+            minHeight: 5,
           ),
-          const SizedBox(height: 8),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(10),
-            child: LinearProgressIndicator(
-              value: percentage,
-              backgroundColor: Colors.white.withValues(alpha: 0.05),
-              valueColor: AlwaysStoppedAnimation<Color>(color),
-              minHeight: 6,
-            ),
-          ),
-        ],
-      ),
+        ),
+      ]),
     );
   }
 }
