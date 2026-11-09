@@ -851,7 +851,9 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
               onRematch={onRematchGame}
             />
           ) : (
-            message.text && (!isAudioMessage || message.text !== '[Voice Message]') && (
+            message.text &&
+            !(message.attachment && /^\[(?:image|video|file|attachment)\]$/i.test(message.text.trim())) &&
+            (!isAudioMessage || message.text !== '[Voice Message]') && (
               <div>
                 <div style={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>
                   <HighlightText text={message.text} query={searchQuery} />
