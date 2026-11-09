@@ -9,6 +9,7 @@ import '../../services/hybrid_db_service.dart';
 import '../../widgets/user_avatar.dart';
 import '../../widgets/novyn_shimmer.dart';
 import '../../widgets/novyn_empty_state.dart';
+import '../../widgets/novyn_ui.dart';
 import '../calls/call_screen.dart';
 import '../chats/chat_detail_screen.dart';
 
@@ -22,7 +23,15 @@ class CallsScreen extends StatefulWidget {
 class _CallsScreenState extends State<CallsScreen> {
   List<_CallEntry> _calls = [];
   bool _loading = true;
-  String _filter = 'All'; // 'All' | 'Missed' | 'Video'
+  String _filter = 'All'; // All | Missed | Audio | Video
+  String _search = '';
+  final TextEditingController _searchController = TextEditingController();
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   @override
   void initState() {
@@ -110,84 +119,44 @@ class _CallsScreenState extends State<CallsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final missedCount = _calls.where((call) => call.status == 'missed').length;
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(24, 24, 16, 4),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Calls',
-                      style: TextStyle(
-                        fontFamily: 'Inter',
-                        fontSize: 28,
-                        fontWeight: FontWeight.bold,
-                        color: Theme.of(context).colorScheme.onSurface,
-                      ),
-                    ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.refresh_rounded, color: Color(0xFF94A3B8)),
-                    onPressed: () {
-                      setState(() => _loading = true);
-                      _loadCalls();
-                    },
-                  ),
-                ],
-              ),
+            NovynHeader(
+              title: 'Calls',
+              subtitle: '${_calls.length} recent conversations · $missedCount missed',
+              actions: [
+                NovynIconButton(
+                  icon: Icons.refresh_rounded,
+                  onTap: () {
+                    HapticFeedback.selectionClick();
+                    setState(() => _loading = true);
+                    _loadCalls();
+                  },
+                ),
+              ],
             ),
-            // ── Filter chips ──────────────────────────────────────────────
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-              child: Row(
-                children: ['All', 'Missed', 'Video'].map((label) {
-                  final selected = _filter == label;
-                  return Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: GestureDetector(
-                      onTap: () => setState(() => _filter = label),
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 200),
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 18, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: selected
-                              ? Theme.of(context).colorScheme.primary
-                              : Colors.transparent,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: selected
-                                ? Theme.of(context).colorScheme.primary
-                                : Theme.of(context).colorScheme.outline.withValues(alpha: 0.3),
-                          ),
-                        ),
-                        child: Text(
-                          label,
-                          style: TextStyle(
-                            fontFamily: 'Inter',
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: selected
-                                ? Colors.white
-                                : Theme.of(context).colorScheme.outline,
-                          ),
-                        ),
-                      ),
-                    ),
-                  );
-                }).toList(),
-              ),
+            NovynSearchField(
+              hint: 'Search call history…',
+              controller: _searchController,
+              onChanged: (value) => setState(() => _search = value.trim().toLowerCase()),
+            ),
+            NovynChipRow(
+              labels: const ['All', 'Missed', 'Audio', 'Video'],
+              selected: const ['All', 'Missed', 'Audio', 'Video'].indexOf(_filter),
+              onSelected: (index) => setState(() {
+                _filter = const ['All', 'Missed', 'Audio', 'Video'][index];
+              }),
             ),
             Expanded(
               child: _loading
                   ? ListView.builder(
                       padding: const EdgeInsets.symmetric(vertical: 8),
-                      itemCount: 8,
+                      itemCount: 6,
                       itemBuilder: (_, __) => NovynShimmer.callItem(),
                     )
                   : _filteredCalls().isEmpty
@@ -201,21 +170,115 @@ class _CallsScreenState extends State<CallsScreen> {
   }
 
   List<_CallEntry> _filteredCalls() {
+    var result = _calls;
     switch (_filter) {
       case 'Missed':
-        return _calls.where((c) => c.status == 'missed').toList();
+        result = result.where((call) => call.status == 'missed').toList();
+        break;
+      case 'Audio':
+        result = result.where((call) => call.type != 'video').toList();
+        break;
       case 'Video':
-        return _calls.where((c) => c.type == 'video').toList();
-      default:
-        return _calls;
+        result = result.where((call) => call.type == 'video').toList();
+        break;
     }
+    if (_search.isNotEmpty) {
+      result = result.where((call) =>
+        call.peer.name.toLowerCase().contains(_search) ||
+        call.peer.username.toLowerCase().contains(_search)
+      ).toList();
+    }
+    return result;
   }
 
   Widget _buildList() {
-    return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 120),
-      itemCount: _filteredCalls().length,
-      itemBuilder: (context, i) => _CallCard(entry: _filteredCalls()[i]),
+    final calls = _filteredCalls();
+    final quickCalls = _calls.take(4).toList();
+    return RefreshIndicator(
+      color: NovynColors.violet,
+      onRefresh: _loadCalls,
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 120),
+        children: [
+          if (_search.isEmpty && _filter == 'All' && quickCalls.isNotEmpty) ...[
+            const NovynSectionLabel(
+              'QUICK CALL',
+              icon: Icons.bolt_rounded,
+              padding: EdgeInsets.fromLTRB(4, 4, 4, 10),
+            ),
+            SizedBox(
+              height: 92,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: quickCalls.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 14),
+                itemBuilder: (context, index) {
+                  final entry = quickCalls[index];
+                  return GestureDetector(
+                    onTap: () {
+                      HapticFeedback.lightImpact();
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => CallScreen(peer: entry.peer, callType: 'voice'),
+                        ),
+                      );
+                    },
+                    child: SizedBox(
+                      width: 68,
+                      child: Column(
+                        children: [
+                          Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              UserAvatar(
+                                name: entry.peer.name,
+                                photoUrl: entry.peer.photoUrl,
+                                radius: 26,
+                                showOnlineIndicator: true,
+                                isOnline: entry.peer.isOnline,
+                                presence: entry.peer.status,
+                              ),
+                              Positioned(
+                                right: -2,
+                                bottom: -2,
+                                child: Container(
+                                  width: 23,
+                                  height: 23,
+                                  decoration: BoxDecoration(
+                                    gradient: NovynGradients.primary,
+                                    shape: BoxShape.circle,
+                                    border: Border.all(color: NovynColors.bg, width: 2),
+                                  ),
+                                  child: const Icon(Icons.call_rounded, size: 12, color: Colors.white),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 7),
+                          Text(
+                            entry.peer.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: NovynText.body(11, color: NovynColors.textChip),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
+          NovynSectionLabel(
+            _search.isNotEmpty || _filter != 'All' ? 'RESULTS' : 'RECENT CALLS',
+            padding: const EdgeInsets.fromLTRB(4, 4, 4, 10),
+          ),
+          for (final entry in calls) _CallCard(entry: entry),
+          const SizedBox(height: 80),
+        ],
+      ),
     );
   }
 
@@ -276,13 +339,11 @@ class _CallCard extends StatelessWidget {
     final isMissed = entry.status == 'missed';
     final isIncoming = entry.status == 'incoming';
     final isVideo = entry.type == 'video';
-
     final statusColor = isMissed
-        ? const Color(0xFFEF4444)
+        ? NovynColors.danger
         : isIncoming
-            ? const Color(0xFF10B981)
-            : const Color(0xFF0EA5E9);
-
+            ? NovynColors.mint
+            : const Color(0xFF79B8FF);
     final statusIcon = isMissed
         ? Icons.call_missed_rounded
         : isIncoming
@@ -307,147 +368,103 @@ class _CallCard extends StatelessWidget {
           ),
         ],
       ),
-      child: InkWell(
-        onTap: () => _showHistory(context),
-        borderRadius: BorderRadius.circular(20),
-        child: Container(
-          margin: const EdgeInsets.only(bottom: 10),
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surface,
-            borderRadius: BorderRadius.circular(20),
-            boxShadow: [
-              BoxShadow(
-                color: Theme.of(context).colorScheme.shadow.withValues(alpha: 0.03),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Row(
-            children: [
-              // Avatar
-              UserAvatar(
-                name: entry.peer.name,
-                photoUrl: entry.peer.photoUrl,
-                radius: 27,
-                showOnlineIndicator: true,
-                isOnline: entry.peer.isOnline,
-                presence: entry.peer.status,
-              ),
-              const SizedBox(width: 14),
-
-              // Info
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Text(
-                          entry.peer.name,
-                          style: TextStyle(
-                            fontFamily: 'Inter',
-                            fontWeight: FontWeight.w600,
-                            fontSize: 15,
-                            color: Theme.of(context).colorScheme.onSurface,
-                          ),
-                        ),
-                        if (entry.count > 1) ...[
-                          const SizedBox(width: 6),
-                          Text(
-                            '(${entry.count})',
-                            style: const TextStyle(
-                              fontFamily: 'Inter',
-                              fontSize: 13,
-                              fontWeight: FontWeight.w700,
-                              color: Color(0xFF94A3B8),
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        Icon(statusIcon, size: 14, color: statusColor),
-                        const SizedBox(width: 4),
-                        Text(
-                          _statusLabel(entry.type, entry.status),
-                          style: TextStyle(
-                            fontFamily: 'Inter',
-                            fontSize: 12,
-                            color: statusColor,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        if (entry.duration > 0) ...[
-                          const Text(
-                            ' · ',
-                            style: TextStyle(color: Color(0xFF94A3B8), fontSize: 12),
-                          ),
-                          Text(
-                            _formatDuration(entry.duration),
-                            style: const TextStyle(
-                              fontFamily: 'Inter',
-                              fontSize: 12,
-                              color: Color(0xFF94A3B8),
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-
-              // Right side: time + call back button
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        decoration: BoxDecoration(
+          color: NovynColors.card,
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: NovynColors.glassBorder),
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: () => _showHistory(context),
+            borderRadius: BorderRadius.circular(22),
+            child: Padding(
+              padding: const EdgeInsets.all(13),
+              child: Row(
                 children: [
-                  Text(
-                    _formatTime(entry.createdAt),
-                    style: const TextStyle(
-                      fontFamily: 'Inter',
-                      fontSize: 11,
-                      color: Color(0xFF94A3B8),
+                  UserAvatar(
+                    name: entry.peer.name,
+                    photoUrl: entry.peer.photoUrl,
+                    radius: 27,
+                    showOnlineIndicator: true,
+                    isOnline: entry.peer.isOnline,
+                    presence: entry.peer.status,
+                  ),
+                  const SizedBox(width: 13),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                entry.peer.name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: NovynText.body(15, weight: FontWeight.w700),
+                              ),
+                            ),
+                            if (entry.count > 1) ...[
+                              const SizedBox(width: 5),
+                              Text('(${entry.count})',
+                                  style: NovynText.body(11, color: NovynColors.textMuted)),
+                            ],
+                          ],
+                        ),
+                        const SizedBox(height: 5),
+                        Row(
+                          children: [
+                            Icon(statusIcon, size: 14, color: statusColor),
+                            const SizedBox(width: 5),
+                            Flexible(
+                              child: Text(
+                                _statusLabel(entry.type, entry.status),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: NovynText.body(11.5, color: statusColor, weight: FontWeight.w500),
+                              ),
+                            ),
+                            if (entry.duration > 0) ...[
+                              Text(' · ', style: NovynText.body(11, color: NovynColors.textMuted)),
+                              Text(_formatDuration(entry.duration),
+                                  style: NovynText.body(11, color: NovynColors.textMuted)),
+                            ],
+                          ],
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 8),
-                  GestureDetector(
-                    onTap: () {
-                      HapticFeedback.lightImpact();
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => CallScreen(
-                            peer:     entry.peer,
-                            callType: entry.type,
-                          ),
-                        ),
-                      );
-                    },
-                    child: Container(
-                      width: 36,
-                      height: 36,
-                      decoration: BoxDecoration(
-                        color: isVideo
-                            ? const Color(0xFF7C6FF7).withValues(alpha: 0.1)
-                            : const Color(0xFF0EA5E9).withValues(alpha: 0.1),
-                        shape: BoxShape.circle,
+                  const SizedBox(width: 8),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(_formatTime(entry.createdAt),
+                          style: NovynText.body(10.5, color: NovynColors.timeMuted)),
+                      const SizedBox(height: 8),
+                      NovynIconButton(
+                        icon: isVideo ? Icons.videocam_rounded : Icons.call_rounded,
+                        primary: true,
+                        size: 36,
+                        radius: 12,
+                        iconSize: 17,
+                        onTap: () {
+                          HapticFeedback.lightImpact();
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => CallScreen(peer: entry.peer, callType: entry.type),
+                            ),
+                          );
+                        },
                       ),
-                      child: Icon(
-                        isVideo ? Icons.videocam_rounded : Icons.call_rounded,
-                        size: 18,
-                        color: isVideo
-                            ? const Color(0xFF7C6FF7)
-                            : const Color(0xFF0EA5E9),
-                      ),
-                    ),
+                    ],
                   ),
                 ],
               ),
-            ],
+            ),
           ),
         ),
       ),
