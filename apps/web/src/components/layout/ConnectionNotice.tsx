@@ -52,9 +52,9 @@ export const ConnectionNotice: React.FC = () => {
   };
 
   return (
-    <div className="connection-notice" role="status" aria-live="polite">
+    <div className={`connection-notice connection-notice-${state}`} role="status" aria-live="polite">
       <WifiOff size={16} aria-hidden="true" />
-      <span>{state === 'connecting' ? 'Connecting to Novyn…' : 'Connection lost. Messages may not send.'}</span>
+      <span>{state === 'connecting' ? 'Reconnecting…' : 'Offline'}</span>
       {state === 'offline' && (
         <button type="button" onClick={handleReconnect}>
           <RefreshCw size={14} /> Reconnect
