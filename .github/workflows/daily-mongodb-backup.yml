@@ -52,7 +52,6 @@ jobs:
         run: |
           set -euo pipefail
           RUNNER_IP="$(curl -fsS https://api.ipify.org)"
-          echo "runner_ip=$RUNNER_IP" >> "$GITHUB_OUTPUT"
           curl --fail-with-body --silent --show-error --digest \
             --user "$ATLAS_PUBLIC_KEY:$ATLAS_PRIVATE_KEY" \
             --header "Accept: application/vnd.atlas.2023-01-01+json" \
@@ -60,6 +59,7 @@ jobs:
             --request POST \
             --data "$(jq -n --arg ip "$RUNNER_IP" '{ipAddress:$ip,comment:"Temporary GitHub Actions Novyn backup runner"}')" \
             "https://cloud.mongodb.com/api/atlas/v2/groups/$ATLAS_PROJECT_ID/accessList"
+          echo "runner_ip=$RUNNER_IP" >> "$GITHUB_OUTPUT"
 
       - name: Dump and encrypt Novyn database
         shell: bash
