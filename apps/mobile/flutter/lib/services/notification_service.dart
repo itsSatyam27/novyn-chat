@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'auth_service.dart';
 import 'settings_service.dart';
+import 'socket_service.dart';
 
 // Top-level handler — must be a top-level function
 @pragma('vm:entry-point')
@@ -18,7 +19,9 @@ class NotificationService {
   static final FirebaseFirestore _db = FirebaseFirestore.instance;
   static AuthService? _presenceAuth;
   static SettingsService? _settings;
-  static String? _activeUid;
+  static SocketService? _socket;
+  static String? _lastSyncedPreferences;
+  static bool _syncingPreferences = false;
   static bool? _lastAlertsEnabled;
   static bool? _lastSoundEnabled;
 
@@ -39,20 +42,33 @@ class NotificationService {
     }
   }
 
+  static void _onSocketChanged() {
+    unawaited(_syncUserPreferences());
+  }
+
   static Future<void> _syncUserPreferences() async {
-    final uid = _activeUid;
+    final socket = _socket;
     final settings = _settings;
-    if (uid == null || settings == null) return;
+    if (socket == null || settings == null || !socket.isConnected || _syncingPreferences) return;
+
+    final notificationsEnabled = settings.notificationsOn;
+    final messagePreview = notificationsEnabled && settings.messagePreview && !settings.hideNotificationContent;
+    final groupNotifications = notificationsEnabled && settings.groupNotifications;
+    final signature = '$notificationsEnabled|$messagePreview|$groupNotifications';
+    if (_lastSyncedPreferences == signature) return;
+
+    _syncingPreferences = true;
     try {
-      await _db.collection('users').doc(uid).set({
-        'notificationPreferences': {
-          'enabled': settings.notificationsOn,
-          'messagePreview': settings.notificationsOn && settings.messagePreview && !settings.hideNotificationContent,
-          'groupNotifications': settings.notificationsOn && settings.groupNotifications,
-        },
-      }, SetOptions(merge: true));
+      final result = await socket.updateAccountSettings({
+        'notificationsEnabled': notificationsEnabled,
+        'messagePreviewEnabled': messagePreview,
+        'groupNotificationsEnabled': groupNotifications,
+      });
+      if (result['ok'] == true) _lastSyncedPreferences = signature;
     } catch (_) {
-      // Local preferences remain effective even if cloud sync is unavailable.
+      // Retry on the next socket connection or preference change.
+    } finally {
+      _syncingPreferences = false;
     }
   }
 
@@ -81,6 +97,9 @@ class NotificationService {
     _settings?.removeListener(_onSettingsChanged);
     _settings = context.read<SettingsService>();
     _settings!.addListener(_onSettingsChanged);
+    _socket?.removeListener(_onSocketChanged);
+    _socket = context.read<SocketService>();
+    _socket!.addListener(_onSocketChanged);
     _presenceAuth?.removeListener(_syncPresentation);
     _presenceAuth = context.read<AuthService>();
     _presenceAuth!.addListener(_syncPresentation);
@@ -115,7 +134,6 @@ class NotificationService {
 
   // ── Save FCM token for a user ─────────────────────────────────────────────
   static Future<void> saveTokenForUser(String uid) async {
-    _activeUid = uid;
     await _syncUserPreferences();
     try {
       final token = await _fcm.getToken();
