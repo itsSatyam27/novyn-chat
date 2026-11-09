@@ -39,6 +39,7 @@ class _ChatsScreenState extends State<ChatsScreen> {
   String _search = '';
   ChatFilter _activeFilter = ChatFilter.all;
   final FocusNode _searchFocusNode = FocusNode();
+  final TextEditingController _searchController = TextEditingController();
   bool _isSearching = true;
 
   // Static cache moved to ChatsScreen widget class
@@ -184,6 +185,7 @@ class _ChatsScreenState extends State<ChatsScreen> {
       context.read<SocketService>().removeListener(_handleSocketUpdate);
     } catch (_) {}
     _searchFocusNode.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -329,14 +331,6 @@ class _ChatsScreenState extends State<ChatsScreen> {
                       onRefresh: _loadChats,
                       child: CustomScrollView(
                         slivers: [
-                          // ── Stories Section ────────────────────────────────
-                          SliverToBoxAdapter(
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 8),
-                              child: _buildStories(),
-                            ),
-                          ),
-
                           // ── Pinned Section ─────────────────────────────────
                           if (activeChats.any((c) => c.isPinned)) ...[
                             SliverToBoxAdapter(
@@ -389,11 +383,10 @@ class _ChatsScreenState extends State<ChatsScreen> {
   }
 
   Widget _buildSearch() {
-    return NeoTextField(
-      focusNode: _searchFocusNode,
+    return NovynSearchField(
+      hint: 'Search conversations…',
+      controller: _searchController,
       onChanged: _onSearch,
-      hintText: 'Search conversations...',
-      icon: Icons.search_rounded,
     );
   }
 
