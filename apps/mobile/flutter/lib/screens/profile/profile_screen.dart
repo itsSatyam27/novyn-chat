@@ -33,7 +33,7 @@ class ProfileScreen extends StatelessWidget {
     final username = profile?.username ?? 'user';
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0E0B20),
+      backgroundColor: const Color(0xFF0B0B0B),
       body: Stack(
         children: [
           const Positioned.fill(child: _NovynSettingsBackdrop()),
@@ -63,23 +63,23 @@ class ProfileScreen extends StatelessWidget {
                 const SizedBox(height: 26),
                 NovynSectionLabel(l10n.preferences.toUpperCase(), padding: const EdgeInsets.fromLTRB(4, 0, 4, 10)),
                 _NovynSettingsGroup(children: [
-                  _NovynSettingsTile(icon: Icons.palette_outlined, title: l10n.appearance, subtitle: 'Theme and display', accent: const Color(0xFFA78BFA), onTap: () => _showAppearanceDialog(context, settings)),
-                  _NovynSettingsTile(icon: Icons.volume_up_outlined, title: l10n.soundVibration, subtitle: 'Ringtones and haptics', accent: const Color(0xFF5EEAD4), onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SoundVibrationScreen()))),
-                  _NovynSettingsTile(icon: Icons.notifications_none_rounded, title: l10n.notifications, subtitle: 'Messages and call alerts', accent: const Color(0xFFF472B6), onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const NotificationSettingsScreen()))),
-                  _NovynSettingsTile(icon: Icons.language_rounded, title: l10n.languageRegion, subtitle: 'App language and region', accent: const Color(0xFF93C5FD), onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const LanguageRegionScreen()))),
-                  _NovynSettingsTile(icon: Icons.storage_rounded, title: 'Data & Storage', subtitle: 'Storage usage and downloads', accent: const Color(0xFF67E8F9), onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const DataStorageScreen()))),
-                  _NovynSettingsTile(icon: Icons.accessibility_new_rounded, title: 'Accessibility', subtitle: 'Make Novyn easier to use', accent: const Color(0xFFC4B5FD), onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AccessibilityScreen())), showDivider: false),
+                  _NovynSettingsTile(icon: Icons.palette_outlined, title: l10n.appearance, subtitle: 'Theme and display', accent: const Color(0xFFE0E0E0), onTap: () => _showAppearanceDialog(context, settings)),
+                  _NovynSettingsTile(icon: Icons.volume_up_outlined, title: l10n.soundVibration, subtitle: 'Ringtones and haptics', accent: const Color(0xFFBDBDBD), onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SoundVibrationScreen()))),
+                  _NovynSettingsTile(icon: Icons.notifications_none_rounded, title: l10n.notifications, subtitle: 'Messages and call alerts', accent: const Color(0xFFD0D0D0), onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const NotificationSettingsScreen()))),
+                  _NovynSettingsTile(icon: Icons.language_rounded, title: l10n.languageRegion, subtitle: 'App language and region', accent: const Color(0xFFD0D0D0), onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const LanguageRegionScreen()))),
+                  _NovynSettingsTile(icon: Icons.storage_rounded, title: 'Data & Storage', subtitle: 'Storage usage and downloads', accent: const Color(0xFFBDBDBD), onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const DataStorageScreen()))),
+                  _NovynSettingsTile(icon: Icons.accessibility_new_rounded, title: 'Accessibility', subtitle: 'Make Novyn easier to use', accent: const Color(0xFFE0E0E0), onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AccessibilityScreen())), showDivider: false),
                 ]),
                 const SizedBox(height: 24),
                 NovynSectionLabel(l10n.account.toUpperCase(), padding: const EdgeInsets.fromLTRB(4, 0, 4, 10)),
                 _NovynSettingsGroup(children: [
-                  _NovynSettingsTile(icon: Icons.shield_outlined, title: l10n.securityPrivacy, subtitle: 'Privacy and account protection', accent: const Color(0xFF34D399), onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SecurityPrivacyScreen()))),
-                  _NovynSettingsTile(icon: Icons.qr_code_2_rounded, title: l10n.qrCode, subtitle: 'Share your Novyn profile', accent: const Color(0xFFA78BFA), onTap: () => _showQRCode(context), showDivider: false),
+                  _NovynSettingsTile(icon: Icons.shield_outlined, title: l10n.securityPrivacy, subtitle: 'Privacy and account protection', accent: const Color(0xFFBDBDBD), onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SecurityPrivacyScreen()))),
+                  _NovynSettingsTile(icon: Icons.qr_code_2_rounded, title: l10n.qrCode, subtitle: 'Share your Novyn profile', accent: const Color(0xFFE0E0E0), onTap: () => _showQRCode(context), showDivider: false),
                 ]),
                 const SizedBox(height: 24),
                 NovynSectionLabel(l10n.support.toUpperCase(), padding: const EdgeInsets.fromLTRB(4, 0, 4, 10)),
                 _NovynSettingsGroup(children: [
-                  _NovynSettingsTile(icon: Icons.help_outline_rounded, title: l10n.helpSupport, subtitle: 'FAQs and get help', accent: const Color(0xFFFBBF24), onTap: () => _showHelpSupport(context), showDivider: false),
+                  _NovynSettingsTile(icon: Icons.help_outline_rounded, title: l10n.helpSupport, subtitle: 'FAQs and get help', accent: const Color(0xFFE0E0E0), onTap: () => _showHelpSupport(context), showDivider: false),
                 ]),
                 const SizedBox(height: 24),
                 _NovynLogoutTile(title: l10n.logOut, onTap: () => _confirmLogout(context, auth)),
@@ -296,7 +296,7 @@ class ProfileScreen extends StatelessWidget {
                           fontFamily: 'Outfit',
                           fontWeight: FontWeight.w900,
                           fontSize: 22,
-                          color: Color(0xFF7C6FF7),
+                          color: Color(0xFFE0E0E0),
                         ),
                       ),
                       const SizedBox(height: 40),
@@ -428,7 +428,7 @@ class ProfileScreen extends StatelessWidget {
                 children: [
                   ShaderMask(
                     shaderCallback: (bounds) => const LinearGradient(
-                      colors: [Color(0xFF7C6FF7), Color(0xFF40E0D0)],
+                      colors: [Color(0xFFE0E0E0), Color(0xFFBDBDBD)],
                     ).createShader(bounds),
                     child: const Text(
                       'Appearance',
@@ -444,7 +444,7 @@ class ProfileScreen extends StatelessWidget {
                   _ThemeOption(
                     label: 'System Default',
                     icon: Icons.brightness_auto_rounded,
-                    iconColor: const Color(0xFF7C6FF7),
+                    iconColor: const Color(0xFFE0E0E0),
                     isSelected: settings.themeMode == ThemeMode.system,
                     onTap: () {
                       HapticFeedback.selectionClick();
@@ -596,7 +596,7 @@ class _InnovationTopEditPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
-    final color = const Color(0xFF40E0D0);
+    final color = const Color(0xFFBDBDBD);
     
     // 1. Core Node
     final corePaint = Paint()
@@ -710,7 +710,7 @@ class _InnovationEditPainter extends CustomPainter {
       ..strokeCap = StrokeCap.round;
 
     final glowPaint = Paint()
-      ..color = const Color(0xFF40E0D0).withValues(alpha: 0.4)
+      ..color = const Color(0xFFBDBDBD).withValues(alpha: 0.4)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 4
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2);
@@ -731,7 +731,7 @@ class _InnovationEditPainter extends CustomPainter {
     // Ink Node (Glowing Tip)
     final tipPos = Offset(size.width * 0.2, size.height * 0.8);
     final pulse = 2 + (progress * 2);
-    canvas.drawCircle(tipPos, pulse, Paint()..color = const Color(0xFF40E0D0));
+    canvas.drawCircle(tipPos, pulse, Paint()..color = const Color(0xFFBDBDBD));
     canvas.drawCircle(tipPos, 1, Paint()..color = Colors.white);
 
     // Floating Ink Particles
@@ -875,7 +875,7 @@ class _AuroraSectionLabel extends StatelessWidget {
             width: 6,
             height: 6,
             decoration: const BoxDecoration(
-              color: Color(0xFF7C6FF7),
+              color: Color(0xFFE0E0E0),
               shape: BoxShape.circle,
             ),
           ),
@@ -897,8 +897,8 @@ class _AuroraSectionLabel extends StatelessWidget {
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   colors: [
-                    const Color(0xFF7C6FF7).withValues(alpha: 0.3),
-                    const Color(0xFF40E0D0).withValues(alpha: 0.1),
+                    const Color(0xFFE0E0E0).withValues(alpha: 0.3),
+                    const Color(0xFFBDBDBD).withValues(alpha: 0.1),
                     Colors.transparent,
                   ],
                 ),
@@ -964,7 +964,7 @@ class _ThemeOption extends StatelessWidget {
               ),
               child: Icon(
                 icon,
-                color: isSelected ? const Color(0xFF7C6FF7) : Colors.grey.withValues(alpha: 0.6),
+                color: isSelected ? const Color(0xFFE0E0E0) : Colors.grey.withValues(alpha: 0.6),
                 size: 24,
               ),
             ),
@@ -976,14 +976,14 @@ class _ThemeOption extends StatelessWidget {
                   fontFamily: 'Outfit',
                   fontSize: 17,
                   fontWeight: isSelected ? FontWeight.w900 : FontWeight.w600,
-                  color: isSelected ? const Color(0xFF7C6FF7) : Theme.of(context).colorScheme.onSurface,
+                  color: isSelected ? const Color(0xFFE0E0E0) : Theme.of(context).colorScheme.onSurface,
                 ),
               ),
             ),
             if (isSelected)
               const Icon(
                 Icons.check_circle_rounded,
-                color: Color(0xFF7C6FF7),
+                color: Color(0xFFE0E0E0),
                 size: 26,
               ),
           ],
@@ -1018,7 +1018,7 @@ class _AuroraDialogButton extends StatelessWidget {
           gradient: isSecondary 
               ? null 
               : const LinearGradient(
-                  colors: [Color(0xFF7C6FF7), Color(0xFF40E0D0)],
+                  colors: [Color(0xFFE0E0E0), Color(0xFFBDBDBD)],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
@@ -1115,14 +1115,14 @@ class _AnimatedQRContainerState extends State<_AnimatedQRContainer> with SingleT
                   width: 180,
                   height: 180,
                   decoration: BoxDecoration(
-                    color: const Color(0xFF7C6FF7).withValues(alpha: 0.1),
+                    color: const Color(0xFFE0E0E0).withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(24),
-                    border: Border.all(color: const Color(0xFF7C6FF7).withValues(alpha: 0.3)),
+                    border: Border.all(color: const Color(0xFFE0E0E0).withValues(alpha: 0.3)),
                   ),
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(Icons.qr_code_2_rounded, size: 48, color: Color(0xFF7C6FF7)),
+                      const Icon(Icons.qr_code_2_rounded, size: 48, color: Color(0xFFE0E0E0)),
                       const SizedBox(height: 12),
                       Text(
                         'Generate Node',
@@ -1130,7 +1130,7 @@ class _AnimatedQRContainerState extends State<_AnimatedQRContainer> with SingleT
                           fontFamily: 'Outfit',
                           fontWeight: FontWeight.w800,
                           fontSize: 14,
-                          color: const Color(0xFF7C6FF7),
+                          color: const Color(0xFFE0E0E0),
                         ),
                       ),
                     ],
@@ -1170,7 +1170,7 @@ class _AnimatedQRContainerState extends State<_AnimatedQRContainer> with SingleT
                           fontFamily: 'Outfit',
                           fontSize: 12,
                           fontWeight: FontWeight.w800,
-                          color: Color(0xFF40E0D0),
+                          color: Color(0xFFBDBDBD),
                         ),
                       ),
                     ],
@@ -1217,7 +1217,7 @@ class _AnimatedQRContainerState extends State<_AnimatedQRContainer> with SingleT
                                 color: Colors.white,
                                 shape: BoxShape.circle,
                               ),
-                              child: const Icon(Icons.hub_rounded, color: Color(0xFF7C6FF7), size: 20),
+                              child: const Icon(Icons.hub_rounded, color: Color(0xFFE0E0E0), size: 20),
                             ),
                           ],
                         ),
@@ -1244,9 +1244,9 @@ class _ScanningPainter extends CustomPainter {
         begin: Alignment.topCenter,
         end: Alignment.bottomCenter,
         colors: [
-          const Color(0xFF40E0D0).withValues(alpha: 0),
-          const Color(0xFF40E0D0),
-          const Color(0xFF40E0D0).withValues(alpha: 0),
+          const Color(0xFFBDBDBD).withValues(alpha: 0),
+          const Color(0xFFBDBDBD),
+          const Color(0xFFBDBDBD).withValues(alpha: 0),
         ],
       ).createShader(Rect.fromLTWH(0, (size.height * progress) - 10, size.width, 20))
       ..style = PaintingStyle.fill;
@@ -1256,7 +1256,7 @@ class _ScanningPainter extends CustomPainter {
     
     // Glow effect
     final glowPaint = Paint()
-      ..color = const Color(0xFF40E0D0).withValues(alpha: 0.3)
+      ..color = const Color(0xFFBDBDBD).withValues(alpha: 0.3)
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10);
     canvas.drawRect(Rect.fromLTWH(0, y - 5, size.width, 10), glowPaint);
   }
@@ -1270,7 +1270,7 @@ class _NovynSettingsBackdrop extends StatelessWidget {
   const _NovynSettingsBackdrop();
   @override
   Widget build(BuildContext context) => const DecoratedBox(
-    decoration: BoxDecoration(gradient: RadialGradient(center: Alignment(0, -1.05), radius: 1.25, colors: [Color(0xFF29204D), Color(0xFF0E0B20)], stops: [0, 1])),
+    decoration: const BoxDecoration(color: Color(0xFF0B0B0B)),
     child: SizedBox.expand(),
   );
 }
@@ -1287,9 +1287,9 @@ class _NovynSettingsProfileCard extends StatelessWidget {
     padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
     decoration: BoxDecoration(
       borderRadius: BorderRadius.circular(26),
-      gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF292044), Color(0xFF19142D)]),
-      border: Border.all(color: const Color(0x55A78BFA)),
-      boxShadow: const [BoxShadow(color: Color(0x332A174F), blurRadius: 24, offset: Offset(0, 12))],
+      color: const Color(0xFF202020),
+      border: Border.all(color: const Color(0x33FFFFFF)),
+      boxShadow: const [],
     ),
     child: Column(children: [
       Row(children: [
@@ -1315,7 +1315,7 @@ class _NovynSettingsGroup extends StatelessWidget {
   final List<Widget> children;
   @override
   Widget build(BuildContext context) => Container(
-    decoration: BoxDecoration(color: const Color(0xFF19152B), borderRadius: BorderRadius.circular(22), border: Border.all(color: const Color(0x1FFFFFFF))),
+    decoration: BoxDecoration(color: const Color(0xFF1A1A1A), borderRadius: BorderRadius.circular(22), border: Border.all(color: const Color(0x1FFFFFFF))),
     child: ClipRRect(borderRadius: BorderRadius.circular(22), child: Column(children: children)),
   );
 }
@@ -1358,18 +1358,18 @@ class _NovynLogoutTile extends StatelessWidget {
   final VoidCallback onTap;
   @override
   Widget build(BuildContext context) => Material(
-    color: const Color(0x24FF718D),
+    color: const Color(0x1AFFFFFF),
     borderRadius: BorderRadius.circular(20),
     child: InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(20),
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 16),
-        decoration: BoxDecoration(borderRadius: BorderRadius.circular(20), border: Border.all(color: const Color(0x55FF718D))),
+        decoration: BoxDecoration(borderRadius: BorderRadius.circular(20), border: Border.all(color: const Color(0x33FFFFFF))),
         child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-          const Icon(Icons.logout_rounded, color: Color(0xFFFF8FA6), size: 19),
+          const Icon(Icons.logout_rounded, color: Color(0xFFE0E0E0), size: 19),
           const SizedBox(width: 10),
-          Text(title, style: NovynText.body(14, weight: FontWeight.w700, color: const Color(0xFFFF8FA6))),
+          Text(title, style: NovynText.body(14, weight: FontWeight.w700, color: const Color(0xFFE0E0E0))),
         ]),
       ),
     ),
