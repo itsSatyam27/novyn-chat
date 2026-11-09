@@ -196,8 +196,37 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
 
   String? _usernameFromQr(String value) {
     final raw = value.trim();
-    if (RegExp(r'^@?[\\w.-]{1,30}
+    final valid = RegExp(r'^[a-zA-Z0-9_.-]{1,30}$');
+    if (valid.hasMatch(raw)) return raw.startsWith('@') ? raw.substring(1) : raw;
+    final uri = Uri.tryParse(raw);
+    if (uri == null) return null;
+    final segments = uri.pathSegments;
+    final userIndex = segments.indexWhere((segment) => segment.toLowerCase() == 'user');
+    final fromPath = userIndex >= 0 && userIndex + 1 < segments.length ? segments[userIndex + 1] : null;
+    final username = fromPath ?? uri.queryParameters['user'];
+    return username != null && valid.hasMatch(username) ? username : null;
+  }
 
+  Future<void> _onQRScanned(String data) async {
+    final username = _usernameFromQr(data);
+    if (username == null) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('This QR code is not a valid Novyn profile.')));
+      return;
+    }
+    final user = await context.read<FriendService>().getUser(username);
+    if (!mounted) return;
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Novyn user not found.')));
+      return;
+    }
+    Navigator.pop(context);
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => ProfilePreviewSheet(user: user),
+    );
+  }
   Future<void> _showScanPlaceholder(BuildContext context) async {
     final manualUsername = TextEditingController();
     final status = await Permission.camera.request();
