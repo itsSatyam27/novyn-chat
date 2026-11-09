@@ -153,6 +153,7 @@ class _GameMessageCardState extends State<GameMessageCard> {
   Widget _connect4() {
     final board = _data['board'] is List ? List<dynamic>.from(_data['board']) : List<dynamic>.filled(42, null);
     final player1 = _data['player1']?.toString() ?? _creator;
+    final player2 = _data['player2']?.toString() ?? _opponent;
     final chip = widget.currentUsername.toLowerCase() == player1.toLowerCase() ? 'R' : 'Y';
     return Column(
       children: [
@@ -199,7 +200,6 @@ class _GameMessageCardState extends State<GameMessageCard> {
 
   Widget _rockPaperScissors() {
     final player1 = _data['player1']?.toString() ?? _creator;
-    final player2 = _data['player2']?.toString() ?? _opponent;
     final isP1 = widget.currentUsername.toLowerCase() == player1.toLowerCase();
     final myMove = isP1 ? _data['p1Move'] : _data['p2Move'];
     final p1Move = _data['p1Move']?.toString();
