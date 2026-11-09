@@ -14,6 +14,7 @@ import '../../widgets/novyn_empty_state.dart';
 import '../../widgets/connection_banner.dart';
 import '../../widgets/neomorphic_widgets.dart';
 import '../../theme/novyn_theme.dart';
+import '../../widgets/novyn_ui.dart';
 import '../../models/chat_preview.dart';
 import 'chat_detail_screen.dart';
 
@@ -280,58 +281,40 @@ class _ChatsScreenState extends State<ChatsScreen> {
             // Connection status banner
             const ConnectionBanner(),
 
-            // ── Header ──────────────────────────────────────────────
+            // ── Novyn redesigned header ───────────────────────────────
             Padding(
-              padding: const EdgeInsets.fromLTRB(24, 20, 16, 14),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Messages',
-                        style: TextStyle(
-                          fontFamily: 'Inter',
-                          fontSize: 28,
-                          fontWeight: FontWeight.bold,
-                          color: Theme.of(context).colorScheme.onSurface,
-                        ),
-                      ),
-                      Row(
-                        children: [
-                          _HeaderAction(
-                              icon: _isSearching
-                                  ? Icons.close_rounded
-                                  : Icons.search_rounded,
-                              onTap: () {
-                                HapticFeedback.mediumImpact();
-                                setState(() {
-                                  _isSearching = !_isSearching;
-                                  if (!_isSearching) {
-                                    _search = '';
-                                    _applyFilters();
-                                  }
-                                });
-                                if (_isSearching) {
-                                  _searchFocusNode.requestFocus();
-                                }
-                              }),
-                        ],
-                      ),
-                    ],
+              padding: const EdgeInsets.only(top: 10),
+              child: NovynHeader(
+                title: 'Messages',
+                subtitle: 'Your conversations, all in one place',
+                actions: [
+                  NovynIconButton(
+                    icon: _isSearching ? Icons.close_rounded : Icons.search_rounded,
+                    onTap: () {
+                      HapticFeedback.mediumImpact();
+                      setState(() {
+                        _isSearching = !_isSearching;
+                        if (!_isSearching) {
+                          _search = '';
+                          _applyFilters();
+                        }
+                      });
+                      if (_isSearching) _searchFocusNode.requestFocus();
+                    },
                   ),
-                  // Search Bar (Conditional)
-                  if (_isSearching) ...[
-                    _buildSearch(),
-                    const SizedBox(height: 16),
-                  ],
-
-                  // Filters
-                  _buildFilters(),
+                  NovynIconButton(
+                    icon: Icons.edit_outlined,
+                    primary: true,
+                    onTap: () => widget.onNavigateToPeople?.call(),
+                  ),
                 ],
               ),
             ),
+            if (_isSearching) ...[
+              _buildSearch(),
+              const SizedBox(height: 8),
+            ],
+            _buildFilters(),
 
             // Offline indicator
             const OfflineIndicator(),
@@ -415,52 +398,26 @@ class _ChatsScreenState extends State<ChatsScreen> {
   }
 
   Widget _buildFilters() {
-    return Container(
-      height: 38,
-      margin: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        children: [
-          _buildFilterChip('All', ChatFilter.all),
-          const SizedBox(width: 8),
-          _buildFilterChip('Unread', ChatFilter.unread),
-          const SizedBox(width: 8),
-          _buildFilterChip('Groups', ChatFilter.groups),
-          const SizedBox(width: 8),
-          _buildFilterChip('Archived', ChatFilter.archived),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildFilterChip(String label, ChatFilter filter) {
-    final isActive = _activeFilter == filter;
-    final theme = Theme.of(context);
-    final pageBg = NovynTheme.pageBg(context);
-
-    return Expanded(
-      child: GestureDetector(
-        onTap: () => _setFilter(filter),
-        child: NeoContainer(
-          borderRadius: 14,
-          distance: isActive ? 2 : 4,
-          blur: isActive ? 4 : 8,
-          isSunken: isActive,
-          color: pageBg,
-          child: Center(
-            child: Text(
-              label,
-              style: TextStyle(
-                fontFamily: 'Outfit',
-                fontSize: 12,
-                fontWeight: isActive ? FontWeight.bold : FontWeight.w500,
-                color: isActive
-                    ? theme.colorScheme.primary
-                    : theme.colorScheme.onSurface.withOpacity(0.5),
-              ),
-            ),
-          ),
-        ),
-      ),
+    const filters = <String>['All', 'Unread', 'Groups', 'Archived'];
+    final selected = switch (_activeFilter) {
+      ChatFilter.all => 0,
+      ChatFilter.unread => 1,
+      ChatFilter.groups => 2,
+      ChatFilter.archived => 3,
+    };
+    return NovynChipRow(
+      labels: filters,
+      selected: selected,
+      bottomPadding: 10,
+      onSelected: (index) {
+        const values = <ChatFilter>[
+          ChatFilter.all,
+          ChatFilter.unread,
+          ChatFilter.groups,
+          ChatFilter.archived,
+        ];
+        _setFilter(values[index]);
+      },
     );
   }
 
@@ -492,32 +449,9 @@ class _ChatsScreenState extends State<ChatsScreen> {
   }
 
   Widget _buildSectionLabel(String label) {
-    final onSurface = Theme.of(context).colorScheme.onSurface;
-    return Padding(
+    return NovynSectionLabel(
+      label,
       padding: const EdgeInsets.fromLTRB(20, 14, 20, 8),
-      child: Row(
-        children: [
-          Expanded(
-              child: Container(
-                  height: 1, color: onSurface.withValues(alpha: 0.05))),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            child: Text(
-              label,
-              style: TextStyle(
-                fontFamily: 'Inter',
-                fontSize: 10,
-                fontWeight: FontWeight.w600,
-                color: onSurface.withValues(alpha: 0.3),
-                letterSpacing: 0.5,
-              ),
-            ),
-          ),
-          Expanded(
-              child: Container(
-                  height: 1, color: onSurface.withValues(alpha: 0.05))),
-        ],
-      ),
     );
   }
 
@@ -629,114 +563,101 @@ class _ChatCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final onSurface = theme.colorScheme.onSurface;
     final hasUnread = preview.unreadCount > 0;
-    final pageBg = NovynTheme.pageBg(context);
-
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: InkWell(
-        onTap: () {
-          HapticFeedback.lightImpact();
-          onTap();
-        },
-        borderRadius: BorderRadius.circular(24),
-        child: NeoContainer(
-          borderRadius: 24,
-          distance: 4,
-          blur: 8,
-          color: pageBg,
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              UserAvatar(
-                name: preview.peer.name,
-                photoUrl: preview.peer.photoUrl,
-                radius: 30,
-                showOnlineIndicator: true,
-                isOnline: preview.peer.isOnline,
-                presence: preview.peer.status,
-              ),
-              const SizedBox(width: 16),
-
-              // Content
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Expanded(
-                          child: Text(
-                            preview.peer.name,
-                            style: TextStyle(
-                              fontFamily: 'Inter',
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: onSurface,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        Text(
-                          _formatTime(preview.lastTime),
-                          style: TextStyle(
-                            fontFamily: 'Inter',
-                            fontSize: 12,
-                            color: onSurface.withOpacity(0.4),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            preview.lastMessage.isEmpty
-                                ? 'Start a conversation'
-                                : preview.lastMessage,
-                            style: TextStyle(
-                              fontFamily: 'Inter',
-                              fontSize: 14,
-                              color:
-                                  onSurface.withOpacity(hasUnread ? 0.8 : 0.4),
-                              fontWeight: hasUnread
-                                  ? FontWeight.w600
-                                  : FontWeight.normal,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        if (hasUnread) ...[
-                          const SizedBox(width: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 8, vertical: 3),
-                            decoration: BoxDecoration(
-                              color: theme.colorScheme.primary,
-                              borderRadius: BorderRadius.circular(10),
-                            ),
+      margin: const EdgeInsets.only(bottom: 10),
+      decoration: BoxDecoration(
+        color: NovynColors.card,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: NovynColors.glassBorder),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () {
+            HapticFeedback.lightImpact();
+            onTap();
+          },
+          borderRadius: BorderRadius.circular(22),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+            child: Row(
+              children: [
+                UserAvatar(
+                  name: preview.peer.name,
+                  photoUrl: preview.peer.photoUrl,
+                  radius: 27,
+                  showOnlineIndicator: true,
+                  isOnline: preview.peer.isOnline,
+                  presence: preview.peer.status,
+                ),
+                const SizedBox(width: 13),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
                             child: Text(
-                              '${preview.unreadCount}',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
+                              preview.peer.name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: NovynText.body(15, weight: FontWeight.w700),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            _formatTime(preview.lastTime),
+                            style: NovynText.body(11, color: NovynColors.timeMuted),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 5),
+                      Row(
+                        children: [
+                          if (preview.isPinned) ...[
+                            const Icon(Icons.push_pin_rounded,
+                                size: 12, color: NovynColors.violet),
+                            const SizedBox(width: 5),
+                          ],
+                          Expanded(
+                            child: Text(
+                              preview.lastMessage.isEmpty
+                                  ? 'Start a conversation'
+                                  : preview.lastMessage,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: NovynText.body(
+                                12.5,
+                                color: hasUnread ? NovynColors.textChip : NovynColors.textMuted,
+                                weight: hasUnread ? FontWeight.w600 : FontWeight.w400,
                               ),
                             ),
                           ),
+                          if (hasUnread) ...[
+                            const SizedBox(width: 8),
+                            Container(
+                              constraints: const BoxConstraints(minWidth: 21),
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                              decoration: const BoxDecoration(
+                                gradient: NovynGradients.primary,
+                                shape: BoxShape.circle,
+                              ),
+                              child: Text(
+                                '${preview.unreadCount}',
+                                textAlign: TextAlign.center,
+                                style: NovynText.body(10, weight: FontWeight.w700, color: Colors.white),
+                              ),
+                            ),
+                          ],
                         ],
-                      ],
-                    ),
-                  ],
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
