@@ -3,15 +3,14 @@ import 'package:flutter/services.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:provider/provider.dart';
 import '../../services/auth_service.dart';
+import '../../services/socket_service.dart';
 import '../../services/api_service.dart';
 import '../../models/user_model.dart';
-import '../../services/hybrid_db_service.dart';
 import '../../widgets/user_avatar.dart';
 import '../../widgets/novyn_shimmer.dart';
 import '../../widgets/novyn_empty_state.dart';
 import '../../widgets/novyn_ui.dart';
 import '../calls/call_screen.dart';
-import '../chats/chat_detail_screen.dart';
 
 class CallsScreen extends StatefulWidget {
   const CallsScreen({super.key});
@@ -216,7 +215,11 @@ class _CallsScreenState extends State<CallsScreen> {
 
   Widget _buildList() {
     final calls = _filteredCalls();
-    final quickCalls = _calls.take(4).toList();
+    final quickCalls = context.watch<SocketService>().conversations
+        .where((chat) => chat.isPinned && !chat.isGroup && !chat.isArchived)
+        .take(5)
+        .map((chat) => chat.peer)
+        .toList();
     return RefreshIndicator(
       color: NovynColors.violet,
       onRefresh: _loadCalls,
@@ -243,7 +246,7 @@ class _CallsScreenState extends State<CallsScreen> {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => CallScreen(peer: entry.peer, callType: 'voice'),
+                          builder: (_) => CallScreen(peer: entry, callType: 'voice'),
                         ),
                       );
                     },
@@ -255,12 +258,12 @@ class _CallsScreenState extends State<CallsScreen> {
                             clipBehavior: Clip.none,
                             children: [
                               UserAvatar(
-                                name: entry.peer.name,
-                                photoUrl: entry.peer.photoUrl,
+                                name: entry.name,
+                                photoUrl: entry.photoUrl,
                                 radius: 26,
                                 showOnlineIndicator: true,
-                                isOnline: entry.peer.isOnline,
-                                presence: entry.peer.status,
+                                isOnline: entry.isOnline,
+                                presence: entry.status,
                               ),
                               Positioned(
                                 right: -2,
@@ -280,7 +283,7 @@ class _CallsScreenState extends State<CallsScreen> {
                           ),
                           const SizedBox(height: 7),
                           Text(
-                            entry.peer.name,
+                            entry.name,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: NovynText.body(11, color: NovynColors.textChip),
