@@ -233,6 +233,8 @@ class SocketService extends ChangeNotifier {
             edited: m['edited'] == true,
             attachment: m['attachment'] is Map ? Map<String, dynamic>.from(m['attachment']) : null,
             poll: m['poll'] is Map ? Map<String, dynamic>.from(m['poll']) : null,
+            pinnedAt: m['pinnedAt']?.toString(),
+            pinnedBy: m['pinnedBy']?.toString(),
           );
         }).toList();
 
@@ -294,6 +296,8 @@ class SocketService extends ChangeNotifier {
         replyToSender: data['replyTo']?['from']?.toString(),
         attachment: data['attachment'] is Map ? Map<String, dynamic>.from(data['attachment']) : null,
         poll: data['poll'] is Map ? Map<String, dynamic>.from(data['poll']) : null,
+        pinnedAt: data['pinnedAt']?.toString(),
+        pinnedBy: data['pinnedBy']?.toString(),
       );
 
       final account = _myUsername;
@@ -336,6 +340,33 @@ class SocketService extends ChangeNotifier {
             _currentChatWith?.toLowerCase() == chatPartner.toLowerCase(),
       );
 
+      notifyListeners();
+    });
+
+    _socket!.on('message_pinned', (data) {
+      if (data is! Map) return;
+      final id = data['messageId']?.toString() ?? '';
+      final index = _messages.indexWhere((message) => message.id == id);
+      if (index == -1) return;
+      final updated = List<Message>.from(_messages);
+      updated[index] = updated[index].copyWith(
+        pinnedAt: data['pinnedAt']?.toString() ?? DateTime.now().toIso8601String(),
+        pinnedBy: data['pinnedBy']?.toString() ?? '',
+      );
+      _messages = updated;
+      HybridDbService.saveMessage(updated[index]);
+      notifyListeners();
+    });
+
+    _socket!.on('message_unpinned', (data) {
+      if (data is! Map) return;
+      final id = data['messageId']?.toString() ?? '';
+      final index = _messages.indexWhere((message) => message.id == id);
+      if (index == -1) return;
+      final updated = List<Message>.from(_messages);
+      updated[index] = updated[index].copyWith(pinnedAt: '', pinnedBy: '');
+      _messages = updated;
+      HybridDbService.saveMessage(updated[index]);
       notifyListeners();
     });
 
@@ -650,6 +681,24 @@ class SocketService extends ChangeNotifier {
     };
 
     _socket!.emit('private_message', payload);
+  }
+
+  void pinMessage(String messageId, String peerUsername, {bool isGroup = false}) {
+    _requireConnection();
+    _socket!.emit('pin_message', {
+      'messageId': messageId,
+      'to': peerUsername,
+      'toType': isGroup ? 'group' : 'friend',
+    });
+  }
+
+  void unpinMessage(String messageId, String peerUsername, {bool isGroup = false}) {
+    _requireConnection();
+    _socket!.emit('unpin_message', {
+      'messageId': messageId,
+      'to': peerUsername,
+      'toType': isGroup ? 'group' : 'friend',
+    });
   }
 
   void createPoll(String question, List<String> options, String peerUsername,
