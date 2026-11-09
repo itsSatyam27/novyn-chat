@@ -1258,6 +1258,7 @@ function createUserRecord(username) {
     blockedUsers: new Set(),
     mutedUsers: new Set(),
     pushSubs: [],
+    fcmToken: "",
     isRegistered: false,
     passwordSalt: "",
     passwordHash: "",
@@ -1303,6 +1304,7 @@ function serializeState() {
       blockedUsers: Array.from(user.blockedUsers || []),
       mutedUsers: Array.from(user.mutedUsers || []),
       pushSubs: Array.isArray(user.pushSubs) ? user.pushSubs : [],
+      fcmToken: toDisplayName(user.fcmToken),
       notificationsEnabled: user.notificationsEnabled !== false,
       messagePreviewEnabled: user.messagePreviewEnabled !== false,
       groupNotificationsEnabled: user.groupNotificationsEnabled !== false,
@@ -1515,6 +1517,7 @@ async function persistMongoNow() {
               blockedUsers: Array.isArray(entry.blockedUsers) ? entry.blockedUsers : [],
               mutedUsers: Array.isArray(entry.mutedUsers) ? entry.mutedUsers : [],
               pushSubs: Array.isArray(entry.pushSubs) ? entry.pushSubs : [],
+              fcmToken: toDisplayName(entry.fcmToken),
               notificationsEnabled: entry.notificationsEnabled !== false,
               messagePreviewEnabled: entry.messagePreviewEnabled !== false,
               groupNotificationsEnabled: entry.groupNotificationsEnabled !== false,
@@ -2024,9 +2027,7 @@ async function sendPushToUser(userKey, payload) {
   // current token in Firestore at users/<username>. A missing token is normal.
   if (firebaseAdmin) {
     try {
-      const firestore = admin.firestore(firebaseAdmin);
-      const userSnapshot = await firestore.collection("users").doc(userKey).get();
-      const token = toDisplayName(userSnapshot.data()?.fcmToken);
+      const token = toDisplayName(user.fcmToken);
       if (token) {
         const message = {
           token,
@@ -2067,7 +2068,8 @@ async function sendPushToUser(userKey, payload) {
       if (code === "messaging/registration-token-not-registered" ||
           code === "messaging/invalid-registration-token") {
         try {
-          await admin.firestore(firebaseAdmin).collection("users").doc(userKey).update({ fcmToken: "" });
+          user.fcmToken = "";
+          schedulePersist();
         } catch (_) {}
       } else {
         console.warn("Firebase push notification failed:", code || err?.message || err);
@@ -2206,6 +2208,7 @@ function applyLoadedState(parsed) {
     user.pushSubs = Array.isArray(entry.pushSubs)
       ? entry.pushSubs.filter((sub) => sub && sub.endpoint && sub.keys)
       : [];
+    user.fcmToken = toDisplayName(entry.fcmToken);
     user.notificationsEnabled = entry.notificationsEnabled !== false;
     user.messagePreviewEnabled = entry.messagePreviewEnabled !== false;
     user.groupNotificationsEnabled = entry.groupNotificationsEnabled !== false;
@@ -5604,6 +5607,31 @@ io.on("connection", (socket) => {
     }
     const suggestions = buildFriendSearchSuggestions(query, me, 8);
     socket.emit("friend_suggestions", { query, suggestions });
+  });
+
+  socket.on("register_fcm_token", (payload, callback) => {
+    const respond = (result) => { if (typeof callback === "function") callback(result); };
+    const userKey = socket.data.userKey;
+    const user = userKey ? users.get(userKey) : null;
+    const token = toDisplayName(payload?.token);
+    if (!user) { respond({ ok: false, message: "Sign in again before registering this device." }); return; }
+    if (token.length < 40 || token.length > 4096) {
+      respond({ ok: false, message: "Invalid device notification token." });
+      return;
+    }
+    user.fcmToken = token;
+    schedulePersist();
+    respond({ ok: true });
+  });
+
+  socket.on("clear_fcm_token", (callback) => {
+    const respond = (result) => { if (typeof callback === "function") callback(result); };
+    const userKey = socket.data.userKey;
+    const user = userKey ? users.get(userKey) : null;
+    if (!user) { respond({ ok: false, message: "Sign in again before clearing this device." }); return; }
+    user.fcmToken = "";
+    schedulePersist();
+    respond({ ok: true });
   });
 
   socket.on("update_profile", (payload, callback) => {
