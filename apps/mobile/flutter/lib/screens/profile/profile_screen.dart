@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../widgets/profile_avatar_with_orbit.dart';
 import '../../widgets/presence_dock.dart';
 import '../../widgets/novyn_ui.dart';
+import '../../theme/novyn_theme.dart';
 import 'dart:math' as math;
 import 'dart:ui';
 import '../../services/settings_service.dart';
@@ -33,7 +34,7 @@ class ProfileScreen extends StatelessWidget {
     final username = profile?.username ?? 'user';
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0B0B0B),
+      backgroundColor: NovynTheme.pageBg(context),
       body: Stack(
         children: [
           const Positioned.fill(child: _NovynSettingsBackdrop()),
@@ -1283,13 +1284,14 @@ class _NovynSettingsProfileCard extends StatelessWidget {
   final VoidCallback onEdit;
   final ValueChanged<String> onStatusSelected;
   @override
-  Widget build(BuildContext context) => Container(
+  Widget build(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
     padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
     decoration: BoxDecoration(
       borderRadius: BorderRadius.circular(26),
-      color: const Color(0xFF202020),
-      border: Border.all(color: const Color(0x33FFFFFF)),
-      boxShadow: const [],
+      color: dark ? const Color(0xFF202020) : Colors.white,
+      border: Border.all(color: dark ? const Color(0x33FFFFFF) : const Color(0xFFE5E5E5)),
     ),
     child: Column(children: [
       Row(children: [
@@ -1308,16 +1310,20 @@ class _NovynSettingsProfileCard extends StatelessWidget {
       PresenceDock(status: status, busy: busy, onSelected: onStatusSelected),
     ]),
   );
+  }
 }
 
 class _NovynSettingsGroup extends StatelessWidget {
   const _NovynSettingsGroup({required this.children});
   final List<Widget> children;
   @override
-  Widget build(BuildContext context) => Container(
-    decoration: BoxDecoration(color: const Color(0xFF1A1A1A), borderRadius: BorderRadius.circular(22), border: Border.all(color: const Color(0x1FFFFFFF))),
-    child: ClipRRect(borderRadius: BorderRadius.circular(22), child: Column(children: children)),
-  );
+  Widget build(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      decoration: BoxDecoration(color: dark ? const Color(0xFF1A1A1A) : Colors.white, borderRadius: BorderRadius.circular(22), border: Border.all(color: dark ? const Color(0x1FFFFFFF) : const Color(0xFFE5E5E5))),
+      child: ClipRRect(borderRadius: BorderRadius.circular(22), child: Column(children: children)),
+    );
+  }
 }
 
 class _NovynSettingsTile extends StatelessWidget {
@@ -1358,14 +1364,14 @@ class _NovynLogoutTile extends StatelessWidget {
   final VoidCallback onTap;
   @override
   Widget build(BuildContext context) => Material(
-    color: const Color(0x1AFFFFFF),
+    color: Theme.of(context).brightness == Brightness.dark ? const Color(0x1AFFFFFF) : const Color(0xFFF5F5F5),
     borderRadius: BorderRadius.circular(20),
     child: InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(20),
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 16),
-        decoration: BoxDecoration(borderRadius: BorderRadius.circular(20), border: Border.all(color: const Color(0x33FFFFFF))),
+        decoration: BoxDecoration(borderRadius: BorderRadius.circular(20), border: Border.all(color: Theme.of(context).brightness == Brightness.dark ? const Color(0x33FFFFFF) : const Color(0xFFE5E5E5))),
         child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
           const Icon(Icons.logout_rounded, color: Color(0xFFE0E0E0), size: 19),
           const SizedBox(width: 10),
