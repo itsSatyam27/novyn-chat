@@ -939,7 +939,12 @@ class _MessageBubble extends StatelessWidget {
                             ),
                           ),
                         ],
-                        Text(
+                        if (message.attachment is Map && message.attachment['url'] != null) ...[
+                          _buildAttachmentPreview(context, message.attachment as Map),
+                          const SizedBox(height: 6),
+                        ],
+                        if ((message.text as String).isNotEmpty)
+                          Text(
                           message.text as String,
                           style: TextStyle(
                             fontFamily: 'Inter',
@@ -1118,6 +1123,65 @@ class _MessageBubble extends StatelessWidget {
                   },
                 ),
               ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAttachmentPreview(BuildContext context, Map attachment) {
+    final url = attachment['url']?.toString() ?? '';
+    final name = attachment['name']?.toString() ?? 'Attachment';
+    final kind = attachment['kind']?.toString() ?? 'file';
+    if (kind == 'image' && url.isNotEmpty) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: Image.network(
+          url,
+          width: 220,
+          height: 180,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => _attachmentFileTile(name, Icons.broken_image_outlined),
+          loadingBuilder: (context, child, progress) => progress == null
+              ? child
+              : Container(
+                  width: 220,
+                  height: 130,
+                  alignment: Alignment.center,
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                  child: const CircularProgressIndicator(strokeWidth: 2),
+                ),
+        ),
+      );
+    }
+    final icon = kind == 'video'
+        ? Icons.play_circle_outline_rounded
+        : kind == 'audio'
+            ? Icons.audio_file_outlined
+            : Icons.insert_drive_file_outlined;
+    return _attachmentFileTile(name, icon);
+  }
+
+  Widget _attachmentFileTile(String name, IconData icon) {
+    return Container(
+      constraints: const BoxConstraints(maxWidth: 220),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 22),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              name,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontFamily: 'Inter', fontSize: 12),
             ),
           ),
         ],
