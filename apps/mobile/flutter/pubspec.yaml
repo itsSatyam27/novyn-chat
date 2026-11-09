@@ -31,6 +31,7 @@ dependencies:
   shimmer: ^3.0.0
   image_picker: ^1.0.7
   http: ^1.2.1
+  http_parser: ^4.1.2
   audioplayers: ^6.0.0
   record: ^6.0.0
   flutter_webrtc: ^1.4.1
