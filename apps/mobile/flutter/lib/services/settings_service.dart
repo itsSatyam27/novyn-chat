@@ -498,7 +498,17 @@ class SettingsService extends ChangeNotifier {
   }
 
   Future<void> setAppLockPin(String? pin) async {
-    if (pin != null && !RegExp(r'^\\d{4}
+    if (pin != null && (pin.length != 4 || int.tryParse(pin) == null)) {
+      throw ArgumentError('App lock PIN must contain exactly 4 digits.');
+    }
+    _appLockPin = pin;
+    if (pin == null) {
+      await _secureStorage.delete(key: _secureAppLockPin);
+    } else {
+      await _secureStorage.write(key: _secureAppLockPin, value: pin);
+    }
+    notifyListeners();
+  }
 
   void setLocked(bool v) {
     _isLocked = v;
@@ -512,7 +522,17 @@ class SettingsService extends ChangeNotifier {
   }
 
   Future<void> setPanicPin(String? pin) async {
-    if (pin != null && !RegExp(r'^\\d{4}
+    if (pin != null && (pin.length != 4 || int.tryParse(pin) == null)) {
+      throw ArgumentError('Panic PIN must contain exactly 4 digits.');
+    }
+    _panicPin = pin;
+    if (pin == null) {
+      await _secureStorage.delete(key: _securePanicPin);
+    } else {
+      await _secureStorage.write(key: _securePanicPin, value: pin);
+    }
+    notifyListeners();
+  }
 
   Future<void> setHideNotificationContent(bool v) async {
     _hideNotificationContent = v;
