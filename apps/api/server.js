@@ -2064,8 +2064,12 @@ async function sendPushToUser(userKey, payload) {
       }
     } catch (err) {
       const code = err?.code || err?.errorInfo?.code;
-      if (code !== "messaging/registration-token-not-registered" &&
-          code !== "messaging/invalid-registration-token") {
+      if (code === "messaging/registration-token-not-registered" ||
+          code === "messaging/invalid-registration-token") {
+        try {
+          await admin.firestore(firebaseAdmin).collection("users").doc(userKey).update({ fcmToken: "" });
+        } catch (_) {}
+      } else {
         console.warn("Firebase push notification failed:", code || err?.message || err);
       }
     }
