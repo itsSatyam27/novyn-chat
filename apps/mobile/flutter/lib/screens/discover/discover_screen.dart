@@ -257,7 +257,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
               ),
             ),
             const SizedBox(height: 32),
-            const Icon(Icons.qr_code_scanner_rounded, size: 64, color: Color(0xFFF59E0B)),
+            const Icon(Icons.qr_code_scanner_rounded, size: 64, color: Color(0xFFBDBDBD)),
             const SizedBox(height: 24),
             Text(
               'Scan QR Code',
