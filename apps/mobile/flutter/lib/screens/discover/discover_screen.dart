@@ -21,6 +21,7 @@ class DiscoverScreen extends StatefulWidget {
 
 class _DiscoverScreenState extends State<DiscoverScreen> {
   String _search = '';
+  bool _isResolvingQr = false;
 
   @override
   Widget build(BuildContext context) {
@@ -209,24 +210,39 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
   }
 
   Future<void> _onQRScanned(String data) async {
-    final username = _usernameFromQr(data);
-    if (username == null) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('This QR code is not a valid Novyn profile.')));
-      return;
+    if (_isResolvingQr) return;
+    _isResolvingQr = true;
+    try {
+      final username = _usernameFromQr(data);
+      if (username == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('This QR code is not a valid Novyn profile.')),
+          );
+        }
+        return;
+      }
+
+      final user = await context.read<FriendService>().getUser(username);
+      if (!mounted) return;
+      if (user == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Novyn user not found.')),
+        );
+        return;
+      }
+
+      // Close the scanner sheet before showing the matching profile.
+      Navigator.pop(context);
+      showModalBottomSheet(
+        context: context,
+        backgroundColor: Colors.transparent,
+        isScrollControlled: true,
+        builder: (_) => ProfilePreviewSheet(user: user),
+      );
+    } finally {
+      _isResolvingQr = false;
     }
-    final user = await context.read<FriendService>().getUser(username);
-    if (!mounted) return;
-    if (user == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Novyn user not found.')));
-      return;
-    }
-    Navigator.pop(context);
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (_) => ProfilePreviewSheet(user: user),
-    );
   }
   Future<void> _showScanPlaceholder(BuildContext context) async {
     final manualUsername = TextEditingController();
@@ -314,7 +330,9 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                 child: Stack(
                   children: [
                     MobileScanner(
+                      detectionSpeed: DetectionSpeed.noDuplicates,
                       onDetect: (capture) {
+                        if (_isResolvingQr) return;
                         final List<Barcode> barcodes = capture.barcodes;
                         for (final barcode in barcodes) {
                           if (barcode.rawValue != null) {
