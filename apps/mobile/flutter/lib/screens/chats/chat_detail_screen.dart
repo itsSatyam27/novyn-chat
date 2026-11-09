@@ -8,6 +8,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:record/record.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../models/user_model.dart';
 import '../../services/auth_service.dart';
 import '../../services/socket_service.dart';
@@ -1175,6 +1176,67 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
 
 // ── Message Bubble ─────────────────────────────────────────────────────────
 class _MessageBubble extends StatelessWidget {
+  static final Map<String, Future<Map<String, dynamic>?>> _linkPreviewCache = {};
+
+  String? _extractFirstUrl(String text) {
+    final match = RegExp(r'https?://[^\\s<>\'"]+', caseSensitive: false).firstMatch(text);
+    return match?.group(0);
+  }
+
+  Widget _buildLinkPreview(BuildContext context, String url) {
+    final future = _linkPreviewCache.putIfAbsent(url, () => ApiService.getLinkPreview(url));
+    return FutureBuilder<Map<String, dynamic>?>(
+      future: future,
+      builder: (context, snapshot) {
+        final data = snapshot.data;
+        if (data == null || ((data['title']?.toString().isEmpty ?? true) && (data['image']?.toString().isEmpty ?? true))) {
+          return const SizedBox.shrink();
+        }
+        final image = data['image']?.toString() ?? '';
+        return InkWell(
+          onTap: () => launchUrl(Uri.parse(data['url']?.toString() ?? url), mode: LaunchMode.externalApplication),
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            width: 245,
+            margin: const EdgeInsets.only(top: 8),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.06),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.12)),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (image.isNotEmpty)
+                  Image.network(image, width: 245, height: 112, fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => const SizedBox.shrink()),
+                Padding(
+                  padding: const EdgeInsets.all(10),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(data['siteName']?.toString() ?? data['domain']?.toString() ?? 'Link',
+                        maxLines: 1, overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontFamily: 'Inter', fontSize: 10, fontWeight: FontWeight.w700, color: Color(0xFF94A3B8))),
+                      const SizedBox(height: 4),
+                      Text(data['title']?.toString() ?? url, maxLines: 2, overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontFamily: 'Inter', fontSize: 12, fontWeight: FontWeight.w700)),
+                      if ((data['description']?.toString() ?? '').isNotEmpty) ...[
+                        const SizedBox(height: 3),
+                        Text(data['description'].toString(), maxLines: 2, overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontFamily: 'Inter', fontSize: 10, color: Color(0xFF94A3B8))),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
   final dynamic message;
   final bool showAvatar;
   final UserModel peer;
@@ -1331,6 +1393,8 @@ class _MessageBubble extends StatelessWidget {
                                 : Theme.of(context).colorScheme.onSurface,
                           ),
                         ),
+                        if (_extractFirstUrl(message.text as String) case final linkUrl?)
+                          _buildLinkPreview(context, linkUrl),
                         if (message.edited == true)
                           Padding(
                             padding: const EdgeInsets.only(top: 2),
