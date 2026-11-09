@@ -124,8 +124,8 @@ class _CallsScreenState extends State<CallsScreen> {
                     child: Text(
                       'Calls',
                       style: TextStyle(
-                        fontFamily: 'Inter',
-                        fontSize: 32,
+                        fontFamily: 'Syne',
+                        fontSize: 28,
                         fontWeight: FontWeight.bold,
                         color: Theme.of(context).colorScheme.onSurface,
                       ),
