@@ -1179,7 +1179,7 @@ class _MessageBubble extends StatelessWidget {
   static final Map<String, Future<Map<String, dynamic>?>> _linkPreviewCache = {};
 
   String? _extractFirstUrl(String text) {
-    final match = RegExp(r'https?://[^\\s<>\'"]+', caseSensitive: false).firstMatch(text);
+    final match = RegExp(r'https?://\S+', caseSensitive: false).firstMatch(text);
     return match?.group(0);
   }
 
@@ -1682,7 +1682,13 @@ class _MessageBubble extends StatelessWidget {
   Widget _buildAttachmentPreview(BuildContext context, Map attachment) {
     final url = attachment['url']?.toString() ?? '';
     final name = attachment['name']?.toString() ?? 'Attachment';
-    final kind = attachment['kind']?.toString() ?? 'file';
+    final mime = attachment['mime']?.toString().toLowerCase() ?? '';
+    final declaredKind = attachment['kind']?.toString() ?? 'file';
+    final kind = declaredKind == 'file' && mime.startsWith('audio/')
+        ? 'audio'
+        : declaredKind == 'file' && mime.startsWith('video/')
+            ? 'video'
+            : declaredKind;
     if (kind == 'image' && url.isNotEmpty) {
       return ClipRRect(
         borderRadius: BorderRadius.circular(12),
