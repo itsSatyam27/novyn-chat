@@ -9,6 +9,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:record/record.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../widgets/game_message_card.dart';
 import '../../models/user_model.dart';
 import '../../services/auth_service.dart';
 import '../../services/socket_service.dart';
@@ -762,6 +763,10 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       await _showCreateRiddleDialog();
       return;
     }
+    if (type.toLowerCase() == 'games') {
+      await _showGameLauncher();
+      return;
+    }
     try {
       List<int>? bytes;
       String filename = 'attachment';
@@ -892,6 +897,50 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       ),
     );
     search.dispose();
+  }
+
+  Future<void> _showGameLauncher() async {
+    const games = <Map<String, String>>[
+      {'id': 'tictactoe', 'title': 'Tic-Tac-Toe', 'subtitle': 'Three in a row'},
+      {'id': 'rps', 'title': 'Rock, Paper, Scissors', 'subtitle': 'Secret pick showdown'},
+      {'id': 'connect4', 'title': 'Connect 4', 'subtitle': 'Line up four chips'},
+      {'id': 'doodle', 'title': 'Doodle Duel', 'subtitle': 'Draw and guess'},
+      {'id': 'numberclash', 'title': 'Number Clash', 'subtitle': 'Pick closest to the target'},
+      {'id': 'updown', 'title': 'Up or Down', 'subtitle': 'Predict the next card'},
+    ];
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => Container(
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 26),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(width: 38, height: 4, decoration: BoxDecoration(color: Colors.grey.withValues(alpha: 0.4), borderRadius: BorderRadius.circular(4))),
+            const SizedBox(height: 14),
+            const Text('Play together', style: TextStyle(fontFamily: 'Inter', fontSize: 18, fontWeight: FontWeight.w700)),
+            const SizedBox(height: 12),
+            ...games.map((game) => ListTile(
+              leading: const CircleAvatar(child: Icon(Icons.sports_esports_rounded)),
+              title: Text(game['title']!, style: const TextStyle(fontFamily: 'Inter', fontWeight: FontWeight.w600)),
+              subtitle: Text(game['subtitle']!, style: const TextStyle(fontFamily: 'Inter', fontSize: 12)),
+              trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 15),
+              onTap: () {
+                context.read<SocketService>().sendGameChallenge(
+                  game['id']!,
+                  widget.peer.uid.isNotEmpty ? widget.peer.uid : widget.peer.username,
+                );
+                Navigator.pop(sheetContext);
+              },
+            )),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _showCreateRiddleDialog() async {
@@ -1632,6 +1681,15 @@ class _MessageBubble extends StatelessWidget {
                               ],
                             ),
                           ),
+                        if (message.game is Map) ...[
+                          GameMessageCard(
+                            messageId: message.id.toString(),
+                            game: Map<String, dynamic>.from(message.game as Map),
+                            currentUsername: myUid,
+                            peerUsername: peer.uid.isNotEmpty ? peer.uid : peer.username,
+                          ),
+                          const SizedBox(height: 6),
+                        ],
                         if (message.riddle is Map) ...[
                           _RiddleMessageCard(
                             messageId: message.id.toString(),
@@ -2507,6 +2565,8 @@ class _AttachmentButtonState extends State<_AttachmentButton>
         icon: Icons.poll_rounded, label: 'Poll', color: Color(0xFF7C6FF7)),
     _MenuItem(
         icon: Icons.lock_outline_rounded, label: 'Riddle', color: Color(0xFF64748B)),
+    _MenuItem(
+        icon: Icons.sports_esports_rounded, label: 'Games', color: Color(0xFF64748B)),
     _MenuItem(
         icon: Icons.gif_box_rounded, label: 'GIFs', color: Color(0xFF0EA5E9)),
     _MenuItem(
