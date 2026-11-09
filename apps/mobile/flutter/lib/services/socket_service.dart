@@ -1122,6 +1122,54 @@ class SocketService extends ChangeNotifier {
     }
   }
 
+  Future<void> deleteAccount({
+    required String confirmationText,
+    String currentPassword = '',
+  }) async {
+    _requireConnection();
+    final connection = _socket!;
+    final completer = Completer<void>();
+    void deleted(dynamic _) {
+      if (!completer.isCompleted) completer.complete();
+    }
+    void failed(dynamic data) {
+      if (!completer.isCompleted) {
+        final message = data is Map ? data['message']?.toString() : null;
+        completer.completeError(StateError(
+          message ?? 'Account deletion was rejected. Check your confirmation and password.',
+        ));
+      }
+    }
+    void disconnected(dynamic _) {
+      if (!completer.isCompleted) {
+        completer.completeError(StateError(
+          'Connection closed before the server confirmed account deletion.',
+        ));
+      }
+    }
+
+    connection.on('account_deleted', deleted);
+    connection.on('account_deletion_failed', failed);
+    connection.on('disconnect', disconnected);
+    try {
+      connection.emit('delete_account', {
+        'currentPassword': currentPassword,
+        'confirmationText': confirmationText,
+        'confirmed': true,
+      });
+      await completer.future.timeout(
+        const Duration(seconds: 20),
+        onTimeout: () => throw StateError(
+          'The server did not confirm account deletion. Please check your connection.',
+        ),
+      );
+    } finally {
+      connection.off('account_deleted', deleted);
+      connection.off('account_deletion_failed', failed);
+      connection.off('disconnect', disconnected);
+    }
+  }
+
   Future<Map<String, dynamic>> registerFcmToken(String token) async {
     _requireConnection();
     final completer = Completer<Map<String, dynamic>>();
