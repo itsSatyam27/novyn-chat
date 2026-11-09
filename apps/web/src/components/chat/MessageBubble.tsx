@@ -24,6 +24,7 @@ import { PollMessageBubble } from './PollMessageBubble';
 import { GameMessageBubble } from './GameMessageBubble';
 import { RiddleMessageBubble } from './RiddleMessageBubble';
 import { triggerHaptic } from '../../services/capacitor';
+import { ENCRYPTED_MESSAGE_PLACEHOLDER } from '../../services/messagePresentation';
 
 interface MessageBubbleProps {
   message: Message;
@@ -722,6 +723,8 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                 background: isMe ? 'rgba(23, 66, 78, 0.03)' : 'rgba(23, 66, 78, 0.0625)',
                 fontSize: '0.75rem',
                 marginBottom: '8px',
+                minWidth: 0,
+                maxWidth: '100%',
                 cursor: 'pointer',
                 transition: 'background 0.15s ease',
               }}
@@ -733,11 +736,13 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                   ? 'You'
                   : message.replyTo.sender || 'Original message'}
               </div>
-              <div style={{ opacity: 0.85, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              <div style={{ opacity: 0.85, display: '-webkit-box', WebkitBoxOrient: 'vertical', WebkitLineClamp: 2, overflow: 'hidden', whiteSpace: 'normal', overflowWrap: 'anywhere', lineHeight: 1.35 }}>
                 {message.replyTo.attachment?.kind === 'image'
                   ? '📷 [Image]'
                   : message.replyTo.attachment?.kind === 'audio'
                   ? '🎤 [Voice Message]'
+                  : message.replyTo.text === ENCRYPTED_MESSAGE_PLACEHOLDER
+                  ? 'Original message'
                   : message.replyTo.text || '[Attachment]'}
               </div>
             </div>
