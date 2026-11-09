@@ -92,13 +92,15 @@ class MessageAdapter extends TypeAdapter<Message> {
       iv: fields[14] as String?,
       attachment: (fields[15] as Map?)?.cast<String, dynamic>(),
       poll: (fields[16] as Map?)?.cast<String, dynamic>(),
+      pinnedAt: fields[17] as String?,
+      pinnedBy: fields[18] as String?,
     );
   }
 
   @override
   void write(BinaryWriter writer, Message obj) {
     writer
-      ..writeByte(17)
+      ..writeByte(19)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -132,7 +134,11 @@ class MessageAdapter extends TypeAdapter<Message> {
       ..writeByte(15)
       ..write(obj.attachment)
       ..writeByte(16)
-      ..write(obj.poll);
+      ..write(obj.poll)
+      ..writeByte(17)
+      ..write(obj.pinnedAt)
+      ..writeByte(18)
+      ..write(obj.pinnedBy);
   }
 
   @override
