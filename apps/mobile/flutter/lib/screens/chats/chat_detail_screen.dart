@@ -12,7 +12,6 @@ import '../../services/settings_service.dart';
 import '../../widgets/user_avatar.dart';
 import '../../widgets/profile_preview_sheet.dart';
 import '../../widgets/connection_banner.dart';
-import '../../widgets/import_message_keys_dialog.dart';
 import '../../screens/calls/call_screen.dart';
 
 class ChatDetailScreen extends StatefulWidget {
@@ -218,9 +217,6 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           content: Text(error is StateError
               ? error.message.toString()
               : 'Could not send message. Please try again.'),
-          action: SnackBarAction(
-              label: 'Import keys',
-              onPressed: () => showImportMessageKeys(context)),
         ));
       }
     } finally {
@@ -251,16 +247,6 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       body: Column(
         children: [
           const ConnectionBanner(),
-          if (messages.any((message) => message.needsMessageKey))
-            Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                child: TextButton.icon(
-                  onPressed: () => showImportMessageKeys(context),
-                  icon: const Icon(Icons.lock_outline_rounded, size: 18),
-                  label: const Text(
-                      'Import web message keys to read encrypted messages'),
-                )),
           Expanded(
             child: _loading
                 ? const Center(
