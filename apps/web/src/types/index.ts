@@ -110,7 +110,7 @@ export interface UserProfile {
   lastSeenAt?: string;
   presenceMode?: 'online' | 'away' | 'busy' | 'invisible' | 'dnd' | 'offline';
   publicKey?: string;
-  retentionDays?: 7 | 15 | 30;
+  retentionDays?: 0;
   callPrivacy?: 'everyone' | 'friends' | 'nobody';
   messagePrivacy?: 'everyone' | 'friends' | 'nobody';
   profilePhotoPrivacy?: 'everyone' | 'friends' | 'nobody';
