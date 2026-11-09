@@ -1,5 +1,6 @@
 import { getPreferredLocale, getPreferredTimeZone } from '../../services/regionalPreferences';
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Conversation, Message } from '../../types';
 import { Avatar } from '../ui/Avatar';
 import {
@@ -230,7 +231,7 @@ export const ContactDetailsSidebar: React.FC<ContactDetailsSidebarProps> = ({
     onClose();
   };
 
-  return (
+  return createPortal(
     <>
       {friendRequestNotice && <SettingsToast notice={friendRequestNotice} onDismiss={() => setFriendRequestNotice(null)} />}
       <div
@@ -1513,6 +1514,7 @@ export const ContactDetailsSidebar: React.FC<ContactDetailsSidebarProps> = ({
           contactDisplayName={contact.displayName}
         />
       )}
-    </>
+    </>,
+    document.body
   );
 };
