@@ -6815,7 +6815,9 @@ io.on("connection", (socket) => {
       return;
     }
     // Never store a client-supplied plaintext body for an encrypted message.
-    const text = isEncrypted ? ENCRYPTED_MESSAGE_PLACEHOLDER : withUploadToken(payload?.text);
+    const text = isEncrypted
+      ? ENCRYPTED_MESSAGE_PLACEHOLDER
+      : withUploadToken(payload?.text || (payload?.attachment ? '[Attachment]' : ''));
     const attachment = sanitizeMessageAttachment(payload?.attachment, text);
     const clientTempId = String(payload?.clientTempId || "").trim();
     const safeClientTempId = clientTempId.slice(0, 64);
