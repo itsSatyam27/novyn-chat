@@ -1981,40 +1981,94 @@ function formatPushBody(text, fallback = "New message") {
 }
 
 async function sendPushToUser(userKey, payload) {
-  if (!pushEnabled || !userKey) return;
+  if (!userKey) return;
   const user = users.get(userKey);
-  if (!user || user.notificationsEnabled === false || !Array.isArray(user.pushSubs) || user.pushSubs.length === 0) return;
+  if (!user || user.notificationsEnabled === false) return;
   if (payload?.group === true && user.groupNotificationsEnabled === false) return;
 
+  const previewEnabled = user.messagePreviewEnabled !== false;
   const safePayload = {
     ...payload,
-    ...(payload?.type === "message" && user.messagePreviewEnabled === false
+    ...(payload?.type === "message" && !previewEnabled
       ? { body: payload?.group === true ? "New group message" : "You have a new message" }
       : {}),
     silent: payload?.silent === true || normalizePresenceMode(user.presenceMode) === "busy",
   };
   const body = JSON.stringify(safePayload);
-  const remaining = [];
-  let changed = false;
 
-  for (const sub of user.pushSubs) {
-    try {
-      await webpush.sendNotification(sub, body);
-      remaining.push(sub);
-    } catch (err) {
-      const status = err?.statusCode;
-      if (status === 404 || status === 410) {
-        changed = true;
-        continue;
+  // Browser push subscriptions (web app).
+  if (pushEnabled && Array.isArray(user.pushSubs) && user.pushSubs.length > 0) {
+    const remaining = [];
+    let changed = false;
+    for (const sub of user.pushSubs) {
+      try {
+        await webpush.sendNotification(sub, body);
+        remaining.push(sub);
+      } catch (err) {
+        const status = err?.statusCode;
+        if (status === 404 || status === 410) {
+          changed = true;
+          continue;
+        }
+        console.warn("Push notification failed:", status || err?.message || err);
+        remaining.push(sub);
       }
-      console.warn("Push notification failed:", status || err?.message || err);
-      remaining.push(sub);
+    }
+    if (changed) {
+      user.pushSubs = remaining;
+      schedulePersist();
     }
   }
 
-  if (changed) {
-    user.pushSubs = remaining;
-    schedulePersist();
+  // Firebase Cloud Messaging (Android/iOS app). The mobile client stores its
+  // current token in Firestore at users/<username>. A missing token is normal.
+  if (firebaseAdmin) {
+    try {
+      const firestore = admin.firestore(firebaseAdmin);
+      const userSnapshot = await firestore.collection("users").doc(userKey).get();
+      const token = toDisplayName(userSnapshot.data()?.fcmToken);
+      if (token) {
+        const message = {
+          token,
+          notification: {
+            title: toDisplayName(safePayload.title) || "Novyn",
+            body: toDisplayName(safePayload.body) || "You have a new message",
+          },
+          data: {
+            type: toDisplayName(safePayload.type) || "message",
+            url: toDisplayName(safePayload.url),
+            tag: toDisplayName(safePayload.tag),
+            chat: toDisplayName(payload?.group === true ? payload?.groupId : payload?.chat) || "",
+            kind: payload?.group === true ? "group" : "friend",
+          },
+          android: {
+            priority: safePayload.silent ? "normal" : "high",
+            notification: {
+              tag: toDisplayName(safePayload.tag) || undefined,
+              sound: safePayload.silent ? "" : "default",
+            },
+          },
+          apns: {
+            payload: {
+              aps: {
+                alert: {
+                  title: toDisplayName(safePayload.title) || "Novyn",
+                  body: toDisplayName(safePayload.body) || "You have a new message",
+                },
+                ...(safePayload.silent ? {} : { sound: "default" }),
+              },
+            },
+          },
+        };
+        await admin.messaging(firebaseAdmin).send(message);
+      }
+    } catch (err) {
+      const code = err?.code || err?.errorInfo?.code;
+      if (code !== "messaging/registration-token-not-registered" &&
+          code !== "messaging/invalid-registration-token") {
+        console.warn("Firebase push notification failed:", code || err?.message || err);
+      }
+    }
   }
 }
 
