@@ -33,12 +33,35 @@ jobs:
         env:
           GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
         run: |
+          set -euo pipefail
           if [ -z "$GOOGLE_SERVICES_JSON" ]; then
             echo "Missing repository secret: GOOGLE_SERVICES_JSON"
             exit 1
           fi
           printf '%s' "$GOOGLE_SERVICES_JSON" > android/app/google-services.json
           python3 -m json.tool android/app/google-services.json > /dev/null
+
+      - name: Configure permanent Android signing
+        working-directory: apps/mobile/flutter/android
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          set -euo pipefail
+          test -n "$ANDROID_KEYSTORE_BASE64" || (echo "Missing ANDROID_KEYSTORE_BASE64 secret" && exit 1)
+          test -n "$ANDROID_KEYSTORE_PASSWORD" || (echo "Missing ANDROID_KEYSTORE_PASSWORD secret" && exit 1)
+          test -n "$ANDROID_KEY_PASSWORD" || (echo "Missing ANDROID_KEY_PASSWORD secret" && exit 1)
+          test -n "$ANDROID_KEY_ALIAS" || (echo "Missing ANDROID_KEY_ALIAS secret" && exit 1)
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > app/novyn-release.jks
+          cat > key.properties <<EOF
+          storePassword=$ANDROID_KEYSTORE_PASSWORD
+          keyPassword=$ANDROID_KEY_PASSWORD
+          keyAlias=$ANDROID_KEY_ALIAS
+          storeFile=novyn-release.jks
+          EOF
+          keytool -list -keystore app/novyn-release.jks -storepass "$ANDROID_KEYSTORE_PASSWORD" -alias "$ANDROID_KEY_ALIAS" > /dev/null
 
       - name: Install Flutter dependencies
         working-directory: apps/mobile/flutter
