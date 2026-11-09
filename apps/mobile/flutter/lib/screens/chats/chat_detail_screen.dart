@@ -1194,6 +1194,18 @@ class _MessageBubble extends StatelessWidget {
                             ),
                           ),
                         ],
+                        if ((message.pinnedAt?.toString().isNotEmpty ?? false))
+                          const Padding(
+                            padding: EdgeInsets.only(bottom: 5),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.push_pin_rounded, size: 11),
+                                SizedBox(width: 4),
+                                Text('Pinned message', style: TextStyle(fontFamily: 'Inter', fontSize: 10, fontWeight: FontWeight.w700)),
+                              ],
+                            ),
+                          ),
                         if (message.poll is Map) ...[
                           _buildPollCard(context, message.poll as Map),
                           const SizedBox(height: 6),
@@ -1345,6 +1357,21 @@ class _MessageBubble extends StatelessWidget {
                   onTap: () {
                     Navigator.pop(context);
                     onReply?.call(message);
+                  },
+                ),
+                const Divider(height: 1),
+                _ActionItem(
+                  icon: Icons.push_pin_outlined,
+                  label: (message.pinnedAt?.toString().isNotEmpty ?? false) ? 'Unpin message' : 'Pin message',
+                  color: const Color(0xFF64748B),
+                  onTap: () {
+                    Navigator.pop(context);
+                    final socket = context.read<SocketService>();
+                    if (message.pinnedAt?.toString().isNotEmpty ?? false) {
+                      socket.unpinMessage(message.id.toString(), peer.uid.isNotEmpty ? peer.uid : peer.username);
+                    } else {
+                      socket.pinMessage(message.id.toString(), peer.uid.isNotEmpty ? peer.uid : peer.username);
+                    }
                   },
                 ),
                 if ((message.isFromMe as bool)) ...[
