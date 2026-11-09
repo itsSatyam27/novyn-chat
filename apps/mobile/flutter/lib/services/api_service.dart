@@ -299,6 +299,13 @@ class ApiService {
             replyToId: m['replyTo']?['id']?.toString(),
             replyToText: m['replyTo']?['text']?.toString(),
             replyToSender: m['replyTo']?['from']?.toString(),
+            edited: m['edited'] == true,
+            attachment: m['attachment'] is Map ? Map<String, dynamic>.from(m['attachment']) : null,
+            poll: m['poll'] is Map ? Map<String, dynamic>.from(m['poll']) : null,
+            game: m['game'] is Map ? Map<String, dynamic>.from(m['game']) : null,
+            riddle: m['riddle'] is Map ? Map<String, dynamic>.from(m['riddle']) : null,
+            pinnedAt: m['pinnedAt']?.toString(),
+            pinnedBy: m['pinnedBy']?.toString(),
           );
         }).toList();
       }
