@@ -55,9 +55,9 @@ jobs:
           curl --fail-with-body --silent --show-error --digest \
             --user "$ATLAS_PUBLIC_KEY:$ATLAS_PRIVATE_KEY" \
             --header "Accept: application/vnd.atlas.2023-01-01+json" \
-            --header "Content-Type: application/json" \
+            --header "Content-Type: application/vnd.atlas.2023-01-01+json" \
             --request POST \
-            --data "$(jq -n --arg ip "$RUNNER_IP" '{ipAddress:$ip,comment:"Temporary GitHub Actions Novyn backup runner"}')" \
+            --data "$(jq -n --arg ip "$RUNNER_IP" '[{ipAddress:$ip,comment:"Temporary GitHub Actions Novyn backup runner"}]')" \
             "https://cloud.mongodb.com/api/atlas/v2/groups/$ATLAS_PROJECT_ID/accessList"
           echo "runner_ip=$RUNNER_IP" >> "$GITHUB_OUTPUT"
 
