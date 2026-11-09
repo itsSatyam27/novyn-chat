@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 import '../models/chat_models.dart';
 
 /// REST API service for the shared novyn-chat backend (server.js).
@@ -335,24 +336,52 @@ class ApiService {
     return [];
   }
 
-  // ── Upload media (multipart) ──────────────────────────────────────────────
+  // ── Upload media using the authenticated shared backend route ────────────
   static Future<String?> uploadMedia(
       List<int> bytes, String filename, String mimeType) async {
     try {
-      final uri = Uri.parse('$baseUrl/api/upload');
-      final request = http.MultipartRequest('POST', uri)
-        ..headers.addAll({..._authHeaders}..remove('Content-Type'))
+      final headers = await _csrfHeaders();
+      headers.remove('Content-Type');
+      final request = http.MultipartRequest('POST', Uri.parse('$baseUrl/upload-file'))
+        ..headers.addAll(headers)
         ..files.add(http.MultipartFile.fromBytes(
           'file',
           bytes,
           filename: filename,
+          contentType: MediaType.parse(mimeType),
         ));
-      final streamed =
-          await request.send().timeout(const Duration(seconds: 30));
-      final res = await http.Response.fromStream(streamed);
-      if (res.statusCode == 200) {
-        final body = jsonDecode(res.body);
-        return body['url']?.toString();
+      final streamed = await request.send().timeout(const Duration(seconds: 30));
+      final response = await http.Response.fromStream(streamed);
+      if (response.statusCode == 200) {
+        final body = jsonDecode(response.body);
+        final url = body['url']?.toString();
+        if (url == null || url.isEmpty) return null;
+        return Uri.parse(baseUrl).resolve(url).toString();
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  static Future<String?> uploadVoice(
+      List<int> bytes, String filename, String mimeType) async {
+    try {
+      final headers = await _csrfHeaders();
+      headers.remove('Content-Type');
+      final request = http.MultipartRequest('POST', Uri.parse('$baseUrl/upload-voice'))
+        ..headers.addAll(headers)
+        ..files.add(http.MultipartFile.fromBytes(
+          'voice',
+          bytes,
+          filename: filename,
+          contentType: MediaType.parse(mimeType),
+        ));
+      final streamed = await request.send().timeout(const Duration(seconds: 30));
+      final response = await http.Response.fromStream(streamed);
+      if (response.statusCode == 200) {
+        final body = jsonDecode(response.body);
+        final url = body['url']?.toString();
+        if (url == null || url.isEmpty) return null;
+        return Uri.parse(baseUrl).resolve(url).toString();
       }
     } catch (_) {}
     return null;
