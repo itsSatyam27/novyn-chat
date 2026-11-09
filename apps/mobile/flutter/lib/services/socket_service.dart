@@ -238,6 +238,7 @@ class SocketService extends ChangeNotifier {
             pinnedAt: m['pinnedAt']?.toString(),
             pinnedBy: m['pinnedBy']?.toString(),
             riddle: m['riddle'] is Map ? Map<String, dynamic>.from(m['riddle']) : null,
+            game: m['game'] is Map ? Map<String, dynamic>.from(m['game']) : null,
           );
         }).toList();
 
@@ -302,6 +303,7 @@ class SocketService extends ChangeNotifier {
         pinnedAt: data['pinnedAt']?.toString(),
         pinnedBy: data['pinnedBy']?.toString(),
         riddle: data['riddle'] is Map ? Map<String, dynamic>.from(data['riddle']) : null,
+        game: data['game'] is Map ? Map<String, dynamic>.from(data['game']) : null,
       );
 
       final account = _myUsername;
@@ -344,6 +346,20 @@ class SocketService extends ChangeNotifier {
             _currentChatWith?.toLowerCase() == chatPartner.toLowerCase(),
       );
 
+      notifyListeners();
+    });
+
+    _socket!.on('game_move_updated', (data) {
+      if (data is! Map) return;
+      final messageId = data['messageId']?.toString() ?? '';
+      final rawGame = data['game'];
+      if (messageId.isEmpty || rawGame is! Map) return;
+      final index = _messages.indexWhere((message) => message.id == messageId);
+      if (index == -1) return;
+      final updated = List<Message>.from(_messages);
+      updated[index] = updated[index].copyWith(game: Map<String, dynamic>.from(rawGame));
+      _messages = updated;
+      HybridDbService.saveMessage(updated[index]);
       notifyListeners();
     });
 
@@ -712,6 +728,43 @@ class SocketService extends ChangeNotifier {
     };
 
     _socket!.emit('private_message', payload);
+  }
+
+  void sendGameChallenge(String gameType, String peerUsername, {bool isGroup = false}) {
+    _requireConnection();
+    _socket!.emit('private_message', {
+      'to': peerUsername,
+      'toType': isGroup ? 'group' : 'friend',
+      'text': '🎮 Started a game of ${_gameTitle(gameType)}!',
+      'clientTempId': 'tmp_game_${DateTime.now().millisecondsSinceEpoch}',
+      'game': {
+        'id': 'game_${DateTime.now().millisecondsSinceEpoch}',
+        'gameType': gameType,
+      },
+    });
+  }
+
+  String _gameTitle(String type) {
+    const titles = {
+      'tictactoe': 'Tic-Tac-Toe',
+      'rps': 'Rock • Paper • Scissors',
+      'connect4': 'Connect 4',
+      'doodle': 'Doodle Duel',
+      'numberclash': 'Number Clash',
+      'updown': 'Up or Down',
+    };
+    return titles[type] ?? 'Game';
+  }
+
+  void makeGameMove(String messageId, String peerUsername, Map<String, dynamic> moveData,
+      {bool isGroup = false}) {
+    _requireConnection();
+    _socket!.emit('game_move', {
+      'messageId': messageId,
+      'to': peerUsername,
+      'toType': isGroup ? 'group' : 'friend',
+      'moveData': moveData,
+    });
   }
 
   Future<Map<String, dynamic>> sendRiddle({
