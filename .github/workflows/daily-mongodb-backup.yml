@@ -1,0 +1,103 @@
+name: Daily encrypted MongoDB backup
+
+on:
+  schedule:
+    - cron: "30 2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: novyn-mongodb-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Validate backup secrets
+        shell: bash
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          ATLAS_PUBLIC_KEY: ${{ secrets.ATLAS_PUBLIC_KEY }}
+          ATLAS_PRIVATE_KEY: ${{ secrets.ATLAS_PRIVATE_KEY }}
+          ATLAS_PROJECT_ID: ${{ secrets.ATLAS_PROJECT_ID }}
+          BACKUP_ENCRYPTION_PASSPHRASE: ${{ secrets.BACKUP_ENCRYPTION_PASSPHRASE }}
+        run: |
+          set -euo pipefail
+          for name in MONGODB_URI ATLAS_PUBLIC_KEY ATLAS_PRIVATE_KEY ATLAS_PROJECT_ID BACKUP_ENCRYPTION_PASSPHRASE; do
+            if [ -z "${!name:-}" ]; then
+              echo "::error::Missing GitHub Actions secret: $name"
+              exit 1
+            fi
+          done
+
+      - name: Install MongoDB Database Tools
+        run: |
+          set -euo pipefail
+          curl -fsSL https://pgp.mongodb.com/server-8.0.asc | sudo gpg --dearmor --yes -o /usr/share/keyrings/mongodb-server-8.0.gpg
+          echo "deb [ arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-8.0.gpg ] https://repo.mongodb.org/apt/ubuntu noble/mongodb-org/8.0 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-8.0.list
+          sudo apt-get update
+          sudo apt-get install -y mongodb-database-tools
+
+      - name: Temporarily allow this runner in Atlas
+        id: atlas_access
+        shell: bash
+        env:
+          ATLAS_PUBLIC_KEY: ${{ secrets.ATLAS_PUBLIC_KEY }}
+          ATLAS_PRIVATE_KEY: ${{ secrets.ATLAS_PRIVATE_KEY }}
+          ATLAS_PROJECT_ID: ${{ secrets.ATLAS_PROJECT_ID }}
+        run: |
+          set -euo pipefail
+          RUNNER_IP="$(curl -fsS https://api.ipify.org)"
+          echo "runner_ip=$RUNNER_IP" >> "$GITHUB_OUTPUT"
+          curl --fail-with-body --silent --show-error --digest \
+            --user "$ATLAS_PUBLIC_KEY:$ATLAS_PRIVATE_KEY" \
+            --header "Accept: application/vnd.atlas.2023-01-01+json" \
+            --header "Content-Type: application/json" \
+            --request POST \
+            --data "$(jq -n --arg ip "$RUNNER_IP" '{ipAddress:$ip,comment:"Temporary GitHub Actions Novyn backup runner"}')" \
+            "https://cloud.mongodb.com/api/atlas/v2/groups/$ATLAS_PROJECT_ID/accessList"
+
+      - name: Dump and encrypt Novyn database
+        shell: bash
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          BACKUP_ENCRYPTION_PASSPHRASE: ${{ secrets.BACKUP_ENCRYPTION_PASSPHRASE }}
+        run: |
+          set -euo pipefail
+          BACKUP_DATE="$(date -u +%Y-%m-%dT%H-%M-%SZ)"
+          echo "backup_date=$BACKUP_DATE" >> "$GITHUB_ENV"
+          mongodump --uri="$MONGODB_URI" --archive="$RUNNER_TEMP/novyn-$BACKUP_DATE.archive.gz" --gzip
+          gpg --batch --yes --pinentry-mode loopback \
+            --passphrase "$BACKUP_ENCRYPTION_PASSPHRASE" \
+            --symmetric --cipher-algo AES256 \
+            --output "$RUNNER_TEMP/novyn-$BACKUP_DATE.archive.gz.gpg" \
+            "$RUNNER_TEMP/novyn-$BACKUP_DATE.archive.gz"
+          rm -f "$RUNNER_TEMP/novyn-$BACKUP_DATE.archive.gz"
+
+      - name: Upload encrypted backup (90-day retention)
+        uses: actions/upload-artifact@v4
+        with:
+          name: novyn-mongodb-backup-${{ env.backup_date }}
+          path: ${{ runner.temp }}/novyn-${{ env.backup_date }}.archive.gz.gpg
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Remove temporary Atlas network access
+        if: always() && steps.atlas_access.outputs.runner_ip != ''
+        shell: bash
+        env:
+          ATLAS_PUBLIC_KEY: ${{ secrets.ATLAS_PUBLIC_KEY }}
+          ATLAS_PRIVATE_KEY: ${{ secrets.ATLAS_PRIVATE_KEY }}
+          ATLAS_PROJECT_ID: ${{ secrets.ATLAS_PROJECT_ID }}
+          RUNNER_IP: ${{ steps.atlas_access.outputs.runner_ip }}
+        run: |
+          set -euo pipefail
+          curl --fail-with-body --silent --show-error --digest \
+            --user "$ATLAS_PUBLIC_KEY:$ATLAS_PRIVATE_KEY" \
+            --header "Accept: application/vnd.atlas.2023-01-01+json" \
+            --request DELETE \
+            "https://cloud.mongodb.com/api/atlas/v2/groups/$ATLAS_PROJECT_ID/accessList/$RUNNER_IP"
