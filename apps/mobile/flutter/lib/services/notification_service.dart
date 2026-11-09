@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'auth_service.dart';
@@ -18,10 +17,11 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 
 class NotificationService {
   static final FirebaseMessaging _fcm = FirebaseMessaging.instance;
-  static final FirebaseFirestore _db = FirebaseFirestore.instance;
   static AuthService? _presenceAuth;
   static SettingsService? _settings;
   static SocketService? _socket;
+  static String? _activeUsername;
+  static String? _lastRegisteredToken;
   static String? _lastSyncedPreferences;
   static bool _syncingPreferences = false;
   static StreamSubscription<String>? _tokenRefreshSubscription;
@@ -47,6 +47,20 @@ class NotificationService {
 
   static void _onSocketChanged() {
     unawaited(_syncUserPreferences());
+    unawaited(_syncDeviceToken());
+  }
+
+  static Future<void> _syncDeviceToken() async {
+    final socket = _socket;
+    if (socket == null || !socket.isConnected || _activeUsername == null) return;
+    try {
+      final token = await _fcm.getToken();
+      if (token == null || token == _lastRegisteredToken) return;
+      final result = await socket.registerFcmToken(token);
+      if (result['ok'] == true) _lastRegisteredToken = token;
+    } catch (_) {
+      // Retry after the socket reconnects.
+    }
   }
 
   static Future<void> _syncUserPreferences() async {
@@ -138,31 +152,27 @@ class NotificationService {
 
   // ── Save FCM token for a user ─────────────────────────────────────────────
   static Future<void> saveTokenForUser(String uid) async {
+    _activeUsername = uid;
     await _syncUserPreferences();
-    try {
-      final token = await _fcm.getToken();
-      if (token == null) return;
-
-      await _db.collection('users').doc(uid).update({
-        'fcmToken': token,
-      });
-
-      // Keep only the active account's token refresh listener.
-      await _tokenRefreshSubscription?.cancel();
-      _tokenRefreshSubscription = _fcm.onTokenRefresh.listen((newToken) async {
-        try {
-          await _db.collection('users').doc(uid).update({
-            'fcmToken': newToken,
-          });
-        } catch (_) {}
-      });
-    } catch (_) {}
+    await _tokenRefreshSubscription?.cancel();
+    _tokenRefreshSubscription = _fcm.onTokenRefresh.listen((_) {
+      _lastRegisteredToken = null;
+      unawaited(_syncDeviceToken());
+    });
+    await _syncDeviceToken();
   }
 
   // ── Clear token on logout ─────────────────────────────────────────────────
   static Future<void> clearToken(String uid) async {
     await _tokenRefreshSubscription?.cancel();
     _tokenRefreshSubscription = null;
+    if (_socket?.isConnected == true) {
+      try {
+        await _socket!.clearFcmToken();
+      } catch (_) {}
+    }
+    _activeUsername = null;
+    _lastRegisteredToken = null;
     _lastSyncedPreferences = null;
     _settings?.removeListener(_onSettingsChanged);
     _socket?.removeListener(_onSocketChanged);
@@ -173,7 +183,6 @@ class NotificationService {
     _lastAlertsEnabled = null;
     _lastSoundEnabled = null;
     try {
-      await _db.collection('users').doc(uid).update({'fcmToken': ''});
       await _fcm.deleteToken();
     } catch (_) {}
   }
