@@ -4754,6 +4754,34 @@ app.post("/api/auth/logout", createIpRateLimiter({ getStore: () => httpRateLimit
   res.json({ ok: true });
 });
 
+// Revoke every other login session while keeping the device making this request.
+app.post("/api/auth/revoke-sessions",
+  createIpRateLimiter({ getStore: () => httpRateLimits }, "auth-revoke-sessions", 20, 15 * 60 * 1000),
+  requireCsrf,
+  requireUser,
+  (req, res) => {
+    const cookies = getAuthCookiesFromHeader(req.headers.cookie);
+    const refreshPayload = verifyAuthToken(cookies.refreshToken, "refresh");
+    const currentSessionId = toDisplayName(refreshPayload?.jti);
+    if (!currentSessionId || !refreshSessions.has(currentSessionId)) {
+      res.status(401).json({ ok: false, message: "Your current session could not be verified. Please sign in again." });
+      return;
+    }
+
+    const userKey = normalizeName(req.userKey);
+    const tokenIds = Array.from(refreshByUser.get(userKey) || []);
+    let revoked = 0;
+    for (const tokenId of tokenIds) {
+      if (tokenId === currentSessionId) continue;
+      if (revokeRefreshSession(tokenId)) revoked += 1;
+      for (const client of io.sockets.sockets.values()) {
+        if (client.data.sessionId === tokenId) client.disconnect(true);
+      }
+    }
+    res.json({ ok: true, revoked });
+  }
+);
+
 const { fetchSafeExternalUrl, readResponseWithLimit, readResponseBufferWithLimit } = require("./server/security/ssrf");
 
 app.get("/api/link-preview", requireUser, createIpRateLimiter({ getStore: () => httpRateLimits }, 'link-preview', 60, 60 * 1000), async (req, res) => {

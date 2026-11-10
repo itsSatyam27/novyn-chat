@@ -313,6 +313,28 @@ class ApiService {
     return [];
   }
 
+  // ── Revoke all other authenticated devices, preserving this session ────
+  static Future<Map<String, dynamic>> revokeOtherSessions() async {
+    try {
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/api/auth/revoke-sessions'),
+            headers: await _csrfHeaders(),
+          )
+          .timeout(const Duration(seconds: 15));
+      final body = jsonDecode(response.body);
+      if (body is Map) {
+        return {
+          ...Map<String, dynamic>.from(body),
+          'httpStatus': response.statusCode,
+        };
+      }
+      return {'ok': false, 'message': 'Unexpected server response.'};
+    } catch (_) {
+      return {'ok': false, 'message': 'Could not reach Novyn. Check your connection.'};
+    }
+  }
+
   // ── Fetch call logs for the current user ─────────────────────────────────
   static Future<List<Map<String, dynamic>>> getCallLogs() async {
     try {

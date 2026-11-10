@@ -9,6 +9,7 @@ import '../../../services/local_auth_service.dart';
 import '../../../services/security_service.dart';
 import '../../../widgets/novyn_empty_state.dart';
 import '../../security/setup_pin_screen.dart';
+import 'active_sessions_screen.dart';
 import '../widgets/profile_widgets.dart';
 
 class SecurityPrivacyScreen extends StatelessWidget {
@@ -111,6 +112,17 @@ class SecurityPrivacyScreen extends StatelessWidget {
             title: 'Change Password',
             subtitle: 'Update your account password',
             onTap: () => _showChangePassword(context),
+          ),
+          MenuCard(
+            icon: Icons.devices_rounded,
+            iconColor: const Color(0xFF0EA5E9),
+            iconBgColor: const Color(0xFF0EA5E9).withValues(alpha: 0.1),
+            title: 'Active Sessions',
+            subtitle: 'Sign out of other devices remotely',
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const ActiveSessionsScreen()),
+            ),
           ),
           _ToggleCard(
             icon: Icons.security_rounded,
