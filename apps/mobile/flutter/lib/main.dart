@@ -106,8 +106,8 @@ class NovynApp extends StatelessWidget {
           return MaterialApp(
             title: 'Novyn',
             debugShowCheckedModeBanner: false,
-            theme: NovynTheme.lightTheme,
-            darkTheme: NovynTheme.darkTheme,
+            theme: NovynTheme.lightTheme(accent: Color(s.accentColorValue), fontScale: s.fontSize),
+            darkTheme: NovynTheme.darkTheme(accent: Color(s.accentColorValue), fontScale: s.fontSize),
             themeMode: s.themeMode,
             locale: Locale(s.language),
             localizationsDelegates: [
