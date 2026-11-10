@@ -36,71 +36,98 @@ class ProfileAvatarWithOrbitState extends State<ProfileAvatarWithOrbit>
     super.dispose();
   }
 
+  ImageProvider? _avatarImageProvider() {
+    final source = widget.photoUrl?.trim() ?? '';
+    if (source.isEmpty) return null;
+
+    if (source.startsWith('https://') || source.startsWith('http://')) {
+      return NetworkImage(source);
+    }
+
+    // Support both raw Base64 and data:image/...;base64,... values.
+    final comma = source.indexOf(',');
+    final payload = source.startsWith('data:image/') && comma >= 0
+        ? source.substring(comma + 1)
+        : source;
+
+    try {
+      final bytes = base64Decode(base64.normalize(payload));
+      return bytes.isEmpty ? null : MemoryImage(bytes);
+    } catch (_) {
+      // A malformed/unsupported avatar must never replace the whole
+      // Settings screen with Flutter's large error widget.
+      return null;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final orbitColor = _getStatusColor(widget.status);
+    final avatarImage = _avatarImageProvider();
+    final initial = widget.displayName.isNotEmpty
+        ? widget.displayName.substring(0, 1).toUpperCase()
+        : '?';
 
-    return Stack(
-      alignment: Alignment.center,
-      children: [
-        // ── Glowing Orbit ───────────────────────────────────────────
-        AnimatedBuilder(
-          animation: _controller,
-          child: RepaintBoundary(
-            child: CustomPaint(
-              size: const Size(92, 92),
-              painter: _OrbitCometPainter(color: orbitColor),
+    Widget fallback() => Center(
+          child: Text(
+            initial,
+            style: TextStyle(
+              fontFamily: 'PlusJakartaSans',
+              fontSize: 28,
+              fontWeight: FontWeight.w900,
+              color: theme.colorScheme.primary,
             ),
           ),
-          builder: (context, child) {
-            return Transform.rotate(
+        );
+
+    return SizedBox(
+      width: 92,
+      height: 92,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          // Rotating orbit is constrained to the same 92px footprint.
+          AnimatedBuilder(
+            animation: _controller,
+            child: RepaintBoundary(
+              child: CustomPaint(
+                size: const Size(92, 92),
+                painter: _OrbitCometPainter(color: orbitColor),
+              ),
+            ),
+            builder: (context, child) => Transform.rotate(
               angle: _controller.value * 2 * math.pi,
               child: child,
-            );
-          },
-        ),
-
-        // ── Avatar with Outer Glow ──────────────────────────────────
-        Container(
-          width: 70,
-          height: 70,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: theme.brightness == Brightness.dark
-                ? const Color(0xFF1A1D2E)
-                : Colors.white,
-            boxShadow: [
-              BoxShadow(
-                color: orbitColor.withValues(alpha: 0.3),
-                blurRadius: 15,
-                spreadRadius: 2,
-              ),
-            ],
-            image: widget.photoUrl != null && widget.photoUrl!.isNotEmpty
-                ? DecorationImage(
-                    image: MemoryImage(base64Decode(widget.photoUrl!)),
-                    fit: BoxFit.cover,
-                  )
-                : null,
+            ),
           ),
-          child: widget.photoUrl == null || widget.photoUrl!.isEmpty
-              ? Center(
-                  child: Text(
-                    widget.displayName.isNotEmpty
-                        ? widget.displayName.substring(0, 1).toUpperCase()
-                        : '?',
-                    style: TextStyle(
-                      fontFamily: 'PlusJakartaSans',
-                      fontSize: 28,
-                      fontWeight: FontWeight.w900,
-                      color: theme.colorScheme.primary,
-                    ),
+          Container(
+            width: 70,
+            height: 70,
+            clipBehavior: Clip.antiAlias,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: theme.brightness == Brightness.dark
+                  ? const Color(0xFF1A1D2E)
+                  : Colors.white,
+              boxShadow: [
+                BoxShadow(
+                  color: orbitColor.withValues(alpha: 0.3),
+                  blurRadius: 15,
+                  spreadRadius: 2,
+                ),
+              ],
+            ),
+            child: avatarImage == null
+                ? fallback()
+                : Image(
+                    image: avatarImage,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) => fallback(),
                   ),
-                )
-              : null,
-        ),
-      ],
+          ),
+        ],
+      ),
     );
   }
 
