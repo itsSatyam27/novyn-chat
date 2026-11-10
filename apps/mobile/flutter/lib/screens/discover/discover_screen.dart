@@ -34,7 +34,6 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
   }
 
   void _showMyQrCode(String myUid) {
-    final dark = Theme.of(context).brightness == Brightness.dark;
     showDialog<void>(
       context: context,
       builder: (dialogContext) => AlertDialog(
