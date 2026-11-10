@@ -1204,10 +1204,15 @@ class _ChangePasswordDialogState extends State<_ChangePasswordDialog> {
                         setState(() => _isLoading = false);
                         final messenger = ScaffoldMessenger.of(context);
                         if (error == null) {
+                          // The backend revokes every refresh session after a password
+                          // change. Clear this device's local auth state as well so the
+                          // user is explicitly required to sign in with the new password.
+                          await auth.logout();
+                          if (!mounted) return;
                           Navigator.pop(context);
                           messenger.showSnackBar(
                             const SnackBar(
-                              content: Text('Password updated successfully'),
+                              content: Text('Password updated. Please sign in again.'),
                               behavior: SnackBarBehavior.floating,
                               backgroundColor: Color(0xFF10B981),
                             ),
