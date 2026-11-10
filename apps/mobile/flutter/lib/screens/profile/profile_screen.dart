@@ -46,6 +46,7 @@ class ProfileScreen extends StatelessWidget {
               children: [
                 NovynHeader(
                   title: 'Settings',
+                  titleSize: 34,
                   subtitle: 'Make Novyn feel like yours',
                   actions: [
                     NovynIconButton(icon: Icons.qr_code_2_rounded, onTap: () => _showQRCode(context)),
@@ -1368,7 +1369,7 @@ class _NovynSettingsTile extends StatelessWidget {
       onTap: onTap,
       child: Column(children: [
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           child: Row(children: [
             Container(width: 42, height: 42, decoration: BoxDecoration(color: (Theme.of(context).brightness == Brightness.dark ? const Color(0xFF35205A) : const Color(0xFFEFE8FF)), borderRadius: BorderRadius.circular(14)), child: Icon(icon, color: NovynTheme.indigo, size: 20)),
             const SizedBox(width: 13),

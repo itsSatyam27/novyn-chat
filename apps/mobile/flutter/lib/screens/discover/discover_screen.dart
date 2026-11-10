@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
@@ -22,6 +23,41 @@ class DiscoverScreen extends StatefulWidget {
 class _DiscoverScreenState extends State<DiscoverScreen> {
   String _search = '';
   bool _isResolvingQr = false;
+  bool _sendingFriend = false;
+  final TextEditingController _friendController = TextEditingController();
+
+  @override
+  void dispose() {
+    _friendController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _sendFriendRequest(String myUid) async {
+    final value = _friendController.text.trim().replaceFirst(RegExp(r'^@'), '');
+    if (value.isEmpty || _sendingFriend) return;
+    setState(() => _sendingFriend = true);
+    try {
+      final service = context.read<FriendService>();
+      final user = await service.getUser(value);
+      if (!mounted) return;
+      if (user == null) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No Novyn user found. Check the username and try again.')));
+        return;
+      }
+      if (user.username.toLowerCase() == myUid.toLowerCase()) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('You cannot add yourself.')));
+        return;
+      }
+      await service.sendRequest(myUid, user.uid);
+      if (!mounted) return;
+      _friendController.clear();
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Friend request sent to @${user.username}.')));
+    } catch (_) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not send request. Please try again.')));
+    } finally {
+      if (mounted) setState(() => _sendingFriend = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -90,6 +126,35 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                   ],
                 );
               },
+            ),
+
+            // ── Live radar + quick add ───────────────────────────────
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
+              child: _DiscoverRadarCard(),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 2),
+              child: Row(children: [
+                Expanded(child: _DiscoverCountCard(
+                  label: 'Requests', icon: Icons.people_outline_rounded,
+                  stream: friends.pendingRequestsCountStream(myUid),
+                )),
+                const SizedBox(width: 12),
+                Expanded(child: _DiscoverCountCard(
+                  label: 'Sent', icon: Icons.person_add_alt_1_rounded,
+                  stream: friends.sentPendingUidsStream(myUid).map((items) => items.length),
+                )),
+              ]),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+              child: _DiscoverAddFriendCard(
+                controller: _friendController,
+                sending: _sendingFriend,
+                onSend: () => _sendFriendRequest(myUid),
+                onScan: () => _showScanPlaceholder(context),
+              ),
             ),
 
             // ── Search ──────────────────────────────────────────────
@@ -191,8 +256,8 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
   Widget _buildEmpty() {
     return const NovynEmptyState(
       icon: Icons.explore_outlined,
-      title: 'No one to discover',
-      description: 'Check back when more people join',
+      title: 'No one online yet',
+      description: 'Check back in a moment or invite a friend below.',
     );
   }
 
@@ -388,6 +453,148 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     );
     manualUsername.dispose();
   }
+}
+
+
+class _DiscoverRadarCard extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final ink = Theme.of(context).colorScheme.onSurface;
+    final muted = Theme.of(context).colorScheme.onSurfaceVariant;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(18, 20, 18, 20),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+      ),
+      child: Column(children: [
+        SizedBox(
+          height: 150,
+          width: 180,
+          child: CustomPaint(painter: _RadarPainter(
+            ring: dark ? const Color(0xFF514078) : const Color(0xFFD9CDFB),
+            accent: const Color(0xFF793CF0),
+          )),
+        ),
+        const SizedBox(height: 12),
+        Text('Live online radar', style: TextStyle(
+          fontFamily: 'PlusJakartaSans', fontSize: 13,
+          fontWeight: FontWeight.w700, color: const Color(0xFF793CF0),
+        )),
+        const SizedBox(height: 8),
+        Text('Find your people', style: TextStyle(
+          fontFamily: 'PlusJakartaSans', fontSize: 21,
+          fontWeight: FontWeight.w800, color: ink,
+        )),
+        const SizedBox(height: 5),
+        Text('See who is around and connect instantly.',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 13, color: muted)),
+      ]),
+    );
+  }
+}
+
+class _RadarPainter extends CustomPainter {
+  const _RadarPainter({required this.ring, required this.accent});
+  final Color ring;
+  final Color accent;
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = size.height * .44;
+    final stroke = Paint()..color = ring..style = PaintingStyle.stroke..strokeWidth = 1.5;
+    for (var i = 1; i <= 3; i++) {
+      canvas.drawCircle(center, radius * i / 3, stroke);
+    }
+    final sector = Path()
+      ..moveTo(center.dx, center.dy)
+      ..lineTo(center.dx, center.dy - radius)
+      ..arcTo(Rect.fromCircle(center: center, radius: radius), -math.pi / 2, .95, false)
+      ..close();
+    canvas.drawPath(sector, Paint()..color = accent.withValues(alpha: .18));
+    canvas.drawCircle(center, 5, Paint()..color = accent);
+  }
+  @override
+  bool shouldRepaint(covariant _RadarPainter oldDelegate) => oldDelegate.ring != ring || oldDelegate.accent != accent;
+}
+
+class _DiscoverCountCard extends StatelessWidget {
+  const _DiscoverCountCard({required this.label, required this.icon, required this.stream});
+  final String label;
+  final IconData icon;
+  final Stream<int> stream;
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.all(14),
+    decoration: BoxDecoration(
+      color: Theme.of(context).colorScheme.surface,
+      borderRadius: BorderRadius.circular(22),
+      border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+    ),
+    child: StreamBuilder<int>(
+      stream: stream,
+      builder: (context, snapshot) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Icon(icon, size: 20, color: Theme.of(context).colorScheme.primary),
+            const Spacer(),
+            Text('${snapshot.data ?? 0}', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
+          ]),
+          const SizedBox(height: 8),
+          Text(label, style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+        ],
+      ),
+    ),
+  );
+}
+
+class _DiscoverAddFriendCard extends StatelessWidget {
+  const _DiscoverAddFriendCard({required this.controller, required this.sending, required this.onSend, required this.onScan});
+  final TextEditingController controller;
+  final bool sending;
+  final VoidCallback onSend;
+  final VoidCallback onScan;
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.all(16),
+    decoration: BoxDecoration(
+      color: Theme.of(context).colorScheme.surface,
+      borderRadius: BorderRadius.circular(26),
+      border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+    ),
+    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text('ADD A FRIEND', style: Theme.of(context).textTheme.labelLarge?.copyWith(
+        color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.w800, letterSpacing: 1.2)),
+      const SizedBox(height: 14),
+      Row(children: [
+        Expanded(child: TextField(
+          controller: controller,
+          textInputAction: TextInputAction.send,
+          onSubmitted: (_) => onSend(),
+          decoration: const InputDecoration(hintText: 'Username or @username', isDense: true),
+        )),
+        const SizedBox(width: 10),
+        SizedBox(height: 52, child: FilledButton.icon(
+          onPressed: sending ? null : onSend,
+          icon: sending
+            ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+            : const Icon(Icons.person_add_alt_1_rounded, size: 18),
+          label: const Text('Send'),
+        )),
+      ]),
+      const SizedBox(height: 8),
+      TextButton.icon(
+        onPressed: onScan,
+        icon: const Icon(Icons.qr_code_scanner_rounded, size: 18),
+        label: const Text('Scan a friend’s QR code'),
+      ),
+    ]),
+  );
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

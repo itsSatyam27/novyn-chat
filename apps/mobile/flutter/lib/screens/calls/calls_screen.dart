@@ -10,6 +10,7 @@ import '../../widgets/user_avatar.dart';
 import '../../widgets/novyn_shimmer.dart';
 import '../../widgets/novyn_empty_state.dart';
 import '../../widgets/novyn_ui.dart';
+import '../../theme/novyn_theme.dart';
 import '../calls/call_screen.dart';
 
 class CallsScreen extends StatefulWidget {
@@ -199,22 +200,35 @@ class _CallsScreenState extends State<CallsScreen> {
               title: 'Calls',
               subtitle: '${_calls.length} calls this week · $missedCount missed',
               actions: [
-                NovynIconButton(
-                  icon: Icons.shield_outlined,
-                  onTap: _showCallPrivacy,
-                ),
-                if (_calls.isNotEmpty)
-                  NovynIconButton(
-                    icon: Icons.delete_sweep_outlined,
-                    onTap: _confirmClearHistory,
-                  ),
-                NovynIconButton(
-                  icon: Icons.refresh_rounded,
-                  onTap: () {
-                    HapticFeedback.selectionClick();
-                    setState(() => _loading = true);
-                    _loadCalls();
+                PopupMenuButton<String>(
+                  tooltip: 'Call options',
+                  icon: const Icon(Icons.more_horiz_rounded, size: 25),
+                  onSelected: (value) {
+                    if (value == 'privacy') _showCallPrivacy();
+                    if (value == 'clear') _confirmClearHistory();
+                    if (value == 'refresh') {
+                      setState(() => _loading = true);
+                      _loadCalls();
+                    }
                   },
+                  itemBuilder: (context) => [
+                    const PopupMenuItem(value: 'privacy', child: ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(Icons.shield_outlined),
+                      title: Text('Call privacy'),
+                    )),
+                    if (_calls.isNotEmpty)
+                      const PopupMenuItem(value: 'clear', child: ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: Icon(Icons.delete_outline_rounded),
+                        title: Text('Clear history'),
+                      )),
+                    const PopupMenuItem(value: 'refresh', child: ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(Icons.refresh_rounded),
+                      title: Text('Refresh'),
+                    )),
+                  ],
                 ),
               ],
             ),
@@ -454,9 +468,9 @@ class _CallCard extends StatelessWidget {
       child: Container(
         margin: const EdgeInsets.only(bottom: 10),
         decoration: BoxDecoration(
-          color: NovynColors.card,
+          color: NovynTheme.cardBg(context),
           borderRadius: BorderRadius.circular(22),
-          border: Border.all(color: NovynColors.glassBorder),
+          border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
         ),
         child: Material(
           color: Colors.transparent,
@@ -487,7 +501,7 @@ class _CallCard extends StatelessWidget {
                                 entry.peer.name,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: NovynText.body(15, weight: FontWeight.w700),
+                                style: Theme.of(context).textTheme.titleMedium?.copyWith(fontSize: 15, fontWeight: FontWeight.w700),
                               ),
                             ),
                             if (entry.count > 1) ...[
