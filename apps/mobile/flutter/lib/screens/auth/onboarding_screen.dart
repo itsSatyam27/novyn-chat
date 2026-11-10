@@ -4,7 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'auth_screen.dart';
 
 // ── Palette ────────────────────────────────────────────────────────────────
-const _kPurple  = Color(0xFF7C6FF7);
+const _kPurple  = Color(0xFF6D5DFC);
 const _kPurple2 = Color(0xFF9B8FFF);
 const _kPink    = Color(0xFFEC4899);
 const _kGreen   = Color(0xFF10B981);
@@ -115,7 +115,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
               width: 120, height: 120,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: const Color(0xFF7C6FF7).withValues(alpha: 0.08),
+                color: const Color(0xFF6D5DFC).withValues(alpha: 0.08),
               ),
             ),
           ),
@@ -156,7 +156,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                                 child: const Text(
                                   'Skip',
                                   style: TextStyle(
-                                    fontFamily: 'Inter',
+                                    fontFamily: 'PlusJakartaSans',
                                     fontSize: 13,
                                     fontWeight: FontWeight.w600,
                                     color: _kPurple,
@@ -177,7 +177,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                   // App name
                   Text(
                     'Novyn',
-                    style: GoogleFonts.inter(
+                    style: GoogleFonts.plusJakartaSans(
                       fontSize: 28,
                       fontWeight: FontWeight.w800,
                       color: const Color(0xFF1A1D2E),
@@ -342,7 +342,7 @@ class _PageContent extends StatelessWidget {
           Text(
             data.title,
             textAlign: TextAlign.center,
-            style: GoogleFonts.inter(
+            style: GoogleFonts.plusJakartaSans(
               fontSize: 32,
               fontWeight: FontWeight.w800,
               color: isDark ? Colors.white : const Color(0xFF1A1D2E),
@@ -357,7 +357,7 @@ class _PageContent extends StatelessWidget {
             data.subtitle,
             textAlign: TextAlign.center,
             style: TextStyle(
-              fontFamily: 'Inter',
+              fontFamily: 'PlusJakartaSans',
               fontSize: 15,
               fontWeight: FontWeight.w400,
               color: isDark
@@ -408,7 +408,7 @@ class _NextButton extends StatelessWidget {
             Text(
               'Next',
               style: TextStyle(
-                fontFamily: 'Inter',
+                fontFamily: 'PlusJakartaSans',
                 fontSize: 16,
                 fontWeight: FontWeight.w700,
                 color: Colors.white,
@@ -456,7 +456,7 @@ class _GetStartedButton extends StatelessWidget {
             Text(
               'Get Started',
               style: TextStyle(
-                fontFamily: 'Inter',
+                fontFamily: 'PlusJakartaSans',
                 fontSize: 16,
                 fontWeight: FontWeight.w700,
                 color: Colors.white,

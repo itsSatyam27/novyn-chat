@@ -410,7 +410,7 @@ class _CallScreenState extends State<CallScreen>
                               Text(
                                 'Camera off',
                                 style: TextStyle(
-                                  fontFamily: 'Inter',
+                                  fontFamily: 'PlusJakartaSans',
                                   fontSize: 10,
                                   color: Colors.white54,
                                 ),
@@ -483,7 +483,7 @@ class _CallScreenState extends State<CallScreen>
                         Text(
                           widget.peer.name,
                           style: const TextStyle(
-                            fontFamily: 'Inter',
+                            fontFamily: 'PlusJakartaSans',
                             fontWeight: FontWeight.w700,
                             fontSize: 16,
                             color: Colors.white,
@@ -496,7 +496,7 @@ class _CallScreenState extends State<CallScreen>
                               builder: (context, secs, _) => Text(
                                 _formatDuration(secs),
                                 style: const TextStyle(
-                                  fontFamily: 'Inter',
+                                  fontFamily: 'PlusJakartaSans',
                                   fontSize: 12,
                                   color: Color(0xFF10B981),
                                 ),
@@ -644,7 +644,7 @@ class _CallScreenState extends State<CallScreen>
                             Text(
                               _isVideo ? 'Video Call' : 'Voice Call',
                               style: const TextStyle(
-                                fontFamily: 'Inter',
+                                fontFamily: 'PlusJakartaSans',
                                 fontSize: 12,
                                 color: Colors.white54,
                               ),
@@ -680,7 +680,7 @@ class _CallScreenState extends State<CallScreen>
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           border: Border.all(
-                            color: const Color(0xFF7C6FF7).withValues(alpha: 0.3),
+                            color: const Color(0xFF6D5DFC).withValues(alpha: 0.3),
                             width: 2,
                           ),
                         ),
@@ -701,7 +701,7 @@ class _CallScreenState extends State<CallScreen>
                       name: widget.peer.name,
                       photoUrl: widget.peer.photoUrl,
                       radius: 60,
-                      fallbackColor: const Color(0xFF7C6FF7),
+                      fallbackColor: const Color(0xFF6D5DFC),
                     ),
                   ],
                 ),
@@ -715,7 +715,7 @@ class _CallScreenState extends State<CallScreen>
               widget.peer.name,
               textAlign: TextAlign.center,
               style: const TextStyle(
-                fontFamily: 'Inter',
+                fontFamily: 'PlusJakartaSans',
                 fontSize: 26,
                 fontWeight: FontWeight.w700,
                 color: Colors.white,
@@ -737,7 +737,7 @@ class _CallScreenState extends State<CallScreen>
                     key: ValueKey(text),
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      fontFamily: 'Inter',
+                      fontFamily: 'PlusJakartaSans',
                       fontSize: 15,
                       fontWeight: FontWeight.w500,
                       color: _state == CallState.connected
@@ -764,7 +764,7 @@ class _CallScreenState extends State<CallScreen>
                 child: Text(
                   'Call ended',
                   style: TextStyle(
-                    fontFamily: 'Inter',
+                    fontFamily: 'PlusJakartaSans',
                     fontSize: 16,
                     color: Colors.white.withValues(alpha: 0.5),
                   ),
@@ -786,7 +786,7 @@ class _CallScreenState extends State<CallScreen>
           Text(
             'Incoming ${widget.callType} call',
             style: const TextStyle(
-              fontFamily: 'Inter',
+              fontFamily: 'PlusJakartaSans',
               fontSize: 13,
               color: Colors.white38,
             ),
@@ -1026,7 +1026,7 @@ class _CallButton extends StatelessWidget {
           Text(
             label,
             style: const TextStyle(
-              fontFamily: 'Inter',
+              fontFamily: 'PlusJakartaSans',
               fontSize: 13,
               fontWeight: FontWeight.w500,
               color: Colors.white60,
@@ -1087,7 +1087,7 @@ class _ToggleButton extends StatelessWidget {
             Text(
               label,
               style: const TextStyle(
-                fontFamily: 'Inter',
+                fontFamily: 'PlusJakartaSans',
                 fontSize: 11,
                 fontWeight: FontWeight.w500,
                 color: Colors.white54,
@@ -1139,7 +1139,7 @@ class _NetworkQualityBadge extends StatelessWidget {
               Text(
                 quality == 'good' ? 'HD' : quality == 'fair' ? 'SD' : 'Low',
                 style: TextStyle(
-                  fontFamily: 'Inter',
+                  fontFamily: 'PlusJakartaSans',
                   fontSize: 10,
                   fontWeight: FontWeight.w600,
                   color: color,

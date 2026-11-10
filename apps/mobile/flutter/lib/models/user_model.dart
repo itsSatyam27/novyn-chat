@@ -122,7 +122,7 @@ class UserModel extends HiveObject {
   
   Color get avatarColor {
     final colors = [
-      const Color(0xFF7C6FF7),
+      const Color(0xFF6D5DFC),
       const Color(0xFFEC4899),
       const Color(0xFF10B981),
       const Color(0xFFF59E0B),

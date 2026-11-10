@@ -10,7 +10,7 @@ import '../main_screen.dart';
 const _kBg         = Color(0xFF04080F);
 const _kAccent     = Color(0xFF8B7FFF);
 const _kAccentDim  = Color(0xFF6C62E8);
-const _kGlow       = Color(0xFF7C6FF7);
+const _kGlow       = Color(0xFF6D5DFC);
 const _kGreen      = Color(0xFF10B981);
 const _kRed        = Color(0xFFEF4444);
 const _kPink       = Color(0xFFEC4899);
@@ -132,7 +132,7 @@ class _AuthScreenState extends State<AuthScreen>
           ).createShader(bounds),
           child: Text(
             'Novyn',
-            style: GoogleFonts.inter(
+            style: GoogleFonts.plusJakartaSans(
               fontSize: 40,
               fontWeight: FontWeight.w800,
               color: Colors.white,
@@ -150,7 +150,7 @@ class _AuthScreenState extends State<AuthScreen>
             const SizedBox(width: 8),
             Text(
               'WHERE CONVERSATIONS CONNECT',
-              style: GoogleFonts.inter(
+              style: GoogleFonts.plusJakartaSans(
                 fontSize: 8.5,
                 fontWeight: FontWeight.w700,
                 letterSpacing: 2.8,
@@ -218,8 +218,8 @@ class _AuthScreenState extends State<AuthScreen>
           indicatorSize: TabBarIndicatorSize.tab,
           indicatorPadding: const EdgeInsets.all(5),
           dividerColor: Colors.transparent,
-          labelStyle: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700),
-          unselectedLabelStyle: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w500),
+          labelStyle: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w700),
+          unselectedLabelStyle: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w500),
           labelColor: _kAccent,
           unselectedLabelColor: Colors.white.withValues(alpha: 0.35),
           tabs: const [Tab(text: 'Login'), Tab(text: 'Register')],
@@ -574,13 +574,13 @@ class _RegisterTabState extends State<_RegisterTab> {
               const SizedBox(height: 20),
               Text(
                 'Account Created!',
-                style: GoogleFonts.inter(fontSize: 22, fontWeight: FontWeight.w800, color: Colors.white),
+                style: GoogleFonts.plusJakartaSans(fontSize: 22, fontWeight: FontWeight.w800, color: Colors.white),
               ),
               const SizedBox(height: 8),
               Text(
                 'Welcome to Novyn,\n@${_usernameCtrl.text.trim().toLowerCase()}',
                 textAlign: TextAlign.center,
-                style: TextStyle(fontFamily: 'Inter', fontSize: 14, color: Colors.white.withValues(alpha: 0.45), height: 1.5),
+                style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 14, color: Colors.white.withValues(alpha: 0.45), height: 1.5),
               ),
               const SizedBox(height: 28),
               _PrimaryButton(
@@ -729,7 +729,7 @@ class _SectionLabel extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Text(
         text,
-        style: GoogleFonts.inter(
+        style: GoogleFonts.plusJakartaSans(
           fontSize: 11,
           fontWeight: FontWeight.w700,
           letterSpacing: 1.0,
@@ -817,7 +817,7 @@ class _FieldState extends State<_Field> {
           keyboardType: widget.keyboardType,
           onChanged:    widget.onChanged,
           style: const TextStyle(
-            fontFamily: 'Inter',
+            fontFamily: 'PlusJakartaSans',
             fontSize:   15,
             color:      Colors.white,
             height:     1.4,
@@ -840,7 +840,7 @@ class _FieldState extends State<_Field> {
                 : null,
             hintText:  widget.hint,
             hintStyle: TextStyle(
-              fontFamily: 'Inter',
+              fontFamily: 'PlusJakartaSans',
               color:      Colors.white.withValues(alpha: 0.2),
               fontSize:   15,
             ),
@@ -882,7 +882,7 @@ class _StatusLine extends StatelessWidget {
         child: Text(
           text,
           style: TextStyle(
-            fontFamily: 'Inter',
+            fontFamily: 'PlusJakartaSans',
             fontSize:   12,
             color:      color.withValues(alpha: 0.85),
           ),
@@ -909,7 +909,7 @@ class _ErrorBanner extends StatelessWidget {
             Expanded(
               child: Text(
                 message,
-                style: TextStyle(fontFamily: 'Inter', fontSize: 13, color: _kRed.withValues(alpha: 0.9)),
+                style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 13, color: _kRed.withValues(alpha: 0.9)),
               ),
             ),
           ],
@@ -973,7 +973,7 @@ class _PrimaryButton extends StatelessWidget {
                   )
                 : Text(
                     label,
-                    style: GoogleFonts.inter(
+                    style: GoogleFonts.plusJakartaSans(
                       fontSize:   15,
                       fontWeight: FontWeight.w700,
                       color:      Colors.white,
@@ -999,7 +999,7 @@ class _OrDivider extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 14),
           child: Text(
             'OR',
-            style: GoogleFonts.inter(
+            style: GoogleFonts.plusJakartaSans(
               fontSize:   10,
               fontWeight: FontWeight.w700,
               letterSpacing: 2,
@@ -1040,13 +1040,13 @@ class _GoogleButton extends StatelessWidget {
                   fontSize:   18,
                   fontWeight: FontWeight.w800,
                   color:      Color(0xFF4285F4),
-                  fontFamily: 'Inter',
+                  fontFamily: 'PlusJakartaSans',
                 ),
               ),
               const SizedBox(width: 10),
               Text(
                 'Continue with Google',
-                style: GoogleFonts.inter(
+                style: GoogleFonts.plusJakartaSans(
                   fontSize:   14,
                   fontWeight: FontWeight.w600,
                   color:      Colors.white.withValues(alpha: 0.75),
@@ -1070,7 +1070,7 @@ class _SwitchLink extends StatelessWidget {
   Widget build(BuildContext context) => Center(
         child: RichText(
           text: TextSpan(
-            style: TextStyle(fontFamily: 'Inter', fontSize: 13, color: Colors.white.withValues(alpha: 0.35)),
+            style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 13, color: Colors.white.withValues(alpha: 0.35)),
             children: [
               TextSpan(text: prefix),
               TextSpan(
@@ -1147,7 +1147,7 @@ class _SavedAccountTile extends StatelessWidget {
                   Text(
                     session.name.isNotEmpty ? session.name : session.email,
                     style: const TextStyle(
-                      fontFamily: 'Inter',
+                      fontFamily: 'PlusJakartaSans',
                       fontWeight: FontWeight.w600,
                       fontSize:   14,
                       color:      Colors.white,
@@ -1156,7 +1156,7 @@ class _SavedAccountTile extends StatelessWidget {
                   if (session.name.isNotEmpty)
                     Text(
                       session.email,
-                      style: TextStyle(fontFamily: 'Inter', fontSize: 12, color: Colors.white.withValues(alpha: 0.35)),
+                      style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 12, color: Colors.white.withValues(alpha: 0.35)),
                     ),
                 ],
               ),
@@ -1170,7 +1170,7 @@ class _SavedAccountTile extends StatelessWidget {
               child: Text(
                 'Fill',
                 style: TextStyle(
-                  fontFamily: 'Inter',
+                  fontFamily: 'PlusJakartaSans',
                   fontSize:   11,
                   fontWeight: FontWeight.w600,
                   color:      _kAccent.withValues(alpha: 0.9),

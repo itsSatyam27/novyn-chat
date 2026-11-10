@@ -640,7 +640,7 @@ class _CallHistorySheet extends StatelessWidget {
                     Text(
                       entry.peer.name,
                       style: TextStyle(
-                        fontFamily: 'Inter',
+                        fontFamily: 'PlusJakartaSans',
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
                         color: Theme.of(context).colorScheme.onSurface,
@@ -649,7 +649,7 @@ class _CallHistorySheet extends StatelessWidget {
                     Text(
                       'Call History',
                       style: TextStyle(
-                        fontFamily: 'Inter',
+                        fontFamily: 'PlusJakartaSans',
                         fontSize: 14,
                         color: Theme.of(context).colorScheme.outline,
                       ),
@@ -696,7 +696,7 @@ class _CallHistorySheet extends StatelessWidget {
                             Text(
                               status[0].toUpperCase() + status.substring(1) + ' ' + type + ' call',
                               style: TextStyle(
-                                fontFamily: 'Inter',
+                                fontFamily: 'PlusJakartaSans',
                                 fontSize: 14,
                                 fontWeight: FontWeight.w600,
                                 color: Theme.of(context).colorScheme.onSurface,
@@ -705,7 +705,7 @@ class _CallHistorySheet extends StatelessWidget {
                             Text(
                               _formatFullTime(createdAt),
                               style: TextStyle(
-                                fontFamily: 'Inter',
+                                fontFamily: 'PlusJakartaSans',
                                 fontSize: 12,
                                 color: Theme.of(context).colorScheme.outline,
                               ),
@@ -717,7 +717,7 @@ class _CallHistorySheet extends StatelessWidget {
                         Text(
                           _formatDuration(duration),
                           style: const TextStyle(
-                            fontFamily: 'Inter',
+                            fontFamily: 'PlusJakartaSans',
                             fontSize: 13,
                             color: Color(0xFF94A3B8),
                           ),
