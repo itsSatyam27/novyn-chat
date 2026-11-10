@@ -41,12 +41,12 @@ class _DoodlePainter extends CustomPainter {
 
     // Two layers — subtle fill + stroke outline
     final strokeColor = isDark
-        ? const Color(0xFF7C6FF7).withValues(alpha: 0.12)
-        : const Color(0xFF7C6FF7).withValues(alpha: 0.10);
+        ? const Color(0xFF6D5DFC).withValues(alpha: 0.12)
+        : const Color(0xFF6D5DFC).withValues(alpha: 0.10);
 
     final fillColor = isDark
-        ? const Color(0xFF7C6FF7).withValues(alpha: 0.04)
-        : const Color(0xFF7C6FF7).withValues(alpha: 0.05);
+        ? const Color(0xFF6D5DFC).withValues(alpha: 0.04)
+        : const Color(0xFF6D5DFC).withValues(alpha: 0.05);
 
     final accentColor = isDark
         ? const Color(0xFFEC4899).withValues(alpha: 0.07)

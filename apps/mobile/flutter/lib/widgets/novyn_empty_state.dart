@@ -75,7 +75,7 @@ class _NovynEmptyStateState extends State<NovynEmptyState>
             Text(
               widget.title,
               style: TextStyle(
-                fontFamily: 'Inter',
+                fontFamily: 'PlusJakartaSans',
                 fontSize: 22,
                 fontWeight: FontWeight.w800,
                 color: theme.colorScheme.onSurface,
@@ -89,7 +89,7 @@ class _NovynEmptyStateState extends State<NovynEmptyState>
                 widget.description,
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  fontFamily: 'Inter',
+                  fontFamily: 'PlusJakartaSans',
                   fontSize: 15,
                   color: theme.colorScheme.outline,
                   height: 1.5,

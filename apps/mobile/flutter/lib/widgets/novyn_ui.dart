@@ -1,82 +1,85 @@
 // novyn_ui.dart
 // Shared theme + reusable widgets for the Novyn screens.
-// Needs:  google_fonts  (flutter pub add google_fonts)
+// Font: Plus Jakarta Sans (bundled in assets/fonts)
 
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 // ─────────────────────────── Colors ───────────────────────────
 
 class NovynColors {
-  static const bg = Color(0xFF0B0B0B);
-  static const violet = Color(0xFFE5E5E5);
-  static const violetDeep = Color(0xFFBDBDBD);
-  static const violetSoft = Color(0xFFFFFFFF);
-  static const text = Color(0xFFF5F5F5);
-  static const textMuted = Color(0xFF9E9E9E);
-  static const textSub = Color(0xFFBDBDBD);
-  static const textChip = Color(0xFFD6D6D6);
-  static const timeMuted = Color(0xFF9E9E9E);
-  static const navIcon = Color(0xFFBDBDBD);
-  static const chevron = Color(0xFF757575);
+  // Dark palette ported from the web app (apps/web/src/styles/glass.css)
+  static const bg = Color(0xFF08090D);
+  static const surface = Color(0xFF101021); // headers, sheets, dock
+  static const violet = Color(0xFF6D5DFC);
+  static const violetDeep = Color(0xFF5746E8);
+  static const violetSoft = Color(0xFFCFCAFF);
+  static const text = Color(0xFFF7F6FF);
+  static const textMuted = Color(0xFFB7B4C9);
+  static const textSub = Color(0xFFB7B4C9);
+  static const textChip = Color(0xFFC5C1EF);
+  static const timeMuted = Color(0xFFAAA8C6);
+  static const navIcon = Color(0xFFC5C1EF);
+  static const chevron = Color(0xFF827F98);
   static const mint = Color(0xFF3DDC97);
   static const offline = Color(0xFF6B6880);
   static const amber = Color(0xFFFFB547);
   static const danger = Color(0xFFFF8FA6);
-  static const statusRing = Color(0xFF0B0B0B);
+  static const statusRing = Color(0xFF08090D);
 
-  // translucent surfaces
-  static const glass = Color(0x12FFFFFF); // white 7%
-  static const card = Color(0x0FFFFFFF); // white 6%
-  static const glassBorder = Color(0x1AFFFFFF); // white 10%
-  static const tagBg = Color(0xFF303030);
-  static const tagBorder = Color(0xFF555555);
-  static const badgeBg = Color(0xFF424242);
-  static const violetShadow = Color(0x66000000);
+  // surfaces
+  static const glass = Color(0xFF161722); // inputs / buttons
+  static const card = Color(0xFF13141D);
+  static const glassBorder = Color(0x21DAD6FF); // rgba(218,214,255,.13)
+  static const tagBg = Color(0x2E6D5DFC);
+  static const tagBorder = Color(0x666D5DFC);
+  static const badgeBg = Color(0x336D5DFC);
+  static const violetShadow = Color(0x596D5DFC);
 }
 
 class NovynGradients {
   static const primary = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
-    colors: [Color(0xFF3A3A3A), Color(0xFF3A3A3A)],
+    colors: [Color(0xFF6D5DFC), Color(0xFF5746E8)],
   );
 }
 
 class AvatarPalette {
-  static const List<Color> blue = [Color(0xFF777777), Color(0xFF444444)];
-  static const List<Color> pink = [Color(0xFF777777), Color(0xFF444444)];
-  static const List<Color> green = [Color(0xFF777777), Color(0xFF444444)];
-  static const List<Color> purple = [Color(0xFF777777), Color(0xFF444444)];
+  static const List<Color> blue = [Color(0xFF6A8CFF), Color(0xFF3B4FD8)];
+  static const List<Color> pink = [Color(0xFFFF6FB5), Color(0xFFC2185B)];
+  static const List<Color> green = [Color(0xFF2EC48A), Color(0xFF12805A)];
+  static const List<Color> purple = [Color(0xFF6D5DFC), Color(0xFF4F46C8)];
 }
 
 // ─────────────────────────── Text styles ───────────────────────────
 
 class NovynText {
-  /// Syne – titles and avatar letters
+  /// Titles and avatar letters
   static TextStyle display(
     double size, {
     FontWeight weight = FontWeight.w800,
     Color color = NovynColors.text,
     double letterSpacing = 0,
   }) =>
-      GoogleFonts.inter(
+      TextStyle(
+        fontFamily: 'PlusJakartaSans',
         fontSize: size,
         fontWeight: weight,
         color: color,
         letterSpacing: letterSpacing,
       );
 
-  /// DM Sans – everything else
+  /// Everything else
   static TextStyle body(
     double size, {
     FontWeight weight = FontWeight.w400,
     Color color = NovynColors.text,
     double letterSpacing = 0,
   }) =>
-      GoogleFonts.inter(
+      TextStyle(
+        fontFamily: 'PlusJakartaSans',
         fontSize: size,
         fontWeight: weight,
         color: color,
@@ -134,8 +137,36 @@ class _Backdrop extends StatelessWidget {
   const _Backdrop();
 
   @override
-  Widget build(BuildContext context) =>
-      const ColoredBox(color: NovynColors.bg);
+  Widget build(BuildContext context) {
+    // web dark mesh: soft indigo glows on near-black
+    return const Stack(
+      children: [
+        Positioned.fill(child: ColoredBox(color: NovynColors.bg)),
+        Positioned.fill(
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: RadialGradient(
+                center: Alignment(-0.84, -1),
+                radius: 0.9,
+                colors: [Color(0x29483890), Color(0x00483890)],
+              ),
+            ),
+          ),
+        ),
+        Positioned.fill(
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: RadialGradient(
+                center: Alignment(0.84, 1),
+                radius: 0.95,
+                colors: [Color(0x242F2769), Color(0x002F2769)],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
 }
 
 class NovynDock extends StatelessWidget {
@@ -158,9 +189,9 @@ class NovynDock extends StatelessWidget {
       height: 64,
       padding: const EdgeInsets.symmetric(horizontal: 8),
       decoration: BoxDecoration(
-        color: const Color(0xFF191919),
+        color: const Color(0xF5101021),
         borderRadius: BorderRadius.circular(32),
-        border: Border.all(color: const Color(0x1FFFFFFF)),
+        border: Border.all(color: const Color(0x3D9A90FF)),
         boxShadow: const [
           BoxShadow(
             color: Color(0x80000000),
@@ -181,11 +212,11 @@ class NovynDock extends StatelessWidget {
                       height: 46,
                       padding: const EdgeInsets.symmetric(horizontal: 15),
                       decoration: BoxDecoration(
-                        color: Colors.white,
+                        gradient: NovynGradients.primary,
                         borderRadius: BorderRadius.circular(999),
                         boxShadow: const [
                           BoxShadow(
-                            color: Colors.black,
+                            color: NovynColors.violetShadow,
                             blurRadius: 20,
                             offset: Offset(0, 8),
                           ),
@@ -194,12 +225,12 @@ class NovynDock extends StatelessWidget {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(_items[i].$2, size: 18, color: Colors.black),
+                          Icon(_items[i].$2, size: 18, color: Colors.white),
                           const SizedBox(width: 7),
                           Text(
                             _items[i].$1,
                             style: NovynText.body(13,
-                                weight: FontWeight.w700, color: Colors.black),
+                                weight: FontWeight.w700, color: Colors.white),
                           ),
                         ],
                       ),
@@ -298,7 +329,8 @@ class NovynIconButton extends StatelessWidget {
         height: size,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(radius),
-          color: primary ? Colors.white : NovynColors.glass,
+          gradient: primary ? NovynGradients.primary : null,
+          color: primary ? null : NovynColors.glass,
           border: primary ? null : Border.all(color: NovynColors.glassBorder),
           boxShadow: primary
               ? const [
@@ -313,7 +345,7 @@ class NovynIconButton extends StatelessWidget {
         child: Icon(
           icon,
           size: iconSize,
-          color: primary ? Colors.black : NovynColors.textChip,
+          color: primary ? Colors.white : NovynColors.violetSoft,
         ),
       ),
     );
@@ -404,11 +436,11 @@ class NovynChipRow extends StatelessWidget {
                       const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
                   decoration: i == selected
                       ? BoxDecoration(
-                          color: Colors.white,
+                          gradient: NovynGradients.primary,
                           borderRadius: BorderRadius.circular(999),
                           boxShadow: const [
                             BoxShadow(
-                              color: Color(0x33000000),
+                              color: Color(0x665746E8),
                               blurRadius: 20,
                               offset: Offset(0, 8),
                             ),
@@ -425,7 +457,7 @@ class NovynChipRow extends StatelessWidget {
                       13,
                       weight: FontWeight.w600,
                       color: i == selected
-                          ? Colors.black
+                          ? Colors.white
                           : NovynColors.textChip,
                     ),
                   ),
@@ -464,7 +496,7 @@ class NovynSectionLabel extends StatelessWidget {
             text,
             style: NovynText.body(11,
                 weight: FontWeight.w700,
-                color: NovynColors.textMuted,
+                color: NovynColors.violet,
                 letterSpacing: 1.32),
           ),
         ],
@@ -557,7 +589,7 @@ class NovynAvatar extends StatelessWidget {
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFF555555), Color(0xFF303030)],
+          colors: [Color(0xFF1F6F66), Color(0xFF0F3B38)],
         ),
         border: Border.all(color: NovynColors.mint, width: 2),
       ),
@@ -677,7 +709,7 @@ class _DashedCirclePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = const Color(0x80A173FF)
+      ..color = const Color(0x806D5DFC)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.5;
     final rect = Rect.fromCircle(

@@ -81,9 +81,9 @@ class _GameMessageCardState extends State<GameMessageCard> {
               const Icon(Icons.sports_esports_rounded, size: 17),
               const SizedBox(width: 7),
               Expanded(
-                child: Text(_title, style: const TextStyle(fontFamily: 'Inter', fontSize: 13, fontWeight: FontWeight.w800)),
+                child: Text(_title, style: const TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 13, fontWeight: FontWeight.w800)),
               ),
-              Text(_finished ? 'FINISHED' : 'LIVE', style: const TextStyle(fontFamily: 'Inter', fontSize: 9, fontWeight: FontWeight.w800, color: Color(0xFF94A3B8))),
+              Text(_finished ? 'FINISHED' : 'LIVE', style: const TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 9, fontWeight: FontWeight.w800, color: Color(0xFF94A3B8))),
             ],
           ),
           const SizedBox(height: 8),
@@ -91,7 +91,7 @@ class _GameMessageCardState extends State<GameMessageCard> {
             _finished
                 ? (_winner == 'draw' ? 'It\'s a draw!' : _winner.toLowerCase() == widget.currentUsername.toLowerCase() ? 'You won!' : '$_winner won')
                 : _myTurn ? 'Your turn' : 'Waiting for opponent',
-            style: const TextStyle(fontFamily: 'Inter', fontSize: 11, color: Color(0xFF94A3B8)),
+            style: const TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 11, color: Color(0xFF94A3B8)),
           ),
           const SizedBox(height: 10),
           if (_type == 'tictactoe') _ticTacToe(),
@@ -114,7 +114,7 @@ class _GameMessageCardState extends State<GameMessageCard> {
     final symbol = widget.currentUsername.toLowerCase() == playerX.toLowerCase() ? 'X' : 'O';
     return Column(
       children: [
-        Text('@$playerX  ✕     @$playerO  ◯', style: const TextStyle(fontFamily: 'Inter', fontSize: 10)),
+        Text('@$playerX  ✕     @$playerO  ◯', style: const TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 10)),
         const SizedBox(height: 8),
         SizedBox(
           width: 204,
@@ -157,7 +157,7 @@ class _GameMessageCardState extends State<GameMessageCard> {
     final chip = widget.currentUsername.toLowerCase() == player1.toLowerCase() ? 'R' : 'Y';
     return Column(
       children: [
-        Text('@$player1   VS   @$player2', style: const TextStyle(fontFamily: 'Inter', fontSize: 10)),
+        Text('@$player1   VS   @$player2', style: const TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 10)),
         const SizedBox(height: 8),
         Row(
           children: List.generate(7, (column) => Expanded(
@@ -215,7 +215,7 @@ class _GameMessageCardState extends State<GameMessageCard> {
         ],
       );
     }
-    if (myMove != null) return const Center(child: Text('Your move is locked. Waiting…', style: TextStyle(fontFamily: 'Inter', fontSize: 11)));
+    if (myMove != null) return const Center(child: Text('Your move is locked. Waiting…', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 11)));
     return Wrap(
       alignment: WrapAlignment.center,
       spacing: 8,
@@ -234,7 +234,7 @@ class _GameMessageCardState extends State<GameMessageCard> {
     final p2 = _data['p2Number'];
     if (myNumber != null) {
       return Text(p1 != null && p2 != null ? '$p1  VS  $p2  •  Target ${_data['target']}' : 'Your number is locked. Waiting…',
-        style: const TextStyle(fontFamily: 'Inter', fontSize: 12, fontWeight: FontWeight.w700));
+        style: const TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 12, fontWeight: FontWeight.w700));
     }
     return Row(
       children: [
@@ -257,7 +257,7 @@ class _GameMessageCardState extends State<GameMessageCard> {
     final myPrediction = isP1 ? _data['p1Prediction'] : _data['p2Prediction'];
     if (myPrediction != null) {
       return Text('Prediction locked • ${_data['currentCard']} → ${_data['nextCard']}',
-        style: const TextStyle(fontFamily: 'Inter', fontSize: 12));
+        style: const TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 12));
     }
     return Row(
       children: [
@@ -274,7 +274,7 @@ class _GameMessageCardState extends State<GameMessageCard> {
     if (!isDrawer) {
       return Column(
         children: [
-          const Text('Guess the drawing', style: TextStyle(fontFamily: 'Inter', fontSize: 12, fontWeight: FontWeight.w700)),
+          const Text('Guess the drawing', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 12, fontWeight: FontWeight.w700)),
           TextField(
             controller: _guess,
             decoration: const InputDecoration(hintText: 'Your guess', isDense: true),
@@ -294,7 +294,7 @@ class _GameMessageCardState extends State<GameMessageCard> {
     final strokes = _strokes;
     return Column(
       children: [
-        Text('Draw: ${_data['word'] ?? 'secret word'}', style: const TextStyle(fontFamily: 'Inter', fontSize: 11, fontWeight: FontWeight.w700)),
+        Text('Draw: ${_data['word'] ?? 'secret word'}', style: const TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 11, fontWeight: FontWeight.w700)),
         GestureDetector(
           onPanStart: (details) => setState(() => _strokes = [..._strokes, {'x1': details.localPosition.dx / 200, 'y1': details.localPosition.dy / 150, 'x2': details.localPosition.dx / 200, 'y2': details.localPosition.dy / 150}]),
           onPanUpdate: (details) {

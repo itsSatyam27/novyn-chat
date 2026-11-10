@@ -300,14 +300,14 @@ class NeoTextField extends StatelessWidget {
               style: TextStyle(
                 color: onSurface,
                 fontSize: 14,
-                fontFamily: 'Inter',
+                fontFamily: 'PlusJakartaSans',
               ),
               decoration: InputDecoration(
                 hintText: hintText,
                 hintStyle: TextStyle(
                   color: onSurface.withOpacity(0.4),
                   fontSize: 14,
-                  fontFamily: 'Inter',
+                  fontFamily: 'PlusJakartaSans',
                 ),
                 border: InputBorder.none,
                 enabledBorder: InputBorder.none,
