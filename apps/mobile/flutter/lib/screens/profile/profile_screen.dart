@@ -20,6 +20,7 @@ import 'settings/data_storage_screen.dart';
 import 'settings/language_region_screen.dart';
 import 'settings/accessibility_screen.dart';
 import 'settings/sound_vibration_screen.dart';
+import 'settings/appearance_screen.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
@@ -112,7 +113,7 @@ class ProfileScreen extends StatelessWidget {
   void _showSettingsSearch(BuildContext context, SettingsService settings) {
     final controller = TextEditingController();
     final items = <Map<String, dynamic>>[
-      {'title': 'Appearance', 'subtitle': 'Theme and display', 'icon': Icons.palette_outlined, 'open': () => _showAppearanceDialog(context, settings)},
+      {'title': 'Appearance', 'subtitle': 'Theme and display', 'icon': Icons.palette_outlined, 'open': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AppearanceScreen()))},
       {'title': 'Sound & Vibration', 'subtitle': 'Ringtones and haptics', 'icon': Icons.volume_up_outlined, 'open': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SoundVibrationScreen()))},
       {'title': 'Notifications', 'subtitle': 'Messages and call alerts', 'icon': Icons.notifications_none_rounded, 'open': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const NotificationSettingsScreen()))},
       {'title': 'Language & Region', 'subtitle': 'App language and region', 'icon': Icons.language_rounded, 'open': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const LanguageRegionScreen()))},
