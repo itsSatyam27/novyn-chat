@@ -30,7 +30,7 @@ class ChatsScreen extends StatefulWidget {
   State<ChatsScreen> createState() => _ChatsScreenState();
 }
 
-enum ChatFilter { all, unread, groups, archived }
+enum ChatFilter { all, unread, favourites, groups, archived }
 
 class _ChatsScreenState extends State<ChatsScreen> {
   List<ChatPreview> _chats = [];
@@ -40,7 +40,7 @@ class _ChatsScreenState extends State<ChatsScreen> {
   ChatFilter _activeFilter = ChatFilter.all;
   final FocusNode _searchFocusNode = FocusNode();
   final TextEditingController _searchController = TextEditingController();
-  bool _isSearching = true;
+  bool _isSearching = false;
 
   // Static cache moved to ChatsScreen widget class
 
@@ -237,8 +237,10 @@ class _ChatsScreenState extends State<ChatsScreen> {
         }
 
         // 3. Unread check
-        if (_activeFilter == ChatFilter.unread && c.unreadCount == 0)
-          return false;
+        if (_activeFilter == ChatFilter.unread && c.unreadCount == 0) return false;
+
+        // Favourites are represented by the existing persistent pin state.
+        if (_activeFilter == ChatFilter.favourites && !c.isPinned) return false;
 
         // 4. Group check
         if (_activeFilter == ChatFilter.groups && !c.isGroup) return false;
@@ -288,7 +290,10 @@ class _ChatsScreenState extends State<ChatsScreen> {
               padding: const EdgeInsets.only(top: 10),
               child: NovynHeader(
                 title: 'Messages',
-                subtitle: 'Your conversations, all in one place',
+                subtitle: '${_chats.length} chats · all caught up',
+                titleSize: 36,
+                titleColor: Theme.of(context).colorScheme.onSurface,
+                subtitleColor: Theme.of(context).colorScheme.onSurfaceVariant,
                 actions: [
                   NovynIconButton(
                     icon: _isSearching ? Icons.close_rounded : Icons.search_rounded,
@@ -334,7 +339,7 @@ class _ChatsScreenState extends State<ChatsScreen> {
                           // ── Pinned Section ─────────────────────────────────
                           if (activeChats.any((c) => c.isPinned)) ...[
                             SliverToBoxAdapter(
-                              child: _buildSectionLabel('PINNED'),
+                              child: _buildSectionLabel('PINNED', icon: Icons.push_pin_outlined),
                             ),
                             SliverToBoxAdapter(
                               child: Padding(
@@ -375,10 +380,7 @@ class _ChatsScreenState extends State<ChatsScreen> {
           ],
         ),
       ),
-      floatingActionButton: Padding(
-        padding: const EdgeInsets.only(bottom: 90),
-        child: _buildFAB(),
-      ),
+      // Compose is available in the header; pinned-section + is the secondary shortcut.
     );
   }
 
@@ -392,23 +394,24 @@ class _ChatsScreenState extends State<ChatsScreen> {
   }
 
   Widget _buildFilters() {
-    const filters = <String>['All', 'Unread', 'Groups', 'Archived'];
+    const filters = <String>['All', 'Unread', 'Favourites', 'Groups'];
     final selected = switch (_activeFilter) {
       ChatFilter.all => 0,
       ChatFilter.unread => 1,
-      ChatFilter.groups => 2,
-      ChatFilter.archived => 3,
+      ChatFilter.favourites => 2,
+      ChatFilter.groups => 3,
+      ChatFilter.archived => 0,
     };
     return NovynChipRow(
       labels: filters,
       selected: selected,
-      bottomPadding: 10,
+      bottomPadding: 16,
       onSelected: (index) {
         const values = <ChatFilter>[
           ChatFilter.all,
           ChatFilter.unread,
+          ChatFilter.favourites,
           ChatFilter.groups,
-          ChatFilter.archived,
         ];
         _setFilter(values[index]);
       },
@@ -421,31 +424,30 @@ class _ChatsScreenState extends State<ChatsScreen> {
 
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.symmetric(horizontal: 20),
+      padding: const EdgeInsets.fromLTRB(20, 2, 20, 8),
       child: Row(
-        children: pinnedChats.map((chat) {
-          return Padding(
-            padding: const EdgeInsets.only(right: 14),
-            child: _StoryCard(
-              name: chat.peer.name.split(' ').first,
-              color: chat.peer.avatarColor,
-              initials: chat.peer.initials,
-              ringColors: const [
-                Color(0xFFE5E5E5),
-                Color(0xFF3DDC97),
-              ],
-              onTap: () => _openChat(chat),
-            ),
-          );
-        }).toList(),
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ...pinnedChats.map((chat) => Padding(
+                padding: const EdgeInsets.only(right: 22),
+                child: _StoryCard(
+                  name: chat.peer.name.split(' ').first,
+                  color: chat.peer.avatarColor,
+                  initials: chat.peer.initials,
+                  onTap: () => _openChat(chat),
+                ),
+              )),
+          _StoryAddButton(onTap: () => widget.onNavigateToPeople?.call()),
+        ],
       ),
     );
   }
 
-  Widget _buildSectionLabel(String label) {
+  Widget _buildSectionLabel(String label, {IconData? icon}) {
     return NovynSectionLabel(
       label,
-      padding: const EdgeInsets.fromLTRB(20, 14, 20, 8),
+      icon: icon,
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
     );
   }
 
@@ -557,14 +559,14 @@ class _ChatCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final dark = theme.brightness == Brightness.dark;
     final hasUnread = preview.unreadCount > 0;
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      decoration: BoxDecoration(
-        color: NovynColors.card,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: NovynColors.glassBorder),
-      ),
+    final titleColor = theme.colorScheme.onSurface;
+    final metaColor = theme.colorScheme.onSurfaceVariant;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
@@ -574,18 +576,19 @@ class _ChatCard extends StatelessWidget {
           },
           borderRadius: BorderRadius.circular(22),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+            padding: const EdgeInsets.symmetric(vertical: 15),
             child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 UserAvatar(
                   name: preview.peer.name,
                   photoUrl: preview.peer.photoUrl,
-                  radius: 27,
+                  radius: 28,
                   showOnlineIndicator: true,
                   isOnline: preview.peer.isOnline,
                   presence: preview.peer.status,
                 ),
-                const SizedBox(width: 13),
+                const SizedBox(width: 16),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -597,13 +600,23 @@ class _ChatCard extends StatelessWidget {
                               preview.peer.name,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: NovynText.body(15, weight: FontWeight.w700),
+                              style: TextStyle(
+                                fontFamily: 'PlusJakartaSans',
+                                fontSize: 17,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: -.35,
+                                color: titleColor,
+                              ),
                             ),
                           ),
                           const SizedBox(width: 8),
                           Text(
                             _formatTime(preview.lastTime),
-                            style: NovynText.body(11, color: NovynColors.timeMuted),
+                            style: TextStyle(
+                              fontFamily: 'PlusJakartaSans',
+                              fontSize: 12,
+                              color: metaColor,
+                            ),
                           ),
                         ],
                       ),
@@ -611,37 +624,45 @@ class _ChatCard extends StatelessWidget {
                       Row(
                         children: [
                           if (preview.isPinned) ...[
-                            const Icon(Icons.push_pin_rounded,
-                                size: 12, color: NovynColors.violet),
+                            Icon(Icons.push_pin_rounded,
+                                size: 13,
+                                color: theme.colorScheme.primary),
                             const SizedBox(width: 5),
                           ],
                           Expanded(
                             child: Text(
                               preview.lastMessage.isEmpty
-                                  ? 'Start a conversation'
+                                  ? 'Tap to chat'
                                   : preview.lastMessage,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: NovynText.body(
-                                12.5,
-                                color: hasUnread ? NovynColors.textChip : NovynColors.textMuted,
-                                weight: hasUnread ? FontWeight.w600 : FontWeight.w400,
+                              style: TextStyle(
+                                fontFamily: 'PlusJakartaSans',
+                                fontSize: 13.5,
+                                color: hasUnread ? titleColor : metaColor,
+                                fontWeight:
+                                    hasUnread ? FontWeight.w600 : FontWeight.w400,
                               ),
                             ),
                           ),
                           if (hasUnread) ...[
                             const SizedBox(width: 8),
                             Container(
-                              constraints: const BoxConstraints(minWidth: 21),
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                              decoration: const BoxDecoration(
+                              constraints: const BoxConstraints(minWidth: 22),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 7, vertical: 4),
+                              decoration: BoxDecoration(
                                 gradient: NovynGradients.primary,
-                                shape: BoxShape.circle,
+                                borderRadius: BorderRadius.circular(20),
                               ),
                               child: Text(
                                 '${preview.unreadCount}',
                                 textAlign: TextAlign.center,
-                                style: NovynText.body(10, weight: FontWeight.w700, color: Colors.white),
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                ),
                               ),
                             ),
                           ],
@@ -706,66 +727,71 @@ class _StoryCard extends StatelessWidget {
   final String name;
   final String initials;
   final Color color;
-  final List<Color>? ringColors;
   final VoidCallback? onTap;
 
   const _StoryCard({
     required this.name,
     required this.initials,
     required this.color,
-    this.ringColors,
     this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final onSurface = theme.colorScheme.onSurface;
-    final pageBg = NovynTheme.pageBg(context);
-
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final labelColor = Theme.of(context).colorScheme.onSurface;
     return GestureDetector(
       onTap: () {
         HapticFeedback.lightImpact();
         onTap?.call();
       },
-      child: Column(
-        children: [
-          NeoContainer(
-            borderRadius: 27,
-            distance: 3.5,
-            blur: 7,
-            color: pageBg,
-            width: 54,
-            height: 54,
-            padding: const EdgeInsets.all(3),
-            child: Container(
+      child: SizedBox(
+        width: 68,
+        child: Column(
+          children: [
+            Container(
+              width: 58,
+              height: 58,
+              padding: const EdgeInsets.all(3),
               decoration: BoxDecoration(
-                color: color,
                 shape: BoxShape.circle,
+                border: Border.all(
+                  color: color == Colors.transparent
+                      ? Theme.of(context).colorScheme.primary
+                      : (dark ? const Color(0xFF31D5A0) : const Color(0xFF16B987)),
+                  width: 2,
+                ),
               ),
-              child: Center(
+              child: Container(
+                decoration: BoxDecoration(
+                  color: color,
+                  shape: BoxShape.circle,
+                ),
+                alignment: Alignment.center,
                 child: Text(
                   initials,
                   style: const TextStyle(
                     color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 23,
                   ),
                 ),
               ),
             ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            name,
-            style: TextStyle(
-              fontFamily: 'PlusJakartaSans',
-              fontSize: 11,
-              fontWeight: FontWeight.w500,
-              color: onSurface.withOpacity(0.7),
+            const SizedBox(height: 8),
+            Text(
+              name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontFamily: 'PlusJakartaSans',
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: labelColor.withValues(alpha: .82),
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -777,37 +803,39 @@ class _StoryAddButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final onSurface = Theme.of(context).colorScheme.onSurface;
-    final pageBg = NovynTheme.pageBg(context);
-
-    return Column(
-      children: [
-        NeoButton(
-          onTap: onTap,
-          borderRadius: 26,
-          distance: 4,
-          blur: 8,
-          width: 52,
-          height: 52,
-          color: pageBg,
-          child: Center(
-            child: Icon(
-              Icons.add_rounded,
-              color: onSurface.withOpacity(0.4),
-              size: 20,
+    final primary = Theme.of(context).colorScheme.primary;
+    final meta = Theme.of(context).colorScheme.onSurfaceVariant;
+    return GestureDetector(
+      onTap: onTap,
+      child: SizedBox(
+        width: 68,
+        child: Column(
+          children: [
+            Container(
+              width: 58,
+              height: 58,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: primary.withValues(alpha: .65),
+                  width: 1.6,
+                  style: BorderStyle.solid,
+                ),
+              ),
+              child: Icon(Icons.add_rounded, color: primary, size: 25),
             ),
-          ),
+            const SizedBox(height: 8),
+            Text(
+              'Pin',
+              style: TextStyle(
+                fontFamily: 'PlusJakartaSans',
+                fontSize: 12,
+                color: meta,
+              ),
+            ),
+          ],
         ),
-        const SizedBox(height: 6),
-        Text(
-          'New',
-          style: TextStyle(
-            fontFamily: 'PlusJakartaSans',
-            fontSize: 10,
-            color: onSurface.withOpacity(0.6),
-          ),
-        ),
-      ],
+      ),
     );
   }
 }
