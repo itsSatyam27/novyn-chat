@@ -140,7 +140,7 @@ class _SetupPinScreenState extends State<SetupPinScreen> {
                 Text(
                   _isConfirming ? 'Confirm Your PIN' : (widget.isPanic ? 'Set Panic PIN' : 'Set Novyn PIN'),
                   style: const TextStyle(
-                    fontFamily: 'Outfit',
+                    fontFamily: 'PlusJakartaSans',
                     fontSize: 28,
                     fontWeight: FontWeight.w900,
                   ),
@@ -149,7 +149,7 @@ class _SetupPinScreenState extends State<SetupPinScreen> {
                 Text(
                   _isConfirming ? 'Re-enter the 4-digit code' : (widget.isPanic ? 'This code opens a decoy version of Novyn' : 'Create a secure access node'),
                   style: TextStyle(
-                    fontFamily: 'Outfit',
+                    fontFamily: 'PlusJakartaSans',
                     fontSize: 16,
                     color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5),
                   ),
@@ -168,11 +168,11 @@ class _SetupPinScreenState extends State<SetupPinScreen> {
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         color: isActive 
-                            ? const Color(0xFF7C6FF7) 
+                            ? const Color(0xFF6D5DFC) 
                             : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.1),
                         boxShadow: isActive ? [
                           BoxShadow(
-                            color: const Color(0xFF7C6FF7).withValues(alpha: 0.4),
+                            color: const Color(0xFF6D5DFC).withValues(alpha: 0.4),
                             blurRadius: 10,
                             spreadRadius: 2,
                           )
@@ -230,7 +230,7 @@ class _SetupPinScreenState extends State<SetupPinScreen> {
               : Text(
                   val,
                   style: const TextStyle(
-                    fontFamily: 'Outfit',
+                    fontFamily: 'PlusJakartaSans',
                     fontSize: 24,
                     fontWeight: FontWeight.w700,
                   ),

@@ -47,7 +47,7 @@ class StatusButton extends StatelessWidget {
               Text(
                 label,
                 style: TextStyle(
-                  fontFamily: 'Inter',
+                  fontFamily: 'PlusJakartaSans',
                   fontSize: 12,
                   fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
                   color: isSelected ? color : const Color(0xFF94A3B8),
@@ -116,7 +116,7 @@ class MenuCard extends StatelessWidget {
                       Text(
                         title,
                         style: TextStyle(
-                          fontFamily: 'Inter',
+                          fontFamily: 'PlusJakartaSans',
                           fontSize: 16,
                           fontWeight: FontWeight.w700,
                           color: Theme.of(context).colorScheme.onSurface,
@@ -126,7 +126,7 @@ class MenuCard extends StatelessWidget {
                       Text(
                         subtitle,
                         style: TextStyle(
-                          fontFamily: 'Inter',
+                          fontFamily: 'PlusJakartaSans',
                           fontSize: 12,
                           color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
@@ -181,7 +181,7 @@ class ThemeTile extends StatelessWidget {
                 Text(
                   label,
                   style: const TextStyle(
-                    fontFamily: 'Inter',
+                    fontFamily: 'PlusJakartaSans',
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
                     color: Color(0xFF1A1D2E),
@@ -254,7 +254,7 @@ class AboutTile extends StatelessWidget {
                       Text(
                         title,
                         style: TextStyle(
-                          fontFamily: 'Inter',
+                          fontFamily: 'PlusJakartaSans',
                           fontSize: 15,
                           fontWeight: FontWeight.w600,
                           color: Theme.of(context).colorScheme.onSurface,
@@ -264,7 +264,7 @@ class AboutTile extends StatelessWidget {
                         Text(
                           subtitle!,
                           style: const TextStyle(
-                            fontFamily: 'Inter',
+                            fontFamily: 'PlusJakartaSans',
                             fontSize: 12,
                             color: Color(0xFF94A3B8),
                           ),
@@ -300,7 +300,7 @@ class SectionLabel extends StatelessWidget {
             child: Text(
               label.toUpperCase(),
               style: const TextStyle(
-                fontFamily: 'Inter',
+                fontFamily: 'PlusJakartaSans',
                 fontSize: 10,
                 fontWeight: FontWeight.w800,
                 letterSpacing: 1.5,
@@ -374,7 +374,7 @@ class MenuCardWithBadge extends StatelessWidget {
                             child: Text(
                               title,
                               style: TextStyle(
-                                fontFamily: 'Inter',
+                                fontFamily: 'PlusJakartaSans',
                                 fontSize: 16,
                                 fontWeight: FontWeight.w700,
                                 color: Theme.of(context).colorScheme.onSurface,
@@ -391,7 +391,7 @@ class MenuCardWithBadge extends StatelessWidget {
                               child: Text(
                                 badge!,
                                 style: const TextStyle(
-                                  fontFamily: 'Inter',
+                                  fontFamily: 'PlusJakartaSans',
                                   fontSize: 10,
                                   fontWeight: FontWeight.w700,
                                   color: Colors.white,
@@ -404,7 +404,7 @@ class MenuCardWithBadge extends StatelessWidget {
                       Text(
                         subtitle,
                         style: const TextStyle(
-                          fontFamily: 'Inter',
+                          fontFamily: 'PlusJakartaSans',
                           fontSize: 12,
                           color: Color(0xFF94A3B8),
                         ),
@@ -471,7 +471,7 @@ class SettingsToggleCard extends StatelessWidget {
                       Text(
                         title,
                         style: TextStyle(
-                          fontFamily: 'Inter',
+                          fontFamily: 'PlusJakartaSans',
                           fontSize: 16,
                           fontWeight: FontWeight.w700,
                           color: Theme.of(context).colorScheme.onSurface,
@@ -481,7 +481,7 @@ class SettingsToggleCard extends StatelessWidget {
                       Text(
                         subtitle,
                         style: const TextStyle(
-                          fontFamily: 'Inter',
+                          fontFamily: 'PlusJakartaSans',
                           fontSize: 12,
                           color: Color(0xFF94A3B8),
                         ),
@@ -495,7 +495,7 @@ class SettingsToggleCard extends StatelessWidget {
                     HapticFeedback.selectionClick();
                     onChanged!(v);
                   },
-                  activeTrackColor: const Color(0xFF7C6FF7),
+                  activeTrackColor: const Color(0xFF6D5DFC),
                   activeThumbColor: Colors.white,
                 ),
               ],
@@ -548,7 +548,7 @@ class QuickActionButton extends StatelessWidget {
               Text(
                 label,
                 style: TextStyle(
-                  fontFamily: 'Inter',
+                  fontFamily: 'PlusJakartaSans',
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
                   color: color,
@@ -601,7 +601,7 @@ class SettingsSheet extends StatelessWidget {
           Text(
             title,
             style: TextStyle(
-              fontFamily: 'Inter',
+              fontFamily: 'PlusJakartaSans',
               fontSize: 18,
               fontWeight: FontWeight.w800,
               color: theme.colorScheme.onSurface,

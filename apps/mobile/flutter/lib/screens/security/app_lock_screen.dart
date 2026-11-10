@@ -107,16 +107,16 @@ class _AppLockScreenState extends State<AppLockScreen> {
                   height: 64,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: const Color(0xFF7C6FF7).withValues(alpha: 0.1),
-                    border: Border.all(color: const Color(0xFF7C6FF7).withValues(alpha: 0.2)),
+                    color: const Color(0xFF6D5DFC).withValues(alpha: 0.1),
+                    border: Border.all(color: const Color(0xFF6D5DFC).withValues(alpha: 0.2)),
                   ),
-                  child: const Icon(Icons.lock_rounded, color: Color(0xFF7C6FF7), size: 28),
+                  child: const Icon(Icons.lock_rounded, color: Color(0xFF6D5DFC), size: 28),
                 ),
                 const SizedBox(height: 24),
                 const Text(
                   'Enter Secure PIN',
                   style: TextStyle(
-                    fontFamily: 'Outfit',
+                    fontFamily: 'PlusJakartaSans',
                     fontSize: 24,
                     fontWeight: FontWeight.w900,
                     letterSpacing: -0.5,
@@ -135,11 +135,11 @@ class _AppLockScreenState extends State<AppLockScreen> {
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         color: isActive 
-                            ? const Color(0xFF7C6FF7) 
+                            ? const Color(0xFF6D5DFC) 
                             : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.1),
                         boxShadow: isActive ? [
                           BoxShadow(
-                            color: const Color(0xFF7C6FF7).withValues(alpha: 0.3),
+                            color: const Color(0xFF6D5DFC).withValues(alpha: 0.3),
                             blurRadius: 8,
                           )
                         ] : [],
@@ -162,14 +162,14 @@ class _AppLockScreenState extends State<AppLockScreen> {
                           Theme.of(context).platform == TargetPlatform.iOS
                               ? Icons.face_rounded
                               : Icons.fingerprint_rounded,
-                          color: const Color(0xFF7C6FF7),
+                          color: const Color(0xFF6D5DFC),
                         ),
                         label: const Text(
                           'Use Biometrics',
                           style: TextStyle(
-                            fontFamily: 'Outfit',
+                            fontFamily: 'PlusJakartaSans',
                             fontWeight: FontWeight.w800,
-                            color: Color(0xFF7C6FF7),
+                            color: Color(0xFF6D5DFC),
                           ),
                         ),
                       ),
@@ -222,7 +222,7 @@ class _AppLockScreenState extends State<AppLockScreen> {
               : Text(
                   val,
                   style: const TextStyle(
-                    fontFamily: 'Outfit',
+                    fontFamily: 'PlusJakartaSans',
                     fontSize: 22,
                     fontWeight: FontWeight.w700,
                   ),
