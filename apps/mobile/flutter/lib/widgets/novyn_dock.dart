@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 /// Floating, theme-aware bottom navigation used across the mobile app.
@@ -29,7 +30,6 @@ class NovynDock extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final reduceMotion = MediaQuery.disableAnimationsOf(context);
-    final duration = Duration(milliseconds: reduceMotion ? 0 : 220);
     final dark = Theme.of(context).brightness == Brightness.dark;
     final dockFill = dark
         ? const Color(0xE923172F)
