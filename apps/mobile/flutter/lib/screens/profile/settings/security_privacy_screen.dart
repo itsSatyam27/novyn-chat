@@ -19,12 +19,11 @@ class SecurityPrivacyScreen extends StatelessWidget {
     final settings = context.watch<SettingsService>();
     
     return Scaffold(
-      backgroundColor: Theme.of(context).brightness == Brightness.dark
-          ? const Color(0xFF0F121F)
-          : const Color(0xFFF8FAFC),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         elevation: 0,
+        scrolledUnderElevation: 0,
         surfaceTintColor: Colors.transparent,
         leading: IconButton(
           icon: Icon(
@@ -34,19 +33,11 @@ class SecurityPrivacyScreen extends StatelessWidget {
           ),
           onPressed: () => Navigator.pop(context),
         ),
-        title: ShaderMask(
-          shaderCallback: (bounds) => const LinearGradient(
-            colors: [Color(0xFF6D5DFC), Color(0xFF40E0D0)],
-          ).createShader(bounds),
-          child: const Text(
-            'Security & Privacy',
-            style: TextStyle(
-              fontFamily: 'PlusJakartaSans', 
-              fontWeight: FontWeight.w900, 
-              fontSize: 22, 
-              color: Colors.white,
-              letterSpacing: -0.5,
-            ),
+        title: Text(
+          'Security & Privacy',
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+            fontWeight: FontWeight.w800,
+            letterSpacing: -0.4,
           ),
         ),
         centerTitle: true,
@@ -59,16 +50,10 @@ class SecurityPrivacyScreen extends StatelessWidget {
             padding: const EdgeInsets.all(16),
             margin: const EdgeInsets.only(bottom: 22),
             decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surfaceContainerLow,
               borderRadius: BorderRadius.circular(22),
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: Theme.of(context).brightness == Brightness.dark
-                    ? const [Color(0xFF242044), Color(0xFF171A2B)]
-                    : const [Color(0xFFF0EDFF), Color(0xFFEAF7FF)],
-              ),
               border: Border.all(
-                color: Theme.of(context).colorScheme.primary.withValues(alpha: .16),
+                color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: .55),
               ),
             ),
             child: Row(
@@ -142,7 +127,7 @@ class SecurityPrivacyScreen extends StatelessWidget {
             iconColor: const Color(0xFFF59E0B),
             iconBgColor: const Color(0xFFF59E0B).withValues(alpha: 0.1),
             title: 'App Lock',
-            subtitle: 'Require biometrics to open Novyn',
+            subtitle: 'Require your PIN or available biometrics to open Novyn',
             value: settings.appLockEnabled,
             onChanged: (v) => _handleAppLockToggle(context, settings, v),
           ),
@@ -162,7 +147,7 @@ class SecurityPrivacyScreen extends StatelessWidget {
             MenuCard(
               icon: Icons.password_rounded,
               title: 'Change PIN',
-              subtitle: 'Update your 4-digit access node',
+              subtitle: 'Update your 4-digit app lock PIN',
               onTap: () => Navigator.push(
                 context, 
                 MaterialPageRoute(builder: (context) => const SetupPinScreen())
@@ -690,18 +675,11 @@ class _ToggleCard extends StatelessWidget {
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
         decoration: BoxDecoration(
-          color: isDark 
-              ? const Color(0xFF1A1D2B).withValues(alpha: 0.6) 
-              : Colors.white.withValues(alpha: 0.7),
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.05), width: 1),
-          boxShadow: [
-            BoxShadow(
-              color: iconColor.withValues(alpha: 0.05),
-              blurRadius: 15,
-              spreadRadius: -5,
-            ),
-          ],
+          color: Theme.of(context).colorScheme.surfaceContainerLow,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: .55),
+          ),
         ),
         child: Padding(
           padding: const EdgeInsets.all(16),
@@ -745,7 +723,7 @@ class _ToggleCard extends StatelessWidget {
                         fontFamily: 'PlusJakartaSans',
                         fontSize: 12,
                         fontWeight: FontWeight.w500,
-                        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
                     ),
                   ],
