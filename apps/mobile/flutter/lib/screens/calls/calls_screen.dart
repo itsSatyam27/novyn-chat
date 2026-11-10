@@ -527,21 +527,42 @@ class _CallCard extends StatelessWidget {
                       Text(_formatTime(entry.createdAt),
                           style: NovynText.body(10.5, color: NovynColors.timeMuted)),
                       const SizedBox(height: 8),
-                      NovynIconButton(
-                        icon: isVideo ? Icons.videocam_rounded : Icons.call_rounded,
-                        primary: true,
-                        size: 36,
-                        radius: 12,
-                        iconSize: 17,
-                        onTap: () {
-                          HapticFeedback.lightImpact();
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => CallScreen(peer: entry.peer, callType: entry.type),
-                            ),
-                          );
-                        },
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          NovynIconButton(
+                            icon: Icons.call_rounded,
+                            primary: true,
+                            size: 36,
+                            radius: 12,
+                            iconSize: 17,
+                            onTap: () {
+                              HapticFeedback.lightImpact();
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => CallScreen(peer: entry.peer, callType: 'voice'),
+                                ),
+                              );
+                            },
+                          ),
+                          const SizedBox(width: 7),
+                          NovynIconButton(
+                            icon: Icons.videocam_rounded,
+                            size: 36,
+                            radius: 12,
+                            iconSize: 17,
+                            onTap: () {
+                              HapticFeedback.lightImpact();
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => CallScreen(peer: entry.peer, callType: 'video'),
+                                ),
+                              );
+                            },
+                          ),
+                        ],
                       ),
                     ],
                   ),
