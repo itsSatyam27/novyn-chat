@@ -51,6 +51,7 @@ class SettingsService extends ChangeNotifier {
   static const _kPhotoQuality = 'photo_quality';
   static const _kLanguage = 'language';
   static const _kFontSize = 'font_size';
+  static const _kAccentColor = 'appearance_accent_color';
   static const _kTwoFactorAuth = 'two_factor_auth';
   static const _kLastSeen = 'last_seen_visibility';
   static const _kProfilePhoto = 'profile_photo_visibility';
@@ -95,6 +96,7 @@ class SettingsService extends ChangeNotifier {
   String _photoQuality = 'high'; // 'high', 'medium', 'low'
   String _language = 'en'; // Language code
   double _fontSize = 1.0; // Font scale factor
+  int _accentColorValue = 0xFF6D5DFC;
   bool _twoFactorAuth = false;
   String _lastSeenVisibility = 'everyone'; // 'everyone', 'contacts', 'nobody'
   String _profilePhotoVisibility = 'everyone'; // 'everyone', 'contacts', 'nobody'
@@ -143,6 +145,7 @@ class SettingsService extends ChangeNotifier {
   double get hapticIntensity => _hapticIntensity;
   String get photoQuality => _photoQuality;
   double get fontSize => _fontSize;
+  int get accentColorValue => _accentColorValue;
   bool get twoFactorAuth => _twoFactorAuth;
   String get lastSeenVisibility => _stealthModeEnabled ? 'nobody' : _lastSeenVisibility;
   String get profilePhotoVisibility => _stealthModeEnabled ? 'nobody' : _profilePhotoVisibility;
@@ -179,6 +182,7 @@ class SettingsService extends ChangeNotifier {
     _photoQuality = _prefs.getString(_kPhotoQuality) ?? 'high';
     _language = _prefs.getString(_kLanguage) ?? 'en';
     _fontSize = _prefs.getDouble(_kFontSize) ?? 1.0;
+    _accentColorValue = _prefs.getInt(_kAccentColor) ?? 0xFF6D5DFC;
     _twoFactorAuth = _prefs.getBool(_kTwoFactorAuth) ?? false;
     _lastSeenVisibility = _prefs.getString(_kLastSeen) ?? 'everyone';
     _profilePhotoVisibility = _prefs.getString(_kProfilePhoto) ?? 'everyone';
@@ -318,6 +322,12 @@ class SettingsService extends ChangeNotifier {
   Future<void> setLanguage(String v) async {
     _language = v;
     await _prefs.setString(_kLanguage, v);
+    notifyListeners();
+  }
+
+  Future<void> setAccentColor(int value) async {
+    _accentColorValue = value;
+    await _prefs.setInt(_kAccentColor, value);
     notifyListeners();
   }
 
@@ -605,6 +615,7 @@ class SettingsService extends ChangeNotifier {
     _photoQuality = 'high';
     _language = 'en';
     _fontSize = 1.0;
+    _accentColorValue = 0xFF6D5DFC;
     _twoFactorAuth = false;
     _lastSeenVisibility = 'everyone';
     _profilePhotoVisibility = 'everyone';
