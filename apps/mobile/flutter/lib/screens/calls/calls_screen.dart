@@ -197,7 +197,7 @@ class _CallsScreenState extends State<CallsScreen> {
           children: [
             NovynHeader(
               title: 'Calls',
-              subtitle: '${_calls.length} recent conversations · $missedCount missed',
+              subtitle: '${_calls.length} calls this week · $missedCount missed',
               actions: [
                 NovynIconButton(
                   icon: Icons.shield_outlined,
@@ -280,7 +280,7 @@ class _CallsScreenState extends State<CallsScreen> {
       color: NovynColors.violet,
       onRefresh: _loadCalls,
       child: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 120),
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 132),
         children: [
           if (_search.isEmpty && _filter == 'All' && quickCalls.isNotEmpty) ...[
             const NovynSectionLabel(

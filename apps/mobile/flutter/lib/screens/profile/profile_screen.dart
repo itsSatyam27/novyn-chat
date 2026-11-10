@@ -42,7 +42,7 @@ class ProfileScreen extends StatelessWidget {
             bottom: false,
             child: ListView(
               physics: const BouncingScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 120),
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 132),
               children: [
                 NovynHeader(
                   title: 'Settings',
@@ -64,23 +64,23 @@ class ProfileScreen extends StatelessWidget {
                 const SizedBox(height: 26),
                 NovynSectionLabel(l10n.preferences.toUpperCase(), padding: const EdgeInsets.fromLTRB(4, 0, 4, 10)),
                 _NovynSettingsGroup(children: [
-                  _NovynSettingsTile(icon: Icons.palette_outlined, title: l10n.appearance, subtitle: 'Theme and display', accent: const Color(0xFFE0E0E0), onTap: () => _showAppearanceDialog(context, settings)),
-                  _NovynSettingsTile(icon: Icons.volume_up_outlined, title: l10n.soundVibration, subtitle: 'Ringtones and haptics', accent: const Color(0xFFBDBDBD), onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SoundVibrationScreen()))),
-                  _NovynSettingsTile(icon: Icons.notifications_none_rounded, title: l10n.notifications, subtitle: 'Messages and call alerts', accent: const Color(0xFFD0D0D0), onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const NotificationSettingsScreen()))),
-                  _NovynSettingsTile(icon: Icons.language_rounded, title: l10n.languageRegion, subtitle: 'App language and region', accent: const Color(0xFFD0D0D0), onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const LanguageRegionScreen()))),
-                  _NovynSettingsTile(icon: Icons.storage_rounded, title: 'Data & Storage', subtitle: 'Storage usage and downloads', accent: const Color(0xFFBDBDBD), onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const DataStorageScreen()))),
-                  _NovynSettingsTile(icon: Icons.accessibility_new_rounded, title: 'Accessibility', subtitle: 'Make Novyn easier to use', accent: const Color(0xFFE0E0E0), onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AccessibilityScreen())), showDivider: false),
+                  _NovynSettingsTile(icon: Icons.palette_outlined, title: l10n.appearance, subtitle: 'Theme and display', accent: NovynTheme.indigo, onTap: () => _showAppearanceDialog(context, settings)),
+                  _NovynSettingsTile(icon: Icons.volume_up_outlined, title: l10n.soundVibration, subtitle: 'Ringtones and haptics', accent: NovynTheme.indigo, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SoundVibrationScreen()))),
+                  _NovynSettingsTile(icon: Icons.notifications_none_rounded, title: l10n.notifications, subtitle: 'Messages and call alerts', accent: NovynTheme.indigo, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const NotificationSettingsScreen()))),
+                  _NovynSettingsTile(icon: Icons.language_rounded, title: l10n.languageRegion, subtitle: 'App language and region', accent: NovynTheme.indigo, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const LanguageRegionScreen()))),
+                  _NovynSettingsTile(icon: Icons.storage_rounded, title: 'Data & Storage', subtitle: 'Storage usage and downloads', accent: NovynTheme.indigo, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const DataStorageScreen()))),
+                  _NovynSettingsTile(icon: Icons.accessibility_new_rounded, title: 'Accessibility', subtitle: 'Make Novyn easier to use', accent: NovynTheme.indigo, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AccessibilityScreen())), showDivider: false),
                 ]),
                 const SizedBox(height: 24),
                 NovynSectionLabel(l10n.account.toUpperCase(), padding: const EdgeInsets.fromLTRB(4, 0, 4, 10)),
                 _NovynSettingsGroup(children: [
-                  _NovynSettingsTile(icon: Icons.shield_outlined, title: l10n.securityPrivacy, subtitle: 'Privacy and account protection', accent: const Color(0xFFBDBDBD), onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SecurityPrivacyScreen()))),
-                  _NovynSettingsTile(icon: Icons.qr_code_2_rounded, title: l10n.qrCode, subtitle: 'Share your Novyn profile', accent: const Color(0xFFE0E0E0), onTap: () => _showQRCode(context), showDivider: false),
+                  _NovynSettingsTile(icon: Icons.shield_outlined, title: l10n.securityPrivacy, subtitle: 'Privacy and account protection', accent: NovynTheme.indigo, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SecurityPrivacyScreen()))),
+                  _NovynSettingsTile(icon: Icons.qr_code_2_rounded, title: l10n.qrCode, subtitle: 'Share your Novyn profile', accent: NovynTheme.indigo, onTap: () => _showQRCode(context), showDivider: false),
                 ]),
                 const SizedBox(height: 24),
                 NovynSectionLabel(l10n.support.toUpperCase(), padding: const EdgeInsets.fromLTRB(4, 0, 4, 10)),
                 _NovynSettingsGroup(children: [
-                  _NovynSettingsTile(icon: Icons.help_outline_rounded, title: l10n.helpSupport, subtitle: 'FAQs and get help', accent: const Color(0xFFE0E0E0), onTap: () => _showHelpSupport(context), showDivider: false),
+                  _NovynSettingsTile(icon: Icons.help_outline_rounded, title: l10n.helpSupport, subtitle: 'FAQs and get help', accent: NovynTheme.indigo, onTap: () => _showHelpSupport(context), showDivider: false),
                 ]),
                 const SizedBox(height: 24),
                 _NovynLogoutTile(title: l10n.logOut, onTap: () => _confirmLogout(context, auth)),
@@ -1291,8 +1291,8 @@ class _NovynSettingsProfileCard extends StatelessWidget {
     padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
     decoration: BoxDecoration(
       borderRadius: BorderRadius.circular(26),
-      color: dark ? const Color(0xFF202020) : Colors.white,
-      border: Border.all(color: dark ? const Color(0x33FFFFFF) : const Color(0xFFE5E5E5)),
+      color: NovynTheme.cardBg(context),
+      border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
     ),
     child: Column(children: [
       Row(children: [
@@ -1329,7 +1329,7 @@ class _NovynSettingsGroup extends StatelessWidget {
   Widget build(BuildContext context) {
     final dark = Theme.of(context).brightness == Brightness.dark;
     return Container(
-      decoration: BoxDecoration(color: dark ? const Color(0xFF1A1A1A) : Colors.white, borderRadius: BorderRadius.circular(22), border: Border.all(color: dark ? const Color(0x1FFFFFFF) : const Color(0xFFE5E5E5))),
+      decoration: BoxDecoration(color: NovynTheme.cardBg(context), borderRadius: BorderRadius.circular(22), border: Border.all(color: Theme.of(context).colorScheme.outlineVariant)),
       child: ClipRRect(borderRadius: BorderRadius.circular(22), child: Column(children: children)),
     );
   }
@@ -1351,17 +1351,17 @@ class _NovynSettingsTile extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           child: Row(children: [
-            Container(width: 42, height: 42, decoration: BoxDecoration(color: accent.withValues(alpha: 0.13), borderRadius: BorderRadius.circular(14)), child: Icon(icon, color: accent, size: 20)),
+            Container(width: 42, height: 42, decoration: BoxDecoration(color: (Theme.of(context).brightness == Brightness.dark ? const Color(0xFF35205A) : const Color(0xFFEFE8FF)), borderRadius: BorderRadius.circular(14)), child: Icon(icon, color: NovynTheme.indigo, size: 20)),
             const SizedBox(width: 13),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(title, style: NovynText.body(14, weight: FontWeight.w600)),
+              Text(title, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontSize: 14, fontWeight: FontWeight.w700)),
               const SizedBox(height: 3),
-              Text(subtitle, style: NovynText.body(11.5, color: NovynColors.textMuted)),
+              Text(subtitle, style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 11.5, color: Theme.of(context).colorScheme.onSurfaceVariant)),
             ])),
-            const Icon(Icons.chevron_right_rounded, color: NovynColors.chevron, size: 21),
+            Icon(Icons.chevron_right_rounded, color: Theme.of(context).colorScheme.onSurfaceVariant, size: 21),
           ]),
         ),
-        if (showDivider) const Padding(padding: EdgeInsets.only(left: 69), child: Divider(height: 1, thickness: 1, color: Color(0x12FFFFFF))),
+        if (showDivider) Padding(padding: const EdgeInsets.only(left: 69), child: Divider(height: 1, thickness: 1, color: Theme.of(context).dividerColor)),
       ]),
     ),
   );
@@ -1373,18 +1373,18 @@ class _NovynLogoutTile extends StatelessWidget {
   final VoidCallback onTap;
   @override
   Widget build(BuildContext context) => Material(
-    color: Theme.of(context).brightness == Brightness.dark ? const Color(0x1AFFFFFF) : const Color(0xFFF5F5F5),
+    color: Theme.of(context).brightness == Brightness.dark ? const Color(0x33F87171) : const Color(0xFFFFF1F2),
     borderRadius: BorderRadius.circular(20),
     child: InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(20),
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 16),
-        decoration: BoxDecoration(borderRadius: BorderRadius.circular(20), border: Border.all(color: Theme.of(context).brightness == Brightness.dark ? const Color(0x33FFFFFF) : const Color(0xFFE5E5E5))),
+        decoration: BoxDecoration(borderRadius: BorderRadius.circular(20), border: Border.all(color: Theme.of(context).brightness == Brightness.dark ? const Color(0x66F87171) : const Color(0xFFFFC9D0))),
         child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-          const Icon(Icons.logout_rounded, color: Color(0xFFE0E0E0), size: 19),
+          const Icon(Icons.logout_rounded, color: Color(0xFFEF4444), size: 19),
           const SizedBox(width: 10),
-          Text(title, style: NovynText.body(14, weight: FontWeight.w700, color: const Color(0xFFE0E0E0))),
+          Text(title, style: NovynText.body(14, weight: FontWeight.w700, color: const Color(0xFFEF4444))),
         ]),
       ),
     ),

@@ -46,7 +46,8 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                 final count = snap.data ?? 0;
                 return NovynHeader(
                   title: 'Discover',
-                  subtitle: 'Find new people to connect with',
+                  titleSize: 34,
+                  subtitle: 'Live online radar',
                   actions: [
                     Stack(
                       clipBehavior: Clip.none,
@@ -348,7 +349,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                         height: 200,
                         decoration: BoxDecoration(
                           border: Border.all(color: Colors.white54, width: 2),
-                          borderRadius: BorderRadius.circular(20),
+                          borderRadius: BorderRadius.circular(24),
                         ),
                       ),
                     ),
@@ -429,10 +430,10 @@ class _DiscoverCard extends StatelessWidget {
     final palette = _palettes[(user.name.isNotEmpty ? user.name.codeUnitAt(0) : 0) % _palettes.length];
 
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: NovynColors.card,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(24),
         border: Border.all(color: NovynColors.glassBorder),
       ),
       child: Row(
