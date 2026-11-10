@@ -73,15 +73,16 @@ class NovynTheme {
       error: const Color(0xFFFF5C7A),
     );
 
-    final base = GoogleFonts.plusJakartaSansTextTheme(
+    final baseTextTheme = GoogleFonts.plusJakartaSansTextTheme(
       ThemeData(brightness: brightness, useMaterial3: true).textTheme,
-    ).apply(bodyColor: ink, displayColor: ink).copyWith(
-      bodyLarge: base.bodyLarge?.copyWith(fontSize: (base.bodyLarge?.fontSize ?? 16) * fontScale),
-      bodyMedium: base.bodyMedium?.copyWith(fontSize: (base.bodyMedium?.fontSize ?? 14) * fontScale),
-      bodySmall: base.bodySmall?.copyWith(fontSize: (base.bodySmall?.fontSize ?? 12) * fontScale),
-      titleLarge: base.titleLarge?.copyWith(fontSize: (base.titleLarge?.fontSize ?? 22) * fontScale),
-      titleMedium: base.titleMedium?.copyWith(fontSize: (base.titleMedium?.fontSize ?? 16) * fontScale),
-      titleSmall: base.titleSmall?.copyWith(fontSize: (base.titleSmall?.fontSize ?? 14) * fontScale),
+    ).apply(bodyColor: ink, displayColor: ink);
+    final base = baseTextTheme.copyWith(
+      bodyLarge: baseTextTheme.bodyLarge?.copyWith(fontSize: (baseTextTheme.bodyLarge?.fontSize ?? 16) * fontScale),
+      bodyMedium: baseTextTheme.bodyMedium?.copyWith(fontSize: (baseTextTheme.bodyMedium?.fontSize ?? 14) * fontScale),
+      bodySmall: baseTextTheme.bodySmall?.copyWith(fontSize: (baseTextTheme.bodySmall?.fontSize ?? 12) * fontScale),
+      titleLarge: baseTextTheme.titleLarge?.copyWith(fontSize: (baseTextTheme.titleLarge?.fontSize ?? 22) * fontScale),
+      titleMedium: baseTextTheme.titleMedium?.copyWith(fontSize: (baseTextTheme.titleMedium?.fontSize ?? 16) * fontScale),
+      titleSmall: baseTextTheme.titleSmall?.copyWith(fontSize: (baseTextTheme.titleSmall?.fontSize ?? 14) * fontScale),
     );
 
     OutlineInputBorder outline(Color c, [double w = 1]) => OutlineInputBorder(
@@ -154,12 +155,12 @@ class NovynTheme {
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          backgroundColor: indigo,
+          backgroundColor: accent,
           foregroundColor: Colors.white,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         ),
       ),
-      progressIndicatorTheme: const ProgressIndicatorThemeData(color: accent),
+      progressIndicatorTheme: ProgressIndicatorThemeData(color: accent),
       switchTheme: SwitchThemeData(
         thumbColor: WidgetStateProperty.all(Colors.white),
         trackColor: WidgetStateProperty.resolveWith(
