@@ -255,15 +255,17 @@ class NovynHeader extends StatelessWidget {
     super.key,
     required this.title,
     this.subtitle,
-    this.subtitleColor = NovynColors.textMuted,
-    this.titleColor = NovynColors.text,
+    this.subtitleColor,
+    this.titleColor,
+    this.titleSize = 28,
     this.actions = const [],
   });
 
   final String title;
   final String? subtitle;
-  final Color subtitleColor;
-  final Color titleColor;
+  final Color? subtitleColor;
+  final Color? titleColor;
+  final double titleSize;
   final List<Widget> actions;
 
   @override
@@ -278,14 +280,16 @@ class NovynHeader extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  style: NovynText.display(28,
-                      color: titleColor, letterSpacing: -0.28),
+                  style: NovynText.display(titleSize,
+                      color: titleColor ?? Theme.of(context).colorScheme.onSurface,
+                      letterSpacing: -0.5),
                 ),
                 if (subtitle != null)
                   Padding(
                     padding: const EdgeInsets.only(top: 2),
                     child: Text(subtitle!,
-                        style: NovynText.body(13, color: subtitleColor)),
+                        style: NovynText.body(13,
+                            color: subtitleColor ?? Theme.of(context).colorScheme.onSurfaceVariant)),
                   ),
               ],
             ),
@@ -321,6 +325,8 @@ class NovynIconButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final ink = Theme.of(context).colorScheme.onSurface;
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: onTap,
@@ -330,22 +336,30 @@ class NovynIconButton extends StatelessWidget {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(radius),
           gradient: primary ? NovynGradients.primary : null,
-          color: primary ? null : NovynColors.glass,
-          border: primary ? null : Border.all(color: NovynColors.glassBorder),
-          boxShadow: primary
-              ? const [
-                  BoxShadow(
-                    color: NovynColors.violetShadow,
-                    blurRadius: 22,
-                    offset: Offset(0, 8),
-                  ),
-                ]
-              : null,
+          color: primary
+              ? null
+              : (dark ? const Color(0xFF1B1927) : Colors.white),
+          border: primary
+              ? null
+              : Border.all(
+                  color: dark
+                      ? const Color(0x3DFFFFFF)
+                      : const Color(0xFFDCD4FA),
+                ),
+          boxShadow: [
+            BoxShadow(
+              color: primary
+                  ? const Color(0xFF793CEB).withValues(alpha: .22)
+                  : Colors.black.withValues(alpha: dark ? .12 : .035),
+              blurRadius: primary ? 22 : 12,
+              offset: const Offset(0, 7),
+            ),
+          ],
         ),
         child: Icon(
           icon,
           size: iconSize,
-          color: primary ? Colors.white : NovynColors.violetSoft,
+          color: primary ? Colors.white : (dark ? NovynColors.violetSoft : ink),
         ),
       ),
     );
@@ -421,6 +435,12 @@ class NovynChipRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final idleText = dark ? const Color(0xFFE0D9F5) : const Color(0xFF403466);
+    final idleFill = dark ? const Color(0xFF1A1725) : Colors.white;
+    final border = dark
+        ? const Color(0x35FFFFFF)
+        : const Color(0xFFDCD4FA);
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       padding: EdgeInsets.fromLTRB(20, 0, 20, bottomPadding),
@@ -431,34 +451,33 @@ class NovynChipRow extends StatelessWidget {
               padding: const EdgeInsets.only(right: 8),
               child: GestureDetector(
                 onTap: () => onSelected(i),
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
-                  decoration: i == selected
-                      ? BoxDecoration(
-                          gradient: NovynGradients.primary,
-                          borderRadius: BorderRadius.circular(999),
-                          boxShadow: const [
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 20, vertical: 12),
+                  decoration: BoxDecoration(
+                    gradient: i == selected ? NovynGradients.primary : null,
+                    color: i == selected ? null : idleFill,
+                    borderRadius: BorderRadius.circular(999),
+                    border: i == selected ? null : Border.all(color: border),
+                    boxShadow: i == selected
+                        ? [
                             BoxShadow(
-                              color: Color(0x665746E8),
-                              blurRadius: 20,
-                              offset: Offset(0, 8),
+                              color: const Color(0xFF7540E8)
+                                  .withValues(alpha: dark ? .24 : .16),
+                              blurRadius: 16,
+                              offset: const Offset(0, 6),
                             ),
-                          ],
-                        )
-                      : BoxDecoration(
-                          color: NovynColors.glass,
-                          borderRadius: BorderRadius.circular(999),
-                          border: Border.all(color: NovynColors.glassBorder),
-                        ),
+                          ]
+                        : null,
+                  ),
                   child: Text(
                     labels[i],
-                    style: NovynText.body(
-                      13,
-                      weight: FontWeight.w600,
-                      color: i == selected
-                          ? Colors.white
-                          : NovynColors.textChip,
+                    style: TextStyle(
+                      fontFamily: 'PlusJakartaSans',
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: i == selected ? Colors.white : idleText,
                     ),
                   ),
                 ),
