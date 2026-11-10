@@ -55,6 +55,69 @@ class SecurityPrivacyScreen extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
         physics: const BouncingScrollPhysics(),
         children: [
+          Container(
+            padding: const EdgeInsets.all(16),
+            margin: const EdgeInsets.only(bottom: 22),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(22),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: Theme.of(context).brightness == Brightness.dark
+                    ? const [Color(0xFF242044), Color(0xFF171A2B)]
+                    : const [Color(0xFFF0EDFF), Color(0xFFEAF7FF)],
+              ),
+              border: Border.all(
+                color: Theme.of(context).colorScheme.primary.withValues(alpha: .16),
+              ),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.primary.withValues(alpha: .13),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Icon(
+                    settings.appLockEnabled
+                        ? Icons.shield_rounded
+                        : Icons.shield_outlined,
+                    color: Theme.of(context).colorScheme.primary,
+                    size: 26,
+                  ),
+                ),
+                const SizedBox(width: 13),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        settings.appLockEnabled
+                            ? 'App protection is on'
+                            : 'Review your protection',
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        settings.appLockEnabled
+                            ? 'App Lock is enabled on this device. Review your privacy controls below.'
+                            : 'Enable App Lock and review who can see your activity.',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          height: 1.35,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
           const SectionLabel(label: 'Security'),
           MenuCard(
             icon: Icons.lock_rounded,
