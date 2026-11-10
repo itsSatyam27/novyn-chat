@@ -288,88 +288,108 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
 
   PreferredSizeWidget _buildAppBar(SocketService socket) {
     final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+    final accent = isDark ? const Color(0xFFA79DFF) : const Color(0xFF6D5DFC);
     return AppBar(
-      backgroundColor: theme.colorScheme.surface,
+      backgroundColor: scheme.surface,
+      surfaceTintColor: Colors.transparent,
       elevation: 0,
-      leading: IconButton(
-        icon: Icon(Icons.chevron_left_rounded,
-            color: theme.colorScheme.onSurface, size: 32),
-        onPressed: () => Navigator.pop(context),
+      toolbarHeight: 68,
+      automaticallyImplyLeading: false,
+      titleSpacing: 12,
+      shape: Border(
+        bottom: BorderSide(color: scheme.outlineVariant.withValues(alpha: 0.5)),
       ),
       title: Row(
         children: [
-          Hero(
-            tag: 'avatar_${widget.peer.uid}',
-            child: UserAvatar(
-              name: widget.peer.name,
-              photoUrl: widget.peer.photoUrl,
-              radius: 20,
-              showOnlineIndicator: true,
-              isOnline: widget.peer.isOnline,
-              presence: widget.peer.status,
+          _ChatHeaderButton(
+            icon: Icons.arrow_back_ios_new_rounded,
+            iconSize: 17,
+            tooltip: 'Back',
+            onTap: () => Navigator.pop(context),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => _showContactInfo(),
+              child: Row(
+                children: [
+                  Hero(
+                    tag: 'avatar_${widget.peer.uid}',
+                    child: UserAvatar(
+                      name: widget.peer.name,
+                      photoUrl: widget.peer.photoUrl,
+                      radius: 21,
+                      showOnlineIndicator: true,
+                      isOnline: widget.peer.isOnline,
+                      presence: widget.peer.status,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          widget.peer.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontFamily: 'PlusJakartaSans',
+                            fontWeight: FontWeight.w700,
+                            fontSize: 17,
+                            color: scheme.onSurface,
+                          ),
+                        ),
+                        Text(
+                          socket.peerIsTyping
+                              ? 'typing...'
+                              : _peerIsOnline
+                                  ? 'Online'
+                                  : 'Offline',
+                          style: TextStyle(
+                            fontFamily: 'PlusJakartaSans',
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                            color: socket.peerIsTyping
+                                ? accent
+                                : _peerIsOnline
+                                    ? const Color(0xFF10B981)
+                                    : scheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  widget.peer.name,
-                  style: TextStyle(
-                    fontFamily: 'PlusJakartaSans',
-                    fontWeight: FontWeight.w700,
-                    fontSize: 16,
-                    color: theme.colorScheme.onSurface,
-                  ),
-                ),
-                Text(
-                  socket.peerIsTyping
-                      ? 'typing...'
-                      : _peerIsOnline
-                          ? 'Online'
-                          : 'Offline',
-                  style: TextStyle(
-                    fontFamily: 'PlusJakartaSans',
-                    fontSize: 12,
-                    color: socket.peerIsTyping
-                        ? const Color(0xFF6D5DFC)
-                        : _peerIsOnline
-                            ? const Color(0xFF10B981)
-                            : const Color(0xFF94A3B8),
-                  ),
-                ),
-              ],
-            ),
+          const SizedBox(width: 8),
+          _ChatHeaderButton(
+            icon: Icons.call_rounded,
+            color: accent,
+            tooltip: 'Voice call',
+            onTap: () => _startCall('voice'),
+          ),
+          const SizedBox(width: 6),
+          _ChatHeaderButton(
+            icon: Icons.videocam_rounded,
+            color: accent,
+            tooltip: 'Video call',
+            onTap: () => _startCall('video'),
+          ),
+          const SizedBox(width: 6),
+          _ChatHeaderButton(
+            icon: Icons.info_outline_rounded,
+            tooltip: 'Contact info',
+            onTap: () => _showContactInfo(),
           ),
         ],
       ),
-      actions: [
-        IconButton(
-          icon: const Icon(Icons.call_rounded, color: Color(0xFF6D5DFC)),
-          onPressed: () => _startCall('voice'),
-        ),
-        IconButton(
-          icon: const Icon(Icons.videocam_rounded, color: Color(0xFF6D5DFC)),
-          onPressed: () => _startCall('video'),
-        ),
-        IconButton(
-          tooltip: 'Shared media',
-          icon: const Icon(Icons.perm_media_outlined, color: Color(0xFF94A3B8)),
-          onPressed: _showSharedMedia,
-        ),
-        IconButton(
-          tooltip: 'Chat wallpaper',
-          icon: const Icon(Icons.wallpaper_rounded, color: Color(0xFF94A3B8)),
-          onPressed: _showWallpaperPicker,
-        ),
-        IconButton(
-          icon:
-              const Icon(Icons.info_outline_rounded, color: Color(0xFF94A3B8)),
-          onPressed: () => _showContactInfo(),
-        ),
-        const SizedBox(width: 4),
-      ],
     );
   }
 
@@ -624,7 +644,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
             color: theme.colorScheme.surface,
             border: Border(
               top: BorderSide(
-                color: theme.colorScheme.onSurface.withValues(alpha: 0.06),
+                color: theme.colorScheme.outlineVariant.withValues(alpha: 0.6),
                 width: 1,
               ),
             ),
@@ -638,14 +658,17 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                 child: Container(
                   constraints: const BoxConstraints(minHeight: 48),
                   decoration: BoxDecoration(
-                    color: isDark ? const Color(0xFF1E2235) : Colors.white,
+                    color: isDark
+                        ? const Color(0xFF161722)
+                        : const Color(0xFFFBFAFF),
                     borderRadius: BorderRadius.circular(30),
+                    border: Border.all(color: theme.colorScheme.outlineVariant),
                     boxShadow: [
                       BoxShadow(
-                        color:
-                            Colors.black.withValues(alpha: isDark ? 0.2 : 0.07),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
+                        color: const Color(0xFF3F358B)
+                            .withValues(alpha: isDark ? 0.0 : 0.06),
+                        blurRadius: 16,
+                        offset: const Offset(0, 5),
                       ),
                     ],
                   ),
@@ -664,6 +687,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                           controller: _ctrl,
                           maxLines: 4,
                           minLines: 1,
+                          cursorColor: const Color(0xFF6D5DFC),
                           style: TextStyle(
                             fontFamily: 'PlusJakartaSans',
                             fontSize: 15,
@@ -678,14 +702,17 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                             }
                           },
                           onSubmitted: (_) => _send(),
-                          decoration: const InputDecoration(
+                          decoration: InputDecoration(
                             hintText: 'Message...',
                             hintStyle: TextStyle(
                               fontFamily: 'PlusJakartaSans',
-                              color: Color(0xFF94A3B8),
+                              color: theme.colorScheme.onSurfaceVariant,
                             ),
+                            filled: false,
                             border: InputBorder.none,
-                            contentPadding: EdgeInsets.symmetric(
+                            enabledBorder: InputBorder.none,
+                            focusedBorder: InputBorder.none,
+                            contentPadding: const EdgeInsets.symmetric(
                                 horizontal: 8, vertical: 13),
                           ),
                         ),
@@ -710,20 +737,20 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       colors: hasText
-                          ? [const Color(0xFF6D5DFC), const Color(0xFF9B8FFF)]
+                          ? [const Color(0xFF6D5DFC), const Color(0xFF5746E8)]
                           : _isRecordingVoice
                               ? [const Color(0xFFDC2626), const Color(0xFFEF4444)]
-                              : [const Color(0xFF10B981), const Color(0xFF34D399)],
+                              : [const Color(0xFF6D5DFC), const Color(0xFF5746E8)],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                     ),
                     shape: BoxShape.circle,
                     boxShadow: [
                       BoxShadow(
-                        color: (hasText
-                                ? const Color(0xFF6D5DFC)
-                                : const Color(0xFF10B981))
-                            .withValues(alpha: 0.35),
+                        color: (_isRecordingVoice
+                                ? const Color(0xFFEF4444)
+                                : const Color(0xFF6D5DFC))
+                            .withValues(alpha: 0.4),
                         blurRadius: 10,
                         offset: const Offset(0, 4),
                       ),
@@ -1336,7 +1363,10 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   }
   BoxDecoration _wallpaperDecoration(String wallpaper) {
     final value = wallpaper.trim();
-    if (value.isEmpty) return const BoxDecoration();
+    final defaultBg = Theme.of(context).brightness == Brightness.dark
+        ? const Color(0xFF0B0B17)
+        : const Color(0xFFF7F6FF);
+    if (value.isEmpty) return BoxDecoration(color: defaultBg);
     if (value.startsWith('http://') || value.startsWith('https://')) {
       return BoxDecoration(image: DecorationImage(image: NetworkImage(value), fit: BoxFit.cover, opacity: 0.13));
     }
@@ -1344,7 +1374,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       final color = Color(int.parse('FF' + value.substring(1), radix: 16));
       return BoxDecoration(color: color);
     }
-    return const BoxDecoration();
+    return BoxDecoration(color: defaultBg);
   }
 
   Future<void> _showWallpaperPicker() async {
@@ -1439,6 +1469,14 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         onVideoCall: () {
           Navigator.pop(context);
           _startCall('video');
+        },
+        onSharedMedia: () {
+          Navigator.pop(context);
+          _showSharedMedia();
+        },
+        onWallpaper: () {
+          Navigator.pop(context);
+          _showWallpaperPicker();
         },
       ),
     );
@@ -1537,23 +1575,42 @@ class _MessageBubble extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(
                         horizontal: 16, vertical: 10),
                     constraints: BoxConstraints(
-                      maxWidth: MediaQuery.of(context).size.width * 0.68,
+                      maxWidth: MediaQuery.of(context).size.width * 0.76,
                     ),
                     decoration: BoxDecoration(
+                      gradient: isMe
+                          ? const LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [Color(0xFF6D5DFC), Color(0xFF5746E8)],
+                            )
+                          : null,
                       color: isMe
-                          ? const Color(0xFF6D5DFC)
-                          : Theme.of(context).colorScheme.surface,
+                          ? null
+                          : (Theme.of(context).brightness == Brightness.dark
+                              ? const Color(0xFF19182A)
+                              : Colors.white),
+                      border: isMe
+                          ? null
+                          : Border.all(
+                              color: Theme.of(context).brightness ==
+                                      Brightness.dark
+                                  ? const Color(0x1FBEB8FF)
+                                  : const Color(0x216D5DFC),
+                            ),
                       borderRadius: BorderRadius.only(
-                        topLeft: const Radius.circular(18),
-                        topRight: const Radius.circular(18),
-                        bottomLeft: Radius.circular(isMe ? 18 : 4),
-                        bottomRight: Radius.circular(isMe ? 4 : 18),
+                        topLeft: const Radius.circular(20),
+                        topRight: const Radius.circular(20),
+                        bottomLeft: Radius.circular(isMe ? 20 : 6),
+                        bottomRight: Radius.circular(isMe ? 6 : 20),
                       ),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.05),
-                          blurRadius: 6,
-                          offset: const Offset(0, 2),
+                          color: isMe
+                              ? const Color(0x4D6D5DFC)
+                              : Colors.black.withValues(alpha: 0.05),
+                          blurRadius: isMe ? 20 : 8,
+                          offset: Offset(0, isMe ? 6 : 2),
                         ),
                       ],
                     ),
@@ -2409,9 +2466,9 @@ class _AttachmentButtonState extends State<_AttachmentButton>
     _MenuItem(
         icon: Icons.poll_rounded, label: 'Poll', color: Color(0xFF6D5DFC)),
     _MenuItem(
-        icon: Icons.lock_outline_rounded, label: 'Riddle', color: Color(0xFF64748B)),
+        icon: Icons.lock_outline_rounded, label: 'Riddle', color: Color(0xFF8B7CFF)),
     _MenuItem(
-        icon: Icons.sports_esports_rounded, label: 'Games', color: Color(0xFF64748B)),
+        icon: Icons.sports_esports_rounded, label: 'Games', color: Color(0xFFF97316)),
     _MenuItem(
         icon: Icons.gif_box_rounded, label: 'GIFs', color: Color(0xFF0EA5E9)),
     _MenuItem(
@@ -2521,10 +2578,10 @@ class _AttachmentButtonState extends State<_AttachmentButton>
                 color: Colors.transparent,
                 child: Builder(
                   builder: (ctx) => Container(
-                    width: 190,
+                    width: 214,
                     decoration: BoxDecoration(
                       color: Theme.of(ctx).colorScheme.surface,
-                      borderRadius: BorderRadius.circular(20),
+                      borderRadius: BorderRadius.circular(28),
                       boxShadow: [
                         BoxShadow(
                           color:
@@ -2539,10 +2596,7 @@ class _AttachmentButtonState extends State<_AttachmentButton>
                         ),
                       ],
                       border: Border.all(
-                        color: Theme.of(ctx)
-                            .colorScheme
-                            .onSurface
-                            .withValues(alpha: 0.08),
+                        color: Theme.of(ctx).colorScheme.outlineVariant,
                         width: 1,
                       ),
                     ),
@@ -2602,26 +2656,26 @@ class _AttachmentButtonState extends State<_AttachmentButton>
       },
       borderRadius: BorderRadius.circular(12),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
         child: Row(
           children: [
             Container(
-              width: 36,
-              height: 36,
+              width: 42,
+              height: 42,
               decoration: BoxDecoration(
-                color: item.color.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(11),
+                color: item.color.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(14),
               ),
-              child: Icon(item.icon, color: item.color, size: 18),
+              child: Icon(item.icon, color: item.color, size: 21),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 14),
             Builder(
               builder: (ctx) => Text(
                 item.label,
                 style: TextStyle(
                   fontFamily: 'PlusJakartaSans',
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
                   color: Theme.of(ctx).colorScheme.onSurface,
                 ),
               ),
@@ -3130,6 +3184,46 @@ class _HighlightedText extends StatelessWidget {
           color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
         ),
         children: spans,
+      ),
+    );
+  }
+}
+
+// ── Header square button (web-style) ─────────────────────────────────────────
+class _ChatHeaderButton extends StatelessWidget {
+  const _ChatHeaderButton({
+    required this.icon,
+    required this.onTap,
+    this.color,
+    this.iconSize = 20,
+    this.tooltip,
+  });
+
+  final IconData icon;
+  final VoidCallback onTap;
+  final Color? color;
+  final double iconSize;
+  final String? tooltip;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Semantics(
+      button: true,
+      label: tooltip,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: scheme.surfaceContainerHighest,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: scheme.outlineVariant),
+          ),
+          child: Icon(icon, size: iconSize, color: color ?? scheme.onSurfaceVariant),
+        ),
       ),
     );
   }
