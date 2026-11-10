@@ -299,7 +299,7 @@ class _SplashScreenV2State extends State<SplashScreenV2>
                 return const LinearGradient(
                   colors: [
                     NovynTheme.pastelPurple,
-                    Color(0xFF7C6FF7),
+                    Color(0xFF6D5DFC),
                     NovynTheme.pastelPurple,
                   ],
                   stops: [0.0, 0.5, 1.0],
@@ -307,7 +307,7 @@ class _SplashScreenV2State extends State<SplashScreenV2>
               },
               child: Text(
                 'Novyn',
-                style: GoogleFonts.inter(
+                style: GoogleFonts.plusJakartaSans(
                   fontSize: 56,
                   fontWeight: FontWeight.w800,
                   letterSpacing: -1.5,
@@ -329,11 +329,11 @@ class _SplashScreenV2State extends State<SplashScreenV2>
           opacity: _taglineFade.value,
           child: Text(
             'Connect. Chat. Vibe.',
-            style: GoogleFonts.inter(
+            style: GoogleFonts.plusJakartaSans(
               fontSize: 14,
               fontWeight: FontWeight.w600,
               letterSpacing: 0.5,
-              color: const Color(0xFF7C6FF7),
+              color: const Color(0xFF6D5DFC),
             ),
           ),
         );
@@ -439,11 +439,11 @@ class _AnimatedLoadingBarState extends State<_AnimatedLoadingBar> {
             // Message
             Text(
               _messages[msgIndex],
-              style: GoogleFonts.inter(
+              style: GoogleFonts.plusJakartaSans(
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
                 letterSpacing: 0.5,
-                color: const Color(0xFF7C6FF7).withValues(alpha: 0.7),
+                color: const Color(0xFF6D5DFC).withValues(alpha: 0.7),
               ),
             ),
             const SizedBox(height: 12),
@@ -494,11 +494,11 @@ class _AnimatedLoadingBarState extends State<_AnimatedLoadingBar> {
             // Percentage
             Text(
               '${(fill * 100).round()}%',
-              style: GoogleFonts.inter(
+              style: GoogleFonts.plusJakartaSans(
                 fontSize: 10,
                 fontWeight: FontWeight.w600,
                 letterSpacing: 0.5,
-                color: const Color(0xFF7C6FF7).withValues(alpha: 0.5),
+                color: const Color(0xFF6D5DFC).withValues(alpha: 0.5),
               ),
             ),
           ],
@@ -571,7 +571,7 @@ class _CatPainterV2 extends CustomPainter {
 
     // Eyes
     final eyePaint = Paint()
-      ..color = const Color(0xFF7C6FF7)
+      ..color = const Color(0xFF6D5DFC)
       ..style = PaintingStyle.fill;
     canvas.drawCircle(Offset(w * 0.4, h * 0.45), w * 0.08, eyePaint);
     canvas.drawCircle(Offset(w * 0.6, h * 0.45), w * 0.08, eyePaint);
@@ -598,7 +598,7 @@ class _CatPainterV2 extends CustomPainter {
 
     // Mouth
     final mouthPaint = Paint()
-      ..color = const Color(0xFF7C6FF7)
+      ..color = const Color(0xFF6D5DFC)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.5
       ..strokeCap = StrokeCap.round;
@@ -611,7 +611,7 @@ class _CatPainterV2 extends CustomPainter {
 
     // Whiskers
     final whiskerPaint = Paint()
-      ..color = const Color(0xFF7C6FF7).withValues(alpha: 0.5)
+      ..color = const Color(0xFF6D5DFC).withValues(alpha: 0.5)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 0.8
       ..strokeCap = StrokeCap.round;

@@ -66,7 +66,7 @@ class ChatItem extends StatelessWidget {
                           Text(
                             chat.name,
                             style: const TextStyle(
-                              fontFamily: 'Inter',
+                              fontFamily: 'PlusJakartaSans',
                               fontWeight: FontWeight.w600,
                               fontSize: 16,
                             ),
@@ -74,7 +74,7 @@ class ChatItem extends StatelessWidget {
                           Text(
                             chat.time,
                             style: const TextStyle(
-                              fontFamily: 'Inter',
+                              fontFamily: 'PlusJakartaSans',
                               color: Color(0xFF94A3B8),
                               fontSize: 12,
                             ),
@@ -89,7 +89,7 @@ class ChatItem extends StatelessWidget {
                             child: Text(
                               chat.lastMessage,
                               style: const TextStyle(
-                                fontFamily: 'Inter',
+                                fontFamily: 'PlusJakartaSans',
                                 color: Color(0xFF94A3B8),
                                 fontSize: 14,
                               ),

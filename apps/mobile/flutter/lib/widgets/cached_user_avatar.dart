@@ -129,7 +129,7 @@ class _CachedUserAvatarState extends State<CachedUserAvatar> {
     final initial = widget.name.isNotEmpty
         ? widget.name.substring(0, 1).toUpperCase()
         : '?';
-    final color = widget.fallbackColor ?? const Color(0xFF7C6FF7);
+    final color = widget.fallbackColor ?? const Color(0xFF6D5DFC);
     final hasPhoto = _cachedImage != null && _cachedImage!.isNotEmpty;
 
     Widget avatar = Container(
@@ -167,7 +167,7 @@ class _CachedUserAvatarState extends State<CachedUserAvatar> {
                   child: Text(
                     initial,
                     style: TextStyle(
-                      fontFamily: 'Inter',
+                      fontFamily: 'PlusJakartaSans',
                       fontWeight: FontWeight.bold,
                       fontSize: widget.radius * 0.75,
                       color: color,

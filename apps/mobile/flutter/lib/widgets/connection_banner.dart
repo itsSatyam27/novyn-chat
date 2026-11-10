@@ -48,7 +48,7 @@ class ConnectionBanner extends StatelessWidget {
           Text(
             message,
             style: const TextStyle(
-              fontFamily: 'Inter',
+              fontFamily: 'PlusJakartaSans',
               fontSize: 13,
               fontWeight: FontWeight.w600,
               color: Colors.white,
@@ -106,7 +106,7 @@ class OfflineIndicator extends StatelessWidget {
             child: Text(
               'You\'re offline. Messages will be sent when you reconnect.',
               style: TextStyle(
-                fontFamily: 'Inter',
+                fontFamily: 'PlusJakartaSans',
                 fontSize: 12,
                 color: const Color(0xFFF59E0B),
                 fontWeight: FontWeight.w500,
