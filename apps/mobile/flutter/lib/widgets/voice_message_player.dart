@@ -103,7 +103,7 @@ class _VoiceMessagePlayerState extends State<VoiceMessagePlayer> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(widget.label, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontFamily: 'Inter', fontSize: 11, fontWeight: FontWeight.w700)),
+                Text(widget.label, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 11, fontWeight: FontWeight.w700)),
                 SliderTheme(
                   data: SliderTheme.of(context).copyWith(
                     trackHeight: 3,
@@ -118,7 +118,7 @@ class _VoiceMessagePlayerState extends State<VoiceMessagePlayer> {
                 ),
                 Text(
                   '${_time(_position)} / ${duration.inMilliseconds == 0 ? '--:--' : _time(duration)}',
-                  style: const TextStyle(fontFamily: 'Inter', fontSize: 9, color: Color(0xFF94A3B8)),
+                  style: const TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 9, color: Color(0xFF94A3B8)),
                 ),
               ],
             ),

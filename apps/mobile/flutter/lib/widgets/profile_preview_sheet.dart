@@ -64,7 +64,7 @@ class _ProfilePreviewSheetState extends State<ProfilePreviewSheet> {
                 Text(
                   'USER PROFILE',
                   style: TextStyle(
-                    fontFamily: 'Inter',
+                    fontFamily: 'PlusJakartaSans',
                     fontSize: 11,
                     fontWeight: FontWeight.w800,
                     letterSpacing: 1.2,
@@ -110,7 +110,7 @@ class _ProfilePreviewSheetState extends State<ProfilePreviewSheet> {
                       Text(
                         user.name,
                         style: TextStyle(
-                          fontFamily: 'Inter',
+                          fontFamily: 'PlusJakartaSans',
                           fontSize: 18,
                           fontWeight: FontWeight.w700,
                           color: theme.colorScheme.onSurface,
@@ -120,7 +120,7 @@ class _ProfilePreviewSheetState extends State<ProfilePreviewSheet> {
                       Text(
                         '@${user.username}',
                         style: TextStyle(
-                          fontFamily: 'Inter',
+                          fontFamily: 'PlusJakartaSans',
                           fontSize: 13,
                           color: theme.colorScheme.outline,
                         ),
@@ -129,7 +129,7 @@ class _ProfilePreviewSheetState extends State<ProfilePreviewSheet> {
                       Text(
                         user.isOnline ? 'Online' : 'Offline',
                         style: TextStyle(
-                          fontFamily: 'Inter',
+                          fontFamily: 'PlusJakartaSans',
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
                           color: statusColor,
@@ -151,7 +151,7 @@ class _ProfilePreviewSheetState extends State<ProfilePreviewSheet> {
                   _QuickAction(
                     icon: Icons.call_rounded,
                     label: 'Voice\ncall',
-                    color: const Color(0xFF7C6FF7),
+                    color: const Color(0xFF6D5DFC),
                     onTap: widget.onVoiceCall ?? () {},
                   ),
                   const SizedBox(width: 10),
@@ -199,7 +199,7 @@ class _ProfilePreviewSheetState extends State<ProfilePreviewSheet> {
                   Text(
                     'BIO',
                     style: TextStyle(
-                      fontFamily: 'Inter',
+                      fontFamily: 'PlusJakartaSans',
                       fontSize: 11,
                       fontWeight: FontWeight.w800,
                       letterSpacing: 1.2,
@@ -210,7 +210,7 @@ class _ProfilePreviewSheetState extends State<ProfilePreviewSheet> {
                   Text(
                     user.bio,
                     style: TextStyle(
-                      fontFamily: 'Inter',
+                      fontFamily: 'PlusJakartaSans',
                       fontSize: 14,
                       color: theme.colorScheme.onSurface,
                       height: 1.5,
@@ -328,7 +328,7 @@ class _QuickAction extends StatelessWidget {
                 label,
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  fontFamily: 'Inter',
+                  fontFamily: 'PlusJakartaSans',
                   fontSize: 11,
                   fontWeight: FontWeight.w600,
                   color: color,

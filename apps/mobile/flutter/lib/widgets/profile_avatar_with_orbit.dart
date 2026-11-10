@@ -91,7 +91,7 @@ class ProfileAvatarWithOrbitState extends State<ProfileAvatarWithOrbit>
                         ? widget.displayName.substring(0, 1).toUpperCase()
                         : '?',
                     style: TextStyle(
-                      fontFamily: 'Outfit',
+                      fontFamily: 'PlusJakartaSans',
                       fontSize: 28,
                       fontWeight: FontWeight.w900,
                       color: theme.colorScheme.primary,

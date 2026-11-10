@@ -74,18 +74,18 @@ class _RiddleMessageCardState extends State<RiddleMessageCard> {
           Row(children: [
             Icon(unlocked ? Icons.lock_open_rounded : Icons.lock_outline_rounded, size: 16),
             const SizedBox(width: 7),
-            Text(unlocked ? 'UNLOCKED' : 'RIDDLE LOCK', style: const TextStyle(fontFamily: 'Inter', fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 1)),
+            Text(unlocked ? 'UNLOCKED' : 'RIDDLE LOCK', style: const TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 1)),
           ]),
           const SizedBox(height: 8),
           Text(
             unlocked ? widget.riddle['secret']?.toString() ?? '' : 'Secret message locked',
-            style: const TextStyle(fontFamily: 'Inter', fontSize: 14, fontWeight: FontWeight.w700),
+            style: const TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 14, fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 8),
-          Text(widget.riddle['question']?.toString() ?? '', style: const TextStyle(fontFamily: 'Inter', fontSize: 12)),
+          Text(widget.riddle['question']?.toString() ?? '', style: const TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 12)),
           if ((widget.riddle['hint']?.toString() ?? '').isNotEmpty) ...[
             const SizedBox(height: 5),
-            Text('Hint: ${widget.riddle['hint']}', style: const TextStyle(fontFamily: 'Inter', fontSize: 11, color: Color(0xFF94A3B8))),
+            Text('Hint: ${widget.riddle['hint']}', style: const TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 11, color: Color(0xFF94A3B8))),
           ],
           if (!unlocked && !widget.isMe) ...[
             const SizedBox(height: 10),
@@ -108,13 +108,13 @@ class _RiddleMessageCardState extends State<RiddleMessageCard> {
             ),
             if (_feedback != null) Padding(
               padding: const EdgeInsets.only(top: 5),
-              child: Text(_feedback!, style: const TextStyle(fontFamily: 'Inter', fontSize: 10, color: Color(0xFFDC2626))),
+              child: Text(_feedback!, style: const TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 10, color: Color(0xFFDC2626))),
             ),
             const SizedBox(height: 5),
-            Text('$triesLeft tries left', style: const TextStyle(fontFamily: 'Inter', fontSize: 10, color: Color(0xFF94A3B8))),
+            Text('$triesLeft tries left', style: const TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 10, color: Color(0xFF94A3B8))),
           ],
           if (widget.isMe && !unlocked)
-            Text('Recipient gets $maxTries attempts', style: const TextStyle(fontFamily: 'Inter', fontSize: 10, color: Color(0xFF94A3B8))),
+            Text('Recipient gets $maxTries attempts', style: const TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 10, color: Color(0xFF94A3B8))),
         ],
       ),
     );
