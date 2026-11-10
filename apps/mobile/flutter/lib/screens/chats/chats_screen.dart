@@ -297,6 +297,9 @@ class _ChatsScreenState extends State<ChatsScreen> {
                 actions: [
                   NovynIconButton(
                     icon: _isSearching ? Icons.close_rounded : Icons.search_rounded,
+                    size: 56,
+                    radius: 20,
+                    iconSize: 24,
                     onTap: () {
                       HapticFeedback.mediumImpact();
                       setState(() {
@@ -312,6 +315,9 @@ class _ChatsScreenState extends State<ChatsScreen> {
                   NovynIconButton(
                     icon: Icons.edit_outlined,
                     primary: true,
+                    size: 56,
+                    radius: 20,
+                    iconSize: 24,
                     onTap: () => widget.onNavigateToPeople?.call(),
                   ),
                 ],
@@ -516,38 +522,7 @@ class _ChatsScreenState extends State<ChatsScreen> {
     );
   }
 
-  Widget _buildFAB() {
-    return GestureDetector(
-      onTap: () {
-        HapticFeedback.lightImpact();
-        widget.onNavigateToPeople?.call();
-      },
-      child: Container(
-        width: 60,
-        height: 60,
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Color(0xFF00C97A),
-              Color(0xFF00A862),
-            ],
-          ),
-          shape: BoxShape.circle,
-          boxShadow: [
-            BoxShadow(
-              color: const Color(0xFF00C97A).withValues(alpha: 0.4),
-              blurRadius: 24,
-              offset: const Offset(0, 8),
-            ),
-          ],
-        ),
-        child:
-            const Icon(Icons.add_rounded, color: Color(0xFF001F0F), size: 32),
-      ),
-    );
-  }
+
 }
 
 // ── Redesigned Chat Card ───────────────────────────────────────────────────
@@ -560,7 +535,6 @@ class _ChatCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final dark = theme.brightness == Brightness.dark;
     final hasUnread = preview.unreadCount > 0;
     final titleColor = theme.colorScheme.onSurface;
     final metaColor = theme.colorScheme.onSurfaceVariant;
