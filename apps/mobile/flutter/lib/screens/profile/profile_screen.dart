@@ -49,6 +49,8 @@ class ProfileScreen extends StatelessWidget {
                   titleSize: 34,
                   subtitle: 'Make Novyn feel like yours',
                   actions: [
+                    NovynIconButton(icon: Icons.search_rounded, onTap: () => _showSettingsSearch(context, settings)),
+                    const SizedBox(width: 8),
                     NovynIconButton(icon: Icons.qr_code_2_rounded, onTap: () => _showQRCode(context)),
                   ],
                 ),
@@ -73,7 +75,7 @@ class ProfileScreen extends StatelessWidget {
                   _NovynSettingsTile(icon: Icons.accessibility_new_rounded, title: 'Accessibility', subtitle: 'Make Novyn easier to use', accent: NovynTheme.indigo, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AccessibilityScreen())), showDivider: false),
                 ]),
                 const SizedBox(height: 24),
-                NovynSectionLabel(l10n.account.toUpperCase(), padding: const EdgeInsets.fromLTRB(4, 0, 4, 10)),
+                NovynSectionLabel('ACCOUNT & PRIVACY', padding: const EdgeInsets.fromLTRB(4, 0, 4, 10)),
                 _NovynSettingsGroup(children: [
                   _NovynSettingsTile(icon: Icons.shield_outlined, title: l10n.securityPrivacy, subtitle: 'Privacy and account protection', accent: NovynTheme.indigo, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SecurityPrivacyScreen()))),
                   _NovynSettingsTile(icon: Icons.qr_code_2_rounded, title: l10n.qrCode, subtitle: 'Share your Novyn profile', accent: NovynTheme.indigo, onTap: () => _showQRCode(context), showDivider: false),
@@ -81,7 +83,8 @@ class ProfileScreen extends StatelessWidget {
                 const SizedBox(height: 24),
                 NovynSectionLabel(l10n.support.toUpperCase(), padding: const EdgeInsets.fromLTRB(4, 0, 4, 10)),
                 _NovynSettingsGroup(children: [
-                  _NovynSettingsTile(icon: Icons.help_outline_rounded, title: l10n.helpSupport, subtitle: 'FAQs and get help', accent: NovynTheme.indigo, onTap: () => _showHelpSupport(context), showDivider: false),
+                  _NovynSettingsTile(icon: Icons.help_outline_rounded, title: l10n.helpSupport, subtitle: 'FAQs and get help', accent: NovynTheme.indigo, onTap: () => _showHelpSupport(context)),
+                  _NovynSettingsTile(icon: Icons.info_outline_rounded, title: 'About Novyn', subtitle: 'App information and credits', accent: NovynTheme.indigo, onTap: () => _showAboutNovyn(context), showDivider: false),
                 ]),
                 const SizedBox(height: 24),
                 _NovynLogoutTile(title: l10n.logOut, onTap: () => _confirmLogout(context, auth)),
@@ -104,6 +107,108 @@ class ProfileScreen extends StatelessWidget {
         content: Text('Status could not be saved. Check your connection and try again.'),
       ));
     }
+  }
+
+  void _showSettingsSearch(BuildContext context, SettingsService settings) {
+    final controller = TextEditingController();
+    final items = <Map<String, dynamic>>[
+      {'title': 'Appearance', 'subtitle': 'Theme and display', 'icon': Icons.palette_outlined, 'open': () => _showAppearanceDialog(context, settings)},
+      {'title': 'Sound & Vibration', 'subtitle': 'Ringtones and haptics', 'icon': Icons.volume_up_outlined, 'open': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SoundVibrationScreen()))},
+      {'title': 'Notifications', 'subtitle': 'Messages and call alerts', 'icon': Icons.notifications_none_rounded, 'open': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const NotificationSettingsScreen()))},
+      {'title': 'Language & Region', 'subtitle': 'App language and region', 'icon': Icons.language_rounded, 'open': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const LanguageRegionScreen()))},
+      {'title': 'Data & Storage', 'subtitle': 'Storage usage and downloads', 'icon': Icons.storage_rounded, 'open': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const DataStorageScreen()))},
+      {'title': 'Accessibility', 'subtitle': 'Make Novyn easier to use', 'icon': Icons.accessibility_new_rounded, 'open': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AccessibilityScreen()))},
+      {'title': 'Security & Privacy', 'subtitle': 'Privacy and account protection', 'icon': Icons.shield_outlined, 'open': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SecurityPrivacyScreen()))},
+      {'title': 'QR Code', 'subtitle': 'Share your Novyn profile', 'icon': Icons.qr_code_2_rounded, 'open': () => _showQRCode(context)},
+      {'title': 'Help & Support', 'subtitle': 'FAQs and get help', 'icon': Icons.help_outline_rounded, 'open': () => _showHelpSupport(context)},
+      {'title': 'About Novyn', 'subtitle': 'App information and credits', 'icon': Icons.info_outline_rounded, 'open': () => _showAboutNovyn(context)},
+    ];
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (sheetContext, setSheetState) {
+          final query = controller.text.trim().toLowerCase();
+          final filtered = items.where((item) =>
+            (item['title'] as String).toLowerCase().contains(query) ||
+            (item['subtitle'] as String).toLowerCase().contains(query)).toList();
+          return Padding(
+            padding: EdgeInsets.only(bottom: MediaQuery.of(sheetContext).viewInsets.bottom),
+            child: Container(
+              height: MediaQuery.of(sheetContext).size.height * 0.78,
+              decoration: BoxDecoration(
+                color: NovynTheme.cardBg(sheetContext),
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+                border: Border.all(color: Theme.of(sheetContext).colorScheme.outlineVariant),
+              ),
+              child: Column(children: [
+                const SizedBox(height: 12),
+                Container(width: 42, height: 4, decoration: BoxDecoration(color: Theme.of(sheetContext).colorScheme.onSurface.withValues(alpha: .2), borderRadius: BorderRadius.circular(4))),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 14),
+                  child: TextField(
+                    controller: controller,
+                    autofocus: true,
+                    onChanged: (_) => setSheetState(() {}),
+                    decoration: InputDecoration(
+                      hintText: 'Search settings...',
+                      prefixIcon: const Icon(Icons.search_rounded),
+                      filled: true,
+                      fillColor: Theme.of(sheetContext).colorScheme.surfaceContainerHighest.withValues(alpha: .45),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+                      contentPadding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: filtered.isEmpty
+                    ? Center(child: Text('No settings found', style: Theme.of(sheetContext).textTheme.bodyMedium?.copyWith(color: Theme.of(sheetContext).colorScheme.onSurfaceVariant)))
+                    : ListView.separated(
+                        padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+                        itemCount: filtered.length,
+                        separatorBuilder: (_, __) => Divider(height: 1, color: Theme.of(sheetContext).dividerColor),
+                        itemBuilder: (_, index) {
+                          final item = filtered[index];
+                          return ListTile(
+                            contentPadding: const EdgeInsets.symmetric(vertical: 4),
+                            leading: Container(
+                              width: 42, height: 42,
+                              decoration: BoxDecoration(color: NovynTheme.indigo.withValues(alpha: .12), borderRadius: BorderRadius.circular(13)),
+                              child: Icon(item['icon'] as IconData, color: NovynTheme.indigo),
+                            ),
+                            title: Text(item['title'] as String, style: const TextStyle(fontWeight: FontWeight.w700)),
+                            subtitle: Text(item['subtitle'] as String),
+                            trailing: const Icon(Icons.chevron_right_rounded),
+                            onTap: () {
+                              Navigator.pop(sheetContext);
+                              (item['open'] as VoidCallback)();
+                            },
+                          );
+                        },
+                      ),
+                ),
+              ]),
+            ),
+          );
+        },
+      ),
+    ).whenComplete(controller.dispose);
+  }
+
+  void _showAboutNovyn(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        icon: const Icon(Icons.hub_rounded, color: NovynTheme.indigo, size: 38),
+        title: const Text('Novyn'),
+        content: const Text('Your space, your people.\\n\\nA place to stay connected with the people who matter.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Close')),
+        ],
+      ),
+    );
   }
 
   void _showComingSoon(BuildContext context, String feature) {
