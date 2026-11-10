@@ -32,7 +32,7 @@ class _DiscoverPeopleScreenState extends State<DiscoverPeopleScreen> {
         title: const Text(
           'Connect',
           style: TextStyle(
-            fontFamily: 'Inter',
+            fontFamily: 'PlusJakartaSans',
             fontSize: 20,
             fontWeight: FontWeight.bold,
             color: Color(0xFF1A1D2E),
@@ -99,10 +99,10 @@ class _DiscoverPeopleScreenState extends State<DiscoverPeopleScreen> {
                       child: Text(
                         'Requests',
                         style: TextStyle(
-                          fontFamily: 'Inter',
+                          fontFamily: 'PlusJakartaSans',
                           fontSize: 14,
                           fontWeight: FontWeight.bold,
-                          color: _activeTab == 0 ? const Color(0xFF7C6FF7) : const Color(0xFF94A3B8),
+                          color: _activeTab == 0 ? const Color(0xFF6D5DFC) : const Color(0xFF94A3B8),
                         ),
                       ),
                     ),
@@ -118,10 +118,10 @@ class _DiscoverPeopleScreenState extends State<DiscoverPeopleScreen> {
                       child: Text(
                         'Discover',
                         style: TextStyle(
-                          fontFamily: 'Inter',
+                          fontFamily: 'PlusJakartaSans',
                           fontSize: 14,
                           fontWeight: FontWeight.bold,
-                          color: _activeTab == 1 ? const Color(0xFF7C6FF7) : const Color(0xFF94A3B8),
+                          color: _activeTab == 1 ? const Color(0xFF6D5DFC) : const Color(0xFF94A3B8),
                         ),
                       ),
                     ),
@@ -241,19 +241,19 @@ class _DiscoverPeopleScreenState extends State<DiscoverPeopleScreen> {
               shape: BoxShape.circle,
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFF7C6FF7).withValues(alpha: 0.1),
+                  color: const Color(0xFF6D5DFC).withValues(alpha: 0.1),
                   blurRadius: 30,
                   offset: const Offset(0, 10),
                 ),
               ],
             ),
-            child: Icon(icon, size: 48, color: const Color(0xFF7C6FF7)),
+            child: Icon(icon, size: 48, color: const Color(0xFF6D5DFC)),
           ),
           const SizedBox(height: 24),
           Text(
             title,
             style: const TextStyle(
-              fontFamily: 'Inter',
+              fontFamily: 'PlusJakartaSans',
               fontSize: 18,
               fontWeight: FontWeight.bold,
               color: Color(0xFF1A1D2E),
@@ -266,7 +266,7 @@ class _DiscoverPeopleScreenState extends State<DiscoverPeopleScreen> {
               subtitle,
               textAlign: TextAlign.center,
               style: const TextStyle(
-                fontFamily: 'Inter',
+                fontFamily: 'PlusJakartaSans',
                 fontSize: 14,
                 color: Color(0xFF94A3B8),
               ),
@@ -312,8 +312,8 @@ class _RequestItem extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(user.name, style: const TextStyle(fontFamily: 'Inter', fontWeight: FontWeight.w600, fontSize: 14)),
-                Text('@${user.username}', style: const TextStyle(fontFamily: 'Inter', fontSize: 12, color: Color(0xFF94A3B8))),
+                Text(user.name, style: const TextStyle(fontFamily: 'PlusJakartaSans', fontWeight: FontWeight.w600, fontSize: 14)),
+                Text('@${user.username}', style: const TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 12, color: Color(0xFF94A3B8))),
               ],
             ),
           ),
@@ -371,8 +371,8 @@ class _DiscoverItem extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(user.name, style: const TextStyle(fontFamily: 'Inter', fontWeight: FontWeight.w600, fontSize: 14)),
-                Text('@${user.username}', style: const TextStyle(fontFamily: 'Inter', fontSize: 12, color: Color(0xFF94A3B8))),
+                Text(user.name, style: const TextStyle(fontFamily: 'PlusJakartaSans', fontWeight: FontWeight.w600, fontSize: 14)),
+                Text('@${user.username}', style: const TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 12, color: Color(0xFF94A3B8))),
               ],
             ),
           ),
@@ -387,10 +387,10 @@ class _DiscoverItem extends StatelessWidget {
               child: Text(
                 isPending ? 'Pending' : 'Add',
                 style: TextStyle(
-                  fontFamily: 'Inter',
+                  fontFamily: 'PlusJakartaSans',
                   fontSize: 12,
                   fontWeight: FontWeight.bold,
-                  color: isPending ? const Color(0xFF94A3B8) : const Color(0xFF7C6FF7),
+                  color: isPending ? const Color(0xFF94A3B8) : const Color(0xFF6D5DFC),
                 ),
               ),
             ),

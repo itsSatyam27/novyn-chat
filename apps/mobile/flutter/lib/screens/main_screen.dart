@@ -156,7 +156,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
                         child: Text(
                           'Reconnecting...',
                           style: TextStyle(
-                            fontFamily: 'Inter',
+                            fontFamily: 'PlusJakartaSans',
                             fontSize: 12,
                             fontWeight: FontWeight.w600,
                             color: Colors.white,

@@ -759,7 +759,7 @@ class _StoryCard extends StatelessWidget {
           Text(
             name,
             style: TextStyle(
-              fontFamily: 'Inter',
+              fontFamily: 'PlusJakartaSans',
               fontSize: 11,
               fontWeight: FontWeight.w500,
               color: onSurface.withOpacity(0.7),
@@ -802,7 +802,7 @@ class _StoryAddButton extends StatelessWidget {
         Text(
           'New',
           style: TextStyle(
-            fontFamily: 'Inter',
+            fontFamily: 'PlusJakartaSans',
             fontSize: 10,
             color: onSurface.withOpacity(0.6),
           ),

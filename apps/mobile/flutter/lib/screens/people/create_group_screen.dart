@@ -36,7 +36,7 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
             center: Alignment.topRight,
             radius: 1.2,
             colors: [
-              const Color(0xFF7C6FF7).withValues(alpha: isDark ? 0.05 : 0.08),
+              const Color(0xFF6D5DFC).withValues(alpha: isDark ? 0.05 : 0.08),
               Colors.transparent,
             ],
           ),
@@ -80,7 +80,7 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
               'New Group',
               textAlign: TextAlign.center,
               style: TextStyle(
-                fontFamily: 'Outfit',
+                fontFamily: 'PlusJakartaSans',
                 fontSize: 20,
                 fontWeight: FontWeight.w900,
               ),
@@ -105,7 +105,7 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
         child: TextField(
           controller: _nameController,
           onChanged: (v) => _nameNotifier.value = v, // Non-rebuilding state update
-          style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w700, fontSize: 18),
+          style: const TextStyle(fontFamily: 'PlusJakartaSans', fontWeight: FontWeight.w700, fontSize: 18),
           decoration: const InputDecoration(
             hintText: 'Enter Group Name...',
             border: InputBorder.none,
@@ -123,18 +123,18 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: _isStealth 
-            ? const Color(0xFF7C6FF7).withValues(alpha: 0.1) 
+            ? const Color(0xFF6D5DFC).withValues(alpha: 0.1) 
             : Colors.transparent,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: _isStealth ? const Color(0xFF7C6FF7).withValues(alpha: 0.3) : Colors.white.withValues(alpha: 0.1),
+            color: _isStealth ? const Color(0xFF6D5DFC).withValues(alpha: 0.3) : Colors.white.withValues(alpha: 0.1),
           ),
         ),
         child: Row(
           children: [
             Icon(
               _isStealth ? Icons.visibility_off_rounded : Icons.visibility_rounded,
-              color: _isStealth ? const Color(0xFF7C6FF7) : Colors.grey,
+              color: _isStealth ? const Color(0xFF6D5DFC) : Colors.grey,
             ),
             const SizedBox(width: 12),
             const Expanded(
@@ -148,7 +148,7 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
             ),
             Switch.adaptive(
               value: _isStealth,
-              activeColor: const Color(0xFF7C6FF7),
+              activeColor: const Color(0xFF6D5DFC),
               onChanged: (v) => setState(() => _isStealth = v),
             ),
           ],
@@ -261,8 +261,8 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                     height: 24,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      border: Border.all(color: isSelected ? const Color(0xFF7C6FF7) : Colors.grey.withValues(alpha: 0.3)),
-                      color: isSelected ? const Color(0xFF7C6FF7) : Colors.transparent,
+                      border: Border.all(color: isSelected ? const Color(0xFF6D5DFC) : Colors.grey.withValues(alpha: 0.3)),
+                      color: isSelected ? const Color(0xFF6D5DFC) : Colors.transparent,
                     ),
                     child: isSelected ? const Icon(Icons.check, color: Colors.white, size: 16) : null,
                   ),
@@ -302,11 +302,11 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(20),
                 gradient: canCreate ? const LinearGradient(
-                  colors: [Color(0xFF7C6FF7), Color(0xFF6366F1)],
+                  colors: [Color(0xFF6D5DFC), Color(0xFF6366F1)],
                 ) : null,
                 color: canCreate ? null : Colors.grey.withValues(alpha: 0.2),
                 boxShadow: canCreate ? [
-                  BoxShadow(color: const Color(0xFF7C6FF7).withValues(alpha: 0.3), blurRadius: 20, offset: const Offset(0, 10))
+                  BoxShadow(color: const Color(0xFF6D5DFC).withValues(alpha: 0.3), blurRadius: 20, offset: const Offset(0, 10))
                 ] : null,
               ),
               child: const Center(
@@ -381,7 +381,7 @@ class _AuroraPainter extends CustomPainter {
     final paint = Paint()
       ..shader = RadialGradient(
         colors: [
-          const Color(0xFF7C6FF7).withValues(alpha: isDark ? 0.05 : 0.08),
+          const Color(0xFF6D5DFC).withValues(alpha: isDark ? 0.05 : 0.08),
           Colors.transparent,
         ],
       ).createShader(Rect.fromCircle(center: Offset(size.width, 0), radius: size.width * 0.8));

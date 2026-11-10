@@ -272,7 +272,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
               decoration: _wallpaperDecoration(socket.chatWallpaper),
               child: _loading
                   ? const Center(
-                      child: CircularProgressIndicator(color: Color(0xFF7C6FF7)))
+                      child: CircularProgressIndicator(color: Color(0xFF6D5DFC)))
                   : messages.isEmpty
                       ? _fetchingFromServer
                           ? _buildLoadingShimmer()
@@ -317,7 +317,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                 Text(
                   widget.peer.name,
                   style: TextStyle(
-                    fontFamily: 'Inter',
+                    fontFamily: 'PlusJakartaSans',
                     fontWeight: FontWeight.w700,
                     fontSize: 16,
                     color: theme.colorScheme.onSurface,
@@ -330,10 +330,10 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                           ? 'Online'
                           : 'Offline',
                   style: TextStyle(
-                    fontFamily: 'Inter',
+                    fontFamily: 'PlusJakartaSans',
                     fontSize: 12,
                     color: socket.peerIsTyping
-                        ? const Color(0xFF7C6FF7)
+                        ? const Color(0xFF6D5DFC)
                         : _peerIsOnline
                             ? const Color(0xFF10B981)
                             : const Color(0xFF94A3B8),
@@ -346,11 +346,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       ),
       actions: [
         IconButton(
-          icon: const Icon(Icons.call_rounded, color: Color(0xFF7C6FF7)),
+          icon: const Icon(Icons.call_rounded, color: Color(0xFF6D5DFC)),
           onPressed: () => _startCall('voice'),
         ),
         IconButton(
-          icon: const Icon(Icons.videocam_rounded, color: Color(0xFF7C6FF7)),
+          icon: const Icon(Icons.videocam_rounded, color: Color(0xFF6D5DFC)),
           onPressed: () => _startCall('video'),
         ),
         IconButton(
@@ -388,7 +388,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           Text(
             widget.peer.name,
             style: TextStyle(
-              fontFamily: 'Inter',
+              fontFamily: 'PlusJakartaSans',
               fontSize: 18,
               fontWeight: FontWeight.w700,
               color: theme.colorScheme.onSurface,
@@ -398,7 +398,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           const Text(
             'Say hello! 👋',
             style: TextStyle(
-              fontFamily: 'Inter',
+              fontFamily: 'PlusJakartaSans',
               fontSize: 14,
               color: Color(0xFF94A3B8),
             ),
@@ -486,7 +486,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                   height: 20,
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
-                    color: Color(0xFF7C6FF7),
+                    color: Color(0xFF6D5DFC),
                   ),
                 ),
               ),
@@ -500,15 +500,15 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF7C6FF7).withValues(alpha: 0.1),
+                    color: const Color(0xFF6D5DFC).withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: const Text(
                     'Start of conversation',
                     style: TextStyle(
-                      fontFamily: 'Inter',
+                      fontFamily: 'PlusJakartaSans',
                       fontSize: 11,
-                      color: Color(0xFF7C6FF7),
+                      color: Color(0xFF6D5DFC),
                       fontWeight: FontWeight.w500,
                     ),
                   ),
@@ -561,9 +561,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                 const Icon(Icons.fiber_manual_record, color: Color(0xFFEF4444), size: 13),
                 const SizedBox(width: 9),
                 Text('Recording  ${_formatVoiceDuration(_voiceSeconds)}',
-                  style: const TextStyle(fontFamily: 'Inter', fontWeight: FontWeight.w600, color: Color(0xFFEF4444))),
+                  style: const TextStyle(fontFamily: 'PlusJakartaSans', fontWeight: FontWeight.w600, color: Color(0xFFEF4444))),
                 const Spacer(),
-                const Text('Release to send', style: TextStyle(fontFamily: 'Inter', fontSize: 11, color: Color(0xFF94A3B8))),
+                const Text('Release to send', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 11, color: Color(0xFF94A3B8))),
               ],
             ),
           ),
@@ -578,7 +578,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                   width: 3,
                   height: 36,
                   decoration: BoxDecoration(
-                    color: const Color(0xFF7C6FF7),
+                    color: const Color(0xFF6D5DFC),
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -590,16 +590,16 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                       Text(
                         _replyingTo!.isFromMe ? 'You' : widget.peer.name,
                         style: const TextStyle(
-                          fontFamily: 'Inter',
+                          fontFamily: 'PlusJakartaSans',
                           fontSize: 12,
                           fontWeight: FontWeight.w700,
-                          color: Color(0xFF7C6FF7),
+                          color: Color(0xFF6D5DFC),
                         ),
                       ),
                       Text(
                         _replyingTo!.text ?? '',
                         style: const TextStyle(
-                          fontFamily: 'Inter',
+                          fontFamily: 'PlusJakartaSans',
                           fontSize: 12,
                           color: Color(0xFF94A3B8),
                         ),
@@ -665,7 +665,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                           maxLines: 4,
                           minLines: 1,
                           style: TextStyle(
-                            fontFamily: 'Inter',
+                            fontFamily: 'PlusJakartaSans',
                             fontSize: 15,
                             color: theme.colorScheme.onSurface,
                           ),
@@ -681,7 +681,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                           decoration: const InputDecoration(
                             hintText: 'Message...',
                             hintStyle: TextStyle(
-                              fontFamily: 'Inter',
+                              fontFamily: 'PlusJakartaSans',
                               color: Color(0xFF94A3B8),
                             ),
                             border: InputBorder.none,
@@ -710,7 +710,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       colors: hasText
-                          ? [const Color(0xFF7C6FF7), const Color(0xFF9B8FFF)]
+                          ? [const Color(0xFF6D5DFC), const Color(0xFF9B8FFF)]
                           : _isRecordingVoice
                               ? [const Color(0xFFDC2626), const Color(0xFFEF4444)]
                               : [const Color(0xFF10B981), const Color(0xFF34D399)],
@@ -721,7 +721,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                     boxShadow: [
                       BoxShadow(
                         color: (hasText
-                                ? const Color(0xFF7C6FF7)
+                                ? const Color(0xFF6D5DFC)
                                 : const Color(0xFF10B981))
                             .withValues(alpha: 0.35),
                         blurRadius: 10,
@@ -846,7 +846,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                 const SizedBox(height: 14),
                 Row(
                   children: [
-                    const Expanded(child: Text('Forward message', style: TextStyle(fontFamily: 'Inter', fontSize: 17, fontWeight: FontWeight.w700))),
+                    const Expanded(child: Text('Forward message', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 17, fontWeight: FontWeight.w700))),
                     IconButton(onPressed: () => Navigator.pop(sheetContext), icon: const Icon(Icons.close_rounded)),
                   ],
                 ),
@@ -876,8 +876,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                                 radius: 22,
                                 isOnline: chat.peer.isOnline,
                               ),
-                              title: Text(chat.peer.name, style: const TextStyle(fontFamily: 'Inter', fontWeight: FontWeight.w600)),
-                              subtitle: Text('@${chat.peer.username}', style: const TextStyle(fontFamily: 'Inter', fontSize: 12)),
+                              title: Text(chat.peer.name, style: const TextStyle(fontFamily: 'PlusJakartaSans', fontWeight: FontWeight.w600)),
+                              subtitle: Text('@${chat.peer.username}', style: const TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 12)),
                               trailing: const Icon(Icons.send_rounded, size: 18),
                               onTap: () {
                                 socket.forwardMessage(
@@ -919,8 +919,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           TextField(controller: answer, maxLength: 80, obscureText: true, decoration: const InputDecoration(labelText: 'Answer')),
           TextField(controller: hint, maxLength: 160, decoration: const InputDecoration(labelText: 'Hint (optional)')),
           const SizedBox(height: 8),
-          Row(children: [const Text('Attempts', style: TextStyle(fontFamily: 'Inter', fontWeight: FontWeight.w600)), const Spacer(), ChoiceChip(label: const Text('3'), selected: maxTries == 3, onSelected: (_) => refresh(() => maxTries = 3)), const SizedBox(width: 8), ChoiceChip(label: const Text('5'), selected: maxTries == 5, onSelected: (_) => refresh(() => maxTries = 5))]),
-          const Text('For fun only. Do not use this for passwords or private information.', style: TextStyle(fontFamily: 'Inter', fontSize: 11, color: Color(0xFF94A3B8))),
+          Row(children: [const Text('Attempts', style: TextStyle(fontFamily: 'PlusJakartaSans', fontWeight: FontWeight.w600)), const Spacer(), ChoiceChip(label: const Text('3'), selected: maxTries == 3, onSelected: (_) => refresh(() => maxTries = 3)), const SizedBox(width: 8), ChoiceChip(label: const Text('5'), selected: maxTries == 5, onSelected: (_) => refresh(() => maxTries = 5))]),
+          const Text('For fun only. Do not use this for passwords or private information.', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 11, color: Color(0xFF94A3B8))),
         ])),
         actions: [
           TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel')),
@@ -961,12 +961,12 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       child: Column(mainAxisSize: MainAxisSize.min, children: [
         Container(width: 38, height: 4, decoration: BoxDecoration(color: Colors.grey.withValues(alpha: 0.4), borderRadius: BorderRadius.circular(4))),
         const SizedBox(height: 14),
-        const Text('Play together', style: TextStyle(fontFamily: 'Inter', fontSize: 18, fontWeight: FontWeight.w700)),
+        const Text('Play together', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 18, fontWeight: FontWeight.w700)),
         const SizedBox(height: 12),
         ...games.map((game) => ListTile(
           leading: const CircleAvatar(child: Icon(Icons.sports_esports_rounded)),
-          title: Text(game['title']!, style: const TextStyle(fontFamily: 'Inter', fontWeight: FontWeight.w600)),
-          subtitle: Text(game['subtitle']!, style: const TextStyle(fontFamily: 'Inter', fontSize: 12)),
+          title: Text(game['title']!, style: const TextStyle(fontFamily: 'PlusJakartaSans', fontWeight: FontWeight.w600)),
+          subtitle: Text(game['subtitle']!, style: const TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 12)),
           trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 15),
           onTap: () {
             context.read<SocketService>().sendGameChallenge(game['id']!, widget.peer.uid.isNotEmpty ? widget.peer.uid : widget.peer.username);
@@ -1276,7 +1276,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           child: Column(children: [
             Container(width: 38, height: 4, decoration: BoxDecoration(color: Colors.grey.withValues(alpha: 0.4), borderRadius: BorderRadius.circular(4))),
             const SizedBox(height: 14),
-            Row(children: [const Expanded(child: Text('Shared media & files', style: TextStyle(fontFamily: 'Inter', fontSize: 17, fontWeight: FontWeight.w700))), IconButton(onPressed: () => Navigator.pop(sheetContext), icon: const Icon(Icons.close_rounded))]),
+            Row(children: [const Expanded(child: Text('Shared media & files', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 17, fontWeight: FontWeight.w700))), IconButton(onPressed: () => Navigator.pop(sheetContext), icon: const Icon(Icons.close_rounded))]),
             Row(children: [
               _sharedMediaTab('Media', media.length, 0, activeTab, (v) => refresh(() => activeTab = v)),
               const SizedBox(width: 7),
@@ -1332,7 +1332,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
 
   Widget _sharedMediaTab(String label, int count, int index, int active, ValueChanged<int> onSelected) {
     final selected = active == index;
-    return Expanded(child: OutlinedButton(onPressed: () => onSelected(index), style: OutlinedButton.styleFrom(backgroundColor: selected ? Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.08) : null, foregroundColor: Theme.of(context).colorScheme.onSurface, padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 10)), child: Text('$label $count', style: const TextStyle(fontFamily: 'Inter', fontSize: 11))));
+    return Expanded(child: OutlinedButton(onPressed: () => onSelected(index), style: OutlinedButton.styleFrom(backgroundColor: selected ? Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.08) : null, foregroundColor: Theme.of(context).colorScheme.onSurface, padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 10)), child: Text('$label $count', style: const TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 11))));
   }
   BoxDecoration _wallpaperDecoration(String wallpaper) {
     final value = wallpaper.trim();
@@ -1366,7 +1366,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Chat wallpaper', style: TextStyle(fontFamily: 'Inter', fontSize: 18, fontWeight: FontWeight.w700)),
+            const Text('Chat wallpaper', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 18, fontWeight: FontWeight.w700)),
             const SizedBox(height: 14),
             Wrap(
               spacing: 12,
@@ -1387,7 +1387,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                       children: [
                         Container(width: 76, height: 64, decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(12), border: Border.all(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.18))), child: selected ? const Icon(Icons.check_circle_rounded) : null),
                         const SizedBox(height: 5),
-                        Text(preset['name']!, style: const TextStyle(fontFamily: 'Inter', fontSize: 11)),
+                        Text(preset['name']!, style: const TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 11)),
                       ],
                     ),
                   ),
@@ -1472,12 +1472,12 @@ class _MessageBubble extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.all(10),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(data['siteName']?.toString() ?? data['domain']?.toString() ?? 'Link', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontFamily: 'Inter', fontSize: 10, fontWeight: FontWeight.w700, color: Color(0xFF94A3B8))),
+                Text(data['siteName']?.toString() ?? data['domain']?.toString() ?? 'Link', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 10, fontWeight: FontWeight.w700, color: Color(0xFF94A3B8))),
                 const SizedBox(height: 4),
-                Text(data['title']?.toString() ?? url, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontFamily: 'Inter', fontSize: 12, fontWeight: FontWeight.w700)),
+                Text(data['title']?.toString() ?? url, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 12, fontWeight: FontWeight.w700)),
                 if ((data['description']?.toString() ?? '').isNotEmpty) ...[
                   const SizedBox(height: 3),
-                  Text(data['description'].toString(), maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontFamily: 'Inter', fontSize: 10, color: Color(0xFF94A3B8))),
+                  Text(data['description'].toString(), maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 10, color: Color(0xFF94A3B8))),
                 ],
               ]),
             ),
@@ -1541,7 +1541,7 @@ class _MessageBubble extends StatelessWidget {
                     ),
                     decoration: BoxDecoration(
                       color: isMe
-                          ? const Color(0xFF7C6FF7)
+                          ? const Color(0xFF6D5DFC)
                           : Theme.of(context).colorScheme.surface,
                       borderRadius: BorderRadius.only(
                         topLeft: const Radius.circular(18),
@@ -1569,14 +1569,14 @@ class _MessageBubble extends StatelessWidget {
                             decoration: BoxDecoration(
                               color: isMe
                                   ? Colors.white.withValues(alpha: 0.15)
-                                  : const Color(0xFF7C6FF7)
+                                  : const Color(0xFF6D5DFC)
                                       .withValues(alpha: 0.08),
                               borderRadius: BorderRadius.circular(8),
                               border: Border(
                                 left: BorderSide(
                                   color: isMe
                                       ? Colors.white.withValues(alpha: 0.6)
-                                      : const Color(0xFF7C6FF7),
+                                      : const Color(0xFF6D5DFC),
                                   width: 3,
                                 ),
                               ),
@@ -1587,19 +1587,19 @@ class _MessageBubble extends StatelessWidget {
                                 Text(
                                   message.replyToSender ?? '',
                                   style: TextStyle(
-                                    fontFamily: 'Inter',
+                                    fontFamily: 'PlusJakartaSans',
                                     fontSize: 11,
                                     fontWeight: FontWeight.w700,
                                     color: isMe
                                         ? Colors.white.withValues(alpha: 0.9)
-                                        : const Color(0xFF7C6FF7),
+                                        : const Color(0xFF6D5DFC),
                                   ),
                                 ),
                                 const SizedBox(height: 2),
                                 Text(
                                   message.replyToText ?? '',
                                   style: TextStyle(
-                                    fontFamily: 'Inter',
+                                    fontFamily: 'PlusJakartaSans',
                                     fontSize: 12,
                                     color: isMe
                                         ? Colors.white.withValues(alpha: 0.7)
@@ -1620,7 +1620,7 @@ class _MessageBubble extends StatelessWidget {
                               children: [
                                 Icon(Icons.push_pin_rounded, size: 11),
                                 SizedBox(width: 4),
-                                Text('Pinned message', style: TextStyle(fontFamily: 'Inter', fontSize: 10, fontWeight: FontWeight.w700)),
+                                Text('Pinned message', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 10, fontWeight: FontWeight.w700)),
                               ],
                             ),
                           ),
@@ -1654,7 +1654,7 @@ class _MessageBubble extends StatelessWidget {
                           Text(
                           message.text as String,
                           style: TextStyle(
-                            fontFamily: 'Inter',
+                            fontFamily: 'PlusJakartaSans',
                             fontSize: 15,
                             color: isMe
                                 ? Colors.white
@@ -1669,7 +1669,7 @@ class _MessageBubble extends StatelessWidget {
                             child: Text(
                               'edited',
                               style: TextStyle(
-                                fontFamily: 'Inter',
+                                fontFamily: 'PlusJakartaSans',
                                 fontSize: 10,
                                 fontStyle: FontStyle.italic,
                                 color: isMe
@@ -1705,7 +1705,7 @@ class _MessageBubble extends StatelessWidget {
                         child: Text(
                           'edited',
                           style: TextStyle(
-                            fontFamily: 'Inter',
+                            fontFamily: 'PlusJakartaSans',
                             fontSize: 10,
                             fontStyle: FontStyle.italic,
                             color: Color(0xFF94A3B8),
@@ -1715,7 +1715,7 @@ class _MessageBubble extends StatelessWidget {
                     Text(
                       time,
                       style: const TextStyle(
-                        fontFamily: 'Inter',
+                        fontFamily: 'PlusJakartaSans',
                         fontSize: 10,
                         color: Color(0xFF94A3B8),
                       ),
@@ -1765,7 +1765,7 @@ class _MessageBubble extends StatelessWidget {
                           height: 44,
                           decoration: BoxDecoration(
                             color:
-                                const Color(0xFF7C6FF7).withValues(alpha: 0.08),
+                                const Color(0xFF6D5DFC).withValues(alpha: 0.08),
                             shape: BoxShape.circle,
                           ),
                           child: Center(
@@ -1791,7 +1791,7 @@ class _MessageBubble extends StatelessWidget {
                 _ActionItem(
                   icon: Icons.reply_rounded,
                   label: 'Reply',
-                  color: const Color(0xFF7C6FF7),
+                  color: const Color(0xFF6D5DFC),
                   onTap: () {
                     Navigator.pop(context);
                     onReply?.call(message);
@@ -1886,15 +1886,15 @@ class _MessageBubble extends StatelessWidget {
             children: [
               const Icon(Icons.poll_rounded, size: 17),
               const SizedBox(width: 7),
-              const Text('POLL', style: TextStyle(fontFamily: 'Inter', fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 1)),
+              const Text('POLL', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 1)),
               const Spacer(),
-              Text('$totalVotes votes', style: const TextStyle(fontFamily: 'Inter', fontSize: 10, color: Color(0xFF94A3B8))),
+              Text('$totalVotes votes', style: const TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 10, color: Color(0xFF94A3B8))),
             ],
           ),
           const SizedBox(height: 8),
           Text(
             poll['question']?.toString() ?? 'Poll',
-            style: const TextStyle(fontFamily: 'Inter', fontSize: 14, fontWeight: FontWeight.w700),
+            style: const TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 14, fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 10),
           ...options.map((option) {
@@ -1921,8 +1921,8 @@ class _MessageBubble extends StatelessWidget {
                     children: [
                       Row(
                         children: [
-                          Expanded(child: Text(option['text']?.toString() ?? '', style: const TextStyle(fontFamily: 'Inter', fontSize: 12, fontWeight: FontWeight.w600))),
-                          Text('$count', style: const TextStyle(fontFamily: 'Inter', fontSize: 11, color: Color(0xFF94A3B8))),
+                          Expanded(child: Text(option['text']?.toString() ?? '', style: const TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 12, fontWeight: FontWeight.w600))),
+                          Text('$count', style: const TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 11, color: Color(0xFF94A3B8))),
                           if (selected) const Padding(padding: EdgeInsets.only(left: 5), child: Icon(Icons.check_circle, size: 14)),
                         ],
                       ),
@@ -1941,7 +1941,7 @@ class _MessageBubble extends StatelessWidget {
               ),
             );
           }),
-          const Text('Tap an option to vote or change your vote', style: TextStyle(fontFamily: 'Inter', fontSize: 9, color: Color(0xFF94A3B8))),
+          const Text('Tap an option to vote or change your vote', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 9, color: Color(0xFF94A3B8))),
         ],
       ),
     );
@@ -2032,7 +2032,7 @@ class _MessageBubble extends StatelessWidget {
               name,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontFamily: 'Inter', fontSize: 12),
+              style: const TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 12),
             ),
           ),
         ],
@@ -2047,7 +2047,7 @@ class _MessageBubble extends StatelessWidget {
       builder: (_) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: const Text('Edit message',
-            style: TextStyle(fontFamily: 'Inter', fontWeight: FontWeight.w700)),
+            style: TextStyle(fontFamily: 'PlusJakartaSans', fontWeight: FontWeight.w700)),
         content: TextField(
           controller: ctrl,
           autofocus: true,
@@ -2081,7 +2081,7 @@ class _MessageBubble extends StatelessWidget {
             },
             child: const Text('Save',
                 style: TextStyle(
-                    color: Color(0xFF7C6FF7), fontWeight: FontWeight.w700)),
+                    color: Color(0xFF6D5DFC), fontWeight: FontWeight.w700)),
           ),
         ],
       ),
@@ -2127,7 +2127,7 @@ class _MessageBubble extends StatelessWidget {
 
     // Blue = seen by peer, purple = delivered
     final color =
-        messagesRead ? const Color(0xFF0EA5E9) : const Color(0xFF7C6FF7);
+        messagesRead ? const Color(0xFF0EA5E9) : const Color(0xFF6D5DFC);
 
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -2179,7 +2179,7 @@ class _ActionTile extends StatelessWidget {
             Text(
               label,
               style: const TextStyle(
-                fontFamily: 'Inter',
+                fontFamily: 'PlusJakartaSans',
                 fontSize: 15,
                 fontWeight: FontWeight.w500,
                 color: Color(0xFF1A1D2E),
@@ -2277,7 +2277,7 @@ class _GifPickerSheetState extends State<_GifPickerSheet> {
             children: [
               const Icon(Icons.gif_box_rounded, size: 22),
               const SizedBox(width: 9),
-              const Expanded(child: Text('GIFs & Stickers', style: TextStyle(fontFamily: 'Inter', fontSize: 17, fontWeight: FontWeight.w700))),
+              const Expanded(child: Text('GIFs & Stickers', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 17, fontWeight: FontWeight.w700))),
               IconButton(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.close_rounded)),
             ],
           ),
@@ -2364,7 +2364,7 @@ class _GifPickerSheetState extends State<_GifPickerSheet> {
               onPressed: _loadingMore ? null : () => _load(append: true),
               child: Text(_loadingMore ? 'Loading…' : 'Load more'),
             ),
-          const Text('Powered by GIPHY', style: TextStyle(fontFamily: 'Inter', fontSize: 10, color: Color(0xFF94A3B8))),
+          const Text('Powered by GIPHY', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 10, color: Color(0xFF94A3B8))),
         ],
       ),
     );
@@ -2407,7 +2407,7 @@ class _AttachmentButtonState extends State<_AttachmentButton>
 
   static const _items = [
     _MenuItem(
-        icon: Icons.poll_rounded, label: 'Poll', color: Color(0xFF7C6FF7)),
+        icon: Icons.poll_rounded, label: 'Poll', color: Color(0xFF6D5DFC)),
     _MenuItem(
         icon: Icons.lock_outline_rounded, label: 'Riddle', color: Color(0xFF64748B)),
     _MenuItem(
@@ -2484,7 +2484,7 @@ class _AttachmentButtonState extends State<_AttachmentButton>
                           .colorScheme
                           .onSurface
                           .withValues(alpha: 0.08),
-                      const Color(0xFF7C6FF7).withValues(alpha: 0.15),
+                      const Color(0xFF6D5DFC).withValues(alpha: 0.15),
                       _ctrl.value,
                     ),
                     shape: BoxShape.circle,
@@ -2497,7 +2497,7 @@ class _AttachmentButtonState extends State<_AttachmentButton>
                             .colorScheme
                             .onSurface
                             .withValues(alpha: 0.5),
-                        const Color(0xFF7C6FF7),
+                        const Color(0xFF6D5DFC),
                         _ctrl.value,
                       )!,
                     ),
@@ -2528,7 +2528,7 @@ class _AttachmentButtonState extends State<_AttachmentButton>
                       boxShadow: [
                         BoxShadow(
                           color:
-                              const Color(0xFF7C6FF7).withValues(alpha: 0.12),
+                              const Color(0xFF6D5DFC).withValues(alpha: 0.12),
                           blurRadius: 24,
                           offset: const Offset(0, 8),
                         ),
@@ -2619,7 +2619,7 @@ class _AttachmentButtonState extends State<_AttachmentButton>
               builder: (ctx) => Text(
                 item.label,
                 style: TextStyle(
-                  fontFamily: 'Inter',
+                  fontFamily: 'PlusJakartaSans',
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
                   color: Theme.of(ctx).colorScheme.onSurface,
@@ -2730,12 +2730,12 @@ class _ReactionsRow extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
               color: isMine
-                  ? const Color(0xFF7C6FF7).withValues(alpha: 0.15)
+                  ? const Color(0xFF6D5DFC).withValues(alpha: 0.15)
                   : Theme.of(context).colorScheme.surface,
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
                 color: isMine
-                    ? const Color(0xFF7C6FF7).withValues(alpha: 0.4)
+                    ? const Color(0xFF6D5DFC).withValues(alpha: 0.4)
                     : Theme.of(context)
                         .colorScheme
                         .onSurface
@@ -2758,11 +2758,11 @@ class _ReactionsRow extends StatelessWidget {
                   Text(
                     '${e.value}',
                     style: TextStyle(
-                      fontFamily: 'Inter',
+                      fontFamily: 'PlusJakartaSans',
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
                       color: isMine
-                          ? const Color(0xFF7C6FF7)
+                          ? const Color(0xFF6D5DFC)
                           : Theme.of(context).colorScheme.onSurface,
                     ),
                   ),
@@ -2820,7 +2820,7 @@ class _SwipeToReplyState extends State<_SwipeToReply> {
               opacity: (_drag / 50).clamp(0, 1),
               child: const Icon(
                 Icons.reply_rounded,
-                color: Color(0xFF7C6FF7),
+                color: Color(0xFF6D5DFC),
                 size: 20,
               ),
             ),
@@ -2871,7 +2871,7 @@ class _ActionItem extends StatelessWidget {
             Text(
               label,
               style: TextStyle(
-                fontFamily: 'Inter',
+                fontFamily: 'PlusJakartaSans',
                 fontSize: 15,
                 fontWeight: FontWeight.w500,
                 color: color == const Color(0xFF94A3B8)
@@ -2949,7 +2949,7 @@ class _MessageSearchDelegate extends SearchDelegate<String> {
             Text(
               'Type to search messages',
               style: TextStyle(
-                fontFamily: 'Inter',
+                fontFamily: 'PlusJakartaSans',
                 color: Theme.of(context)
                     .colorScheme
                     .onSurface
@@ -2984,7 +2984,7 @@ class _MessageSearchDelegate extends SearchDelegate<String> {
             Text(
               'No messages found for "$query"',
               style: TextStyle(
-                fontFamily: 'Inter',
+                fontFamily: 'PlusJakartaSans',
                 color: Theme.of(context)
                     .colorScheme
                     .onSurface
@@ -3035,7 +3035,7 @@ class _MessageSearchDelegate extends SearchDelegate<String> {
                         Text(
                           isMe ? 'You' : peer.name,
                           style: const TextStyle(
-                            fontFamily: 'Inter',
+                            fontFamily: 'PlusJakartaSans',
                             fontWeight: FontWeight.w600,
                             fontSize: 13,
                           ),
@@ -3044,7 +3044,7 @@ class _MessageSearchDelegate extends SearchDelegate<String> {
                         Text(
                           time,
                           style: const TextStyle(
-                            fontFamily: 'Inter',
+                            fontFamily: 'PlusJakartaSans',
                             fontSize: 11,
                             color: Color(0xFF94A3B8),
                           ),
@@ -3090,7 +3090,7 @@ class _HighlightedText extends StatelessWidget {
     if (highlight.isEmpty) {
       return Text(text,
           style: TextStyle(
-            fontFamily: 'Inter',
+            fontFamily: 'PlusJakartaSans',
             fontSize: 13,
             color:
                 Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
@@ -3114,7 +3114,7 @@ class _HighlightedText extends StatelessWidget {
       spans.add(TextSpan(
         text: text.substring(idx, idx + highlight.length),
         style: const TextStyle(
-          backgroundColor: Color(0xFF7C6FF7),
+          backgroundColor: Color(0xFF6D5DFC),
           color: Colors.white,
           fontWeight: FontWeight.w600,
         ),
@@ -3125,7 +3125,7 @@ class _HighlightedText extends StatelessWidget {
     return RichText(
       text: TextSpan(
         style: TextStyle(
-          fontFamily: 'Inter',
+          fontFamily: 'PlusJakartaSans',
           fontSize: 13,
           color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
         ),
