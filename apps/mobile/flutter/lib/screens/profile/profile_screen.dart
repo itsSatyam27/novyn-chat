@@ -1314,9 +1314,28 @@ class _NovynSettingsProfileCard extends StatelessWidget {
         NovynIconButton(icon: Icons.edit_outlined, onTap: onEdit),
       ]),
       const SizedBox(height: 16),
-      Align(alignment: Alignment.centerLeft, child: Text('YOUR PRESENCE', style: NovynText.body(10, weight: FontWeight.w700, color: NovynColors.textMuted, letterSpacing: 1.2))),
-      const SizedBox(height: 10),
-      PresenceDock(status: status, busy: busy, onSelected: onStatusSelected),
+      Divider(height: 1, color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: .75)),
+      const SizedBox(height: 14),
+      Row(
+        children: [
+          Expanded(
+            child: Text(
+              'YOUR PRESENCE',
+              style: NovynText.body(
+                10,
+                weight: FontWeight.w700,
+                color: NovynColors.textMuted,
+                letterSpacing: 1.2,
+              ),
+            ),
+          ),
+          PresenceDock(
+            status: status,
+            busy: busy,
+            onSelected: onStatusSelected,
+          ),
+        ],
+      ),
     ]),
   );
   }
