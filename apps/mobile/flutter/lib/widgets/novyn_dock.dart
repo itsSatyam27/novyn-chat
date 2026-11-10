@@ -66,29 +66,39 @@ class NovynDock extends StatelessWidget {
             borderRadius: BorderRadius.circular(36),
             child: BackdropFilter(
               filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-              child: Row(
-                children: List.generate(_icons.length, (index) {
-                  final active = index == selectedIndex;
-                  final label = _labels[index];
-                  return Expanded(
-                    flex: active ? 2 : 1,
-                    child: Semantics(
-                      label: label,
-                      button: true,
-                      selected: active,
-                      child: GestureDetector(
-                        key: ValueKey('dock-tab-$index'),
-                        behavior: HitTestBehavior.opaque,
-                        onTap: () => onSelected(index),
-                        child: Center(
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  // Keep the total width constant while the active capsule
+                  // smoothly expands and the inactive tabs gently contract.
+                  final unit = constraints.maxWidth / 5;
+                  return Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: List.generate(_icons.length, (index) {
+                      final active = index == selectedIndex;
+                      final label = _labels[index];
+                      return Semantics(
+                        label: label,
+                        button: true,
+                        selected: active,
+                        child: GestureDetector(
+                          key: ValueKey('dock-tab-$index'),
+                          behavior: HitTestBehavior.opaque,
+                          onTap: () {
+                            if (index != selectedIndex) {
+                              HapticFeedback.selectionClick();
+                              onSelected(index);
+                            }
+                          },
                           child: AnimatedContainer(
-                            duration: duration,
-                            curve: Curves.easeOutCubic,
+                            duration: Duration(
+                              milliseconds: reduceMotion ? 0 : 320,
+                            ),
+                            curve: Curves.easeInOutCubic,
+                            width: unit * (active ? 1.75 : .8125),
                             height: 64,
-                            width: double.infinity,
-                            margin: const EdgeInsets.symmetric(horizontal: 1),
+                            margin: const EdgeInsets.symmetric(horizontal: 0.5),
                             padding: EdgeInsets.symmetric(
-                              horizontal: active ? 9 : 0,
+                              horizontal: active ? 8 : 0,
                             ),
                             decoration: BoxDecoration(
                               gradient: active
@@ -115,36 +125,68 @@ class NovynDock extends StatelessWidget {
                             ),
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.center,
-                              mainAxisSize: MainAxisSize.min,
+                              mainAxisSize: MainAxisSize.max,
                               children: [
-                                Icon(
-                                  _icons[index],
-                                  size: 23,
-                                  color: active ? Colors.white : idleIcon,
-                                ),
-                                if (active) ...[
-                                  const SizedBox(width: 8),
-                                  Flexible(
-                                    child: Text(
-                                      label,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w700,
-                                        letterSpacing: -.2,
-                                      ),
-                                    ),
+                                AnimatedScale(
+                                  scale: active ? 1.04 : 1,
+                                  duration: Duration(
+                                    milliseconds: reduceMotion ? 0 : 260,
                                   ),
-                                ],
-                                if (index == 0 && unreadCount > 0 && !active)
-                                  _dotBadge(unreadCount > 99 ? '99+' : '$unreadCount'),
-                                if (index == 3 && requestCount > 0 && !active)
+                                  curve: Curves.easeOutBack,
+                                  child: Icon(
+                                    _icons[index],
+                                    size: 23,
+                                    color: active ? Colors.white : idleIcon,
+                                  ),
+                                ),
+                                ClipRect(
+                                  child: AnimatedSize(
+                                    duration: Duration(
+                                      milliseconds: reduceMotion ? 0 : 280,
+                                    ),
+                                    curve: Curves.easeInOutCubic,
+                                    alignment: Alignment.centerLeft,
+                                    child: active
+                                        ? Padding(
+                                            padding:
+                                                const EdgeInsets.only(left: 8),
+                                            child: AnimatedOpacity(
+                                              opacity: 1,
+                                              duration: Duration(
+                                                milliseconds:
+                                                    reduceMotion ? 0 : 180,
+                                              ),
+                                              child: Text(
+                                                label,
+                                                maxLines: 1,
+                                                softWrap: false,
+                                                overflow: TextOverflow.clip,
+                                                style: const TextStyle(
+                                                  color: Colors.white,
+                                                  fontSize: 13,
+                                                  fontWeight: FontWeight.w700,
+                                                  letterSpacing: -.2,
+                                                ),
+                                              ),
+                                            ),
+                                          )
+                                        : const SizedBox.shrink(),
+                                  ),
+                                ),
+                                if (index == 0 &&
+                                    unreadCount > 0 &&
+                                    !active)
+                                  _dotBadge(unreadCount > 99
+                                      ? '99+'
+                                      : '$unreadCount'),
+                                if (index == 3 &&
+                                    requestCount > 0 &&
+                                    !active)
                                   Container(
                                     width: 7,
                                     height: 7,
-                                    margin: const EdgeInsets.only(left: 3, bottom: 12),
+                                    margin: const EdgeInsets.only(
+                                        left: 3, bottom: 12),
                                     decoration: const BoxDecoration(
                                       color: Color(0xFFFF5C85),
                                       shape: BoxShape.circle,
@@ -154,11 +196,11 @@ class NovynDock extends StatelessWidget {
                             ),
                           ),
                         ),
-                      ),
-                    ),
+                      );
+                    }),
                   );
-                }),
-              ),
+                },
+              )
             ),
           ),
         ),
