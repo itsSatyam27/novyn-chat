@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import '../../services/auth_service.dart';
 import '../../services/friend_service.dart';
 import '../../models/user_model.dart';
@@ -30,6 +31,28 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
   void dispose() {
     _friendController.dispose();
     super.dispose();
+  }
+
+  void _showMyQrCode(String myUid) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Your Novyn QR code'),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)),
+            child: QrImageView(data: 'https://novyn.app/user/$myUid', size: 210, backgroundColor: Colors.white),
+          ),
+          const SizedBox(height: 12),
+          Text('@$myUid', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+          const SizedBox(height: 4),
+          Text('Let a friend scan this code to find your profile.', textAlign: TextAlign.center, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+        ]),
+        actions: [TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Close'))],
+      ),
+    );
   }
 
   Future<void> _sendFriendRequest(String myUid) async {
@@ -129,12 +152,13 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
             ),
 
             // ── Live radar + quick add ───────────────────────────────
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
-              child: _DiscoverRadarCard(),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 2),
+            if (MediaQuery.viewInsetsOf(context).bottom == 0) ...[
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
+                child: _DiscoverRadarCard(),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 2),
               child: Row(children: [
                 Expanded(child: _DiscoverCountCard(
                   label: 'Requests', icon: Icons.people_outline_rounded,
@@ -146,14 +170,15 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                   stream: friends.sentPendingUidsStream(myUid).map((items) => items.length),
                 )),
               ]),
-            ),
+              ),
+            ],
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
               child: _DiscoverAddFriendCard(
                 controller: _friendController,
                 sending: _sendingFriend,
                 onSend: () => _sendFriendRequest(myUid),
-                onScan: () => _showScanPlaceholder(context),
+                onShare: () => _showMyQrCode(myUid),
               ),
             ),
 
@@ -554,11 +579,11 @@ class _DiscoverCountCard extends StatelessWidget {
 }
 
 class _DiscoverAddFriendCard extends StatelessWidget {
-  const _DiscoverAddFriendCard({required this.controller, required this.sending, required this.onSend, required this.onScan});
+  const _DiscoverAddFriendCard({required this.controller, required this.sending, required this.onSend, required this.onShare});
   final TextEditingController controller;
   final bool sending;
   final VoidCallback onSend;
-  final VoidCallback onScan;
+  final VoidCallback onShare;
   @override
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.all(16),
@@ -589,9 +614,9 @@ class _DiscoverAddFriendCard extends StatelessWidget {
       ]),
       const SizedBox(height: 8),
       TextButton.icon(
-        onPressed: onScan,
-        icon: const Icon(Icons.qr_code_scanner_rounded, size: 18),
-        label: const Text('Scan a friend’s QR code'),
+        onPressed: onShare,
+        icon: const Icon(Icons.qr_code_2_rounded, size: 18),
+        label: const Text('Share my QR code'),
       ),
     ]),
   );
