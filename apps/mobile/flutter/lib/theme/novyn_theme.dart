@@ -45,10 +45,10 @@ class NovynTheme {
   static const Color _dDivider = Color(0x21DAD6FF); // rgba(218,214,255,.13)
   static const Color _dRaised = Color(0xFF1B1A35); // header buttons
 
-  static ThemeData get lightTheme => _build(Brightness.light);
-  static ThemeData get darkTheme => _build(Brightness.dark);
+  static ThemeData lightTheme({Color accent = indigo, double fontScale = 1}) => _build(Brightness.light, accent, fontScale);
+  static ThemeData darkTheme({Color accent = indigo, double fontScale = 1}) => _build(Brightness.dark, accent, fontScale);
 
-  static ThemeData _build(Brightness brightness) {
+  static ThemeData _build(Brightness brightness, Color accent, double fontScale) {
     final dark = brightness == Brightness.dark;
     final ink = dark ? _dInk : _lInk;
     final meta = dark ? _dMeta : _lMeta;
@@ -58,9 +58,9 @@ class NovynTheme {
 
     final scheme = (dark ? const ColorScheme.dark() : const ColorScheme.light())
         .copyWith(
-      primary: indigo,
+      primary: accent,
       onPrimary: Colors.white,
-      secondary: indigoDeep,
+      secondary: accent,
       onSecondary: Colors.white,
       primaryContainer: dark ? _dSoft : _lSoft,
       onPrimaryContainer: dark ? const Color(0xFFCFCAFF) : const Color(0xFF292056),
@@ -75,7 +75,14 @@ class NovynTheme {
 
     final base = GoogleFonts.plusJakartaSansTextTheme(
       ThemeData(brightness: brightness, useMaterial3: true).textTheme,
-    ).apply(bodyColor: ink, displayColor: ink);
+    ).apply(bodyColor: ink, displayColor: ink).copyWith(
+      bodyLarge: base.bodyLarge?.copyWith(fontSize: (base.bodyLarge?.fontSize ?? 16) * fontScale),
+      bodyMedium: base.bodyMedium?.copyWith(fontSize: (base.bodyMedium?.fontSize ?? 14) * fontScale),
+      bodySmall: base.bodySmall?.copyWith(fontSize: (base.bodySmall?.fontSize ?? 12) * fontScale),
+      titleLarge: base.titleLarge?.copyWith(fontSize: (base.titleLarge?.fontSize ?? 22) * fontScale),
+      titleMedium: base.titleMedium?.copyWith(fontSize: (base.titleMedium?.fontSize ?? 16) * fontScale),
+      titleSmall: base.titleSmall?.copyWith(fontSize: (base.titleSmall?.fontSize ?? 14) * fontScale),
+    );
 
     OutlineInputBorder outline(Color c, [double w = 1]) => OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
@@ -115,7 +122,7 @@ class NovynTheme {
         fillColor: field,
         border: outline(border),
         enabledBorder: outline(border),
-        focusedBorder: outline(indigo, 1.5),
+        focusedBorder: outline(accent, 1.5),
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         hintStyle: TextStyle(color: dark ? const Color(0xFF827F98) : meta),
@@ -152,12 +159,12 @@ class NovynTheme {
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         ),
       ),
-      progressIndicatorTheme: const ProgressIndicatorThemeData(color: indigo),
+      progressIndicatorTheme: const ProgressIndicatorThemeData(color: accent),
       switchTheme: SwitchThemeData(
         thumbColor: WidgetStateProperty.all(Colors.white),
         trackColor: WidgetStateProperty.resolveWith(
           (s) => s.contains(WidgetState.selected)
-              ? indigo
+              ? accent
               : (dark ? const Color(0xFF3A3955) : const Color(0xFFCFCBE8)),
         ),
       ),
