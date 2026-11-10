@@ -29,12 +29,12 @@ class AccessibilityScreen extends StatelessWidget {
         ),
         title: ShaderMask(
           shaderCallback: (bounds) => const LinearGradient(
-            colors: [Color(0xFF7C6FF7), Color(0xFF40E0D0)],
+            colors: [Color(0xFF6D5DFC), Color(0xFF40E0D0)],
           ).createShader(bounds),
           child: const Text(
             'Accessibility',
             style: TextStyle(
-              fontFamily: 'Outfit', 
+              fontFamily: 'PlusJakartaSans', 
               fontWeight: FontWeight.w900, 
               fontSize: 22, 
               color: Colors.white,
@@ -55,8 +55,8 @@ class AccessibilityScreen extends StatelessWidget {
           ),
           _ToggleCard(
             icon: Icons.contrast_rounded,
-            iconColor: const Color(0xFF7C6FF7),
-            iconBgColor: const Color(0xFF7C6FF7).withValues(alpha: 0.1),
+            iconColor: const Color(0xFF6D5DFC),
+            iconBgColor: const Color(0xFF6D5DFC).withValues(alpha: 0.1),
             title: 'High Contrast Mode',
             subtitle: 'Enhance visual serialization clarity',
             value: false,
@@ -115,7 +115,7 @@ class AccessibilityScreen extends StatelessWidget {
     HapticFeedback.lightImpact();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('$feature integration pending...', style: const TextStyle(fontFamily: 'Outfit')),
+        content: Text('$feature integration pending...', style: const TextStyle(fontFamily: 'PlusJakartaSans')),
         behavior: SnackBarBehavior.floating,
         backgroundColor: const Color(0xFF1A1D2B),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -161,10 +161,10 @@ class _FontSizeCard extends StatelessWidget {
                       width: 52,
                       height: 52,
                       decoration: BoxDecoration(
-                        color: const Color(0xFF7C6FF7).withValues(alpha: 0.1),
+                        color: const Color(0xFF6D5DFC).withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(18),
                       ),
-                      child: const Icon(Icons.text_fields_rounded, color: Color(0xFF7C6FF7), size: 24),
+                      child: const Icon(Icons.text_fields_rounded, color: Color(0xFF6D5DFC), size: 24),
                     ),
                     const SizedBox(width: 16),
                     Expanded(
@@ -174,7 +174,7 @@ class _FontSizeCard extends StatelessWidget {
                           Text(
                             'Font Scale',
                             style: TextStyle(
-                              fontFamily: 'Outfit',
+                              fontFamily: 'PlusJakartaSans',
                               fontWeight: FontWeight.w800,
                               fontSize: 16,
                               color: Theme.of(context).colorScheme.onSurface,
@@ -184,7 +184,7 @@ class _FontSizeCard extends StatelessWidget {
                           Text(
                             'Adjust global text serialization',
                             style: TextStyle(
-                              fontFamily: 'Outfit',
+                              fontFamily: 'PlusJakartaSans',
                               fontSize: 13,
                               fontWeight: FontWeight.w500,
                               color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
@@ -196,9 +196,9 @@ class _FontSizeCard extends StatelessWidget {
                     Text(
                       '${(value * 100).toInt()}%',
                       style: const TextStyle(
-                        fontFamily: 'Outfit',
+                        fontFamily: 'PlusJakartaSans',
                         fontWeight: FontWeight.w900,
-                        color: Color(0xFF7C6FF7),
+                        color: Color(0xFF6D5DFC),
                         fontSize: 15,
                       ),
                     ),
@@ -217,7 +217,7 @@ class _FontSizeCard extends StatelessWidget {
                   child: Text(
                     'Node preview at current scale',
                     style: TextStyle(
-                      fontFamily: 'Outfit',
+                      fontFamily: 'PlusJakartaSans',
                       fontSize: 14 * value,
                       fontWeight: FontWeight.w600,
                       color: Theme.of(context).colorScheme.onSurface,
@@ -228,7 +228,7 @@ class _FontSizeCard extends StatelessWidget {
                 const SizedBox(height: 12),
                 SliderTheme(
                   data: SliderTheme.of(context).copyWith(
-                    activeTrackColor: const Color(0xFF7C6FF7),
+                    activeTrackColor: const Color(0xFF6D5DFC),
                     inactiveTrackColor: isDark ? Colors.white12 : Colors.black12,
                     thumbColor: Colors.white,
                     trackHeight: 4,
@@ -314,7 +314,7 @@ class _ToggleCard extends StatelessWidget {
                         Text(
                           title,
                           style: TextStyle(
-                            fontFamily: 'Outfit',
+                            fontFamily: 'PlusJakartaSans',
                             fontWeight: FontWeight.w800,
                             fontSize: 16,
                             color: Theme.of(context).colorScheme.onSurface,
@@ -324,7 +324,7 @@ class _ToggleCard extends StatelessWidget {
                         Text(
                           subtitle,
                           style: TextStyle(
-                            fontFamily: 'Outfit',
+                            fontFamily: 'PlusJakartaSans',
                             fontSize: 13,
                             fontWeight: FontWeight.w500,
                             color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
@@ -339,8 +339,8 @@ class _ToggleCard extends StatelessWidget {
                       HapticFeedback.mediumImpact();
                       onChanged?.call(v);
                     },
-                    activeTrackColor: const Color(0xFF7C6FF7).withValues(alpha: 0.5),
-                    activeColor: const Color(0xFF7C6FF7),
+                    activeTrackColor: const Color(0xFF6D5DFC).withValues(alpha: 0.5),
+                    activeColor: const Color(0xFF6D5DFC),
                   ),
                 ],
               ),

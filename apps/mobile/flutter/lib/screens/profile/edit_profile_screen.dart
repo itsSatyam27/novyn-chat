@@ -121,7 +121,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   Text(
                     'Select Date of Birth',
                     style: TextStyle(
-                      fontFamily: 'Outfit',
+                      fontFamily: 'PlusJakartaSans',
                       fontSize: 22,
                       fontWeight: FontWeight.w900,
                       color: Theme.of(context).colorScheme.onSurface,
@@ -134,7 +134,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       data: CupertinoThemeData(
                         textTheme: CupertinoTextThemeData(
                           dateTimePickerTextStyle: TextStyle(
-                            fontFamily: 'Outfit',
+                            fontFamily: 'PlusJakartaSans',
                             fontSize: 20,
                             fontWeight: FontWeight.w600,
                             color: Theme.of(context).colorScheme.onSurface,
@@ -158,7 +158,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                           child: Text(
                             'Cancel',
                             style: TextStyle(
-                              fontFamily: 'Outfit',
+                              fontFamily: 'PlusJakartaSans',
                               fontWeight: FontWeight.w700,
                               color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
                             ),
@@ -171,11 +171,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                           decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(16),
                             gradient: const LinearGradient(
-                              colors: [Color(0xFF7C6FF7), Color(0xFF40E0D0)],
+                              colors: [Color(0xFF6D5DFC), Color(0xFF40E0D0)],
                             ),
                             boxShadow: [
                               BoxShadow(
-                                color: const Color(0xFF7C6FF7).withValues(alpha: 0.3),
+                                color: const Color(0xFF6D5DFC).withValues(alpha: 0.3),
                                 blurRadius: 12,
                                 offset: const Offset(0, 4),
                               ),
@@ -200,7 +200,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                             child: const Text(
                               'Confirm',
                               style: TextStyle(
-                                fontFamily: 'Outfit',
+                                fontFamily: 'PlusJakartaSans',
                                 fontWeight: FontWeight.w900,
                                 color: Colors.white,
                               ),
@@ -313,7 +313,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 Text(
                   'Profile Picture',
                   style: TextStyle(
-                    fontFamily: 'Outfit',
+                    fontFamily: 'PlusJakartaSans',
                     fontSize: 22,
                     fontWeight: FontWeight.w900,
                     color: Theme.of(context).colorScheme.onSurface,
@@ -323,7 +323,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 _buildOptionTile(
                   icon: Icons.photo_library_rounded,
                   title: 'Choose from Gallery',
-                  color: const Color(0xFF7C6FF7),
+                  color: const Color(0xFF6D5DFC),
                   onTap: () {
                     Navigator.pop(context);
                     _pickAndUploadImage(fromGallery: true);
@@ -377,7 +377,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       title: Text(
         title,
         style: const TextStyle(
-          fontFamily: 'Outfit',
+          fontFamily: 'PlusJakartaSans',
           fontWeight: FontWeight.w700,
           fontSize: 16,
         ),
@@ -407,7 +407,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         context: context,
         barrierDismissible: false,
         builder: (context) => const Center(
-          child: CircularProgressIndicator(color: Color(0xFF7C6FF7)),
+          child: CircularProgressIndicator(color: Color(0xFF6D5DFC)),
         ),
       );
 
@@ -461,7 +461,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       context: context,
       barrierDismissible: false,
       builder: (context) => const Center(
-        child: CircularProgressIndicator(color: Color(0xFF7C6FF7)),
+        child: CircularProgressIndicator(color: Color(0xFF6D5DFC)),
       ),
     );
 
@@ -508,7 +508,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         title: Text(
           'Edit Profile',
           style: TextStyle(
-            fontFamily: 'Outfit',
+            fontFamily: 'PlusJakartaSans',
             fontWeight: FontWeight.w900,
             fontSize: 22,
             color: Theme.of(context).colorScheme.onSurface,
@@ -525,16 +525,16 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   ? const SizedBox(
                       width: 20,
                       height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF7C6FF7)),
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF6D5DFC)),
                     )
                   : ShaderMask(
                       shaderCallback: (bounds) => const LinearGradient(
-                        colors: [Color(0xFF7C6FF7), Color(0xFF40E0D0)],
+                        colors: [Color(0xFF6D5DFC), Color(0xFF40E0D0)],
                       ).createShader(bounds),
                       child: const Text(
                         'Save',
                         style: TextStyle(
-                          fontFamily: 'Outfit',
+                          fontFamily: 'PlusJakartaSans',
                           fontWeight: FontWeight.w900,
                           fontSize: 17,
                           color: Colors.white,
@@ -579,10 +579,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   child: Text(
                     'Tap to change photo',
                     style: TextStyle(
-                      fontFamily: 'Outfit',
+                      fontFamily: 'PlusJakartaSans',
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
-                      color: Color(0xFF7C6FF7),
+                      color: Color(0xFF6D5DFC),
                     ),
                   ),
                 ),
@@ -607,7 +607,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       ? const SizedBox(
                           width: 18,
                           height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF7C6FF7)),
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF6D5DFC)),
                         )
                       : _usernameAvailable == null
                           ? null
@@ -682,7 +682,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                                 children: [
                                   Icon(
                                     Icons.wc_rounded,
-                                    color: _selectedGender.isEmpty ? const Color(0xFF7C6FF7).withValues(alpha: 0.3) : const Color(0xFF7C6FF7),
+                                    color: _selectedGender.isEmpty ? const Color(0xFF6D5DFC).withValues(alpha: 0.3) : const Color(0xFF6D5DFC),
                                     size: 20,
                                   ),
                                   const SizedBox(width: 12),
@@ -690,7 +690,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                                     child: Text(
                                       _selectedGender.isEmpty ? 'Select' : _selectedGender,
                                       style: TextStyle(
-                                        fontFamily: 'Outfit',
+                                        fontFamily: 'PlusJakartaSans',
                                         fontWeight: FontWeight.w700,
                                         fontSize: 16,
                                         color: _selectedGender.isEmpty 
@@ -727,7 +727,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         child: Text(
           text,
           style: TextStyle(
-            fontFamily: 'Outfit',
+            fontFamily: 'PlusJakartaSans',
             fontWeight: FontWeight.w900,
             fontSize: 15,
             color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
@@ -764,7 +764,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         keyboardType: keyboardType,
         onChanged: onChanged,
         style: const TextStyle(
-          fontFamily: 'Outfit',
+          fontFamily: 'PlusJakartaSans',
           fontWeight: FontWeight.w700,
           fontSize: 16,
         ),
@@ -772,10 +772,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           hintText: hint,
           hintStyle: TextStyle(
             color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3),
-            fontFamily: 'Outfit',
+            fontFamily: 'PlusJakartaSans',
             fontWeight: FontWeight.w500,
           ),
-          prefixIcon: Icon(icon, size: 22, color: const Color(0xFF7C6FF7)),
+          prefixIcon: Icon(icon, size: 22, color: const Color(0xFF6D5DFC)),
           suffixIcon: suffix != null ? Padding(padding: const EdgeInsets.all(12), child: suffix) : null,
           filled: true,
           fillColor: isDark 
@@ -791,7 +791,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(24),
-            borderSide: const BorderSide(color: Color(0xFF7C6FF7), width: 2),
+            borderSide: const BorderSide(color: Color(0xFF6D5DFC), width: 2),
           ),
           contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
         ),
@@ -826,7 +826,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     const Text(
                       'Select Gender',
                       style: TextStyle(
-                        fontFamily: 'Outfit',
+                        fontFamily: 'PlusJakartaSans',
                         fontWeight: FontWeight.bold,
                         fontSize: 20,
                       ),
@@ -839,13 +839,13 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                         title: Text(
                           g,
                           style: TextStyle(
-                            fontFamily: 'Outfit',
+                            fontFamily: 'PlusJakartaSans',
                             fontWeight: isSelected ? FontWeight.w900 : FontWeight.w500,
-                            color: isSelected ? const Color(0xFF7C6FF7) : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+                            color: isSelected ? const Color(0xFF6D5DFC) : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
                           ),
                         ),
                         trailing: isSelected 
-                          ? const Icon(Icons.check_circle_rounded, color: Color(0xFF7C6FF7), size: 20)
+                          ? const Icon(Icons.check_circle_rounded, color: Color(0xFF6D5DFC), size: 20)
                           : null,
                         onTap: () {
                           HapticFeedback.lightImpact();
@@ -878,7 +878,7 @@ class _EditProfileAvatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final primaryColor = const Color(0xFF7C6FF7);
+    final primaryColor = const Color(0xFF6D5DFC);
     
     return Stack(
       alignment: Alignment.center,
@@ -925,10 +925,10 @@ class _EditProfileAvatar extends StatelessWidget {
                   child: Text(
                     displayName.isNotEmpty ? displayName.substring(0, 1).toUpperCase() : '?',
                     style: const TextStyle(
-                      fontFamily: 'Outfit',
+                      fontFamily: 'PlusJakartaSans',
                       fontSize: 48,
                       fontWeight: FontWeight.w900,
-                      color: Color(0xFF7C6FF7),
+                      color: Color(0xFF6D5DFC),
                     ),
                   ),
                 )
@@ -944,13 +944,13 @@ class _EditProfileAvatar extends StatelessWidget {
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               gradient: const LinearGradient(
-                colors: [Color(0xFF7C6FF7), Color(0xFF40E0D0)],
+                colors: [Color(0xFF6D5DFC), Color(0xFF40E0D0)],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFF7C6FF7).withValues(alpha: 0.4),
+                  color: const Color(0xFF6D5DFC).withValues(alpha: 0.4),
                   blurRadius: 15,
                   offset: const Offset(0, 4),
                 ),
@@ -977,7 +977,7 @@ class _AuroraBackgroundPainter extends CustomPainter {
     // 1. Purple glow (Top Right)
     final purpleGlow = RadialGradient(
       colors: [
-        const Color(0xFF7C6FF7).withValues(alpha: 0.15),
+        const Color(0xFF6D5DFC).withValues(alpha: 0.15),
         Colors.transparent,
       ],
     ).createShader(Rect.fromCircle(center: Offset(size.width * 0.8, size.height * 0.1), radius: size.width * 0.6));

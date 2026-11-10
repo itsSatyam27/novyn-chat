@@ -266,7 +266,7 @@ class ProfileScreen extends StatelessWidget {
                       Text(
                         'Profile Node',
                         style: TextStyle(
-                          fontFamily: 'Outfit',
+                          fontFamily: 'PlusJakartaSans',
                           fontWeight: FontWeight.w900,
                           fontSize: 26,
                           color: Theme.of(context).colorScheme.onSurface,
@@ -276,7 +276,7 @@ class ProfileScreen extends StatelessWidget {
                       Text(
                         'Your unique cryptographic identity',
                         style: TextStyle(
-                          fontFamily: 'Outfit',
+                          fontFamily: 'PlusJakartaSans',
                           fontSize: 14,
                           fontWeight: FontWeight.w500,
                           color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5),
@@ -294,7 +294,7 @@ class ProfileScreen extends StatelessWidget {
                       Text(
                         '@$username',
                         style: const TextStyle(
-                          fontFamily: 'Outfit',
+                          fontFamily: 'PlusJakartaSans',
                           fontWeight: FontWeight.w900,
                           fontSize: 22,
                           color: Color(0xFFE0E0E0),
@@ -434,7 +434,7 @@ class ProfileScreen extends StatelessWidget {
                     child: const Text(
                       'Appearance',
                       style: TextStyle(
-                        fontFamily: 'Outfit',
+                        fontFamily: 'PlusJakartaSans',
                         fontSize: 24,
                         fontWeight: FontWeight.w900,
                         color: Colors.white,
@@ -541,7 +541,7 @@ class _StatusDot extends StatelessWidget {
             Text(
               label,
               style: TextStyle(
-                fontFamily: 'Outfit',
+                fontFamily: 'PlusJakartaSans',
                 fontSize: 10,
                 fontWeight: isSelected ? FontWeight.w900 : FontWeight.w600,
                 color: isSelected ? color : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
@@ -825,7 +825,7 @@ class _AuroraMenuCard extends StatelessWidget {
                     Text(
                       title,
                       style: TextStyle(
-                        fontFamily: 'Outfit',
+                        fontFamily: 'PlusJakartaSans',
                         fontSize: 15,
                         fontWeight: FontWeight.w800,
                         color: Theme.of(context).colorScheme.onSurface,
@@ -836,7 +836,7 @@ class _AuroraMenuCard extends StatelessWidget {
                       Text(
                         subtitle!,
                         style: TextStyle(
-                          fontFamily: 'Outfit',
+                          fontFamily: 'PlusJakartaSans',
                           fontSize: 12,
                           fontWeight: FontWeight.w500,
                           color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
@@ -884,7 +884,7 @@ class _AuroraSectionLabel extends StatelessWidget {
           Text(
             label.toUpperCase(),
             style: TextStyle(
-              fontFamily: 'Outfit',
+              fontFamily: 'PlusJakartaSans',
               fontSize: 12,
               fontWeight: FontWeight.w900,
               letterSpacing: 2,
@@ -974,7 +974,7 @@ class _ThemeOption extends StatelessWidget {
               child: Text(
                 label,
                 style: TextStyle(
-                  fontFamily: 'Outfit',
+                  fontFamily: 'PlusJakartaSans',
                   fontSize: 17,
                   fontWeight: isSelected ? FontWeight.w900 : FontWeight.w600,
                   color: isSelected ? const Color(0xFFE0E0E0) : Theme.of(context).colorScheme.onSurface,
@@ -1033,7 +1033,7 @@ class _AuroraDialogButton extends StatelessWidget {
         child: Text(
           label,
           style: TextStyle(
-            fontFamily: 'Outfit',
+            fontFamily: 'PlusJakartaSans',
             fontWeight: FontWeight.w900,
             fontSize: 16,
             color: isSecondary 
@@ -1128,7 +1128,7 @@ class _AnimatedQRContainerState extends State<_AnimatedQRContainer> with SingleT
                       Text(
                         'Generate Node',
                         style: TextStyle(
-                          fontFamily: 'Outfit',
+                          fontFamily: 'PlusJakartaSans',
                           fontWeight: FontWeight.w800,
                           fontSize: 14,
                           color: const Color(0xFFE0E0E0),
@@ -1168,7 +1168,7 @@ class _AnimatedQRContainerState extends State<_AnimatedQRContainer> with SingleT
                       Text(
                         'Synthesizing...',
                         style: TextStyle(
-                          fontFamily: 'Outfit',
+                          fontFamily: 'PlusJakartaSans',
                           fontSize: 12,
                           fontWeight: FontWeight.w800,
                           color: Color(0xFFBDBDBD),
@@ -1287,6 +1287,7 @@ class _NovynSettingsProfileCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final dark = Theme.of(context).brightness == Brightness.dark;
     return Container(
+    clipBehavior: Clip.antiAlias,
     padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
     decoration: BoxDecoration(
       borderRadius: BorderRadius.circular(26),
@@ -1295,7 +1296,15 @@ class _NovynSettingsProfileCard extends StatelessWidget {
     ),
     child: Column(children: [
       Row(children: [
-        ProfileAvatarWithOrbit(photoUrl: photoUrl, displayName: displayName, status: status),
+        SizedBox(
+            width: 92,
+            height: 92,
+            child: ProfileAvatarWithOrbit(
+              photoUrl: photoUrl,
+              displayName: displayName,
+              status: status,
+            ),
+          ),
         const SizedBox(width: 14),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(displayName, maxLines: 1, overflow: TextOverflow.ellipsis, style: NovynText.display(19, weight: FontWeight.w700)),

@@ -114,7 +114,7 @@ class _PeopleScreenState extends State<PeopleScreen> {
                                     child: Text(
                                       letter,
                                       style: TextStyle(
-                                        fontFamily: 'Inter',
+                                        fontFamily: 'PlusJakartaSans',
                                         fontSize: 9,
                                         fontWeight: FontWeight.bold,
                                         color: NovynColors.violetSoft,
@@ -164,7 +164,7 @@ class _PeopleScreenState extends State<PeopleScreen> {
           Expanded(child: Divider(color: Theme.of(context).colorScheme.outlineVariant)),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: Text(text, style: TextStyle(fontFamily: 'Inter', fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: 1.2, color: Theme.of(context).colorScheme.outline)),
+            child: Text(text, style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: 1.2, color: Theme.of(context).colorScheme.outline)),
           ),
           Expanded(child: Divider(color: Theme.of(context).colorScheme.outlineVariant)),
         ],

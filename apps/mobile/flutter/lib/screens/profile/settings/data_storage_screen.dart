@@ -31,12 +31,12 @@ class DataStorageScreen extends StatelessWidget {
         ),
         title: ShaderMask(
           shaderCallback: (bounds) => const LinearGradient(
-            colors: [Color(0xFF7C6FF7), Color(0xFF40E0D0)],
+            colors: [Color(0xFF6D5DFC), Color(0xFF40E0D0)],
           ).createShader(bounds),
           child: const Text(
             'Data & Storage',
             style: TextStyle(
-              fontFamily: 'Outfit', 
+              fontFamily: 'PlusJakartaSans', 
               fontWeight: FontWeight.w900, 
               fontSize: 22, 
               color: Colors.white,
@@ -124,12 +124,12 @@ class DataStorageScreen extends StatelessWidget {
           ),
           title: const Text(
             'Purge Cache?',
-            style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w900),
+            style: TextStyle(fontFamily: 'PlusJakartaSans', fontWeight: FontWeight.w900),
           ),
           content: Text(
             'This will clear temporary artifacts and cached nodes. Your encrypted messages will remain intact.',
             style: TextStyle(
-              fontFamily: 'Outfit',
+              fontFamily: 'PlusJakartaSans',
               fontWeight: FontWeight.w500,
               color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
             ),
@@ -140,7 +140,7 @@ class DataStorageScreen extends StatelessWidget {
               child: Text(
                 'Cancel',
                 style: TextStyle(
-                  fontFamily: 'Outfit',
+                  fontFamily: 'PlusJakartaSans',
                   fontWeight: FontWeight.w700,
                   color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
                 ),
@@ -173,7 +173,7 @@ class DataStorageScreen extends StatelessWidget {
               child: const Text(
                 'Purge',
                 style: TextStyle(
-                  fontFamily: 'Outfit',
+                  fontFamily: 'PlusJakartaSans',
                   fontWeight: FontWeight.w900,
                   color: Color(0xFFEF4444),
                 ),
@@ -255,7 +255,7 @@ class _SelectionCard extends StatelessWidget {
                         Text(
                           title,
                           style: TextStyle(
-                            fontFamily: 'Outfit',
+                            fontFamily: 'PlusJakartaSans',
                             fontWeight: FontWeight.w800,
                             fontSize: 16,
                             color: Theme.of(context).colorScheme.onSurface,
@@ -265,7 +265,7 @@ class _SelectionCard extends StatelessWidget {
                         Text(
                           subtitle,
                           style: TextStyle(
-                            fontFamily: 'Outfit',
+                            fontFamily: 'PlusJakartaSans',
                             fontSize: 13,
                             fontWeight: FontWeight.w500,
                             color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
@@ -280,10 +280,10 @@ class _SelectionCard extends StatelessWidget {
                       Text(
                         currentLabel,
                         style: const TextStyle(
-                          fontFamily: 'Outfit',
+                          fontFamily: 'PlusJakartaSans',
                           fontSize: 14,
                           fontWeight: FontWeight.w800,
-                          color: Color(0xFF7C6FF7),
+                          color: Color(0xFF6D5DFC),
                         ),
                       ),
                       Icon(
@@ -318,7 +318,7 @@ class _SelectionCard extends StatelessWidget {
           ),
           title: Text(
             title,
-            style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w900),
+            style: const TextStyle(fontFamily: 'PlusJakartaSans', fontWeight: FontWeight.w900),
           ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
@@ -332,13 +332,13 @@ class _SelectionCard extends StatelessWidget {
                 title: Text(
                   label,
                   style: TextStyle(
-                    fontFamily: 'Outfit',
+                    fontFamily: 'PlusJakartaSans',
                     fontWeight: isSelected ? FontWeight.w800 : FontWeight.w500,
-                    color: isSelected ? const Color(0xFF7C6FF7) : Theme.of(context).colorScheme.onSurface,
+                    color: isSelected ? const Color(0xFF6D5DFC) : Theme.of(context).colorScheme.onSurface,
                   ),
                 ),
                 trailing: isSelected 
-                    ? const Icon(Icons.check_circle_rounded, color: Color(0xFF7C6FF7)) 
+                    ? const Icon(Icons.check_circle_rounded, color: Color(0xFF6D5DFC)) 
                     : null,
                 onTap: () {
                   HapticFeedback.mediumImpact();
