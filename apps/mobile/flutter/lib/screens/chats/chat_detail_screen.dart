@@ -1380,80 +1380,239 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   Future<void> _showWallpaperPicker() async {
     const presets = <Map<String, String>>[
       {'name': 'Default', 'value': ''},
+      {'name': 'Lavender', 'value': '#EDE9FE'},
+      {'name': 'Blush', 'value': '#FCE7F3'},
+      {'name': 'Cloud', 'value': '#F1F5F9'},
+      {'name': 'Mint', 'value': '#D1FAE5'},
+      {'name': 'Peach', 'value': '#FFEDD5'},
       {'name': 'Midnight', 'value': '#111827'},
-      {'name': 'Deep slate', 'value': '#0f172a'},
-      {'name': 'Ocean', 'value': '#0b2535'},
-      {'name': 'Warm light', 'value': '#f1f5f9'},
-      {'name': 'Soft grey', 'value': '#e5e7eb'},
+      {'name': 'Amethyst', 'value': '#241B3D'},
+      {'name': 'Deep slate', 'value': '#0F172A'},
+      {'name': 'Ocean', 'value': '#0B2535'},
+      {'name': 'Forest', 'value': '#102A24'},
+      {'name': 'Burgundy', 'value': '#351827'},
     ];
+
     await showModalBottomSheet<void>(
       context: context,
+      isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (sheetContext) => Container(
-        padding: const EdgeInsets.fromLTRB(18, 16, 18, 28),
-        decoration: BoxDecoration(color: Theme.of(context).colorScheme.surface, borderRadius: const BorderRadius.vertical(top: Radius.circular(24))),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Chat wallpaper', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 18, fontWeight: FontWeight.w700)),
-            const SizedBox(height: 14),
-            Wrap(
-              spacing: 12,
-              runSpacing: 12,
-              children: presets.map((preset) {
-                final value = preset['value']!;
-                final selected = context.read<SocketService>().chatWallpaper == value;
-                final color = value.isEmpty ? Theme.of(context).colorScheme.surface : Color(int.parse('FF' + value.substring(1), radix: 16));
-                return InkWell(
-                  onTap: () {
-                    context.read<SocketService>().setChatWallpaper(value, widget.peer.uid.isNotEmpty ? widget.peer.uid : widget.peer.username);
-                    Navigator.pop(sheetContext);
-                  },
-                  borderRadius: BorderRadius.circular(12),
-                  child: SizedBox(
-                    width: 92,
-                    child: Column(
-                      children: [
-                        Container(width: 76, height: 64, decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(12), border: Border.all(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.18))), child: selected ? const Icon(Icons.check_circle_rounded) : null),
-                        const SizedBox(height: 5),
-                        Text(preset['name']!, style: const TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 11)),
-                      ],
+      builder: (sheetContext) {
+        final scheme = Theme.of(sheetContext).colorScheme;
+        return SafeArea(
+          top: false,
+          child: Container(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(sheetContext).size.height * .78,
+            ),
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+            decoration: BoxDecoration(
+              color: scheme.surface,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+              border: Border.all(color: scheme.outlineVariant.withValues(alpha: .6)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 38,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: scheme.onSurfaceVariant.withValues(alpha: .35),
+                      borderRadius: BorderRadius.circular(8),
                     ),
                   ),
-                );
-              }).toList(),
+                ),
+                const SizedBox(height: 18),
+                Row(
+                  children: [
+                    Container(
+                      width: 42,
+                      height: 42,
+                      decoration: BoxDecoration(
+                        color: scheme.primary.withValues(alpha: .12),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Icon(Icons.wallpaper_rounded, color: scheme.primary),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Chat wallpaper',
+                            style: Theme.of(sheetContext).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
+                          Text('Personalise your conversation background',
+                            style: Theme.of(sheetContext).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 18),
+                Text('PRESETS',
+                  style: Theme.of(sheetContext).textTheme.labelSmall?.copyWith(
+                    color: scheme.primary, fontWeight: FontWeight.w800, letterSpacing: 1.2)),
+                const SizedBox(height: 12),
+                Flexible(
+                  child: GridView.builder(
+                    shrinkWrap: true,
+                    itemCount: presets.length,
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 3,
+                      crossAxisSpacing: 12,
+                      mainAxisSpacing: 14,
+                      childAspectRatio: .94,
+                    ),
+                    itemBuilder: (context, index) {
+                      final preset = presets[index];
+                      final value = preset['value']!;
+                      final selected = context.watch<SocketService>().chatWallpaper == value;
+                      final color = value.isEmpty
+                          ? (Theme.of(context).brightness == Brightness.dark
+                              ? const Color(0xFF0B0B17)
+                              : const Color(0xFFF7F6FF))
+                          : Color(int.parse('FF${value.substring(1)}', radix: 16));
+                      final foreground = color.computeLuminance() < .35
+                          ? Colors.white
+                          : const Color(0xFF29243D);
+                      return InkWell(
+                        onTap: () {
+                          context.read<SocketService>().setChatWallpaper(
+                            value,
+                            widget.peer.uid.isNotEmpty ? widget.peer.uid : widget.peer.username,
+                          );
+                          Navigator.pop(sheetContext);
+                        },
+                        borderRadius: BorderRadius.circular(16),
+                        child: Column(
+                          children: [
+                            Expanded(
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 180),
+                                width: double.infinity,
+                                padding: const EdgeInsets.all(9),
+                                decoration: BoxDecoration(
+                                  color: color,
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(
+                                    color: selected ? scheme.primary : scheme.outlineVariant,
+                                    width: selected ? 2.2 : 1,
+                                  ),
+                                ),
+                                child: Stack(
+                                  children: [
+                                    Align(
+                                      alignment: Alignment.topLeft,
+                                      child: Container(
+                                        width: 35, height: 13,
+                                        decoration: BoxDecoration(
+                                          color: foreground.withValues(alpha: .12),
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                      ),
+                                    ),
+                                    Align(
+                                      alignment: Alignment.centerLeft,
+                                      child: Container(
+                                        width: 43, height: 17,
+                                        decoration: BoxDecoration(
+                                          color: foreground.withValues(alpha: .16),
+                                          borderRadius: BorderRadius.circular(10),
+                                        ),
+                                      ),
+                                    ),
+                                    Align(
+                                      alignment: Alignment.bottomRight,
+                                      child: Container(
+                                        width: 42, height: 17,
+                                        decoration: BoxDecoration(
+                                          color: scheme.primary.withValues(alpha: .78),
+                                          borderRadius: BorderRadius.circular(10),
+                                        ),
+                                      ),
+                                    ),
+                                    if (selected)
+                                      Align(
+                                        alignment: Alignment.topRight,
+                                        child: Icon(Icons.check_circle_rounded,
+                                          color: scheme.primary, size: 18),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(preset['name']!,
+                              maxLines: 1, overflow: TextOverflow.ellipsis,
+                              style: Theme.of(sheetContext).textTheme.labelSmall?.copyWith(
+                                fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                                color: selected ? scheme.primary : scheme.onSurface)),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(height: 14),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: _uploadingAttachment
+                        ? null
+                        : () async {
+                            final picked = await _imagePicker.pickImage(
+                              source: ImageSource.gallery,
+                              imageQuality: 82,
+                            );
+                            if (picked == null || !sheetContext.mounted) return;
+                            if (mounted) setState(() => _uploadingAttachment = true);
+                            try {
+                              final bytes = await picked.readAsBytes();
+                              final url = await ApiService.uploadMedia(
+                                bytes, picked.name, _mimeForFile(picked.name),
+                              );
+                              if (url == null) throw StateError('Wallpaper upload failed.');
+                              if (!mounted || !sheetContext.mounted) return;
+                              context.read<SocketService>().setChatWallpaper(
+                                url,
+                                widget.peer.uid.isNotEmpty ? widget.peer.uid : widget.peer.username,
+                              );
+                              Navigator.pop(sheetContext);
+                            } catch (error) {
+                              if (mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                                  content: Text(error is StateError
+                                      ? error.message.toString()
+                                      : 'Could not upload wallpaper. Please try again.'),
+                                ));
+                              }
+                            } finally {
+                              if (mounted) setState(() => _uploadingAttachment = false);
+                            }
+                          },
+                    icon: _uploadingAttachment
+                        ? const SizedBox(width: 18, height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Icon(Icons.photo_library_outlined),
+                    label: Text(_uploadingAttachment ? 'Uploading wallpaper…' : 'Choose from gallery'),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Center(
+                  child: Text('Wallpaper is saved for this conversation.',
+                    style: Theme.of(sheetContext).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
+                ),
+              ],
             ),
-            const SizedBox(height: 14),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: () async {
-                  final picked = await _imagePicker.pickImage(source: ImageSource.gallery, imageQuality: 82);
-                  if (picked == null) return;
-                  if (mounted) setState(() => _uploadingAttachment = true);
-                  try {
-                    final bytes = await picked.readAsBytes();
-                    final url = await ApiService.uploadMedia(bytes, picked.name, _mimeForFile(picked.name));
-                    if (url == null) throw StateError('Wallpaper upload failed.');
-                    if (!mounted) return;
-                    context.read<SocketService>().setChatWallpaper(url, widget.peer.uid.isNotEmpty ? widget.peer.uid : widget.peer.username);
-                    Navigator.pop(sheetContext);
-                  } catch (error) {
-                    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error is StateError ? error.message.toString() : 'Could not upload wallpaper.')));
-                  } finally {
-                    if (mounted) setState(() => _uploadingAttachment = false);
-                  }
-                },
-                icon: const Icon(Icons.photo_library_outlined),
-                label: const Text('Choose from gallery'),
-              ),
-            ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
+
   void _showContactInfo() {
     HapticFeedback.lightImpact();
     showModalBottomSheet(
