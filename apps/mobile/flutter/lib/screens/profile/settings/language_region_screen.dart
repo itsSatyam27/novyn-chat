@@ -29,12 +29,12 @@ class LanguageRegionScreen extends StatelessWidget {
         ),
         title: ShaderMask(
           shaderCallback: (bounds) => const LinearGradient(
-            colors: [Color(0xFF7C6FF7), Color(0xFF40E0D0)],
+            colors: [Color(0xFF6D5DFC), Color(0xFF40E0D0)],
           ).createShader(bounds),
           child: const Text(
             'Language & Region',
             style: TextStyle(
-              fontFamily: 'Outfit', 
+              fontFamily: 'PlusJakartaSans', 
               fontWeight: FontWeight.w900, 
               fontSize: 22, 
               color: Colors.white,
@@ -100,8 +100,8 @@ class LanguageRegionScreen extends StatelessWidget {
           ),
           _ActionCard(
             icon: Icons.numbers_rounded,
-            iconColor: const Color(0xFF7C6FF7),
-            iconBgColor: const Color(0xFF7C6FF7).withValues(alpha: 0.1),
+            iconColor: const Color(0xFF6D5DFC),
+            iconBgColor: const Color(0xFF6D5DFC).withValues(alpha: 0.1),
             title: 'Number Format',
             subtitle: '1,234.56',
             onTap: () => _showNumberFormatDialog(context),
@@ -131,7 +131,7 @@ class LanguageRegionScreen extends StatelessWidget {
             borderRadius: BorderRadius.circular(32),
             side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
           ),
-          title: const Text('Select Region', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w900)),
+          title: const Text('Select Region', style: TextStyle(fontFamily: 'PlusJakartaSans', fontWeight: FontWeight.w900)),
           content: SizedBox(
             width: double.maxFinite,
             child: ListView(
@@ -142,13 +142,13 @@ class LanguageRegionScreen extends StatelessWidget {
                   title: Text(
                     region, 
                     style: TextStyle(
-                      fontFamily: 'Outfit', 
+                      fontFamily: 'PlusJakartaSans', 
                       fontWeight: isSelected ? FontWeight.w900 : FontWeight.w600,
-                      color: isSelected ? const Color(0xFF7C6FF7) : null,
+                      color: isSelected ? const Color(0xFF6D5DFC) : null,
                     )
                   ),
                   trailing: isSelected 
-                      ? const Icon(Icons.check_circle_rounded, color: Color(0xFF7C6FF7)) 
+                      ? const Icon(Icons.check_circle_rounded, color: Color(0xFF6D5DFC)) 
                       : null,
                   onTap: () {
                     HapticFeedback.mediumImpact();
@@ -178,15 +178,15 @@ class LanguageRegionScreen extends StatelessWidget {
             borderRadius: BorderRadius.circular(32),
             side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
           ),
-          title: const Text('Select Time Zone', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w900)),
+          title: const Text('Select Time Zone', style: TextStyle(fontFamily: 'PlusJakartaSans', fontWeight: FontWeight.w900)),
           content: const Text(
             'Time zone will be automatically synchronized based on your cryptographic location nodes.',
-            style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w500),
+            style: TextStyle(fontFamily: 'PlusJakartaSans', fontWeight: FontWeight.w500),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context), 
-              child: const Text('Confirm', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w900, color: Color(0xFF7C6FF7))),
+              child: const Text('Confirm', style: TextStyle(fontFamily: 'PlusJakartaSans', fontWeight: FontWeight.w900, color: Color(0xFF6D5DFC))),
             ),
           ],
         ),
@@ -208,11 +208,11 @@ class LanguageRegionScreen extends StatelessWidget {
             borderRadius: BorderRadius.circular(32),
             side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
           ),
-          title: const Text('Date Format', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w900)),
+          title: const Text('Date Format', style: TextStyle(fontFamily: 'PlusJakartaSans', fontWeight: FontWeight.w900)),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: ['MM/DD/YYYY', 'DD/MM/YYYY', 'YYYY-MM-DD', 'DD MMM YYYY'].map((format) => ListTile(
-              title: Text(format, style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w700)),
+              title: Text(format, style: const TextStyle(fontFamily: 'PlusJakartaSans', fontWeight: FontWeight.w700)),
               onTap: () {
                 HapticFeedback.mediumImpact();
                 Navigator.pop(context);
@@ -238,11 +238,11 @@ class LanguageRegionScreen extends StatelessWidget {
             borderRadius: BorderRadius.circular(32),
             side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
           ),
-          title: const Text('Time Format', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w900)),
+          title: const Text('Time Format', style: TextStyle(fontFamily: 'PlusJakartaSans', fontWeight: FontWeight.w900)),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: ['12-hour', '24-hour'].map((format) => ListTile(
-              title: Text(format, style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w700)),
+              title: Text(format, style: const TextStyle(fontFamily: 'PlusJakartaSans', fontWeight: FontWeight.w700)),
               onTap: () {
                 HapticFeedback.mediumImpact();
                 Navigator.pop(context);
@@ -268,11 +268,11 @@ class LanguageRegionScreen extends StatelessWidget {
             borderRadius: BorderRadius.circular(32),
             side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
           ),
-          title: const Text('Number Format', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w900)),
+          title: const Text('Number Format', style: TextStyle(fontFamily: 'PlusJakartaSans', fontWeight: FontWeight.w900)),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: ['1,234.56', '1.234,56', '1 234,56'].map((format) => ListTile(
-              title: Text(format, style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w700)),
+              title: Text(format, style: const TextStyle(fontFamily: 'PlusJakartaSans', fontWeight: FontWeight.w700)),
               onTap: () {
                 HapticFeedback.mediumImpact();
                 Navigator.pop(context);
@@ -361,7 +361,7 @@ class _ActionCard extends StatelessWidget {
                         Text(
                           title,
                           style: TextStyle(
-                            fontFamily: 'Outfit',
+                            fontFamily: 'PlusJakartaSans',
                             fontWeight: FontWeight.w800,
                             fontSize: 16,
                             color: Theme.of(context).colorScheme.onSurface,
@@ -371,7 +371,7 @@ class _ActionCard extends StatelessWidget {
                         Text(
                           subtitle,
                           style: TextStyle(
-                            fontFamily: 'Outfit',
+                            fontFamily: 'PlusJakartaSans',
                             fontSize: 13,
                             fontWeight: FontWeight.w500,
                             color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
@@ -464,7 +464,7 @@ class _SelectionCard extends StatelessWidget {
                         Text(
                           title,
                           style: TextStyle(
-                            fontFamily: 'Outfit',
+                            fontFamily: 'PlusJakartaSans',
                             fontWeight: FontWeight.w800,
                             fontSize: 16,
                             color: Theme.of(context).colorScheme.onSurface,
@@ -474,7 +474,7 @@ class _SelectionCard extends StatelessWidget {
                         Text(
                           subtitle,
                           style: TextStyle(
-                            fontFamily: 'Outfit',
+                            fontFamily: 'PlusJakartaSans',
                             fontSize: 13,
                             fontWeight: FontWeight.w500,
                             color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
@@ -489,10 +489,10 @@ class _SelectionCard extends StatelessWidget {
                       Text(
                         currentLabel,
                         style: const TextStyle(
-                          fontFamily: 'Outfit',
+                          fontFamily: 'PlusJakartaSans',
                           fontSize: 14,
                           fontWeight: FontWeight.w800,
-                          color: Color(0xFF7C6FF7),
+                          color: Color(0xFF6D5DFC),
                         ),
                       ),
                       Icon(
@@ -527,7 +527,7 @@ class _SelectionCard extends StatelessWidget {
           ),
           title: Text(
             title,
-            style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w900),
+            style: const TextStyle(fontFamily: 'PlusJakartaSans', fontWeight: FontWeight.w900),
           ),
           content: SizedBox(
             width: double.maxFinite,
@@ -543,13 +543,13 @@ class _SelectionCard extends StatelessWidget {
                   title: Text(
                     label,
                     style: TextStyle(
-                      fontFamily: 'Outfit',
+                      fontFamily: 'PlusJakartaSans',
                       fontWeight: isSelected ? FontWeight.w800 : FontWeight.w500,
-                      color: isSelected ? const Color(0xFF7C6FF7) : Theme.of(context).colorScheme.onSurface,
+                      color: isSelected ? const Color(0xFF6D5DFC) : Theme.of(context).colorScheme.onSurface,
                     ),
                   ),
                   trailing: isSelected 
-                      ? const Icon(Icons.check_circle_rounded, color: Color(0xFF7C6FF7)) 
+                      ? const Icon(Icons.check_circle_rounded, color: Color(0xFF6D5DFC)) 
                       : null,
                   onTap: () {
                     HapticFeedback.mediumImpact();

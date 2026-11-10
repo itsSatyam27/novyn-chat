@@ -29,12 +29,12 @@ class NotificationSettingsScreen extends StatelessWidget {
         ),
         title: ShaderMask(
           shaderCallback: (bounds) => const LinearGradient(
-            colors: [Color(0xFF7C6FF7), Color(0xFF40E0D0)],
+            colors: [Color(0xFF6D5DFC), Color(0xFF40E0D0)],
           ).createShader(bounds),
           child: const Text(
             'Notifications',
             style: TextStyle(
-              fontFamily: 'Outfit', 
+              fontFamily: 'PlusJakartaSans', 
               fontWeight: FontWeight.w900, 
               fontSize: 22, 
               color: Colors.white,
@@ -60,8 +60,8 @@ class NotificationSettingsScreen extends StatelessWidget {
           ),
           _ToggleCard(
             icon: Icons.visibility_rounded,
-            iconColor: const Color(0xFF7C6FF7),
-            iconBgColor: const Color(0xFF7C6FF7).withValues(alpha: 0.1),
+            iconColor: const Color(0xFF6D5DFC),
+            iconBgColor: const Color(0xFF6D5DFC).withValues(alpha: 0.1),
             title: 'Message Preview',
             subtitle: 'Display data fragments in alerts',
             value: settings.messagePreview,
@@ -156,7 +156,7 @@ class _SelectionCard extends StatelessWidget {
                         Text(
                           title,
                           style: TextStyle(
-                            fontFamily: 'Outfit',
+                            fontFamily: 'PlusJakartaSans',
                             fontWeight: FontWeight.w800,
                             fontSize: 16,
                             color: Theme.of(context).colorScheme.onSurface,
@@ -166,7 +166,7 @@ class _SelectionCard extends StatelessWidget {
                         Text(
                           subtitle,
                           style: TextStyle(
-                            fontFamily: 'Outfit',
+                            fontFamily: 'PlusJakartaSans',
                             fontSize: 13,
                             fontWeight: FontWeight.w500,
                             color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
@@ -181,10 +181,10 @@ class _SelectionCard extends StatelessWidget {
                       Text(
                         currentLabel,
                         style: const TextStyle(
-                          fontFamily: 'Outfit',
+                          fontFamily: 'PlusJakartaSans',
                           fontSize: 14,
                           fontWeight: FontWeight.w800,
-                          color: Color(0xFF7C6FF7),
+                          color: Color(0xFF6D5DFC),
                         ),
                       ),
                       Icon(
@@ -219,7 +219,7 @@ class _SelectionCard extends StatelessWidget {
           ),
           title: Text(
             title,
-            style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w900),
+            style: const TextStyle(fontFamily: 'PlusJakartaSans', fontWeight: FontWeight.w900),
           ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
@@ -233,13 +233,13 @@ class _SelectionCard extends StatelessWidget {
                 title: Text(
                   label,
                   style: TextStyle(
-                    fontFamily: 'Outfit',
+                    fontFamily: 'PlusJakartaSans',
                     fontWeight: isSelected ? FontWeight.w800 : FontWeight.w500,
-                    color: isSelected ? const Color(0xFF7C6FF7) : Theme.of(context).colorScheme.onSurface,
+                    color: isSelected ? const Color(0xFF6D5DFC) : Theme.of(context).colorScheme.onSurface,
                   ),
                 ),
                 trailing: isSelected 
-                    ? const Icon(Icons.check_circle_rounded, color: Color(0xFF7C6FF7)) 
+                    ? const Icon(Icons.check_circle_rounded, color: Color(0xFF6D5DFC)) 
                     : null,
                 onTap: () {
                   HapticFeedback.mediumImpact();
@@ -292,11 +292,11 @@ class _IntensitySliderCard extends StatelessWidget {
                       width: 52,
                       height: 52,
                       decoration: BoxDecoration(
-                        color: const Color(0xFF7C6FF7).withValues(alpha: 0.1),
+                        color: const Color(0xFF6D5DFC).withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(18),
-                        border: Border.all(color: const Color(0xFF7C6FF7).withValues(alpha: 0.1)),
+                        border: Border.all(color: const Color(0xFF6D5DFC).withValues(alpha: 0.1)),
                       ),
-                      child: const Icon(Icons.fingerprint_rounded, color: Color(0xFF7C6FF7), size: 24),
+                      child: const Icon(Icons.fingerprint_rounded, color: Color(0xFF6D5DFC), size: 24),
                     ),
                     const SizedBox(width: 16),
                     Expanded(
@@ -306,7 +306,7 @@ class _IntensitySliderCard extends StatelessWidget {
                           Text(
                             'Haptic Intensity',
                             style: TextStyle(
-                              fontFamily: 'Outfit',
+                              fontFamily: 'PlusJakartaSans',
                               fontWeight: FontWeight.w800,
                               fontSize: 16,
                               color: Theme.of(context).colorScheme.onSurface,
@@ -316,7 +316,7 @@ class _IntensitySliderCard extends StatelessWidget {
                           Text(
                             'Fine-tune the neural haptic pulse',
                             style: TextStyle(
-                              fontFamily: 'Outfit',
+                              fontFamily: 'PlusJakartaSans',
                               fontSize: 13,
                               fontWeight: FontWeight.w500,
                               color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
@@ -328,9 +328,9 @@ class _IntensitySliderCard extends StatelessWidget {
                     Text(
                       '${(value * 100).toInt()}%',
                       style: const TextStyle(
-                        fontFamily: 'Outfit',
+                        fontFamily: 'PlusJakartaSans',
                         fontWeight: FontWeight.w900,
-                        color: Color(0xFF7C6FF7),
+                        color: Color(0xFF6D5DFC),
                         fontSize: 15,
                       ),
                     ),
@@ -339,10 +339,10 @@ class _IntensitySliderCard extends StatelessWidget {
                 const SizedBox(height: 12),
                 SliderTheme(
                   data: SliderTheme.of(context).copyWith(
-                    activeTrackColor: const Color(0xFF7C6FF7),
+                    activeTrackColor: const Color(0xFF6D5DFC),
                     inactiveTrackColor: Colors.white12,
                     thumbColor: Colors.white,
-                    overlayColor: const Color(0xFF7C6FF7).withValues(alpha: 0.2),
+                    overlayColor: const Color(0xFF6D5DFC).withValues(alpha: 0.2),
                     trackHeight: 4,
                   ),
                   child: Slider(
@@ -425,7 +425,7 @@ class _ToggleCard extends StatelessWidget {
                         Text(
                           title,
                           style: TextStyle(
-                            fontFamily: 'Outfit',
+                            fontFamily: 'PlusJakartaSans',
                             fontWeight: FontWeight.w800,
                             fontSize: 16,
                             color: Theme.of(context).colorScheme.onSurface,
@@ -435,7 +435,7 @@ class _ToggleCard extends StatelessWidget {
                         Text(
                           subtitle,
                           style: TextStyle(
-                            fontFamily: 'Outfit',
+                            fontFamily: 'PlusJakartaSans',
                             fontSize: 13,
                             fontWeight: FontWeight.w500,
                             color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
@@ -450,8 +450,8 @@ class _ToggleCard extends StatelessWidget {
                       HapticFeedback.mediumImpact();
                       onChanged?.call(v);
                     },
-                    activeTrackColor: const Color(0xFF7C6FF7).withValues(alpha: 0.5),
-                    activeColor: const Color(0xFF7C6FF7),
+                    activeTrackColor: const Color(0xFF6D5DFC).withValues(alpha: 0.5),
+                    activeColor: const Color(0xFF6D5DFC),
                   ),
                 ],
               ),

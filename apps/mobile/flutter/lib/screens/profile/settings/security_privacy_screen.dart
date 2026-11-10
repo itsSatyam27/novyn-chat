@@ -36,12 +36,12 @@ class SecurityPrivacyScreen extends StatelessWidget {
         ),
         title: ShaderMask(
           shaderCallback: (bounds) => const LinearGradient(
-            colors: [Color(0xFF7C6FF7), Color(0xFF40E0D0)],
+            colors: [Color(0xFF6D5DFC), Color(0xFF40E0D0)],
           ).createShader(bounds),
           child: const Text(
             'Security & Privacy',
             style: TextStyle(
-              fontFamily: 'Outfit', 
+              fontFamily: 'PlusJakartaSans', 
               fontWeight: FontWeight.w900, 
               fontSize: 22, 
               color: Colors.white,
@@ -66,8 +66,8 @@ class SecurityPrivacyScreen extends StatelessWidget {
           ),
           _ToggleCard(
             icon: Icons.security_rounded,
-            iconColor: const Color(0xFF7C6FF7),
-            iconBgColor: const Color(0xFF7C6FF7).withValues(alpha: 0.1),
+            iconColor: const Color(0xFF6D5DFC),
+            iconBgColor: const Color(0xFF6D5DFC).withValues(alpha: 0.1),
             title: 'Two-Factor Authentication',
             subtitle: 'Unavailable until sign-in verification is enforced',
             value: false,
@@ -114,7 +114,7 @@ class SecurityPrivacyScreen extends StatelessWidget {
             onTap: () => _setStealthMode(context, settings, !settings.stealthModeEnabled),
             trailing: Switch(
               value: settings.stealthModeEnabled,
-              activeColor: const Color(0xFF7C6FF7),
+              activeColor: const Color(0xFF6D5DFC),
               onChanged: (v) => _setStealthMode(context, settings, v),
             ),
           ),
@@ -130,7 +130,7 @@ class SecurityPrivacyScreen extends StatelessWidget {
               },
               trailing: Switch(
                 value: settings.stealthIconEnabled,
-                activeColor: const Color(0xFF7C6FF7),
+                activeColor: const Color(0xFF6D5DFC),
                 onChanged: (v) {
                    settings.setStealthIconEnabled(v);
                    SecurityService.setStealthIcon(v);
@@ -144,7 +144,7 @@ class SecurityPrivacyScreen extends StatelessWidget {
               onTap: () => settings.setHideNotificationContent(!settings.hideNotificationContent),
               trailing: Switch(
                 value: settings.hideNotificationContent,
-                activeColor: const Color(0xFF7C6FF7),
+                activeColor: const Color(0xFF6D5DFC),
                 onChanged: (v) => settings.setHideNotificationContent(v),
               ),
             ),
@@ -304,12 +304,12 @@ class SecurityPrivacyScreen extends StatelessWidget {
           ),
           title: const Text(
             'Disable 2FA?',
-            style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w900),
+            style: TextStyle(fontFamily: 'PlusJakartaSans', fontWeight: FontWeight.w900),
           ),
           content: Text(
             'This will weaken your security node. Are you sure you want to proceed?',
             style: TextStyle(
-              fontFamily: 'Outfit',
+              fontFamily: 'PlusJakartaSans',
               fontWeight: FontWeight.w500,
               color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
             ),
@@ -320,7 +320,7 @@ class SecurityPrivacyScreen extends StatelessWidget {
               child: Text(
                 'Cancel',
                 style: TextStyle(
-                  fontFamily: 'Outfit',
+                  fontFamily: 'PlusJakartaSans',
                   fontWeight: FontWeight.w700,
                   color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5),
                 ),
@@ -341,7 +341,7 @@ class SecurityPrivacyScreen extends StatelessWidget {
               child: const Text(
                 'Disable',
                 style: TextStyle(
-                  fontFamily: 'Outfit',
+                  fontFamily: 'PlusJakartaSans',
                   fontWeight: FontWeight.w900,
                   color: Color(0xFFEF4444),
                 ),
@@ -386,7 +386,7 @@ class SecurityPrivacyScreen extends StatelessWidget {
                 child: Text(
                   'Blocked Users',
                   style: TextStyle(
-                    fontFamily: 'Outfit',
+                    fontFamily: 'PlusJakartaSans',
                     fontWeight: FontWeight.w900,
                     fontSize: 22,
                     color: Theme.of(sheetContext).colorScheme.onSurface,
@@ -420,13 +420,13 @@ class SecurityPrivacyScreen extends StatelessWidget {
                           ),
                           child: ListTile(
                             leading: CircleAvatar(
-                              backgroundColor: const Color(0xFF7C6FF7).withValues(alpha: 0.1),
-                              child: const Icon(Icons.person_rounded, color: Color(0xFF7C6FF7)),
+                              backgroundColor: const Color(0xFF6D5DFC).withValues(alpha: 0.1),
+                              child: const Icon(Icons.person_rounded, color: Color(0xFF6D5DFC)),
                             ),
                             title: Text(
                               '@$username',
                               style: const TextStyle(
-                                fontFamily: 'Outfit',
+                                fontFamily: 'PlusJakartaSans',
                                 fontWeight: FontWeight.w700,
                               ),
                             ),
@@ -456,7 +456,7 @@ class SecurityPrivacyScreen extends StatelessWidget {
                               child: const Text(
                                 'Unblock',
                                 style: TextStyle(
-                                  fontFamily: 'Outfit',
+                                  fontFamily: 'PlusJakartaSans',
                                   fontWeight: FontWeight.w900,
                                   color: Color(0xFFEF4444),
                                 ),
@@ -669,7 +669,7 @@ class _ToggleCard extends StatelessWidget {
                     Text(
                       title,
                       style: TextStyle(
-                        fontFamily: 'Outfit',
+                        fontFamily: 'PlusJakartaSans',
                         fontWeight: FontWeight.w800,
                         fontSize: 16,
                         color: Theme.of(context).colorScheme.onSurface,
@@ -679,7 +679,7 @@ class _ToggleCard extends StatelessWidget {
                     Text(
                       subtitle,
                       style: TextStyle(
-                        fontFamily: 'Outfit',
+                        fontFamily: 'PlusJakartaSans',
                         fontSize: 12,
                         fontWeight: FontWeight.w500,
                         color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
@@ -694,7 +694,7 @@ class _ToggleCard extends StatelessWidget {
                   HapticFeedback.lightImpact();
                   onChanged?.call(v);
                 },
-                activeTrackColor: const Color(0xFF7C6FF7).withValues(alpha: 0.8),
+                activeTrackColor: const Color(0xFF6D5DFC).withValues(alpha: 0.8),
                 activeColor: Colors.white,
               ),
             ],
@@ -764,7 +764,7 @@ class _ActionCard extends StatelessWidget {
                       Text(
                         title,
                         style: TextStyle(
-                          fontFamily: 'Outfit',
+                          fontFamily: 'PlusJakartaSans',
                           fontWeight: FontWeight.w800,
                           fontSize: 16,
                           color: Theme.of(context).colorScheme.onSurface,
@@ -774,7 +774,7 @@ class _ActionCard extends StatelessWidget {
                       Text(
                         subtitle,
                         style: TextStyle(
-                          fontFamily: 'Outfit',
+                          fontFamily: 'PlusJakartaSans',
                           fontSize: 12,
                           fontWeight: FontWeight.w500,
                           color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
@@ -875,7 +875,7 @@ class _SelectionCard extends StatelessWidget {
                     Text(
                       title,
                       style: TextStyle(
-                        fontFamily: 'Outfit',
+                        fontFamily: 'PlusJakartaSans',
                         fontSize: 16,
                         fontWeight: FontWeight.w800,
                         color: Theme.of(context).colorScheme.onSurface,
@@ -885,7 +885,7 @@ class _SelectionCard extends StatelessWidget {
                     Text(
                       subtitle,
                       style: TextStyle(
-                        fontFamily: 'Outfit',
+                        fontFamily: 'PlusJakartaSans',
                         fontSize: 12,
                         fontWeight: FontWeight.w500,
                         color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
@@ -900,10 +900,10 @@ class _SelectionCard extends StatelessWidget {
                   Text(
                     currentLabel,
                     style: const TextStyle(
-                      fontFamily: 'Outfit',
+                      fontFamily: 'PlusJakartaSans',
                       fontSize: 13,
                       fontWeight: FontWeight.w900,
-                      color: Color(0xFF7C6FF7),
+                      color: Color(0xFF6D5DFC),
                     ),
                   ),
                   Icon(
@@ -938,7 +938,7 @@ class _SelectionCard extends StatelessWidget {
           title: Text(
             title, 
             style: const TextStyle(
-              fontFamily: 'Outfit',
+              fontFamily: 'PlusJakartaSans',
               fontWeight: FontWeight.w900,
             )
           ),
@@ -954,9 +954,9 @@ class _SelectionCard extends StatelessWidget {
                 title: Text(
                   label,
                   style: TextStyle(
-                    fontFamily: 'Outfit',
+                    fontFamily: 'PlusJakartaSans',
                     fontWeight: isSelected ? FontWeight.w800 : FontWeight.w500,
-                    color: isSelected ? const Color(0xFF7C6FF7) : null,
+                    color: isSelected ? const Color(0xFF6D5DFC) : null,
                   ),
                 ),
                 leading: Radio<String>(
@@ -969,7 +969,7 @@ class _SelectionCard extends StatelessWidget {
                       Navigator.pop(context);
                     }
                   },
-                  activeColor: const Color(0xFF7C6FF7),
+                  activeColor: const Color(0xFF6D5DFC),
                 ),
                 onTap: () {
                   HapticFeedback.lightImpact();
@@ -1021,20 +1021,20 @@ class _ChangePasswordDialogState extends State<_ChangePasswordDialog> {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF7C6FF7).withValues(alpha: 0.1),
+                  color: const Color(0xFF6D5DFC).withValues(alpha: 0.1),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.shield_rounded, color: Color(0xFF7C6FF7), size: 32),
+                child: const Icon(Icons.shield_rounded, color: Color(0xFF6D5DFC), size: 32),
               ),
               const SizedBox(height: 16),
               ShaderMask(
                 shaderCallback: (bounds) => const LinearGradient(
-                  colors: [Color(0xFF7C6FF7), Color(0xFF40E0D0)],
+                  colors: [Color(0xFF6D5DFC), Color(0xFF40E0D0)],
                 ).createShader(bounds),
                 child: const Text(
                   'Update Password',
                   style: TextStyle(
-                    fontFamily: 'Outfit',
+                    fontFamily: 'PlusJakartaSans',
                     fontWeight: FontWeight.w900,
                     fontSize: 22,
                     color: Colors.white,
@@ -1052,7 +1052,7 @@ class _ChangePasswordDialogState extends State<_ChangePasswordDialog> {
                 'Use at least 12 characters for your new password.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  fontFamily: 'Outfit',
+                  fontFamily: 'PlusJakartaSans',
                   fontSize: 14,
                   fontWeight: FontWeight.w500,
                   color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5),
@@ -1096,7 +1096,7 @@ class _ChangePasswordDialogState extends State<_ChangePasswordDialog> {
                   child: Text(
                     'Cancel',
                     style: TextStyle(
-                      fontFamily: 'Outfit',
+                      fontFamily: 'PlusJakartaSans',
                       fontWeight: FontWeight.w700,
                       color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5),
                     ),
@@ -1109,12 +1109,12 @@ class _ChangePasswordDialogState extends State<_ChangePasswordDialog> {
                   height: 52,
                   decoration: BoxDecoration(
                     gradient: const LinearGradient(
-                      colors: [Color(0xFF7C6FF7), Color(0xFF40E0D0)],
+                      colors: [Color(0xFF6D5DFC), Color(0xFF40E0D0)],
                     ),
                     borderRadius: BorderRadius.circular(16),
                     boxShadow: [
                       BoxShadow(
-                        color: const Color(0xFF7C6FF7).withValues(alpha: 0.3),
+                        color: const Color(0xFF6D5DFC).withValues(alpha: 0.3),
                         blurRadius: 15,
                         offset: const Offset(0, 5),
                       ),
@@ -1182,7 +1182,7 @@ class _ChangePasswordDialogState extends State<_ChangePasswordDialog> {
                       : const Text(
                           'Update Password',
                           style: TextStyle(
-                            fontFamily: 'Outfit', 
+                            fontFamily: 'PlusJakartaSans', 
                             fontWeight: FontWeight.w900,
                             fontSize: 15,
                           ),
@@ -1216,24 +1216,24 @@ class _ChangePasswordDialogState extends State<_ChangePasswordDialog> {
       child: TextField(
         controller: controller,
         obscureText: obscure,
-        cursorColor: const Color(0xFF7C6FF7),
+        cursorColor: const Color(0xFF6D5DFC),
         style: const TextStyle(
-          fontFamily: 'Outfit', 
+          fontFamily: 'PlusJakartaSans', 
           fontWeight: FontWeight.w700,
           fontSize: 15,
         ),
         decoration: InputDecoration(
           labelText: label,
           labelStyle: TextStyle(
-            fontFamily: 'Outfit',
+            fontFamily: 'PlusJakartaSans',
             fontSize: 14,
             fontWeight: FontWeight.w500,
             color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
           ),
           floatingLabelStyle: const TextStyle(
-            fontFamily: 'Outfit',
+            fontFamily: 'PlusJakartaSans',
             fontWeight: FontWeight.w800,
-            color: Color(0xFF7C6FF7),
+            color: Color(0xFF6D5DFC),
           ),
           border: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
@@ -1337,22 +1337,22 @@ class _TwoFactorSetupDialogState extends State<_TwoFactorSetupDialog> {
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: const Color(0xFF7C6FF7).withValues(alpha: 0.1),
+            color: const Color(0xFF6D5DFC).withValues(alpha: 0.1),
             shape: BoxShape.circle,
           ),
-          child: const Icon(Icons.security_rounded, color: Color(0xFF7C6FF7), size: 40),
+          child: const Icon(Icons.security_rounded, color: Color(0xFF6D5DFC), size: 40),
         ),
         const SizedBox(height: 24),
         const Text(
           'Enable 2FA',
-          style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w900, fontSize: 24),
+          style: TextStyle(fontFamily: 'PlusJakartaSans', fontWeight: FontWeight.w900, fontSize: 24),
         ),
         const SizedBox(height: 12),
         Text(
           'Two-factor authentication adds an elite layer of protection. We will send a verification node to your primary contact.',
           textAlign: TextAlign.center,
           style: TextStyle(
-            fontFamily: 'Outfit',
+            fontFamily: 'PlusJakartaSans',
             fontSize: 14,
             fontWeight: FontWeight.w500,
             color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
@@ -1367,7 +1367,7 @@ class _TwoFactorSetupDialogState extends State<_TwoFactorSetupDialog> {
                 child: Text(
                   'Cancel',
                   style: TextStyle(
-                    fontFamily: 'Outfit',
+                    fontFamily: 'PlusJakartaSans',
                     fontWeight: FontWeight.w700,
                     color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
                   ),
@@ -1379,13 +1379,13 @@ class _TwoFactorSetupDialogState extends State<_TwoFactorSetupDialog> {
               child: ElevatedButton(
                 onPressed: _nextStep,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF7C6FF7),
+                  backgroundColor: const Color(0xFF6D5DFC),
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                   elevation: 0,
                 ),
-                child: const Text('Begin Setup', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w900)),
+                child: const Text('Begin Setup', style: TextStyle(fontFamily: 'PlusJakartaSans', fontWeight: FontWeight.w900)),
               ),
             ),
           ],
@@ -1403,19 +1403,19 @@ class _TwoFactorSetupDialogState extends State<_TwoFactorSetupDialog> {
           height: 60,
           child: CircularProgressIndicator(
             strokeWidth: 3,
-            valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF7C6FF7)),
+            valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF6D5DFC)),
           ),
         ),
         const SizedBox(height: 24),
         const Text(
           'Sending Code',
-          style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w900, fontSize: 20),
+          style: TextStyle(fontFamily: 'PlusJakartaSans', fontWeight: FontWeight.w900, fontSize: 20),
         ),
         const SizedBox(height: 8),
         Text(
           'Synthesizing verification node...',
           style: TextStyle(
-            fontFamily: 'Outfit',
+            fontFamily: 'PlusJakartaSans',
             fontSize: 14,
             color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5),
           ),
@@ -1430,13 +1430,13 @@ class _TwoFactorSetupDialogState extends State<_TwoFactorSetupDialog> {
       children: [
         const Text(
           'Verify Identity',
-          style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w900, fontSize: 22),
+          style: TextStyle(fontFamily: 'PlusJakartaSans', fontWeight: FontWeight.w900, fontSize: 22),
         ),
         const SizedBox(height: 8),
         Text(
           'Enter the 6-digit code sent to you.',
           style: TextStyle(
-            fontFamily: 'Outfit',
+            fontFamily: 'PlusJakartaSans',
             fontSize: 14,
             color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5),
           ),
@@ -1453,7 +1453,7 @@ class _TwoFactorSetupDialogState extends State<_TwoFactorSetupDialog> {
                 textAlign: TextAlign.center,
                 keyboardType: TextInputType.number,
                 maxLength: 1,
-                style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w900, fontSize: 20),
+                style: const TextStyle(fontFamily: 'PlusJakartaSans', fontWeight: FontWeight.w900, fontSize: 20),
                 decoration: InputDecoration(
                   counterText: '',
                   enabledBorder: OutlineInputBorder(
@@ -1462,7 +1462,7 @@ class _TwoFactorSetupDialogState extends State<_TwoFactorSetupDialog> {
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Color(0xFF7C6FF7), width: 2),
+                    borderSide: const BorderSide(color: Color(0xFF6D5DFC), width: 2),
                   ),
                 ),
                 onChanged: (value) {
@@ -1484,13 +1484,13 @@ class _TwoFactorSetupDialogState extends State<_TwoFactorSetupDialog> {
         ),
         const SizedBox(height: 32),
         if (_isFinalizing)
-          const CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF7C6FF7))
+          const CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF6D5DFC))
         else
           TextButton(
             onPressed: () => setState(() => _step = 1),
             child: const Text(
               'Resend Code',
-              style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w800, color: Color(0xFF7C6FF7)),
+              style: TextStyle(fontFamily: 'PlusJakartaSans', fontWeight: FontWeight.w800, color: Color(0xFF6D5DFC)),
             ),
           ),
       ],

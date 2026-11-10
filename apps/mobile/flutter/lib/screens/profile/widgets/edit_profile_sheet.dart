@@ -130,7 +130,7 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
               ),
             ),
             const SizedBox(height: 16),
-            const Text('Edit Profile', style: TextStyle(fontFamily: 'Inter', fontWeight: FontWeight.bold, fontSize: 20, color: Color(0xFF1A1D2E))),
+            const Text('Edit Profile', style: TextStyle(fontFamily: 'PlusJakartaSans', fontWeight: FontWeight.bold, fontSize: 20, color: Color(0xFF1A1D2E))),
             const SizedBox(height: 20),
             
             _label('Full Name'),
@@ -144,7 +144,7 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
               icon: Icons.alternate_email_rounded,
               onChanged: _checkUsername,
               suffix: _checkingUsername
-                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF7C6FF7)))
+                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF6D5DFC)))
                   : _usernameAvailable == null ? null : Icon(
                       _usernameAvailable! ? Icons.check_circle_rounded : Icons.cancel_rounded,
                       color: _usernameAvailable! ? const Color(0xFF10B981) : const Color(0xFFEF4444),
@@ -187,7 +187,7 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
                           ),
                           child: Row(
                             children: [
-                              Icon(Icons.wc_rounded, color: _selectedGender.isEmpty ? const Color(0xFFCBD5E1) : const Color(0xFF7C6FF7), size: 18),
+                              Icon(Icons.wc_rounded, color: _selectedGender.isEmpty ? const Color(0xFFCBD5E1) : const Color(0xFF6D5DFC), size: 18),
                               const SizedBox(width: 8),
                               Expanded(child: Text(_selectedGender.isEmpty ? 'Select' : _selectedGender, style: TextStyle(color: _selectedGender.isEmpty ? const Color(0xFFCBD5E1) : const Color(0xFF1A1D2E)))),
                               const Icon(Icons.expand_more_rounded, color: Color(0xFFCBD5E1), size: 18),
@@ -207,7 +207,7 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
               child: ElevatedButton(
                 onPressed: _saving ? null : _save,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF7C6FF7),
+                  backgroundColor: const Color(0xFF6D5DFC),
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                 ),
@@ -235,7 +235,7 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
       onChanged: onChanged,
       decoration: InputDecoration(
         hintText: hint,
-        prefixIcon: Icon(icon, size: 20, color: const Color(0xFF7C6FF7)),
+        prefixIcon: Icon(icon, size: 20, color: const Color(0xFF6D5DFC)),
         suffixIcon: suffix != null ? Padding(padding: const EdgeInsets.all(12), child: suffix) : null,
         filled: true,
         fillColor: const Color(0xFFF0F2FA),
@@ -262,7 +262,7 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
           ..._genders.map((g) => ListTile(
             title: Text(g),
             onTap: () { setState(() => _selectedGender = g); Navigator.pop(context); },
-            trailing: _selectedGender == g ? const Icon(Icons.check_circle, color: Color(0xFF7C6FF7)) : null,
+            trailing: _selectedGender == g ? const Icon(Icons.check_circle, color: Color(0xFF6D5DFC)) : null,
           )),
           const SizedBox(height: 20),
         ],
