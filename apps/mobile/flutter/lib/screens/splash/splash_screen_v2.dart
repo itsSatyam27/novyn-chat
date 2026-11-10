@@ -168,7 +168,7 @@ class _SplashScreenV2State extends State<SplashScreenV2>
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  // Logo with cat
+                  // Novyn wings brand mark
                   _buildLogoSection(),
                   const SizedBox(height: 32),
 
@@ -205,14 +205,7 @@ class _SplashScreenV2State extends State<SplashScreenV2>
               height: 140,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                gradient: const LinearGradient(
-                  colors: [
-                    NovynTheme.pastelLavender,
-                    NovynTheme.pastelPurple,
-                  ],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
+                color: const Color(0xFF6848ED),
                 boxShadow: [
                   BoxShadow(
                     color: NovynTheme.pastelPurple.withValues(alpha: 0.3),
@@ -224,17 +217,11 @@ class _SplashScreenV2State extends State<SplashScreenV2>
               child: Stack(
                 alignment: Alignment.center,
                 children: [
-                  // Cat icon/emoji
-                  Transform.scale(
-                    scale: 0.7,
-                    child: CustomPaint(
-                      size: const Size(100, 100),
-                      painter: _CatPainterV2(),
-                    ),
+                  // Clean white wings mark, matching the new launcher icon.
+                  CustomPaint(
+                    size: const Size(100, 100),
+                    painter: _NovynWingsPainter(),
                   ),
-
-                  // Paw prints animation around the circle
-                  _buildPawPrints(),
                 ],
               ),
             ),
@@ -506,6 +493,66 @@ class _AnimatedLoadingBarState extends State<_AnimatedLoadingBar> {
       },
     );
   }
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  _NovynWingsPainter — clean white wings on the Novyn purple mark
+// ═══════════════════════════════════════════════════════════════════════════
+class _NovynWingsPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final sx = size.width / 100;
+    final sy = size.height / 100;
+    canvas.save();
+    canvas.scale(sx, sy);
+
+    final paint = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.fill
+      ..isAntiAlias = true;
+
+    final leftWing = Path()
+      ..moveTo(49, 57)
+      ..cubicTo(42, 48, 31, 30, 13, 17)
+      ..cubicTo(14, 32, 20, 43, 31, 51)
+      ..cubicTo(23, 47, 15, 46, 9, 49)
+      ..cubicTo(15, 62, 26, 68, 38, 64)
+      ..cubicTo(42, 62, 46, 59, 49, 57)
+      ..close();
+
+    final rightWing = Path()
+      ..moveTo(51, 57)
+      ..cubicTo(58, 48, 69, 30, 87, 17)
+      ..cubicTo(86, 32, 80, 43, 69, 51)
+      ..cubicTo(77, 47, 85, 46, 91, 49)
+      ..cubicTo(85, 62, 74, 68, 62, 64)
+      ..cubicTo(58, 62, 54, 59, 51, 57)
+      ..close();
+
+    canvas.drawPath(leftWing, paint);
+    canvas.drawPath(rightWing, paint);
+
+    // Inner feather cuts give the mark its distinctive wing silhouette.
+    final cut = Paint()
+      ..color = const Color(0xFF6848ED)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.8
+      ..strokeCap = StrokeCap.round;
+    final leftFeather = Path()
+      ..moveTo(25, 34)
+      ..cubicTo(31, 43, 36, 49, 42, 53);
+    final rightFeather = Path()
+      ..moveTo(75, 34)
+      ..cubicTo(69, 43, 64, 49, 58, 53);
+    canvas.drawPath(leftFeather, cut);
+    canvas.drawPath(rightFeather, cut);
+
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
