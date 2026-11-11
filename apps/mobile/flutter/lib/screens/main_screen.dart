@@ -133,7 +133,15 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     final connected =
         context.select<SocketService, bool>((socket) => socket.isConnected);
 
-    return Scaffold(
+    return PopScope(
+      // Let Android close the app only from the Chats tab. From every other
+      // main tab, the first Back press returns to Chats instead.
+      canPop: _selectedIndex == 0,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop || _selectedIndex == 0 || !mounted) return;
+        setState(() => _selectedIndex = 0);
+      },
+      child: Scaffold(
       backgroundColor: NovynTheme.pageBg(context),
       body: Stack(
         children: [
@@ -201,6 +209,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
             ),
           ),
         ],
+      ),
       ),
     );
   }
