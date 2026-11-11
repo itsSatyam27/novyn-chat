@@ -5,13 +5,11 @@ import 'package:flutter_slidable/flutter_slidable.dart';
 import '../../models/user_model.dart';
 import '../../services/auth_service.dart';
 import '../../services/settings_service.dart';
-import '../../services/api_service.dart';
 import '../../services/socket_service.dart';
 import '../../services/hybrid_db_service.dart';
 import '../../widgets/user_avatar.dart';
 import '../../widgets/doodle_background.dart';
 import '../../widgets/novyn_empty_state.dart';
-import '../../widgets/connection_banner.dart';
 import '../../widgets/neomorphic_widgets.dart';
 import '../../theme/novyn_theme.dart';
 import '../../widgets/novyn_ui.dart';
@@ -296,17 +294,14 @@ class _ChatsScreenState extends State<ChatsScreen> {
     final activeChats = isDecoy ? <ChatPreview>[] : _filtered;
 
     return Scaffold(
-      backgroundColor: Colors.transparent,
+      backgroundColor: NovynTheme.pageBg(context),
       body: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Connection status banner
-            const ConnectionBanner(),
-
             // ── Novyn redesigned header ───────────────────────────────
             Padding(
-              padding: const EdgeInsets.only(top: 10),
+              padding: const EdgeInsets.only(top: 18),
               child: NovynHeader(
                 title: 'Messages',
                 subtitle: '${_chats.length} chats · all caught up',
@@ -347,9 +342,6 @@ class _ChatsScreenState extends State<ChatsScreen> {
               const SizedBox(height: 8),
             ],
             _buildFilters(),
-
-            // Offline indicator
-            const OfflineIndicator(),
 
             Expanded(
               child: _loading
