@@ -108,6 +108,10 @@ class SocketService extends ChangeNotifier {
 
   // ── Connect ───────────────────────────────────────────────────────────────
   void connect(String serverUrl, String username) {
+    if (_socket != null && _myUsername != null &&
+        _myUsername!.toLowerCase() != username.toLowerCase()) {
+      disconnect();
+    }
     _serverUrl = serverUrl;
     _myUsername = username;
     if (_socket != null && _isConnected) return;
@@ -1423,6 +1427,12 @@ class SocketService extends ChangeNotifier {
     _myUsername = null;
     _peerKeys.clear();
     _blockedUsers.clear();
+    _conversations = [];
+    _messages = [];
+    _currentChatWith = null;
+    _chatWallpaper = '';
+    _peerIsTyping = false;
+    _typingInChats.clear();
     contacts.clear();
     _reconnectTimer?.cancel();
     _typingDebounce?.cancel();
@@ -1430,6 +1440,7 @@ class SocketService extends ChangeNotifier {
     _socket?.disconnect();
     _socket = null;
     _isConnected = false;
+    notifyListeners();
     _audioPlayer.dispose();
   }
 
