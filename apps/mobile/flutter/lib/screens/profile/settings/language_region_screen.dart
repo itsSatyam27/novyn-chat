@@ -14,35 +14,20 @@ class LanguageRegionScreen extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     
     return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF0F121F) : const Color(0xFFF8FAFC),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
+        title: Text(
+          'Language & Region',
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+            fontWeight: FontWeight.w800,
+            letterSpacing: -0.35,
+          ),
+        ),
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         elevation: 0,
+        scrolledUnderElevation: 0,
         surfaceTintColor: Colors.transparent,
-        leading: IconButton(
-          icon: Icon(
-            Icons.chevron_left_rounded, 
-            color: Theme.of(context).colorScheme.onSurface, 
-            size: 32
-          ),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: ShaderMask(
-          shaderCallback: (bounds) => const LinearGradient(
-            colors: [Color(0xFF6D5DFC), Color(0xFF40E0D0)],
-          ).createShader(bounds),
-          child: const Text(
-            'Language & Region',
-            style: TextStyle(
-              fontFamily: 'PlusJakartaSans', 
-              fontWeight: FontWeight.w900, 
-              fontSize: 22, 
-              color: Colors.white,
-              letterSpacing: -0.5,
-            ),
-          ),
-        ),
-        centerTitle: true,
+        centerTitle: false,
       ),
       body: ListView(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
