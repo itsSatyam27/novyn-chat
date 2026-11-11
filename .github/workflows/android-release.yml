@@ -23,6 +23,10 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
+          # Flutter 3.50 requires Gradle 9.3.1, which forces an AGP 9 migration.
+          # Keep the release build on the last verified compatible toolchain
+          # (Flutter 3.47.9 + AGP 8.11.1 + Gradle 8.14 + Kotlin 2.2.20).
+          flutter-version: "3.47.9"
           channel: stable
           cache: true
 
