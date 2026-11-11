@@ -39,7 +39,7 @@ class NovynDock extends StatelessWidget {
     final accent = Theme.of(context).colorScheme.primary;
     final selected = selectedIndex.clamp(0, 4);
     final full = style == 'full_width';
-    final compact = style == 'minimal' || style == 'sliding';
+    final compact = style == 'minimal';
     final glass = style == 'glass';
     final duration = Duration(milliseconds: reduceMotion ? 0 : 320);
     final radius = style == 'rounded_bar' ? 22.0 : (style == 'glow' ? 30.0 : 26.0);
@@ -88,12 +88,14 @@ class NovynDock extends StatelessWidget {
                       ? null
                       : [
                           BoxShadow(
-                            color: dark
-                                ? Colors.black.withValues(alpha: .28)
-                                : accent.withValues(alpha: .09),
-                            blurRadius: glass ? 26 : 20,
+                            color: style == 'glow'
+                                ? accent.withValues(alpha: dark ? .30 : .24)
+                                : (dark
+                                    ? Colors.black.withValues(alpha: .28)
+                                    : accent.withValues(alpha: .09)),
+                            blurRadius: style == 'glow' ? 30 : (glass ? 26 : 20),
                             offset: const Offset(0, 8),
-                            spreadRadius: style == 'glow' ? 1 : 0,
+                            spreadRadius: style == 'glow' ? 3 : 0,
                           ),
                         ],
                 ),
@@ -151,7 +153,7 @@ class NovynDock extends StatelessWidget {
                 duration: duration,
                 curve: Curves.easeInOutCubic,
                 left: segmentWidth * selected + (segmentWidth - 42) / 2,
-                top: 4,
+                top: 9,
                 width: 42,
                 height: 42,
                 child: DecoratedBox(
@@ -205,11 +207,11 @@ class NovynDock extends StatelessWidget {
                                 : (filledActive
                                     ? accent
                                     : (active && style == 'glow'
-                                        ? accent.withValues(alpha: .16)
+                                        ? accent.withValues(alpha: .24)
                                         : Colors.transparent)),
                             borderRadius: BorderRadius.circular(style == 'rounded_bar' ? 16 : 22),
                             boxShadow: active && style == 'glow'
-                                ? [BoxShadow(color: accent.withValues(alpha: .35), blurRadius: 16)]
+                                ? [BoxShadow(color: accent.withValues(alpha: dark ? .55 : .42), blurRadius: 24, spreadRadius: 2), BoxShadow(color: accent.withValues(alpha: .22), blurRadius: 8)]
                                 : null,
                           ),
                           child: Column(
