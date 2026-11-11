@@ -315,7 +315,7 @@ class _SetupPinScreenState extends State<SetupPinScreen> {
                   const SizedBox(height: 30),
                   Column(
                     children: [
-                      _buildKeypad(colors, accent),
+                      _buildKeypad(colors),
                       const SizedBox(height: 16),
                       if (_saving)
                         SizedBox(
@@ -344,7 +344,7 @@ class _SetupPinScreenState extends State<SetupPinScreen> {
     );
   }
 
-  Widget _buildKeypad(ColorScheme colors, Color accent) {
+  Widget _buildKeypad(ColorScheme colors) {
     final rows = const [
       ['1', '2', '3'],
       ['4', '5', '6'],
@@ -355,13 +355,13 @@ class _SetupPinScreenState extends State<SetupPinScreen> {
         for (final row in rows)
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
-            children: row.map((digit) => _key(digit, colors, accent)).toList(),
+            children: row.map((digit) => _key(digit, colors)).toList(),
           ),
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             const SizedBox(width: 84, height: 72),
-            _key('0', colors, accent),
+            _key('0', colors),
             SizedBox(
               width: 84,
               height: 72,
@@ -378,7 +378,7 @@ class _SetupPinScreenState extends State<SetupPinScreen> {
     );
   }
 
-  Widget _key(String digit, ColorScheme colors, Color accent) {
+  Widget _key(String digit, ColorScheme colors) {
     return SizedBox(
       width: 84,
       height: 72,
