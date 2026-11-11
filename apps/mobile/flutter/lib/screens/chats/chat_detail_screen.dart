@@ -21,6 +21,7 @@ import '../../services/api_service.dart';
 import '../../services/hybrid_db_service.dart';
 import '../../services/draft_service.dart';
 import '../../services/settings_service.dart';
+import '../../services/media_storage_service.dart';
 import '../../widgets/user_avatar.dart';
 import 'profile_info_screen.dart';
 import '../../widgets/connection_banner.dart';
@@ -2266,9 +2267,11 @@ class _MessageBubble extends StatelessWidget {
     final messenger = ScaffoldMessenger.of(context);
     try {
       final file = await ApiService.downloadMedia(url, name);
+      final kind = _mimeForFile(name).startsWith('image/') ? 'image' : _mimeForFile(name).startsWith('video/') ? 'video' : 'file';
+      await MediaStorageService.exportToDevice(file, kind);
       if (!context.mounted) return;
       messenger.showSnackBar(SnackBar(
-        content: Text('Saved to Novyn Downloads/' + file.uri.pathSegments.last),
+        content: Text(kind == 'image' || kind == 'video' ? 'Saved to your Gallery and Novyn Downloads.' : 'Choose a location in Files to save this download.'),
         behavior: SnackBarBehavior.floating,
       ));
     } catch (error) {
