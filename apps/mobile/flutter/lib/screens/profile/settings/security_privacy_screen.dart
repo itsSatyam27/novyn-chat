@@ -118,12 +118,14 @@ class SecurityPrivacyScreen extends StatelessWidget {
                 ),
               ),
           ]),
-          section('Privacy', [
-            nav(Icons.block_rounded, const Color(0xFFC23B3B), 'Blocked Users', 'Manage people you have blocked', () => _showBlockedUsers(context, socket)),
-            _SelectionCard(icon: Icons.remove_red_eye_outlined, iconColor: const Color(0xFF157C8C), iconBgColor: const Color(0xFF157C8C).withValues(alpha: .12), title: 'Last Seen', subtitle: 'Who can see when you were last online', value: settings.lastSeenVisibility, options: const ['everyone', 'contacts', 'nobody'], labels: const ['Everyone', 'My Contacts', 'Nobody'], onChanged: (v) { settings.setLastSeenVisibility(v); auth.updatePrivacySettings(lastSeenVisibility: v); }),
-            _SelectionCard(icon: Icons.account_circle_outlined, iconColor: const Color(0xFFB8346F), iconBgColor: const Color(0xFFB8346F).withValues(alpha: .12), title: 'Profile Photo', subtitle: 'Who can see your profile photo', value: settings.profilePhotoVisibility, options: const ['everyone', 'contacts', 'nobody'], labels: const ['Everyone', 'My Contacts', 'Nobody'], onChanged: (v) { settings.setProfilePhotoVisibility(v); auth.updatePrivacySettings(profilePhotoVisibility: v); }),
-            _SecurityPrivacyToggleTile(icon: Icons.done_all_rounded, accent: const Color(0xFF1F8A63), title: 'Read Receipts', subtitle: 'Let others see when you have read their messages', value: settings.readReceipts, onChanged: (v) { settings.setReadReceipts(v); auth.updatePrivacySettings(readReceipts: v); }),
-          ]),
+          _PrivacyDashboard(
+            lastSeen: settings.lastSeenVisibility,
+            profilePhoto: settings.profilePhotoVisibility,
+            readReceipts: settings.readReceipts,
+            socket: socket,
+            settings: settings,
+            onBlocked: () => _showBlockedUsers(context, socket),
+          ),
           section('Danger Zone', [
             _SecurityPrivacyTile(icon: Icons.delete_outline_rounded, accent: const Color(0xFFB3261E), title: 'Delete Account', subtitle: 'Permanently delete your account and associated data', isDanger: true, onTap: () => _showDeleteAccount(context)),
           ], color: const Color(0xFFB3261E)),
@@ -1515,5 +1517,407 @@ class _SecurityPrivacyToggleTile extends StatelessWidget {
   @override Widget build(BuildContext context) {
     final dark = Theme.of(context).brightness == Brightness.dark;
     return Opacity(opacity: onChanged == null ? .58 : 1, child: _SecurityPrivacyTile(icon: icon, accent: accent, title: title, subtitle: subtitle, onTap: onChanged == null ? () {} : () => onChanged!(!value), trailing: Switch.adaptive(value: value, onChanged: onChanged, activeTrackColor: Theme.of(context).colorScheme.primary, activeColor: Colors.white, inactiveTrackColor: dark ? const Color(0xFF454456) : const Color(0xFFD7D2F0))));
+  }
+}
+
+class _PrivacyDashboard extends StatefulWidget {
+  const _PrivacyDashboard({
+    required this.lastSeen,
+    required this.profilePhoto,
+    required this.readReceipts,
+    required this.socket,
+    required this.settings,
+    required this.onBlocked,
+  });
+
+  final String lastSeen;
+  final String profilePhoto;
+  final bool readReceipts;
+  final SocketService socket;
+  final SettingsService settings;
+  final VoidCallback onBlocked;
+
+  @override
+  State<_PrivacyDashboard> createState() => _PrivacyDashboardState();
+}
+
+class _PrivacyDashboardState extends State<_PrivacyDashboard> {
+  final Map<String, String> _values = {
+    'callPrivacy': 'friends',
+    'messagePrivacy': 'friends',
+    'groupInvitePrivacy': 'friends',
+    'friendRequestPrivacy': 'everyone',
+    'presencePrivacy': 'everyone',
+  };
+  bool _typing = true;
+  bool _loading = true;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAccountPrivacy();
+  }
+
+  Future<void> _loadAccountPrivacy() async {
+    try {
+      final result = await widget.socket.updateAccountSettings({});
+      if (result['ok'] == true && result['profile'] is Map) {
+        final profile = Map<String, dynamic>.from(result['profile']);
+        if (!mounted) return;
+        setState(() {
+          for (final key in _values.keys) {
+            final value = profile[key]?.toString();
+            if (value != null) _values[key] = value;
+          }
+          _typing = profile['typingIndicatorsEnabled'] != false;
+        });
+      }
+    } catch (_) {
+      // Keep safe defaults until the user changes a preference.
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _save(String key, String value) async {
+    if (_saving) return;
+    final previous = _values[key] ?? 'everyone';
+    setState(() {
+      _saving = true;
+      _values[key] = value;
+    });
+    try {
+      final result = await widget.socket.updateAccountSettings({key: value});
+      if (result['ok'] != true) throw StateError(
+        result['message']?.toString() ?? 'Could not save this privacy setting.');
+      if (key == 'presencePrivacy') {
+        // Server uses this setting for both online and last-seen visibility.
+        await widget.settings.setLastSeenVisibility(value == 'friends' ? 'contacts' : value);
+      }
+      if (mounted) NovynAlert.show(context, 'Privacy setting updated.');
+    } catch (error) {
+      if (mounted) {
+        setState(() => _values[key] = previous);
+        NovynAlert.show(context,
+          error.toString().replaceFirst('Bad state: ', ''),
+          isError: true);
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _saveToggle(String key, bool value) async {
+    if (_saving) return;
+    setState(() => _saving = true);
+    try {
+      final result = await widget.socket.updateAccountSettings({key: value});
+      if (result['ok'] != true) throw StateError(
+        result['message']?.toString() ?? 'Could not save this privacy setting.');
+      if (key == 'readReceiptsEnabled') {
+        await widget.settings.setReadReceipts(value);
+      } else {
+        setState(() => _typing = value);
+      }
+      if (mounted) NovynAlert.show(context, 'Privacy setting updated.');
+    } catch (error) {
+      if (mounted) NovynAlert.show(context,
+        error.toString().replaceFirst('Bad state: ', ''), isError: true);
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  String _label(String value) => switch (value) {
+    'everyone' => 'Everyone',
+    'friends' => 'Friends',
+    'mutuals' => 'Mutuals',
+    'nobody' => 'No one',
+    _ => 'Everyone',
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final presence = _values['presencePrivacy'] ??
+        (widget.lastSeen == 'contacts' ? 'friends' : widget.lastSeen);
+    final visibility = [
+      ('Profile photo', 'profilePhotoPrivacy', widget.profilePhoto,
+        Icons.account_circle_outlined, 'Control who can view your profile picture'),
+      ('Online & last seen', 'presencePrivacy', presence,
+        Icons.visibility_outlined, 'Choose who can see when you are online or last active'),
+    ];
+    Widget heading(String title, String subtitle) => Padding(
+      padding: const EdgeInsets.only(left: 2, bottom: 10),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(title, style: Theme.of(context).textTheme.titleMedium?.copyWith(
+          fontWeight: FontWeight.w800)),
+        const SizedBox(height: 3),
+        Text(subtitle, style: Theme.of(context).textTheme.bodySmall?.copyWith(
+          color: colors.onSurfaceVariant)),
+      ]),
+    );
+    Widget card(List<Widget> children) => Container(
+      decoration: BoxDecoration(
+        color: NovynTheme.cardBg(context),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: colors.outlineVariant),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(children: children),
+    );
+    Widget divider() => Divider(height: 1, indent: 66,
+      color: colors.outlineVariant.withValues(alpha: .7));
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      heading('Privacy', 'Your profile, activity and conversations — on your terms.'),
+      Container(
+        padding: const EdgeInsets.all(16),
+        margin: const EdgeInsets.only(bottom: 18),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [colors.primary.withValues(alpha: .13),
+              colors.primary.withValues(alpha: .035)],
+            begin: Alignment.topLeft, end: Alignment.bottomRight),
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: colors.primary.withValues(alpha: .18)),
+        ),
+        child: Row(children: [
+          Container(width: 44, height: 44,
+            decoration: BoxDecoration(color: colors.primary.withValues(alpha: .13),
+              borderRadius: BorderRadius.circular(14)),
+            child: Icon(Icons.shield_outlined, color: colors.primary)),
+          const SizedBox(width: 12),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Your privacy at a glance',
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w800)),
+              const SizedBox(height: 3),
+              Text('Review what others can see and how they can reach you.',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: colors.onSurfaceVariant, height: 1.35)),
+            ])),
+        ]),
+      ),
+      heading('Profile visibility', 'Decide what people can see about you.'),
+      card([
+        for (var i = 0; i < visibility.length; i++) ...[
+          _PrivacyOptionTile(
+            icon: visibility[i].$4,
+            title: visibility[i].$1,
+            subtitle: visibility[i].$5,
+            value: _label(visibility[i].$3),
+            enabled: !_saving,
+            onTap: () => _choose(visibility[i].$2, visibility[i].$3,
+              visibility[i].$2 == 'presencePrivacy'
+                ? const ['everyone', 'friends', 'nobody']
+                : const ['everyone', 'friends', 'nobody']),
+          ),
+          if (i == 0) divider(),
+        ],
+      ]),
+      const SizedBox(height: 18),
+      heading('Who can reach you', 'Choose who can contact or invite you.'),
+      card([
+        _PrivacyOptionTile(icon: Icons.call_outlined, title: 'Who can call me',
+          subtitle: 'Control incoming calls', value: _label(_values['callPrivacy']!),
+          enabled: !_saving, onTap: () => _choose('callPrivacy', _values['callPrivacy']!,
+            const ['everyone', 'friends', 'nobody'])),
+        divider(),
+        _PrivacyOptionTile(icon: Icons.chat_bubble_outline_rounded,
+          title: 'Who can message me', subtitle: 'Control who can start a conversation',
+          value: _label(_values['messagePrivacy']!), enabled: !_saving,
+          onTap: () => _choose('messagePrivacy', _values['messagePrivacy']!,
+            const ['everyone', 'friends', 'nobody'])),
+        divider(),
+        _PrivacyOptionTile(icon: Icons.groups_outlined,
+          title: 'Who can add me to groups', subtitle: 'Manage group invitations',
+          value: _label(_values['groupInvitePrivacy']!), enabled: !_saving,
+          onTap: () => _choose('groupInvitePrivacy', _values['groupInvitePrivacy']!,
+            const ['everyone', 'friends', 'nobody'])),
+        divider(),
+        _PrivacyOptionTile(icon: Icons.person_add_alt_1_rounded,
+          title: 'Friend requests', subtitle: 'Choose who can send you requests',
+          value: _label(_values['friendRequestPrivacy']!), enabled: !_saving,
+          onTap: () => _choose('friendRequestPrivacy', _values['friendRequestPrivacy']!,
+            const ['everyone', 'mutuals', 'nobody'])),
+      ]),
+      const SizedBox(height: 18),
+      heading('Activity & read status', 'Choose what activity information is shared.'),
+      card([
+        _PrivacyToggleTile(icon: Icons.done_all_rounded, title: 'Read receipts',
+          subtitle: 'Let others know when you have read their messages',
+          value: widget.readReceipts, enabled: !_saving,
+          onChanged: (v) => _saveToggle('readReceiptsEnabled', v)),
+        divider(),
+        _PrivacyToggleTile(icon: Icons.keyboard_alt_outlined, title: 'Typing status',
+          subtitle: 'Let others know when you are typing',
+          value: _typing, enabled: !_saving,
+          onChanged: (v) => _saveToggle('typingIndicatorsEnabled', v)),
+      ]),
+      const SizedBox(height: 18),
+      card([
+        ListTile(
+          contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 3),
+          leading: CircleAvatar(backgroundColor: colors.errorContainer,
+            child: Icon(Icons.block_rounded, color: colors.error)),
+          title: const Text('Blocked contacts',
+            style: TextStyle(fontWeight: FontWeight.w800)),
+          subtitle: const Text('View and manage people you have blocked'),
+          trailing: Icon(Icons.chevron_right_rounded,
+            color: colors.onSurfaceVariant),
+          onTap: widget.onBlocked,
+        ),
+      ]),
+      const SizedBox(height: 18),
+      card([
+        ListTile(
+          contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 3),
+          leading: CircleAvatar(backgroundColor: colors.secondaryContainer,
+            child: Icon(Icons.history_rounded, color: colors.onSecondaryContainer)),
+          title: const Text('Message retention',
+            style: TextStyle(fontWeight: FontWeight.w800)),
+          subtitle: const Text('Messages are kept until explicitly deleted'),
+          trailing: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(color: colors.primary.withValues(alpha: .09),
+              borderRadius: BorderRadius.circular(20)),
+            child: Text('Forever', style: TextStyle(color: colors.primary,
+              fontWeight: FontWeight.w700, fontSize: 11)),
+          ),
+        ),
+      ]),
+      if (_loading) const Padding(
+        padding: EdgeInsets.only(top: 12),
+        child: LinearProgressIndicator(minHeight: 2),
+      ),
+      const SizedBox(height: 22),
+    ]);
+  }
+
+  Future<void> _choose(String key, String current, List<String> options) async {
+    final selected = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        final colors = Theme.of(sheetContext).colorScheme;
+        return Container(
+          margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+          padding: const EdgeInsets.fromLTRB(18, 12, 18, 18),
+          decoration: BoxDecoration(color: colors.surface,
+            borderRadius: BorderRadius.circular(26),
+            border: Border.all(color: colors.outlineVariant)),
+          child: SafeArea(top: false, child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(width: 38, height: 4,
+                decoration: BoxDecoration(color: colors.onSurfaceVariant.withValues(alpha: .3),
+                  borderRadius: BorderRadius.circular(10))),
+              const SizedBox(height: 18),
+              Text('Who can see or contact you?',
+                style: Theme.of(sheetContext).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w800)),
+              const SizedBox(height: 14),
+              for (final option in options)
+                ListTile(
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  tileColor: option == current
+                    ? colors.primary.withValues(alpha: .09)
+                    : colors.surfaceContainerHighest.withValues(alpha: .35),
+                  leading: Icon(option == current
+                    ? Icons.radio_button_checked_rounded
+                    : Icons.radio_button_off_rounded,
+                    color: option == current ? colors.primary : colors.onSurfaceVariant),
+                  title: Text(_label(option),
+                    style: TextStyle(fontWeight: FontWeight.w700,
+                      color: option == current ? colors.primary : colors.onSurface)),
+                  trailing: option == current
+                    ? Icon(Icons.check_rounded, color: colors.primary) : null,
+                  onTap: () => Navigator.pop(sheetContext, option),
+                ),
+            ],
+          )),
+        );
+      },
+    );
+    if (selected != null && selected != current) await _save(key, selected);
+  }
+}
+
+class _PrivacyOptionTile extends StatelessWidget {
+  const _PrivacyOptionTile({required this.icon, required this.title,
+    required this.subtitle, required this.value, required this.enabled,
+    required this.onTap});
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final String value;
+  final bool enabled;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Opacity(opacity: enabled ? 1 : .55,
+      child: InkWell(onTap: enabled ? onTap : null,
+        child: Padding(padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 13),
+          child: Row(children: [
+            CircleAvatar(radius: 21,
+              backgroundColor: colors.primary.withValues(alpha: .10),
+              child: Icon(icon, color: colors.primary, size: 20)),
+            const SizedBox(width: 12),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w800)),
+                const SizedBox(height: 3),
+                Text(subtitle, style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: colors.onSurfaceVariant)),
+              ])),
+            const SizedBox(width: 8),
+            Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+              Text(value, style: TextStyle(color: colors.primary,
+                fontSize: 11, fontWeight: FontWeight.w800)),
+              Icon(Icons.keyboard_arrow_down_rounded,
+                color: colors.onSurfaceVariant, size: 19),
+            ]),
+          ]),
+        )),
+    );
+  }
+}
+
+class _PrivacyToggleTile extends StatelessWidget {
+  const _PrivacyToggleTile({required this.icon, required this.title,
+    required this.subtitle, required this.value, required this.enabled,
+    required this.onChanged});
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final bool value;
+  final bool enabled;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Padding(padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 7),
+      child: Row(children: [
+        CircleAvatar(radius: 21,
+          backgroundColor: colors.primary.withValues(alpha: .10),
+          child: Icon(icon, color: colors.primary, size: 20)),
+        const SizedBox(width: 12),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(title, style: Theme.of(context).textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w800)),
+            const SizedBox(height: 3),
+            Text(subtitle, style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: colors.onSurfaceVariant)),
+          ])),
+        Switch.adaptive(value: value, onChanged: enabled ? onChanged : null),
+      ]),
+    );
   }
 }
