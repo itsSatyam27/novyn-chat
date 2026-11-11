@@ -43,31 +43,24 @@ class DockCustomizationScreen extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: NovynTheme.pageBg(context),
-      appBar: AppBar(
-        title: const Text('Dock appearance'),
-        backgroundColor: NovynTheme.pageBg(context),
-        surfaceTintColor: Colors.transparent,
-      ),
+      appBar: null,
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(18, 8, 18, 32),
+        padding: EdgeInsets.fromLTRB(20, MediaQuery.of(context).padding.top + 12, 20, 32),
         children: [
-          Text(
-            'MAKE NAVIGATION YOURS',
-            style: theme.textTheme.labelLarge?.copyWith(
-              color: colors.primary,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 1.15,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            'Choose how your navigation looks. Changes apply instantly and are saved on this device.',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: colors.onSurfaceVariant,
-              height: 1.5,
-            ),
-          ),
-          const SizedBox(height: 18),
+          Row(children: [
+            Material(color: NovynTheme.cardBg(context),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(13),
+                side: BorderSide(color: colors.outlineVariant)),
+              child: IconButton(visualDensity: VisualDensity.compact,
+                onPressed: () => Navigator.maybePop(context),
+                icon: const Icon(Icons.chevron_left_rounded))),
+            const SizedBox(width: 14),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('Dock appearance', style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900, letterSpacing: -.6)),
+              Text('Changes apply instantly and are saved on this device', style: theme.textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant)),
+            ])),
+          ]),
+          const SizedBox(height: 22),
           _PreviewCard(style: selectedStyle),
           const SizedBox(height: 12),
           AnimatedSwitcher(
@@ -112,18 +105,23 @@ class DockCustomizationScreen extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 12),
-          for (final item in styles)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 9),
-              child: _DockStyleTile(
-                id: item.$1,
-                title: item.$2,
-                subtitle: item.$3,
-                icon: item.$4,
-                selected: selectedStyle == item.$1,
-                onTap: () => settings.setDockStyle(item.$1),
-              ),
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: styles.length,
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2, crossAxisSpacing: 12, mainAxisSpacing: 12,
+              childAspectRatio: .92,
             ),
+            itemBuilder: (context, index) {
+              final item = styles[index];
+              return _DockStyleTile(
+                id: item.$1, title: item.$2, subtitle: item.$3,
+                icon: item.$4, selected: selectedStyle == item.$1,
+                onTap: () => settings.setDockStyle(item.$1),
+              );
+            },
+          ),
           const SizedBox(height: 8),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -256,18 +254,9 @@ class _PreviewCard extends StatelessWidget {
 }
 
 class _DockStyleTile extends StatelessWidget {
-  const _DockStyleTile({
-    required this.id,
-    required this.title,
-    required this.subtitle,
-    required this.icon,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final String id;
-  final String title;
-  final String subtitle;
+  const _DockStyleTile({required this.id, required this.title, required this.subtitle,
+    required this.icon, required this.selected, required this.onTap});
+  final String id, title, subtitle;
   final IconData icon;
   final bool selected;
   final VoidCallback onTap;
@@ -276,85 +265,71 @@ class _DockStyleTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
-    return Semantics(
-      button: true,
-      selected: selected,
-      label: '$title dock style',
+    return Semantics(button: true, selected: selected, label: '$title dock style',
       child: Material(
-        color: selected
-            ? colors.primary.withValues(alpha: .075)
-            : colors.surface,
-        borderRadius: BorderRadius.circular(18),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(18),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            curve: Curves.easeOutCubic,
-            padding: const EdgeInsets.all(13),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(
-                color: selected ? colors.primary : colors.outlineVariant,
-                width: selected ? 1.7 : 1,
-              ),
-            ),
-            child: Row(
-              children: [
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: selected
-                        ? colors.primary
-                        : colors.primary.withValues(alpha: .10),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Icon(
-                    icon,
-                    color: selected ? colors.onPrimary : colors.primary,
-                    size: 21,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(title,
-                          style: theme.textTheme.titleSmall?.copyWith(
-                            fontWeight: FontWeight.w800,
-                          )),
-                      const SizedBox(height: 3),
-                      Text(
-                        subtitle,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: colors.onSurfaceVariant,
-                          height: 1.3,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 180),
-                  child: selected
-                      ? Icon(Icons.check_circle_rounded,
-                          key: ValueKey('$id-selected'),
-                          color: colors.primary,
-                          size: 22)
-                      : Icon(Icons.circle_outlined,
-                          key: ValueKey('$id-unselected'),
-                          color: colors.outlineVariant,
-                          size: 21),
-                ),
-              ],
-            ),
+        color: selected ? colors.primary.withValues(alpha: .055) : colors.surface,
+        borderRadius: BorderRadius.circular(19),
+        child: InkWell(onTap: onTap, borderRadius: BorderRadius.circular(19),
+          child: AnimatedContainer(duration: const Duration(milliseconds: 200),
+            padding: const EdgeInsets.all(11),
+            decoration: BoxDecoration(borderRadius: BorderRadius.circular(19),
+              border: Border.all(color: selected ? colors.primary : colors.outlineVariant, width: selected ? 1.7 : 1)),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Expanded(child: _DockMiniPreview(style: id, selected: selected)),
+              const SizedBox(height: 9),
+              Text(title, maxLines: 1, overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900)),
+              const SizedBox(height: 3),
+              Text(subtitle, maxLines: 2, overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.labelSmall?.copyWith(color: colors.onSurfaceVariant, height: 1.3)),
+            ]),
           ),
         ),
       ),
+    );
+  }
+}
+
+class _DockMiniPreview extends StatelessWidget {
+  const _DockMiniPreview({required this.style, required this.selected});
+  final String style;
+  final bool selected;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final accent = colors.primary;
+    final base = colors.primary.withValues(alpha: .08);
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(color: base, borderRadius: BorderRadius.circular(13)),
+      padding: const EdgeInsets.all(8),
+      child: Column(children: [
+        Row(children: [
+          Container(width: 42, height: 5, decoration: BoxDecoration(color: accent.withValues(alpha: .16), borderRadius: BorderRadius.circular(5))),
+          const Spacer(),
+          Icon(selected ? Icons.check_circle_rounded : Icons.circle_outlined,
+            size: 17, color: selected ? accent : colors.outlineVariant),
+        ]),
+        const Spacer(),
+        if (style == 'minimal')
+          Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: List.generate(5, (i) => Icon(Icons.circle, size: 7, color: i == 0 ? accent : accent.withValues(alpha: .35))))
+        else
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 7),
+            decoration: BoxDecoration(
+              color: style == 'glass' || style == 'glow' ? accent.withValues(alpha: .13) : colors.surface,
+              borderRadius: BorderRadius.circular(style == 'floating_pill' ? 20 : 9),
+              boxShadow: style == 'glow' ? [BoxShadow(color: accent.withValues(alpha: .18), blurRadius: 9)] : null,
+            ),
+            child: Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: List.generate(5, (i) => Container(
+                width: style == 'elevated' && i == 2 ? 13 : 7,
+                height: style == 'elevated' && i == 2 ? 13 : 7,
+                decoration: BoxDecoration(color: i == 0 ? accent : accent.withValues(alpha: .35), shape: BoxShape.circle),
+              ))),
+          ),
+      ]),
     );
   }
 }
