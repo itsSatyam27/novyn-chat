@@ -16,24 +16,11 @@ class LanguageRegionScreen extends StatelessWidget {
     
     return Scaffold(
       backgroundColor: NovynTheme.pageBg(context),
-      appBar: AppBar(
-        title: Text(
-          'Language & Region',
-          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-            fontWeight: FontWeight.w800,
-            letterSpacing: -0.35,
-          ),
-        ),
-        backgroundColor: NovynTheme.pageBg(context),
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        surfaceTintColor: Colors.transparent,
-        centerTitle: false,
-      ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 36),
         physics: const BouncingScrollPhysics(),
         children: [
+          SettingsPageHeader(title: 'Language & Region', subtitle: 'Language and regional formats'),
           SettingsIntroCard(title: 'Your language, your format', subtitle: 'Set the language and regional formats used throughout the app.', icon: Icons.translate_rounded),
           const SectionLabel(label: 'Language'),
           _SelectionCard(
