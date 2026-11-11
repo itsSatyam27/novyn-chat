@@ -401,10 +401,10 @@ class MenuCardWithBadge extends StatelessWidget {
                   width: 44,
                   height: 44,
                   decoration: BoxDecoration(
-                    color: iconBgColor ?? Colors.white,
+                    color: iconBgColor ?? Theme.of(context).colorScheme.primary.withValues(alpha: .10),
                     borderRadius: BorderRadius.circular(14),
                   ),
-                  child: Icon(icon, color: iconColor ?? const Color(0xFF1A1D2E), size: 20),
+                  child: Icon(icon, color: iconColor ?? Theme.of(context).colorScheme.primary, size: 20),
                 ),
                 const SizedBox(width: 16),
                 Expanded(

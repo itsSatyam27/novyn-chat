@@ -381,7 +381,7 @@ class _StorageInfoCard extends StatelessWidget {
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(20),
-            color: isDark ? const Color(0xFF1A1D2B) : Colors.white,
+            color: NovynTheme.cardBg(context),
             border: Border.all(color: foreground.withValues(alpha: 0.08)),
           ),
           child: Column(

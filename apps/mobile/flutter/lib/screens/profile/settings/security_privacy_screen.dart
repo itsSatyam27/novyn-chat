@@ -423,9 +423,7 @@ class SecurityPrivacyScreen extends StatelessWidget {
         child: Container(
           height: MediaQuery.of(sheetContext).size.height * 0.75,
           decoration: BoxDecoration(
-            color: isDark
-                ? const Color(0xFF1A1D2B).withValues(alpha: 0.8)
-                : Colors.white.withValues(alpha: 0.8),
+            color: Theme.of(sheetContext).colorScheme.surface,
             borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
             border: Border.all(color: Theme.of(context).colorScheme.outlineVariant, width: 1),
           ),
@@ -473,9 +471,7 @@ class SecurityPrivacyScreen extends StatelessWidget {
                           margin: const EdgeInsets.only(bottom: 12),
                           decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(20),
-                            color: isDark
-                                ? Colors.white.withValues(alpha: 0.05)
-                                : Colors.black.withValues(alpha: 0.05),
+                            color: Theme.of(context).colorScheme.surfaceContainerHighest,
                           ),
                           child: ListTile(
                             leading: CircleAvatar(
@@ -781,11 +777,9 @@ class _ActionCard extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: isDark 
-            ? const Color(0xFF1A1D2B).withValues(alpha: 0.6) 
-            : Colors.white.withValues(alpha: 0.7),
+        color: NovynTheme.cardBg(context),
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.05), width: 1),
+        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(24),
@@ -887,11 +881,9 @@ class _SelectionCard extends StatelessWidget {
           duration: const Duration(milliseconds: 200),
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: isDark 
-                ? const Color(0xFF1A1D2B).withValues(alpha: 0.6) 
-                : Colors.white.withValues(alpha: 0.7),
+            color: NovynTheme.cardBg(context),
             borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.05), width: 1),
+            border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
             boxShadow: [
               BoxShadow(
                 color: iconColor.withValues(alpha: 0.05),
@@ -1259,7 +1251,7 @@ class _ChangePasswordDialogState extends State<_ChangePasswordDialog> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       decoration: BoxDecoration(
-        color: isDark ? Colors.white.withValues(alpha: 0.03) : Colors.black.withValues(alpha: 0.03),
+        color: NovynTheme.inputBg(context),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
           color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),

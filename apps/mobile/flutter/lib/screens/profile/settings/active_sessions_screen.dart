@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../services/api_service.dart';
+import '../../../theme/novyn_theme.dart';
 
 class ActiveSessionsScreen extends StatefulWidget {
   const ActiveSessionsScreen({super.key});
@@ -67,9 +68,11 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
     return Scaffold(
+      backgroundColor: NovynTheme.pageBg(context),
       appBar: AppBar(
         title: const Text('Active Sessions'),
-        backgroundColor: theme.scaffoldBackgroundColor,
+        backgroundColor: NovynTheme.pageBg(context),
+        scrolledUnderElevation: 0,
         surfaceTintColor: Colors.transparent,
       ),
       body: ListView(
