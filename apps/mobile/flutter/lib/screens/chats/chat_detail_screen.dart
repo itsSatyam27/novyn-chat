@@ -2248,24 +2248,50 @@ class _MessageBubble extends StatelessWidget {
       return VoiceMessagePlayer(url: url, label: name, durationSeconds: (attachment['duration'] as num?)?.toInt());
     }
     if (kind == 'image' && url.isNotEmpty) {
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(12),
-        child: Image.network(
-          url,
-          width: 220,
-          height: 180,
-          fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => _attachmentFileTile(name, Icons.broken_image_outlined),
-          loadingBuilder: (context, child, progress) => progress == null
-              ? child
-              : Container(
-                  width: 220,
-                  height: 130,
-                  alignment: Alignment.center,
-                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
-        ),
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: Image.network(
+              url, width: 220, height: 180, fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => _attachmentFileTile(name, Icons.broken_image_outlined),
+              loadingBuilder: (context, child, progress) => progress == null
+                  ? child
+                  : Container(
+                      width: 220, height: 130, alignment: Alignment.center,
+                      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                      child: const CircularProgressIndicator(strokeWidth: 2),
+                    ),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              onPressed: () async {
+                final messenger = ScaffoldMessenger.of(context);
+                try {
+                  final file = await ApiService.downloadMedia(url, name);
+                  if (!context.mounted) return;
+                  messenger.showSnackBar(SnackBar(
+                    content: Text('Saved to Novyn Downloads/' + file.uri.pathSegments.last),
+                    behavior: SnackBarBehavior.floating,
+                  ));
+                } catch (error) {
+                  if (!context.mounted) return;
+                  messenger.showSnackBar(SnackBar(
+                    content: Text('Download failed: ' + error.toString()),
+                    behavior: SnackBarBehavior.floating,
+                  ));
+                }
+              },
+              icon: const Icon(Icons.download_rounded, size: 17),
+              label: const Text('Download'),
+            ),
+          ),
+        ],
       );
     }
     final icon = kind == 'video'
