@@ -254,10 +254,8 @@ class _SelectionCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(24),
-        color: isDark 
-            ? const Color(0xFF1A1D2B).withValues(alpha: 0.6) 
-            : Colors.white.withValues(alpha: 0.8),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.1), width: 1),
+        color: NovynTheme.cardBg(context),
+        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(24),
@@ -406,10 +404,8 @@ class _IntensitySliderCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(24),
-        color: isDark 
-            ? const Color(0xFF1A1D2B).withValues(alpha: 0.6) 
-            : Colors.white.withValues(alpha: 0.8),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.1), width: 1),
+        color: NovynTheme.cardBg(context),
+        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(24),
@@ -528,10 +524,8 @@ class _ToggleCard extends StatelessWidget {
         margin: const EdgeInsets.only(bottom: 16),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(24),
-          color: isDark 
-              ? const Color(0xFF1A1D2B).withValues(alpha: 0.6) 
-              : Colors.white.withValues(alpha: 0.8),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.1), width: 1),
+          color: NovynTheme.cardBg(context),
+          border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(24),
