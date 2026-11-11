@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:hive_flutter/hive_flutter.dart';
 import '../models/chat_models.dart';
 import '../models/user_model.dart';
@@ -12,6 +13,10 @@ class LocalDbService {
   static Box? _metaBox; // For metadata like last sync time
 
   static bool _isInitialized = false;
+  static String _accountSuffix = '';
+
+  static String _boxName(String base) =>
+      _accountSuffix.isEmpty ? base : '${base}_$_accountSuffix';
 
   /// Initialize all Hive boxes
   static Future<void> init() async {
@@ -19,28 +24,28 @@ class LocalDbService {
 
     try {
       // Check if boxes are already open, if so just use them
-      if (Hive.isBoxOpen('messages')) {
-        _messagesBox = Hive.box<Message>('messages');
+      if (Hive.isBoxOpen(_boxName('messages'))) {
+        _messagesBox = Hive.box<Message>(_boxName('messages'));
       } else {
-        _messagesBox = await Hive.openBox<Message>('messages');
+        _messagesBox = await Hive.openBox<Message>(_boxName('messages'));
       }
 
-      if (Hive.isBoxOpen('chats')) {
-        _chatsBox = Hive.box('chats');
+      if (Hive.isBoxOpen(_boxName('chats'))) {
+        _chatsBox = Hive.box(_boxName('chats'));
       } else {
-        _chatsBox = await Hive.openBox('chats');
+        _chatsBox = await Hive.openBox(_boxName('chats'));
       }
 
-      if (Hive.isBoxOpen('users')) {
-        _usersBox = Hive.box<UserModel>('users');
+      if (Hive.isBoxOpen(_boxName('users'))) {
+        _usersBox = Hive.box<UserModel>(_boxName('users'));
       } else {
-        _usersBox = await Hive.openBox<UserModel>('users');
+        _usersBox = await Hive.openBox<UserModel>(_boxName('users'));
       }
 
-      if (Hive.isBoxOpen('metadata')) {
-        _metaBox = Hive.box('metadata');
+      if (Hive.isBoxOpen(_boxName('metadata'))) {
+        _metaBox = Hive.box(_boxName('metadata'));
       } else {
-        _metaBox = await Hive.openBox('metadata');
+        _metaBox = await Hive.openBox(_boxName('metadata'));
       }
 
       _isInitialized = true;
@@ -324,7 +329,51 @@ class LocalDbService {
   // METADATA
   // ══════════════════════════════════════════════════════════════════════════
 
-  /// Account owner for the shared local cache.
+  /// Switch Hive storage to an isolated namespace for one Novyn account.
+  /// The legacy shared boxes are copied only when their recorded owner matches.
+  static Future<void> activateAccount(String username) async {
+    final normalized = username.trim().toLowerCase();
+    if (normalized.isEmpty) return;
+    await init();
+    final currentOwner = _metaBox?.get('account_scope')?.toString();
+    final suffix = base64Url.encode(utf8.encode(normalized)).replaceAll('=', '');
+    if (_accountSuffix == suffix) {
+      await _metaBox?.put('account_scope', normalized);
+      return;
+    }
+
+    final oldMessages = _messagesBox?.values.toList() ?? <Message>[];
+    final oldChats = _chatsBox?.toMap() ?? <dynamic, dynamic>{};
+    final oldUsers = _usersBox?.toMap() ?? <dynamic, dynamic>{};
+    final oldMeta = _metaBox?.toMap() ?? <dynamic, dynamic>{};
+
+    await close();
+    _accountSuffix = suffix;
+    await init();
+
+    // Preserve the existing cache only for the account that owned it.
+    // Never guess the owner of an unscoped legacy cache.
+    if (currentOwner != null &&
+        currentOwner.trim().toLowerCase() == normalized) {
+      if ((_messagesBox?.isEmpty ?? true) && oldMessages.isNotEmpty) {
+        await _messagesBox?.putAll({
+          for (final message in oldMessages) message.id: message,
+        });
+      }
+      if ((_chatsBox?.isEmpty ?? true) && oldChats.isNotEmpty) {
+        await _chatsBox?.putAll(oldChats);
+      }
+      if ((_usersBox?.isEmpty ?? true) && oldUsers.isNotEmpty) {
+        await _usersBox?.putAll(oldUsers.cast<dynamic, UserModel>());
+      }
+      if ((_metaBox?.isEmpty ?? true) && oldMeta.isNotEmpty) {
+        await _metaBox?.putAll(oldMeta);
+      }
+    }
+    await _metaBox?.put('account_scope', normalized);
+  }
+
+  /// Account owner for the active isolated local cache.
   static Future<String?> getAccountScope() async {
     await _ensureInit();
     return _metaBox?.get('account_scope')?.toString();
