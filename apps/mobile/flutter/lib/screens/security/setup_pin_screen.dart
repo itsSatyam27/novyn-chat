@@ -120,6 +120,12 @@ class _SetupPinScreenState extends State<SetupPinScreen> {
           isError: true);
       return;
     }
+    if (widget.isChanging && _pin == _currentPin) {
+      HapticFeedback.vibrate();
+      setState(() => _confirmPin = '');
+      NovynAlert.show(context, 'Choose a PIN different from your current PIN.', isError: true);
+      return;
+    }
     if (widget.isPanic && _pin == settings.appLockPin) {
       HapticFeedback.vibrate();
       setState(() {
