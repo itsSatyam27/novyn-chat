@@ -5,12 +5,10 @@ import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'dart:io';
 import 'dart:convert';
-import 'dart:math' as math;
 import 'dart:ui';
 import '../../services/auth_service.dart';
 import '../../services/settings_service.dart';
 import '../../theme/novyn_theme.dart';
-import 'widgets/profile_widgets.dart';
 
 class EditProfileScreen extends StatefulWidget {
   const EditProfileScreen({super.key});
