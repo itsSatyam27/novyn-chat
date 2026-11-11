@@ -262,7 +262,7 @@ class FastDatabase extends _$FastDatabase {
 LazyDatabase _openConnection() {
   return LazyDatabase(() async {
     final dbFolder = await getApplicationDocumentsDirectory();
-    final file = File(p.join(dbFolder.path, 'novyn_fast.db'));
+    final file = File(p.join(dbFolder.path, FastDbService.databaseFileName));
     return NativeDatabase.createInBackground(file);
   });
 }
@@ -273,6 +273,29 @@ LazyDatabase _openConnection() {
 
 class FastDbService {
   static FastDatabase? _db;
+  static String _databaseFileName = 'novyn_fast.db';
+  static String get databaseFileName => _databaseFileName;
+
+  /// Select a per-account SQLite file. The old shared file is copied once,
+  /// and only when the legacy Hive metadata confirms its account owner.
+  static Future<void> activateAccount(String username, {bool migrateLegacy = false}) async {
+    final normalized = username.trim().toLowerCase();
+    if (normalized.isEmpty) return;
+    final suffix = base64Url.encode(utf8.encode(normalized)).replaceAll('=', '');
+    final nextName = 'novyn_fast_$suffix.db';
+    if (_databaseFileName == nextName) return;
+
+    await close();
+    final folder = await getApplicationDocumentsDirectory();
+    final legacyFile = File(p.join(folder.path, 'novyn_fast.db'));
+    final accountFile = File(p.join(folder.path, nextName));
+    if (migrateLegacy &&
+        !await accountFile.exists() &&
+        await legacyFile.exists()) {
+      await legacyFile.copy(accountFile.path);
+    }
+    _databaseFileName = nextName;
+  }
 
   static Future<FastDatabase> get database async {
     _db ??= FastDatabase();
