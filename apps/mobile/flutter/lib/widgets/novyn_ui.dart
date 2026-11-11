@@ -39,11 +39,14 @@ class NovynColors {
 }
 
 class NovynGradients {
-  static const primary = LinearGradient(
-    begin: Alignment.topLeft,
-    end: Alignment.bottomRight,
-    colors: [Color(0xFF6D5DFC), Color(0xFF5746E8)],
-  );
+  static LinearGradient selected(BuildContext context) {
+    final accent = Theme.of(context).colorScheme.primary;
+    return LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: [accent, Color.lerp(accent, Colors.black, 0.14)!],
+    );
+  }
 }
 
 class AvatarPalette {
@@ -212,11 +215,11 @@ class NovynDock extends StatelessWidget {
                       height: 46,
                       padding: const EdgeInsets.symmetric(horizontal: 15),
                       decoration: BoxDecoration(
-                        gradient: NovynGradients.primary,
+                        gradient: NovynGradients.selected(context),
                         borderRadius: BorderRadius.circular(999),
-                        boxShadow: const [
+                        boxShadow: [
                           BoxShadow(
-                            color: NovynColors.violetShadow,
+                            color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.35),
                             blurRadius: 20,
                             offset: Offset(0, 8),
                           ),
@@ -335,7 +338,7 @@ class NovynIconButton extends StatelessWidget {
         height: size,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(radius),
-          gradient: primary ? NovynGradients.primary : null,
+          gradient: primary ? NovynGradients.selected(context) : null,
           color: primary
               ? null
               : (dark ? const Color(0xFF1B1927) : Colors.white),
@@ -349,7 +352,7 @@ class NovynIconButton extends StatelessWidget {
           boxShadow: [
             BoxShadow(
               color: primary
-                  ? const Color(0xFF793CEB).withValues(alpha: .22)
+                  ? Theme.of(context).colorScheme.primary.withValues(alpha: .22)
                   : Colors.black.withValues(alpha: dark ? .12 : .035),
               blurRadius: primary ? 22 : 12,
               offset: const Offset(0, 7),
@@ -359,7 +362,7 @@ class NovynIconButton extends StatelessWidget {
         child: Icon(
           icon,
           size: iconSize,
-          color: primary ? Colors.white : (dark ? NovynColors.violetSoft : ink),
+          color: primary ? Colors.white : (dark ? Theme.of(context).colorScheme.onSurfaceVariant : ink),
         ),
       ),
     );
@@ -456,7 +459,7 @@ class NovynChipRow extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(
                       horizontal: 20, vertical: 12),
                   decoration: BoxDecoration(
-                    gradient: i == selected ? NovynGradients.primary : null,
+                    gradient: i == selected ? NovynGradients.selected(context) : null,
                     color: i == selected ? null : idleFill,
                     borderRadius: BorderRadius.circular(999),
                     border: i == selected ? null : Border.all(color: border),
@@ -508,14 +511,14 @@ class NovynSectionLabel extends StatelessWidget {
       child: Row(
         children: [
           if (icon != null) ...[
-            Icon(icon, size: 13, color: NovynColors.violet),
+            Icon(icon, size: 13, color: Theme.of(context).colorScheme.primary),
             const SizedBox(width: 8),
           ],
           Text(
             text,
             style: NovynText.body(11,
                 weight: FontWeight.w700,
-                color: NovynColors.violet,
+                color: Theme.of(context).colorScheme.primary,
                 letterSpacing: 1.32),
           ),
         ],

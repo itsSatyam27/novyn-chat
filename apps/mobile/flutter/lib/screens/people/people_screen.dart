@@ -117,7 +117,7 @@ class _PeopleScreenState extends State<PeopleScreen> {
                                         fontFamily: 'PlusJakartaSans',
                                         fontSize: 9,
                                         fontWeight: FontWeight.bold,
-                                        color: NovynColors.violetSoft,
+                                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                                       ),
                                     ),
                                   ),

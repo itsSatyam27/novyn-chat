@@ -733,7 +733,7 @@ class _DiscoverCard extends StatelessWidget {
               duration: const Duration(milliseconds: 220),
               padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
               decoration: BoxDecoration(
-                gradient: isPending ? null : NovynGradients.primary,
+                gradient: isPending ? null : NovynGradients.selected(context),
                 color: isPending ? NovynColors.glass : null,
                 borderRadius: BorderRadius.circular(12),
                 border: isPending ? Border.all(color: NovynColors.glassBorder) : null,

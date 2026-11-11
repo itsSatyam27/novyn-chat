@@ -626,7 +626,7 @@ class _ChatCard extends StatelessWidget {
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 7, vertical: 4),
                               decoration: BoxDecoration(
-                                gradient: NovynGradients.primary,
+                                gradient: NovynGradients.selected(context),
                                 borderRadius: BorderRadius.circular(20),
                               ),
                               child: Text(

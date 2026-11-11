@@ -291,7 +291,7 @@ class _CallsScreenState extends State<CallsScreen> {
         .map((chat) => chat.peer)
         .toList();
     return RefreshIndicator(
-      color: NovynColors.violet,
+      color: Theme.of(context).colorScheme.primary,
       onRefresh: _loadCalls,
       child: ListView(
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 132),
@@ -342,7 +342,7 @@ class _CallsScreenState extends State<CallsScreen> {
                                   width: 23,
                                   height: 23,
                                   decoration: BoxDecoration(
-                                    gradient: NovynGradients.primary,
+                                    gradient: NovynGradients.selected(context),
                                     shape: BoxShape.circle,
                                     border: Border.all(color: NovynColors.bg, width: 2),
                                   ),

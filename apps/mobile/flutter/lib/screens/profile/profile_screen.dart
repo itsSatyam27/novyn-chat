@@ -1500,7 +1500,7 @@ class _NovynSettingsProfileCard extends StatelessWidget {
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(displayName, maxLines: 1, overflow: TextOverflow.ellipsis, style: NovynText.display(19, weight: FontWeight.w700)),
           const SizedBox(height: 4),
-          Text('@$username', maxLines: 1, overflow: TextOverflow.ellipsis, style: NovynText.body(13, color: NovynColors.violetSoft)),
+          Text('@$username', maxLines: 1, overflow: TextOverflow.ellipsis, style: NovynText.body(13, color: Theme.of(context).colorScheme.onSurfaceVariant)),
         ])),
         NovynIconButton(icon: Icons.edit_outlined, onTap: onEdit),
       ]),
