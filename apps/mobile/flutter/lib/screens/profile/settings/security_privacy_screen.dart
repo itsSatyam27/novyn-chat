@@ -117,26 +117,13 @@ class SecurityPrivacyScreen extends StatelessWidget {
             ),
             const SizedBox(height: 22),
             section('Manage', [
-              nav(Icons.shield_outlined, const Color(0xFF7565D9),
-                'Account Security', 'Email, password, sessions and app lock',
-                () => Navigator.push(context, MaterialPageRoute(
-                  builder: (_) => const SecurityPrivacyScreen(category: 'security')))),
               nav(Icons.visibility_outlined, const Color(0xFF238B9B),
                 'Privacy Controls', 'Profile visibility, read receipts and blocked contacts',
                 () => Navigator.push(context, MaterialPageRoute(
                   builder: (_) => const SecurityPrivacyScreen(category: 'privacy')))),
-              nav(Icons.devices_other_rounded, const Color(0xFFC2540F),
-                'Device & Account', 'Stealth Mode and permanent account actions',
-                () => Navigator.push(context, MaterialPageRoute(
-                  builder: (_) => const SecurityPrivacyScreen(category: 'device'))),
-                trailing: Switch.adaptive(
-                  value: settings.stealthModeEnabled,
-                  onChanged: (v) => _setStealthMode(context, settings, v),
-                )),
-
             ]),
           ],
-          if (category == 'security') section('Sign-in & device protection', [
+          if (category == null || category == 'security') section('Sign-in & device protection', [
             nav(Icons.alternate_email_rounded, const Color(0xFF1F8A63),
               'Email & Password', 'Manage email verification and sign-in password',
               () => Navigator.push(context, MaterialPageRoute(builder: (_) => const EmailPasswordScreen()))),
@@ -176,7 +163,7 @@ class SecurityPrivacyScreen extends StatelessWidget {
                 builder: (_) => const SetupPinScreen(isChanging: true))),
             ),
           ]),
-          if (category == 'device') section('Device privacy & account actions', [
+          if (category == null || category == 'device') section('Device privacy & account actions', [
             _SecurityPrivacyToggleTile(
               icon: Icons.visibility_off_outlined, accent: const Color(0xFFC2540F),
               title: 'Stealth Mode',
