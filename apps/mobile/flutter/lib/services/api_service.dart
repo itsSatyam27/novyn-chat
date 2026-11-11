@@ -85,36 +85,59 @@ class ApiService {
 
   // ── Store session cookie from a response ─────────────────────────────────
   static Future<void> _storeSessionCookie(http.Response res) async {
-    await _storeCsrfToken(res);
-    final raw = res.headers['set-cookie'];
-    if (raw != null && raw.isNotEmpty) {
-      // Extract name=value pairs; drop path/expires/httponly etc.
-      final parts =
-          raw.split(',').expand((s) => s.split(';')).map((s) => s.trim());
-      final cookies = parts
-          .where((s) =>
-              s.contains('=') &&
-              !RegExp(r'^(path|expires|max-age|httponly|samesite|secure)$',
-                      caseSensitive: false)
-                  .hasMatch(s.split('=').first.trim()))
-          .join('; ');
-      if (cookies.isNotEmpty) {
-        _sessionCookie = cookies;
-        await _secureStorage.write(key: _sessionCookieKey, value: cookies);
-      }
-    }
-  }
-
-  static Future<void> _storeCsrfToken(http.Response res) async {
     final raw = res.headers['set-cookie'];
     if (raw == null || raw.isEmpty) return;
-    final match = RegExp(
-      r'(?:^|,\s*)novyn_csrf=([^;,\s]+)',
+
+    // Only persist Novyn cookies. A combined Set-Cookie header also contains
+    // Domain/Expires/Max-Age attributes, which must never become request cookies.
+    final matches = RegExp(
+      r'(?:^|,\\s*)(novyn_at|novyn_rt|novyn_csrf)=([^;,\\s]*)',
       caseSensitive: false,
-    ).firstMatch(raw);
-    if (match != null) {
-      _csrfToken = Uri.decodeComponent(match.group(1)!);
-      await _secureStorage.write(key: _csrfTokenKey, value: _csrfToken);
+    ).allMatches(raw);
+    if (matches.isEmpty) return;
+
+    final values = <String, String>{};
+    for (final match in matches) {
+      values[match.group(1)!.toLowerCase()] = match.group(2)!;
+    }
+
+    final access = values['novyn_at'];
+    final refresh = values['novyn_rt'];
+    if ((access != null && access.isEmpty) ||
+        (refresh != null && refresh.isEmpty)) {
+      _sessionCookie = null;
+    } else {
+      final merged = <String, String>{};
+      for (final part in (_sessionCookie ?? '').split(';')) {
+        final index = part.indexOf('=');
+        if (index > 0) {
+          final key = part.substring(0, index).trim();
+          if (key == 'novyn_at' || key == 'novyn_rt') {
+            merged[key] = part.substring(index + 1).trim();
+          }
+        }
+      }
+      if (access != null && access.isNotEmpty) merged['novyn_at'] = access;
+      if (refresh != null && refresh.isNotEmpty) merged['novyn_rt'] = refresh;
+      _sessionCookie = merged.isEmpty
+          ? null
+          : merged.entries.map((entry) => '${entry.key}=${entry.value}').join('; ');
+    }
+
+    final csrf = values['novyn_csrf'];
+    if (csrf != null) {
+      _csrfToken = csrf.isEmpty ? null : Uri.decodeComponent(csrf);
+      if (_csrfToken == null) {
+        await _secureStorage.delete(key: _csrfTokenKey);
+      } else {
+        await _secureStorage.write(key: _csrfTokenKey, value: _csrfToken);
+      }
+    }
+
+    if (_sessionCookie == null || _sessionCookie!.isEmpty) {
+      await _secureStorage.delete(key: _sessionCookieKey);
+    } else {
+      await _secureStorage.write(key: _sessionCookieKey, value: _sessionCookie!);
     }
   }
 

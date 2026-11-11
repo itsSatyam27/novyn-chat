@@ -98,8 +98,15 @@ class AuthService extends ChangeNotifier {
       Future<Map<String, dynamic>?> Function() loadSession) async {
     try {
       var session = await loadSession();
-      // A cold backend wake-up or brief network hand-off must not look like
-      // a signed-out account. Retry only if we restored a saved auth cookie.
+      // A saved refresh cookie can outlive the short-lived access cookie.
+      // Refresh before treating a persisted account as signed out.
+      if ((session == null || session['authenticated'] != true) &&
+          ApiService.sessionCookie != null) {
+        final refreshed = await ApiService.refreshSession();
+        if (refreshed) session = await loadSession();
+      }
+
+      // Recover from a cold backend or a temporary network hand-off.
       if ((session == null || session['authenticated'] != true) &&
           ApiService.sessionCookie != null) {
         for (var attempt = 0; attempt < 2; attempt++) {
@@ -107,6 +114,11 @@ class AuthService extends ChangeNotifier {
           await Future<void>.delayed(const Duration(seconds: 2));
           session = await loadSession();
           if (session?['authenticated'] == true) break;
+          final retryRefreshed = await ApiService.refreshSession();
+          if (retryRefreshed) {
+            session = await loadSession();
+            if (session?['authenticated'] == true) break;
+          }
         }
       }
       if (session != null && session['authenticated'] == true) {
