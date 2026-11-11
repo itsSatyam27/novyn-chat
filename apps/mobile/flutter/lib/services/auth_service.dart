@@ -495,19 +495,29 @@ class AuthService extends ChangeNotifier {
   }
 
   // ── uploadProfilePicture ──────────────────────────────────────────────────
-  Future<String?> uploadProfilePicture(dynamic imageFile) async {
+  Future<String?> uploadProfilePicture(File imageFile) async {
     try {
-      // Read file bytes and upload via ApiService
-      final bytes = await imageFile.readAsBytes();
-      final url = await ApiService.uploadMedia(
-        bytes,
-        'avatar.jpg',
-        'image/jpeg',
-      );
-      if (url == null) return 'Upload failed.';
-
       final current = _user;
       if (current == null) return 'Please sign in before updating your photo.';
+
+      final extension = path.extension(imageFile.path).toLowerCase();
+      const mimeByExtension = <String, String>{
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.png': 'image/png',
+        '.webp': 'image/webp',
+        '.gif': 'image/gif',
+      };
+      final mimeType = mimeByExtension[extension];
+      if (mimeType == null) {
+        return 'This photo format is not supported. Please choose a JPG, PNG or WebP image.';
+      }
+
+      final bytes = await imageFile.readAsBytes();
+      if (bytes.isEmpty) return 'The selected photo is empty. Please choose another one.';
+      final filename = 'avatar_\${DateTime.now().millisecondsSinceEpoch}\$extension';
+      final url = await ApiService.uploadMedia(bytes, filename, mimeType);
+
       final saved = await ApiService.updateProfile(
         name: current.displayName,
         bio: current.bio,
@@ -519,7 +529,7 @@ class AuthService extends ChangeNotifier {
       await refreshProfile();
       return null;
     } catch (e) {
-      return 'Upload error: $e';
+      return e is StateError ? e.message.toString() : 'Photo upload failed: \$e';
     }
   }
 
