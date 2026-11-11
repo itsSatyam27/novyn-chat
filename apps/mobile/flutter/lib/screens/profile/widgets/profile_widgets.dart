@@ -51,7 +51,7 @@ class StatusButton extends StatelessWidget {
                   fontFamily: 'PlusJakartaSans',
                   fontSize: 12,
                   fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                  color: isSelected ? color : const Color(0xFF94A3B8),
+                  color: isSelected ? color : Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
               ),
             ],
@@ -226,7 +226,7 @@ class AboutTile extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       child: Material(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
+        color: NovynTheme.cardBg(context),
         borderRadius: BorderRadius.circular(16),
         child: InkWell(
           onTap: onTap != null ? () {
@@ -242,10 +242,10 @@ class AboutTile extends StatelessWidget {
                   width: 40,
                   height: 40,
                   decoration: BoxDecoration(
-                    color: iconBgColor ?? Colors.white,
+                    color: iconBgColor ?? Theme.of(context).colorScheme.primary.withValues(alpha: .10),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Icon(icon, color: iconColor ?? const Color(0xFF1A1D2E), size: 20),
+                  child: Icon(icon, color: iconColor ?? Theme.of(context).colorScheme.primary, size: 20),
                 ),
                 const SizedBox(width: 16),
                 Expanded(

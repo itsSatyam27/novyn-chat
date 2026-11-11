@@ -5,7 +5,6 @@ import 'dart:ui';
 import '../../../services/settings_service.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/socket_service.dart';
-import '../../../services/local_auth_service.dart';
 import '../../../services/security_service.dart';
 import '../../../widgets/novyn_empty_state.dart';
 import '../../security/setup_pin_screen.dart';
@@ -357,12 +356,10 @@ class SecurityPrivacyScreen extends StatelessWidget {
       builder: (context) => BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
         child: AlertDialog(
-          backgroundColor: isDark 
-              ? const Color(0xFF1A1D2B).withValues(alpha: 0.9) 
-              : Colors.white.withValues(alpha: 0.9),
+          backgroundColor: Theme.of(context).colorScheme.surface,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(32),
-            side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+            side: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
           ),
           title: const Text(
             'Disable 2FA?',
@@ -430,7 +427,7 @@ class SecurityPrivacyScreen extends StatelessWidget {
                 ? const Color(0xFF1A1D2B).withValues(alpha: 0.8)
                 : Colors.white.withValues(alpha: 0.8),
             borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.1), width: 1.5),
+            border: Border.all(color: Theme.of(context).colorScheme.outlineVariant, width: 1),
           ),
           child: Column(
             children: [
@@ -983,12 +980,10 @@ class _SelectionCard extends StatelessWidget {
       builder: (context) => BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
         child: AlertDialog(
-          backgroundColor: isDark 
-              ? const Color(0xFF1A1D2B).withValues(alpha: 0.9) 
-              : Colors.white.withValues(alpha: 0.9),
+          backgroundColor: Theme.of(context).colorScheme.surface,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(32),
-            side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+            side: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
           ),
           title: Text(
             title, 
@@ -1063,12 +1058,10 @@ class _ChangePasswordDialogState extends State<_ChangePasswordDialog> {
     return BackdropFilter(
       filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
       child: AlertDialog(
-        backgroundColor: isDark 
-            ? const Color(0xFF1A1D2B).withValues(alpha: 0.9) 
-            : Colors.white.withValues(alpha: 0.9),
+        backgroundColor: Theme.of(context).colorScheme.surface,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(32),
-          side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+          side: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
         ),
         title: Center(
           child: Column(
@@ -1361,12 +1354,10 @@ class _TwoFactorSetupDialogState extends State<_TwoFactorSetupDialog> {
     return BackdropFilter(
       filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
       child: AlertDialog(
-        backgroundColor: isDark 
-            ? const Color(0xFF1A1D2B).withValues(alpha: 0.95) 
-            : Colors.white.withValues(alpha: 0.95),
+        backgroundColor: Theme.of(context).colorScheme.surface,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(32),
-          side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+          side: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
         ),
         contentPadding: EdgeInsets.zero,
         content: Container(

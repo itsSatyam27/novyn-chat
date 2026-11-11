@@ -342,12 +342,10 @@ class _SelectionCard extends StatelessWidget {
       builder: (context) => BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
         child: AlertDialog(
-          backgroundColor: isDark 
-              ? const Color(0xFF1A1D2B).withValues(alpha: 0.9) 
-              : Colors.white.withValues(alpha: 0.9),
+          backgroundColor: Theme.of(context).colorScheme.surface,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(32),
-            side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+            side: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
           ),
           title: Text(
             title,
