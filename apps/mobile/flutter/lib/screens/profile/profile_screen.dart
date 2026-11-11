@@ -33,6 +33,7 @@ class ProfileScreen extends StatelessWidget {
     final profile = auth.user;
     final displayName = profile?.displayName.isNotEmpty == true ? profile!.displayName : 'You';
     final username = profile?.username ?? 'user';
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
       backgroundColor: NovynTheme.pageBg(context),
@@ -43,19 +44,20 @@ class ProfileScreen extends StatelessWidget {
             bottom: false,
             child: ListView(
               physics: const BouncingScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 132),
+              padding: const EdgeInsets.fromLTRB(20, 14, 20, 132),
               children: [
                 NovynHeader(
                   title: 'Settings',
-                  titleSize: 34,
+                  titleSize: 30,
                   subtitle: 'Make Novyn feel like yours',
                   actions: [
-                    NovynIconButton(icon: Icons.search_rounded, onTap: () => _showSettingsSearch(context, settings)),
-                    const SizedBox(width: 8),
-                    NovynIconButton(icon: Icons.qr_code_2_rounded, onTap: () => _showQRCode(context)),
+                    NovynIconButton(
+                      icon: Icons.search_rounded,
+                      onTap: () => _showSettingsSearch(context, settings),
+                    ),
                   ],
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 18),
                 _NovynSettingsProfileCard(
                   displayName: displayName,
                   username: username,
@@ -64,33 +66,114 @@ class ProfileScreen extends StatelessWidget {
                   busy: auth.updatingPresence,
                   onEdit: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const EditProfileScreen())),
                   onStatusSelected: (mode) => _updateStatus(context, auth, mode),
+                  onQr: () => _showQRCode(context),
                 ),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _SettingsQuickToggle(
+                        icon: Icons.dark_mode_outlined,
+                        label: 'Dark mode',
+                        value: isDark,
+                        onChanged: (value) => settings.setThemeMode(value ? ThemeMode.dark : ThemeMode.light),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _SettingsQuickToggle(
+                        icon: Icons.notifications_none_rounded,
+                        label: 'Alerts',
+                        value: settings.notificationsOn,
+                        onChanged: settings.setNotifications,
+                      ),
+                    ),
+                  ],
+                ),
+                NovynSectionLabel('ACCOUNT', padding: const EdgeInsets.fromLTRB(4, 24, 4, 10)),
+                _NovynSettingsGroup(children: [
+                  _NovynSettingsTile(
+                    icon: Icons.shield_outlined,
+                    title: 'Security & Privacy',
+                    subtitle: 'Privacy and account protection',
+                    accent: const Color(0xFF047857),
+                    onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SecurityPrivacyScreen())),
+                  ),
+                  _NovynSettingsTile(
+                    icon: Icons.storage_rounded,
+                    title: 'Data & Storage',
+                    subtitle: 'Storage usage and downloads',
+                    accent: const Color(0xFF64748B),
+                    onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const DataStorageScreen())),
+                    showDivider: false,
+                  ),
+                ]),
+                NovynSectionLabel('PREFERENCES', padding: const EdgeInsets.fromLTRB(4, 24, 4, 10)),
+                _NovynSettingsGroup(children: [
+                  _NovynSettingsTile(
+                    icon: Icons.palette_outlined,
+                    title: l10n.appearance,
+                    subtitle: 'Theme, colours and text size',
+                    accent: const Color(0xFF7C6CF2),
+                    onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AppearanceScreen())),
+                  ),
+                  _NovynSettingsTile(
+                    icon: Icons.notifications_none_rounded,
+                    title: l10n.notifications,
+                    subtitle: 'Messages and call alerts',
+                    accent: const Color(0xFFD97706),
+                    onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const NotificationSettingsScreen())),
+                  ),
+                  _NovynSettingsTile(
+                    icon: Icons.volume_up_outlined,
+                    title: l10n.soundVibration,
+                    subtitle: 'Ringtones and haptics',
+                    accent: const Color(0xFF0284C7),
+                    onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SoundVibrationScreen())),
+                  ),
+                  _NovynSettingsTile(
+                    icon: Icons.language_rounded,
+                    title: l10n.languageRegion,
+                    subtitle: 'App language and region',
+                    accent: const Color(0xFF0F9B8E),
+                    onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const LanguageRegionScreen())),
+                  ),
+                  _NovynSettingsTile(
+                    icon: Icons.accessibility_new_rounded,
+                    title: 'Accessibility',
+                    subtitle: 'Make Novyn easier to use',
+                    accent: const Color(0xFFDB2777),
+                    onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AccessibilityScreen())),
+                    showDivider: false,
+                  ),
+                ]),
+                NovynSectionLabel(l10n.support.toUpperCase(), padding: const EdgeInsets.fromLTRB(4, 24, 4, 10)),
+                _NovynSettingsGroup(children: [
+                  _NovynSettingsTile(
+                    icon: Icons.help_outline_rounded,
+                    title: l10n.helpSupport,
+                    subtitle: 'FAQs and get help',
+                    accent: const Color(0xFF7C6CF2),
+                    onTap: () => _showHelpSupport(context),
+                  ),
+                  _NovynSettingsTile(
+                    icon: Icons.info_outline_rounded,
+                    title: 'About Novyn',
+                    subtitle: 'App information and credits',
+                    accent: const Color(0xFF64748B),
+                    onTap: () => _showAboutNovyn(context),
+                    showDivider: false,
+                  ),
+                ]),
                 const SizedBox(height: 26),
-                NovynSectionLabel(l10n.preferences.toUpperCase(), padding: const EdgeInsets.fromLTRB(4, 0, 4, 10)),
-                _NovynSettingsGroup(children: [
-                  _NovynSettingsTile(icon: Icons.palette_outlined, title: l10n.appearance, subtitle: 'Theme, colours and text size', accent: NovynTheme.indigo, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AppearanceScreen()))),
-                  _NovynSettingsTile(icon: Icons.volume_up_outlined, title: l10n.soundVibration, subtitle: 'Ringtones and haptics', accent: NovynTheme.indigo, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SoundVibrationScreen()))),
-                  _NovynSettingsTile(icon: Icons.notifications_none_rounded, title: l10n.notifications, subtitle: 'Messages and call alerts', accent: NovynTheme.indigo, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const NotificationSettingsScreen()))),
-                  _NovynSettingsTile(icon: Icons.language_rounded, title: l10n.languageRegion, subtitle: 'App language and region', accent: NovynTheme.indigo, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const LanguageRegionScreen()))),
-                  _NovynSettingsTile(icon: Icons.storage_rounded, title: 'Data & Storage', subtitle: 'Storage usage and downloads', accent: NovynTheme.indigo, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const DataStorageScreen()))),
-                  _NovynSettingsTile(icon: Icons.accessibility_new_rounded, title: 'Accessibility', subtitle: 'Make Novyn easier to use', accent: NovynTheme.indigo, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AccessibilityScreen())), showDivider: false),
-                ]),
-                const SizedBox(height: 24),
-                NovynSectionLabel('ACCOUNT & PRIVACY', padding: const EdgeInsets.fromLTRB(4, 0, 4, 10)),
-                _NovynSettingsGroup(children: [
-                  _NovynSettingsTile(icon: Icons.shield_outlined, title: l10n.securityPrivacy, subtitle: 'Privacy and account protection', accent: NovynTheme.indigo, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SecurityPrivacyScreen()))),
-                  _NovynSettingsTile(icon: Icons.qr_code_2_rounded, title: l10n.qrCode, subtitle: 'Share your Novyn profile', accent: NovynTheme.indigo, onTap: () => _showQRCode(context), showDivider: false),
-                ]),
-                const SizedBox(height: 24),
-                NovynSectionLabel(l10n.support.toUpperCase(), padding: const EdgeInsets.fromLTRB(4, 0, 4, 10)),
-                _NovynSettingsGroup(children: [
-                  _NovynSettingsTile(icon: Icons.help_outline_rounded, title: l10n.helpSupport, subtitle: 'FAQs and get help', accent: NovynTheme.indigo, onTap: () => _showHelpSupport(context)),
-                  _NovynSettingsTile(icon: Icons.info_outline_rounded, title: 'About Novyn', subtitle: 'App information and credits', accent: NovynTheme.indigo, onTap: () => _showAboutNovyn(context), showDivider: false),
-                ]),
-                const SizedBox(height: 24),
                 _NovynLogoutTile(title: l10n.logOut, onTap: () => _confirmLogout(context, auth)),
-                const SizedBox(height: 18),
-                Center(child: Text('NOVYN  •  YOUR SPACE, YOUR PEOPLE', style: NovynText.body(10, weight: FontWeight.w700, color: NovynColors.timeMuted, letterSpacing: 1.3))),
+                const SizedBox(height: 20),
+                Center(
+                  child: Text(
+                    'NOVYN · YOUR SPACE, YOUR PEOPLE',
+                    style: NovynText.body(12, weight: FontWeight.w700, color: NovynColors.timeMuted, letterSpacing: 1.7),
+                  ),
+                ),
               ],
             ),
           ),
@@ -1384,7 +1467,7 @@ class _NovynSettingsBackdrop extends StatelessWidget {
 }
 
 class _NovynSettingsProfileCard extends StatelessWidget {
-  const _NovynSettingsProfileCard({required this.displayName, required this.username, required this.photoUrl, required this.status, required this.busy, required this.onEdit, required this.onStatusSelected});
+  const _NovynSettingsProfileCard({required this.displayName, required this.username, required this.photoUrl, required this.status, required this.busy, required this.onEdit, required this.onStatusSelected, this.onQr});
   final String displayName, username, status;
   final String? photoUrl;
   final bool busy;
@@ -1420,31 +1503,107 @@ class _NovynSettingsProfileCard extends StatelessWidget {
         ])),
         NovynIconButton(icon: Icons.edit_outlined, onTap: onEdit),
       ]),
-      const SizedBox(height: 16),
-      Divider(height: 1, color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: .75)),
       const SizedBox(height: 14),
       Row(
         children: [
           Expanded(
-            child: Text(
-              'YOUR PRESENCE',
-              style: NovynText.body(
-                10,
-                weight: FontWeight.w700,
-                color: NovynColors.textMuted,
-                letterSpacing: 1.2,
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: PresenceDock(
+                status: status,
+                busy: busy,
+                onSelected: onStatusSelected,
               ),
             ),
           ),
-          PresenceDock(
-            status: status,
-            busy: busy,
-            onSelected: onStatusSelected,
+          const SizedBox(width: 10),
+          Material(
+            color: NovynTheme.indigo.withValues(alpha: .10),
+            borderRadius: BorderRadius.circular(22),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(22),
+              onTap: onQr,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.qr_code_2_rounded, size: 19, color: NovynTheme.indigo),
+                    const SizedBox(width: 7),
+                    Text('My QR code', style: NovynText.body(13, weight: FontWeight.w700, color: NovynTheme.indigo)),
+                  ],
+                ),
+              ),
+            ),
           ),
         ],
       ),
     ]),
   );
+  }
+}
+
+class _SettingsQuickToggle extends StatelessWidget {
+  const _SettingsQuickToggle({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final card = NovynTheme.cardBg(context);
+    final ink = Theme.of(context).colorScheme.onSurface;
+    final muted = Theme.of(context).colorScheme.onSurfaceVariant;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 10, 5, 10),
+      decoration: BoxDecoration(
+        color: card,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: NovynTheme.indigo.withValues(alpha: dark ? .22 : .10),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, size: 19, color: NovynTheme.indigo),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: NovynText.body(13, weight: FontWeight.w700, color: ink),
+            ),
+          ),
+          Switch(
+            value: value,
+            onChanged: onChanged,
+            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            thumbColor: const WidgetStatePropertyAll(Colors.white),
+            trackColor: WidgetStateProperty.resolveWith(
+              (states) => states.contains(WidgetState.selected)
+                  ? NovynTheme.indigo
+                  : (dark ? const Color(0xFF454456) : const Color(0xFFD7D3E8)),
+            ),
+            trackOutlineColor: const WidgetStatePropertyAll(Colors.transparent),
+          ),
+        ],
+      ),
+    );
   }
 }
 
