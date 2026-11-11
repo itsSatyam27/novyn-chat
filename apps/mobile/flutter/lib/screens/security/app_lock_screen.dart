@@ -142,7 +142,7 @@ class _AppLockScreenState extends State<AppLockScreen> {
                             : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.1),
                         boxShadow: isActive ? [
                           BoxShadow(
-                            color: const Color(0xFF6D5DFC).withValues(alpha: 0.3),
+                            color: accent.withValues(alpha: 0.3),
                             blurRadius: 8,
                           )
                         ] : [],
@@ -165,14 +165,14 @@ class _AppLockScreenState extends State<AppLockScreen> {
                           Theme.of(context).platform == TargetPlatform.iOS
                               ? Icons.face_rounded
                               : Icons.fingerprint_rounded,
-                          color: const Color(0xFF6D5DFC),
+                          color: accent,
                         ),
-                        label: const Text(
+                        label: Text(
                           'Use Biometrics',
                           style: TextStyle(
                             fontFamily: 'PlusJakartaSans',
                             fontWeight: FontWeight.w800,
-                            color: Color(0xFF6D5DFC),
+                            color: accent,
                           ),
                         ),
                       ),
