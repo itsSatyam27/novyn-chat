@@ -2623,9 +2623,9 @@ class _AttachmentButtonState extends State<_AttachmentButton>
 
   static const _items = [
     _MenuItem(
-        icon: Icons.poll_rounded, label: 'Poll', color: Theme.of(context).colorScheme.primary),
+        icon: Icons.poll_rounded, label: 'Poll', color: Color(0xFF6D5DFC)),
     _MenuItem(
-        icon: Icons.lock_outline_rounded, label: 'Riddle', color: Color(0xFF8B7CFF)),
+        icon: Icons.lock_outline_rounded, label: 'Riddle', color: Color(0xFF6D5DFC)),
     _MenuItem(
         icon: Icons.sports_esports_rounded, label: 'Games', color: Color(0xFFF97316)),
     _MenuItem(
@@ -2808,6 +2808,9 @@ class _AttachmentButtonState extends State<_AttachmentButton>
   }
 
   Widget _buildMenuItem(_MenuItem item) {
+    final itemColor = item.label == 'Poll' || item.label == 'Riddle'
+        ? Theme.of(context).colorScheme.primary
+        : item.color;
     return InkWell(
       onTap: () {
         _close();
@@ -2822,10 +2825,10 @@ class _AttachmentButtonState extends State<_AttachmentButton>
               width: 42,
               height: 42,
               decoration: BoxDecoration(
-                color: item.color.withValues(alpha: 0.15),
+                color: itemColor.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(14),
               ),
-              child: Icon(item.icon, color: item.color, size: 21),
+              child: Icon(item.icon, color: itemColor, size: 21),
             ),
             const SizedBox(width: 14),
             Builder(
