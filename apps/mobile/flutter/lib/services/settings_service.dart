@@ -67,6 +67,8 @@ class SettingsService extends ChangeNotifier {
   static const _kAppLockPin = 'app_lock_pin';
   static const _secureAppLockPin = 'app_lock_pin';
   static const _securePanicPin = 'panic_pin';
+  static const _secureAppLockFailures = 'app_lock_failed_attempts';
+  static const _secureAppLockUntil = 'app_lock_locked_until';
   static const FlutterSecureStorage _secureStorage = FlutterSecureStorage();
   static const _kStealthMode = 'stealth_mode_enabled';
   static const _kStealthPreviousNotificationPrivacy = 'stealth_previous_notification_privacy';
@@ -118,6 +120,8 @@ class SettingsService extends ChangeNotifier {
   int _appLockTimeout = 0; // minutes (0 = immediately)
   String? _appLockPin; // Stored PIN
   bool _isLocked = false; // Transient state
+  int _appLockFailedAttempts = 0;
+  DateTime? _appLockLockedUntil;
   String? _customNotificationPath;
   String? _customRingtonePath;
   String _region = 'India';
@@ -171,6 +175,14 @@ class SettingsService extends ChangeNotifier {
   int get appLockTimeout => _appLockTimeout;
   String? get appLockPin => _appLockPin;
   bool get isLocked => _isLocked;
+  int get appLockFailedAttempts => _appLockFailedAttempts;
+  Duration get appLockRemaining {
+    final until = _appLockLockedUntil;
+    if (until == null) return Duration.zero;
+    final remaining = until.difference(DateTime.now());
+    return remaining.isNegative ? Duration.zero : remaining;
+  }
+  bool get isAppLockCoolingDown => appLockRemaining > Duration.zero;
   bool get stealthModeEnabled => _stealthModeEnabled;
   String? get panicPin => _panicPin;
   bool get hideNotificationContent => _hideNotificationContent;
@@ -235,6 +247,18 @@ class SettingsService extends ChangeNotifier {
     }
     if (legacyAppPin != null) await _prefs.remove(_kAppLockPin);
     _isLocked = _appLockEnabled && _appLockPin != null; // Initial state
+    _appLockFailedAttempts = int.tryParse(
+          await _secureStorage.read(key: _secureAppLockFailures) ?? '0',
+        ) ?? 0;
+    final lockUntilRaw = await _secureStorage.read(key: _secureAppLockUntil);
+    final lockUntilMillis = int.tryParse(lockUntilRaw ?? '');
+    _appLockLockedUntil = lockUntilMillis == null
+        ? null
+        : DateTime.fromMillisecondsSinceEpoch(lockUntilMillis);
+    if (_appLockLockedUntil != null && !_appLockLockedUntil!.isAfter(DateTime.now())) {
+      _appLockLockedUntil = null;
+      await _secureStorage.delete(key: _secureAppLockUntil);
+    }
     if (_appLockEnabled && _appLockPin == null) {
       _appLockEnabled = false;
       await _prefs.setBool(_kAppLockEnabled, false);
@@ -592,6 +616,49 @@ class SettingsService extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> recordFailedAppLockAttempt() async {
+    _appLockFailedAttempts += 1;
+    await _secureStorage.write(
+      key: _secureAppLockFailures,
+      value: _appLockFailedAttempts.toString(),
+    );
+    Duration? cooldown;
+    if (_appLockFailedAttempts >= 15) {
+      cooldown = const Duration(minutes: 10);
+    } else if (_appLockFailedAttempts >= 10) {
+      cooldown = const Duration(minutes: 2);
+    } else if (_appLockFailedAttempts >= 5) {
+      cooldown = const Duration(seconds: 30);
+    }
+    if (cooldown != null) {
+      _appLockLockedUntil = DateTime.now().add(cooldown);
+      await _secureStorage.write(
+        key: _secureAppLockUntil,
+        value: _appLockLockedUntil!.millisecondsSinceEpoch.toString(),
+      );
+    }
+    notifyListeners();
+  }
+
+  Future<void> resetAppLockFailures() async {
+    _appLockFailedAttempts = 0;
+    _appLockLockedUntil = null;
+    await _secureStorage.delete(key: _secureAppLockFailures);
+    await _secureStorage.delete(key: _secureAppLockUntil);
+    notifyListeners();
+  }
+
+  // Recovery deliberately requires a fresh account sign-in. The PIN is
+  // removed only after the user confirms they want to sign out.
+  Future<void> prepareAppLockAccountRecovery() async {
+    _appLockEnabled = false;
+    _isLocked = false;
+    await _prefs.setBool(_kAppLockEnabled, false);
+    await setAppLockPin(null);
+    await resetAppLockFailures();
+    notifyListeners();
+  }
+
   void setLocked(bool v) {
     _isLocked = v;
     notifyListeners();
@@ -654,6 +721,7 @@ class SettingsService extends ChangeNotifier {
   void unlockWithDecoy(bool isDecoy) {
     _decoyMode = isDecoy;
     _isLocked = false;
+    resetAppLockFailures();
     notifyListeners();
   }
 
