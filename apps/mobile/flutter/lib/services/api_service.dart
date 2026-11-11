@@ -278,12 +278,17 @@ class ApiService {
       if (res.statusCode == 200) {
         return Map<String, dynamic>.from(jsonDecode(res.body));
       }
-    } catch (_) {}
-    return null;
+      // Preserve the distinction between a confirmed expired session and a
+      // transient backend/Render error. AuthService must not sign users out
+      // merely because the server is waking up or temporarily unavailable.
+      return {'_httpStatus': res.statusCode};
+    } catch (_) {
+      return null;
+    }
   }
 
   // ── Auth: Refresh token ───────────────────────────────────────────────────
-  static Future<bool> refreshSession() async {
+  static Future<int?> refreshSessionStatus() async {
     try {
       final res = await http
           .post(
@@ -291,13 +296,15 @@ class ApiService {
             headers: await _csrfHeaders(),
           )
           .timeout(const Duration(seconds: 10));
-      if (res.statusCode == 200) {
-        await _storeSessionCookie(res);
-        return true;
-      }
-    } catch (_) {}
-    return false;
+      await _storeSessionCookie(res);
+      return res.statusCode;
+    } catch (_) {
+      return null;
+    }
   }
+
+  static Future<bool> refreshSession() async =>
+      await refreshSessionStatus() == 200;
 
   // ── Auth: Logout ──────────────────────────────────────────────────────────
   static Future<void> logout() async {

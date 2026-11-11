@@ -102,10 +102,11 @@ class _SplashScreenV2State extends State<SplashScreenV2>
     final auth = context.read<AuthService>();
 
     // The visual splash can finish before the network-backed session restore.
-    // Never route to onboarding while authentication is still being resolved.
-    final deadline = DateTime.now().add(const Duration(seconds: 25));
-    while (mounted && !auth.authReady && DateTime.now().isBefore(deadline)) {
-      await Future<void>.delayed(const Duration(milliseconds: 100));
+    // If a saved session exists, AuthService keeps retrying transient backend
+    // failures. Do not route to onboarding until it confirms signed-in or
+    // signed-out state; otherwise a Render cold start looks like a logout.
+    while (mounted && !auth.authReady) {
+      await Future<void>.delayed(const Duration(milliseconds: 250));
     }
     if (!mounted) return;
 

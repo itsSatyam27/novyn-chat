@@ -4,8 +4,11 @@ on:
   workflow_dispatch:
   push:
     branches:
+      - fix/media-branch-apk-compile-errors
+  pull_request:
+    branches:
+      - feature/real-media-storage-system
       - feature/app-lock-recovery-hardening
-      - fix/app-lock-media-compile-integration
 
 permissions:
   contents: read
@@ -15,10 +18,10 @@ jobs:
     name: Build release APK
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout selected branch
+      - name: Checkout PR or pushed commit
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.ref }}
+          ref: ${{ github.sha }}
 
       - name: Set up Java
         uses: actions/setup-java@v4
