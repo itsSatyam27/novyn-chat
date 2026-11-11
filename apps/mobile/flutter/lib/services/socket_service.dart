@@ -1438,15 +1438,16 @@ class SocketService extends ChangeNotifier {
     _typingDebounce?.cancel();
     _typingStopTimer?.cancel();
     _socket?.disconnect();
+    _reconnectTimer?.cancel();
     _socket = null;
     _isConnected = false;
     notifyListeners();
-    _audioPlayer.dispose();
   }
 
   @override
   void dispose() {
     disconnect();
+    _audioPlayer.dispose();
     contacts.dispose();
     super.dispose();
   }
