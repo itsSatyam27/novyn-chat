@@ -128,7 +128,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       color: Theme.of(context).colorScheme.onSurface,
                     ),
                   ),
-                  const SizedBox(height: 24),
+                  SizedBox(height: 24),
                   SizedBox(
                     height: 200,
                     child: CupertinoTheme(
@@ -150,7 +150,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 32),
+                  SizedBox(height: 32),
                   Row(
                     children: [
                       Expanded(
@@ -166,12 +166,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                           ),
                         ),
                       ),
-                      const SizedBox(width: 16),
+                      SizedBox(width: 16),
                       Expanded(
                         child: Container(
                           decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(16),
-                            gradient: const LinearGradient(
+                            gradient: LinearGradient(
                               colors: [Theme.of(context).colorScheme.primary, Color(0xFF40E0D0)],
                             ),
                             boxShadow: [
@@ -198,7 +198,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                               padding: const EdgeInsets.symmetric(vertical: 14),
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                             ),
-                            child: const Text(
+                            child: Text(
                               'Confirm',
                               style: TextStyle(
                                 fontFamily: 'PlusJakartaSans',
@@ -301,7 +301,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const SizedBox(height: 12),
+                SizedBox(height: 12),
                 Container(
                   width: 40,
                   height: 4,
@@ -310,7 +310,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
-                const SizedBox(height: 24),
+                SizedBox(height: 24),
                 Text(
                   'Profile Picture',
                   style: TextStyle(
@@ -320,7 +320,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     color: Theme.of(context).colorScheme.onSurface,
                   ),
                 ),
-                const SizedBox(height: 24),
+                SizedBox(height: 24),
                 _buildOptionTile(
                   icon: Icons.photo_library_rounded,
                   title: 'Choose from Gallery',
@@ -349,7 +349,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       _deleteProfilePicture();
                     },
                   ),
-                const SizedBox(height: 20),
+                SizedBox(height: 20),
               ],
             ),
           ),
@@ -377,7 +377,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       ),
       title: Text(
         title,
-        style: const TextStyle(
+        style: TextStyle(
           fontFamily: 'PlusJakartaSans',
           fontWeight: FontWeight.w700,
           fontSize: 16,
@@ -407,7 +407,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       showDialog(
         context: context,
         barrierDismissible: false,
-        builder: (context) => const Center(
+        builder: (context) => Center(
           child: CircularProgressIndicator(color: Theme.of(context).colorScheme.primary),
         ),
       );
@@ -441,16 +441,16 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       context: context,
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        title: const Text('Remove Profile Picture', style: TextStyle(fontWeight: FontWeight.bold)),
-        content: const Text('Are you sure you want to remove your profile picture?'),
+        title: Text('Remove Profile Picture', style: TextStyle(fontWeight: FontWeight.bold)),
+        content: Text('Are you sure you want to remove your profile picture?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+            child: Text('Cancel'),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Remove', style: TextStyle(color: Color(0xFFEF4444), fontWeight: FontWeight.bold)),
+            child: Text('Remove', style: TextStyle(color: Color(0xFFEF4444), fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -461,7 +461,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => const Center(
+      builder: (context) => Center(
         child: CircularProgressIndicator(color: Theme.of(context).colorScheme.primary),
       ),
     );
@@ -524,16 +524,16 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             child: TextButton(
               onPressed: _saving ? null : _save,
               child: _saving
-                  ? const SizedBox(
+                  ? SizedBox(
                       width: 20,
                       height: 20,
                       child: CircularProgressIndicator(strokeWidth: 2, color: Theme.of(context).colorScheme.primary),
                     )
                   : ShaderMask(
-                      shaderCallback: (bounds) => const LinearGradient(
+                      shaderCallback: (bounds) => LinearGradient(
                         colors: [Theme.of(context).colorScheme.primary, Color(0xFF40E0D0)],
                       ).createShader(bounds),
-                      child: const Text(
+                      child: Text(
                         'Save',
                         style: TextStyle(
                           fontFamily: 'PlusJakartaSans',
@@ -557,7 +557,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               child: Opacity(
                 opacity: 0.5,
                 child: CustomPaint(
-                  painter: _AuroraBackgroundPainter(),
+                  painter: _AuroraBackgroundPainter(accentColor: Theme.of(context).colorScheme.primary),
                 ),
               ),
             ),
@@ -578,8 +578,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     ),
                   ),
                 ),
-                const SizedBox(height: 16),
-                const Center(
+                SizedBox(height: 16),
+                Center(
                   child: Text(
                     'Tap to change photo',
                     style: TextStyle(
@@ -590,7 +590,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     ),
                   ),
                 ),
-                const SizedBox(height: 40),
+                SizedBox(height: 40),
     
                 // Form Fields
                 _label('Full Name'),
@@ -599,7 +599,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   hint: 'Your full name',
                   icon: Icons.person_outline_rounded,
                 ),
-                const SizedBox(height: 24),
+                SizedBox(height: 24),
     
                 _label('Username'),
                 _field(
@@ -608,7 +608,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   icon: Icons.alternate_email_rounded,
                   onChanged: _checkUsername,
                   suffix: _checkingUsername
-                      ? const SizedBox(
+                      ? SizedBox(
                           width: 18,
                           height: 18,
                           child: CircularProgressIndicator(strokeWidth: 2, color: Theme.of(context).colorScheme.primary),
@@ -621,7 +621,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                               size: 20,
                             ),
                 ),
-                const SizedBox(height: 24),
+                SizedBox(height: 24),
     
                 _label('Bio'),
                 _field(
@@ -630,7 +630,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   icon: Icons.edit_note_rounded,
                   maxLines: 3,
                 ),
-                const SizedBox(height: 24),
+                SizedBox(height: 24),
     
                 Row(
                   children: [
@@ -654,7 +654,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                         ],
                       ),
                     ),
-                    const SizedBox(width: 16),
+                    SizedBox(width: 16),
                     Expanded(
                       flex: 2,
                       child: Column(
@@ -687,7 +687,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                                     color: _selectedGender.isEmpty ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.3) : Theme.of(context).colorScheme.primary,
                                     size: 20,
                                   ),
-                                  const SizedBox(width: 12),
+                                  SizedBox(width: 12),
                                   Expanded(
                                     child: Text(
                                       _selectedGender.isEmpty ? 'Select' : _selectedGender,
@@ -715,7 +715,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 60),
+                SizedBox(height: 60),
               ],
             ),
           ),
@@ -766,7 +766,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         maxLines: maxLines,
         keyboardType: keyboardType,
         onChanged: onChanged,
-        style: const TextStyle(
+        style: TextStyle(
           fontFamily: 'PlusJakartaSans',
           fontWeight: FontWeight.w700,
           fontSize: 16,
@@ -824,7 +824,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Text(
+                    Text(
                       'Select Gender',
                       style: TextStyle(
                         fontFamily: 'PlusJakartaSans',
@@ -832,7 +832,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                         fontSize: 20,
                       ),
                     ),
-                    const SizedBox(height: 16),
+                    SizedBox(height: 16),
                     ..._genders.map((g) {
                       final isSelected = _selectedGender == g;
                       return ListTile(
@@ -855,7 +855,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                         },
                       );
                     }),
-                    const SizedBox(height: 8),
+                    SizedBox(height: 8),
                   ],
                 ),
               ),
@@ -925,7 +925,7 @@ class _EditProfileAvatar extends StatelessWidget {
               ? Center(
                   child: Text(
                     displayName.isNotEmpty ? displayName.substring(0, 1).toUpperCase() : '?',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontFamily: 'PlusJakartaSans',
                       fontSize: 48,
                       fontWeight: FontWeight.w900,
@@ -944,7 +944,7 @@ class _EditProfileAvatar extends StatelessWidget {
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              gradient: const LinearGradient(
+              gradient: LinearGradient(
                 colors: [Theme.of(context).colorScheme.primary, Color(0xFF40E0D0)],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
@@ -971,6 +971,9 @@ class _EditProfileAvatar extends StatelessWidget {
 }
 
 class _AuroraBackgroundPainter extends CustomPainter {
+  final Color accentColor;
+  _AuroraBackgroundPainter({required this.accentColor});
+
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()..style = PaintingStyle.fill;
@@ -978,7 +981,7 @@ class _AuroraBackgroundPainter extends CustomPainter {
     // 1. Purple glow (Top Right)
     final purpleGlow = RadialGradient(
       colors: [
-        Theme.of(context).colorScheme.primary.withValues(alpha: 0.15),
+        accentColor.withValues(alpha: 0.15),
         Colors.transparent,
       ],
     ).createShader(Rect.fromCircle(center: Offset(size.width * 0.8, size.height * 0.1), radius: size.width * 0.6));

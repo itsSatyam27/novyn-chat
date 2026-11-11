@@ -301,12 +301,12 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
               padding: const EdgeInsets.symmetric(vertical: 18),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(20),
-                gradient: canCreate ? const LinearGradient(
+                gradient: canCreate ? LinearGradient(
                   colors: [accent, Color.lerp(accent, Colors.black, 0.14)!],
                 ) : null,
                 color: canCreate ? null : Colors.grey.withValues(alpha: 0.2),
                 boxShadow: canCreate ? [
-                  BoxShadow(color: const Color(0xFF6D5DFC).withValues(alpha: 0.3), blurRadius: 20, offset: const Offset(0, 10))
+                  BoxShadow(color: accent.withValues(alpha: 0.3), blurRadius: 20, offset: const Offset(0, 10))
                 ] : null,
               ),
               child: const Center(
