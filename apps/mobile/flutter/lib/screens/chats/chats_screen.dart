@@ -45,7 +45,7 @@ class _ChatsScreenState extends State<ChatsScreen> {
   ChatFilter _activeFilter = ChatFilter.all;
   final FocusNode _searchFocusNode = FocusNode();
   final TextEditingController _searchController = TextEditingController();
-  bool _isSearching = false;
+  bool _isSearching = true;
 
   // Static cache moved to ChatsScreen widget class
 
@@ -305,7 +305,7 @@ class _ChatsScreenState extends State<ChatsScreen> {
               child: NovynHeader(
                 title: 'Messages',
                 subtitle: '${_chats.length} chats · all caught up',
-                titleSize: 36,
+                titleSize: 28,
                 titleColor: Theme.of(context).colorScheme.onSurface,
                 subtitleColor: Theme.of(context).colorScheme.onSurfaceVariant,
                 actions: [
