@@ -237,19 +237,6 @@ class _DataScreenHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     return Row(children: [
-      Material(
-        color: NovynTheme.cardBg(context),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(13),
-          side: BorderSide(color: colors.outlineVariant),
-        ),
-        child: IconButton(
-          visualDensity: VisualDensity.compact,
-          onPressed: () => Navigator.maybePop(context),
-          icon: const Icon(Icons.chevron_left_rounded),
-        ),
-      ),
-      const SizedBox(width: 14),
       Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text('Data & Storage', style: Theme.of(context).textTheme.titleLarge?.copyWith(
           fontWeight: FontWeight.w900, letterSpacing: -.6)),
