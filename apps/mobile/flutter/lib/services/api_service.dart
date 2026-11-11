@@ -1,8 +1,10 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
+import 'package:path_provider/path_provider.dart';
 import '../models/chat_models.dart';
 
 /// REST API service for the shared novyn-chat backend (server.js).
@@ -568,6 +570,36 @@ class ApiService {
       }
     } catch (_) {}
     return null;
+  }
+
+  static Future<File> downloadMedia(String mediaUrl, String filename) async {
+    final uri = Uri.tryParse(mediaUrl);
+    if (uri == null || !uri.hasScheme || !['http', 'https'].contains(uri.scheme)) {
+      throw StateError('This attachment link is invalid.');
+    }
+    final response = await http.get(uri, headers: _authHeaders)
+        .timeout(const Duration(seconds: 60));
+    if (response.statusCode != 200) {
+      throw StateError('Download failed (' + response.statusCode.toString() + '). Please try again.');
+    }
+    if (response.bodyBytes.isEmpty) throw StateError('The downloaded file is empty.');
+    final directory = await getApplicationDocumentsDirectory();
+    final downloads = Directory(directory.path + '/Novyn Downloads');
+    if (!await downloads.exists()) await downloads.create(recursive: true);
+    final cleaned = filename.replaceAll(RegExp(r'[/\\:*?"<>|]'), '_')
+        .replaceAll(RegExp(r'\s+'), ' ').trim();
+    final safeName = cleaned.isEmpty ? 'novyn_download' : cleaned;
+    var target = File(downloads.path + '/' + safeName);
+    final dot = safeName.lastIndexOf('.');
+    final stem = dot > 0 ? safeName.substring(0, dot) : safeName;
+    final extension = dot > 0 ? safeName.substring(dot) : '';
+    var suffix = 1;
+    while (await target.exists()) {
+      target = File(downloads.path + '/' + stem + ' (' + suffix.toString() + ')' + extension);
+      suffix++;
+    }
+    await target.writeAsBytes(response.bodyBytes, flush: true);
+    return target;
   }
 
   // ── Compatibility methods used by old screens ─────────────────────────────
