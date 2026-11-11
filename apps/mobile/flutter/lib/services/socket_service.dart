@@ -61,6 +61,7 @@ class SocketService extends ChangeNotifier {
   final BackendContacts contacts = BackendContacts();
   io.Socket? _socket;
   bool _isConnected = false;
+  bool _manualDisconnect = false;
   String? _myUsername; // novyn-chat username (not Firebase UID)
   final AudioPlayer _audioPlayer = AudioPlayer();
 
@@ -108,6 +109,7 @@ class SocketService extends ChangeNotifier {
 
   // ── Connect ───────────────────────────────────────────────────────────────
   void connect(String serverUrl, String username) {
+    _manualDisconnect = false;
     if (_socket != null && _myUsername != null &&
         _myUsername!.toLowerCase() != username.toLowerCase()) {
       disconnect();
@@ -150,13 +152,13 @@ class SocketService extends ChangeNotifier {
     _socket!.onDisconnect((_) {
       _isConnected = false;
       notifyListeners();
-      _scheduleReconnect(3);
+      if (!_manualDisconnect) _scheduleReconnect(3);
     });
 
     _socket!.onConnectError((_) {
       _isConnected = false;
       notifyListeners();
-      _scheduleReconnect(5);
+      if (!_manualDisconnect) _scheduleReconnect(5);
     });
 
     _registerEventHandlers();
@@ -1424,6 +1426,7 @@ class SocketService extends ChangeNotifier {
 
   // ── Disconnect ────────────────────────────────────────────────────────────
   void disconnect() {
+    _manualDisconnect = true;
     _myUsername = null;
     _peerKeys.clear();
     _blockedUsers.clear();
