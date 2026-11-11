@@ -90,7 +90,7 @@ class LanguageRegionScreen extends StatelessWidget {
             iconColor: const Color(0xFF6D5DFC),
             iconBgColor: const Color(0xFF6D5DFC).withValues(alpha: 0.1),
             title: 'Number Format',
-            subtitle: '1,234.56',
+            subtitle: 'Device locale',
             onTap: () => _showNumberFormatDialog(context),
           ),
           const SizedBox(height: 40),
@@ -150,116 +150,56 @@ class LanguageRegionScreen extends StatelessWidget {
   }
 
   void _showTimezoneDialog(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    showDialog(
-      context: context,
-      builder: (context) => BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
-        child: AlertDialog(
-          backgroundColor: Theme.of(context).colorScheme.surface,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(32),
-            side: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
-          ),
-          title: const Text('Select Time Zone', style: TextStyle(fontFamily: 'PlusJakartaSans', fontWeight: FontWeight.w900)),
-          content: const Text(
-            'Time zone will be automatically synchronized based on your cryptographic location nodes.',
-            style: TextStyle(fontFamily: 'PlusJakartaSans', fontWeight: FontWeight.w500),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context), 
-              child: const Text('Confirm', style: TextStyle(fontFamily: 'PlusJakartaSans', fontWeight: FontWeight.w900, color: Color(0xFF6D5DFC))),
-            ),
-          ],
-        ),
-      ),
+    _showDeviceFormatInfo(
+      context,
+      title: 'Time zone is automatic',
+      message: 'Novyn uses the time zone configured on your device. To change it, open Android Settings → System → Date & time.',
     );
   }
 
   void _showDateFormatDialog(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    showDialog(
-      context: context,
-      builder: (context) => BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
-        child: AlertDialog(
-          backgroundColor: Theme.of(context).colorScheme.surface,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(32),
-            side: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
-          ),
-          title: const Text('Date Format', style: TextStyle(fontFamily: 'PlusJakartaSans', fontWeight: FontWeight.w900)),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: ['MM/DD/YYYY', 'DD/MM/YYYY', 'YYYY-MM-DD', 'DD MMM YYYY'].map((format) => ListTile(
-              title: Text(format, style: const TextStyle(fontFamily: 'PlusJakartaSans', fontWeight: FontWeight.w700)),
-              onTap: () {
-                HapticFeedback.mediumImpact();
-                Navigator.pop(context);
-              },
-            )).toList(),
-          ),
-        ),
-      ),
+    _showDeviceFormatInfo(
+      context,
+      title: 'Date format',
+      message: 'Novyn currently follows your device language and regional settings for dates. Custom date formats are not available yet.',
     );
   }
 
   void _showTimeFormatDialog(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    showDialog(
-      context: context,
-      builder: (context) => BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
-        child: AlertDialog(
-          backgroundColor: Theme.of(context).colorScheme.surface,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(32),
-            side: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
-          ),
-          title: const Text('Time Format', style: TextStyle(fontFamily: 'PlusJakartaSans', fontWeight: FontWeight.w900)),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: ['12-hour', '24-hour'].map((format) => ListTile(
-              title: Text(format, style: const TextStyle(fontFamily: 'PlusJakartaSans', fontWeight: FontWeight.w700)),
-              onTap: () {
-                HapticFeedback.mediumImpact();
-                Navigator.pop(context);
-              },
-            )).toList(),
-          ),
-        ),
-      ),
+    _showDeviceFormatInfo(
+      context,
+      title: 'Time format',
+      message: 'Novyn follows your device 12-hour or 24-hour preference. You can change it in Android Settings → System → Date & time.',
     );
   }
 
   void _showNumberFormatDialog(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    showDialog(
+    _showDeviceFormatInfo(
+      context,
+      title: 'Number format',
+      message: 'Novyn currently follows your device locale for number formatting. Custom number formats are not available yet.',
+    );
+  }
+  void _showDeviceFormatInfo(
+    BuildContext context, {
+    required String title,
+    required String message,
+  }) {
+    showDialog<void>(
       context: context,
-      builder: (context) => BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
-        child: AlertDialog(
-          backgroundColor: Theme.of(context).colorScheme.surface,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(32),
-            side: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
+      builder: (dialogContext) => AlertDialog(
+        title: Text(title),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Got it'),
           ),
-          title: const Text('Number Format', style: TextStyle(fontFamily: 'PlusJakartaSans', fontWeight: FontWeight.w900)),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: ['1,234.56', '1.234,56', '1 234,56'].map((format) => ListTile(
-              title: Text(format, style: const TextStyle(fontFamily: 'PlusJakartaSans', fontWeight: FontWeight.w700)),
-              onTap: () {
-                HapticFeedback.mediumImpact();
-                Navigator.pop(context);
-              },
-            )).toList(),
-          ),
-        ),
+        ],
       ),
     );
   }
+
   String _getTimeZoneString() {
     final now = DateTime.now();
     final offset = now.timeZoneOffset;
@@ -271,10 +211,7 @@ class LanguageRegionScreen extends StatelessWidget {
     return 'GMT$sign${absHours.toString().padLeft(1, '0')}:${minutes.toString().padLeft(2, '0')} (${now.timeZoneName})';
   }
 
-  String _getDateFormatString() {
-    // This could be dynamic based on locale
-    return 'DD/MM/YYYY';
-  }
+  String _getDateFormatString() => 'Device locale';
 }
 
 class _ActionCard extends StatelessWidget {
