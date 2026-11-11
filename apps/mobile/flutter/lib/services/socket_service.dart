@@ -1145,7 +1145,7 @@ class SocketService extends ChangeNotifier {
 
   void _requireConnection() {
     if (!_isConnected || _socket == null) {
-      throw StateError('Connect to Novyn before changing contacts.');
+      throw StateError('Connect to Novyn before sending messages or changing contacts.');
     }
   }
 
