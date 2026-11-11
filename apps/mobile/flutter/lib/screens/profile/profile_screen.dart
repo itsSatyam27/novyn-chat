@@ -1473,6 +1473,7 @@ class _NovynSettingsProfileCard extends StatelessWidget {
   final bool busy;
   final VoidCallback onEdit;
   final ValueChanged<String> onStatusSelected;
+  final VoidCallback? onQr;
   @override
   Widget build(BuildContext context) {
     final dark = Theme.of(context).brightness == Brightness.dark;
@@ -1636,7 +1637,7 @@ class _NovynSettingsTile extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           child: Row(children: [
-            Container(width: 42, height: 42, decoration: BoxDecoration(color: (Theme.of(context).brightness == Brightness.dark ? const Color(0xFF35205A) : const Color(0xFFEFE8FF)), borderRadius: BorderRadius.circular(14)), child: Icon(icon, color: NovynTheme.indigo, size: 20)),
+            Container(width: 42, height: 42, decoration: BoxDecoration(color: accent.withValues(alpha: Theme.of(context).brightness == Brightness.dark ? .18 : .12), borderRadius: BorderRadius.circular(14)), child: Icon(icon, color: accent, size: 20)),
             const SizedBox(width: 13),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(title, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontSize: 14, fontWeight: FontWeight.w700)),
