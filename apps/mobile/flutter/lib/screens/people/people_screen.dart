@@ -83,63 +83,14 @@ class _PeopleScreenState extends State<PeopleScreen> {
                   if (snap.connectionState == ConnectionState.waiting &&
                       snap.data == null) {
                     return ListView.builder(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      itemCount: 6,
-                      itemBuilder: (_, __) => NovynShimmer.friendCard(),
-                    );
-                  }
-                  final all = List<UserModel>.from(snap.data ?? []);
-                  // Sort alphabetically
-                  all.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
-                  
-                  final filtered = all.where((u) {
-                    if (_filter == 'Online' && !u.isOnline) return false;
-                    if (_search.isNotEmpty &&
-                        !u.name.toLowerCase().contains(_search) &&
-                        !u.username.toLowerCase().contains(_search)) return false;
-                    return true;
-                  }).toList();
-
-                  if (filtered.isEmpty) return _buildEmpty();
-
-                  return ListView.builder(
-                        controller: _scrollController,
-                        padding: const EdgeInsets.fromLTRB(16, 12, 34, 100),
-                        itemCount: filtered.length,
-                        itemBuilder: (context, i) {
-                          final user = filtered[i];
-                          return _FriendCard(user: user, myUid: myUid, friendService: friends);
-                        },
-                      ),
-                      // Alphabet Index
-                      if (_search.isEmpty)
-                        Positioned(
-                          right: 8,
-                          top: 0,
-                          bottom: 0,
-                          child: Center(
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: _alphabet.map((letter) {
-                                return GestureDetector(
-                                  onTap: () => _scrollToLetter(letter, filtered),
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(vertical: 1.5),
-                                    child: Text(
-                                      letter,
-                                      style: TextStyle(
-                                        fontFamily: 'PlusJakartaSans',
-                                        fontSize: 9,
-                                        fontWeight: FontWeight.bold,
-                                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                                      ),
-                                    ),
-                                  ),
-                                );
-                              }).toList(),
-                            ),
-                          ),
-                    );
+                    controller: _scrollController,
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
+                    itemCount: filtered.length,
+                    itemBuilder: (context, i) {
+                      final user = filtered[i];
+                      return _FriendCard(user: user, myUid: myUid, friendService: friends);
+                    },
+                  );
                 },
               ),
             ),
