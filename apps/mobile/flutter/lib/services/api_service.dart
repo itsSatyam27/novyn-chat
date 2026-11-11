@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
@@ -507,27 +508,41 @@ class ApiService {
   // ── Upload media using the authenticated shared backend route ────────────
   static Future<String?> uploadMedia(
       List<int> bytes, String filename, String mimeType) async {
+    if (bytes.isEmpty) throw StateError('The selected file is empty.');
     try {
       final headers = await _csrfHeaders();
       headers.remove('Content-Type');
       final request = http.MultipartRequest('POST', Uri.parse('$baseUrl/upload-file'))
         ..headers.addAll(headers)
         ..files.add(http.MultipartFile.fromBytes(
-          'file',
-          bytes,
-          filename: filename,
+          'file', bytes, filename: filename,
           contentType: MediaType.parse(mimeType),
         ));
-      final streamed = await request.send().timeout(const Duration(seconds: 30));
+      final streamed = await request.send().timeout(const Duration(seconds: 45));
       final response = await http.Response.fromStream(streamed);
-      if (response.statusCode == 200) {
-        final body = jsonDecode(response.body);
-        final url = body['url']?.toString();
-        if (url == null || url.isEmpty) return null;
-        return Uri.parse(baseUrl).resolve(url).toString();
+      Map<String, dynamic> body = {};
+      try {
+        final decoded = jsonDecode(response.body);
+        if (decoded is Map) body = Map<String, dynamic>.from(decoded);
+      } catch (_) {}
+
+      if (response.statusCode != 200) {
+        final message = body['error']?.toString() ??
+          body['message']?.toString() ?? 'Upload failed (\${response.statusCode}).';
+        throw StateError(message);
       }
-    } catch (_) {}
-    return null;
+      final rawUrl = body['url']?.toString();
+      if (rawUrl == null || rawUrl.isEmpty) {
+        throw StateError('The server did not return a photo URL.');
+      }
+      return Uri.parse(baseUrl).resolve(rawUrl).toString();
+    } on StateError {
+      rethrow;
+    } on TimeoutException {
+      throw StateError('Photo upload timed out. Please try again.');
+    } catch (error) {
+      throw StateError('Could not upload photo: \$error');
+    }
   }
 
   static Future<String?> uploadVoice(
