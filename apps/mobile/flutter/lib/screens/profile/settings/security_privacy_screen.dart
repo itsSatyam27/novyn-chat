@@ -916,7 +916,7 @@ class _SelectionCard extends StatelessWidget {
                 final selected = value == option;
                 final label = labels[index];
                 final detail = option == '0' ? 'On leaving the app'
-                  : 'After \$option \${option == '1' ? 'minute' : 'minutes'}';
+                  : 'After ' + option + ' ' + (option == '1' ? 'minute' : 'minutes');
                 return Material(
                   color: selected ? colors.primary.withValues(alpha: .10)
                     : colors.surfaceContainerHighest.withValues(alpha: .42),
