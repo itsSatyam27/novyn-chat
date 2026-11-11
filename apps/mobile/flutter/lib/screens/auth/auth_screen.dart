@@ -522,7 +522,7 @@ class _RegisterTabState extends State<_RegisterTab> {
     if (name.isEmpty) { setState(() => _error = 'Please enter your name.'); return; }
     if (username.length < 3) { setState(() => _error = 'Username must be at least 3 characters.'); return; }
     if (!RegExp(r'^[a-zA-Z0-9_]+$').hasMatch(username)) { setState(() => _error = 'Username: letters, numbers & underscores only.'); return; }
-    if (!RegExp(r'^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$').hasMatch(email)) { setState(() => _error = 'Please enter a valid email address.'); return; }
+    if (!RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(email)) { setState(() => _error = 'Please enter a valid email address.'); return; }
     if (pass.length < 6) { setState(() => _error = 'Password must be at least 6 characters.'); return; }
     if (pass != confirm) { setState(() => _error = 'Passwords do not match.'); return; }
 
