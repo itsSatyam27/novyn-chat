@@ -36,7 +36,7 @@ class DataStorageScreen extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 36),
         physics: const BouncingScrollPhysics(),
         children: [
-          SettingsIntroCard(title: 'Manage your data', subtitle: 'Control automatic downloads, media quality and temporary storage.', icon: Icons.database_rounded),
+          SettingsIntroCard(title: 'Manage your data', subtitle: 'Control automatic downloads, media quality and temporary storage.', icon: Icons.storage_rounded),
           const SectionLabel(label: 'Storage'),
           MenuCard(
             icon: Icons.delete_sweep_rounded,

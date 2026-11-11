@@ -165,7 +165,7 @@ class ThemeTile extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       child: Material(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
+        color: NovynTheme.cardBg(context),
         borderRadius: BorderRadius.circular(16),
         child: InkWell(
           onTap: () {
@@ -181,7 +181,7 @@ class ThemeTile extends StatelessWidget {
                 const SizedBox(width: 16),
                 Text(
                   label,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontFamily: 'PlusJakartaSans',
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
