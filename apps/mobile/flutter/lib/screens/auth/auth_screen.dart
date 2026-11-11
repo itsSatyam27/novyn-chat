@@ -42,192 +42,76 @@ class _AuthScreenState extends State<AuthScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _kBg,
-      body: Stack(
-        children: [
-          // ── Mesh gradient background ─────────────────────────────────
-          _MeshBackground(),
-
-          // ── Content ──────────────────────────────────────────────────
-          SafeArea(
-            child: Column(
-              children: [
+      backgroundColor: const Color(0xFF5B48DD),
+      body: Stack(children: [
+        const _MeshBackground(),
+        SafeArea(child: Column(children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(28, 28, 28, 12),
+            child: Row(children: [
+              Container(width: 58, height: 58,
+                decoration: BoxDecoration(shape: BoxShape.circle,
+                  color: Colors.white.withValues(alpha: .16),
+                  border: Border.all(color: Colors.white.withValues(alpha: .42))),
+                child: const Icon(Icons.pets_rounded, color: Colors.white, size: 28)),
+              const SizedBox(width: 16),
+              Text('Novyn', style: GoogleFonts.inter(color: Colors.white,
+                fontSize: 34, fontWeight: FontWeight.w800, letterSpacing: -1.2)),
+            ]),
+          ),
+          Expanded(child: Stack(children: [
+            Positioned(left: 28, right: 28, top: 34,
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(_tabController.index == 0 ? 'Welcome\nback' : 'Join\nNovyn',
+                  style: GoogleFonts.inter(color: Colors.white, fontSize: 42,
+                    height: 1.02, fontWeight: FontWeight.w800, letterSpacing: -1.4)),
                 const SizedBox(height: 16),
-                _buildHeader(),
-                const SizedBox(height: 20),
-                _buildTabBar(),
-                const SizedBox(height: 4),
-                Expanded(
-                  child: TabBarView(
-                    controller: _tabController,
-                    children: [
-                      _LoginTab(onSwitchToRegister: () => _tabController.animateTo(1)),
-                      _RegisterTab(onSwitchToLogin: () => _tabController.animateTo(0)),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
+                Text(_tabController.index == 0
+                  ? 'Sign in to pick up your conversations.'
+                  : 'Create an account and start connecting.',
+                  style: GoogleFonts.inter(color: Colors.white.withValues(alpha: .82),
+                    fontSize: 16, height: 1.4)),
+              ])),
+            Align(alignment: Alignment.bottomCenter,
+              child: Container(
+                height: MediaQuery.of(context).size.height * .68,
+                width: double.infinity,
+                decoration: const BoxDecoration(color: Colors.white,
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(38))),
+                child: Column(children: [
+                  const SizedBox(height: 24),
+                  _buildTabBar(),
+                  Expanded(child: TabBarView(controller: _tabController, children: [
+                    _LoginTab(onSwitchToRegister: () => _tabController.animateTo(1)),
+                    _RegisterTab(onSwitchToLogin: () => _tabController.animateTo(0)),
+                  ])),
+                ]))),
+          ])),
+        ])),
+      ]),
     );
   }
-
-  Widget _buildHeader() {
-    return Column(
-      children: [
-        // Glowing logo orb
-        Stack(
-          alignment: Alignment.center,
-          children: [
-            // Outer glow ring
-            Container(
-              width: 76,
-              height: 76,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(
-                  colors: [
-                    _kGlow.withValues(alpha: 0.25),
-                    _kGlow.withValues(alpha: 0.0),
-                  ],
-                ),
-              ),
-            ),
-            // Inner orb
-            Container(
-              width: 56,
-              height: 56,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF9B8FFF), _kAccentDim],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: _kGlow.withValues(alpha: 0.5),
-                    blurRadius: 24,
-                    spreadRadius: 0,
-                  ),
-                  BoxShadow(
-                    color: _kGlow.withValues(alpha: 0.2),
-                    blurRadius: 48,
-                    spreadRadius: 4,
-                  ),
-                ],
-              ),
-              child: const Icon(Icons.pets_rounded, color: Colors.white, size: 28),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        // Wordmark
-        ShaderMask(
-          shaderCallback: (bounds) => const LinearGradient(
-            colors: [Colors.white, Color(0xFFBDB8FF)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ).createShader(bounds),
-          child: Text(
-            'Novyn',
-            style: GoogleFonts.inter(
-              fontSize: 34,
-              fontWeight: FontWeight.w800,
-              color: Colors.white,
-              letterSpacing: -1.4,
-              height: 1,
-            ),
-          ),
-        ),
-        const SizedBox(height: 6),
-        // Tagline with dot separators
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _taglineDot(),
-            const SizedBox(width: 8),
-            Text(
-              'WHERE CONVERSATIONS CONNECT',
-              style: GoogleFonts.inter(
-                fontSize: 8.5,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 2.8,
-                color: Colors.white.withValues(alpha: 0.25),
-              ),
-            ),
-            const SizedBox(width: 8),
-            _taglineDot(),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _taglineDot() => Container(
-        width: 3,
-        height: 3,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: _kAccent.withValues(alpha: 0.5),
-        ),
-      );
 
   Widget _buildTabBar() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24),
-      child: Container(
-        height: 48,
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.04),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: Colors.white.withValues(alpha: 0.07),
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.3),
-              blurRadius: 20,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: TabBar(
-          controller: _tabController,
-          indicator: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                _kAccent.withValues(alpha: 0.22),
-                _kAccentDim.withValues(alpha: 0.18),
-              ],
-            ),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: _kAccent.withValues(alpha: 0.35),
-              width: 1,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: _kGlow.withValues(alpha: 0.2),
-                blurRadius: 12,
-                spreadRadius: -2,
-              ),
-            ],
-          ),
+    return Padding(padding: const EdgeInsets.symmetric(horizontal: 24),
+      child: Container(height: 64,
+        decoration: BoxDecoration(color: const Color(0xFFF1EEFC),
+          borderRadius: BorderRadius.circular(28)),
+        child: TabBar(controller: _tabController, onTap: (_) => setState(() {}),
+          indicator: BoxDecoration(color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [BoxShadow(color: _kGlow.withValues(alpha: .13),
+              blurRadius: 14, offset: const Offset(0, 4))]),
           indicatorSize: TabBarIndicatorSize.tab,
           indicatorPadding: const EdgeInsets.all(5),
           dividerColor: Colors.transparent,
-          labelStyle: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700),
-          unselectedLabelStyle: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w500),
-          labelColor: _kAccent,
-          unselectedLabelColor: Colors.white.withValues(alpha: 0.35),
-          tabs: const [Tab(text: 'Sign in'), Tab(text: 'Create account')],
-        ),
-      ),
-    );
+          labelStyle: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w700),
+          unselectedLabelStyle: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w600),
+          labelColor: const Color(0xFF5140D5),
+          unselectedLabelColor: const Color(0xFF686487),
+          tabs: const [Tab(text: 'Sign in'), Tab(text: 'Create account')])) ;
   }
+
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -404,7 +288,7 @@ class _LoginTabState extends State<_LoginTab> {
   Widget build(BuildContext context) {
     final sessions = context.watch<SettingsService>().savedSessions;
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(22, 14, 22, 24),
+      padding: const EdgeInsets.fromLTRB(20, 28, 20, 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -779,7 +663,7 @@ class _RegisterTabState extends State<_RegisterTab> {
         child: Container(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(28),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.07)),
+            border: Border.all(color: const Color(0xFFE4DFF6)),
           ),
           padding: const EdgeInsets.all(32),
           child: Column(
@@ -843,7 +727,7 @@ class _RegisterTabState extends State<_RegisterTab> {
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
+      padding: const EdgeInsets.fromLTRB(20, 28, 20, 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1020,14 +904,10 @@ class _FieldState extends State<_Field> {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
       decoration: BoxDecoration(
-        color: _focused
-            ? _kAccent.withValues(alpha: 0.10)
-            : const Color(0xFF0E1525),
+        color: _focused ? const Color(0xFFF1EEFC) : const Color(0xFFF7F5FD),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: _focused
-              ? _kAccent.withValues(alpha: 0.5)
-              : Colors.white.withValues(alpha: 0.08),
+          color: _focused ? _kAccent : const Color(0xFFE8E3F8),
           width: _focused ? 1.5 : 1,
         ),
         boxShadow: _focused
@@ -1057,7 +937,7 @@ class _FieldState extends State<_Field> {
           style: const TextStyle(
             fontFamily: 'Inter',
             fontSize:   15,
-            color:      Colors.white,
+            color:      const Color(0xFF211D42),
             height:     1.4,
           ),
           decoration: InputDecoration(
@@ -1067,9 +947,7 @@ class _FieldState extends State<_Field> {
               padding: const EdgeInsets.only(left: 4),
               child: Icon(
                 widget.icon,
-                color: _focused
-                    ? _kAccent.withValues(alpha: 0.8)
-                    : Colors.white.withValues(alpha: 0.3),
+                color: _focused ? _kAccent : const Color(0xFF777391),
                 size: 20,
               ),
             ),
@@ -1079,7 +957,7 @@ class _FieldState extends State<_Field> {
             hintText:  widget.hint,
             hintStyle: TextStyle(
               fontFamily: 'Inter',
-              color:      Colors.white.withValues(alpha: 0.2),
+              color:      const Color(0xFF9691B4),
               fontSize:   15,
             ),
             border:         InputBorder.none,
@@ -1102,7 +980,7 @@ class _EyeToggle extends StatelessWidget {
   Widget build(BuildContext context) => IconButton(
         icon: Icon(
           obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined,
-          color: Colors.white.withValues(alpha: 0.35),
+          color: const Color(0xFF686487),
           size: 20,
         ),
         onPressed: onToggle,
@@ -1266,7 +1144,7 @@ class _GoogleButton extends StatelessWidget {
           decoration: BoxDecoration(
             color:        Colors.white.withValues(alpha: 0.04),
             borderRadius: BorderRadius.circular(16),
-            border:       Border.all(color: Colors.white.withValues(alpha: 0.10)),
+            border:       Border.all(color: const Color(0xFFE4DFF6)),
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -1287,7 +1165,7 @@ class _GoogleButton extends StatelessWidget {
                 style: GoogleFonts.inter(
                   fontSize:   14,
                   fontWeight: FontWeight.w600,
-                  color:      Colors.white.withValues(alpha: 0.75),
+                  color:      const Color(0xFF211D42),
                 ),
               ),
             ],
@@ -1349,7 +1227,7 @@ class _SavedAccountTile extends StatelessWidget {
         decoration: BoxDecoration(
           color:        Colors.white.withValues(alpha: 0.04),
           borderRadius: BorderRadius.circular(18),
-          border:       Border.all(color: Colors.white.withValues(alpha: 0.08)),
+          border:       Border.all(color: const Color(0xFFE8E3F8)),
         ),
         child: Row(
           children: [
