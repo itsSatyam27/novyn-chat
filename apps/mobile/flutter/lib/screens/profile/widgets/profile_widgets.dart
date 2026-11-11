@@ -677,3 +677,60 @@ class SettingsSheet extends StatelessWidget {
     );
   }
 }
+
+
+// Consistent sub-page header with an explicit, accessible back action.
+class SettingsPageHeader extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  const SettingsPageHeader({super.key, required this.title, required this.subtitle});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(top: 8, bottom: 22),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Material(
+            color: theme.colorScheme.surface,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(18),
+              side: BorderSide(color: theme.colorScheme.outlineVariant),
+            ),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(18),
+              onTap: () => Navigator.maybePop(context),
+              child: SizedBox(
+                width: 52,
+                height: 52,
+                child: Icon(Icons.chevron_left_rounded,
+                    size: 30, color: theme.colorScheme.onSurface),
+              ),
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title,
+                    style: theme.textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: -0.7,
+                    )),
+                const SizedBox(height: 3),
+                Text(subtitle,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                      height: 1.3,
+                    )),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
