@@ -2320,9 +2320,10 @@ class _MessageBubble extends StatelessWidget {
                 final messenger = ScaffoldMessenger.of(context);
                 try {
                   final file = await ApiService.downloadMedia(url, name);
+                  await MediaStorageService.exportToDevice(file, 'image');
                   if (!context.mounted) return;
                   messenger.showSnackBar(SnackBar(
-                    content: Text('Saved to Novyn Downloads/' + file.uri.pathSegments.last),
+                    content: const Text('Saved to your Gallery and Novyn Downloads.'),
                     behavior: SnackBarBehavior.floating,
                   ));
                 } catch (error) {
