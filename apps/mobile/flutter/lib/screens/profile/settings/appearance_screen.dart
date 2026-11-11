@@ -475,8 +475,6 @@ class _ThemeChoice extends StatelessWidget {
   final ThemeMode mode;
   final bool selected;
   final VoidCallback onTap;
-  final bool custom;
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -648,11 +646,13 @@ class _AccentChoice extends StatelessWidget {
     required this.color,
     required this.selected,
     required this.onTap,
+    this.custom = false,
   });
   final String name;
   final Color color;
   final bool selected;
   final VoidCallback onTap;
+  final bool custom;
 
   @override
   Widget build(BuildContext context) {
@@ -681,7 +681,9 @@ class _AccentChoice extends StatelessWidget {
               ),
               child: DecoratedBox(
                 decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-                child: selected ? const Icon(Icons.check_rounded, size: 19, color: Colors.white) : null,
+                child: selected
+                    ? const Icon(Icons.check_rounded, size: 19, color: Colors.white)
+                    : (custom ? const Icon(Icons.colorize_rounded, size: 18, color: Colors.white) : null),
               ),
             ),
             const SizedBox(height: 5),
