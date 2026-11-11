@@ -21,6 +21,7 @@ import 'settings/language_region_screen.dart';
 import 'settings/accessibility_screen.dart';
 import 'settings/sound_vibration_screen.dart';
 import 'settings/appearance_screen.dart';
+import 'settings/dock_customization_screen.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
@@ -68,7 +69,8 @@ class ProfileScreen extends StatelessWidget {
                 const SizedBox(height: 26),
                 NovynSectionLabel(l10n.preferences.toUpperCase(), padding: const EdgeInsets.fromLTRB(4, 0, 4, 10)),
                 _NovynSettingsGroup(children: [
-                  _NovynSettingsTile(icon: Icons.palette_outlined, title: l10n.appearance, subtitle: 'Theme and display', accent: NovynTheme.indigo, onTap: () => _showAppearanceDialog(context, settings)),
+                  _NovynSettingsTile(icon: Icons.palette_outlined, title: l10n.appearance, subtitle: 'Theme, colours and text size', accent: NovynTheme.indigo, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AppearanceScreen()))),
+                  _NovynSettingsTile(icon: Icons.widgets_outlined, title: 'Dock customization', subtitle: 'Choose your navigation dock style', accent: NovynTheme.indigo, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const DockCustomizationScreen()))),
                   _NovynSettingsTile(icon: Icons.volume_up_outlined, title: l10n.soundVibration, subtitle: 'Ringtones and haptics', accent: NovynTheme.indigo, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SoundVibrationScreen()))),
                   _NovynSettingsTile(icon: Icons.notifications_none_rounded, title: l10n.notifications, subtitle: 'Messages and call alerts', accent: NovynTheme.indigo, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const NotificationSettingsScreen()))),
                   _NovynSettingsTile(icon: Icons.language_rounded, title: l10n.languageRegion, subtitle: 'App language and region', accent: NovynTheme.indigo, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const LanguageRegionScreen()))),
@@ -113,7 +115,8 @@ class ProfileScreen extends StatelessWidget {
   void _showSettingsSearch(BuildContext context, SettingsService settings) {
     final controller = TextEditingController();
     final items = <Map<String, dynamic>>[
-      {'title': 'Appearance', 'subtitle': 'Theme and display', 'icon': Icons.palette_outlined, 'open': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AppearanceScreen()))},
+      {'title': 'Appearance', 'subtitle': 'Theme, colours and text size', 'icon': Icons.palette_outlined, 'open': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AppearanceScreen()))},
+      {'title': 'Dock customization', 'subtitle': 'Choose your navigation dock style', 'icon': Icons.widgets_outlined, 'open': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const DockCustomizationScreen()))},
       {'title': 'Sound & Vibration', 'subtitle': 'Ringtones and haptics', 'icon': Icons.volume_up_outlined, 'open': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SoundVibrationScreen()))},
       {'title': 'Notifications', 'subtitle': 'Messages and call alerts', 'icon': Icons.notifications_none_rounded, 'open': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const NotificationSettingsScreen()))},
       {'title': 'Language & Region', 'subtitle': 'App language and region', 'icon': Icons.language_rounded, 'open': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const LanguageRegionScreen()))},
