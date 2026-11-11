@@ -144,7 +144,7 @@ class _FontSizeCard extends StatelessWidget {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            'Adjust global text serialization',
+                            'Adjust global text size',
                             style: TextStyle(
                               fontFamily: 'PlusJakartaSans',
                               fontSize: 13,
@@ -177,7 +177,7 @@ class _FontSizeCard extends StatelessWidget {
                     borderRadius: BorderRadius.circular(16),
                   ),
                   child: Text(
-                    'Node preview at current scale',
+                    'Preview text at current scale',
                     style: TextStyle(
                       fontFamily: 'PlusJakartaSans',
                       fontSize: 14 * value,
@@ -188,23 +188,39 @@ class _FontSizeCard extends StatelessWidget {
                 ),
                 
                 const SizedBox(height: 12),
-                SliderTheme(
-                  data: SliderTheme.of(context).copyWith(
-                    activeTrackColor: Theme.of(context).colorScheme.primary,
-                    inactiveTrackColor: isDark ? Colors.white12 : Colors.black12,
-                    thumbColor: Colors.white,
-                    trackHeight: 4,
-                  ),
-                  child: Slider(
-                    value: value,
-                    min: 0.8,
-                    max: 1.5,
-                    divisions: 7,
-                    onChanged: (v) {
-                      if (v != value) HapticFeedback.selectionClick();
-                      onChanged(v);
-                    },
-                  ),
+                Row(
+                  children: [
+                    Text('A', style: TextStyle(
+                      fontSize: 15, fontWeight: FontWeight.w800,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    )),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: SliderTheme(
+                        data: SliderTheme.of(context).copyWith(
+                          activeTrackColor: Theme.of(context).colorScheme.primary,
+                          inactiveTrackColor: isDark ? Colors.white12 : Colors.black12,
+                          thumbColor: Theme.of(context).colorScheme.primary,
+                          trackHeight: 4,
+                        ),
+                        child: Slider(
+                          value: value,
+                          min: 0.8,
+                          max: 1.5,
+                          divisions: 7,
+                          onChanged: (v) {
+                            if (v != value) HapticFeedback.selectionClick();
+                            onChanged(v);
+                          },
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text('A', style: TextStyle(
+                      fontSize: 24, fontWeight: FontWeight.w900,
+                      color: Theme.of(context).colorScheme.onSurface,
+                    )),
+                  ],
                 ),
               ],
             ),
