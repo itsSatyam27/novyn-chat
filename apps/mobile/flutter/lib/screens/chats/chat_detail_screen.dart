@@ -2268,10 +2268,10 @@ class _MessageBubble extends StatelessWidget {
     try {
       final file = await ApiService.downloadMedia(url, name);
       final kind = _mimeForFile(name).startsWith('image/') ? 'image' : _mimeForFile(name).startsWith('video/') ? 'video' : 'file';
-      await MediaStorageService.exportToDevice(file, kind);
-      if (!context.mounted) return;
+      final saved = await MediaStorageService.exportToDevice(file, kind);
+      if (!context.mounted || !saved) return;
       messenger.showSnackBar(SnackBar(
-        content: Text(kind == 'image' || kind == 'video' ? 'Saved to your Gallery and Novyn Downloads.' : 'Choose a location in Files to save this download.'),
+        content: Text(kind == 'image' || kind == 'video' ? 'Saved to your Gallery and Novyn Downloads.' : 'Saved using the system Files picker.'),
         behavior: SnackBarBehavior.floating,
       ));
     } catch (error) {
@@ -2320,8 +2320,8 @@ class _MessageBubble extends StatelessWidget {
                 final messenger = ScaffoldMessenger.of(context);
                 try {
                   final file = await ApiService.downloadMedia(url, name);
-                  await MediaStorageService.exportToDevice(file, 'image');
-                  if (!context.mounted) return;
+                  final saved = await MediaStorageService.exportToDevice(file, 'image');
+                  if (!context.mounted || !saved) return;
                   messenger.showSnackBar(SnackBar(
                     content: const Text('Saved to your Gallery and Novyn Downloads.'),
                     behavior: SnackBarBehavior.floating,
