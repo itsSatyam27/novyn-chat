@@ -505,9 +505,18 @@ class AuthService extends ChangeNotifier {
         'image/jpeg',
       );
       if (url == null) return 'Upload failed.';
-      // Update local profile
-      _user = _user?.copyWith(avatarId: url);
-      notifyListeners();
+
+      final current = _user;
+      if (current == null) return 'Please sign in before updating your photo.';
+      final saved = await ApiService.updateProfile(
+        name: current.displayName,
+        bio: current.bio,
+        avatarId: url,
+      );
+      if (saved == null || saved['error'] != null) {
+        return saved?['error']?.toString() ?? 'Could not save your profile photo.';
+      }
+      await refreshProfile();
       return null;
     } catch (e) {
       return 'Upload error: $e';
