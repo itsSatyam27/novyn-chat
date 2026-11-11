@@ -1628,50 +1628,88 @@ class _SettingsQuickToggle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final dark = Theme.of(context).brightness == Brightness.dark;
     final scheme = Theme.of(context).colorScheme;
-    return Container(
-      constraints: const BoxConstraints(minHeight: 88),
-      padding: const EdgeInsets.fromLTRB(13, 10, 10, 11),
-      decoration: BoxDecoration(
-        color: NovynTheme.cardBg(context),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: scheme.outlineVariant),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(children: [
-            Container(
-              width: 36, height: 36,
-              decoration: BoxDecoration(
-                color: scheme.primary.withValues(alpha: dark ? .22 : .10),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(icon, size: 19, color: scheme.primary),
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final accent = label == 'Dark mode'
+        ? const Color(0xFF8170E8)
+        : const Color(0xFF159C91);
+    final stateText = value ? 'On' : 'Off';
+
+    return Material(
+      color: NovynTheme.cardBg(context),
+      borderRadius: BorderRadius.circular(18),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: () => onChanged(!value),
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 82),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: value
+                  ? accent.withValues(alpha: dark ? .48 : .30)
+                  : scheme.outlineVariant,
             ),
-            const Spacer(),
-            Transform.scale(
-              scale: .88,
-              alignment: Alignment.centerRight,
-              child: Switch(
-                value: value,
-                onChanged: onChanged,
-                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                thumbColor: const WidgetStatePropertyAll(Colors.white),
-                trackColor: WidgetStateProperty.resolveWith(
-                  (states) => states.contains(WidgetState.selected)
-                      ? scheme.primary
-                      : (dark ? const Color(0xFF454456) : const Color(0xFFD7D3E8)),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: accent.withValues(alpha: dark ? .20 : .11),
+                  borderRadius: BorderRadius.circular(14),
                 ),
-                trackOutlineColor: const WidgetStatePropertyAll(Colors.transparent),
+                child: Icon(icon, size: 21, color: accent),
               ),
-            ),
-          ]),
-          const SizedBox(height: 5),
-          Text(label, maxLines: 1, softWrap: false,
-            style: NovynText.body(13, weight: FontWeight.w700, color: scheme.onSurface)),
-        ],
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: NovynText.body(
+                        13,
+                        weight: FontWeight.w800,
+                        color: scheme.onSurface,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 160),
+                      child: Text(
+                        stateText,
+                        key: ValueKey(value),
+                        style: NovynText.body(
+                          11,
+                          weight: FontWeight.w700,
+                          color: value ? accent : scheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 4),
+              Transform.scale(
+                scale: .88,
+                alignment: Alignment.centerRight,
+                child: Switch.adaptive(
+                  value: value,
+                  onChanged: onChanged,
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  thumbColor: const WidgetStatePropertyAll(Colors.white),
+                  activeTrackColor: accent,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
