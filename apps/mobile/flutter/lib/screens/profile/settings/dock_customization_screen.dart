@@ -111,7 +111,7 @@ class DockCustomizationScreen extends StatelessWidget {
             itemCount: styles.length,
             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 2, crossAxisSpacing: 12, mainAxisSpacing: 12,
-              childAspectRatio: .92,
+              childAspectRatio: 1.05,
             ),
             itemBuilder: (context, index) {
               final item = styles[index];
