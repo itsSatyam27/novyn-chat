@@ -324,6 +324,17 @@ class LocalDbService {
   // METADATA
   // ══════════════════════════════════════════════════════════════════════════
 
+  /// Account owner for the shared local cache.
+  static Future<String?> getAccountScope() async {
+    await _ensureInit();
+    return _metaBox?.get('account_scope')?.toString();
+  }
+
+  static Future<void> setAccountScope(String username) async {
+    await _ensureInit();
+    await _metaBox?.put('account_scope', username.trim().toLowerCase());
+  }
+
   /// Set last sync time for a chat
   static Future<void> setLastSync(String chatId, DateTime time) async {
     await _ensureInit();
