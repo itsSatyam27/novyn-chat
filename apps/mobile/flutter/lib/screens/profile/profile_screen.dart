@@ -185,10 +185,10 @@ class ProfileScreen extends StatelessWidget {
   Future<void> _updateStatus(BuildContext context, AuthService auth, String mode) async {
     try {
       await auth.updateStatus(mode);
-    } catch (_) {
+    } catch (error) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Status could not be saved. Check your connection and try again.'),
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Status could not be saved: ${error.toString()}'),
       ));
     }
   }
@@ -1569,7 +1569,7 @@ class _NovynSettingsProfileCard extends StatelessWidget {
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(displayName, maxLines: 1, overflow: TextOverflow.ellipsis, style: NovynText.display(19, weight: FontWeight.w700).copyWith(color: Theme.of(context).colorScheme.onSurface)),
           const SizedBox(height: 4),
-          Text('@$username', maxLines: 1, overflow: TextOverflow.ellipsis, style: NovynText.body(13, color: Theme.of(context).colorScheme.onSurfaceVariant)),
+          Text('@$username', maxLines: 1, overflow: TextOverflow.ellipsis, style: NovynText.body(13, weight: FontWeight.w600, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: .72))),
         ])),
         NovynIconButton(icon: Icons.edit_outlined, onTap: onEdit),
       ]),
