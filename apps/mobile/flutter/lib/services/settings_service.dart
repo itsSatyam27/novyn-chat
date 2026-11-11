@@ -74,6 +74,8 @@ class SettingsService extends ChangeNotifier {
   static const _kCustomNotificationPath = 'custom_notification_path';
   static const _kCustomRingtonePath = 'custom_ringtone_path';
   static const _kRegion = 'user_region';
+  static const _kHighContrast = 'accessibility_high_contrast';
+  static const _kReduceMotion = 'accessibility_reduce_motion';
 
   late SharedPreferences _prefs;
   bool _loaded = false;
@@ -119,6 +121,8 @@ class SettingsService extends ChangeNotifier {
   bool _hideNotificationContent = false;
   bool _decoyMode = false;
   bool _stealthIconEnabled = false;
+  bool _highContrast = false;
+  bool _reduceMotion = false;
 
   // ── Getters ─────────────────────────────────────────────────────────────
   bool get notificationsOn => _notificationsOn;
@@ -164,6 +168,8 @@ class SettingsService extends ChangeNotifier {
   bool get hideNotificationContent => _hideNotificationContent;
   bool get decoyMode => _decoyMode;
   bool get stealthIconEnabled => _stealthIconEnabled;
+  bool get highContrast => _highContrast;
+  bool get reduceMotion => _reduceMotion;
 
   // ── Load from disk ───────────────────────────────────────────────────────
   Future<void> load() async {
@@ -232,6 +238,8 @@ class SettingsService extends ChangeNotifier {
     if (legacyPanicPin != null) await _prefs.remove(_kPanicPin);
     _hideNotificationContent = _prefs.getBool(_kHideNotificationContent) ?? false;
     _stealthIconEnabled = _prefs.getBool(_kStealthIcon) ?? false;
+    _highContrast = _prefs.getBool(_kHighContrast) ?? false;
+    _reduceMotion = _prefs.getBool(_kReduceMotion) ?? false;
     
     // Load saved sessions
     final raw = _prefs.getString(_kSavedSessions);
@@ -349,6 +357,18 @@ class SettingsService extends ChangeNotifier {
     v = v.clamp(0.85, 1.25).toDouble();
     _fontSize = v;
     await _prefs.setDouble(_kFontSize, v);
+    notifyListeners();
+  }
+
+  Future<void> setHighContrast(bool v) async {
+    _highContrast = v;
+    await _prefs.setBool(_kHighContrast, v);
+    notifyListeners();
+  }
+
+  Future<void> setReduceMotion(bool v) async {
+    _reduceMotion = v;
+    await _prefs.setBool(_kReduceMotion, v);
     notifyListeners();
   }
 

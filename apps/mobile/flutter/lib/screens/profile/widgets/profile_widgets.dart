@@ -296,21 +296,39 @@ class SettingsIntroCard extends StatelessWidget {
     final theme = Theme.of(context);
     final accent = theme.colorScheme.primary;
     return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(17),
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(19),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [accent.withValues(alpha: .15), NovynTheme.cardBg(context)],
+          colors: [
+            accent.withValues(alpha: theme.brightness == Brightness.dark ? .20 : .12),
+            NovynTheme.cardBg(context),
+          ],
         ),
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: theme.colorScheme.outlineVariant),
+        borderRadius: BorderRadius.circular(25),
+        border: Border.all(color: theme.colorScheme.outlineVariant.withValues(alpha: .9)),
+        boxShadow: [
+          BoxShadow(
+            color: accent.withValues(alpha: theme.brightness == Brightness.dark ? .07 : .045),
+            blurRadius: 22,
+            offset: const Offset(0, 8),
+          ),
+        ],
       ),
       child: Row(children: [
-        Container(width: 48, height: 48,
-          decoration: BoxDecoration(color: accent.withValues(alpha: .14), borderRadius: BorderRadius.circular(16)),
-          child: Icon(icon, color: accent, size: 24)),
+        Container(width: 52, height: 52,
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [accent.withValues(alpha: .22), accent.withValues(alpha: .08)],
+            ),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: accent.withValues(alpha: .16)),
+          ),
+          child: Icon(icon, color: accent, size: 25)),
         const SizedBox(width: 14),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(title, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800, letterSpacing: -.25)),

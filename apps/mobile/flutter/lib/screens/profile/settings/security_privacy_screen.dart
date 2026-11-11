@@ -130,7 +130,7 @@ class SecurityPrivacyScreen extends StatelessWidget {
             iconColor: const Color(0xFF6D5DFC),
             iconBgColor: const Color(0xFF6D5DFC).withValues(alpha: 0.1),
             title: 'Two-Factor Authentication',
-            subtitle: 'Unavailable until sign-in verification is enforced',
+            subtitle: 'Temporarily unavailable until server-side login challenges are enforced',
             value: false,
             onChanged: null,
           ),

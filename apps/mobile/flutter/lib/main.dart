@@ -109,8 +109,8 @@ class NovynApp extends StatelessWidget {
           return MaterialApp(
             title: 'Novyn',
             debugShowCheckedModeBanner: false,
-            theme: NovynTheme.lightTheme(accent: Color(s.accentColorValue), fontScale: s.fontSize),
-            darkTheme: NovynTheme.darkTheme(accent: Color(s.accentColorValue), fontScale: s.fontSize),
+            theme: NovynTheme.lightTheme(accent: Color(s.accentColorValue), fontScale: s.fontSize, highContrast: s.highContrast),
+            darkTheme: NovynTheme.darkTheme(accent: Color(s.accentColorValue), fontScale: s.fontSize, highContrast: s.highContrast),
             themeMode: s.themeMode,
             locale: Locale(s.language),
             localizationsDelegates: [
@@ -134,8 +134,11 @@ class NovynApp extends StatelessWidget {
               Locale('ko'),
               Locale('ru'),
             ],
-            builder: (context, child) => SessionLifecycleGuard(
-              child: AppLockWrapper(child: child!),
+            builder: (context, child) => MediaQuery(
+              data: MediaQuery.of(context).copyWith(disableAnimations: s.reduceMotion),
+              child: SessionLifecycleGuard(
+                child: AppLockWrapper(child: child!),
+              ),
             ),
             home: const SplashScreenV2(),
           );

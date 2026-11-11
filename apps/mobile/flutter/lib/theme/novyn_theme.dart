@@ -45,16 +45,21 @@ class NovynTheme {
   static const Color _dDivider = Color(0x21DAD6FF); // rgba(218,214,255,.13)
   static const Color _dRaised = Color(0xFF1B1A35); // header buttons
 
-  static ThemeData lightTheme({Color accent = indigo, double fontScale = 1}) => _build(Brightness.light, accent, fontScale);
-  static ThemeData darkTheme({Color accent = indigo, double fontScale = 1}) => _build(Brightness.dark, accent, fontScale);
+  static ThemeData lightTheme({Color accent = indigo, double fontScale = 1, bool highContrast = false}) => _build(Brightness.light, accent, fontScale, highContrast);
+  static ThemeData darkTheme({Color accent = indigo, double fontScale = 1, bool highContrast = false}) => _build(Brightness.dark, accent, fontScale, highContrast);
 
-  static ThemeData _build(Brightness brightness, Color accent, double fontScale) {
+  static ThemeData _build(Brightness brightness, Color accent, double fontScale, bool highContrast) {
     final dark = brightness == Brightness.dark;
     final ink = dark ? _dInk : _lInk;
     final meta = dark ? _dMeta : _lMeta;
     final surface = dark ? _dSurface : _lSurface;
     final field = dark ? _dField : _lField;
-    final border = dark ? _dBorder : _lBorder;
+    final border = highContrast
+        ? (dark ? const Color(0xFFBDB8FF) : const Color(0xFF393078))
+        : (dark ? _dBorder : _lBorder);
+    final strongMeta = highContrast
+        ? (dark ? const Color(0xFFE4E1FF) : const Color(0xFF37334F))
+        : meta;
 
     final scheme = (dark ? const ColorScheme.dark() : const ColorScheme.light())
         .copyWith(
@@ -67,8 +72,8 @@ class NovynTheme {
       surface: surface,
       onSurface: ink,
       surfaceContainerHighest: dark ? _dRaised : const Color(0xFFF5F3FF),
-      onSurfaceVariant: meta,
-      outline: meta,
+      onSurfaceVariant: strongMeta,
+      outline: highContrast ? strongMeta : meta,
       outlineVariant: border,
       error: const Color(0xFFFF5C7A),
     );
