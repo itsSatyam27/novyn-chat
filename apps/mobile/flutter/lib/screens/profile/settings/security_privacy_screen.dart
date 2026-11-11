@@ -23,7 +23,7 @@ class SecurityPrivacyScreen extends StatelessWidget {
     final dark = Theme.of(context).brightness == Brightness.dark;
     final ink = Theme.of(context).colorScheme.onSurface;
     final muted = Theme.of(context).colorScheme.onSurfaceVariant;
-    final accent = NovynTheme.indigo;
+    final accent = Theme.of(context).colorScheme.primary;
 
     Widget heading(String text, {Color? color}) => Padding(
       padding: const EdgeInsets.only(left: 4, bottom: 9),
@@ -55,7 +55,7 @@ class SecurityPrivacyScreen extends StatelessWidget {
           const SizedBox(height: 20),
           Container(padding: const EdgeInsets.all(17), decoration: BoxDecoration(color: NovynTheme.cardBg(context), borderRadius: BorderRadius.circular(24), border: Border.all(color: Theme.of(context).colorScheme.outlineVariant)), child: Column(children: [
             Row(children: [
-              Container(width: 62, height: 62, decoration: BoxDecoration(gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF8172F2), Color(0xFF4B3BC8)]), borderRadius: BorderRadius.circular(20)), child: const Icon(Icons.verified_user_rounded, color: Colors.white, size: 30)),
+              Container(width: 62, height: 62, decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF8172F2), Color(0xFF4B3BC8)]), borderRadius: BorderRadius.circular(20)), child: Icon(Icons.verified_user_rounded, color: Colors.white, size: 30)),
               const SizedBox(width: 14),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(settings.appLockEnabled ? 'Your account is protected' : 'Your account, protected', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
@@ -64,7 +64,7 @@ class SecurityPrivacyScreen extends StatelessWidget {
               ])),
             ]),
             const SizedBox(height: 14),
-            Align(alignment: Alignment.centerLeft, child: Container(height: 38, padding: const EdgeInsets.symmetric(horizontal: 13), decoration: BoxDecoration(color: const Color(0xFF1FB56A).withValues(alpha: dark ? .16 : .10), borderRadius: BorderRadius.circular(14)), child: Row(mainAxisSize: MainAxisSize.min, children: [const Icon(Icons.check_circle_rounded, size: 16, color: Color(0xFF1F9D61)), const SizedBox(width: 7), Text(settings.appLockEnabled ? 'App Lock enabled' : 'Privacy controls available', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF1F9D61)))]))),
+            Align(alignment: Alignment.centerLeft, child: Container(height: 38, padding: const EdgeInsets.symmetric(horizontal: 13), decoration: BoxDecoration(color: const Color(0xFF1FB56A).withValues(alpha: dark ? .16 : .10), borderRadius: BorderRadius.circular(14)), child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.check_circle_rounded, size: 16, color: Color(0xFF1F9D61)), const SizedBox(width: 7), Text(settings.appLockEnabled ? 'App Lock enabled' : 'Privacy controls available', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF1F9D61)))]))),
           ])),
           const SizedBox(height: 22),
           section('Security', [
@@ -96,7 +96,7 @@ class SecurityPrivacyScreen extends StatelessWidget {
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Icon(Icons.shield_rounded, color: Color(0xFF1F9D61), size: 18),
+                      Icon(Icons.shield_rounded, color: Color(0xFF1F9D61), size: 18),
                       const SizedBox(width: 9),
                       Expanded(
                         child: Text(
@@ -341,8 +341,8 @@ class SecurityPrivacyScreen extends StatelessWidget {
                           ),
                           child: ListTile(
                             leading: CircleAvatar(
-                              backgroundColor: const Color(0xFF6D5DFC).withValues(alpha: 0.1),
-                              child: const Icon(Icons.person_rounded, color: Color(0xFF6D5DFC)),
+                              backgroundColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+                              child: Icon(Icons.person_rounded, color: Theme.of(context).colorScheme.primary),
                             ),
                             title: Text(
                               '@$username',
@@ -608,7 +608,7 @@ class _ToggleCard extends StatelessWidget {
                   HapticFeedback.lightImpact();
                   onChanged?.call(v);
                 },
-                activeTrackColor: const Color(0xFF6D5DFC).withValues(alpha: 0.8),
+                activeTrackColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.8),
                 activeColor: Colors.white,
               ),
             ],
@@ -813,7 +813,7 @@ class _SelectionCard extends StatelessWidget {
                       fontFamily: 'PlusJakartaSans',
                       fontSize: 13,
                       fontWeight: FontWeight.w900,
-                      color: Color(0xFF6D5DFC),
+                      color: Theme.of(context).colorScheme.primary,
                     ),
                   ),
                   Icon(
@@ -864,7 +864,7 @@ class _SelectionCard extends StatelessWidget {
                   style: TextStyle(
                     fontFamily: 'PlusJakartaSans',
                     fontWeight: isSelected ? FontWeight.w800 : FontWeight.w500,
-                    color: isSelected ? const Color(0xFF6D5DFC) : null,
+                    color: isSelected ? Theme.of(context).colorScheme.primary : null,
                   ),
                 ),
                 leading: Radio<String>(
@@ -877,7 +877,7 @@ class _SelectionCard extends StatelessWidget {
                       Navigator.pop(context);
                     }
                   },
-                  activeColor: const Color(0xFF6D5DFC),
+                  activeColor: Theme.of(context).colorScheme.primary,
                 ),
                 onTap: () {
                   HapticFeedback.lightImpact();
@@ -927,15 +927,15 @@ class _ChangePasswordDialogState extends State<_ChangePasswordDialog> {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF6D5DFC).withValues(alpha: 0.1),
+                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.shield_rounded, color: Color(0xFF6D5DFC), size: 32),
+                child: Icon(Icons.shield_rounded, color: Theme.of(context).colorScheme.primary, size: 32),
               ),
               const SizedBox(height: 16),
               ShaderMask(
-                shaderCallback: (bounds) => const LinearGradient(
-                  colors: [Color(0xFF6D5DFC), Color(0xFF40E0D0)],
+                shaderCallback: (bounds) => LinearGradient(
+                  colors: [Theme.of(context).colorScheme.primary, Color(0xFF40E0D0)],
                 ).createShader(bounds),
                 child: const Text(
                   'Update Password',
@@ -1014,13 +1014,13 @@ class _ChangePasswordDialogState extends State<_ChangePasswordDialog> {
                 child: Container(
                   height: 52,
                   decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFF6D5DFC), Color(0xFF40E0D0)],
+                    gradient: LinearGradient(
+                      colors: [Theme.of(context).colorScheme.primary, Color(0xFF40E0D0)],
                     ),
                     borderRadius: BorderRadius.circular(16),
                     boxShadow: [
                       BoxShadow(
-                        color: const Color(0xFF6D5DFC).withValues(alpha: 0.3),
+                        color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
                         blurRadius: 15,
                         offset: const Offset(0, 5),
                       ),
@@ -1127,7 +1127,7 @@ class _ChangePasswordDialogState extends State<_ChangePasswordDialog> {
       child: TextField(
         controller: controller,
         obscureText: obscure,
-        cursorColor: const Color(0xFF6D5DFC),
+        cursorColor: Theme.of(context).colorScheme.primary,
         style: const TextStyle(
           fontFamily: 'PlusJakartaSans', 
           fontWeight: FontWeight.w700,
@@ -1144,7 +1144,7 @@ class _ChangePasswordDialogState extends State<_ChangePasswordDialog> {
           floatingLabelStyle: const TextStyle(
             fontFamily: 'PlusJakartaSans',
             fontWeight: FontWeight.w800,
-            color: Color(0xFF6D5DFC),
+            color: Theme.of(context).colorScheme.primary,
           ),
           border: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
@@ -1246,10 +1246,10 @@ class _TwoFactorSetupDialogState extends State<_TwoFactorSetupDialog> {
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: const Color(0xFF6D5DFC).withValues(alpha: 0.1),
+            color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
             shape: BoxShape.circle,
           ),
-          child: const Icon(Icons.security_rounded, color: Color(0xFF6D5DFC), size: 40),
+          child: Icon(Icons.security_rounded, color: Theme.of(context).colorScheme.primary, size: 40),
         ),
         const SizedBox(height: 24),
         const Text(
@@ -1288,7 +1288,7 @@ class _TwoFactorSetupDialogState extends State<_TwoFactorSetupDialog> {
               child: ElevatedButton(
                 onPressed: _nextStep,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF6D5DFC),
+                  backgroundColor: Theme.of(context).colorScheme.primary,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -1312,7 +1312,7 @@ class _TwoFactorSetupDialogState extends State<_TwoFactorSetupDialog> {
           height: 60,
           child: CircularProgressIndicator(
             strokeWidth: 3,
-            valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF6D5DFC)),
+            valueColor: AlwaysStoppedAnimation<Color>(Theme.of(context).colorScheme.primary),
           ),
         ),
         const SizedBox(height: 24),
@@ -1371,7 +1371,7 @@ class _TwoFactorSetupDialogState extends State<_TwoFactorSetupDialog> {
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Color(0xFF6D5DFC), width: 2),
+                    borderSide: BorderSide(color: Theme.of(context).colorScheme.primary, width: 2),
                   ),
                 ),
                 onChanged: (value) {
@@ -1393,13 +1393,13 @@ class _TwoFactorSetupDialogState extends State<_TwoFactorSetupDialog> {
         ),
         const SizedBox(height: 32),
         if (_isFinalizing)
-          const CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF6D5DFC))
+          CircularProgressIndicator(strokeWidth: 2, color: Theme.of(context).colorScheme.primary)
         else
           TextButton(
             onPressed: () => setState(() => _step = 1),
             child: const Text(
               'Resend Code',
-              style: TextStyle(fontFamily: 'PlusJakartaSans', fontWeight: FontWeight.w800, color: Color(0xFF6D5DFC)),
+              style: TextStyle(fontFamily: 'PlusJakartaSans', fontWeight: FontWeight.w800, color: Theme.of(context).colorScheme.primary),
             ),
           ),
       ],
@@ -1447,6 +1447,6 @@ class _SecurityPrivacyToggleTile extends StatelessWidget {
   final IconData icon; final Color accent; final String title; final String subtitle; final bool value; final ValueChanged<bool>? onChanged;
   @override Widget build(BuildContext context) {
     final dark = Theme.of(context).brightness == Brightness.dark;
-    return Opacity(opacity: onChanged == null ? .58 : 1, child: _SecurityPrivacyTile(icon: icon, accent: accent, title: title, subtitle: subtitle, onTap: onChanged == null ? () {} : () => onChanged!(!value), trailing: Switch.adaptive(value: value, onChanged: onChanged, activeTrackColor: NovynTheme.indigo, activeColor: Colors.white, inactiveTrackColor: dark ? const Color(0xFF454456) : const Color(0xFFD7D2F0))));
+    return Opacity(opacity: onChanged == null ? .58 : 1, child: _SecurityPrivacyTile(icon: icon, accent: accent, title: title, subtitle: subtitle, onTap: onChanged == null ? () {} : () => onChanged!(!value), trailing: Switch.adaptive(value: value, onChanged: onChanged, activeTrackColor: Theme.of(context).colorScheme.primary, activeColor: Colors.white, inactiveTrackColor: dark ? const Color(0xFF454456) : const Color(0xFFD7D2F0))));
   }
 }
