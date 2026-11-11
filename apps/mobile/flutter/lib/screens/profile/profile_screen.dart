@@ -1567,7 +1567,7 @@ class _NovynSettingsProfileCard extends StatelessWidget {
           ),
         const SizedBox(width: 14),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(displayName, maxLines: 1, overflow: TextOverflow.ellipsis, style: NovynText.display(19, weight: FontWeight.w700)),
+          Text(displayName, maxLines: 1, overflow: TextOverflow.ellipsis, style: NovynText.display(19, weight: FontWeight.w700).copyWith(color: Theme.of(context).colorScheme.onSurface)),
           const SizedBox(height: 4),
           Text('@$username', maxLines: 1, overflow: TextOverflow.ellipsis, style: NovynText.body(13, color: Theme.of(context).colorScheme.onSurfaceVariant)),
         ])),
@@ -1629,48 +1629,48 @@ class _SettingsQuickToggle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final dark = Theme.of(context).brightness == Brightness.dark;
-    final card = NovynTheme.cardBg(context);
-    final ink = Theme.of(context).colorScheme.onSurface;
-    final muted = Theme.of(context).colorScheme.onSurfaceVariant;
+    final scheme = Theme.of(context).colorScheme;
     return Container(
-      padding: const EdgeInsets.fromLTRB(12, 10, 5, 10),
+      constraints: const BoxConstraints(minHeight: 88),
+      padding: const EdgeInsets.fromLTRB(13, 10, 10, 11),
       decoration: BoxDecoration(
-        color: card,
+        color: NovynTheme.cardBg(context),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+        border: Border.all(color: scheme.outlineVariant),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.primary.withValues(alpha: dark ? .22 : .10),
-              borderRadius: BorderRadius.circular(12),
+          Row(children: [
+            Container(
+              width: 36, height: 36,
+              decoration: BoxDecoration(
+                color: scheme.primary.withValues(alpha: dark ? .22 : .10),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, size: 19, color: scheme.primary),
             ),
-            child: Icon(icon, size: 19, color: Theme.of(context).colorScheme.primary),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: NovynText.body(13, weight: FontWeight.w700, color: ink),
+            const Spacer(),
+            Transform.scale(
+              scale: .88,
+              alignment: Alignment.centerRight,
+              child: Switch(
+                value: value,
+                onChanged: onChanged,
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                thumbColor: const WidgetStatePropertyAll(Colors.white),
+                trackColor: WidgetStateProperty.resolveWith(
+                  (states) => states.contains(WidgetState.selected)
+                      ? scheme.primary
+                      : (dark ? const Color(0xFF454456) : const Color(0xFFD7D3E8)),
+                ),
+                trackOutlineColor: const WidgetStatePropertyAll(Colors.transparent),
+              ),
             ),
-          ),
-          Switch(
-            value: value,
-            onChanged: onChanged,
-            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            thumbColor: const WidgetStatePropertyAll(Colors.white),
-            trackColor: WidgetStateProperty.resolveWith(
-              (states) => states.contains(WidgetState.selected)
-                  ? Theme.of(context).colorScheme.primary
-                  : (dark ? const Color(0xFF454456) : const Color(0xFFD7D3E8)),
-            ),
-            trackOutlineColor: const WidgetStatePropertyAll(Colors.transparent),
-          ),
+          ]),
+          const SizedBox(height: 5),
+          Text(label, maxLines: 1, softWrap: false,
+            style: NovynText.body(13, weight: FontWeight.w700, color: scheme.onSurface)),
         ],
       ),
     );
