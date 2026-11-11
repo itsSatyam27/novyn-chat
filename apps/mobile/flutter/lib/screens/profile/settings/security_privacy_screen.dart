@@ -1556,29 +1556,9 @@ class _PrivacyDashboardState extends State<_PrivacyDashboard> {
   @override
   void initState() {
     super.initState();
-    _loadAccountPrivacy();
+    _loading = false;
   }
 
-  Future<void> _loadAccountPrivacy() async {
-    try {
-      final result = await widget.socket.updateAccountSettings({});
-      if (result['ok'] == true && result['profile'] is Map) {
-        final profile = Map<String, dynamic>.from(result['profile']);
-        if (!mounted) return;
-        setState(() {
-          for (final key in _values.keys) {
-            final value = profile[key]?.toString();
-            if (value != null) _values[key] = value;
-          }
-          _typing = profile['typingIndicatorsEnabled'] != false;
-        });
-      }
-    } catch (_) {
-      // Keep safe defaults until the user changes a preference.
-    } finally {
-      if (mounted) setState(() => _loading = false);
-    }
-  }
 
   Future<void> _save(String key, String value) async {
     if (_saving) return;
@@ -1594,6 +1574,8 @@ class _PrivacyDashboardState extends State<_PrivacyDashboard> {
       if (key == 'presencePrivacy') {
         // Server uses this setting for both online and last-seen visibility.
         await widget.settings.setLastSeenVisibility(value == 'friends' ? 'contacts' : value);
+      } else if (key == 'profilePhotoPrivacy') {
+        await widget.settings.setProfilePhotoVisibility(value == 'friends' ? 'contacts' : value);
       }
       if (mounted) NovynAlert.show(context, 'Privacy setting updated.');
     } catch (error) {
@@ -1640,10 +1622,12 @@ class _PrivacyDashboardState extends State<_PrivacyDashboard> {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    final presence = _values['presencePrivacy'] ??
-        (widget.lastSeen == 'contacts' ? 'friends' : widget.lastSeen);
+    final presence = _values['presencePrivacy'] == 'everyone' && widget.lastSeen != 'everyone'
+        ? (widget.lastSeen == 'contacts' ? 'friends' : widget.lastSeen)
+        : _values['presencePrivacy'];
+    final photo = widget.profilePhoto == 'contacts' ? 'friends' : widget.profilePhoto;
     final visibility = [
-      ('Profile photo', 'profilePhotoPrivacy', widget.profilePhoto,
+      ('Profile photo', 'profilePhotoPrivacy', photo,
         Icons.account_circle_outlined, 'Control who can view your profile picture'),
       ('Online & last seen', 'presencePrivacy', presence,
         Icons.visibility_outlined, 'Choose who can see when you are online or last active'),
