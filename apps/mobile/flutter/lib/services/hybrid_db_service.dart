@@ -282,12 +282,32 @@ class HybridDbService {
   // UTILITIES
   // ══════════════════════════════════════════════════════════════════════════
 
+  /// Switch the shared local cache to the active Novyn account.
+  /// Older unscoped caches are cleared to prevent cross-account disclosure.
+  static Future<void> activateAccount(String username) async {
+    await _ensureInit();
+    final normalized = username.trim().toLowerCase();
+    if (normalized.isEmpty) return;
+    final owner = await LocalDbService.getAccountScope();
+    if (owner == null || owner != normalized) {
+      await _fastDb!.clearAll();
+      await LocalDbService.clearAll();
+    }
+    await LocalDbService.setAccountScope(normalized);
+  }
+
+  static Future<void> clearAccountScope() async {
+    await _ensureInit();
+    await LocalDbService.clearAll();
+  }
+
   /// Clear all data (logout)
   static Future<void> clearAll() async {
     await _ensureInit();
     try {
       await _fastDb!.clearAll();
       await LocalDbService.clearAll();
+      ChatsScreen.resetAccountCache();
       print('✅ Hybrid database cleared');
     } catch (e) {
       print('Error clearing database: $e');
