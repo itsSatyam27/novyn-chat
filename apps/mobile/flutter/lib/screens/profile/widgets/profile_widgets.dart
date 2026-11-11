@@ -556,7 +556,7 @@ class SettingsToggleCard extends StatelessWidget {
                     HapticFeedback.selectionClick();
                     onChanged!(v);
                   },
-                  activeTrackColor: const Color(0xFF6D5DFC),
+                  activeTrackColor: Theme.of(context).colorScheme.primary,
                   activeThumbColor: Colors.white,
                 ),
               ],

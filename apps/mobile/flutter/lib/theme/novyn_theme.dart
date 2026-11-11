@@ -54,9 +54,13 @@ class NovynTheme {
     final meta = dark ? _dMeta : _lMeta;
     final surface = dark ? _dSurface : _lSurface;
     final field = dark ? _dField : _lField;
+    // Accent-derived tokens keep selected states, borders and surfaces
+    // in sync with the user's chosen colour.
     final border = highContrast
-        ? (dark ? const Color(0xFFBDB8FF) : const Color(0xFF393078))
-        : (dark ? _dBorder : _lBorder);
+        ? accent.withValues(alpha: dark ? .90 : .85)
+        : accent.withValues(alpha: dark ? .24 : .18);
+    final accentContainer = Color.lerp(surface, accent, dark ? .24 : .12)!;
+    final accentDivider = accent.withValues(alpha: dark ? .16 : .12);
     final strongMeta = highContrast
         ? (dark ? const Color(0xFFE4E1FF) : const Color(0xFF37334F))
         : meta;
@@ -67,11 +71,15 @@ class NovynTheme {
       onPrimary: Colors.white,
       secondary: accent,
       onSecondary: Colors.white,
-      primaryContainer: dark ? _dSoft : _lSoft,
-      onPrimaryContainer: dark ? const Color(0xFFCFCAFF) : const Color(0xFF292056),
+      primaryContainer: accentContainer,
+      onPrimaryContainer: dark ? Colors.white : ink,
       surface: surface,
       onSurface: ink,
-      surfaceContainerHighest: dark ? _dRaised : const Color(0xFFF5F3FF),
+      surfaceContainerHighest: Color.lerp(
+        dark ? _dRaised : const Color(0xFFF5F3FF),
+        accent,
+        dark ? .10 : .055,
+      )!,
       onSurfaceVariant: strongMeta,
       outline: highContrast ? strongMeta : meta,
       outlineVariant: border,
@@ -174,7 +182,7 @@ class NovynTheme {
               : (dark ? const Color(0xFF3A3955) : const Color(0xFFCFCBE8)),
         ),
       ),
-      dividerColor: dark ? _dDivider : _lDivider,
+      dividerColor: accentDivider,
       textTheme: base,
     );
   }

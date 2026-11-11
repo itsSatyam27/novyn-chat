@@ -114,7 +114,7 @@ class ProfileScreen extends StatelessWidget {
                     icon: Icons.palette_outlined,
                     title: l10n.appearance,
                     subtitle: 'Theme, colours and text size',
-                    accent: const Color(0xFF7C6CF2),
+                    accent: Theme.of(context).colorScheme.primary,
                     onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AppearanceScreen())),
                   ),
                   _NovynSettingsTile(
@@ -258,8 +258,8 @@ class ProfileScreen extends StatelessWidget {
                             contentPadding: const EdgeInsets.symmetric(vertical: 4),
                             leading: Container(
                               width: 42, height: 42,
-                              decoration: BoxDecoration(color: NovynTheme.indigo.withValues(alpha: .12), borderRadius: BorderRadius.circular(13)),
-                              child: Icon(item['icon'] as IconData, color: NovynTheme.indigo),
+                              decoration: BoxDecoration(color: Theme.of(context).colorScheme.primary.withValues(alpha: .12), borderRadius: BorderRadius.circular(13)),
+                              child: Icon(item['icon'] as IconData, color: Theme.of(context).colorScheme.primary),
                             ),
                             title: Text(item['title'] as String, style: const TextStyle(fontWeight: FontWeight.w700)),
                             subtitle: Text(item['subtitle'] as String),
@@ -285,7 +285,7 @@ class ProfileScreen extends StatelessWidget {
       context: context,
       builder: (dialogContext) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        icon: const Icon(Icons.hub_rounded, color: NovynTheme.indigo, size: 38),
+        icon: const Icon(Icons.hub_rounded, color: Theme.of(context).colorScheme.primary, size: 38),
         title: const Text('Novyn'),
         content: const Text('Your space, your people.\\n\\nA place to stay connected with the people who matter.'),
         actions: [
@@ -1519,7 +1519,7 @@ class _NovynSettingsProfileCard extends StatelessWidget {
           ),
           const SizedBox(width: 10),
           Material(
-            color: NovynTheme.indigo.withValues(alpha: .10),
+            color: Theme.of(context).colorScheme.primary.withValues(alpha: .10),
             borderRadius: BorderRadius.circular(22),
             child: InkWell(
               borderRadius: BorderRadius.circular(22),
@@ -1529,9 +1529,9 @@ class _NovynSettingsProfileCard extends StatelessWidget {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.qr_code_2_rounded, size: 19, color: NovynTheme.indigo),
+                    const Icon(Icons.qr_code_2_rounded, size: 19, color: Theme.of(context).colorScheme.primary),
                     const SizedBox(width: 7),
-                    Text('My QR code', style: NovynText.body(13, weight: FontWeight.w700, color: NovynTheme.indigo)),
+                    Text('My QR code', style: NovynText.body(13, weight: FontWeight.w700, color: Theme.of(context).colorScheme.primary)),
                   ],
                 ),
               ),
@@ -1576,10 +1576,10 @@ class _SettingsQuickToggle extends StatelessWidget {
             width: 36,
             height: 36,
             decoration: BoxDecoration(
-              color: NovynTheme.indigo.withValues(alpha: dark ? .22 : .10),
+              color: Theme.of(context).colorScheme.primary.withValues(alpha: dark ? .22 : .10),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Icon(icon, size: 19, color: NovynTheme.indigo),
+            child: Icon(icon, size: 19, color: Theme.of(context).colorScheme.primary),
           ),
           const SizedBox(width: 8),
           Expanded(
