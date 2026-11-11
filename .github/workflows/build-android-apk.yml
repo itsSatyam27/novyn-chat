@@ -2,9 +2,13 @@ name: Build Novyn Android APK
 
 on:
   workflow_dispatch:
+  pull_request:
+    branches:
+      - feature/app-lock-recovery-hardening
   push:
     branches:
       - feature/app-lock-recovery-hardening
+      - fix/mobile-session-restore-on-restart
 
 permissions:
   contents: read
