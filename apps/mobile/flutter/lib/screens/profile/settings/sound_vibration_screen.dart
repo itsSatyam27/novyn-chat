@@ -31,7 +31,12 @@ class _SoundVibrationScreenState extends State<SoundVibrationScreen> {
     final volume = kind == 'message' ? settings.messageVolume : settings.callVolume;
     await _player.setVolume(volume);
     final asset = kind == 'message'
-        ? (settings.notificationTone == 'Pulse' ? 'audio/message_sent.mp3' : 'audio/notification.mp3')
+        ? switch (settings.notificationTone) {
+            'Pulse' => 'audio/message_sent.mp3',
+            'Glass' => 'audio/ringtone.mp3',
+            'Echo' => 'audio/call_ring.mp3',
+            _ => 'audio/notification.mp3',
+          }
         : (_callPreview == 'ringback' ? 'audio/ringtone.mp3' : 'audio/call_ring.mp3');
     try {
       await _player.play(AssetSource(asset));
@@ -83,7 +88,7 @@ class _SoundVibrationScreenState extends State<SoundVibrationScreen> {
               playing: _playing == 'message', enabled: s.inAppSounds,
               volume: s.messageVolume, onPlay: () => _play('message', s),
               onVolume: (v) { s.setMessageVolume(v); _player.setVolume(v); },
-              selected: s.notificationTone,
+              selected: const ['Drift', 'Pulse', 'Glass', 'Echo'].contains(s.notificationTone) ? s.notificationTone : 'Drift',
               choices: const ['Drift', 'Pulse', 'Glass', 'Echo'],
               onChoice: (v) { s.setNotificationTone(v); if (s.inAppSounds) _play('message', s); }),
             _section('Calls'),
@@ -245,6 +250,6 @@ class _Waveform extends StatelessWidget {
     crossAxisAlignment: CrossAxisAlignment.center, children: bars.map((h) => Expanded(child: Padding(
       padding: const EdgeInsets.symmetric(horizontal: 2), child: AnimatedContainer(
         duration: const Duration(milliseconds: 220), height: playing ? h.toDouble() : h * .78,
-        decoration: BoxDecoration(color: const Color(0xFF6554F5).withValues(alpha: playing ? .95 : .35 + (h / 100)),
+        decoration: BoxDecoration(color: const Color(0xFF6554F5).withValues(alpha: playing ? .95 : (.35 + (h / 100)).clamp(.35, 1.0)),
           borderRadius: BorderRadius.circular(5))))).toList()));
 }
