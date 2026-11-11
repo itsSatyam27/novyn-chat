@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../services/settings_service.dart';
 import '../../../theme/novyn_theme.dart';
+import 'dock_customization_screen.dart';
 
 class AppearanceScreen extends StatelessWidget {
   const AppearanceScreen({super.key});
@@ -42,6 +43,8 @@ class AppearanceScreen extends StatelessWidget {
             const SizedBox(width: 10),
             _ThemePreviewCard(label: 'System', mode: ThemeMode.system, selected: settings.themeMode == ThemeMode.system, onTap: () => settings.setThemeMode(ThemeMode.system)),
           ]),
+          const SizedBox(height: 22),
+          _DockCustomizationTile(onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const DockCustomizationScreen()))),
           const SizedBox(height: 26),
           _sectionTitle(context, 'Accent colour'),
           const SizedBox(height: 5),
@@ -126,6 +129,38 @@ class AppearanceScreen extends StatelessWidget {
 
   Widget _sectionTitle(BuildContext context, String title) => Text(title,
     style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800));
+}
+
+class _DockCustomizationTile extends StatelessWidget {
+  const _DockCustomizationTile({required this.onTap});
+  final VoidCallback onTap;
+  @override
+  Widget build(BuildContext context) {
+    final settings = context.watch<SettingsService>();
+    final labels = {'floating_pill':'Floating Pill','rounded_bar':'Rounded Bar','minimal':'Minimal','glass':'Glass','sliding':'Sliding Indicator','elevated':'Elevated Center','full_width':'Full Width','glow':'Accent Glow'};
+    return Material(
+      color: Theme.of(context).colorScheme.surface,
+      borderRadius: BorderRadius.circular(18),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(18),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(borderRadius: BorderRadius.circular(18), border: Border.all(color: Theme.of(context).colorScheme.outlineVariant)),
+          child: Row(children: [
+            Container(width: 44,height: 44,decoration: BoxDecoration(color: Theme.of(context).colorScheme.primary.withValues(alpha:.12),borderRadius: BorderRadius.circular(14)),child: Icon(Icons.space_dashboard_rounded,color: Theme.of(context).colorScheme.primary)),
+            const SizedBox(width: 12),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start,children: [
+              const Text('Dock style',style: TextStyle(fontWeight: FontWeight.w800)),
+              const SizedBox(height: 3),
+              Text(labels[settings.dockStyle] ?? 'Floating Pill',style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+            ])),
+            const Icon(Icons.chevron_right_rounded),
+          ]),
+        ),
+      ),
+    );
+  }
 }
 
 class _ThemePreviewCard extends StatelessWidget {

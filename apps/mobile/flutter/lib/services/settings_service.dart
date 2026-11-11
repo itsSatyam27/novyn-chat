@@ -52,6 +52,7 @@ class SettingsService extends ChangeNotifier {
   static const _kLanguage = 'language';
   static const _kFontSize = 'font_size';
   static const _kAccentColor = 'appearance_accent_color';
+  static const _kDockStyle = 'dock_style';
   static const _kTwoFactorAuth = 'two_factor_auth';
   static const _kLastSeen = 'last_seen_visibility';
   static const _kProfilePhoto = 'profile_photo_visibility';
@@ -97,6 +98,7 @@ class SettingsService extends ChangeNotifier {
   String _language = 'en'; // Language code
   double _fontSize = 1.0; // Font scale factor
   int _accentColorValue = 0xFF6D5DFC;
+  String _dockStyle = 'floating_pill';
   bool _twoFactorAuth = false;
   String _lastSeenVisibility = 'everyone'; // 'everyone', 'contacts', 'nobody'
   String _profilePhotoVisibility = 'everyone'; // 'everyone', 'contacts', 'nobody'
@@ -146,6 +148,7 @@ class SettingsService extends ChangeNotifier {
   String get photoQuality => _photoQuality;
   double get fontSize => _fontSize;
   int get accentColorValue => _accentColorValue;
+  String get dockStyle => _dockStyle;
   bool get twoFactorAuth => _twoFactorAuth;
   String get lastSeenVisibility => _stealthModeEnabled ? 'nobody' : _lastSeenVisibility;
   String get profilePhotoVisibility => _stealthModeEnabled ? 'nobody' : _profilePhotoVisibility;
@@ -183,6 +186,9 @@ class SettingsService extends ChangeNotifier {
     _language = _prefs.getString(_kLanguage) ?? 'en';
     _fontSize = _prefs.getDouble(_kFontSize) ?? 1.0;
     _accentColorValue = _prefs.getInt(_kAccentColor) ?? 0xFF6D5DFC;
+    const dockStyles = ['floating_pill','rounded_bar','minimal','glass','sliding','elevated','full_width','glow'];
+    final savedDockStyle = _prefs.getString(_kDockStyle) ?? 'floating_pill';
+    _dockStyle = dockStyles.contains(savedDockStyle) ? savedDockStyle : 'floating_pill';
     _twoFactorAuth = _prefs.getBool(_kTwoFactorAuth) ?? false;
     _lastSeenVisibility = _prefs.getString(_kLastSeen) ?? 'everyone';
     _profilePhotoVisibility = _prefs.getString(_kProfilePhoto) ?? 'everyone';
@@ -328,6 +334,14 @@ class SettingsService extends ChangeNotifier {
   Future<void> setAccentColor(int value) async {
     _accentColorValue = value;
     await _prefs.setInt(_kAccentColor, value);
+    notifyListeners();
+  }
+
+  Future<void> setDockStyle(String style) async {
+    const allowed = {'floating_pill','rounded_bar','minimal','glass','sliding','elevated','full_width','glow'};
+    if (!allowed.contains(style)) return;
+    _dockStyle = style;
+    await _prefs.setString(_kDockStyle, style);
     notifyListeners();
   }
 
@@ -616,6 +630,7 @@ class SettingsService extends ChangeNotifier {
     _language = 'en';
     _fontSize = 1.0;
     _accentColorValue = 0xFF6D5DFC;
+    _dockStyle = 'floating_pill';
     _twoFactorAuth = false;
     _lastSeenVisibility = 'everyone';
     _profilePhotoVisibility = 'everyone';

@@ -15,6 +15,7 @@ import '../services/api_service.dart';
 import '../services/friend_service.dart';
 import '../models/user_model.dart';
 import '../widgets/novyn_dock.dart';
+import '../services/settings_service.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -181,7 +182,9 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
             left: 0,
             right: 0,
             bottom: 0,
-            child: Selector<SocketService, int>(
+            child: Selector<SettingsService, String>(
+              selector: (_, service) => service.dockStyle,
+              builder: (context, dockStyle, _) => Selector<SocketService, int>(
               selector: (_, service) => service.conversations
                   .fold(0, (total, chat) => total + chat.unreadCount),
               builder: (context, unreadCount, _) => AnimatedBuilder(
@@ -191,7 +194,9 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
                   onSelected: _onTabTap,
                   unreadCount: unreadCount,
                   requestCount: socket.contacts.requests.length,
+                  style: dockStyle,
                 ),
+              ),
               ),
             ),
           ),
