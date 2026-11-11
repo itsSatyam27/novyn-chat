@@ -103,7 +103,7 @@ class _DataStorageScreenState extends State<DataStorageScreen> {
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    'Download preferences are saved on this device. Manual image downloads from chats are available here; automatic background downloads and upload compression are not connected yet.',
+                    'Incoming attachments now follow your Wi-Fi/mobile download policy while Novyn is running. Image uploads use your selected quality. Images and videos can be saved to Gallery; other files can be exported through the system Files picker.',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: colors.onSurfaceVariant,
                           height: 1.45,
@@ -166,7 +166,7 @@ class _DataStorageScreenState extends State<DataStorageScreen> {
             Text(isWifi ? 'Wi-Fi downloads' : 'Mobile data downloads',
               style: Theme.of(sheetContext).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
             const SizedBox(height: 8),
-            const Text('Select your preferred policy. Background auto-download is not active yet.'),
+            const Text('New incoming attachments are downloaded automatically when Novyn is connected and the selected network policy allows it.'),
             const SizedBox(height: 12),
             for (final option in ['all', 'photos', 'none'])
               RadioListTile<String>(
