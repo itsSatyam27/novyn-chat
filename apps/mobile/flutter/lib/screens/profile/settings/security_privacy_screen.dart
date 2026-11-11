@@ -65,7 +65,7 @@ class SecurityPrivacyScreen extends StatelessWidget {
                 category == null ? 'Security & Privacy' : switch (category) {
                   'security' => 'Account Security',
                   'privacy' => 'Privacy Controls',
-                  'stealth' => 'Stealth Mode',
+                  'device' => 'Device & Account',
                   'danger' => 'Danger Zone',
                   _ => 'Security & Privacy',
                 },
@@ -79,7 +79,7 @@ class SecurityPrivacyScreen extends StatelessWidget {
                     : switch (category) {
                         'security' => 'Manage sign-in and device protection',
                         'privacy' => 'Control your visibility and interactions',
-                        'stealth' => 'Keep Novyn activity private on this device',
+                        'device' => 'Device privacy and account actions',
                         'danger' => 'Manage permanent account actions',
                         _ => 'Keep your account and chats safe',
                       },
@@ -149,18 +149,15 @@ class SecurityPrivacyScreen extends StatelessWidget {
                 'Privacy Controls', 'Profile visibility, read receipts and blocked contacts',
                 () => Navigator.push(context, MaterialPageRoute(
                   builder: (_) => const SecurityPrivacyScreen(category: 'privacy')))),
-              nav(Icons.visibility_off_outlined, const Color(0xFFC2540F),
-                'Stealth Mode', 'Hide previews and block screen capture',
+              nav(Icons.devices_other_rounded, const Color(0xFFC2540F),
+                'Device & Account', 'Stealth Mode and permanent account actions',
                 () => Navigator.push(context, MaterialPageRoute(
-                  builder: (_) => const SecurityPrivacyScreen(category: 'stealth'))),
+                  builder: (_) => const SecurityPrivacyScreen(category: 'device'))),
                 trailing: Switch.adaptive(
                   value: settings.stealthModeEnabled,
                   onChanged: (v) => _setStealthMode(context, settings, v),
-                ))),
-              nav(Icons.delete_outline_rounded, const Color(0xFFB3261E),
-                'Danger Zone', 'Permanent account actions',
-                () => Navigator.push(context, MaterialPageRoute(
-                  builder: (_) => const SecurityPrivacyScreen(category: 'danger')))),
+                )),
+
             ]),
           ],
           if (category == 'security') section('Sign-in & device protection', [
@@ -203,7 +200,7 @@ class SecurityPrivacyScreen extends StatelessWidget {
                 builder: (_) => const SetupPinScreen(isChanging: true))),
             ),
           ]),
-          if (category == 'stealth') section('Device privacy', [
+          if (category == 'device') section('Device privacy & account actions', [
             _SecurityPrivacyToggleTile(
               icon: Icons.visibility_off_outlined, accent: const Color(0xFFC2540F),
               title: 'Stealth Mode',
@@ -230,16 +227,6 @@ class SecurityPrivacyScreen extends StatelessWidget {
                   ]),
                 ),
               ),
-          ]),
-          if (category == 'privacy') _PrivacyDashboard(
-            lastSeen: settings.lastSeenVisibility,
-            profilePhoto: settings.profilePhotoVisibility,
-            readReceipts: settings.readReceipts,
-            socket: socket,
-            settings: settings,
-            onBlocked: () => _showBlockedUsers(context, socket),
-          ),
-          if (category == 'danger') section('Permanent actions', [
             _SecurityPrivacyTile(
               icon: Icons.delete_outline_rounded,
               accent: const Color(0xFFB3261E),
@@ -249,6 +236,14 @@ class SecurityPrivacyScreen extends StatelessWidget {
               onTap: () => _showDeleteAccount(context),
             ),
           ], color: const Color(0xFFB3261E)),
+          if (category == 'privacy') _PrivacyDashboard(
+            lastSeen: settings.lastSeenVisibility,
+            profilePhoto: settings.profilePhotoVisibility,
+            readReceipts: settings.readReceipts,
+            socket: socket,
+            settings: settings,
+            onBlocked: () => _showBlockedUsers(context, socket),
+          ),
           const SizedBox(height: 4),
           Center(child: Text('NOVYN · YOUR SPACE, YOUR PEOPLE',
             style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800,
