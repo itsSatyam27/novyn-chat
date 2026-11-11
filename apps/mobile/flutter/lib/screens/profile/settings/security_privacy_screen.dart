@@ -7,6 +7,7 @@ import '../../../services/auth_service.dart';
 import '../../../services/socket_service.dart';
 import '../../../services/security_service.dart';
 import '../../../widgets/novyn_empty_state.dart';
+import '../../../widgets/novyn_alert.dart';
 import '../../security/setup_pin_screen.dart';
 import 'active_sessions_screen.dart';
 import '../widgets/profile_widgets.dart';
@@ -73,7 +74,7 @@ class SecurityPrivacyScreen extends StatelessWidget {
             _SecurityPrivacyToggleTile(icon: Icons.verified_user_outlined, accent: const Color(0xFF7565D9), title: 'Two-Factor Authentication', subtitle: 'Unavailable until secure server-side login challenges are supported', value: false, onChanged: null),
             _SecurityPrivacyToggleTile(icon: Icons.fingerprint_rounded, accent: const Color(0xFFB7791F), title: 'App Lock', subtitle: 'Require your PIN or available biometrics to open Novyn', value: settings.appLockEnabled, onChanged: (v) => _handleAppLockToggle(context, settings, v)),
             if (settings.appLockEnabled) _SelectionCard(icon: Icons.timer_outlined, iconColor: const Color(0xFF64748B), iconBgColor: const Color(0xFF64748B).withValues(alpha: .12), title: 'Auto-lock', subtitle: 'When to lock after leaving app', value: settings.appLockTimeout.toString(), options: const ['0', '1', '5', '15', '30'], labels: const ['Immediately', 'After 1 min', 'After 5 mins', 'After 15 mins', 'After 30 mins'], onChanged: (v) => settings.setAppLockTimeout(int.parse(v))),
-            if (settings.appLockEnabled) nav(Icons.password_rounded, const Color(0xFF64748B), 'Change PIN', 'Update your 4-digit app lock PIN', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SetupPinScreen()))),
+            if (settings.appLockEnabled) nav(Icons.password_rounded, const Color(0xFF64748B), 'Change PIN', 'Verify your current PIN and set a new one', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SetupPinScreen(isChanging: true)))),
           ]),
           section('Stealth Mode', [
             _SecurityPrivacyToggleTile(
@@ -187,15 +188,19 @@ class SecurityPrivacyScreen extends StatelessWidget {
 
       try {
         await settings.setAppLockEnabled(true);
+      if (context.mounted) NovynAlert.show(context, 'App Lock enabled successfully.');
       } catch (error) {
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(error.toString().replaceFirst('Bad state: ', ''))),
+          NovynAlert.show(
+            context,
+            error.toString().replaceFirst('Bad state: ', ''),
+            isError: true,
           );
         }
       }
     } else {
       await settings.setAppLockEnabled(false);
+      if (context.mounted) NovynAlert.show(context, 'App Lock disabled.');
     }
   }
 
@@ -734,161 +739,218 @@ class _SelectionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final currentIndex = options.indexOf(value);
-    final currentLabel = currentIndex >= 0 ? labels[currentIndex] : labels[0];
-    
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: InkWell(
-        onTap: () => _showSelectionDialog(context),
-        borderRadius: BorderRadius.circular(24),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: NovynTheme.cardBg(context),
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
-            boxShadow: [
-              BoxShadow(
-                color: iconColor.withValues(alpha: 0.05),
-                blurRadius: 15,
-                spreadRadius: -5,
-              ),
-            ],
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      iconColor.withValues(alpha: 0.2),
-                      iconColor.withValues(alpha: 0.05),
-                    ],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
+    final colors = Theme.of(context).colorScheme;
+    final index = options.indexOf(value);
+    final selectedLabel = index >= 0 ? labels[index] : labels.first;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Material(
+        color: NovynTheme.cardBg(context),
+        borderRadius: BorderRadius.circular(20),
+        child: InkWell(
+          onTap: () => _showSelectionSheet(context),
+          borderRadius: BorderRadius.circular(20),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 14),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: colors.outlineVariant),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 45,
+                  height: 45,
+                  decoration: BoxDecoration(
+                    color: iconBgColor,
+                    borderRadius: BorderRadius.circular(15),
                   ),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: iconColor.withValues(alpha: 0.1)),
+                  child: Icon(icon, color: iconColor, size: 22),
                 ),
-                child: Icon(icon, color: iconColor, size: 22),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                const SizedBox(width: 13),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(title,
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        )),
+                      const SizedBox(height: 3),
+                      Text(subtitle,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: colors.onSurfaceVariant,
+                          height: 1.35,
+                        )),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    Text(
-                      title,
-                      style: TextStyle(
-                        fontFamily: 'PlusJakartaSans',
-                        fontSize: 16,
+                    Text(selectedLabel,
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                        color: colors.primary,
                         fontWeight: FontWeight.w800,
-                        color: Theme.of(context).colorScheme.onSurface,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      subtitle,
-                      style: TextStyle(
-                        fontFamily: 'PlusJakartaSans',
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
-                      ),
-                    ),
+                      )),
+                    Icon(Icons.keyboard_arrow_down_rounded,
+                        color: colors.onSurfaceVariant, size: 21),
                   ],
                 ),
-              ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    currentLabel,
-                    style: TextStyle(
-                      fontFamily: 'PlusJakartaSans',
-                      fontSize: 13,
-                      fontWeight: FontWeight.w900,
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
-                  ),
-                  Icon(
-                    Icons.chevron_right_rounded, 
-                    color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.2), 
-                    size: 22
-                  ),
-                ],
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
     );
   }
 
-  void _showSelectionDialog(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    
-    showDialog(
+  void _showSelectionSheet(BuildContext context) {
+    showModalBottomSheet<void>(
       context: context,
-      builder: (context) => BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
-        child: AlertDialog(
-          backgroundColor: Theme.of(context).colorScheme.surface,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(32),
-            side: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        final colors = Theme.of(sheetContext).colorScheme;
+        return Container(
+          margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+          decoration: BoxDecoration(
+            color: colors.surface,
+            borderRadius: BorderRadius.circular(28),
+            border: Border.all(color: colors.outlineVariant),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: .16),
+                blurRadius: 28,
+                offset: const Offset(0, 8),
+              ),
+            ],
           ),
-          title: Text(
-            title, 
-            style: const TextStyle(
-              fontFamily: 'PlusJakartaSans',
-              fontWeight: FontWeight.w900,
-            )
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: options.asMap().entries.map((entry) {
-              final index = entry.key;
-              final option = entry.value;
-              final label = labels[index];
-              final isSelected = value == option;
-              
-              return ListTile(
-                title: Text(
-                  label,
-                  style: TextStyle(
-                    fontFamily: 'PlusJakartaSans',
-                    fontWeight: isSelected ? FontWeight.w800 : FontWeight.w500,
-                    color: isSelected ? Theme.of(context).colorScheme.primary : null,
+          child: SafeArea(
+            top: false,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 38,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: colors.onSurfaceVariant.withValues(alpha: .3),
+                    borderRadius: BorderRadius.circular(10),
                   ),
                 ),
-                leading: Radio<String>(
-                  value: option,
-                  groupValue: value,
-                  onChanged: (v) {
-                    if (v != null) {
-                      HapticFeedback.lightImpact();
-                      onChanged(v);
-                      Navigator.pop(context);
-                    }
-                  },
-                  activeColor: Theme.of(context).colorScheme.primary,
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    Container(
+                      width: 46,
+                      height: 46,
+                      decoration: BoxDecoration(
+                        color: iconBgColor,
+                        borderRadius: BorderRadius.circular(15),
+                      ),
+                      child: Icon(icon, color: iconColor, size: 23),
+                    ),
+                    const SizedBox(width: 13),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(title,
+                            style: Theme.of(sheetContext).textTheme.titleMedium
+                                ?.copyWith(fontWeight: FontWeight.w800)),
+                          const SizedBox(height: 3),
+                          Text('Choose when Novyn should lock itself',
+                            style: Theme.of(sheetContext).textTheme.bodySmall
+                                ?.copyWith(color: colors.onSurfaceVariant)),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
-                onTap: () {
-                  HapticFeedback.lightImpact();
-                  onChanged(option);
-                  Navigator.pop(context);
-                },
-              );
-            }).toList(),
+                const SizedBox(height: 18),
+                ...options.asMap().entries.map((entry) {
+                  final option = entry.value;
+                  final label = labels[entry.key];
+                  final selected = value == option;
+                  final detail = option == '0'
+                      ? 'Lock as soon as you leave the app'
+                      : 'Keep the app unlocked for $label after leaving';
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Material(
+                      color: selected
+                          ? colors.primary.withValues(alpha: .09)
+                          : colors.surfaceContainerHighest.withValues(alpha: .45),
+                      borderRadius: BorderRadius.circular(16),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(16),
+                        onTap: () {
+                          HapticFeedback.selectionClick();
+                          onChanged(option);
+                          Navigator.pop(sheetContext);
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 14, vertical: 12),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: selected
+                                  ? colors.primary.withValues(alpha: .55)
+                                  : colors.outlineVariant.withValues(alpha: .7),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                selected
+                                    ? Icons.radio_button_checked_rounded
+                                    : Icons.radio_button_off_rounded,
+                                color: selected
+                                    ? colors.primary
+                                    : colors.onSurfaceVariant,
+                                size: 21,
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(label,
+                                      style: Theme.of(sheetContext)
+                                          .textTheme.titleSmall?.copyWith(
+                                        fontWeight: FontWeight.w800,
+                                        color: selected ? colors.primary : colors.onSurface,
+                                      )),
+                                    const SizedBox(height: 2),
+                                    Text(detail,
+                                      style: Theme.of(sheetContext)
+                                          .textTheme.bodySmall?.copyWith(
+                                        color: colors.onSurfaceVariant,
+                                        fontSize: 11.5,
+                                      )),
+                                  ],
+                                ),
+                              ),
+                              if (selected)
+                                Icon(Icons.check_rounded,
+                                    color: colors.primary, size: 19),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                }),
+              ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }
