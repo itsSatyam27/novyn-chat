@@ -39,7 +39,7 @@ class DockCustomizationScreen extends StatelessWidget {
               Positioned(left: 16,top: 18,child: Container(width: 74,height: 7,decoration: BoxDecoration(color: theme.colorScheme.primary.withValues(alpha:.65),borderRadius: BorderRadius.circular(8)))),
               Positioned(left: 16,top: 38,child: Container(width: 132,height: 6,decoration: BoxDecoration(color: theme.colorScheme.onSurface.withValues(alpha:.14),borderRadius: BorderRadius.circular(8)))),
               Positioned(left: 16,top: 54,child: Container(width: 94,height: 6,decoration: BoxDecoration(color: theme.colorScheme.onSurface.withValues(alpha:.09),borderRadius: BorderRadius.circular(8)))),
-              Positioned(left: 16,right: 16,bottom: 8,child: NovynDock(selectedIndex: 0,onSelected: (_) {},style: settings.dockStyle,unreadCount: 2,requestCount: 1)),
+              Positioned(left: 16,right: 16,bottom: 8,child: NovynDock(selectedIndex: 0,onSelected: (_) {},style: settings.dockStyle,unreadCount: 2,requestCount: 1,preview: true)),
             ]),
           ),
           const SizedBox(height: 20),

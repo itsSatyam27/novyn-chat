@@ -56,7 +56,7 @@ class NovynDock extends StatelessWidget {
               duration: duration,
               curve: Curves.easeInOutCubic,
               width: double.infinity,
-              height: full ? 72 : (compact ? 68 : 82),
+              height: full || compact ? 72 : 82,
               padding: EdgeInsets.symmetric(horizontal: full ? 4 : 8, vertical: 7),
               decoration: BoxDecoration(
                 color: style == 'minimal'
