@@ -172,11 +172,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                           decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(16),
                             gradient: const LinearGradient(
-                              colors: [Color(0xFF6D5DFC), Color(0xFF40E0D0)],
+                              colors: [Theme.of(context).colorScheme.primary, Color(0xFF40E0D0)],
                             ),
                             boxShadow: [
                               BoxShadow(
-                                color: const Color(0xFF6D5DFC).withValues(alpha: 0.3),
+                                color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
                                 blurRadius: 12,
                                 offset: const Offset(0, 4),
                               ),
@@ -324,7 +324,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 _buildOptionTile(
                   icon: Icons.photo_library_rounded,
                   title: 'Choose from Gallery',
-                  color: const Color(0xFF6D5DFC),
+                  color: Theme.of(context).colorScheme.primary,
                   onTap: () {
                     Navigator.pop(context);
                     _pickAndUploadImage(fromGallery: true);
@@ -408,7 +408,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         context: context,
         barrierDismissible: false,
         builder: (context) => const Center(
-          child: CircularProgressIndicator(color: Color(0xFF6D5DFC)),
+          child: CircularProgressIndicator(color: Theme.of(context).colorScheme.primary),
         ),
       );
 
@@ -462,7 +462,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       context: context,
       barrierDismissible: false,
       builder: (context) => const Center(
-        child: CircularProgressIndicator(color: Color(0xFF6D5DFC)),
+        child: CircularProgressIndicator(color: Theme.of(context).colorScheme.primary),
       ),
     );
 
@@ -527,11 +527,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   ? const SizedBox(
                       width: 20,
                       height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF6D5DFC)),
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Theme.of(context).colorScheme.primary),
                     )
                   : ShaderMask(
                       shaderCallback: (bounds) => const LinearGradient(
-                        colors: [Color(0xFF6D5DFC), Color(0xFF40E0D0)],
+                        colors: [Theme.of(context).colorScheme.primary, Color(0xFF40E0D0)],
                       ).createShader(bounds),
                       child: const Text(
                         'Save',
@@ -586,7 +586,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       fontFamily: 'PlusJakartaSans',
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
-                      color: Color(0xFF6D5DFC),
+                      color: Theme.of(context).colorScheme.primary,
                     ),
                   ),
                 ),
@@ -611,7 +611,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       ? const SizedBox(
                           width: 18,
                           height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF6D5DFC)),
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Theme.of(context).colorScheme.primary),
                         )
                       : _usernameAvailable == null
                           ? null
@@ -684,7 +684,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                                 children: [
                                   Icon(
                                     Icons.wc_rounded,
-                                    color: _selectedGender.isEmpty ? const Color(0xFF6D5DFC).withValues(alpha: 0.3) : const Color(0xFF6D5DFC),
+                                    color: _selectedGender.isEmpty ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.3) : Theme.of(context).colorScheme.primary,
                                     size: 20,
                                   ),
                                   const SizedBox(width: 12),
@@ -778,7 +778,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             fontFamily: 'PlusJakartaSans',
             fontWeight: FontWeight.w500,
           ),
-          prefixIcon: Icon(icon, size: 22, color: const Color(0xFF6D5DFC)),
+          prefixIcon: Icon(icon, size: 22, color: Theme.of(context).colorScheme.primary),
           suffixIcon: suffix != null ? Padding(padding: const EdgeInsets.all(12), child: suffix) : null,
           filled: true,
           fillColor: NovynTheme.inputBg(context),
@@ -792,7 +792,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(24),
-            borderSide: const BorderSide(color: Color(0xFF6D5DFC), width: 2),
+            borderSide: BorderSide(color: Theme.of(context).colorScheme.primary, width: 2),
           ),
           contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
         ),
@@ -842,11 +842,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                           style: TextStyle(
                             fontFamily: 'PlusJakartaSans',
                             fontWeight: isSelected ? FontWeight.w900 : FontWeight.w500,
-                            color: isSelected ? const Color(0xFF6D5DFC) : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+                            color: isSelected ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
                           ),
                         ),
                         trailing: isSelected 
-                          ? const Icon(Icons.check_circle_rounded, color: Color(0xFF6D5DFC), size: 20)
+                          ? Icon(Icons.check_circle_rounded, color: Theme.of(context).colorScheme.primary, size: 20)
                           : null,
                         onTap: () {
                           HapticFeedback.lightImpact();
@@ -879,7 +879,7 @@ class _EditProfileAvatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final primaryColor = const Color(0xFF6D5DFC);
+    final primaryColor = Theme.of(context).colorScheme.primary;
     
     return Stack(
       alignment: Alignment.center,
@@ -929,7 +929,7 @@ class _EditProfileAvatar extends StatelessWidget {
                       fontFamily: 'PlusJakartaSans',
                       fontSize: 48,
                       fontWeight: FontWeight.w900,
-                      color: Color(0xFF6D5DFC),
+                      color: Theme.of(context).colorScheme.primary,
                     ),
                   ),
                 )
@@ -945,20 +945,20 @@ class _EditProfileAvatar extends StatelessWidget {
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               gradient: const LinearGradient(
-                colors: [Color(0xFF6D5DFC), Color(0xFF40E0D0)],
+                colors: [Theme.of(context).colorScheme.primary, Color(0xFF40E0D0)],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFF6D5DFC).withValues(alpha: 0.4),
+                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.4),
                   blurRadius: 15,
                   offset: const Offset(0, 4),
                 ),
               ],
               border: Border.all(color: Colors.white.withValues(alpha: 0.3), width: 2),
             ),
-            child: const Icon(
+            child: Icon(
               Icons.camera_alt_rounded,
               color: Colors.white,
               size: 20,
@@ -978,7 +978,7 @@ class _AuroraBackgroundPainter extends CustomPainter {
     // 1. Purple glow (Top Right)
     final purpleGlow = RadialGradient(
       colors: [
-        const Color(0xFF6D5DFC).withValues(alpha: 0.15),
+        Theme.of(context).colorScheme.primary.withValues(alpha: 0.15),
         Colors.transparent,
       ],
     ).createShader(Rect.fromCircle(center: Offset(size.width * 0.8, size.height * 0.1), radius: size.width * 0.6));

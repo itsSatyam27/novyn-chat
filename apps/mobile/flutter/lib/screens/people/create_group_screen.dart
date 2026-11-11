@@ -36,7 +36,7 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
             center: Alignment.topRight,
             radius: 1.2,
             colors: [
-              const Color(0xFF6D5DFC).withValues(alpha: isDark ? 0.05 : 0.08),
+              Theme.of(context).colorScheme.primary.withValues(alpha: isDark ? 0.05 : 0.08),
               Colors.transparent,
             ],
           ),
@@ -50,7 +50,7 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                   physics: const BouncingScrollPhysics(),
                   slivers: [
                     SliverToBoxAdapter(child: _buildGroupNameInput(isDark)),
-                    SliverToBoxAdapter(child: _buildStealthToggle(isDark)),
+                    SliverToBoxAdapter(child: _buildStealthToggle(isDark, Theme.of(context).colorScheme.primary)),
                     if (_selected.isNotEmpty) 
                       SliverToBoxAdapter(child: _buildSelectedList()),
                     SliverToBoxAdapter(child: _buildSearchInput(isDark)),
@@ -58,7 +58,7 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                   ],
                 ),
               ),
-              _buildCreateButton(),
+              _buildCreateButton(Theme.of(context).colorScheme.primary),
             ],
           ),
         ),
@@ -116,25 +116,25 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
     );
   }
 
-  Widget _buildStealthToggle(bool isDark) {
+  Widget _buildStealthToggle(bool isDark, Color accent) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: _isStealth 
-            ? const Color(0xFF6D5DFC).withValues(alpha: 0.1) 
+            ? accent.withValues(alpha: 0.1) 
             : Colors.transparent,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: _isStealth ? const Color(0xFF6D5DFC).withValues(alpha: 0.3) : Colors.white.withValues(alpha: 0.1),
+            color: _isStealth ? accent.withValues(alpha: 0.3) : Colors.white.withValues(alpha: 0.1),
           ),
         ),
         child: Row(
           children: [
             Icon(
               _isStealth ? Icons.visibility_off_rounded : Icons.visibility_rounded,
-              color: _isStealth ? const Color(0xFF6D5DFC) : Colors.grey,
+              color: _isStealth ? accent : Colors.grey,
             ),
             const SizedBox(width: 12),
             const Expanded(
@@ -286,7 +286,7 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
     );
   }
 
-  Widget _buildCreateButton() {
+  Widget _buildCreateButton(Color accent) {
     return ValueListenableBuilder<String>(
       valueListenable: _nameNotifier,
       builder: (context, name, child) {
@@ -302,7 +302,7 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(20),
                 gradient: canCreate ? const LinearGradient(
-                  colors: [Color(0xFF6D5DFC), Color(0xFF6366F1)],
+                  colors: [accent, Color.lerp(accent, Colors.black, 0.14)!],
                 ) : null,
                 color: canCreate ? null : Colors.grey.withValues(alpha: 0.2),
                 boxShadow: canCreate ? [
@@ -367,21 +367,22 @@ class _SubtleAurora extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return CustomPaint(
-      painter: _AuroraPainter(isDark: isDark),
+      painter: _AuroraPainter(isDark: isDark, accent: Theme.of(context).colorScheme.primary),
     );
   }
 }
 
 class _AuroraPainter extends CustomPainter {
   final bool isDark;
-  _AuroraPainter({required this.isDark});
+  final Color accent;
+  _AuroraPainter({required this.isDark, required this.accent});
 
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
       ..shader = RadialGradient(
         colors: [
-          const Color(0xFF6D5DFC).withValues(alpha: isDark ? 0.05 : 0.08),
+          accent.withValues(alpha: isDark ? 0.05 : 0.08),
           Colors.transparent,
         ],
       ).createShader(Rect.fromCircle(center: Offset(size.width, 0), radius: size.width * 0.8));
