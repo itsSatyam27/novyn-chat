@@ -821,15 +821,9 @@ class _SelectionCard extends StatelessWidget {
   final ValueChanged<String> onChanged;
 
   const _SelectionCard({
-    required this.icon,
-    required this.iconColor,
-    required this.iconBgColor,
-    required this.title,
-    required this.subtitle,
-    required this.value,
-    required this.options,
-    required this.labels,
-    required this.onChanged,
+    required this.icon, required this.iconColor, required this.iconBgColor,
+    required this.title, required this.subtitle, required this.value,
+    required this.options, required this.labels, required this.onChanged,
   });
 
   @override
@@ -837,66 +831,38 @@ class _SelectionCard extends StatelessWidget {
     final colors = Theme.of(context).colorScheme;
     final index = options.indexOf(value);
     final selectedLabel = index >= 0 ? labels[index] : labels.first;
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Material(
-        color: NovynTheme.cardBg(context),
-        borderRadius: BorderRadius.circular(20),
-        child: InkWell(
-          onTap: () => _showSelectionSheet(context),
-          borderRadius: BorderRadius.circular(20),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 14),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: colors.outlineVariant),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => _showSelectionSheet(context),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 13),
+          child: Row(children: [
+            Container(width: 44, height: 44,
+              decoration: BoxDecoration(color: iconBgColor,
+                borderRadius: BorderRadius.circular(14)),
+              child: Icon(Icons.schedule_rounded, color: iconColor, size: 23)),
+            const SizedBox(width: 13),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(title, style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w800)),
+              const SizedBox(height: 3),
+              Text(subtitle, style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: colors.onSurfaceVariant, height: 1.3)),
+            ])),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
+              decoration: BoxDecoration(color: colors.primary.withValues(alpha: .09),
+                borderRadius: BorderRadius.circular(12)),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                Text(selectedLabel, style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                  color: colors.primary, fontWeight: FontWeight.w800)),
+                const SizedBox(width: 3),
+                Icon(Icons.keyboard_arrow_down_rounded, color: colors.primary, size: 18),
+              ]),
             ),
-            child: Row(
-              children: [
-                Container(
-                  width: 45,
-                  height: 45,
-                  decoration: BoxDecoration(
-                    color: iconBgColor,
-                    borderRadius: BorderRadius.circular(15),
-                  ),
-                  child: Icon(icon, color: iconColor, size: 22),
-                ),
-                const SizedBox(width: 13),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(title,
-                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w800,
-                        )),
-                      const SizedBox(height: 3),
-                      Text(subtitle,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: colors.onSurfaceVariant,
-                          height: 1.35,
-                        )),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(selectedLabel,
-                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                        color: colors.primary,
-                        fontWeight: FontWeight.w800,
-                      )),
-                    Icon(Icons.keyboard_arrow_down_rounded,
-                        color: colors.onSurfaceVariant, size: 21),
-                  ],
-                ),
-              ],
-            ),
-          ),
+          ]),
         ),
       ),
     );
@@ -904,146 +870,101 @@ class _SelectionCard extends StatelessWidget {
 
   void _showSelectionSheet(BuildContext context) {
     showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
+      context: context, isScrollControlled: true, useSafeArea: true,
       backgroundColor: Colors.transparent,
       builder: (sheetContext) {
         final colors = Theme.of(sheetContext).colorScheme;
         return Container(
           margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
-          decoration: BoxDecoration(
-            color: colors.surface,
+          padding: const EdgeInsets.fromLTRB(18, 12, 18, 18),
+          decoration: BoxDecoration(color: colors.surface,
             borderRadius: BorderRadius.circular(28),
             border: Border.all(color: colors.outlineVariant),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: .16),
-                blurRadius: 28,
-                offset: const Offset(0, 8),
-              ),
-            ],
-          ),
-          child: SafeArea(
-            top: false,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 38,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: colors.onSurfaceVariant.withValues(alpha: .3),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                Row(
-                  children: [
-                    Container(
-                      width: 46,
-                      height: 46,
-                      decoration: BoxDecoration(
-                        color: iconBgColor,
-                        borderRadius: BorderRadius.circular(15),
-                      ),
-                      child: Icon(icon, color: iconColor, size: 23),
-                    ),
-                    const SizedBox(width: 13),
-                    Expanded(
+            boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: .14),
+              blurRadius: 24, offset: const Offset(0, 8))]),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Container(width: 38, height: 4,
+              decoration: BoxDecoration(
+                color: colors.onSurfaceVariant.withValues(alpha: .3),
+                borderRadius: BorderRadius.circular(10))),
+            const SizedBox(height: 18),
+            Row(children: [
+              Container(width: 46, height: 46,
+                decoration: BoxDecoration(color: iconBgColor,
+                  borderRadius: BorderRadius.circular(15)),
+                child: Icon(Icons.access_time_rounded, color: iconColor, size: 24)),
+              const SizedBox(width: 12),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(title, style: Theme.of(sheetContext).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w800)),
+                const SizedBox(height: 3),
+                Text('Choose when Novyn should lock itself',
+                  style: Theme.of(sheetContext).textTheme.bodySmall?.copyWith(
+                    color: colors.onSurfaceVariant)),
+              ])),
+            ]),
+            const SizedBox(height: 18),
+            GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: options.length,
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2, mainAxisSpacing: 10, crossAxisSpacing: 10,
+                childAspectRatio: 1.28),
+              itemBuilder: (context, index) {
+                final option = options[index];
+                final selected = value == option;
+                final label = labels[index];
+                final detail = option == '0' ? 'On leaving the app'
+                  : 'After \$option \${option == '1' ? 'minute' : 'minutes'}';
+                return Material(
+                  color: selected ? colors.primary.withValues(alpha: .10)
+                    : colors.surfaceContainerHighest.withValues(alpha: .42),
+                  borderRadius: BorderRadius.circular(18),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(18),
+                    onTap: () {
+                      HapticFeedback.selectionClick();
+                      onChanged(option);
+                      Navigator.pop(sheetContext);
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(borderRadius: BorderRadius.circular(18),
+                        border: Border.all(color: selected ? colors.primary : colors.outlineVariant,
+                          width: selected ? 1.5 : 1)),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text(title,
-                            style: Theme.of(sheetContext).textTheme.titleMedium
-                                ?.copyWith(fontWeight: FontWeight.w800)),
-                          const SizedBox(height: 3),
-                          Text('Choose when Novyn should lock itself',
-                            style: Theme.of(sheetContext).textTheme.bodySmall
-                                ?.copyWith(color: colors.onSurfaceVariant)),
+                          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                            Container(width: 34, height: 34,
+                              decoration: BoxDecoration(
+                                color: selected ? colors.primary.withValues(alpha: .14) : colors.surface,
+                                borderRadius: BorderRadius.circular(11)),
+                              child: Icon(option == '0' ? Icons.lock_clock_rounded : Icons.schedule_rounded,
+                                color: selected ? colors.primary : colors.onSurfaceVariant, size: 19)),
+                            if (selected) Icon(Icons.check_circle_rounded,
+                              color: colors.primary, size: 19),
+                          ]),
+                          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                            Text(label, maxLines: 1, overflow: TextOverflow.ellipsis,
+                              style: Theme.of(sheetContext).textTheme.labelLarge?.copyWith(
+                                fontWeight: FontWeight.w800,
+                                color: selected ? colors.primary : colors.onSurface)),
+                            const SizedBox(height: 2),
+                            Text(detail, maxLines: 1, overflow: TextOverflow.ellipsis,
+                              style: Theme.of(sheetContext).textTheme.labelSmall?.copyWith(
+                                color: colors.onSurfaceVariant)),
+                          ]),
                         ],
                       ),
                     ),
-                  ],
-                ),
-                const SizedBox(height: 18),
-                ...options.asMap().entries.map((entry) {
-                  final option = entry.value;
-                  final label = labels[entry.key];
-                  final selected = value == option;
-                  final detail = option == '0'
-                      ? 'Lock as soon as you leave the app'
-                      : 'Lock Novyn after $option ${option == '1' ? 'minute' : 'minutes'} away';
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: Material(
-                      color: selected
-                          ? colors.primary.withValues(alpha: .09)
-                          : colors.surfaceContainerHighest.withValues(alpha: .45),
-                      borderRadius: BorderRadius.circular(16),
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(16),
-                        onTap: () {
-                          HapticFeedback.selectionClick();
-                          onChanged(option);
-                          Navigator.pop(sheetContext);
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 14, vertical: 12),
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(
-                              color: selected
-                                  ? colors.primary.withValues(alpha: .55)
-                                  : colors.outlineVariant.withValues(alpha: .7),
-                            ),
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(
-                                selected
-                                    ? Icons.radio_button_checked_rounded
-                                    : Icons.radio_button_off_rounded,
-                                color: selected
-                                    ? colors.primary
-                                    : colors.onSurfaceVariant,
-                                size: 21,
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(label,
-                                      style: Theme.of(sheetContext)
-                                          .textTheme.titleSmall?.copyWith(
-                                        fontWeight: FontWeight.w800,
-                                        color: selected ? colors.primary : colors.onSurface,
-                                      )),
-                                    const SizedBox(height: 2),
-                                    Text(detail,
-                                      style: Theme.of(sheetContext)
-                                          .textTheme.bodySmall?.copyWith(
-                                        color: colors.onSurfaceVariant,
-                                        fontSize: 11.5,
-                                      )),
-                                  ],
-                                ),
-                              ),
-                              if (selected)
-                                Icon(Icons.check_rounded,
-                                    color: colors.primary, size: 19),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  );
-                }),
-              ],
+                  ),
+                );
+              },
             ),
-          ),
+          ]),
         );
       },
     );
@@ -1723,8 +1644,8 @@ class _PrivacyDashboardState extends State<_PrivacyDashboard> {
     Widget heading(String title, String subtitle) => Padding(
       padding: const EdgeInsets.only(left: 2, bottom: 10),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(title, style: Theme.of(context).textTheme.titleMedium?.copyWith(
-          fontWeight: FontWeight.w800)),
+        Text(title.toUpperCase(), style: Theme.of(context).textTheme.labelLarge?.copyWith(
+          color: colors.primary, fontWeight: FontWeight.w900, letterSpacing: 1.05)),
         const SizedBox(height: 3),
         Text(subtitle, style: Theme.of(context).textTheme.bodySmall?.copyWith(
           color: colors.onSurfaceVariant)),
@@ -1742,41 +1663,13 @@ class _PrivacyDashboardState extends State<_PrivacyDashboard> {
     Widget divider() => Divider(height: 1, indent: 66,
       color: colors.outlineVariant.withValues(alpha: .7));
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      heading('Privacy', 'Your profile, activity and conversations — on your terms.'),
-      Container(
-        padding: const EdgeInsets.all(16),
-        margin: const EdgeInsets.only(bottom: 18),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [colors.primary.withValues(alpha: .13),
-              colors.primary.withValues(alpha: .035)],
-            begin: Alignment.topLeft, end: Alignment.bottomRight),
-          borderRadius: BorderRadius.circular(22),
-          border: Border.all(color: colors.primary.withValues(alpha: .18)),
-        ),
-        child: Row(children: [
-          Container(width: 44, height: 44,
-            decoration: BoxDecoration(color: colors.primary.withValues(alpha: .13),
-              borderRadius: BorderRadius.circular(14)),
-            child: Icon(Icons.shield_outlined, color: colors.primary)),
-          const SizedBox(width: 12),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Your privacy at a glance',
-                style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w800)),
-              const SizedBox(height: 3),
-              Text('Review what others can see and how they can reach you.',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: colors.onSurfaceVariant, height: 1.35)),
-            ])),
-        ]),
-      ),
       heading('Profile visibility', 'Decide what people can see about you.'),
       card([
         for (var i = 0; i < visibility.length; i++) ...[
           _PrivacyOptionTile(
             icon: visibility[i].$4,
+            accent: visibility[i].$2 == 'profilePhotoPrivacy'
+              ? const Color(0xFFD65A91) : const Color(0xFF2795A8),
             title: visibility[i].$1,
             subtitle: visibility[i].$5,
             value: _label(visibility[i].$3),
@@ -1792,24 +1685,24 @@ class _PrivacyDashboardState extends State<_PrivacyDashboard> {
       const SizedBox(height: 18),
       heading('Who can reach you', 'Choose who can contact or invite you.'),
       card([
-        _PrivacyOptionTile(icon: Icons.call_outlined, title: 'Who can call me',
+        _PrivacyOptionTile(icon: Icons.call_outlined, accent: const Color(0xFF269B76), title: 'Who can call me',
           subtitle: 'Control incoming calls', value: _label(_values['callPrivacy']!),
           enabled: !_saving, onTap: () => _choose('callPrivacy', _values['callPrivacy']!,
             const ['everyone', 'friends', 'nobody'])),
         divider(),
-        _PrivacyOptionTile(icon: Icons.chat_bubble_outline_rounded,
+        _PrivacyOptionTile(icon: Icons.chat_bubble_outline_rounded, accent: const Color(0xFF3988C8),
           title: 'Who can message me', subtitle: 'Control who can start a conversation',
           value: _label(_values['messagePrivacy']!), enabled: !_saving,
           onTap: () => _choose('messagePrivacy', _values['messagePrivacy']!,
             const ['everyone', 'friends', 'nobody'])),
         divider(),
-        _PrivacyOptionTile(icon: Icons.groups_outlined,
+        _PrivacyOptionTile(icon: Icons.groups_outlined, accent: const Color(0xFFD39A35),
           title: 'Who can add me to groups', subtitle: 'Manage group invitations',
           value: _label(_values['groupInvitePrivacy']!), enabled: !_saving,
           onTap: () => _choose('groupInvitePrivacy', _values['groupInvitePrivacy']!,
             const ['everyone', 'friends', 'nobody'])),
         divider(),
-        _PrivacyOptionTile(icon: Icons.person_add_alt_1_rounded,
+        _PrivacyOptionTile(icon: Icons.person_add_alt_1_rounded, accent: const Color(0xFF8B70D8),
           title: 'Friend requests', subtitle: 'Choose who can send you requests',
           value: _label(_values['friendRequestPrivacy']!), enabled: !_saving,
           onTap: () => _choose('friendRequestPrivacy', _values['friendRequestPrivacy']!,
@@ -1918,10 +1811,11 @@ class _PrivacyDashboardState extends State<_PrivacyDashboard> {
 }
 
 class _PrivacyOptionTile extends StatelessWidget {
-  const _PrivacyOptionTile({required this.icon, required this.title,
+  const _PrivacyOptionTile({required this.icon, this.accent, required this.title,
     required this.subtitle, required this.value, required this.enabled,
     required this.onTap});
   final IconData icon;
+  final Color? accent;
   final String title;
   final String subtitle;
   final String value;
@@ -1931,13 +1825,14 @@ class _PrivacyOptionTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
+    final tint = accent ?? colors.primary;
     return Opacity(opacity: enabled ? 1 : .55,
       child: InkWell(onTap: enabled ? onTap : null,
         child: Padding(padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 13),
           child: Row(children: [
             CircleAvatar(radius: 21,
-              backgroundColor: colors.primary.withValues(alpha: .10),
-              child: Icon(icon, color: colors.primary, size: 20)),
+              backgroundColor: tint.withValues(alpha: .12),
+              child: Icon(icon, color: tint, size: 20)),
             const SizedBox(width: 12),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start,
               children: [
