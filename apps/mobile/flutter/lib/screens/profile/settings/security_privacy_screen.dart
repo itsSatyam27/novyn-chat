@@ -10,6 +10,7 @@ import '../../../widgets/novyn_empty_state.dart';
 import '../../../widgets/novyn_alert.dart';
 import '../../security/setup_pin_screen.dart';
 import 'active_sessions_screen.dart';
+import 'email_password_screen.dart';
 import '../../../theme/novyn_theme.dart';
 
 class SecurityPrivacyScreen extends StatelessWidget {
@@ -68,7 +69,7 @@ class SecurityPrivacyScreen extends StatelessWidget {
           ])),
           const SizedBox(height: 22),
           section('Security', [
-            nav(Icons.lock_outline_rounded, const Color(0xFF1F8A63), 'Change Password', 'Update your account password', () => _showChangePassword(context)),
+            nav(Icons.alternate_email_rounded, const Color(0xFF1F8A63), 'Email & Password', 'Manage email verification and sign-in password', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const EmailPasswordScreen()))),
             nav(Icons.devices_rounded, const Color(0xFF2A78B8), 'Active Sessions', 'Sign out of other devices remotely', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ActiveSessionsScreen()))),
             _SecurityPrivacyToggleTile(icon: Icons.verified_user_outlined, accent: const Color(0xFF7565D9), title: 'Two-Factor Authentication', subtitle: 'Unavailable until secure server-side login challenges are supported', value: false, onChanged: null),
             _SecurityPrivacyToggleTile(icon: Icons.fingerprint_rounded, accent: const Color(0xFFB7791F), title: 'App Lock', subtitle: 'Require your PIN or available biometrics to open Novyn', value: settings.appLockEnabled, onChanged: (v) => _handleAppLockToggle(context, settings, v)),
