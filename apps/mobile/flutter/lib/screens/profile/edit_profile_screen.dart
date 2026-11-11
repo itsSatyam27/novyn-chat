@@ -9,6 +9,7 @@ import 'dart:math' as math;
 import 'dart:ui';
 import '../../services/auth_service.dart';
 import '../../services/settings_service.dart';
+import '../../theme/novyn_theme.dart';
 
 class EditProfileScreen extends StatefulWidget {
   const EditProfileScreen({super.key});
@@ -492,10 +493,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF0F121F) : const Color(0xFFF8FAFC),
+      backgroundColor: NovynTheme.pageBg(context),
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
+        backgroundColor: NovynTheme.pageBg(context),
         elevation: 0,
+        scrolledUnderElevation: 0,
         surfaceTintColor: Colors.transparent,
         leading: IconButton(
           icon: Icon(
@@ -663,11 +665,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
                               decoration: BoxDecoration(
                                 borderRadius: BorderRadius.circular(24),
-                                color: isDark 
-                                    ? const Color(0xFF1A1D2B).withValues(alpha: 0.6) 
-                                    : Colors.white.withValues(alpha: 0.8),
+                                color: NovynTheme.inputBg(context),
                                 border: Border.all(
-                                  color: Colors.white.withValues(alpha: 0.1),
+                                  color: NovynTheme.divider(context),
                                   width: 1,
                                 ),
                                 boxShadow: [
@@ -749,7 +749,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     
     return Container(
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(18),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.05),
@@ -778,16 +778,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           prefixIcon: Icon(icon, size: 22, color: const Color(0xFF6D5DFC)),
           suffixIcon: suffix != null ? Padding(padding: const EdgeInsets.all(12), child: suffix) : null,
           filled: true,
-          fillColor: isDark 
-              ? const Color(0xFF1A1D2B).withValues(alpha: 0.6) 
-              : Colors.white.withValues(alpha: 0.8),
+          fillColor: NovynTheme.inputBg(context),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(24),
-            borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+            borderSide: BorderSide(color: NovynTheme.divider(context)),
           ),
           enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(24),
-            borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+            borderRadius: BorderRadius.circular(18),
+            borderSide: BorderSide(color: NovynTheme.divider(context)),
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(24),
