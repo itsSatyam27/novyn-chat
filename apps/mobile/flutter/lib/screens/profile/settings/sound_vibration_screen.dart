@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:audioplayers/audioplayers.dart';
 import '../../../services/settings_service.dart';
@@ -47,7 +46,7 @@ class _SoundVibrationScreenState extends State<SoundVibrationScreen> {
     }
   }
 
-  void _section(String title) => Padding(
+  Widget _section(String title) => Padding(
     padding: const EdgeInsets.fromLTRB(4, 24, 4, 10),
     child: Text(title.toUpperCase(), style: const TextStyle(
       fontFamily: 'PlusJakartaSans', fontSize: 12, letterSpacing: 1.2,
@@ -222,14 +221,29 @@ class _SoundVibrationScreenState extends State<SoundVibrationScreen> {
         ])),
       ]),
       const SizedBox(height: 8),
-      Wrap(spacing: 8, children: choices.asMap().entries.map((e) {
-        final active = selected == e.value;
-        return ChoiceChip(label: Text(names[e.key]), selected: active,
-          onSelected: (_) => onChoice(e.value),
-          selectedColor: const Color(0xFFECE9FF),
-          labelStyle: TextStyle(color: active ? const Color(0xFF6554F5) : Theme.of(context).colorScheme.onSurface, fontWeight: FontWeight.w700),
-          side: BorderSide(color: active ? const Color(0xFF6554F5) : Theme.of(context).colorScheme.outlineVariant));
-      }).toList()),
+      Wrap(
+        spacing: 8,
+        children: <Widget>[
+          for (var i = 0; i < choices.length; i++)
+            ChoiceChip(
+              label: Text(names[i]),
+              selected: selected == choices[i],
+              onSelected: (_) => onChoice(choices[i]),
+              selectedColor: const Color(0xFFECE9FF),
+              labelStyle: TextStyle(
+                color: selected == choices[i]
+                    ? const Color(0xFF6554F5)
+                    : Theme.of(context).colorScheme.onSurface,
+                fontWeight: FontWeight.w700,
+              ),
+              side: BorderSide(
+                color: selected == choices[i]
+                    ? const Color(0xFF6554F5)
+                    : Theme.of(context).colorScheme.outlineVariant,
+              ),
+            ),
+        ],
+      ),
     ]));
   }
 }
@@ -246,10 +260,28 @@ class _Waveform extends StatelessWidget {
   final bool playing;
   const _Waveform({required this.playing});
   static const bars = [18,32,48,29,60,39,72,45,31,56,80,42,26,62,38,69,52,28,57,41,64,33,46,24];
-  @override Widget build(BuildContext context) => SizedBox(height: 56, child: Row(
-    crossAxisAlignment: CrossAxisAlignment.center, children: bars.map((h) => Expanded(child: Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 2), child: AnimatedContainer(
-        duration: const Duration(milliseconds: 220), height: playing ? h.toDouble() : h * .78,
-        decoration: BoxDecoration(color: const Color(0xFF6554F5).withValues(alpha: playing ? .95 : (.35 + (h / 100)).clamp(.35, 1.0).toDouble()),
-          borderRadius: BorderRadius.circular(5))))).toList()));
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 56,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: bars.map((height) => Expanded(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 2),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 220),
+              height: playing ? height.toDouble() : height * .78,
+              decoration: BoxDecoration(
+                color: const Color(0xFF6554F5).withValues(
+                  alpha: (playing ? .95 : (.35 + height / 100)).clamp(.35, 1.0).toDouble(),
+                ),
+                borderRadius: BorderRadius.circular(5),
+              ),
+            ),
+          ),
+        )).toList(),
+      ),
+    );
+  }
 }
