@@ -267,7 +267,7 @@ class _SelectionCard extends StatelessWidget {
                     children: [
                       Text(
                         currentLabel,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontFamily: 'PlusJakartaSans',
                           fontSize: 14,
                           fontWeight: FontWeight.w800,
