@@ -434,7 +434,7 @@ class AuthService extends ChangeNotifier {
   Future<String?> changePassword(
       String currentPassword, String newPassword) async {
     if (_user == null) return 'Please sign in before changing your password.';
-    if (currentPassword.isEmpty) return 'Enter your current password.';
+    if (currentPassword.isEmpty && _user!.hasPassword) return 'Enter your current password.';
     if (newPassword.length < 12) {
       return 'Use at least 12 characters in your new password.';
     }
