@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../services/settings_service.dart';
 import '../../../theme/novyn_theme.dart';
@@ -477,7 +478,20 @@ class _DownloadedFilesCardState extends State<_DownloadedFilesCard> {
             title: Text(file.uri.pathSegments.last, maxLines: 1, overflow: TextOverflow.ellipsis),
             subtitle: FutureBuilder<int>(future: file.length(), builder: (_, size) =>
               Text(size.hasData ? _size(size.data!) : 'Calculating size…')),
-            trailing: IconButton(
+            trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+              IconButton(
+                tooltip: 'Open downloaded file',
+                icon: const Icon(Icons.open_in_new_rounded),
+                onPressed: () async {
+                  final opened = await launchUrl(Uri.file(file.path), mode: LaunchMode.externalApplication);
+                  if (!opened && context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('No app can open this file type.')),
+                    );
+                  }
+                },
+              ),
+              IconButton(
               tooltip: 'Delete download', icon: const Icon(Icons.delete_outline_rounded),
               onPressed: () async {
                 final confirmed = await showDialog<bool>(
@@ -497,7 +511,8 @@ class _DownloadedFilesCardState extends State<_DownloadedFilesCard> {
                   widget.onChanged();
                 }
               },
-            ),
+              ),
+            ]),
           )).toList());
         }
         return _CardShell(child: Padding(padding: const EdgeInsets.all(16), child: content));
