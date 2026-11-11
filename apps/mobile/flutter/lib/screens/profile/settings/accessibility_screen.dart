@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'dart:ui';
 import '../../../services/settings_service.dart';
 import '../widgets/profile_widgets.dart';
+import '../../../theme/novyn_theme.dart';
 
 class AccessibilityScreen extends StatelessWidget {
   const AccessibilityScreen({super.key});
@@ -14,7 +15,7 @@ class AccessibilityScreen extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      backgroundColor: NovynTheme.pageBg(context),
       appBar: AppBar(
         title: Text(
           'Accessibility',
@@ -23,17 +24,18 @@ class AccessibilityScreen extends StatelessWidget {
             letterSpacing: -0.35,
           ),
         ),
-        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        backgroundColor: NovynTheme.pageBg(context),
         elevation: 0,
         scrolledUnderElevation: 0,
         surfaceTintColor: Colors.transparent,
         centerTitle: false,
       ),
       body: ListView(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 36),
         physics: const BouncingScrollPhysics(),
         children: [
-          const SectionLabel(label: 'Visual Synthesis'),
+          SettingsIntroCard(title: 'Make Novyn easier to use', subtitle: 'Adjust the supported display options and explore accessibility features.', icon: Icons.accessibility_new_rounded),
+          const SectionLabel(label: 'Display'),
           _FontSizeCard(
             value: settings.fontSize,
             onChanged: (v) => settings.setFontSize(v),
@@ -43,51 +45,51 @@ class AccessibilityScreen extends StatelessWidget {
             iconColor: const Color(0xFF6D5DFC),
             iconBgColor: const Color(0xFF6D5DFC).withValues(alpha: 0.1),
             title: 'High Contrast Mode',
-            subtitle: 'Enhance visual serialization clarity',
+            subtitle: 'Increase contrast across supported screens',
             value: false,
-            onChanged: (v) => _showComingSoon(context, 'High Contrast'),
+            onChanged: null,
           ),
           _ToggleCard(
             icon: Icons.motion_photos_off_rounded,
             iconColor: const Color(0xFF06B6D4),
             iconBgColor: const Color(0xFF06B6D4).withValues(alpha: 0.1),
-            title: 'Reduce Motion Flux',
-            subtitle: 'Minimize transition entropy',
+            title: 'Reduce motion',
+            subtitle: 'Not available yet',
             value: false,
-            onChanged: (v) => _showComingSoon(context, 'Reduce Motion'),
+            onChanged: null,
           ),
           
           const SizedBox(height: 24),
-          const SectionLabel(label: 'Resonance & Perception'),
+          const SectionLabel(label: 'Audio & touch'),
           _ToggleCard(
             icon: Icons.audiotrack_rounded,
             iconColor: const Color(0xFFF59E0B),
             iconBgColor: const Color(0xFFF59E0B).withValues(alpha: 0.1),
             title: 'Audio Descriptions',
-            subtitle: 'Auditory stream for visual nodes',
+            subtitle: 'Not available yet',
             value: false,
-            onChanged: (v) => _showComingSoon(context, 'Audio Descriptions'),
+            onChanged: null,
           ),
           _ToggleCard(
             icon: Icons.vibration_rounded,
             iconColor: const Color(0xFFEC4899),
             iconBgColor: const Color(0xFFEC4899).withValues(alpha: 0.1),
             title: 'Enhanced Tactility',
-            subtitle: 'Stronger neural haptic feedback',
+            subtitle: 'Not available yet',
             value: false,
-            onChanged: (v) => _showComingSoon(context, 'Enhanced Haptics'),
+            onChanged: null,
           ),
           
           const SizedBox(height: 24),
-          const SectionLabel(label: 'Input Orchestration'),
+          const SectionLabel(label: 'Input'),
           _ToggleCard(
             icon: Icons.mic_rounded,
             iconColor: const Color(0xFF10B981),
             iconBgColor: const Color(0xFF10B981).withValues(alpha: 0.1),
             title: 'Voice Control',
-            subtitle: 'Navigate via vocal resonance',
+            subtitle: 'Not available yet',
             value: false,
-            onChanged: (v) => _showComingSoon(context, 'Voice Control'),
+            onChanged: null,
           ),
           
           const SizedBox(height: 40),

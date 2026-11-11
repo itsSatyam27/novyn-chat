@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../../../theme/novyn_theme.dart';
 
 // ── Status Button ──────────────────────────────────────────────────────────
 class StatusButton extends StatelessWidget {
@@ -87,7 +88,7 @@ class MenuCard extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       child: Material(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
+        color: NovynTheme.cardBg(context),
         borderRadius: BorderRadius.circular(20),
         child: InkWell(
           onTap: () {
@@ -103,10 +104,10 @@ class MenuCard extends StatelessWidget {
                   width: 44,
                   height: 44,
                   decoration: BoxDecoration(
-                    color: iconBgColor ?? Colors.white,
+                    color: iconBgColor ?? Theme.of(context).colorScheme.primary.withValues(alpha: .10),
                     borderRadius: BorderRadius.circular(14),
                   ),
-                  child: Icon(icon, color: iconColor ?? const Color(0xFF1A1D2E), size: 20),
+                  child: Icon(icon, color: iconColor ?? Theme.of(context).colorScheme.primary, size: 20),
                 ),
                 const SizedBox(width: 16),
                 Expanded(
@@ -134,7 +135,7 @@ class MenuCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                trailing ?? const Icon(Icons.chevron_right_rounded, color: Color(0xFFCBD5E1), size: 24),
+                trailing ?? Icon(Icons.chevron_right_rounded, color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: .7), size: 22),
               ],
             ),
           ),
@@ -176,7 +177,7 @@ class ThemeTile extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
             child: Row(
               children: [
-                Icon(icon, color: const Color(0xFF1A1D2E), size: 20),
+                Icon(icon, color: Theme.of(context).colorScheme.primary, size: 20),
                 const SizedBox(width: 16),
                 Text(
                   label,
@@ -184,7 +185,7 @@ class ThemeTile extends StatelessWidget {
                     fontFamily: 'PlusJakartaSans',
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
-                    color: Color(0xFF1A1D2E),
+                    color: Theme.of(context).colorScheme.onSurface,
                   ),
                 ),
                 const Spacer(),
@@ -273,12 +274,50 @@ class AboutTile extends StatelessWidget {
                   ),
                 ),
                 if (hasChevron)
-                  const Icon(Icons.chevron_right_rounded, color: Color(0xFFCBD5E1), size: 22),
+                  Icon(Icons.chevron_right_rounded, color: Theme.of(context).colorScheme.onSurfaceVariant, size: 22),
               ],
             ),
           ),
         ),
       ),
+    );
+  }
+}
+
+// A consistent intro panel used at the top of every settings subpage.
+class SettingsIntroCard extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  const SettingsIntroCard({super.key, required this.title, required this.subtitle, required this.icon});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final accent = theme.colorScheme.primary;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(17),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [accent.withValues(alpha: .15), NovynTheme.cardBg(context)],
+        ),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
+      ),
+      child: Row(children: [
+        Container(width: 48, height: 48,
+          decoration: BoxDecoration(color: accent.withValues(alpha: .14), borderRadius: BorderRadius.circular(16)),
+          child: Icon(icon, color: accent, size: 24)),
+        const SizedBox(width: 14),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(title, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800, letterSpacing: -.25)),
+          const SizedBox(height: 4),
+          Text(subtitle, style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant, height: 1.35)),
+        ])),
+      ]),
     );
   }
 }
@@ -292,12 +331,12 @@ class SectionLabel extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Padding(
-      padding: const EdgeInsets.only(top: 18, bottom: 12, left: 2),
+      padding: const EdgeInsets.only(top: 20, bottom: 12, left: 2),
       child: Row(
         children: [
           Container(
-            width: 3,
-            height: 16,
+            width: 4,
+            height: 15,
             decoration: BoxDecoration(
               color: theme.colorScheme.primary,
               borderRadius: BorderRadius.circular(4),
@@ -307,9 +346,9 @@ class SectionLabel extends StatelessWidget {
           Text(
             label,
             style: theme.textTheme.labelLarge?.copyWith(
-              fontSize: 11,
+              fontSize: 11.5,
               fontWeight: FontWeight.w800,
-              letterSpacing: 1.05,
+              letterSpacing: .85,
               color: theme.colorScheme.onSurfaceVariant,
             ),
           ),

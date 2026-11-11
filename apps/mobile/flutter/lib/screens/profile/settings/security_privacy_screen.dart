@@ -11,6 +11,7 @@ import '../../../widgets/novyn_empty_state.dart';
 import '../../security/setup_pin_screen.dart';
 import 'active_sessions_screen.dart';
 import '../widgets/profile_widgets.dart';
+import '../../../theme/novyn_theme.dart';
 
 class SecurityPrivacyScreen extends StatelessWidget {
   const SecurityPrivacyScreen({super.key});
@@ -20,9 +21,9 @@ class SecurityPrivacyScreen extends StatelessWidget {
     final settings = context.watch<SettingsService>();
     
     return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      backgroundColor: NovynTheme.pageBg(context),
       appBar: AppBar(
-        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        backgroundColor: NovynTheme.pageBg(context),
         elevation: 0,
         scrolledUnderElevation: 0,
         surfaceTintColor: Colors.transparent,
@@ -44,9 +45,10 @@ class SecurityPrivacyScreen extends StatelessWidget {
         centerTitle: true,
       ),
       body: ListView(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 36),
         physics: const BouncingScrollPhysics(),
         children: [
+          SettingsIntroCard(title: 'Your account, protected', subtitle: 'Manage sign-in security, app privacy and who can see your activity.', icon: Icons.shield_moon_rounded),
           Container(
             padding: const EdgeInsets.all(16),
             margin: const EdgeInsets.only(bottom: 22),
@@ -275,7 +277,7 @@ class SecurityPrivacyScreen extends StatelessWidget {
             iconColor: const Color(0xFFEF4444),
             iconBgColor: const Color(0xFFEF4444).withValues(alpha: 0.1),
             title: 'Delete Account',
-            subtitle: 'Permanently purge your node and data',
+            subtitle: 'Permanently delete your account and associated data',
             onTap: () => _showDeleteAccount(context),
           ),
           const SizedBox(height: 60),

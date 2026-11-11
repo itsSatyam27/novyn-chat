@@ -6,6 +6,7 @@ import 'package:path_provider/path_provider.dart';
 import 'dart:ui';
 import '../../../services/settings_service.dart';
 import '../widgets/profile_widgets.dart';
+import '../../../theme/novyn_theme.dart';
 
 class DataStorageScreen extends StatelessWidget {
   const DataStorageScreen({super.key});
@@ -16,7 +17,7 @@ class DataStorageScreen extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      backgroundColor: NovynTheme.pageBg(context),
       appBar: AppBar(
         title: Text(
           'Data & Storage',
@@ -25,17 +26,18 @@ class DataStorageScreen extends StatelessWidget {
             letterSpacing: -0.35,
           ),
         ),
-        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        backgroundColor: NovynTheme.pageBg(context),
         elevation: 0,
         scrolledUnderElevation: 0,
         surfaceTintColor: Colors.transparent,
         centerTitle: false,
       ),
       body: ListView(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 36),
         physics: const BouncingScrollPhysics(),
         children: [
-          const SectionLabel(label: 'Node Memory'),
+          SettingsIntroCard(title: 'Manage your data', subtitle: 'Control automatic downloads, media quality and temporary storage.', icon: Icons.database_rounded),
+          const SectionLabel(label: 'Storage'),
           MenuCard(
             icon: Icons.delete_sweep_rounded,
             iconColor: const Color(0xFFEF4444),
@@ -46,13 +48,13 @@ class DataStorageScreen extends StatelessWidget {
           ),
           
           const SizedBox(height: 24),
-          const SectionLabel(label: 'Auto-Download Streams'),
+          const SectionLabel(label: 'Automatic downloads'),
           _SelectionCard(
             icon: Icons.wifi_rounded,
             iconColor: const Color(0xFF06B6D4),
             iconBgColor: const Color(0xFF06B6D4).withValues(alpha: 0.1),
             title: 'Wi-Fi Networks',
-            subtitle: 'Data reception on high-bandwidth nodes',
+            subtitle: 'Choose what downloads automatically on Wi-Fi',
             value: settings.autoDownloadWifi,
             options: const ['all', 'photos', 'none'],
             labels: const ['All Media', 'Photos Only', 'Deactivated'],
@@ -62,8 +64,8 @@ class DataStorageScreen extends StatelessWidget {
             icon: Icons.cell_tower_rounded,
             iconColor: const Color(0xFFF59E0B),
             iconBgColor: const Color(0xFFF59E0B).withValues(alpha: 0.1),
-            title: 'Cellular Nodes',
-            subtitle: 'Data reception on mobile streams',
+            title: 'Mobile data',
+            subtitle: 'Choose what downloads automatically on mobile data',
             value: settings.autoDownloadMobile,
             options: const ['all', 'photos', 'none'],
             labels: const ['All Media', 'Photos Only', 'Deactivated'],
@@ -71,13 +73,13 @@ class DataStorageScreen extends StatelessWidget {
           ),
           
           const SizedBox(height: 24),
-          const SectionLabel(label: 'Transmission Quality'),
+          const SectionLabel(label: 'Media quality'),
           _SelectionCard(
             icon: Icons.high_quality_rounded,
             iconColor: const Color(0xFF10B981),
             iconBgColor: const Color(0xFF10B981).withValues(alpha: 0.1),
             title: 'Media Fidelity',
-            subtitle: 'Fineness of transmitted visual nodes',
+            subtitle: 'Choose the quality of photos you send',
             value: settings.photoQuality,
             options: const ['high', 'medium', 'low'],
             labels: const ['Ultra (Lossless)', 'Balanced', 'Data Saver'],
@@ -85,7 +87,7 @@ class DataStorageScreen extends StatelessWidget {
           ),
           
           const SizedBox(height: 24),
-          const SectionLabel(label: 'Storage Distribution'),
+          const SectionLabel(label: 'Storage usage'),
           _StorageInfoCard(),
           const SizedBox(height: 40),
         ],

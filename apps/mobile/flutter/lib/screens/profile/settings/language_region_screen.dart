@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'dart:ui';
 import '../../../services/settings_service.dart';
 import '../widgets/profile_widgets.dart';
+import '../../../theme/novyn_theme.dart';
 
 class LanguageRegionScreen extends StatelessWidget {
   const LanguageRegionScreen({super.key});
@@ -14,7 +15,7 @@ class LanguageRegionScreen extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     
     return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      backgroundColor: NovynTheme.pageBg(context),
       appBar: AppBar(
         title: Text(
           'Language & Region',
@@ -23,23 +24,24 @@ class LanguageRegionScreen extends StatelessWidget {
             letterSpacing: -0.35,
           ),
         ),
-        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        backgroundColor: NovynTheme.pageBg(context),
         elevation: 0,
         scrolledUnderElevation: 0,
         surfaceTintColor: Colors.transparent,
         centerTitle: false,
       ),
       body: ListView(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 36),
         physics: const BouncingScrollPhysics(),
         children: [
-          const SectionLabel(label: 'Linguistic Profile'),
+          SettingsIntroCard(title: 'Your language, your format', subtitle: 'Set the language and regional formats used throughout the app.', icon: Icons.translate_rounded),
+          const SectionLabel(label: 'Language'),
           _SelectionCard(
             icon: Icons.language_rounded,
             iconColor: const Color(0xFF8B5CF6),
             iconBgColor: const Color(0xFF8B5CF6).withValues(alpha: 0.1),
             title: 'App Language',
-            subtitle: 'Choose your preferred linguistic node',
+            subtitle: 'Choose the language used in Novyn',
             value: settings.language,
             options: settings.getLanguagesForRegion(settings.region).keys.toList(),
             labels: settings.getLanguagesForRegion(settings.region).values.toList(),
@@ -47,7 +49,7 @@ class LanguageRegionScreen extends StatelessWidget {
           ),
           
           const SizedBox(height: 24),
-          const SectionLabel(label: 'Geographic Coordination'),
+          const SectionLabel(label: 'Region & time'),
           _ActionCard(
             icon: Icons.public_rounded,
             iconColor: const Color(0xFF06B6D4),
@@ -66,7 +68,7 @@ class LanguageRegionScreen extends StatelessWidget {
           ),
           
           const SizedBox(height: 24),
-          const SectionLabel(label: 'Data Serialization'),
+          const SectionLabel(label: 'Date & time format'),
           _ActionCard(
             icon: Icons.calendar_today_rounded,
             iconColor: const Color(0xFF10B981),

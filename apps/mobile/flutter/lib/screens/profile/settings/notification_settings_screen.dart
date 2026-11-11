@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'dart:ui';
 import '../../../services/settings_service.dart';
 import '../widgets/profile_widgets.dart';
+import '../../../theme/novyn_theme.dart';
 
 class NotificationSettingsScreen extends StatelessWidget {
   const NotificationSettingsScreen({super.key});
@@ -14,7 +15,7 @@ class NotificationSettingsScreen extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      backgroundColor: NovynTheme.pageBg(context),
       appBar: AppBar(
         title: Text(
           'Notifications',
@@ -23,23 +24,24 @@ class NotificationSettingsScreen extends StatelessWidget {
             letterSpacing: -0.35,
           ),
         ),
-        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        backgroundColor: NovynTheme.pageBg(context),
         elevation: 0,
         scrolledUnderElevation: 0,
         surfaceTintColor: Colors.transparent,
         centerTitle: false,
       ),
       body: ListView(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 36),
         physics: const BouncingScrollPhysics(),
         children: [
-          const SectionLabel(label: 'Global Node Controls'),
+          SettingsIntroCard(title: 'Stay in the loop', subtitle: 'Decide which alerts reach you and what appears in message previews.', icon: Icons.notifications_active_rounded),
+          const SectionLabel(label: 'General'),
           _ToggleCard(
             icon: Icons.notifications_active_rounded,
             iconColor: const Color(0xFFEC4899),
             iconBgColor: const Color(0xFFEC4899).withValues(alpha: 0.1),
             title: 'Push Notifications',
-            subtitle: 'Master toggle for all neural alerts',
+            subtitle: 'Turn all Novyn notifications on or off',
             value: settings.notificationsOn,
             onChanged: (v) => settings.setNotifications(v),
           ),
@@ -48,19 +50,19 @@ class NotificationSettingsScreen extends StatelessWidget {
             iconColor: const Color(0xFF6D5DFC),
             iconBgColor: const Color(0xFF6D5DFC).withValues(alpha: 0.1),
             title: 'Message Preview',
-            subtitle: 'Display data fragments in alerts',
+            subtitle: 'Show message content in notification alerts',
             value: settings.messagePreview,
             onChanged: settings.notificationsOn ? (v) => settings.setMessagePreview(v) : null,
           ),
           
           const SizedBox(height: 24),
-          const SectionLabel(label: 'Cluster Alerts'),
+          const SectionLabel(label: 'Message & group alerts'),
           _ToggleCard(
             icon: Icons.groups_rounded,
             iconColor: const Color(0xFF10B981),
             iconBgColor: const Color(0xFF10B981).withValues(alpha: 0.1),
             title: 'Group Notifications',
-            subtitle: 'Activity updates from linked clusters',
+            subtitle: 'Get notified about activity in your groups',
             value: settings.groupNotifications,
             onChanged: settings.notificationsOn ? (v) => settings.setGroupNotifications(v) : null,
           ),

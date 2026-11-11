@@ -9,6 +9,7 @@ import 'package:path/path.dart' as p;
 import '../../../services/settings_service.dart';
 import '../../../services/haptic_service.dart';
 import '../widgets/profile_widgets.dart';
+import '../../../theme/novyn_theme.dart';
 
 class SoundVibrationScreen extends StatefulWidget {
   const SoundVibrationScreen({super.key});
@@ -84,7 +85,7 @@ class _SoundVibrationScreenState extends State<SoundVibrationScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      backgroundColor: NovynTheme.pageBg(context),
       appBar: AppBar(
         title: Text(
           'Sound & Vibration',
@@ -93,23 +94,24 @@ class _SoundVibrationScreenState extends State<SoundVibrationScreen> {
             letterSpacing: -0.35,
           ),
         ),
-        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        backgroundColor: NovynTheme.pageBg(context),
         elevation: 0,
         scrolledUnderElevation: 0,
         surfaceTintColor: Colors.transparent,
         centerTitle: false,
       ),
       body: ListView(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 36),
         physics: const BouncingScrollPhysics(),
         children: [
-          const SectionLabel(label: 'Auditory Node Styles'),
+          SettingsIntroCard(title: 'Sounds & haptics', subtitle: 'Choose the tones and vibration patterns you hear across Novyn.', icon: Icons.music_note_rounded),
+          const SectionLabel(label: 'Sounds'),
           _SelectionCard(
             icon: Icons.music_note_rounded,
             iconColor: const Color(0xFF8B5CF6),
             iconBgColor: const Color(0xFF8B5CF6).withValues(alpha: 0.1),
             title: 'Notification Tone',
-            subtitle: 'Primary auditory alert signature',
+            subtitle: 'Choose the sound for incoming message alerts',
             value: settings.notificationTone == 'Custom' && settings.customNotificationPath != null
                 ? p.basename(settings.customNotificationPath!)
                 : (settings.notificationTone == 'None' ? 'Deactivated' : 'Default'),
@@ -130,7 +132,7 @@ class _SoundVibrationScreenState extends State<SoundVibrationScreen> {
             iconColor: const Color(0xFF10B981),
             iconBgColor: const Color(0xFF10B981).withValues(alpha: 0.1),
             title: 'Call Ringtone',
-            subtitle: 'Auditory stream for incoming calls',
+            subtitle: 'Choose the sound for incoming calls',
             value: settings.callRingtone == 'Custom' && settings.customRingtonePath != null
                 ? p.basename(settings.customRingtonePath!)
                 : (settings.callRingtone == 'None' ? 'Deactivated' : 'Default'),
@@ -157,7 +159,7 @@ class _SoundVibrationScreenState extends State<SoundVibrationScreen> {
           ),
           
           const SizedBox(height: 24),
-          const SectionLabel(label: 'Haptic Resonance'),
+          const SectionLabel(label: 'Vibration'),
           _SelectionCard(
             icon: Icons.vibration_rounded,
             iconColor: const Color(0xFFF43F5E),
@@ -193,9 +195,9 @@ class _SoundVibrationScreenState extends State<SoundVibrationScreen> {
           ),
           
           const SizedBox(height: 24),
-          const SectionLabel(label: 'Diagnostic Test'),
+          const SectionLabel(label: 'Try your settings'),
           _DiagnosticButton(
-            label: 'Test Haptic Resonance',
+            label: 'Test Vibration',
             icon: Icons.sensors_rounded,
             onTap: () => HapticService.vibrate(NovynHapticType.heavy),
           ),
