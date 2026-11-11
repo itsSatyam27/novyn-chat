@@ -506,7 +506,7 @@ class ApiService {
   }
 
   // ── Upload media using the authenticated shared backend route ────────────
-  static Future<String> uploadMedia(
+  static Future<String?> uploadMedia(
       List<int> bytes, String filename, String mimeType) async {
     if (bytes.isEmpty) throw StateError('The selected file is empty.');
     try {
