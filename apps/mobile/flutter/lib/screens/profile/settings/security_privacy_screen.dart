@@ -12,6 +12,7 @@ import '../../security/setup_pin_screen.dart';
 import 'active_sessions_screen.dart';
 import 'email_password_screen.dart';
 import '../../../theme/novyn_theme.dart';
+import '../widgets/profile_widgets.dart';
 
 class SecurityPrivacyScreen extends StatelessWidget {
   const SecurityPrivacyScreen({super.key, this.category});
@@ -45,35 +46,24 @@ class SecurityPrivacyScreen extends StatelessWidget {
         physics: const BouncingScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 30),
         children: [
-          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(
-                category == null ? 'Security & Privacy' : switch (category) {
-                  'security' => 'Account Security',
-                  'privacy' => 'Privacy Controls',
-                  'device' => 'Device & Account',
-                  'danger' => 'Danger Zone',
-                  _ => 'Security & Privacy',
-                },
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.w800, letterSpacing: -0.4, height: 1.15),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                category == null
-                    ? 'Keep your account and chats safe'
-                    : switch (category) {
-                        'security' => 'Manage sign-in and device protection',
-                        'privacy' => 'Control your visibility and interactions',
-                        'device' => 'Device privacy and account actions',
-                        'danger' => 'Manage permanent account actions',
-                        _ => 'Keep your account and chats safe',
-                      },
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: muted, fontWeight: FontWeight.w500),
-              ),
-            ])),
-          ]),
+          SettingsPageHeader(
+            title: category == null ? 'Security & Privacy' : switch (category) {
+              'security' => 'Account Security',
+              'privacy' => 'Privacy Controls',
+              'device' => 'Device & Account',
+              'danger' => 'Danger Zone',
+              _ => 'Security & Privacy',
+            },
+            subtitle: category == null
+                ? 'Keep your account and chats safe'
+                : switch (category) {
+                    'security' => 'Manage sign-in and device protection',
+                    'privacy' => 'Control your visibility and interactions',
+                    'device' => 'Device privacy and account actions',
+                    'danger' => 'Manage permanent account actions',
+                    _ => 'Keep your account and chats safe',
+                  },
+          ),
           const SizedBox(height: 20),
           if (category == null) ...[
             Container(
@@ -222,6 +212,14 @@ class SecurityPrivacyScreen extends StatelessWidget {
               onTap: () => _showDeleteAccount(context),
             ),
           ], color: const Color(0xFFB3261E)),
+          if (category == 'privacy') ...[
+            const SettingsIntroCard(
+              title: 'Your privacy at a glance',
+              subtitle: 'Review what others can see and how they can reach you.',
+              icon: Icons.shield_outlined,
+            ),
+            const SizedBox(height: 12),
+          ],
           if (category == 'privacy') _PrivacyDashboard(
             lastSeen: settings.lastSeenVisibility,
             profilePhoto: settings.profilePhotoVisibility,
