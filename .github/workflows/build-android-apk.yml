@@ -20,7 +20,7 @@ jobs:
       - name: Checkout PR or pushed commit
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ github.sha }}
 
       - name: Set up Java
         uses: actions/setup-java@v4
