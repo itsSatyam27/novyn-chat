@@ -153,7 +153,7 @@ class NovynDock extends StatelessWidget {
                 duration: duration,
                 curve: Curves.easeInOutCubic,
                 left: segmentWidth * selected + (segmentWidth - 42) / 2,
-                top: 9,
+                top: 13,
                 width: 42,
                 height: 42,
                 child: DecoratedBox(
@@ -166,7 +166,9 @@ class NovynDock extends StatelessWidget {
             Row(
               children: List.generate(5, (index) {
                 final active = index == selected;
-                final isPrimary = elevated && index == 2;
+                // Elevated style follows the selected tab; the Discover tab must
+                // not remain highlighted just because it occupies the center slot.
+                final isPrimary = elevated && active;
                 final filledActive = active &&
                     style != 'minimal' &&
                     style != 'full_width' &&
@@ -196,9 +198,10 @@ class NovynDock extends StatelessWidget {
                           duration: duration,
                           curve: Curves.easeInOutCubic,
                           height: 58,
+                          width: double.infinity,
                           margin: EdgeInsets.symmetric(horizontal: full ? 1 : 2, vertical: 1),
                           padding: EdgeInsets.symmetric(
-                            horizontal: active && !compact ? 8 : 4,
+                            horizontal: 2,
                             vertical: 4,
                           ),
                           decoration: BoxDecoration(
@@ -211,7 +214,10 @@ class NovynDock extends StatelessWidget {
                                         : Colors.transparent)),
                             borderRadius: BorderRadius.circular(style == 'rounded_bar' ? 16 : 22),
                             boxShadow: active && style == 'glow'
-                                ? [BoxShadow(color: accent.withValues(alpha: dark ? .55 : .42), blurRadius: 24, spreadRadius: 2), BoxShadow(color: accent.withValues(alpha: .22), blurRadius: 8)]
+                                ? [
+                                    BoxShadow(color: accent.withValues(alpha: dark ? .68 : .58), blurRadius: 30, spreadRadius: 4),
+                                    BoxShadow(color: accent.withValues(alpha: dark ? .34 : .28), blurRadius: 12, spreadRadius: 1),
+                                  ]
                                 : null,
                           ),
                           child: Column(
