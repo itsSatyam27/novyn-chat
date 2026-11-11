@@ -490,99 +490,101 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   Widget build(BuildContext context) {
     final auth = context.watch<AuthService>();
     final profile = auth.user;
-    final displayName = profile?.displayName.isNotEmpty == true ? profile!.displayName : 'You';
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final theme = Theme.of(context);
-
     return Scaffold(
       backgroundColor: NovynTheme.pageBg(context),
       body: SafeArea(
         child: Column(
           children: [
             Expanded(
-              child: Stack(
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
+                physics: const BouncingScrollPhysics(),
                 children: [
-                  if (isDark)
-                    Positioned.fill(
-                      child: Opacity(
-                        opacity: .35,
-                        child: CustomPaint(
-                          painter: _AuroraBackgroundPainter(
-                            accentColor: theme.colorScheme.primary,
-                          ),
-                        ),
-                      ),
+                  // No back button here by design.
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 24),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Edit Profile',
+                          style: theme.textTheme.headlineMedium?.copyWith(
+                            fontWeight: FontWeight.w800, letterSpacing: -0.8)),
+                        const SizedBox(height: 5),
+                        Text('Manage how you appear on Novyn.',
+                          style: theme.textTheme.bodyLarge?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant)),
+                      ],
                     ),
-                  ListView(
-                    padding: const EdgeInsets.fromLTRB(20, 10, 20, 28),
-                    physics: const BouncingScrollPhysics(),
-                    children: [
-                      const SettingsPageHeader(
-                        title: 'Edit Profile',
-                        subtitle: 'How you appear on Novyn',
-                      ),
-                      _buildProfileHero(displayName, profile?.username ?? ''),
-                      const SizedBox(height: 28),
-                      _profileSectionLabel('About you'),
-                      _profileFieldsCard([
-                        _profileField('Full name', _nameCtrl, Icons.person_outline_rounded,
-                            hint: 'Your full name'),
-                        _profileField('Username', _usernameCtrl, Icons.alternate_email_rounded,
-                            hint: 'e.g. novyn_user', onChanged: _checkUsername,
-                            suffix: _checkingUsername
-                                ? const SizedBox(width: 18, height: 18,
-                                    child: CircularProgressIndicator(strokeWidth: 2))
-                                : _usernameAvailable == null ? null : Icon(
-                                    _usernameAvailable! ? Icons.check_circle_rounded : Icons.cancel_rounded,
-                                    color: _usernameAvailable! ? const Color(0xFF10B981) : const Color(0xFFEF4444),
-                                    size: 20,
-                                  )),
-                        _profileField('Bio', _bioCtrl, Icons.notes_rounded,
-                            hint: 'A short bio...', maxLines: 3),
-                      ]),
-                      const SizedBox(height: 28),
-                      _profileSectionLabel('Personal'),
-                      _profileFieldsCard([
-                        _profilePicker(
-                          title: 'Age / DOB',
-                          value: _ageCtrl.text.isEmpty ? 'Select DOB' : _ageCtrl.text,
-                          icon: Icons.calendar_month_rounded,
-                          onTap: _selectDate,
-                        ),
-                        _profilePicker(
-                          title: 'Gender',
-                          value: _selectedGender.isEmpty ? 'Select' : _selectedGender,
-                          icon: Icons.person_outline_rounded,
-                          onTap: () => _showGenderPicker(context),
-                        ),
-                      ]),
-                    ],
                   ),
+                  _buildProfileHero(
+                    _nameCtrl.text.trim().isEmpty
+                      ? (profile?.displayName.isNotEmpty == true ? profile!.displayName : 'You')
+                      : _nameCtrl.text.trim(),
+                    _usernameCtrl.text.trim(),
+                  ),
+                  const SizedBox(height: 30),
+                  _profileSectionLabel('Basic information'),
+                  _profileFieldsCard([
+                    _profileField('Full name', _nameCtrl, Icons.person_outline_rounded,
+                      hint: 'Your full name', onChanged: (_) => setState(() {})),
+                    _profileField('Username', _usernameCtrl, Icons.alternate_email_rounded,
+                      hint: 'Choose a username',
+                      onChanged: (value) { setState(() {}); _checkUsername(value); },
+                      suffix: _checkingUsername
+                        ? const SizedBox(width: 18, height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2))
+                        : _usernameAvailable == null ? null : Icon(
+                            _usernameAvailable! ? Icons.check_circle_rounded : Icons.error_rounded,
+                            color: _usernameAvailable! ? const Color(0xFF10B981) : const Color(0xFFEF4444),
+                            size: 20)),
+                    _profileField('Bio', _bioCtrl, Icons.notes_rounded,
+                      hint: 'A little about you...', maxLines: 3,
+                      onChanged: (_) => setState(() {})),
+                  ]),
+                  const SizedBox(height: 28),
+                  _profileSectionLabel('Personal details'),
+                  _profileFieldsCard([
+                    _profilePicker(title: 'Date of birth',
+                      value: _ageCtrl.text.isEmpty ? 'Add your birthday' : _ageCtrl.text,
+                      icon: Icons.cake_outlined, onTap: _selectDate),
+                    _profilePicker(title: 'Gender',
+                      value: _selectedGender.isEmpty ? 'Choose your gender' : _selectedGender,
+                      icon: Icons.person_outline_rounded,
+                      onTap: () => _showGenderPicker(context)),
+                  ]),
+                  const SizedBox(height: 12),
+                  Text('Your personal details help make your profile feel more like you.',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant)),
                 ],
               ),
             ),
             SafeArea(
               top: false,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 10, 20, 14),
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 14),
+                decoration: BoxDecoration(
+                  color: NovynTheme.pageBg(context),
+                  border: Border(top: BorderSide(
+                    color: theme.colorScheme.outlineVariant.withValues(alpha: .55))),
+                ),
                 child: SizedBox(
-                  width: double.infinity,
-                  height: 58,
+                  width: double.infinity, height: 54,
                   child: FilledButton(
                     onPressed: _saving ? null : _save,
                     style: FilledButton.styleFrom(
                       backgroundColor: theme.colorScheme.primary,
                       foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      elevation: 5,
+                      disabledBackgroundColor: theme.colorScheme.primary.withValues(alpha: .45),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      elevation: 0,
                     ),
                     child: _saving
-                        ? const SizedBox(width: 22, height: 22,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                        : const Text('Save changes',
-                            style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
+                      ? const SizedBox(width: 21, height: 21,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      : const Text('Save changes',
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
                   ),
                 ),
               ),
@@ -595,230 +597,147 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   Widget _buildProfileHero(String displayName, String username) {
     final theme = Theme.of(context);
+    final cleanUsername = username.replaceFirst(RegExp(r'^@'), '');
     return Container(
-      height: 270,
+      padding: const EdgeInsets.fromLTRB(20, 22, 20, 20),
       decoration: BoxDecoration(
         color: NovynTheme.cardBg(context),
-        borderRadius: BorderRadius.circular(30),
+        borderRadius: BorderRadius.circular(24),
         border: Border.all(color: theme.colorScheme.outlineVariant),
       ),
-      clipBehavior: Clip.antiAlias,
-      child: Stack(
-        alignment: Alignment.topCenter,
-        children: [
-          Container(
-            height: 116,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  theme.colorScheme.primary.withValues(alpha: .30),
-                  theme.colorScheme.primary.withValues(alpha: .08),
-                ],
+      child: Column(children: [
+        Stack(clipBehavior: Clip.none, children: [
+          GestureDetector(
+            onTap: _showProfilePictureOptions,
+            child: _EditProfileAvatar(
+              photoUrl: context.watch<AuthService>().user?.avatarId,
+              displayName: displayName)),
+          Positioned(right: -2, bottom: 2,
+            child: Material(
+              color: theme.colorScheme.primary,
+              shape: const CircleBorder(), elevation: 2,
+              child: InkWell(
+                customBorder: const CircleBorder(),
+                onTap: _showProfilePictureOptions,
+                child: const Padding(
+                  padding: EdgeInsets.all(9),
+                  child: Icon(Icons.camera_alt_rounded, color: Colors.white, size: 17)),
               ),
             ),
           ),
-          Positioned(
-            top: 42,
-            child: GestureDetector(
-              onTap: _showProfilePictureOptions,
-              child: _EditProfileAvatar(
-                photoUrl: context.watch<AuthService>().user?.avatarId,
-                displayName: displayName,
-              ),
-            ),
-          ),
-          Positioned(
-            top: 188,
-            left: 18,
-            right: 18,
-            child: Column(
-              children: [
-                Text(displayName,
-                  textAlign: TextAlign.center,
-                  style: theme.textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.w900,
-                  )),
-                const SizedBox(height: 3),
-                Text('@${username.replaceFirst(RegExp(r'^@'), '')}',
-                  textAlign: TextAlign.center,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    color: theme.colorScheme.primary,
-                    fontWeight: FontWeight.w700,
-                  )),
-                const SizedBox(height: 3),
-                Text('Tap photo to change',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  )),
-              ],
-            ),
-          ),
-        ],
-      ),
+        ]),
+        const SizedBox(height: 16),
+        Text(displayName, textAlign: TextAlign.center,
+          style: theme.textTheme.titleLarge?.copyWith(
+            fontWeight: FontWeight.w800, letterSpacing: -0.3)),
+        const SizedBox(height: 4),
+        Text(cleanUsername.isEmpty ? 'Choose a username' : '@$cleanUsername',
+          textAlign: TextAlign.center,
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: theme.colorScheme.primary, fontWeight: FontWeight.w700)),
+        const SizedBox(height: 7),
+        Text('Tap your photo to update it',
+          style: theme.textTheme.labelSmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant)),
+      ]),
     );
   }
 
   Widget _profileSectionLabel(String label) => Padding(
-    padding: const EdgeInsets.only(left: 4, bottom: 12),
-    child: Text(label.toUpperCase(),
-      style: TextStyle(
-        color: Theme.of(context).colorScheme.primary,
-        fontSize: 13,
-        fontWeight: FontWeight.w900,
-        letterSpacing: 1.5,
-      )),
+    padding: const EdgeInsets.only(left: 2, bottom: 11),
+    child: Text(label, style: TextStyle(
+      color: Theme.of(context).colorScheme.primary,
+      fontSize: 13, fontWeight: FontWeight.w800, letterSpacing: .7)),
   );
 
   Widget _profileFieldsCard(List<Widget> children) => Container(
     decoration: BoxDecoration(
       color: NovynTheme.cardBg(context),
-      borderRadius: BorderRadius.circular(26),
-      border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
-    ),
-    padding: const EdgeInsets.all(16),
+      borderRadius: BorderRadius.circular(20),
+      border: Border.all(color: Theme.of(context).colorScheme.outlineVariant)),
     child: Column(children: [
       for (var i = 0; i < children.length; i++) ...[
-        if (i > 0) const SizedBox(height: 16),
-        children[i],
+        if (i > 0) Divider(height: 1, thickness: 1, indent: 16, endIndent: 16,
+          color: NovynTheme.divider(context)),
+        Padding(padding: const EdgeInsets.fromLTRB(16, 15, 16, 15),
+          child: children[i]),
       ],
     ]),
   );
 
-  Widget _profileField(
-    String title,
-    TextEditingController controller,
-    IconData icon, {
+  Widget _profileField(String title, TextEditingController controller, IconData icon, {
     required String hint,
     int maxLines = 1,
-    ValueChanged<String>? onChanged,
-    Widget? suffix,
-  }) => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      _label(title),
-      _field(
-        controller: controller,
-        hint: hint,
-        icon: icon,
-        maxLines: maxLines,
-        onChanged: onChanged,
-        suffix: suffix,
-      ),
-    ],
-  );
-
-  Widget _profilePicker({
-    required String title,
-    required String value,
-    required IconData icon,
-    required VoidCallback onTap,
-  }) => InkWell(
-    borderRadius: BorderRadius.circular(18),
-    onTap: onTap,
-    child: Padding(
-      padding: const EdgeInsets.symmetric(vertical: 7),
-      child: Row(
-        children: [
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.primary.withValues(alpha: .10),
-              borderRadius: BorderRadius.circular(15),
-            ),
-            child: Icon(icon, color: Theme.of(context).colorScheme.primary),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(title, style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-                fontWeight: FontWeight.w700,
-              )),
-              const SizedBox(height: 3),
-              Text(value, style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w700,
-              )),
-            ]),
-          ),
-          Icon(Icons.chevron_right_rounded,
-            color: Theme.of(context).colorScheme.onSurfaceVariant),
-        ],
-      ),
-    ),
-  );
-
-  Widget _label(String text) => Padding(
-        padding: const EdgeInsets.only(left: 4, bottom: 10),
-        child: Text(
-          text,
-          style: TextStyle(
-            fontFamily: 'PlusJakartaSans',
-            fontWeight: FontWeight.w900,
-            fontSize: 15,
-            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
-            letterSpacing: 0.5,
-          ),
-        ),
-      );
-
-  Widget _field({
-    required TextEditingController controller,
-    required String hint,
-    required IconData icon,
-    int maxLines = 1,
-    TextInputType? keyboardType,
     ValueChanged<String>? onChanged,
     Widget? suffix,
   }) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: TextField(
+    final theme = Theme.of(context);
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text(title, style: theme.textTheme.labelLarge?.copyWith(
+        color: theme.colorScheme.onSurfaceVariant, fontWeight: FontWeight.w600)),
+      const SizedBox(height: 8),
+      TextField(
         controller: controller,
         maxLines: maxLines,
-        keyboardType: keyboardType,
+        minLines: 1,
+        maxLength: title == 'Bio' ? 160 : null,
         onChanged: onChanged,
-        style: TextStyle(
-          fontFamily: 'PlusJakartaSans',
-          fontWeight: FontWeight.w700,
-          fontSize: 16,
-        ),
+        textCapitalization: title == 'Bio'
+          ? TextCapitalization.sentences : TextCapitalization.words,
+        style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600),
         decoration: InputDecoration(
           hintText: hint,
-          hintStyle: TextStyle(
-            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3),
-            fontFamily: 'PlusJakartaSans',
-            fontWeight: FontWeight.w500,
-          ),
-          prefixIcon: Icon(icon, size: 22, color: Theme.of(context).colorScheme.primary),
-          suffixIcon: suffix != null ? Padding(padding: const EdgeInsets.all(12), child: suffix) : null,
+          hintStyle: theme.textTheme.bodyLarge?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant.withValues(alpha: .65),
+            fontWeight: FontWeight.w400),
+          prefixIcon: Icon(icon, size: 21),
+          suffixIcon: suffix == null ? null : Padding(
+            padding: const EdgeInsets.all(12), child: suffix),
+          counterText: '',
           filled: true,
           fillColor: NovynTheme.inputBg(context),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
           border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(24),
-            borderSide: BorderSide(color: NovynTheme.divider(context)),
-          ),
+            borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
           enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(18),
-            borderSide: BorderSide(color: NovynTheme.divider(context)),
-          ),
+            borderRadius: BorderRadius.circular(14),
+            borderSide: BorderSide(
+              color: theme.colorScheme.outlineVariant.withValues(alpha: .7))),
           focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(24),
-            borderSide: BorderSide(color: Theme.of(context).colorScheme.primary, width: 2),
-          ),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+            borderRadius: BorderRadius.circular(14),
+            borderSide: BorderSide(color: theme.colorScheme.primary, width: 1.5)),
         ),
+      ),
+    ]);
+  }
+
+  Widget _profilePicker({required String title, required String value,
+    required IconData icon, required VoidCallback onTap}) {
+    final theme = Theme.of(context);
+    return InkWell(
+      borderRadius: BorderRadius.circular(14), onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 3),
+        child: Row(children: [
+          Container(width: 42, height: 42,
+            decoration: BoxDecoration(
+              color: theme.colorScheme.primary.withValues(alpha: .09),
+              borderRadius: BorderRadius.circular(13)),
+            child: Icon(icon, color: theme.colorScheme.primary, size: 21)),
+          const SizedBox(width: 13),
+          Expanded(child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(title, style: theme.textTheme.labelLarge?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 3),
+              Text(value, style: theme.textTheme.bodyLarge?.copyWith(
+                fontWeight: FontWeight.w600,
+                color: value.startsWith('Add ') || value.startsWith('Choose ')
+                  ? theme.colorScheme.onSurfaceVariant : theme.colorScheme.onSurface)),
+            ])),
+          Icon(Icons.chevron_right_rounded,
+            color: theme.colorScheme.onSurfaceVariant, size: 22),
+        ]),
       ),
     );
   }
