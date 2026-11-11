@@ -883,7 +883,7 @@ class _SelectionCard extends StatelessWidget {
                   final selected = value == option;
                   final detail = option == '0'
                       ? 'Lock as soon as you leave the app'
-                      : 'Keep the app unlocked for $label after leaving';
+                      : 'Lock Novyn after $option ${option == '1' ? 'minute' : 'minutes'} away';
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 8),
                     child: Material(
