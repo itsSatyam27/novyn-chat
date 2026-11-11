@@ -467,7 +467,7 @@ class _DownloadedFilesCardState extends State<_DownloadedFilesCard> {
             const SizedBox(width: 12),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text('No downloads yet', style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800)),
-              Text('Use Download on an image in chat to save it here.',
+              Text('Use Download on a chat attachment to save it here.',
                 style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
             ])),
           ]);
