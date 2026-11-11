@@ -809,7 +809,7 @@ class _SelectionCard extends StatelessWidget {
                 children: [
                   Text(
                     currentLabel,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontFamily: 'PlusJakartaSans',
                       fontSize: 13,
                       fontWeight: FontWeight.w900,
@@ -1141,7 +1141,7 @@ class _ChangePasswordDialogState extends State<_ChangePasswordDialog> {
             fontWeight: FontWeight.w500,
             color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
           ),
-          floatingLabelStyle: const TextStyle(
+          floatingLabelStyle: TextStyle(
             fontFamily: 'PlusJakartaSans',
             fontWeight: FontWeight.w800,
             color: Theme.of(context).colorScheme.primary,
@@ -1307,7 +1307,7 @@ class _TwoFactorSetupDialogState extends State<_TwoFactorSetupDialog> {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        const SizedBox(
+        SizedBox(
           width: 60,
           height: 60,
           child: CircularProgressIndicator(

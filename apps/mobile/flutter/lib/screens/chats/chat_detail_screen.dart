@@ -271,7 +271,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
             child: Container(
               decoration: _wallpaperDecoration(socket.chatWallpaper),
               child: _loading
-                  ? const Center(
+                  ? Center(
                       child: CircularProgressIndicator(color: Theme.of(context).colorScheme.primary))
                   : messages.isEmpty
                       ? _fetchingFromServer
@@ -523,7 +523,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                     color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Text(
+                  child: Text(
                     'Start of conversation',
                     style: TextStyle(
                       fontFamily: 'PlusJakartaSans',
@@ -1938,7 +1938,7 @@ class _MessageBubble extends StatelessWidget {
                     ),
                     if (isMe) ...[
                       const SizedBox(width: 3),
-                      _buildTick(message),
+                      _buildTick(context, message),
                     ],
                   ],
                 ),
@@ -2295,7 +2295,7 @@ class _MessageBubble extends StatelessWidget {
               }
               Navigator.pop(context);
             },
-            child: const Text('Save',
+            child: Text('Save',
                 style: TextStyle(
                     color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.w700)),
           ),
@@ -2333,7 +2333,7 @@ class _MessageBubble extends StatelessWidget {
     return '$h:$m $period';
   }
 
-  Widget _buildTick(dynamic message) {
+  Widget _buildTick(BuildContext context, dynamic message) {
     final isSending = (message.id as String).startsWith('tmp_');
 
     if (isSending) {
