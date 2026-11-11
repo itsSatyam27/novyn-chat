@@ -54,8 +54,7 @@ import 'message_encryption_service.dart';
 ///   ON    error_message            — { message }
 
 class SocketService extends ChangeNotifier {
-  // Temporary compatibility mode: Android sends plain-text messages.
-  // Incoming legacy encrypted messages still use the existing decryptor.
+  // Uses the same per-conversation AES-GCM keys and relay envelope as the web client.
   final encryption = MessageEncryptionService();
   final Map<String, String> _peerKeys = {};
   final BackendContacts contacts = BackendContacts();
@@ -729,41 +728,113 @@ class SocketService extends ChangeNotifier {
     _requireConnection();
     final account = _myUsername;
     if (account == null) throw StateError('Sign in before sending messages.');
-    final clientTempId = 'tmp_${DateTime.now().millisecondsSinceEpoch}';
-    final toType = isGroup ? 'group' : 'friend';
+    final trimmedText = text.trim();
+    if (trimmedText.isEmpty && attachment == null) {
+      throw StateError('Write a message or attach a file first.');
+    }
 
-    // Optimistic message
+    final clientTempId = 'tmp_${DateTime.now().microsecondsSinceEpoch}';
+    final toType = isGroup ? 'group' : 'friend';
+    final rawText = trimmedText.isNotEmpty
+        ? trimmedText
+        : (attachment?['kind'] == 'image' ? '[Image]' : '[File]');
+    final peerKey = isGroup ? null : _peerKeys[toPeerUsername.toLowerCase()];
+
+    final payload = <String, dynamic>{
+      'to': toPeerUsername,
+      'toType': toType,
+      'text': rawText,
+      'attachment': attachment,
+      'replyTo': replyToId == null
+          ? null
+          : {
+              'id': replyToId,
+              'text': replyToText ?? '',
+              'from': replyToSender ?? '',
+            },
+      'clientTempId': clientTempId,
+    };
+
+    // Match the web client: encrypt only when the peer has a published key.
+    // A missing local conversation key is an actionable error, never a silent
+    // plaintext fallback.
+    if (peerKey != null && peerKey.isNotEmpty && !isGroup) {
+      final encrypted = await encryption.encrypt(
+        rawText,
+        account,
+        toPeerUsername,
+        peerKey,
+      );
+      if (encrypted == null) {
+        throw StateError(
+          'This chat needs its message key. Import your Novyn message keys from the web app before sending.',
+        );
+      }
+      payload
+        ..['text'] = '🔒 Encrypted message'
+        ..['ciphertext'] = encrypted['ciphertext']
+        ..['iv'] = encrypted['iv']
+        ..['isEncrypted'] = true;
+      if (payload['replyTo'] is Map) {
+        payload['replyTo'] = {
+          ...Map<String, dynamic>.from(payload['replyTo']),
+          'text': '🔒 Encrypted message',
+        };
+      }
+    }
+
     final tempMsg = Message(
       id: clientTempId,
       chatId: toPeerUsername,
-      text: text,
-      senderId: _myUsername!,
+      text: rawText,
+      senderId: account,
       isFromMe: true,
       createdAt: DateTime.now(),
       replyToId: replyToId,
       replyToText: replyToText,
       replyToSender: replyToSender,
       attachment: attachment,
+      isEncrypted: payload['isEncrypted'] == true,
+      ciphertext: payload['ciphertext']?.toString(),
+      iv: payload['iv']?.toString(),
     );
     _messages = [..._messages, tempMsg];
     notifyListeners();
 
-    // novyn-chat payload shape
-    final payload = <String, dynamic>{
-      'to': toPeerUsername,
-      'toType': toType,
-      'text': text,
-      'clientTempId': clientTempId,
-      if (attachment != null) 'attachment': attachment,
-      if (replyToId != null)
-        'replyTo': {
-          'id': replyToId,
-          'text': replyToText ?? '',
-          'from': replyToSender ?? '',
-        },
-    };
+    final connection = _socket!;
+    final acknowledgement = Completer<Map<String, dynamic>>();
+    connection.emitWithAck('private_message', payload, ack: (dynamic result) {
+      if (acknowledgement.isCompleted) return;
+      acknowledgement.complete(
+        result is Map
+            ? Map<String, dynamic>.from(result)
+            : <String, dynamic>{'ok': false, 'message': 'Unexpected server response.'},
+      );
+    });
 
-    _socket!.emit('private_message', payload);
+    try {
+      final result = await acknowledgement.future.timeout(
+        const Duration(seconds: 15),
+        onTimeout: () => throw TimeoutException(
+          'Delivery was not confirmed. Check your connection before retrying.',
+        ),
+      );
+      if (result['ok'] != true) {
+        throw StateError(
+          result['message']?.toString() ?? 'The server could not send this message.',
+        );
+      }
+      // The server's private_message echo replaces this optimistic message.
+    } catch (_) {
+      // Remove only the temporary bubble. If the server echo already replaced
+      // it, keep the confirmed message visible.
+      final index = _messages.indexWhere((message) => message.id == clientTempId);
+      if (index >= 0) {
+        _messages = List<Message>.from(_messages)..removeAt(index);
+        notifyListeners();
+      }
+      rethrow;
+    }
   }
 
   void sendGameChallenge(String gameType, String peerUsername, {bool isGroup = false}) {
