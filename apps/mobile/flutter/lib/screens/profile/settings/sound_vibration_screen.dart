@@ -250,6 +250,6 @@ class _Waveform extends StatelessWidget {
     crossAxisAlignment: CrossAxisAlignment.center, children: bars.map((h) => Expanded(child: Padding(
       padding: const EdgeInsets.symmetric(horizontal: 2), child: AnimatedContainer(
         duration: const Duration(milliseconds: 220), height: playing ? h.toDouble() : h * .78,
-        decoration: BoxDecoration(color: const Color(0xFF6554F5).withValues(alpha: playing ? .95 : (.35 + (h / 100)).clamp(.35, 1.0)),
+        decoration: BoxDecoration(color: const Color(0xFF6554F5).withValues(alpha: playing ? .95 : (.35 + (h / 100)).clamp(.35, 1.0).toDouble()),
           borderRadius: BorderRadius.circular(5))))).toList()));
 }
