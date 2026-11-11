@@ -282,19 +282,24 @@ class HybridDbService {
   // UTILITIES
   // ══════════════════════════════════════════════════════════════════════════
 
-  /// Switch the shared local cache to the active Novyn account.
-  /// Older unscoped caches are cleared to prevent cross-account disclosure.
+  /// Switch to isolated local databases for the active Novyn account.
+  /// Existing shared data is migrated only when its stored owner matches.
   static Future<void> activateAccount(String username) async {
-    await _ensureInit();
     final normalized = username.trim().toLowerCase();
     if (normalized.isEmpty) return;
-    final owner = await LocalDbService.getAccountScope();
-    if (owner == null || owner != normalized) {
-      await _fastDb!.clearAll();
-      await LocalDbService.clearAll();
-      ChatsScreen.resetAccountCache();
-    }
-    await LocalDbService.setAccountScope(normalized);
+
+    await LocalDbService.init();
+    final legacyOwner = await LocalDbService.getAccountScope();
+    await LocalDbService.activateAccount(normalized);
+    await FastDbService.activateAccount(
+      normalized,
+      migrateLegacy: legacyOwner != null &&
+          legacyOwner.trim().toLowerCase() == normalized,
+    );
+
+    _fastDb = await FastDbService.database;
+    _isInitialized = true;
+    ChatsScreen.resetAccountCache();
   }
 
   static Future<void> clearAccountScope() async {
