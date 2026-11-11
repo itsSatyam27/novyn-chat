@@ -98,6 +98,30 @@ class _SplashScreenV2State extends State<SplashScreenV2>
     );
   }
 
+  Future<void> _completeStartup() async {
+    final auth = context.read<AuthService>();
+
+    // The visual splash can finish before the network-backed session restore.
+    // Never route to onboarding while authentication is still being resolved.
+    final deadline = DateTime.now().add(const Duration(seconds: 25));
+    while (mounted && !auth.authReady && DateTime.now().isBefore(deadline)) {
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+    }
+    if (!mounted) return;
+
+    final destination = auth.isLoggedIn
+        ? const MainScreen()
+        : const OnboardingScreen();
+    Navigator.of(context).pushReplacement(
+      PageRouteBuilder(
+        pageBuilder: (_, __, ___) => destination,
+        transitionsBuilder: (_, anim, __, child) =>
+            FadeTransition(opacity: anim, child: child),
+        transitionDuration: const Duration(milliseconds: 600),
+      ),
+    );
+  }
+
   @override
   void dispose() {
     _mainController.dispose();
@@ -339,21 +363,7 @@ class _SplashScreenV2State extends State<SplashScreenV2>
             opacity: (_mainController.value * 2).clamp(0, 1),
             child: _AnimatedLoadingBar(
               loadController: _loadController,
-              onComplete: () {
-                if (!mounted) return;
-                final auth = context.read<AuthService>();
-                final destination = auth.isLoggedIn
-                    ? const MainScreen()
-                    : const OnboardingScreen();
-                Navigator.of(context).pushReplacement(
-                  PageRouteBuilder(
-                    pageBuilder: (_, __, ___) => destination,
-                    transitionsBuilder: (_, anim, __, child) =>
-                        FadeTransition(opacity: anim, child: child),
-                    transitionDuration: const Duration(milliseconds: 600),
-                  ),
-                );
-              },
+              onComplete: _completeStartup,
             ),
           ),
         );
