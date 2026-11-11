@@ -112,6 +112,8 @@ class SettingsService extends ChangeNotifier {
   String _callRingtone = 'Binary'; // Default ringtone
   String _vibrationPattern = 'standard'; // standard, staccato, heartbeat, none
   double _hapticIntensity = 0.8; // 0.0 to 1.0
+  double _messageVolume = 0.8;
+  double _callVolume = 0.85;
   bool _appLockEnabled = false;
   int _appLockTimeout = 0; // minutes (0 = immediately)
   String? _appLockPin; // Stored PIN
@@ -152,6 +154,8 @@ class SettingsService extends ChangeNotifier {
   String get language => _language;
   String get vibrationPattern => _vibrationPattern;
   double get hapticIntensity => _hapticIntensity;
+  double get messageVolume => _messageVolume;
+  double get callVolume => _callVolume;
   String get photoQuality => _photoQuality;
   double get fontSize => _fontSize;
   int get accentColorValue => _accentColorValue;
@@ -218,6 +222,8 @@ class SettingsService extends ChangeNotifier {
     _language = _prefs.getString(_kLanguage) ?? _detectDeviceLanguage();
     _vibrationPattern = _prefs.getString(_kVibrationPattern) ?? 'standard';
     _hapticIntensity = (_prefs.getDouble(_kHapticIntensity) ?? 0.8).clamp(0.0, 1.0).toDouble();
+    _messageVolume = (_prefs.getDouble('novyn_message_volume') ?? 0.8).clamp(0.0, 1.0).toDouble();
+    _callVolume = (_prefs.getDouble('novyn_call_volume') ?? 0.85).clamp(0.0, 1.0).toDouble();
     _appLockEnabled = _prefs.getBool(_kAppLockEnabled) ?? false;
     _appLockTimeout = _prefs.getInt(_kAppLockTimeout) ?? 0;
     // Migrate legacy PINs from plain preferences into encrypted storage.
@@ -537,6 +543,18 @@ class SettingsService extends ChangeNotifier {
   String _detectDeviceLanguage() {
     final locale = WidgetsBinding.instance.platformDispatcher.locale;
     return locale.languageCode.toLowerCase();
+  }
+
+  Future<void> setMessageVolume(double v) async {
+    _messageVolume = v.clamp(0.0, 1.0).toDouble();
+    await _prefs.setDouble('novyn_message_volume', _messageVolume);
+    notifyListeners();
+  }
+
+  Future<void> setCallVolume(double v) async {
+    _callVolume = v.clamp(0.0, 1.0).toDouble();
+    await _prefs.setDouble('novyn_call_volume', _callVolume);
+    notifyListeners();
   }
 
   Future<void> setHapticIntensity(double v) async {
