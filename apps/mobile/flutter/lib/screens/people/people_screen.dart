@@ -8,7 +8,6 @@ import '../../widgets/novyn_empty_state.dart';
 import '../../widgets/user_avatar.dart';
 import '../../widgets/novyn_ui.dart';
 import '../chats/chat_detail_screen.dart';
-import 'discover_people_screen.dart';
 import 'create_group_screen.dart';
 
 class PeopleScreen extends StatefulWidget {
@@ -22,7 +21,6 @@ class _PeopleScreenState extends State<PeopleScreen> {
   String _search = '';
   String _filter = 'All';
   final ScrollController _scrollController = ScrollController();
-  final List<String> _alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ#'.split('');
 
   @override
   Widget build(BuildContext context) {
@@ -72,7 +70,6 @@ class _PeopleScreenState extends State<PeopleScreen> {
                 const SizedBox(width: 8),
                 _filterChip('Online', _filter == 'Online', () => setState(() => _filter = 'Online')),
                 const SizedBox(width: 8),
-                _filterChip('Favourites', _filter == 'Favourites', () => setState(() => _filter = 'Favourites')),
               ]),
             ),
             Expanded(
@@ -96,7 +93,9 @@ class _PeopleScreenState extends State<PeopleScreen> {
                         !u.username.toLowerCase().contains(_search)) return false;
                     return true;
                   }).toList();
-                  if (filtered.isEmpty) return _buildEmpty();
+                  if (filtered.isEmpty) {
+                    return _buildEmpty();
+                  }
                   return ListView.builder(
                     controller: _scrollController,
                     padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
@@ -111,6 +110,12 @@ class _PeopleScreenState extends State<PeopleScreen> {
         ),
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
   }
 
   Widget _filterChip(String label, bool selected, VoidCallback onTap) {
@@ -129,41 +134,6 @@ class _PeopleScreenState extends State<PeopleScreen> {
           fontFamily: 'PlusJakartaSans', fontSize: 12, fontWeight: FontWeight.w700,
           color: selected ? Colors.white : Theme.of(context).colorScheme.onSurface,
         )),
-      ),
-    );
-  }
-
-  void _scrollToLetter(String letter, List<UserModel> users) {
-    int index = -1;
-    if (letter == '#') {
-      index = users.indexWhere((u) => !RegExp(r'[a-zA-Z]').hasMatch(u.name[0]));
-    } else {
-      index = users.indexWhere((u) => u.name.toUpperCase().startsWith(letter));
-    }
-    
-    if (index != -1) {
-      // Approximate height of a card (padding + margin + height)
-      const itemHeight = 84.0; 
-      _scrollController.animateTo(
-        index * itemHeight,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeOut,
-      );
-    }
-  }
-
-  Widget _sectionLabel(String text) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 10),
-      child: Row(
-        children: [
-          Expanded(child: Divider(color: Theme.of(context).colorScheme.outlineVariant)),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: Text(text, style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: 1.2, color: Theme.of(context).colorScheme.outline)),
-          ),
-          Expanded(child: Divider(color: Theme.of(context).colorScheme.outlineVariant)),
-        ],
       ),
     );
   }
@@ -275,69 +245,3 @@ class _FriendCard extends StatelessWidget {
   }
 }
 
-class _HeaderAction extends StatelessWidget {
-  final IconData icon;
-  final bool isActive;
-  final int badgeCount;
-  final VoidCallback onTap;
-
-  const _HeaderAction({
-    required this.icon,
-    required this.isActive,
-    this.badgeCount = 0,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: isActive
-                  ? Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.7)
-                  : Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Icon(
-              icon,
-              color: isActive
-                  ? Theme.of(context).colorScheme.primary
-                  : Theme.of(context).colorScheme.outline,
-              size: 22,
-            ),
-          ),
-          if (badgeCount > 0)
-            Positioned(
-              top: -4,
-              right: -4,
-              child: Container(
-                width: 18,
-                height: 18,
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.error,
-                  shape: BoxShape.circle,
-                  border: Border.all(color: Colors.white, width: 2),
-                ),
-                child: Center(
-                  child: Text(
-                    '$badgeCount',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-}
