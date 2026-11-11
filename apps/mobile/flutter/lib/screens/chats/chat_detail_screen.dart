@@ -10,6 +10,7 @@ import 'package:record/record.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_image_compress/flutter_image_compress.dart';
 import '../../widgets/game_message_card.dart';
 import '../../widgets/riddle_message_card.dart';
 import '../../widgets/voice_message_player.dart';
@@ -822,6 +823,27 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       }
       if (bytes == null || bytes.isEmpty) throw StateError('Could not read the selected file.');
       setState(() => _uploadingAttachment = true);
+
+      // Apply the selected Data & Storage photo-quality preference to actual
+      // image bytes before upload. Non-image attachments are never recompressed.
+      if (mime.startsWith('image/') && !filename.toLowerCase().endsWith('.gif')) {
+        final quality = context.read<SettingsService>().photoQuality;
+        final jpegQuality = quality == 'low' ? 55 : quality == 'medium' ? 75 : 90;
+        final compressed = await FlutterImageCompress.compressWithList(
+          bytes,
+          minWidth: quality == 'low' ? 1280 : 1920,
+          minHeight: quality == 'low' ? 1280 : 1920,
+          quality: jpegQuality,
+          format: CompressFormat.jpeg,
+        );
+        if (compressed.isNotEmpty) {
+          bytes = compressed;
+          final dot = filename.lastIndexOf('.');
+          final stem = dot > 0 ? filename.substring(0, dot) : filename;
+          filename = '$stem.jpg';
+          mime = 'image/jpeg';
+        }
+      }
       final url = await ApiService.uploadMedia(bytes, filename, mime);
       if (!mounted) return;
       if (url == null || url.isEmpty) throw StateError('Upload failed. Please try again.');
