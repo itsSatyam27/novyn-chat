@@ -691,7 +691,7 @@ class PinnedAvatarRow extends StatelessWidget {
                 DashedCircleButton(size: 56, onTap: onAdd),
                 const SizedBox(height: 6),
                 Text('Pin',
-                    style: NovynText.body(11.5, color: NovynColors.violet)),
+                    style: NovynText.body(11.5, color: Theme.of(context).colorScheme.primary)),
               ],
             ),
           ),
@@ -719,7 +719,7 @@ class DashedCircleButton extends StatelessWidget {
           height: size,
           child: Center(
             child: Text('+',
-                style: NovynText.body(22, color: NovynColors.violet)),
+                style: NovynText.body(22, color: Theme.of(context).colorScheme.primary)),
           ),
         ),
       ),
