@@ -101,9 +101,11 @@ class BackendContacts extends ChangeNotifier {
     if (values is! List) return [];
     return values
         .whereType<Map>()
-        .where((data) =>
-            !excludeGroups ||
-            (data['kind'] != 'group' && data['groupId'] == null))
+        .where((data) {
+          if (!excludeGroups) return true;
+          final groupId = data['groupId']?.toString().trim() ?? '';
+          return data['kind'] != 'group' && groupId.isEmpty;
+        })
         .map(userFromMap)
         .where((user) => user.username.isNotEmpty)
         .toList();
