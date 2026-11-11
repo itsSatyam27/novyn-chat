@@ -2240,12 +2240,33 @@ class _MessageBubble extends StatelessWidget {
     );
   }
 
+  Future<void> _downloadAttachment(BuildContext context, String url, String name) async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final file = await ApiService.downloadMedia(url, name);
+      if (!context.mounted) return;
+      messenger.showSnackBar(SnackBar(
+        content: Text('Saved to Novyn Downloads/' + file.uri.pathSegments.last),
+        behavior: SnackBarBehavior.floating,
+      ));
+    } catch (error) {
+      if (!context.mounted) return;
+      messenger.showSnackBar(SnackBar(
+        content: Text('Download failed: ' + error.toString()),
+        behavior: SnackBarBehavior.floating,
+      ));
+    }
+  }
+
   Widget _buildAttachmentPreview(BuildContext context, Map attachment) {
     final url = attachment['url']?.toString() ?? '';
     final name = attachment['name']?.toString() ?? 'Attachment';
     final kind = attachment['kind']?.toString() ?? 'file';
     if (kind == 'audio' && url.isNotEmpty) {
-      return VoiceMessagePlayer(url: url, label: name, durationSeconds: (attachment['duration'] as num?)?.toInt());
+      return Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+        VoiceMessagePlayer(url: url, label: name, durationSeconds: (attachment['duration'] as num?)?.toInt()),
+        TextButton.icon(onPressed: () => _downloadAttachment(context, url, name), icon: const Icon(Icons.download_rounded, size: 17), label: const Text('Download')),
+      ]);
     }
     if (kind == 'image' && url.isNotEmpty) {
       return Column(
@@ -2299,38 +2320,36 @@ class _MessageBubble extends StatelessWidget {
         : kind == 'audio'
             ? Icons.audio_file_outlined
             : Icons.insert_drive_file_outlined;
-    return InkWell(
-      borderRadius: BorderRadius.circular(10),
-      onTap: url.isEmpty
-          ? null
-          : () async {
-              final uri = Uri.tryParse(url);
-              if (uri == null) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('This attachment link is invalid.')),
-                );
-                return;
-              }
-              try {
-                final opened = await launchUrl(
-                  uri,
-                  mode: LaunchMode.externalApplication,
-                );
-                if (!opened && context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('No app could open this attachment.')),
-                  );
-                }
-              } catch (_) {
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Could not open this attachment.')),
-                  );
-                }
-              }
-            },
-      child: _attachmentFileTile(name, icon),
-    );
+    return Row(mainAxisSize: MainAxisSize.min, children: [
+      Flexible(child: InkWell(
+        borderRadius: BorderRadius.circular(10),
+        onTap: url.isEmpty ? null : () async {
+          final uri = Uri.tryParse(url);
+          if (uri == null) return;
+          try {
+            final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+            if (!opened && context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('No app could open this attachment.')),
+              );
+            }
+          } catch (_) {
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Could not open this attachment.')),
+              );
+            }
+          }
+        },
+        child: _attachmentFileTile(name, icon),
+      )),
+      if (url.isNotEmpty)
+        IconButton(
+          tooltip: 'Download attachment',
+          icon: const Icon(Icons.download_rounded),
+          onPressed: () => _downloadAttachment(context, url, name),
+        ),
+    ]);
   }
 
   Widget _attachmentFileTile(String name, IconData icon) {
