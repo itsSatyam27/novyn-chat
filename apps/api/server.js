@@ -4691,6 +4691,9 @@ app.get("/api/auth/session", (req, res) => {
     username: user.username,
     displayName: user.displayName || user.username,
     email: user.email || "",
+    emailVerified: user.emailVerified === true || Boolean(user.googleUid),
+    hasPassword: Boolean(user.passwordHash && user.passwordSalt),
+    isGoogleUser: Boolean(user.googleUid),
     avatarId: user.avatarId || "",
     bio: user.bio || "",
     presenceMode: user.presenceMode || "online",
@@ -5696,6 +5699,7 @@ io.on("connection", (socket) => {
     }
 
     user.email = nextEmail;
+    user.emailVerified = true;
     dropEmailChangeTokenById(tokenId);
     schedulePersist();
 
