@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../services/local_auth_service.dart';
 import '../../services/settings_service.dart';
 import '../../widgets/doodle_background.dart';
+import '../../widgets/novyn_alert.dart';
 import 'dart:ui';
 
 class AppLockScreen extends StatefulWidget {
@@ -80,12 +81,14 @@ class _AppLockScreenState extends State<AppLockScreen> {
       setState(() {
         _inputPin = '';
       });
+      NovynAlert.show(context, 'Incorrect PIN. Please try again.', isError: true);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final accent = Theme.of(context).colorScheme.primary;
     
     return Scaffold(
       body: Stack(
@@ -135,7 +138,7 @@ class _AppLockScreenState extends State<AppLockScreen> {
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         color: isActive 
-                            ? const Color(0xFF6D5DFC) 
+                            ? accent 
                             : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.1),
                         boxShadow: isActive ? [
                           BoxShadow(
