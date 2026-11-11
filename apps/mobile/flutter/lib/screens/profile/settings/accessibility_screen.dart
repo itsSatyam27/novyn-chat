@@ -16,24 +16,11 @@ class AccessibilityScreen extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: NovynTheme.pageBg(context),
-      appBar: AppBar(
-        title: Text(
-          'Accessibility',
-          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-            fontWeight: FontWeight.w800,
-            letterSpacing: -0.35,
-          ),
-        ),
-        backgroundColor: NovynTheme.pageBg(context),
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        surfaceTintColor: Colors.transparent,
-        centerTitle: false,
-      ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 36),
         physics: const BouncingScrollPhysics(),
         children: [
+          SettingsPageHeader(title: 'Accessibility', subtitle: 'Make Novyn easier to use'),
           SettingsIntroCard(title: 'Make Novyn easier to use', subtitle: 'Adjust the supported display options and explore accessibility features.', icon: Icons.accessibility_new_rounded),
           const SectionLabel(label: 'Display'),
           _FontSizeCard(
