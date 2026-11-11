@@ -367,6 +367,14 @@ class _LoginTabState extends State<_LoginTab> {
     }
   }
 
+  void _showForgotPassword() {
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const _ForgotPasswordDialog(),
+    );
+  }
+
   void _navigateToMain() {
     Navigator.of(context).pushAndRemoveUntil(
       PageRouteBuilder(
@@ -436,6 +444,20 @@ class _LoginTabState extends State<_LoginTab> {
               onToggle: () => setState(() => _obscure = !_obscure),
             ),
           ),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
+              onPressed: _loading ? null : _showForgotPassword,
+              style: TextButton.styleFrom(
+                foregroundColor: _kAccent,
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+              ),
+              child: Text(
+                'Forgot password?',
+                style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700),
+              ),
+            ),
+          ),
 
           if (_error != null) ...[
             const SizedBox(height: 14),
@@ -459,6 +481,191 @@ class _LoginTabState extends State<_LoginTab> {
             onTap:  widget.onSwitchToRegister,
           ),
         ],
+      ),
+    );
+  }
+}
+
+
+class _ForgotPasswordDialog extends StatefulWidget {
+  const _ForgotPasswordDialog({super.key});
+
+  @override
+  State<_ForgotPasswordDialog> createState() => _ForgotPasswordDialogState();
+}
+
+class _ForgotPasswordDialogState extends State<_ForgotPasswordDialog> {
+  final _identifierCtrl = TextEditingController();
+  final _codeCtrl = TextEditingController();
+  final _passwordCtrl = TextEditingController();
+  final _confirmCtrl = TextEditingController();
+  bool _codeSent = false;
+  bool _loading = false;
+  bool _obscurePassword = true;
+  bool _obscureConfirm = true;
+  String? _error;
+  String? _message;
+
+  @override
+  void dispose() {
+    _identifierCtrl.dispose();
+    _codeCtrl.dispose();
+    _passwordCtrl.dispose();
+    _confirmCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _requestCode() async {
+    final identifier = _identifierCtrl.text.trim();
+    if (identifier.isEmpty) {
+      setState(() => _error = 'Enter your registered email or username.');
+      return;
+    }
+    setState(() { _loading = true; _error = null; _message = null; });
+    final result = await context.read<AuthService>().requestPasswordReset(identifier);
+    if (!mounted) return;
+    setState(() {
+      _loading = false;
+      if (result['ok'] == true) {
+        _codeSent = true;
+        _message = result['message']?.toString() ??
+            'If an account exists, a reset code has been sent.';
+      } else {
+        _error = result['message']?.toString() ?? 'Could not send reset code.';
+      }
+    });
+  }
+
+  Future<void> _resetPassword() async {
+    final code = _codeCtrl.text.trim();
+    final password = _passwordCtrl.text;
+    if (code.isEmpty) {
+      setState(() => _error = 'Enter the reset code from your email.');
+      return;
+    }
+    if (password.length < 12) {
+      setState(() => _error = 'Password must be at least 12 characters.');
+      return;
+    }
+    if (password != _confirmCtrl.text) {
+      setState(() => _error = 'Passwords do not match.');
+      return;
+    }
+    setState(() { _loading = true; _error = null; _message = null; });
+    final result = await context.read<AuthService>().confirmPasswordReset(
+      identifier: _identifierCtrl.text.trim(),
+      code: code,
+      newPassword: password,
+    );
+    if (!mounted) return;
+    setState(() => _loading = false);
+    if (result['ok'] == true) {
+      Navigator.of(context).pop();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(result['message']?.toString() ?? 'Password updated. Please sign in.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } else {
+      setState(() => _error = result['message']?.toString() ?? 'Could not reset password.');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: const Color(0xFF101827),
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(24),
+        side: BorderSide(color: Colors.white.withValues(alpha: .09)),
+      ),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(22),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: _kAccent.withValues(alpha: .13),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: const Icon(Icons.lock_reset_rounded, color: _kAccent, size: 23),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text('Reset password', style: GoogleFonts.inter(
+                    color: Colors.white, fontWeight: FontWeight.w800, fontSize: 18,
+                  )),
+                ),
+                IconButton(
+                  onPressed: _loading ? null : () => Navigator.pop(context),
+                  icon: const Icon(Icons.close_rounded, color: Colors.white54),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _codeSent
+                  ? 'Enter the code sent to your registered email and choose a new password.'
+                  : 'Enter the email address or username linked to your Novyn account.',
+              style: GoogleFonts.inter(color: Colors.white.withValues(alpha: .58), fontSize: 12, height: 1.5),
+            ),
+            const SizedBox(height: 18),
+            const _SectionLabel('EMAIL OR USERNAME'),
+            const SizedBox(height: 8),
+            _Field(controller: _identifierCtrl, hint: 'Email address or username',
+              icon: Icons.alternate_email_rounded, keyboardType: TextInputType.emailAddress),
+            if (_codeSent) ...[
+              const SizedBox(height: 14),
+              const _SectionLabel('RESET CODE'),
+              const SizedBox(height: 8),
+              _Field(controller: _codeCtrl, hint: 'Enter email code',
+                icon: Icons.password_rounded, keyboardType: TextInputType.number),
+              const SizedBox(height: 14),
+              const _SectionLabel('NEW PASSWORD'),
+              const SizedBox(height: 8),
+              _Field(controller: _passwordCtrl, hint: 'At least 12 characters',
+                icon: Icons.lock_outline_rounded, obscure: _obscurePassword,
+                suffix: _EyeToggle(obscure: _obscurePassword,
+                  onToggle: () => setState(() => _obscurePassword = !_obscurePassword))),
+              const SizedBox(height: 14),
+              const _SectionLabel('CONFIRM NEW PASSWORD'),
+              const SizedBox(height: 8),
+              _Field(controller: _confirmCtrl, hint: 'Re-enter new password',
+                icon: Icons.lock_outline_rounded, obscure: _obscureConfirm,
+                suffix: _EyeToggle(obscure: _obscureConfirm,
+                  onToggle: () => setState(() => _obscureConfirm = !_obscureConfirm))),
+            ],
+            if (_message != null) ...[
+              const SizedBox(height: 12),
+              Text(_message!, style: GoogleFonts.inter(color: _kGreen, fontSize: 12, height: 1.45)),
+            ],
+            if (_error != null) ...[
+              const SizedBox(height: 12),
+              _ErrorBanner(message: _error!),
+            ],
+            const SizedBox(height: 20),
+            _PrimaryButton(
+              label: _codeSent ? 'Update password' : 'Send reset code',
+              loading: _loading,
+              onTap: _codeSent ? _resetPassword : _requestCode,
+            ),
+            if (_codeSent) ...[
+              const SizedBox(height: 8),
+              Center(child: TextButton(
+                onPressed: _loading ? null : _requestCode,
+                child: const Text('Send a new code'),
+              )),
+            ],
+          ],
+        ),
       ),
     );
   }

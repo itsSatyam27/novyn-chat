@@ -4754,6 +4754,118 @@ app.post("/api/auth/logout", createIpRateLimiter({ getStore: () => httpRateLimit
   res.json({ ok: true });
 });
 
+
+app.post("/api/auth/password-reset/request",
+  createIpRateLimiter({ getStore: () => httpRateLimits }, "auth-password-reset-request", 10, 15 * 60 * 1000),
+  requireCsrf,
+  async (req, res) => {
+    pruneExpiredPasswordResetTokens();
+    const identifier = toDisplayName(req.body?.identifier || req.body?.email || "");
+    const genericMessage = "If an account exists, a reset code has been sent.";
+    if (!isPasswordResetDeliveryAvailable()) {
+      res.status(503).json({ ok: false, message: "Password reset email service is unavailable. Try again later." });
+      return;
+    }
+    if (!identifier) {
+      res.json({ ok: true, message: genericMessage });
+      return;
+    }
+    const user = identifier.includes("@")
+      ? findUserByEmail(identifier)
+      : users.get(normalizeName(identifier));
+    if (!user || !user.isRegistered) {
+      res.json({ ok: true, message: genericMessage });
+      return;
+    }
+    const userKey = normalizeName(user.username);
+    const rate = canIssuePasswordReset(userKey);
+    if (!rate.allowed) {
+      res.status(429).json({ ok: false, message: rate.message });
+      return;
+    }
+    const previousTokenId = passwordResetByUser.get(userKey);
+    if (previousTokenId) dropPasswordResetTokenById(previousTokenId);
+    const token = createResetToken();
+    const salt = crypto.randomBytes(8).toString("hex");
+    const tokenHash = createResetTokenHash(token, salt);
+    const tokenId = createResetTokenId();
+    const expiresAt = Date.now() + PASSWORD_RESET_CODE_TTL_MS;
+    passwordResetTokens.set(tokenId, {
+      userKey, salt, tokenHash, expiresAt,
+      attemptsLeft: PASSWORD_RESET_MAX_ATTEMPTS,
+    });
+    passwordResetByUser.set(userKey, tokenId);
+    markPasswordResetIssued(userKey, rate.state);
+    const dispatched = await dispatchPasswordResetCode(user, token);
+    if (!dispatched) dropPasswordResetTokenById(tokenId);
+    res.json({ ok: true, message: genericMessage });
+  }
+);
+
+app.post("/api/auth/password-reset/confirm",
+  createIpRateLimiter({ getStore: () => httpRateLimits }, "auth-password-reset-confirm", 30, 15 * 60 * 1000),
+  requireCsrf,
+  (req, res) => {
+    pruneExpiredPasswordResetTokens();
+    const identifier = toDisplayName(req.body?.identifier || req.body?.email || req.body?.username || "");
+    const token = toDisplayName(req.body?.code || req.body?.token || "");
+    const newPassword = toDisplayName(req.body?.newPassword || "");
+    if (!identifier || !token || !newPassword) {
+      res.status(400).json({ ok: false, message: "Email/username, reset code, and new password are required." });
+      return;
+    }
+    if (newPassword.length < MIN_PASSWORD_LENGTH) {
+      res.status(400).json({ ok: false, message: `Use at least ${MIN_PASSWORD_LENGTH} characters in password.` });
+      return;
+    }
+    const user = identifier.includes("@")
+      ? findUserByEmail(identifier)
+      : users.get(normalizeName(identifier));
+    if (!user || !user.isRegistered) {
+      res.status(400).json({ ok: false, message: "Invalid or expired reset code." });
+      return;
+    }
+    const userKey = normalizeName(user.username);
+    const tokenId = passwordResetByUser.get(userKey);
+    const entry = tokenId ? passwordResetTokens.get(tokenId) : null;
+    if (!entry || entry.userKey !== userKey) {
+      res.status(400).json({ ok: false, message: "Invalid or expired reset code." });
+      return;
+    }
+    if (Date.now() > Number(entry.expiresAt)) {
+      dropPasswordResetTokenById(tokenId);
+      res.status(400).json({ ok: false, message: "Reset code expired. Request a new one." });
+      return;
+    }
+    if (!Number.isFinite(Number(entry.attemptsLeft)) || Number(entry.attemptsLeft) <= 0) {
+      dropPasswordResetTokenById(tokenId);
+      res.status(429).json({ ok: false, message: "Too many attempts. Request a new code." });
+      return;
+    }
+    const expectedHash = createResetTokenHash(token, entry.salt);
+    if (expectedHash !== entry.tokenHash) {
+      entry.attemptsLeft = Math.max(0, Number(entry.attemptsLeft) - 1);
+      if (entry.attemptsLeft <= 0) dropPasswordResetTokenById(tokenId);
+      res.status(400).json({
+        ok: false,
+        message: entry.attemptsLeft > 0
+          ? `Invalid reset code. ${entry.attemptsLeft} attempt(s) left.`
+          : "Too many attempts. Request a new code.",
+      });
+      return;
+    }
+    const secret = createPasswordSecret(newPassword);
+    user.passwordSalt = secret.passwordSalt;
+    user.passwordHash = secret.passwordHash;
+    user.isRegistered = true;
+    revokeAllRefreshSessionsForUser(userKey);
+    dropPasswordResetTokenById(tokenId);
+    schedulePersist();
+    res.json({ ok: true, message: "Password updated. Please sign in." });
+  }
+);
+
+
 // Revoke every other login session while keeping the device making this request.
 app.post("/api/auth/revoke-sessions",
   createIpRateLimiter({ getStore: () => httpRateLimits }, "auth-revoke-sessions", 20, 15 * 60 * 1000),

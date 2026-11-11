@@ -547,7 +547,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           ),
         ],
       ),
-      body: Stack(
+      body: ColoredBox(
+        color: NovynTheme.pageBg(context),
+        child: Stack(
         children: [
           // Aurora Background
           if (isDark)
@@ -718,6 +720,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             ),
           ),
         ],
+      ),
       ),
     );
   }

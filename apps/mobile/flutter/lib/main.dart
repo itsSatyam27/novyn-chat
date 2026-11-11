@@ -54,6 +54,9 @@ void main() async {
   // Initialize avatar cache for instant profile picture loads
   await UserAvatar.initCache();
 
+  // Restore the encrypted mobile auth cookie before AuthService starts.
+  await ApiService.initializeSessionStorage();
+
   // Wake up backend server (eliminates 30s cold start on Render.com)
   ApiService.ping();
 
@@ -131,11 +134,47 @@ class NovynApp extends StatelessWidget {
               Locale('ko'),
               Locale('ru'),
             ],
-            builder: (context, child) => AppLockWrapper(child: child!),
+            builder: (context, child) => SessionLifecycleGuard(
+              child: AppLockWrapper(child: child!),
+            ),
             home: const SplashScreenV2(),
           );
         },
       ),
     );
   }
+}
+
+
+class SessionLifecycleGuard extends StatefulWidget {
+  const SessionLifecycleGuard({super.key, required this.child});
+  final Widget child;
+
+  @override
+  State<SessionLifecycleGuard> createState() => _SessionLifecycleGuardState();
+}
+
+class _SessionLifecycleGuardState extends State<SessionLifecycleGuard>
+    with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      context.read<AuthService>().restoreSessionOnResume();
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }

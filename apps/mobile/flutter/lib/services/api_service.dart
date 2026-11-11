@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import '../models/chat_models.dart';
@@ -27,6 +28,19 @@ class ApiService {
   // so we store and forward them manually.
   static String? _sessionCookie;
   static String? _csrfToken;
+  static const FlutterSecureStorage _secureStorage = FlutterSecureStorage();
+  static const String _sessionCookieKey = 'novyn_auth_cookie_v1';
+  static const String _csrfTokenKey = 'novyn_csrf_token_v1';
+
+  static Future<void> initializeSessionStorage() async {
+    try {
+      _sessionCookie = await _secureStorage.read(key: _sessionCookieKey);
+      _csrfToken = await _secureStorage.read(key: _csrfTokenKey);
+    } catch (_) {
+      _sessionCookie = null;
+      _csrfToken = null;
+    }
+  }
 
   static Map<String, String> get _authHeaders => {
         'Content-Type': 'application/json',
@@ -50,8 +64,7 @@ class ApiService {
       final response = await http
           .get(Uri.parse('$baseUrl/api/auth/session'))
           .timeout(const Duration(seconds: 10));
-      _storeSessionCookie(response);
-      _storeCsrfToken(response);
+      await _storeSessionCookie(response);
     }
 
     final token = _csrfToken;
@@ -71,8 +84,8 @@ class ApiService {
   static String? get sessionCookie => _sessionCookie;
 
   // ── Store session cookie from a response ─────────────────────────────────
-  static void _storeSessionCookie(http.Response res) {
-    _storeCsrfToken(res);
+  static Future<void> _storeSessionCookie(http.Response res) async {
+    await _storeCsrfToken(res);
     final raw = res.headers['set-cookie'];
     if (raw != null && raw.isNotEmpty) {
       // Extract name=value pairs; drop path/expires/httponly etc.
@@ -85,24 +98,34 @@ class ApiService {
                       caseSensitive: false)
                   .hasMatch(s.split('=').first.trim()))
           .join('; ');
-      if (cookies.isNotEmpty) _sessionCookie = cookies;
+      if (cookies.isNotEmpty) {
+        _sessionCookie = cookies;
+        await _secureStorage.write(key: _sessionCookieKey, value: cookies);
+      }
     }
   }
 
-  static void _storeCsrfToken(http.Response res) {
+  static Future<void> _storeCsrfToken(http.Response res) async {
     final raw = res.headers['set-cookie'];
     if (raw == null || raw.isEmpty) return;
     final match = RegExp(
       r'(?:^|,\s*)novyn_csrf=([^;,\s]+)',
       caseSensitive: false,
     ).firstMatch(raw);
-    if (match != null) _csrfToken = Uri.decodeComponent(match.group(1)!);
+    if (match != null) {
+      _csrfToken = Uri.decodeComponent(match.group(1)!);
+      await _secureStorage.write(key: _csrfTokenKey, value: _csrfToken);
+    }
   }
 
   // ── Clear session (on logout) ─────────────────────────────────────────────
-  static void clearSession() {
+  static Future<void> clearSession() async {
     _sessionCookie = null;
     _csrfToken = null;
+    try {
+      await _secureStorage.delete(key: _sessionCookieKey);
+      await _secureStorage.delete(key: _csrfTokenKey);
+    } catch (_) {}
   }
 
   // ── Health check / wake-up ping ───────────────────────────────────────────
@@ -132,7 +155,7 @@ class ApiService {
           .timeout(const Duration(seconds: 15));
 
       if (res.statusCode == 200) {
-        _storeSessionCookie(res);
+        await _storeSessionCookie(res);
         return Map<String, dynamic>.from(jsonDecode(res.body));
       }
 
@@ -167,7 +190,7 @@ class ApiService {
           .timeout(const Duration(seconds: 15));
 
       if (res.statusCode == 200) {
-        _storeSessionCookie(res);
+        await _storeSessionCookie(res);
         return Map<String, dynamic>.from(jsonDecode(res.body));
       }
       try {
@@ -202,7 +225,7 @@ class ApiService {
           .timeout(const Duration(seconds: 15));
 
       if (res.statusCode == 200 || res.statusCode == 201) {
-        _storeSessionCookie(res);
+        await _storeSessionCookie(res);
         return Map<String, dynamic>.from(jsonDecode(res.body));
       }
       try {
@@ -225,7 +248,7 @@ class ApiService {
             headers: _authHeaders,
           )
           .timeout(const Duration(seconds: 10));
-      _storeSessionCookie(res);
+      await _storeSessionCookie(res);
       if (res.statusCode == 200) {
         return Map<String, dynamic>.from(jsonDecode(res.body));
       }
@@ -243,7 +266,7 @@ class ApiService {
           )
           .timeout(const Duration(seconds: 10));
       if (res.statusCode == 200) {
-        _storeSessionCookie(res);
+        await _storeSessionCookie(res);
         return true;
       }
     } catch (_) {}
@@ -260,7 +283,62 @@ class ApiService {
           )
           .timeout(const Duration(seconds: 10));
     } catch (_) {}
-    clearSession();
+    await clearSession();
+  }
+
+
+  // ── Password reset (email/username + emailed one-time code) ─────────────
+  static Future<Map<String, dynamic>> requestPasswordReset(
+      String identifier) async {
+    try {
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/api/auth/password-reset/request'),
+            headers: await _csrfHeaders(),
+            body: jsonEncode({'identifier': identifier.trim()}),
+          )
+          .timeout(const Duration(seconds: 20));
+      final body = jsonDecode(response.body);
+      if (body is Map) {
+        return {
+          ...Map<String, dynamic>.from(body),
+          'httpStatus': response.statusCode,
+        };
+      }
+      return {'ok': false, 'message': 'Unexpected server response.'};
+    } catch (_) {
+      return {'ok': false, 'message': 'Could not reach Novyn. Check your connection.'};
+    }
+  }
+
+  static Future<Map<String, dynamic>> confirmPasswordReset({
+    required String identifier,
+    required String code,
+    required String newPassword,
+  }) async {
+    try {
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/api/auth/password-reset/confirm'),
+            headers: await _csrfHeaders(),
+            body: jsonEncode({
+              'identifier': identifier.trim(),
+              'code': code.trim(),
+              'newPassword': newPassword,
+            }),
+          )
+          .timeout(const Duration(seconds: 20));
+      final body = jsonDecode(response.body);
+      if (body is Map) {
+        return {
+          ...Map<String, dynamic>.from(body),
+          'httpStatus': response.statusCode,
+        };
+      }
+      return {'ok': false, 'message': 'Unexpected server response.'};
+    } catch (_) {
+      return {'ok': false, 'message': 'Could not reach Novyn. Check your connection.'};
+    }
   }
 
   // ── Fetch chat history for a conversation ────────────────────────────────

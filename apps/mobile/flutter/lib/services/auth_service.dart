@@ -97,7 +97,18 @@ class AuthService extends ChangeNotifier {
   Future<void> _restoreSession(
       Future<Map<String, dynamic>?> Function() loadSession) async {
     try {
-      final session = await loadSession();
+      var session = await loadSession();
+      // A cold backend wake-up or brief network hand-off must not look like
+      // a signed-out account. Retry only if we restored a saved auth cookie.
+      if ((session == null || session['authenticated'] != true) &&
+          ApiService.sessionCookie != null) {
+        for (var attempt = 0; attempt < 2; attempt++) {
+          await ApiService.ping();
+          await Future<void>.delayed(const Duration(seconds: 2));
+          session = await loadSession();
+          if (session?['authenticated'] == true) break;
+        }
+      }
       if (session != null && session['authenticated'] == true) {
         _user = NovynUser.fromMap(session);
       }
@@ -105,6 +116,38 @@ class AuthService extends ChangeNotifier {
     _authReady = true;
     notifyListeners();
   }
+
+
+  Future<void> restoreSessionOnResume() async {
+    if (!_authReady || _user == null) return;
+    try {
+      var session = await ApiService.getSession();
+      if (session == null || session['authenticated'] != true) {
+        final refreshed = await ApiService.refreshSession();
+        if (refreshed) session = await ApiService.getSession();
+      }
+      if (session != null && session['authenticated'] == true) {
+        _user = NovynUser.fromMap(session);
+        notifyListeners();
+      }
+    } catch (_) {
+      // Keep the current user during temporary connectivity loss.
+    }
+  }
+
+  Future<Map<String, dynamic>> requestPasswordReset(String identifier) =>
+      ApiService.requestPasswordReset(identifier);
+
+  Future<Map<String, dynamic>> confirmPasswordReset({
+    required String identifier,
+    required String code,
+    required String newPassword,
+  }) =>
+      ApiService.confirmPasswordReset(
+        identifier: identifier,
+        code: code,
+        newPassword: newPassword,
+      );
 
   // ── Refresh (call after profile edits) ────────────────────────────────────
   Future<void> refreshProfile() async {
