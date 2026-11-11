@@ -65,8 +65,6 @@ class _SoundVibrationScreenState extends State<SoundVibrationScreen> {
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 14, 20, 8),
           child: Row(children: [
-            _backButton(context),
-            const SizedBox(width: 16),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text('Sound & Vibration', style: TextStyle(fontFamily: 'PlusJakartaSans',
                 fontSize: 23, fontWeight: FontWeight.w800, letterSpacing: -.6, color: ink)),
@@ -162,12 +160,6 @@ class _SoundVibrationScreenState extends State<SoundVibrationScreen> {
       case 'heartbeat': HapticService.vibrate(NovynHapticType.warning); break;
     }
   }
-
-  Widget _backButton(BuildContext context) => Material(
-    color: Theme.of(context).colorScheme.surface, shape: const CircleBorder(),
-    child: InkWell(onTap: () => Navigator.maybePop(context), customBorder: const CircleBorder(),
-      child: const SizedBox(width: 44, height: 44, child: Icon(Icons.chevron_left_rounded, size: 25))),
-  );
 
   Widget _panel({required Widget child}) => Container(
     padding: const EdgeInsets.all(16), decoration: BoxDecoration(
