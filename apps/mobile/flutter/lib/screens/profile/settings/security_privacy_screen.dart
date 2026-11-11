@@ -73,7 +73,12 @@ class SecurityPrivacyScreen extends StatelessWidget {
             nav(Icons.devices_rounded, const Color(0xFF2A78B8), 'Active Sessions', 'Sign out of other devices remotely', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ActiveSessionsScreen()))),
             _SecurityPrivacyToggleTile(icon: Icons.verified_user_outlined, accent: const Color(0xFF7565D9), title: 'Two-Factor Authentication', subtitle: 'Unavailable until secure server-side login challenges are supported', value: false, onChanged: null),
             _SecurityPrivacyToggleTile(icon: Icons.fingerprint_rounded, accent: const Color(0xFFB7791F), title: 'App Lock', subtitle: 'Require your PIN or available biometrics to open Novyn', value: settings.appLockEnabled, onChanged: (v) => _handleAppLockToggle(context, settings, v)),
-            if (settings.appLockEnabled) _SelectionCard(icon: Icons.timer_outlined, iconColor: const Color(0xFF64748B), iconBgColor: const Color(0xFF64748B).withValues(alpha: .12), title: 'Auto-lock', subtitle: 'When to lock after leaving app', value: settings.appLockTimeout.toString(), options: const ['0', '1', '5', '15', '30'], labels: const ['Immediately', 'After 1 min', 'After 5 mins', 'After 15 mins', 'After 30 mins'], onChanged: (v) => settings.setAppLockTimeout(int.parse(v))),
+            if (settings.appLockEnabled) _SelectionCard(icon: Icons.timer_outlined, iconColor: const Color(0xFF64748B), iconBgColor: const Color(0xFF64748B).withValues(alpha: .12), title: 'Auto-lock', subtitle: 'When to lock after leaving app', value: settings.appLockTimeout.toString(), options: const ['0', '1', '5', '15', '30'], labels: const ['Immediately', 'After 1 min', 'After 5 mins', 'After 15 mins', 'After 30 mins'], onChanged: (v) {
+              settings.setAppLockTimeout(int.parse(v));
+              const labels = ['Immediately', 'After 1 min', 'After 5 mins', 'After 15 mins', 'After 30 mins'];
+              const values = ['0', '1', '5', '15', '30'];
+              NovynAlert.show(context, 'Auto-lock updated: ${labels[values.indexOf(v)]}.');
+            }),
             if (settings.appLockEnabled) nav(Icons.password_rounded, const Color(0xFF64748B), 'Change PIN', 'Verify your current PIN and set a new one', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SetupPinScreen(isChanging: true)))),
           ]),
           section('Stealth Mode', [
@@ -188,7 +193,7 @@ class SecurityPrivacyScreen extends StatelessWidget {
 
       try {
         await settings.setAppLockEnabled(true);
-      if (context.mounted) NovynAlert.show(context, 'App Lock enabled successfully.');
+        if (context.mounted) NovynAlert.show(context, 'App Lock enabled successfully.');
       } catch (error) {
         if (context.mounted) {
           NovynAlert.show(
