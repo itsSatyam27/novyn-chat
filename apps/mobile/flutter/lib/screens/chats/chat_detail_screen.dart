@@ -236,7 +236,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(error is StateError
               ? error.message.toString()
-              : 'Could not send message. Please try again.'),
+              : error is TimeoutException
+                  ? (error.message ?? 'Message delivery was not confirmed. Check your connection.')
+                  : 'Could not send message: $error'),
         ));
       }
     } finally {
