@@ -2,6 +2,9 @@ name: Build Novyn Android APK
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - feature/app-lock-recovery-hardening
 
 permissions:
   contents: read
@@ -11,10 +14,10 @@ jobs:
     name: Build release APK
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout main
+      - name: Checkout selected branch
         uses: actions/checkout@v4
         with:
-          ref: main
+          ref: ${{ github.ref }}
 
       - name: Set up Java
         uses: actions/setup-java@v4
