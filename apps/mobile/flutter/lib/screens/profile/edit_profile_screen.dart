@@ -10,6 +10,7 @@ import 'dart:ui';
 import '../../services/auth_service.dart';
 import '../../services/settings_service.dart';
 import '../../theme/novyn_theme.dart';
+import 'widgets/profile_widgets.dart';
 
 class EditProfileScreen extends StatefulWidget {
   const EditProfileScreen({super.key});
@@ -491,239 +492,261 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     final profile = auth.user;
     final displayName = profile?.displayName.isNotEmpty == true ? profile!.displayName : 'You';
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final theme = Theme.of(context);
 
     return Scaffold(
       backgroundColor: NovynTheme.pageBg(context),
-      appBar: AppBar(
-        backgroundColor: NovynTheme.pageBg(context),
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        surfaceTintColor: Colors.transparent,
-        leading: IconButton(
-          icon: Icon(
-            Icons.chevron_left_rounded,
-            color: Theme.of(context).colorScheme.onSurface,
-            size: 32,
-          ),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: Text(
-          'Edit Profile',
-          style: TextStyle(
-            fontFamily: 'PlusJakartaSans',
-            fontWeight: FontWeight.w900,
-            fontSize: 22,
-            color: Theme.of(context).colorScheme.onSurface,
-            letterSpacing: -0.5,
-          ),
-        ),
-        centerTitle: true,
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: TextButton(
-              onPressed: _saving ? null : _save,
-              child: _saving
-                  ? SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Theme.of(context).colorScheme.primary),
-                    )
-                  : ShaderMask(
-                      shaderCallback: (bounds) => LinearGradient(
-                        colors: [Theme.of(context).colorScheme.primary, Color(0xFF40E0D0)],
-                      ).createShader(bounds),
-                      child: Text(
-                        'Save',
-                        style: TextStyle(
-                          fontFamily: 'PlusJakartaSans',
-                          fontWeight: FontWeight.w900,
-                          fontSize: 17,
-                          color: Colors.white,
+      body: SafeArea(
+        child: Column(
+          children: [
+            Expanded(
+              child: Stack(
+                children: [
+                  if (isDark)
+                    Positioned.fill(
+                      child: Opacity(
+                        opacity: .35,
+                        child: CustomPaint(
+                          painter: _AuroraBackgroundPainter(
+                            accentColor: theme.colorScheme.primary,
+                          ),
                         ),
                       ),
                     ),
+                  ListView(
+                    padding: const EdgeInsets.fromLTRB(20, 10, 20, 28),
+                    physics: const BouncingScrollPhysics(),
+                    children: [
+                      const SettingsPageHeader(
+                        title: 'Edit Profile',
+                        subtitle: 'How you appear on Novyn',
+                      ),
+                      _buildProfileHero(displayName, profile?.username ?? ''),
+                      const SizedBox(height: 28),
+                      _profileSectionLabel('About you'),
+                      _profileFieldsCard([
+                        _profileField('Full name', _nameCtrl, Icons.person_outline_rounded,
+                            hint: 'Your full name'),
+                        _profileField('Username', _usernameCtrl, Icons.alternate_email_rounded,
+                            hint: 'e.g. novyn_user', onChanged: _checkUsername,
+                            suffix: _checkingUsername
+                                ? const SizedBox(width: 18, height: 18,
+                                    child: CircularProgressIndicator(strokeWidth: 2))
+                                : _usernameAvailable == null ? null : Icon(
+                                    _usernameAvailable! ? Icons.check_circle_rounded : Icons.cancel_rounded,
+                                    color: _usernameAvailable! ? const Color(0xFF10B981) : const Color(0xFFEF4444),
+                                    size: 20,
+                                  )),
+                        _profileField('Bio', _bioCtrl, Icons.notes_rounded,
+                            hint: 'A short bio...', maxLines: 3),
+                      ]),
+                      const SizedBox(height: 28),
+                      _profileSectionLabel('Personal'),
+                      _profileFieldsCard([
+                        _profilePicker(
+                          title: 'Age / DOB',
+                          value: _ageCtrl.text.isEmpty ? 'Select DOB' : _ageCtrl.text,
+                          icon: Icons.calendar_month_rounded,
+                          onTap: _selectDate,
+                        ),
+                        _profilePicker(
+                          title: 'Gender',
+                          value: _selectedGender.isEmpty ? 'Select' : _selectedGender,
+                          icon: Icons.person_outline_rounded,
+                          onTap: () => _showGenderPicker(context),
+                        ),
+                      ]),
+                    ],
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
-      ),
-      body: ColoredBox(
-        color: NovynTheme.pageBg(context),
-        child: Stack(
-        children: [
-          // Aurora Background
-          if (isDark)
-            Positioned.fill(
-              child: Opacity(
-                opacity: 0.5,
-                child: CustomPaint(
-                  painter: _AuroraBackgroundPainter(accentColor: Theme.of(context).colorScheme.primary),
+            SafeArea(
+              top: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 10, 20, 14),
+                child: SizedBox(
+                  width: double.infinity,
+                  height: 58,
+                  child: FilledButton(
+                    onPressed: _saving ? null : _save,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: theme.colorScheme.primary,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      elevation: 5,
+                    ),
+                    child: _saving
+                        ? const SizedBox(width: 22, height: 22,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                        : const Text('Save changes',
+                            style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
+                  ),
                 ),
               ),
             ),
-          
-          SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            physics: const BouncingScrollPhysics(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildProfileHero(String displayName, String username) {
+    final theme = Theme.of(context);
+    return Container(
+      height: 270,
+      decoration: BoxDecoration(
+        color: NovynTheme.cardBg(context),
+        borderRadius: BorderRadius.circular(30),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Stack(
+        alignment: Alignment.topCenter,
+        children: [
+          Container(
+            height: 116,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  theme.colorScheme.primary.withValues(alpha: .30),
+                  theme.colorScheme.primary.withValues(alpha: .08),
+                ],
+              ),
+            ),
+          ),
+          Positioned(
+            top: 42,
+            child: GestureDetector(
+              onTap: _showProfilePictureOptions,
+              child: _EditProfileAvatar(
+                photoUrl: context.watch<AuthService>().user?.avatarId,
+                displayName: displayName,
+              ),
+            ),
+          ),
+          Positioned(
+            top: 188,
+            left: 18,
+            right: 18,
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Profile Picture Section (Aurora Style)
-                Center(
-                  child: GestureDetector(
-                    onTap: _showProfilePictureOptions,
-                    child: _EditProfileAvatar(
-                      photoUrl: profile?.avatarId,
-                      displayName: displayName,
-                    ),
-                  ),
-                ),
-                SizedBox(height: 16),
-                Center(
-                  child: Text(
-                    'Tap to change photo',
-                    style: TextStyle(
-                      fontFamily: 'PlusJakartaSans',
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
-                  ),
-                ),
-                SizedBox(height: 40),
-    
-                // Form Fields
-                _label('Full Name'),
-                _field(
-                  controller: _nameCtrl,
-                  hint: 'Your full name',
-                  icon: Icons.person_outline_rounded,
-                ),
-                SizedBox(height: 24),
-    
-                _label('Username'),
-                _field(
-                  controller: _usernameCtrl,
-                  hint: 'e.g. novyn_user',
-                  icon: Icons.alternate_email_rounded,
-                  onChanged: _checkUsername,
-                  suffix: _checkingUsername
-                      ? SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: Theme.of(context).colorScheme.primary),
-                        )
-                      : _usernameAvailable == null
-                          ? null
-                          : Icon(
-                              _usernameAvailable! ? Icons.check_circle_rounded : Icons.cancel_rounded,
-                              color: _usernameAvailable! ? const Color(0xFF10B981) : const Color(0xFFEF4444),
-                              size: 20,
-                            ),
-                ),
-                SizedBox(height: 24),
-    
-                _label('Bio'),
-                _field(
-                  controller: _bioCtrl,
-                  hint: 'A short bio...',
-                  icon: Icons.edit_note_rounded,
-                  maxLines: 3,
-                ),
-                SizedBox(height: 24),
-    
-                Row(
-                  children: [
-                    Expanded(
-                      flex: 2,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _label('Age / DOB'),
-                          GestureDetector(
-                            onTap: _selectDate,
-                            child: AbsorbPointer(
-                              child: _field(
-                                controller: _ageCtrl,
-                                hint: 'Select DOB',
-                                icon: Icons.cake_outlined,
-                                keyboardType: TextInputType.none,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    SizedBox(width: 16),
-                    Expanded(
-                      flex: 2,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _label('Gender'),
-                          GestureDetector(
-                            onTap: () => _showGenderPicker(context),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(24),
-                                color: NovynTheme.inputBg(context),
-                                border: Border.all(
-                                  color: NovynTheme.divider(context),
-                                  width: 1,
-                                ),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withValues(alpha: 0.05),
-                                    blurRadius: 10,
-                                    offset: const Offset(0, 4),
-                                  ),
-                                ],
-                              ),
-                              child: Row(
-                                children: [
-                                  Icon(
-                                    Icons.wc_rounded,
-                                    color: _selectedGender.isEmpty ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.3) : Theme.of(context).colorScheme.primary,
-                                    size: 20,
-                                  ),
-                                  SizedBox(width: 12),
-                                  Expanded(
-                                    child: Text(
-                                      _selectedGender.isEmpty ? 'Select' : _selectedGender,
-                                      style: TextStyle(
-                                        fontFamily: 'PlusJakartaSans',
-                                        fontWeight: FontWeight.w700,
-                                        fontSize: 16,
-                                        color: _selectedGender.isEmpty 
-                                            ? Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3) 
-                                            : Theme.of(context).colorScheme.onSurface,
-                                      ),
-                                    ),
-                                  ),
-                                  Icon(
-                                    Icons.expand_more_rounded, 
-                                    color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3), 
-                                    size: 20
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                SizedBox(height: 60),
+                Text(displayName,
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.w900,
+                  )),
+                const SizedBox(height: 3),
+                Text('@${username.replaceFirst(RegExp(r'^@'), '')}',
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    color: theme.colorScheme.primary,
+                    fontWeight: FontWeight.w700,
+                  )),
+                const SizedBox(height: 3),
+                Text('Tap photo to change',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  )),
               ],
             ),
           ),
         ],
       ),
-      ),
     );
   }
+
+  Widget _profileSectionLabel(String label) => Padding(
+    padding: const EdgeInsets.only(left: 4, bottom: 12),
+    child: Text(label.toUpperCase(),
+      style: TextStyle(
+        color: Theme.of(context).colorScheme.primary,
+        fontSize: 13,
+        fontWeight: FontWeight.w900,
+        letterSpacing: 1.5,
+      )),
+  );
+
+  Widget _profileFieldsCard(List<Widget> children) => Container(
+    decoration: BoxDecoration(
+      color: NovynTheme.cardBg(context),
+      borderRadius: BorderRadius.circular(26),
+      border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+    ),
+    padding: const EdgeInsets.all(16),
+    child: Column(children: [
+      for (var i = 0; i < children.length; i++) ...[
+        if (i > 0) const SizedBox(height: 16),
+        children[i],
+      ],
+    ]),
+  );
+
+  Widget _profileField(
+    String title,
+    TextEditingController controller,
+    IconData icon, {
+    required String hint,
+    int maxLines = 1,
+    ValueChanged<String>? onChanged,
+    Widget? suffix,
+  }) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      _label(title),
+      _field(
+        controller: controller,
+        hint: hint,
+        icon: icon,
+        maxLines: maxLines,
+        onChanged: onChanged,
+        suffix: suffix,
+      ),
+    ],
+  );
+
+  Widget _profilePicker({
+    required String title,
+    required String value,
+    required IconData icon,
+    required VoidCallback onTap,
+  }) => InkWell(
+    borderRadius: BorderRadius.circular(18),
+    onTap: onTap,
+    child: Padding(
+      padding: const EdgeInsets.symmetric(vertical: 7),
+      child: Row(
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.primary.withValues(alpha: .10),
+              borderRadius: BorderRadius.circular(15),
+            ),
+            child: Icon(icon, color: Theme.of(context).colorScheme.primary),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(title, style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                fontWeight: FontWeight.w700,
+              )),
+              const SizedBox(height: 3),
+              Text(value, style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w700,
+              )),
+            ]),
+          ),
+          Icon(Icons.chevron_right_rounded,
+            color: Theme.of(context).colorScheme.onSurfaceVariant),
+        ],
+      ),
+    ),
+  );
 
   Widget _label(String text) => Padding(
         padding: const EdgeInsets.only(left: 4, bottom: 10),
