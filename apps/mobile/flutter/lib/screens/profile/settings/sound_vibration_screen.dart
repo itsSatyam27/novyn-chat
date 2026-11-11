@@ -150,8 +150,8 @@ class _SoundVibrationScreenState extends State<SoundVibrationScreen> {
           ),
           _ToggleCard(
             icon: Icons.volume_up_rounded,
-            iconColor: const Color(0xFF6D5DFC),
-            iconBgColor: const Color(0xFF6D5DFC).withValues(alpha: 0.1),
+            iconColor: Theme.of(context).colorScheme.primary,
+            iconBgColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
             title: 'In-App Sounds',
             subtitle: 'Auditory feedback for internal nodes',
             value: settings.inAppSounds,
@@ -312,11 +312,11 @@ class _SelectionCard extends StatelessWidget {
                     children: [
                       Text(
                         currentLabel,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontFamily: 'PlusJakartaSans',
                           fontSize: 14,
                           fontWeight: FontWeight.w800,
-                          color: Color(0xFF6D5DFC),
+                          color: Theme.of(context).colorScheme.primary,
                         ),
                       ),
                       Icon(
@@ -349,7 +349,7 @@ class _SelectionCard extends StatelessWidget {
           ),
           title: Text(
             title,
-            style: const TextStyle(fontFamily: 'PlusJakartaSans', fontWeight: FontWeight.w900),
+            style: TextStyle(fontFamily: 'PlusJakartaSans', fontWeight: FontWeight.w900),
           ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
@@ -365,11 +365,11 @@ class _SelectionCard extends StatelessWidget {
                   style: TextStyle(
                     fontFamily: 'PlusJakartaSans',
                     fontWeight: isSelected ? FontWeight.w800 : FontWeight.w500,
-                    color: isSelected ? const Color(0xFF6D5DFC) : Theme.of(context).colorScheme.onSurface,
+                    color: isSelected ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.onSurface,
                   ),
                 ),
                 trailing: isSelected 
-                    ? const Icon(Icons.check_circle_rounded, color: Color(0xFF6D5DFC)) 
+                    ? Icon(Icons.check_circle_rounded, color: Theme.of(context).colorScheme.primary) 
                     : null,
                 onTap: () {
                   HapticService.vibrate(NovynHapticType.medium);
@@ -420,11 +420,11 @@ class _IntensitySliderCard extends StatelessWidget {
                       width: 52,
                       height: 52,
                       decoration: BoxDecoration(
-                        color: const Color(0xFF6D5DFC).withValues(alpha: 0.1),
+                        color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(18),
-                        border: Border.all(color: const Color(0xFF6D5DFC).withValues(alpha: 0.1)),
+                        border: Border.all(color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1)),
                       ),
-                      child: const Icon(Icons.fingerprint_rounded, color: Color(0xFF6D5DFC), size: 24),
+                      child: Icon(Icons.fingerprint_rounded, color: Theme.of(context).colorScheme.primary, size: 24),
                     ),
                     const SizedBox(width: 16),
                     Expanded(
@@ -455,10 +455,10 @@ class _IntensitySliderCard extends StatelessWidget {
                     ),
                     Text(
                       '${(value * 100).toInt()}%',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontFamily: 'PlusJakartaSans',
                         fontWeight: FontWeight.w900,
-                        color: Color(0xFF6D5DFC),
+                        color: Theme.of(context).colorScheme.primary,
                         fontSize: 15,
                       ),
                     ),
@@ -467,10 +467,10 @@ class _IntensitySliderCard extends StatelessWidget {
                 const SizedBox(height: 12),
                 SliderTheme(
                   data: SliderTheme.of(context).copyWith(
-                    activeTrackColor: const Color(0xFF6D5DFC),
+                    activeTrackColor: Theme.of(context).colorScheme.primary,
                     inactiveTrackColor: Colors.white12,
                     thumbColor: Colors.white,
-                    overlayColor: const Color(0xFF6D5DFC).withValues(alpha: 0.2),
+                    overlayColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.2),
                     trackHeight: 4,
                   ),
                   child: Slider(
@@ -576,8 +576,8 @@ class _ToggleCard extends StatelessWidget {
                       HapticService.vibrate(NovynHapticType.medium);
                       onChanged?.call(v);
                     },
-                    activeTrackColor: const Color(0xFF6D5DFC).withValues(alpha: 0.5),
-                    activeColor: const Color(0xFF6D5DFC),
+                    activeTrackColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.5),
+                    activeColor: Theme.of(context).colorScheme.primary,
                   ),
                 ],
               ),
@@ -605,12 +605,12 @@ class _DiagnosticButton extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(20),
-        gradient: const LinearGradient(
-          colors: [Color(0xFF6D5DFC), Color(0xFF40E0D0)],
+        gradient: LinearGradient(
+          colors: [Theme.of(context).colorScheme.primary, Color(0xFF40E0D0)],
         ),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF6D5DFC).withValues(alpha: 0.3),
+            color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
             blurRadius: 15,
             offset: const Offset(0, 5),
           ),
@@ -630,7 +630,7 @@ class _DiagnosticButton extends StatelessWidget {
                 const SizedBox(width: 12),
                 Text(
                   label,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontFamily: 'PlusJakartaSans',
                     fontWeight: FontWeight.w800,
                     fontSize: 16,

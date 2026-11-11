@@ -42,8 +42,8 @@ class AccessibilityScreen extends StatelessWidget {
           ),
           _ToggleCard(
             icon: Icons.contrast_rounded,
-            iconColor: const Color(0xFF6D5DFC),
-            iconBgColor: const Color(0xFF6D5DFC).withValues(alpha: 0.1),
+            iconColor: Theme.of(context).colorScheme.primary,
+            iconBgColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
             title: 'High Contrast Mode',
             subtitle: 'Use stronger text and control borders throughout Novyn',
             value: settings.highContrast,
@@ -136,10 +136,10 @@ class _FontSizeCard extends StatelessWidget {
                       width: 52,
                       height: 52,
                       decoration: BoxDecoration(
-                        color: const Color(0xFF6D5DFC).withValues(alpha: 0.1),
+                        color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(18),
                       ),
-                      child: const Icon(Icons.text_fields_rounded, color: Color(0xFF6D5DFC), size: 24),
+                      child: Icon(Icons.text_fields_rounded, color: Theme.of(context).colorScheme.primary, size: 24),
                     ),
                     const SizedBox(width: 16),
                     Expanded(
@@ -170,10 +170,10 @@ class _FontSizeCard extends StatelessWidget {
                     ),
                     Text(
                       '${(value * 100).toInt()}%',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontFamily: 'PlusJakartaSans',
                         fontWeight: FontWeight.w900,
-                        color: Color(0xFF6D5DFC),
+                        color: Theme.of(context).colorScheme.primary,
                         fontSize: 15,
                       ),
                     ),
@@ -203,7 +203,7 @@ class _FontSizeCard extends StatelessWidget {
                 const SizedBox(height: 12),
                 SliderTheme(
                   data: SliderTheme.of(context).copyWith(
-                    activeTrackColor: const Color(0xFF6D5DFC),
+                    activeTrackColor: Theme.of(context).colorScheme.primary,
                     inactiveTrackColor: isDark ? Colors.white12 : Colors.black12,
                     thumbColor: Colors.white,
                     trackHeight: 4,
@@ -312,8 +312,8 @@ class _ToggleCard extends StatelessWidget {
                       HapticFeedback.mediumImpact();
                       onChanged?.call(v);
                     },
-                    activeTrackColor: const Color(0xFF6D5DFC).withValues(alpha: 0.5),
-                    activeColor: const Color(0xFF6D5DFC),
+                    activeTrackColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.5),
+                    activeColor: Theme.of(context).colorScheme.primary,
                   ),
                 ],
               ),

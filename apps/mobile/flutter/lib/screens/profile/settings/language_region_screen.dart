@@ -87,8 +87,8 @@ class LanguageRegionScreen extends StatelessWidget {
           ),
           _ActionCard(
             icon: Icons.numbers_rounded,
-            iconColor: const Color(0xFF6D5DFC),
-            iconBgColor: const Color(0xFF6D5DFC).withValues(alpha: 0.1),
+            iconColor: Theme.of(context).colorScheme.primary,
+            iconBgColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
             title: 'Number Format',
             subtitle: 'Device locale',
             onTap: () => _showNumberFormatDialog(context),
@@ -129,11 +129,11 @@ class LanguageRegionScreen extends StatelessWidget {
                     style: TextStyle(
                       fontFamily: 'PlusJakartaSans', 
                       fontWeight: isSelected ? FontWeight.w900 : FontWeight.w600,
-                      color: isSelected ? const Color(0xFF6D5DFC) : null,
+                      color: isSelected ? Theme.of(context).colorScheme.primary : null,
                     )
                   ),
                   trailing: isSelected 
-                      ? const Icon(Icons.check_circle_rounded, color: Color(0xFF6D5DFC)) 
+                      ? Icon(Icons.check_circle_rounded, color: Theme.of(context).colorScheme.primary) 
                       : null,
                   onTap: () {
                     HapticFeedback.mediumImpact();
@@ -398,11 +398,11 @@ class _SelectionCard extends StatelessWidget {
                     children: [
                       Text(
                         currentLabel,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontFamily: 'PlusJakartaSans',
                           fontSize: 14,
                           fontWeight: FontWeight.w800,
-                          color: Color(0xFF6D5DFC),
+                          color: Theme.of(context).colorScheme.primary,
                         ),
                       ),
                       Icon(
@@ -435,7 +435,7 @@ class _SelectionCard extends StatelessWidget {
           ),
           title: Text(
             title,
-            style: const TextStyle(fontFamily: 'PlusJakartaSans', fontWeight: FontWeight.w900),
+            style: TextStyle(fontFamily: 'PlusJakartaSans', fontWeight: FontWeight.w900),
           ),
           content: SizedBox(
             width: double.maxFinite,
@@ -453,11 +453,11 @@ class _SelectionCard extends StatelessWidget {
                     style: TextStyle(
                       fontFamily: 'PlusJakartaSans',
                       fontWeight: isSelected ? FontWeight.w800 : FontWeight.w500,
-                      color: isSelected ? const Color(0xFF6D5DFC) : Theme.of(context).colorScheme.onSurface,
+                      color: isSelected ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.onSurface,
                     ),
                   ),
                   trailing: isSelected 
-                      ? const Icon(Icons.check_circle_rounded, color: Color(0xFF6D5DFC)) 
+                      ? Icon(Icons.check_circle_rounded, color: Theme.of(context).colorScheme.primary) 
                       : null,
                   onTap: () {
                     HapticFeedback.mediumImpact();
