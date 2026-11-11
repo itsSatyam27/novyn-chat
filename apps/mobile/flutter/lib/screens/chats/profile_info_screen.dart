@@ -187,6 +187,7 @@ class ProfileInfoScreen extends StatelessWidget {
                     _NavigationRow(icon: Icons.wallpaper_rounded, title: 'Chat wallpaper', subtitle: 'Personalise this conversation', onTap: onWallpaper!),
                 ],
               ),
+            ),
           ],
           const SizedBox(height: 18),
           _SectionTitle(title: 'NOTIFICATIONS & SAFETY'),
@@ -219,7 +220,6 @@ class ProfileInfoScreen extends StatelessWidget {
               ],
             ),
           ),
-        ],
         ],
       ),
     );
