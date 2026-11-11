@@ -28,6 +28,9 @@ class NovynUser {
   final String avatarId;
   final String bio;
   final String presenceMode;
+  final bool emailVerified;
+  final bool hasPassword;
+  final bool isGoogleUser;
 
   const NovynUser({
     required this.username,
@@ -36,6 +39,9 @@ class NovynUser {
     this.avatarId = '',
     this.bio = '',
     this.presenceMode = 'online',
+    this.emailVerified = false,
+    this.hasPassword = true,
+    this.isGoogleUser = false,
   });
 
   NovynUser copyWith({
@@ -45,6 +51,9 @@ class NovynUser {
     String? avatarId,
     String? bio,
     String? presenceMode,
+    bool? emailVerified,
+    bool? hasPassword,
+    bool? isGoogleUser,
   }) {
     return NovynUser(
       username: username ?? this.username,
@@ -53,6 +62,9 @@ class NovynUser {
       avatarId: avatarId ?? this.avatarId,
       bio: bio ?? this.bio,
       presenceMode: presenceMode ?? this.presenceMode,
+      emailVerified: emailVerified ?? this.emailVerified,
+      hasPassword: hasPassword ?? this.hasPassword,
+      isGoogleUser: isGoogleUser ?? this.isGoogleUser,
     );
   }
 
@@ -64,6 +76,9 @@ class NovynUser {
         avatarId: m['avatarId']?.toString() ?? '',
         bio: m['bio']?.toString() ?? '',
         presenceMode: m['presenceMode']?.toString() ?? 'online',
+        emailVerified: m['emailVerified'] == true,
+        hasPassword: m['hasPassword'] != false,
+        isGoogleUser: m['isGoogleUser'] == true,
       );
 }
 
