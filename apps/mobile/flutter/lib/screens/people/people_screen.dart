@@ -104,7 +104,7 @@ class _PeopleScreenState extends State<PeopleScreen> {
                     itemBuilder: (context, i) => _FriendCard(
                       user: filtered[i], myUid: myUid, friendService: friends),
                   );
-                }},
+                },
               ),
             ),
           ],
