@@ -292,6 +292,7 @@ class HybridDbService {
     if (owner == null || owner != normalized) {
       await _fastDb!.clearAll();
       await LocalDbService.clearAll();
+      ChatsScreen.resetAccountCache();
     }
     await LocalDbService.setAccountScope(normalized);
   }
