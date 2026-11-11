@@ -76,10 +76,41 @@ class SecurityPrivacyScreen extends StatelessWidget {
             if (settings.appLockEnabled) nav(Icons.password_rounded, const Color(0xFF64748B), 'Change PIN', 'Update your 4-digit app lock PIN', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SetupPinScreen()))),
           ]),
           section('Stealth Mode', [
-            _SecurityPrivacyToggleTile(icon: Icons.visibility_off_outlined, accent: const Color(0xFFC2540F), title: 'Stealth Mode', subtitle: 'Blur recents, block screenshots and hide alerts', value: settings.stealthModeEnabled, onChanged: (v) => _setStealthMode(context, settings, v)),
-            if (settings.stealthModeEnabled) _SecurityPrivacyToggleTile(icon: Icons.app_registration_rounded, accent: const Color(0xFF8B5CF6), title: 'Stealth Icon', subtitle: 'Disguise Novyn as a calculator', value: settings.stealthIconEnabled, onChanged: (v) { settings.setStealthIconEnabled(v); SecurityService.setStealthIcon(v); }),
-            if (settings.stealthModeEnabled) _SecurityPrivacyToggleTile(icon: Icons.notifications_paused_rounded, accent: const Color(0xFF0F8B8D), title: 'Incognito Alerts', subtitle: 'Hide sender and message in notifications', value: settings.hideNotificationContent, onChanged: (v) => settings.setHideNotificationContent(v)),
-            if (settings.stealthModeEnabled) nav(Icons.emergency_rounded, const Color(0xFFB7791F), 'Panic PIN', 'Not active yet — requires a separate decoy workspace', () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Panic PIN is not active yet. Your normal app remains protected by App Lock.')))),
+            _SecurityPrivacyToggleTile(
+              icon: Icons.visibility_off_outlined,
+              accent: const Color(0xFFC2540F),
+              title: 'Stealth Mode',
+              subtitle: 'Hide app previews in Recents, block screenshots and mask notification content',
+              value: settings.stealthModeEnabled,
+              onChanged: (v) => _setStealthMode(context, settings, v),
+            ),
+            if (settings.stealthModeEnabled)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                child: Container(
+                  padding: const EdgeInsets.all(13),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1F9D61).withValues(alpha: .09),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Icon(Icons.shield_rounded, color: Color(0xFF1F9D61), size: 18),
+                      const SizedBox(width: 9),
+                      Expanded(
+                        child: Text(
+                          'Protection is active on this device. Notification previews are hidden and screenshots or screen recordings are blocked while Novyn is open.',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: muted,
+                            height: 1.4,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
           ]),
           section('Privacy', [
             nav(Icons.block_rounded, const Color(0xFFC23B3B), 'Blocked Users', 'Manage people you have blocked', () => _showBlockedUsers(context, socket)),
@@ -104,12 +135,36 @@ class SecurityPrivacyScreen extends StatelessWidget {
     final auth = context.read<AuthService>();
     final savedLastSeen = settings.configuredLastSeenVisibility;
     final savedProfilePhoto = settings.configuredProfilePhotoVisibility;
-    await settings.setStealthMode(enabled);
-    await SecurityService.setSafeMode(enabled);
-    await auth.updatePrivacySettings(
-      lastSeenVisibility: enabled ? 'nobody' : savedLastSeen,
-      profilePhotoVisibility: enabled ? 'nobody' : savedProfilePhoto,
-    );
+
+    try {
+      // Persist the preference and apply the Android FLAG_SECURE protection.
+      await settings.setStealthMode(enabled);
+      await SecurityService.setSafeMode(enabled);
+
+      // Keep the server-side privacy profile in sync with the local override.
+      await auth.updatePrivacySettings(
+        lastSeenVisibility: enabled ? 'nobody' : savedLastSeen,
+        profilePhotoVisibility: enabled ? 'nobody' : savedProfilePhoto,
+      );
+
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(enabled
+              ? 'Stealth Mode enabled. Screen capture and previews are blocked.'
+              : 'Stealth Mode disabled. Your previous privacy settings are restored.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (error) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Could not fully apply Stealth Mode: $error'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 
   void _showChangePassword(BuildContext context) {

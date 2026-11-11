@@ -6,13 +6,8 @@ class SecurityService {
 
   /// Toggle FLAG_SECURE on Android (Screenshot protection & App Switcher blur)
   static Future<void> setSafeMode(bool enable) async {
-    try {
-      if (defaultTargetPlatform == TargetPlatform.android) {
-        await _channel.invokeMethod('setSafeMode', {'enable': enable});
-      }
-    } on PlatformException catch (e) {
-      debugPrint('Failed to set safe mode: ${e.message}');
-    }
+    if (defaultTargetPlatform != TargetPlatform.android) return;
+    await _channel.invokeMethod<void>('setSafeMode', {'enable': enable});
   }
 
   /// Toggle app icon between Novyn and "Calculator" alias

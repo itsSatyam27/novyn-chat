@@ -68,6 +68,7 @@ class SettingsService extends ChangeNotifier {
   static const _securePanicPin = 'panic_pin';
   static const FlutterSecureStorage _secureStorage = FlutterSecureStorage();
   static const _kStealthMode = 'stealth_mode_enabled';
+  static const _kStealthPreviousNotificationPrivacy = 'stealth_previous_notification_privacy';
   static const _kPanicPin = 'panic_pin';
   static const _kHideNotificationContent = 'hide_notification_content';
   static const _kStealthIcon = 'stealth_icon_enabled';
@@ -237,6 +238,12 @@ class SettingsService extends ChangeNotifier {
     }
     if (legacyPanicPin != null) await _prefs.remove(_kPanicPin);
     _hideNotificationContent = _prefs.getBool(_kHideNotificationContent) ?? false;
+    // Keep older installations safe when Stealth Mode was already enabled.
+    if (_stealthModeEnabled && !_hideNotificationContent) {
+      await _prefs.setBool(_kStealthPreviousNotificationPrivacy, false);
+      _hideNotificationContent = true;
+      await _prefs.setBool(_kHideNotificationContent, true);
+    }
     _stealthIconEnabled = _prefs.getBool(_kStealthIcon) ?? false;
     _highContrast = _prefs.getBool(_kHighContrast) ?? false;
     _reduceMotion = _prefs.getBool(_kReduceMotion) ?? false;
@@ -563,6 +570,24 @@ class SettingsService extends ChangeNotifier {
   }
 
   Future<void> setStealthMode(bool v) async {
+    if (v == _stealthModeEnabled) return;
+
+    if (v) {
+      // Remember the user's previous notification privacy choice, then mask
+      // previews while stealth protection is active.
+      await _prefs.setBool(
+        _kStealthPreviousNotificationPrivacy,
+        _hideNotificationContent,
+      );
+      _hideNotificationContent = true;
+      await _prefs.setBool(_kHideNotificationContent, true);
+    } else {
+      final previous = _prefs.getBool(_kStealthPreviousNotificationPrivacy) ?? false;
+      _hideNotificationContent = previous;
+      await _prefs.setBool(_kHideNotificationContent, previous);
+      await _prefs.remove(_kStealthPreviousNotificationPrivacy);
+    }
+
     _stealthModeEnabled = v;
     await _prefs.setBool(_kStealthMode, v);
     notifyListeners();

@@ -14,6 +14,7 @@ import 'services/hybrid_db_service.dart';
 import 'services/sync_service.dart';
 import 'services/draft_service.dart';
 import 'services/haptic_service.dart';
+import 'services/security_service.dart';
 import 'models/chat_models.dart';
 import 'models/user_model.dart';
 import 'widgets/user_avatar.dart' show UserAvatar;
@@ -34,6 +35,8 @@ void main() async {
 
   final settings = SettingsService();
   await settings.load();
+  // Re-apply native screen-capture protection after every cold start.
+  await SecurityService.setSafeMode(settings.stealthModeEnabled);
 
   // Initialize haptics with user settings
   HapticService.init(settings);
