@@ -91,7 +91,7 @@ class ApiService {
     // Only persist Novyn cookies. A combined Set-Cookie header also contains
     // Domain/Expires/Max-Age attributes, which must never become request cookies.
     final matches = RegExp(
-      r'(?:^|,\\s*)(novyn_at|novyn_rt|novyn_csrf)=([^;,\\s]*)',
+      r'(?:^|,\s*)(novyn_at|novyn_rt|novyn_csrf)=([^;,\s]*)',
       caseSensitive: false,
     ).allMatches(raw);
     if (matches.isEmpty) return;
