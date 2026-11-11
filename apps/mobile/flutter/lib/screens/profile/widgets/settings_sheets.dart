@@ -78,7 +78,7 @@ class SecuritySheet extends StatelessWidget {
           _SheetTile(
             icon: Icons.fingerprint_rounded,
             label: 'Two-Factor Authentication',
-            iconColor: const Color(0xFF6D5DFC),
+            iconColor: Theme.of(context).colorScheme.primary,
             iconBg: const Color(0xFFECEAFD),
             onTap: () {},
           ),
@@ -163,9 +163,9 @@ class _ThemeOption extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListTile(
-      leading: Icon(icon, color: selected ? const Color(0xFF6D5DFC) : const Color(0xFF94A3B8)),
-      title: Text(label, style: TextStyle(fontWeight: selected ? FontWeight.bold : FontWeight.normal, color: selected ? const Color(0xFF6D5DFC) : const Color(0xFF1A1D2E))),
-      trailing: selected ? const Icon(Icons.check_circle_rounded, color: Color(0xFF6D5DFC)) : null,
+      leading: Icon(icon, color: selected ? Theme.of(context).colorScheme.primary : const Color(0xFF94A3B8)),
+      title: Text(label, style: TextStyle(fontWeight: selected ? FontWeight.bold : FontWeight.normal, color: selected ? Theme.of(context).colorScheme.primary : const Color(0xFF1A1D2E))),
+      trailing: selected ? Icon(Icons.check_circle_rounded, color: Theme.of(context).colorScheme.primary) : null,
       onTap: onTap,
     );
   }
@@ -184,7 +184,7 @@ class _SheetTile extends StatelessWidget {
     return ListTile(
       leading: Container(width: 36, height: 36, decoration: BoxDecoration(color: iconBg, borderRadius: BorderRadius.circular(10)), child: Icon(icon, color: iconColor, size: 18)),
       title: Text(label, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15, color: Color(0xFF1A1D2E))),
-      trailing: const Icon(Icons.chevron_right_rounded, color: Color(0xFFCBD5E1)),
+      trailing: Icon(Icons.chevron_right_rounded, color: Color(0xFFCBD5E1)),
       onTap: onTap,
     );
   }
@@ -204,7 +204,7 @@ class _DeviceTile extends StatelessWidget {
       decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: const Color(0xFFE2E5F0))),
       child: Row(
         children: [
-          Container(width: 38, height: 38, decoration: BoxDecoration(color: const Color(0xFFF0F2FA), borderRadius: BorderRadius.circular(11)), child: const Icon(Icons.phone_android_rounded, color: Color(0xFF6D5DFC), size: 20)),
+          Container(width: 38, height: 38, decoration: BoxDecoration(color: const Color(0xFFF0F2FA), borderRadius: BorderRadius.circular(11)), child: Icon(Icons.phone_android_rounded, color: Theme.of(context).colorScheme.primary, size: 20)),
           const SizedBox(width: 12),
           Expanded(
             child: Column(

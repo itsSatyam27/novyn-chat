@@ -128,7 +128,7 @@ class _UserAvatarState extends State<UserAvatar> {
     final initial = widget.name.isNotEmpty
         ? widget.name.substring(0, 1).toUpperCase()
         : '?';
-    final color = widget.fallbackColor ?? const Color(0xFF6D5DFC);
+    final color = widget.fallbackColor ?? Theme.of(context).colorScheme.primary;
     final hasPhoto = _cachedImage != null && _cachedImage!.isNotEmpty;
 
     Widget avatar = Container(

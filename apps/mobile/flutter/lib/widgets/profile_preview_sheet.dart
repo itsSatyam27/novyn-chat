@@ -39,7 +39,7 @@ class _ProfilePreviewSheetState extends State<ProfilePreviewSheet> {
     );
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final accent = isDark ? const Color(0xFFA79DFF) : const Color(0xFF6D5DFC);
+    final accent = Theme.of(context).colorScheme.primary;
     final statusColor = user.isOnline
         ? const Color(0xFF10B981)
         : const Color(0xFF94A3B8);
@@ -426,14 +426,14 @@ class _InfoTile extends StatelessWidget {
                 width: 38,
                 height: 38,
                 decoration: BoxDecoration(
-                  color: const Color(0xFF6D5DFC).withValues(alpha: 0.15),
+                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(icon,
                     size: 19,
                     color: isDark
-                        ? const Color(0xFFA79DFF)
-                        : const Color(0xFF6D5DFC)),
+                        ? Theme.of(context).colorScheme.primary
+                        : Theme.of(context).colorScheme.primary),
               ),
               const SizedBox(width: 14),
               Expanded(

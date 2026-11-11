@@ -144,7 +144,7 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
               icon: Icons.alternate_email_rounded,
               onChanged: _checkUsername,
               suffix: _checkingUsername
-                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF6D5DFC)))
+                  ? SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Theme.of(context).colorScheme.primary))
                   : _usernameAvailable == null ? null : Icon(
                       _usernameAvailable! ? Icons.check_circle_rounded : Icons.cancel_rounded,
                       color: _usernameAvailable! ? const Color(0xFF10B981) : const Color(0xFFEF4444),
@@ -187,10 +187,10 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
                           ),
                           child: Row(
                             children: [
-                              Icon(Icons.wc_rounded, color: _selectedGender.isEmpty ? const Color(0xFFCBD5E1) : const Color(0xFF6D5DFC), size: 18),
+                              Icon(Icons.wc_rounded, color: _selectedGender.isEmpty ? const Color(0xFFCBD5E1) : Theme.of(context).colorScheme.primary, size: 18),
                               const SizedBox(width: 8),
                               Expanded(child: Text(_selectedGender.isEmpty ? 'Select' : _selectedGender, style: TextStyle(color: _selectedGender.isEmpty ? const Color(0xFFCBD5E1) : const Color(0xFF1A1D2E)))),
-                              const Icon(Icons.expand_more_rounded, color: Color(0xFFCBD5E1), size: 18),
+                              Icon(Icons.expand_more_rounded, color: Color(0xFFCBD5E1), size: 18),
                             ],
                           ),
                         ),
@@ -207,7 +207,7 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
               child: ElevatedButton(
                 onPressed: _saving ? null : _save,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF6D5DFC),
+                  backgroundColor: Theme.of(context).colorScheme.primary,
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                 ),
@@ -235,7 +235,7 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
       onChanged: onChanged,
       decoration: InputDecoration(
         hintText: hint,
-        prefixIcon: Icon(icon, size: 20, color: const Color(0xFF6D5DFC)),
+        prefixIcon: Icon(icon, size: 20, color: Theme.of(context).colorScheme.primary),
         suffixIcon: suffix != null ? Padding(padding: const EdgeInsets.all(12), child: suffix) : null,
         filled: true,
         fillColor: const Color(0xFFF0F2FA),
@@ -262,7 +262,7 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
           ..._genders.map((g) => ListTile(
             title: Text(g),
             onTap: () { setState(() => _selectedGender = g); Navigator.pop(context); },
-            trailing: _selectedGender == g ? const Icon(Icons.check_circle, color: Color(0xFF6D5DFC)) : null,
+            trailing: _selectedGender == g ? Icon(Icons.check_circle, color: Theme.of(context).colorScheme.primary) : null,
           )),
           const SizedBox(height: 20),
         ],
