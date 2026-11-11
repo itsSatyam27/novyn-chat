@@ -881,6 +881,19 @@ class _EditProfileAvatar extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final primaryColor = Theme.of(context).colorScheme.primary;
     
+    ImageProvider? avatarProvider;
+    final rawPhoto = photoUrl?.trim() ?? '';
+    if (rawPhoto.startsWith('http://') || rawPhoto.startsWith('https://')) {
+      avatarProvider = NetworkImage(rawPhoto);
+    } else if (rawPhoto.isNotEmpty) {
+      try {
+        final encoded = rawPhoto.startsWith('data:')
+            ? rawPhoto.substring(rawPhoto.indexOf(',') + 1)
+            : rawPhoto;
+        avatarProvider = MemoryImage(base64Decode(encoded));
+      } catch (_) { avatarProvider = null; }
+    }
+
     return Stack(
       alignment: Alignment.center,
       children: [
@@ -914,26 +927,24 @@ class _EditProfileAvatar extends StatelessWidget {
               color: Colors.white.withValues(alpha: 0.2),
               width: 2,
             ),
-            image: photoUrl != null && photoUrl!.isNotEmpty
-                ? DecorationImage(
-                    image: MemoryImage(base64Decode(photoUrl!)),
-                    fit: BoxFit.cover,
-                  )
-                : null,
+            color: Theme.of(context).colorScheme.primary.withValues(alpha: .08),
           ),
-          child: photoUrl == null || photoUrl!.isEmpty
-              ? Center(
-                  child: Text(
+          child: ClipOval(
+            child: avatarProvider == null
+                ? Center(child: Text(
                     displayName.isNotEmpty ? displayName.substring(0, 1).toUpperCase() : '?',
-                    style: TextStyle(
-                      fontFamily: 'PlusJakartaSans',
-                      fontSize: 48,
-                      fontWeight: FontWeight.w900,
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
+                    style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 48,
+                      fontWeight: FontWeight.w900, color: Theme.of(context).colorScheme.primary),
+                  ))
+                : Image(
+                    image: avatarProvider, width: 120, height: 120, fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => Center(child: Text(
+                      displayName.isNotEmpty ? displayName.substring(0, 1).toUpperCase() : '?',
+                      style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 48,
+                        fontWeight: FontWeight.w900, color: Theme.of(context).colorScheme.primary),
+                    )),
                   ),
-                )
-              : null,
+          ),
         ),
 
         // ── Integrated Camera Node ──────────────────────────────────
