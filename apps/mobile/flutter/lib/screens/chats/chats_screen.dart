@@ -85,6 +85,8 @@ class _ChatsScreenState extends State<ChatsScreen> {
 
   void _handleSocketUpdate() {
     if (!mounted) return;
+    final owner = context.read<AuthService>().user?.username.toLowerCase();
+    if (owner == null) return;
 
     final previews =
         List<ChatPreview>.from(context.read<SocketService>().conversations);
@@ -93,6 +95,7 @@ class _ChatsScreenState extends State<ChatsScreen> {
       return b.lastTime.compareTo(a.lastTime);
     });
     ChatsScreen.cachedChats = previews;
+    ChatsScreen.cachedChatsOwner = owner;
     ChatsScreen.totalUnread =
         previews.fold(0, (total, chat) => total + chat.unreadCount);
 
