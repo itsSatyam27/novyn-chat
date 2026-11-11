@@ -54,22 +54,24 @@ class DataStorageScreen extends StatelessWidget {
             iconColor: const Color(0xFF06B6D4),
             iconBgColor: const Color(0xFF06B6D4).withValues(alpha: 0.1),
             title: 'Wi-Fi Networks',
-            subtitle: 'Choose what downloads automatically on Wi-Fi',
+            subtitle: 'Not active yet — automatic media downloads are not connected',
             value: settings.autoDownloadWifi,
             options: const ['all', 'photos', 'none'],
             labels: const ['All Media', 'Photos Only', 'Deactivated'],
             onChanged: (v) => settings.setAutoDownloadWifi(v),
+            enabled: false,
           ),
           _SelectionCard(
             icon: Icons.cell_tower_rounded,
             iconColor: const Color(0xFFF59E0B),
             iconBgColor: const Color(0xFFF59E0B).withValues(alpha: 0.1),
             title: 'Mobile data',
-            subtitle: 'Choose what downloads automatically on mobile data',
+            subtitle: 'Not active yet — automatic media downloads are not connected',
             value: settings.autoDownloadMobile,
             options: const ['all', 'photos', 'none'],
             labels: const ['All Media', 'Photos Only', 'Deactivated'],
             onChanged: (v) => settings.setAutoDownloadMobile(v),
+            enabled: false,
           ),
           
           const SizedBox(height: 24),
@@ -79,11 +81,12 @@ class DataStorageScreen extends StatelessWidget {
             iconColor: const Color(0xFF10B981),
             iconBgColor: const Color(0xFF10B981).withValues(alpha: 0.1),
             title: 'Media Fidelity',
-            subtitle: 'Choose the quality of photos you send',
+            subtitle: 'Not active yet — photo compression is not connected',
             value: settings.photoQuality,
             options: const ['high', 'medium', 'low'],
             labels: const ['Ultra (Lossless)', 'Balanced', 'Data Saver'],
             onChanged: (v) => settings.setPhotoQuality(v),
+            enabled: false,
           ),
           
           const SizedBox(height: 24),
@@ -181,6 +184,7 @@ class _SelectionCard extends StatelessWidget {
   final List<String> options;
   final List<String> labels;
   final ValueChanged<String> onChanged;
+  final bool enabled;
 
   const _SelectionCard({
     required this.icon,
@@ -192,13 +196,14 @@ class _SelectionCard extends StatelessWidget {
     required this.options,
     required this.labels,
     required this.onChanged,
+    this.enabled = true,
   });
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final currentIndex = options.indexOf(value);
-    final currentLabel = currentIndex >= 0 ? labels[currentIndex] : labels[0];
+    final currentLabel = enabled ? (currentIndex >= 0 ? labels[currentIndex] : labels[0]) : 'Not active';
     
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -212,10 +217,10 @@ class _SelectionCard extends StatelessWidget {
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
           child: InkWell(
-            onTap: () {
+            onTap: enabled ? () {
               HapticFeedback.selectionClick();
               _showSelectionDialog(context);
-            },
+            } : null,
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Row(
@@ -251,7 +256,7 @@ class _SelectionCard extends StatelessWidget {
                             fontFamily: 'PlusJakartaSans',
                             fontSize: 13,
                             fontWeight: FontWeight.w500,
-                            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
                           ),
                         ),
                       ],
@@ -266,14 +271,11 @@ class _SelectionCard extends StatelessWidget {
                           fontFamily: 'PlusJakartaSans',
                           fontSize: 14,
                           fontWeight: FontWeight.w800,
-                          color: Color(0xFF6D5DFC),
+                          color: enabled ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
                       ),
-                      Icon(
-                        Icons.chevron_right_rounded, 
-                        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.2), 
-                        size: 20
-                      ),
+                      if (enabled)
+                        Icon(Icons.chevron_right_rounded, color: Theme.of(context).colorScheme.onSurfaceVariant, size: 20),
                     ],
                   ),
                 ],
