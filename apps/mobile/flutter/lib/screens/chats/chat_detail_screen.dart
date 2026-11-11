@@ -9,6 +9,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:record/record.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../widgets/game_message_card.dart';
 import '../../widgets/riddle_message_card.dart';
 import '../../widgets/voice_message_player.dart';
@@ -1641,11 +1642,18 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           initiallyBlocked: context.read<SocketService>().blockedUsers.any(
             (name) => name.toLowerCase() == widget.peer.username.toLowerCase(),
           ),
-          onMute: () {
+          onMute: () async {
             final socket = context.read<SocketService>();
-            socket.setMute(widget.peer.username, muted: true);
+            final prefs = await SharedPreferences.getInstance();
+            final key = 'novyn_mute_${widget.peer.username.toLowerCase()}';
+            final nextMuted = !(prefs.getBool(key) ?? false);
+            socket.setMute(widget.peer.username, muted: nextMuted);
+            await prefs.setBool(key, nextMuted);
+            if (!mounted) return;
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Notifications muted for this contact')),
+              SnackBar(content: Text(nextMuted
+                ? 'Notifications muted for this contact'
+                : 'Notifications unmuted for this contact')),
             );
           },
           onBlock: () async {
