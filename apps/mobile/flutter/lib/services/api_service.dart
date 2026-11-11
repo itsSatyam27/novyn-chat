@@ -662,15 +662,23 @@ class ApiService {
 
   // Update presence/status
   static Future<void> updatePresence(String mode) async {
-    try {
-      await http
-          .post(
-            Uri.parse('$baseUrl/api/profile/presence'),
-            headers: _authHeaders,
-            body: jsonEncode({'mode': mode}),
-          )
-          .timeout(const Duration(seconds: 5));
-    } catch (_) {}
+    final res = await http
+        .post(
+          Uri.parse('$baseUrl/api/profile/presence'),
+          headers: _authHeaders,
+          body: jsonEncode({'mode': mode}),
+        )
+        .timeout(const Duration(seconds: 12));
+    if (res.statusCode != 200) {
+      var message = 'Status update failed (${res.statusCode}).';
+      try {
+        final body = jsonDecode(res.body);
+        if (body is Map && body['message'] != null) {
+          message = body['message'].toString();
+        }
+      } catch (_) {}
+      throw StateError(message);
+    }
   }
 
   // Check username availability
