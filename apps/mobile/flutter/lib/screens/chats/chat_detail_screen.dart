@@ -1638,6 +1638,73 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
             Navigator.pop(context);
             _showWallpaperPicker();
           },
+          initiallyBlocked: context.read<SocketService>().blockedUsers.any(
+            (name) => name.toLowerCase() == widget.peer.username.toLowerCase(),
+          ),
+          onMute: () {
+            final socket = context.read<SocketService>();
+            socket.setMute(widget.peer.username, muted: true);
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Notifications muted for this contact')),
+            );
+          },
+          onBlock: () async {
+            final socket = context.read<SocketService>();
+            final blocked = socket.blockedUsers.any(
+              (name) => name.toLowerCase() == widget.peer.username.toLowerCase(),
+            );
+            final result = await socket.setBlockedUser(widget.peer.username, blocked: !blocked);
+            if (!mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(result['ok'] == true
+                ? (blocked ? 'Contact unblocked' : 'Contact blocked')
+                : (result['message']?.toString() ?? 'Could not update block status'))),
+            );
+            if (result['ok'] == true) Navigator.pop(context);
+          },
+          onClearChat: () async {
+            final socket = context.read<SocketService>();
+            final oldMessages = socket.messages;
+            socket.clearChat(widget.peer.username);
+            for (final message in oldMessages) {
+              await HybridDbService.deleteMessage(message.id);
+            }
+            await HybridDbService.setLastSync(widget.peer.username, DateTime.now());
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Chat history cleared')),
+              );
+            }
+          },
+          onRemoveFriend: () async {
+            final socket = context.read<SocketService>();
+            socket.removeFriend(widget.peer.username);
+            await HybridDbService.deleteChat(widget.peer.username);
+            for (final message in socket.messages) {
+              await HybridDbService.deleteMessage(message.id);
+            }
+            if (mounted) {
+              Navigator.pop(context);
+              Navigator.pop(context);
+            }
+          },
+          onExportChat: () async {
+            final messages = context.read<SocketService>().messages;
+            final lines = messages.map((message) {
+              final sender = message.isFromMe ? 'You' : widget.peer.name;
+              final stamp = message.createdAt.toLocal().toString().substring(0, 16);
+              final body = message.text.isNotEmpty ? message.text : '[Attachment]';
+              return '[$stamp] $sender: $body';
+            }).join('\n');
+            await Clipboard.setData(ClipboardData(
+              text: 'Novyn chat with ${widget.peer.name} (@${widget.peer.username})\n\n$lines',
+            ));
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Chat transcript copied to clipboard')),
+              );
+            }
+          },
         ),
       ),
     );
