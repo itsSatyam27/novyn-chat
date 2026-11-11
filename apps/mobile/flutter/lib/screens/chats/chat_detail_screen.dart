@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -10,6 +11,7 @@ import 'package:record/record.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_image_compress/flutter_image_compress.dart';
 import '../../widgets/game_message_card.dart';
 import '../../widgets/riddle_message_card.dart';
 import '../../widgets/voice_message_player.dart';
@@ -20,10 +22,36 @@ import '../../services/api_service.dart';
 import '../../services/hybrid_db_service.dart';
 import '../../services/draft_service.dart';
 import '../../services/settings_service.dart';
+import '../../services/media_storage_service.dart';
 import '../../widgets/user_avatar.dart';
 import 'profile_info_screen.dart';
 import '../../widgets/connection_banner.dart';
 import '../../screens/calls/call_screen.dart';
+
+String _mimeForFile(String filename) {
+  final name = filename.toLowerCase();
+  if (name.endsWith('.pdf')) return 'application/pdf';
+  if (name.endsWith('.doc')) return 'application/msword';
+  if (name.endsWith('.docx')) return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+  if (name.endsWith('.txt')) return 'text/plain';
+  if (name.endsWith('.csv')) return 'text/csv';
+  if (name.endsWith('.zip')) return 'application/zip';
+  if (name.endsWith('.rar')) return 'application/vnd.rar';
+  if (name.endsWith('.mp3')) return 'audio/mpeg';
+  if (name.endsWith('.m4a')) return 'audio/mp4';
+  if (name.endsWith('.wav')) return 'audio/wav';
+  if (name.endsWith('.ogg')) return 'audio/ogg';
+  if (name.endsWith('.aac')) return 'audio/aac';
+  if (name.endsWith('.mp4')) return 'video/mp4';
+  if (name.endsWith('.mov')) return 'video/quicktime';
+  if (name.endsWith('.webm')) return 'video/webm';
+  if (name.endsWith('.gif')) return 'image/gif';
+  if (name.endsWith('.png')) return 'image/png';
+  if (name.endsWith('.webp')) return 'image/webp';
+  if (name.endsWith('.bmp')) return 'image/bmp';
+  if (name.endsWith('.jpg') || name.endsWith('.jpeg')) return 'image/jpeg';
+  return 'application/octet-stream';
+}
 
 class ChatDetailScreen extends StatefulWidget {
   final UserModel peer; // the person we're chatting with
@@ -800,7 +828,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       return;
     }
     try {
-      List<int>? bytes;
+      Uint8List? bytes;
       String filename = 'attachment';
       String mime = 'application/octet-stream';
       if (type.toLowerCase().contains('photo') || type.toLowerCase().contains('image') || type.toLowerCase().contains('video')) {
@@ -822,6 +850,27 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       }
       if (bytes == null || bytes.isEmpty) throw StateError('Could not read the selected file.');
       setState(() => _uploadingAttachment = true);
+
+      // Apply the selected Data & Storage photo-quality preference to actual
+      // image bytes before upload. Non-image attachments are never recompressed.
+      if (mime.startsWith('image/') && !filename.toLowerCase().endsWith('.gif')) {
+        final quality = context.read<SettingsService>().photoQuality;
+        final jpegQuality = quality == 'low' ? 55 : quality == 'medium' ? 75 : 90;
+        final compressed = await FlutterImageCompress.compressWithList(
+          bytes,
+          minWidth: quality == 'low' ? 1280 : 1920,
+          minHeight: quality == 'low' ? 1280 : 1920,
+          quality: jpegQuality,
+          format: CompressFormat.jpeg,
+        );
+        if (compressed.isNotEmpty) {
+          bytes = compressed;
+          final dot = filename.lastIndexOf('.');
+          final stem = dot > 0 ? filename.substring(0, dot) : filename;
+          filename = '$stem.jpg';
+          mime = 'image/jpeg';
+        }
+      }
       final url = await ApiService.uploadMedia(bytes, filename, mime);
       if (!mounted) return;
       if (url == null || url.isEmpty) throw StateError('Upload failed. Please try again.');
@@ -1130,30 +1179,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     search.dispose();
   }
 
-  String _mimeForFile(String filename) {
-    final name = filename.toLowerCase();
-    if (name.endsWith('.pdf')) return 'application/pdf';
-    if (name.endsWith('.doc')) return 'application/msword';
-    if (name.endsWith('.docx')) return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-    if (name.endsWith('.txt')) return 'text/plain';
-    if (name.endsWith('.csv')) return 'text/csv';
-    if (name.endsWith('.zip')) return 'application/zip';
-    if (name.endsWith('.rar')) return 'application/vnd.rar';
-    if (name.endsWith('.mp3')) return 'audio/mpeg';
-    if (name.endsWith('.m4a')) return 'audio/mp4';
-    if (name.endsWith('.wav')) return 'audio/wav';
-    if (name.endsWith('.ogg')) return 'audio/ogg';
-    if (name.endsWith('.aac')) return 'audio/aac';
-    if (name.endsWith('.mp4')) return 'video/mp4';
-    if (name.endsWith('.mov')) return 'video/quicktime';
-    if (name.endsWith('.webm')) return 'video/webm';
-    if (name.endsWith('.gif')) return 'image/gif';
-    if (name.endsWith('.png')) return 'image/png';
-    if (name.endsWith('.webp')) return 'image/webp';
-    if (name.endsWith('.bmp')) return 'image/bmp';
-    if (name.endsWith('.jpg') || name.endsWith('.jpeg')) return 'image/jpeg';
-    return 'application/octet-stream';
-  }
+
 
   Future<void> _startVoiceNote() async {
     if (_isRecordingVoice || _uploadingAttachment) return;
@@ -2244,9 +2270,11 @@ class _MessageBubble extends StatelessWidget {
     final messenger = ScaffoldMessenger.of(context);
     try {
       final file = await ApiService.downloadMedia(url, name);
-      if (!context.mounted) return;
+      final kind = _mimeForFile(name).startsWith('image/') ? 'image' : _mimeForFile(name).startsWith('video/') ? 'video' : 'file';
+      final saved = await MediaStorageService.exportToDevice(file, kind);
+      if (!context.mounted || !saved) return;
       messenger.showSnackBar(SnackBar(
-        content: Text('Saved to Novyn Downloads/' + file.uri.pathSegments.last),
+        content: Text(kind == 'image' || kind == 'video' ? 'Saved to your Gallery and Novyn Downloads.' : 'Saved using the system Files picker.'),
         behavior: SnackBarBehavior.floating,
       ));
     } catch (error) {
@@ -2295,9 +2323,10 @@ class _MessageBubble extends StatelessWidget {
                 final messenger = ScaffoldMessenger.of(context);
                 try {
                   final file = await ApiService.downloadMedia(url, name);
-                  if (!context.mounted) return;
+                  final saved = await MediaStorageService.exportToDevice(file, 'image');
+                  if (!context.mounted || !saved) return;
                   messenger.showSnackBar(SnackBar(
-                    content: Text('Saved to Novyn Downloads/' + file.uri.pathSegments.last),
+                    content: const Text('Saved to your Gallery and Novyn Downloads.'),
                     behavior: SnackBarBehavior.floating,
                   ));
                 } catch (error) {

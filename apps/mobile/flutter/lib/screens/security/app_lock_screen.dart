@@ -1,11 +1,14 @@
+import 'dart:async';
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+
+import '../../services/auth_service.dart';
 import '../../services/local_auth_service.dart';
 import '../../services/settings_service.dart';
 import '../../widgets/doodle_background.dart';
-import '../../widgets/novyn_alert.dart';
-import 'dart:ui';
 
 class AppLockScreen extends StatefulWidget {
   final VoidCallback onUnlocked;
@@ -17,16 +20,27 @@ class AppLockScreen extends StatefulWidget {
 }
 
 class _AppLockScreenState extends State<AppLockScreen> {
+  static const int _pinLength = 4;
   String _inputPin = '';
-  final int _pinLength = 4;
+  String? _errorMessage;
   bool _isAuthenticating = false;
   bool _biometricAvailable = false;
+  bool _recovering = false;
+  Timer? _cooldownTicker;
 
   @override
   void initState() {
     super.initState();
-    // Keep biometric authentication user-initiated.
     _checkBiometricAvailability();
+    _cooldownTicker = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _cooldownTicker?.cancel();
+    super.dispose();
   }
 
   Future<void> _checkBiometricAvailability() async {
@@ -36,66 +50,132 @@ class _AppLockScreenState extends State<AppLockScreen> {
 
   Future<void> _triggerBiometrics() async {
     if (_isAuthenticating) return;
-    _isAuthenticating = true;
-    
+    setState(() => _isAuthenticating = true);
     final success = await LocalAuthService.authenticate(
       reason: 'Unlock Novyn Secure Node',
     );
-    
+    if (!mounted) return;
     if (success) {
+      await context.read<SettingsService>().resetAppLockFailures();
       widget.onUnlocked();
     }
-    _isAuthenticating = false;
+    if (mounted) setState(() => _isAuthenticating = false);
   }
 
-  void _onNumberPress(String num) {
-    HapticFeedback.lightImpact();
-    if (_inputPin.length < _pinLength) {
-      setState(() {
-        _inputPin += num;
-      });
-      
-      if (_inputPin.length == _pinLength) {
-        _verifyPin();
-      }
+  Future<void> _onNumberPress(String num) async {
+    final settings = context.read<SettingsService>();
+    if (_isAuthenticating || settings.isAppLockCoolingDown ||
+        _inputPin.length >= _pinLength) {
+      return;
     }
+    HapticFeedback.lightImpact();
+    setState(() {
+      _errorMessage = null;
+      _inputPin += num;
+    });
+    if (_inputPin.length == _pinLength) await _verifyPin();
   }
 
   void _onBackspace() {
+    if (_isAuthenticating || context.read<SettingsService>().isAppLockCoolingDown) return;
     HapticFeedback.selectionClick();
     if (_inputPin.isNotEmpty) {
       setState(() {
         _inputPin = _inputPin.substring(0, _inputPin.length - 1);
+        _errorMessage = null;
       });
     }
   }
 
-  void _verifyPin() {
+  Future<void> _verifyPin() async {
+    if (_isAuthenticating) return;
     final settings = context.read<SettingsService>();
-    
-    if (_inputPin == settings.appLockPin) {
+    if (settings.isAppLockCoolingDown) return;
+
+    setState(() => _isAuthenticating = true);
+    final enteredPin = _inputPin;
+    if (enteredPin == settings.appLockPin) {
       HapticFeedback.mediumImpact();
-      settings.unlockWithDecoy(false);
+      await settings.resetAppLockFailures();
+      if (mounted) widget.onUnlocked();
     } else {
       HapticFeedback.vibrate();
+      await settings.recordFailedAppLockAttempt();
+      if (!mounted) return;
       setState(() {
         _inputPin = '';
+        _errorMessage = settings.isAppLockCoolingDown
+            ? 'Too many incorrect attempts. Try again after the cooldown.'
+            : 'Incorrect PIN. Please try again.';
       });
-      NovynAlert.show(context, 'Incorrect PIN. Please try again.', isError: true);
+    }
+    if (mounted) setState(() => _isAuthenticating = false);
+  }
+
+  String _formatRemaining(Duration remaining) {
+    final seconds = remaining.inSeconds;
+    final minutes = seconds ~/ 60;
+    final rest = seconds % 60;
+    return minutes > 0
+        ? '${minutes}m ${rest.toString().padLeft(2, '0')}s'
+        : '${rest}s';
+  }
+
+  Future<void> _forgotPin() async {
+    final shouldRecover = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Forgot App Lock PIN?'),
+        content: const Text(
+          'To protect your chats, Novyn will sign you out and remove this '
+          'local App Lock PIN. Sign in again with your Novyn account, then '
+          'set a new PIN from Settings → Security & Privacy → App Lock. '
+          'If you also forgot your account password, use Forgot Password '
+          'on the login screen.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Sign out & recover'),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldRecover != true || !mounted || _recovering) return;
+    setState(() => _recovering = true);
+    try {
+      final settings = context.read<SettingsService>();
+      await settings.prepareAppLockAccountRecovery();
+      await context.read<AuthService>().logout();
+      // AuthService notifies the root router, which displays the sign-in page.
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _recovering = false;
+          _errorMessage = 'Could not start recovery. Please try again.';
+        });
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final accent = Theme.of(context).colorScheme.primary;
-    
+    final theme = Theme.of(context);
+    final accent = theme.colorScheme.primary;
+    final settings = context.watch<SettingsService>();
+    final coolingDown = settings.isAppLockCoolingDown;
+    final remaining = settings.appLockRemaining;
+
     return Scaffold(
       body: Stack(
         children: [
-          Positioned.fill(
-            child: DoodleBackground(isDark: isDark, seed: 101),
-          ),
+          Positioned.fill(child: DoodleBackground(isDark: isDark, seed: 101)),
           BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
             child: Container(color: Colors.black.withValues(alpha: 0.1)),
@@ -104,16 +184,15 @@ class _AppLockScreenState extends State<AppLockScreen> {
             child: Column(
               children: [
                 const Spacer(),
-                // Lock Icon
                 Container(
                   width: 64,
                   height: 64,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
-                    border: Border.all(color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.2)),
+                    color: accent.withValues(alpha: 0.1),
+                    border: Border.all(color: accent.withValues(alpha: 0.2)),
                   ),
-                  child: Icon(Icons.lock_rounded, color: Theme.of(context).colorScheme.primary, size: 28),
+                  child: Icon(Icons.lock_rounded, color: accent, size: 28),
                 ),
                 const SizedBox(height: 24),
                 const Text(
@@ -126,59 +205,77 @@ class _AppLockScreenState extends State<AppLockScreen> {
                   ),
                 ),
                 const SizedBox(height: 32),
-                // PIN indicators
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: List.generate(_pinLength, (index) {
-                    final isActive = index < _inputPin.length;
+                    final active = index < _inputPin.length;
                     return Container(
                       width: 14,
                       height: 14,
                       margin: const EdgeInsets.symmetric(horizontal: 10),
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: isActive 
-                            ? accent 
-                            : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.1),
-                        boxShadow: isActive ? [
-                          BoxShadow(
-                            color: accent.withValues(alpha: 0.3),
-                            blurRadius: 8,
-                          )
-                        ] : [],
+                        color: active
+                            ? accent
+                            : theme.colorScheme.onSurface.withValues(alpha: 0.1),
+                        boxShadow: active
+                            ? [BoxShadow(color: accent.withValues(alpha: 0.3), blurRadius: 8)]
+                            : [],
                       ),
                     );
                   }),
                 ),
-                const Spacer(),
-                // Numeric Pad
-                _buildNumPad(),
-                const SizedBox(height: 20),
-                // Biometric Toggle (if available)
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    if (_biometricAvailable)
-                      TextButton.icon(
-                        onPressed: _isAuthenticating ? null : _triggerBiometrics,
-                        icon: Icon(
-                          Theme.of(context).platform == TargetPlatform.iOS
-                              ? Icons.face_rounded
-                              : Icons.fingerprint_rounded,
-                          color: accent,
-                        ),
-                        label: Text(
-                          'Use Biometrics',
-                          style: TextStyle(
-                            fontFamily: 'PlusJakartaSans',
-                            fontWeight: FontWeight.w800,
-                            color: accent,
-                          ),
-                        ),
+                const SizedBox(height: 18),
+                if (coolingDown)
+                  Text(
+                    'Try again in ${_formatRemaining(remaining)}',
+                    style: TextStyle(color: theme.colorScheme.error, fontWeight: FontWeight.w700),
+                  )
+                else if (_errorMessage != null)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 28),
+                    child: Text(
+                      _errorMessage!,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: theme.colorScheme.error,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
                       ),
-                  ],
+                    ),
+                  ),
+                const Spacer(),
+                _buildNumPad(disabled: coolingDown || _isAuthenticating || _recovering),
+                const SizedBox(height: 12),
+                TextButton(
+                  onPressed: _recovering ? null : _forgotPin,
+                  child: _recovering
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : Text('Forgot PIN?', style: TextStyle(color: accent, fontWeight: FontWeight.w800)),
                 ),
-                const SizedBox(height: 40),
+                if (_biometricAvailable)
+                  TextButton.icon(
+                    onPressed: _isAuthenticating || _recovering ? null : _triggerBiometrics,
+                    icon: Icon(
+                      Theme.of(context).platform == TargetPlatform.iOS
+                          ? Icons.face_rounded
+                          : Icons.fingerprint_rounded,
+                      color: accent,
+                    ),
+                    label: Text(
+                      'Use Biometrics',
+                      style: TextStyle(
+                        fontFamily: 'PlusJakartaSans',
+                        fontWeight: FontWeight.w800,
+                        color: accent,
+                      ),
+                    ),
+                  ),
+                const SizedBox(height: 28),
               ],
             ),
           ),
@@ -187,29 +284,42 @@ class _AppLockScreenState extends State<AppLockScreen> {
     );
   }
 
-  Widget _buildNumPad() {
-    return Column(
-      children: [
-        for (var row in [['1', '2', '3'], ['4', '5', '6'], ['7', '8', '9']])
+  Widget _buildNumPad({required bool disabled}) {
+    return Opacity(
+      opacity: disabled ? 0.45 : 1,
+      child: Column(
+        children: [
+          for (final row in [
+            ['1', '2', '3'],
+            ['4', '5', '6'],
+            ['7', '8', '9'],
+          ])
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: row.map((number) => _buildNumButton(number, disabled: disabled)).toList(),
+            ),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
-            children: row.map((num) => _buildNumButton(num)).toList(),
+            children: [
+              const SizedBox(width: 92, height: 92),
+              _buildNumButton('0', disabled: disabled),
+              _buildNumButton('backspace', isIcon: true, disabled: disabled),
+            ],
           ),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const SizedBox(width: 80, height: 80),
-            _buildNumButton('0'),
-            _buildNumButton('backspace', isIcon: true),
-          ],
-        ),
-      ],
+        ],
+      ),
     );
   }
 
-  Widget _buildNumButton(String val, {bool isIcon = false}) {
+  Widget _buildNumButton(String value, {bool isIcon = false, required bool disabled}) {
     return GestureDetector(
-      onTap: () => isIcon ? _onBackspace() : _onNumberPress(val),
+      onTap: disabled ? null : () {
+        if (isIcon) {
+          _onBackspace();
+        } else {
+          _onNumberPress(value);
+        }
+      },
       child: Container(
         width: 72,
         height: 72,
@@ -220,10 +330,10 @@ class _AppLockScreenState extends State<AppLockScreen> {
           border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
         ),
         child: Center(
-          child: isIcon 
+          child: isIcon
               ? const Icon(Icons.backspace_outlined, color: Colors.white70, size: 20)
               : Text(
-                  val,
+                  value,
                   style: const TextStyle(
                     fontFamily: 'PlusJakartaSans',
                     fontSize: 22,
