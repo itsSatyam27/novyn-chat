@@ -3,470 +3,293 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'auth_screen.dart';
 
-// ── Palette ────────────────────────────────────────────────────────────────
-const _kPurple  = Color(0xFF6D5DFC);
-const _kPurple2 = Color(0xFF9B8FFF);
-const _kPink    = Color(0xFFEC4899);
-const _kGreen   = Color(0xFF10B981);
+const _brand = Color(0xFF7667F5);
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
-
   @override
   State<OnboardingScreen> createState() => _OnboardingScreenState();
 }
 
-class _OnboardingScreenState extends State<OnboardingScreen>
-    with TickerProviderStateMixin {
+class _OnboardingScreenState extends State<OnboardingScreen> {
   final PageController _page = PageController();
   int _current = 0;
 
-  late final AnimationController _fadeCtrl;
-  late final Animation<double> _fade;
-
   static const _pages = [
-    _PageData(
-      emoji: '✦',
-      title: 'Real-time\nMessaging',
-      subtitle: 'Send messages instantly.\nNo delays, no limits.',
-      color: _kPurple,
-    ),
-    _PageData(
-      emoji: '📞',
-      title: 'Voice & Video\nCalls',
-      subtitle: 'Crystal-clear calls with\npeople who matter.',
-      color: Color(0xFF0EA5E9),
-    ),
-    _PageData(
-      emoji: '🔒',
-      title: 'Private &\nSecure',
-      subtitle: 'Your conversations stay\nbetween you and them.',
-      color: _kGreen,
-    ),
+    _OnboardingPage(Icons.forum_rounded, 'STAY IN THE LOOP',
+        'Conversations,\nwithout limits.',
+        'Share moments, exchange ideas and keep every conversation moving in one place.',
+        Color(0xFF7667F5)),
+    _OnboardingPage(Icons.call_rounded, 'CLOSER, IN REAL TIME',
+        'Hear them.\nSee them.',
+        'Reach the people who matter with voice and video calling, whenever you need.',
+        Color(0xFF2798D5)),
+    _OnboardingPage(Icons.shield_moon_rounded, 'YOUR SPACE, YOUR RULES',
+        'Your chats.\nYour control.',
+        'Thoughtful privacy controls help you shape how and when people reach you.',
+        Color(0xFF21A783)),
   ];
-
-  @override
-  void initState() {
-    super.initState();
-    _fadeCtrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 600),
-    );
-    _fade = CurvedAnimation(parent: _fadeCtrl, curve: Curves.easeOut);
-    _fadeCtrl.forward();
-  }
 
   @override
   void dispose() {
     _page.dispose();
-    _fadeCtrl.dispose();
     super.dispose();
   }
 
-  void _next() {
-    if (_current < _pages.length - 1) {
-      _page.nextPage(
-        duration: const Duration(milliseconds: 400),
-        curve: Curves.easeInOutCubic,
-      );
-    }
+  void _openAuth() {
+    HapticFeedback.lightImpact();
+    Navigator.of(context).pushReplacement(PageRouteBuilder(
+      pageBuilder: (_, __, ___) => const AuthScreen(),
+      transitionsBuilder: (_, animation, __, child) =>
+          FadeTransition(opacity: animation, child: child),
+      transitionDuration: const Duration(milliseconds: 320),
+    ));
   }
 
-  void _goToAuth() {
-    HapticFeedback.mediumImpact();
-    Navigator.of(context).pushReplacement(
-      PageRouteBuilder(
-        pageBuilder: (_, __, ___) => const AuthScreen(),
-        transitionsBuilder: (_, anim, __, child) =>
-            FadeTransition(opacity: anim, child: child),
-        transitionDuration: const Duration(milliseconds: 400),
-      ),
+  void _next() {
+    if (_current == _pages.length - 1) {
+      _openAuth();
+      return;
+    }
+    HapticFeedback.selectionClick();
+    _page.nextPage(
+      duration: const Duration(milliseconds: 420),
+      curve: Curves.easeInOutCubic,
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
     return Scaffold(
-      backgroundColor: Colors.transparent,
-      body: Stack(
-        children: [
-          // Light pastel gradient background (always light, regardless of theme)
-          Positioned.fill(
-            child: Container(
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    Color(0xFFF5E6FF),
-                    Color(0xFFFFE8F0),
-                    Color(0xFFE8F6F8),
-                  ],
-                  stops: [0.0, 0.5, 1.0],
+      backgroundColor: theme.scaffoldBackgroundColor,
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 12, 24, 20),
+          child: Column(
+            children: [
+              Row(children: [
+                Container(
+                  width: 38, height: 38,
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF9C91FF), _brand],
+                      begin: Alignment.topLeft, end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.forum_rounded,
+                      color: Colors.white, size: 20),
+                ),
+                const SizedBox(width: 10),
+                Text('novyn', style: GoogleFonts.inter(
+                  fontSize: 22, fontWeight: FontWeight.w800,
+                  letterSpacing: -0.8, color: colors.onSurface,
+                )),
+                const Spacer(),
+                TextButton(
+                  onPressed: _openAuth,
+                  style: TextButton.styleFrom(
+                    foregroundColor: colors.onSurfaceVariant,
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 8),
+                  ),
+                  child: Text('Skip', style: GoogleFonts.inter(
+                      fontWeight: FontWeight.w600, fontSize: 13)),
+                ),
+              ]),
+              const SizedBox(height: 12),
+              Expanded(
+                child: PageView.builder(
+                  controller: _page,
+                  itemCount: _pages.length,
+                  onPageChanged: (index) => setState(() => _current = index),
+                  itemBuilder: (context, index) =>
+                      _PageContent(data: _pages[index]),
                 ),
               ),
-            ),
-          ),
-
-          // Decorative blobs
-          Positioned(
-            top: 40, left: 20,
-            child: Container(
-              width: 120, height: 120,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: const Color(0xFF6D5DFC).withValues(alpha: 0.08),
-              ),
-            ),
-          ),
-          Positioned(
-            bottom: 120, right: 30,
-            child: Container(
-              width: 140, height: 140,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: const Color(0xFFEC4899).withValues(alpha: 0.07),
-              ),
-            ),
-          ),
-
-          SafeArea(
-            child: FadeTransition(
-              opacity: _fade,
-              child: Column(
-                children: [
-                  // ── Skip button ──────────────────────────────────
-                  Align(
-                    alignment: Alignment.topRight,
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(0, 16, 20, 0),
-                      child: _current < _pages.length - 1
-                          ? GestureDetector(
-                              onTap: _goToAuth,
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 16, vertical: 8),
-                                decoration: BoxDecoration(
-                                  color: _kPurple.withValues(alpha: 0.1),
-                                  borderRadius: BorderRadius.circular(20),
-                                  border: Border.all(
-                                    color: _kPurple.withValues(alpha: 0.2),
-                                  ),
-                                ),
-                                child: const Text(
-                                  'Skip',
-                                  style: TextStyle(
-                                    fontFamily: 'PlusJakartaSans',
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                    color: _kPurple,
-                                  ),
-                                ),
-                              ),
-                            )
-                          : const SizedBox(height: 36),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: List.generate(_pages.length, (index) {
+                  final active = index == _current;
+                  return AnimatedContainer(
+                    duration: const Duration(milliseconds: 260),
+                    margin: const EdgeInsets.symmetric(horizontal: 4),
+                    width: active ? 26 : 7, height: 7,
+                    decoration: BoxDecoration(
+                      color: active ? _brand :
+                          colors.onSurface.withValues(alpha: 0.18),
+                      borderRadius: BorderRadius.circular(10),
                     ),
-                  ),
-
-                  // ── Logo ─────────────────────────────────────────
-                  const SizedBox(height: 24),
-                  _buildLogo(),
-
-                  const SizedBox(height: 8),
-
-                  // App name
-                  Text(
-                    'Novyn',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 28,
-                      fontWeight: FontWeight.w800,
-                      color: const Color(0xFF1A1D2E),
-                      letterSpacing: -1,
-                    ),
-                  ),
-
-                  const SizedBox(height: 32),
-
-                  // ── Page content ──────────────────────────────────
-                  Expanded(
-                    child: PageView.builder(
-                      controller: _page,
-                      onPageChanged: (i) => setState(() => _current = i),
-                      itemCount: _pages.length,
-                      itemBuilder: (_, i) => _PageContent(
-                        data: _pages[i],
-                        isDark: false, // always light
-                      ),
-                    ),
-                  ),
-
-                  // ── Dots ──────────────────────────────────────────
-                  _buildDots(false),
-
-                  const SizedBox(height: 32),
-
-                  // ── Button ────────────────────────────────────────
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 28),
-                    child: _current < _pages.length - 1
-                        ? _NextButton(onTap: _next)
-                        : _GetStartedButton(onTap: _goToAuth),
-                  ),
-
-                  const SizedBox(height: 40),
-                ],
+                  );
+                }),
               ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildLogo() {
-    return Stack(
-      alignment: Alignment.center,
-      children: [
-        // Glow
-        Container(
-          width: 80,
-          height: 80,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            gradient: RadialGradient(
-              colors: [
-                _kPurple.withValues(alpha: 0.3),
-                Colors.transparent,
-              ],
-            ),
-          ),
-        ),
-        // Orb
-        Container(
-          width: 64,
-          height: 64,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            gradient: const LinearGradient(
-              colors: [_kPurple, _kPurple2],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: _kPurple.withValues(alpha: 0.4),
-                blurRadius: 20,
-                offset: const Offset(0, 6),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity, height: 54,
+                child: FilledButton(
+                  onPressed: _next,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: _brand, foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16)),
+                    elevation: 0,
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(_current == _pages.length - 1
+                          ? 'Get started' : 'Continue',
+                        style: GoogleFonts.inter(
+                            fontSize: 15, fontWeight: FontWeight.w700)),
+                      const SizedBox(width: 9),
+                      const Icon(Icons.arrow_forward_rounded, size: 18),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              TextButton(
+                onPressed: _openAuth,
+                style: TextButton.styleFrom(
+                    foregroundColor: colors.onSurfaceVariant),
+                child: Text('Already have an account? Sign in',
+                    style: GoogleFonts.inter(
+                        fontSize: 12, fontWeight: FontWeight.w500)),
               ),
             ],
           ),
-          child: const Icon(Icons.pets_rounded, color: Colors.white, size: 30),
         ),
-      ],
-    );
-  }
-
-  Widget _buildDots(bool isDark) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: List.generate(_pages.length, (i) {
-        final isActive = i == _current;
-        return AnimatedContainer(
-          duration: const Duration(milliseconds: 300),
-          margin: const EdgeInsets.symmetric(horizontal: 4),
-          width: isActive ? 24 : 8,
-          height: 8,
-          decoration: BoxDecoration(
-            color: isActive
-                ? _pages[_current].color
-                : (isDark
-                    ? Colors.white.withValues(alpha: 0.2)
-                    : Colors.black.withValues(alpha: 0.15)),
-            borderRadius: BorderRadius.circular(4),
-          ),
-        );
-      }),
+      ),
     );
   }
 }
 
-// ── Page data ──────────────────────────────────────────────────────────────
-class _PageData {
-  final String emoji;
-  final String title;
-  final String subtitle;
+class _OnboardingPage {
+  final IconData icon;
+  final String eyebrow, title, subtitle;
   final Color color;
-  const _PageData({
-    required this.emoji,
-    required this.title,
-    required this.subtitle,
-    required this.color,
-  });
+  const _OnboardingPage(
+      this.icon, this.eyebrow, this.title, this.subtitle, this.color);
 }
 
-// ── Page content ───────────────────────────────────────────────────────────
 class _PageContent extends StatelessWidget {
-  final _PageData data;
-  final bool isDark;
-  const _PageContent({required this.data, required this.isDark});
+  final _OnboardingPage data;
+  const _PageContent({required this.data});
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 36),
-      child: Column(
+    final colors = Theme.of(context).colorScheme;
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    return LayoutBuilder(builder: (context, constraints) {
+      final compact = constraints.maxHeight < 520;
+      final artSize = compact ? 205.0 : 250.0;
+      return Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          // Big emoji in a colored circle
-          Container(
-            width: 120,
-            height: 120,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: data.color.withValues(alpha: 0.12),
-              border: Border.all(
-                color: data.color.withValues(alpha: 0.25),
-                width: 2,
+          SizedBox(height: compact ? 8 : 18),
+          SizedBox(
+            height: artSize, width: double.infinity,
+            child: Stack(alignment: Alignment.center, children: [
+              Container(
+                width: artSize * .82, height: artSize * .82,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: data.color.withValues(alpha: dark ? .16 : .09),
+                ),
               ),
-            ),
-            child: Center(
-              child: Text(
-                data.emoji,
-                style: const TextStyle(fontSize: 52),
+              Container(
+                width: artSize * .63, height: artSize * .63,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                      color: data.color.withValues(alpha: .18)),
+                ),
               ),
-            ),
+              Container(
+                width: 148, height: 154,
+                padding: const EdgeInsets.all(18),
+                decoration: BoxDecoration(
+                  color: colors.surface,
+                  borderRadius: BorderRadius.circular(28),
+                  border: Border.all(
+                      color: data.color.withValues(alpha: .22)),
+                  boxShadow: [BoxShadow(
+                    color: data.color.withValues(alpha: dark ? .12 : .16),
+                    blurRadius: 32, offset: const Offset(0, 14),
+                  )],
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Container(
+                      width: 62, height: 62,
+                      decoration: BoxDecoration(
+                        color: data.color.withValues(alpha: .12),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Icon(data.icon, size: 30, color: data.color),
+                    ),
+                    const SizedBox(height: 14),
+                    Container(height: 6, width: 82,
+                      decoration: BoxDecoration(
+                        color: data.color.withValues(alpha: .24),
+                        borderRadius: BorderRadius.circular(8))),
+                    const SizedBox(height: 7),
+                    Container(height: 5, width: 54,
+                      decoration: BoxDecoration(
+                        color: colors.onSurface.withValues(alpha: .10),
+                        borderRadius: BorderRadius.circular(8))),
+                  ],
+                ),
+              ),
+              Positioned(top: artSize * .13, right: artSize * .13,
+                  child: _Dot(color: data.color)),
+              Positioned(bottom: artSize * .13, left: artSize * .12,
+                  child: _Dot(color: data.color, size: 12)),
+            ]),
           ),
-
-          const SizedBox(height: 36),
-
-          Text(
-            data.title,
-            textAlign: TextAlign.center,
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 32,
-              fontWeight: FontWeight.w800,
-              color: isDark ? Colors.white : const Color(0xFF1A1D2E),
-              height: 1.15,
-              letterSpacing: -0.5,
-            ),
+          SizedBox(height: compact ? 20 : 30),
+          Text(data.eyebrow, style: GoogleFonts.inter(
+            fontSize: 10, fontWeight: FontWeight.w800,
+            letterSpacing: 1.8, color: data.color,
+          )),
+          const SizedBox(height: 12),
+          Text(data.title, textAlign: TextAlign.center,
+            style: GoogleFonts.inter(
+              fontSize: compact ? 29 : 34, height: 1.12,
+              letterSpacing: -1.2, fontWeight: FontWeight.w800,
+              color: colors.onSurface,
+            )),
+          const SizedBox(height: 14),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            child: Text(data.subtitle, textAlign: TextAlign.center,
+              style: GoogleFonts.inter(
+                fontSize: 14, height: 1.65,
+                color: colors.onSurfaceVariant,
+              )),
           ),
-
-          const SizedBox(height: 16),
-
-          Text(
-            data.subtitle,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontFamily: 'PlusJakartaSans',
-              fontSize: 15,
-              fontWeight: FontWeight.w400,
-              color: isDark
-                  ? Colors.white.withValues(alpha: 0.55)
-                  : const Color(0xFF64748B),
-              height: 1.6,
-            ),
-          ),
+          const Spacer(),
         ],
-      ),
-    );
+      );
+    });
   }
 }
 
-// ── Next button ────────────────────────────────────────────────────────────
-class _NextButton extends StatelessWidget {
-  final VoidCallback onTap;
-  const _NextButton({required this.onTap});
-
+class _Dot extends StatelessWidget {
+  final Color color;
+  final double size;
+  const _Dot({required this.color, this.size = 17});
   @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () {
-        HapticFeedback.lightImpact();
-        onTap();
-      },
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 16),
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [_kPurple, _kPurple2],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius.circular(18),
-          boxShadow: [
-            BoxShadow(
-              color: _kPurple.withValues(alpha: 0.4),
-              blurRadius: 16,
-              offset: const Offset(0, 6),
-            ),
-          ],
-        ),
-        child: const Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              'Next',
-              style: TextStyle(
-                fontFamily: 'PlusJakartaSans',
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-                color: Colors.white,
-              ),
-            ),
-            SizedBox(width: 8),
-            Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 18),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ── Get Started button ─────────────────────────────────────────────────────
-class _GetStartedButton extends StatelessWidget {
-  final VoidCallback onTap;
-  const _GetStartedButton({required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 16),
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [_kPurple, _kPink],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius.circular(18),
-          boxShadow: [
-            BoxShadow(
-              color: _kPurple.withValues(alpha: 0.45),
-              blurRadius: 20,
-              offset: const Offset(0, 8),
-            ),
-          ],
-        ),
-        child: const Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              'Get Started',
-              style: TextStyle(
-                fontFamily: 'PlusJakartaSans',
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-                color: Colors.white,
-              ),
-            ),
-            SizedBox(width: 8),
-            Icon(Icons.rocket_launch_rounded, color: Colors.white, size: 18),
-          ],
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => Container(
+    width: size, height: size,
+    decoration: BoxDecoration(
+      shape: BoxShape.circle,
+      color: color.withValues(alpha: .8),
+      boxShadow: [BoxShadow(
+          color: color.withValues(alpha: .28), blurRadius: 12)],
+    ),
+  );
 }
