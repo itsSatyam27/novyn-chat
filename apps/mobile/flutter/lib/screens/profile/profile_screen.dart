@@ -285,7 +285,7 @@ class ProfileScreen extends StatelessWidget {
       context: context,
       builder: (dialogContext) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        icon: const Icon(Icons.hub_rounded, color: Theme.of(context).colorScheme.primary, size: 38),
+        icon: Icon(Icons.hub_rounded, color: Theme.of(context).colorScheme.primary, size: 38),
         title: const Text('Novyn'),
         content: const Text('Your space, your people.\\n\\nA place to stay connected with the people who matter.'),
         actions: [
@@ -1529,7 +1529,7 @@ class _NovynSettingsProfileCard extends StatelessWidget {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.qr_code_2_rounded, size: 19, color: Theme.of(context).colorScheme.primary),
+                    Icon(Icons.qr_code_2_rounded, size: 19, color: Theme.of(context).colorScheme.primary),
                     const SizedBox(width: 7),
                     Text('My QR code', style: NovynText.body(13, weight: FontWeight.w700, color: Theme.of(context).colorScheme.primary)),
                   ],
