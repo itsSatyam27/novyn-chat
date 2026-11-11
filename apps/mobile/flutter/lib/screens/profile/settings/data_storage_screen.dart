@@ -53,31 +53,28 @@ class _DataStorageScreenState extends State<DataStorageScreen> {
           ),
           const SizedBox(height: 22),
           const SectionLabel(label: 'Automatic downloads'),
-          _PreferenceStatusCard(
-            icon: Icons.wifi_rounded,
-            color: const Color(0xFF06B6D4),
+          _PreferenceChoiceCard(
+            icon: Icons.wifi_rounded, color: const Color(0xFF06B6D4),
             title: 'Wi-Fi Networks',
             selectedValue: _downloadLabel(settings.autoDownloadWifi, photosLabel: 'Photos only'),
-            detail: 'Automatic media downloads are not connected',
-            status: 'Not active',
+            detail: 'Preferred media download policy',
+            onTap: () => _showDownloadChoice(settings, isWifi: true),
           ),
-          _PreferenceStatusCard(
-            icon: Icons.cell_tower_rounded,
-            color: const Color(0xFFF59E0B),
+          _PreferenceChoiceCard(
+            icon: Icons.cell_tower_rounded, color: const Color(0xFFF59E0B),
             title: 'Mobile data',
             selectedValue: _downloadLabel(settings.autoDownloadMobile, photosLabel: 'Photos only'),
-            detail: 'Automatic media downloads are not connected',
-            status: 'Not active',
+            detail: 'Preferred media download policy',
+            onTap: () => _showDownloadChoice(settings, isWifi: false),
           ),
           const SizedBox(height: 22),
           const SectionLabel(label: 'Media quality'),
-          _PreferenceStatusCard(
-            icon: Icons.high_quality_rounded,
-            color: const Color(0xFF10B981),
-            title: 'Media Fidelity',
+          _PreferenceChoiceCard(
+            icon: Icons.high_quality_rounded, color: const Color(0xFF10B981),
+            title: 'Media quality',
             selectedValue: _qualityLabel(settings.photoQuality),
-            detail: 'Photo compression is not connected',
-            status: 'Not active',
+            detail: 'Choose your preferred upload quality',
+            onTap: () => _showQualityChoice(settings),
           ),
           const SizedBox(height: 22),
           const SectionLabel(label: 'Storage usage'),
@@ -85,6 +82,11 @@ class _DataStorageScreenState extends State<DataStorageScreen> {
             key: ValueKey(_usageRefreshKey),
             onRefresh: () => setState(() => _usageRefreshKey++),
           ),
+          const SizedBox(height: 22),
+          const SectionLabel(label: 'Your downloads'),
+          _DownloadedFilesCard(refreshKey: _usageRefreshKey,
+            onChanged: () => setState(() => _usageRefreshKey++)),
+
           const SizedBox(height: 18),
           Container(
             padding: const EdgeInsets.all(14),
@@ -100,7 +102,7 @@ class _DataStorageScreenState extends State<DataStorageScreen> {
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    'Automatic downloads and photo compression will become available when the media pipeline is connected. Your saved choices are kept for now.',
+                    'Download preferences are saved on this device. Manual image downloads from chats are available here; automatic background downloads and upload compression are not connected yet.',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: colors.onSurfaceVariant,
                           height: 1.45,
@@ -150,6 +152,62 @@ class _DataStorageScreenState extends State<DataStorageScreen> {
       default:
         return 'Not set';
     }
+  }
+
+  Future<void> _showDownloadChoice(SettingsService settings, {required bool isWifi}) async {
+    final current = isWifi ? settings.autoDownloadWifi : settings.autoDownloadMobile;
+    final selected = await showModalBottomSheet<String>(
+      context: context, useSafeArea: true, showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(isWifi ? 'Wi-Fi downloads' : 'Mobile data downloads',
+              style: Theme.of(sheetContext).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
+            const SizedBox(height: 8),
+            const Text('Select your preferred policy. Background auto-download is not active yet.'),
+            const SizedBox(height: 12),
+            for (final option in ['all', 'photos', 'none'])
+              RadioListTile<String>(
+                value: option, groupValue: current,
+                title: Text(option == 'all' ? 'All media' : option == 'photos' ? 'Photos only' : 'Off'),
+                onChanged: (value) => Navigator.pop(sheetContext, value),
+                contentPadding: EdgeInsets.zero,
+              ),
+          ]),
+        ),
+      ),
+    );
+    if (selected == null) return;
+    if (isWifi) {
+      await settings.setAutoDownloadWifi(selected);
+    } else {
+      await settings.setAutoDownloadMobile(selected);
+    }
+  }
+
+  Future<void> _showQualityChoice(SettingsService settings) async {
+    final selected = await showModalBottomSheet<String>(
+      context: context, useSafeArea: true, showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('Media quality', style: Theme.of(sheetContext).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
+            const SizedBox(height: 8),
+            for (final option in ['high', 'medium', 'low'])
+              RadioListTile<String>(
+                value: option, groupValue: settings.photoQuality,
+                title: Text(option == 'high' ? 'High quality' : option == 'medium' ? 'Balanced' : 'Data saver'),
+                subtitle: Text(option == 'high' ? 'Best detail, larger files' : option == 'medium' ? 'Balanced size and clarity' : 'Smaller files, saves data'),
+                onChanged: (value) => Navigator.pop(sheetContext, value),
+                contentPadding: EdgeInsets.zero,
+              ),
+          ]),
+        ),
+      ),
+    );
+    if (selected != null) await settings.setPhotoQuality(selected);
   }
 
   Future<void> _confirmClearCache() async {
@@ -365,43 +423,85 @@ class _ActionCard extends StatelessWidget {
   }
 }
 
-class _PreferenceStatusCard extends StatelessWidget {
-  final IconData icon;
-  final Color color;
-  final String title;
-  final String selectedValue;
-  final String detail;
-  final String status;
+class _DownloadedFilesCard extends StatefulWidget {
+  const _DownloadedFilesCard({required this.refreshKey, required this.onChanged});
+  final int refreshKey;
+  final VoidCallback onChanged;
+  @override
+  State<_DownloadedFilesCard> createState() => _DownloadedFilesCardState();
+}
 
-  const _PreferenceStatusCard({
-    required this.icon, required this.color, required this.title,
-    required this.selectedValue, required this.detail, required this.status,
-  });
+class _DownloadedFilesCardState extends State<_DownloadedFilesCard> {
+  Future<List<File>> _load() async {
+    final docs = await getApplicationDocumentsDirectory();
+    final dir = Directory(docs.path + '/Novyn Downloads');
+    if (!await dir.exists()) return [];
+    final files = <File>[];
+    await for (final item in dir.list(followLinks: false)) {
+      if (item is File) files.add(item);
+    }
+    files.sort((a, b) => b.lastModifiedSync().compareTo(a.lastModifiedSync()));
+    return files;
+  }
+
+  String _size(int bytes) => bytes < 1024 * 1024
+      ? (bytes / 1024).toStringAsFixed(1) + ' KB'
+      : (bytes / (1024 * 1024)).toStringAsFixed(1) + ' MB';
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final colors = theme.colorScheme;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 1),
-      child: _CardShell(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(children: [
-            _IconTile(icon: icon, color: color),
-            const SizedBox(width: 14),
+    return FutureBuilder<List<File>>(
+      key: ValueKey(widget.refreshKey), future: _load(),
+      builder: (context, snapshot) {
+        final files = snapshot.data ?? [];
+        Widget content;
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          content = const Center(child: Padding(padding: EdgeInsets.all(16), child: CircularProgressIndicator()));
+        } else if (snapshot.hasError) {
+          content = Text('Could not load downloaded files: ' + snapshot.error.toString());
+        } else if (files.isEmpty) {
+          content = Row(children: [
+            Icon(Icons.download_for_offline_outlined, color: theme.colorScheme.onSurfaceVariant, size: 28),
+            const SizedBox(width: 12),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(title, style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800)),
-              const SizedBox(height: 4),
-              Text(detail, style: theme.textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant, height: 1.35)),
-              const SizedBox(height: 8),
-              Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(color: colors.surfaceContainerHighest, borderRadius: BorderRadius.circular(10)),
-                child: Text(status, style: theme.textTheme.labelSmall?.copyWith(color: colors.onSurfaceVariant, fontWeight: FontWeight.w700))),
+              Text('No downloads yet', style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800)),
+              Text('Use Download on an image in chat to save it here.',
+                style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
             ])),
-          ]),
-        ),
-      ),
+          ]);
+        } else {
+          content = Column(children: files.map((file) => ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.insert_drive_file_outlined),
+            title: Text(file.uri.pathSegments.last, maxLines: 1, overflow: TextOverflow.ellipsis),
+            subtitle: FutureBuilder<int>(future: file.length(), builder: (_, size) =>
+              Text(size.hasData ? _size(size.data!) : 'Calculating size…')),
+            trailing: IconButton(
+              tooltip: 'Delete download', icon: const Icon(Icons.delete_outline_rounded),
+              onPressed: () async {
+                final confirmed = await showDialog<bool>(
+                  context: context,
+                  builder: (ctx) => AlertDialog(
+                    title: const Text('Delete downloaded file?'),
+                    content: Text(file.uri.pathSegments.last),
+                    actions: [
+                      TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+                      FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Delete')),
+                    ],
+                  ),
+                );
+                if (confirmed == true) {
+                  await file.delete();
+                  if (mounted) setState(() {});
+                  widget.onChanged();
+                }
+              },
+            ),
+          )).toList());
+        }
+        return _CardShell(child: Padding(padding: const EdgeInsets.all(16), child: content));
+      },
     );
   }
 }
