@@ -1102,6 +1102,40 @@ class SocketService extends ChangeNotifier {
   void Function(Map<String, dynamic>)? onProfileData;
   bool _changingPassword = false;
 
+  Future<Map<String, dynamic>> requestEmailChangeCode(String email) async {
+    _requireConnection();
+    final completer = Completer<Map<String, dynamic>>();
+    _socket!.emitWithAck('request_email_change_code', {'email': email.trim()},
+      ack: (dynamic data) {
+        if (!completer.isCompleted) {
+          completer.complete(data is Map
+            ? Map<String, dynamic>.from(data)
+            : {'ok': false, 'message': 'Unexpected server response.'});
+        }
+      });
+    return completer.future.timeout(const Duration(seconds: 20),
+      onTimeout: () => {'ok': false, 'message': 'Email request timed out. Try again.'});
+  }
+
+  Future<Map<String, dynamic>> verifyEmailChangeCode({
+    required String email,
+    required String code,
+  }) async {
+    _requireConnection();
+    final completer = Completer<Map<String, dynamic>>();
+    _socket!.emitWithAck('verify_email_change_code', {
+      'email': email.trim(), 'code': code.trim(),
+    }, ack: (dynamic data) {
+      if (!completer.isCompleted) {
+        completer.complete(data is Map
+          ? Map<String, dynamic>.from(data)
+          : {'ok': false, 'message': 'Unexpected server response.'});
+      }
+    });
+    return completer.future.timeout(const Duration(seconds: 20),
+      onTimeout: () => {'ok': false, 'message': 'Verification timed out. Try again.'});
+  }
+
   Future<void> changePassword(String currentPassword, String newPassword) async {
     _requireConnection();
     if (_changingPassword) {
