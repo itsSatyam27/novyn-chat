@@ -290,25 +290,29 @@ class SectionLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Padding(
-      padding: const EdgeInsets.only(top: 12, bottom: 12),
+      padding: const EdgeInsets.only(top: 18, bottom: 12, left: 2),
       child: Row(
         children: [
-          const Expanded(child: Divider(color: Color(0xFFE2E5F0))),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: Text(
-              label.toUpperCase(),
-              style: const TextStyle(
-                fontFamily: 'PlusJakartaSans',
-                fontSize: 10,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 1.5,
-                color: Color(0xFFCBD5E1),
-              ),
+          Container(
+            width: 3,
+            height: 16,
+            decoration: BoxDecoration(
+              color: theme.colorScheme.primary,
+              borderRadius: BorderRadius.circular(4),
             ),
           ),
-          const Expanded(child: Divider(color: Color(0xFFE2E5F0))),
+          const SizedBox(width: 9),
+          Text(
+            label,
+            style: theme.textTheme.labelLarge?.copyWith(
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 1.05,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
         ],
       ),
     );
