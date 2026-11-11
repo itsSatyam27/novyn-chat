@@ -28,30 +28,14 @@ class _DataStorageScreenState extends State<DataStorageScreen> {
 
     return Scaffold(
       backgroundColor: NovynTheme.pageBg(context),
-      appBar: AppBar(
-        title: Text(
-          'Data & Storage',
-          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.w800,
-                letterSpacing: -0.35,
-              ),
-        ),
-        backgroundColor: NovynTheme.pageBg(context),
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        surfaceTintColor: Colors.transparent,
-        centerTitle: false,
-      ),
+      appBar: null,
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 36),
+        padding: EdgeInsets.fromLTRB(20, MediaQuery.of(context).padding.top + 12, 20, 36),
         physics: const BouncingScrollPhysics(),
         children: [
-          SettingsIntroCard(
-            title: 'Manage your data',
-            subtitle: 'Keep an eye on storage and choose how Novyn should handle media.',
-            icon: Icons.storage_rounded,
-          ),
+          _DataScreenHeader(),
           const SizedBox(height: 22),
+          _DataSummaryCard(usageKey: _usageRefreshKey),
           const SectionLabel(label: 'Storage'),
           _ActionCard(
             icon: Icons.delete_sweep_rounded,
@@ -74,16 +58,16 @@ class _DataStorageScreenState extends State<DataStorageScreen> {
             color: const Color(0xFF06B6D4),
             title: 'Wi-Fi Networks',
             selectedValue: _downloadLabel(settings.autoDownloadWifi, photosLabel: 'Photos only'),
-            detail: 'Your saved preference',
-            status: 'Downloader not connected',
+            detail: 'Automatic media downloads are not connected',
+            status: 'Not active',
           ),
           _PreferenceStatusCard(
             icon: Icons.cell_tower_rounded,
             color: const Color(0xFFF59E0B),
             title: 'Mobile data',
             selectedValue: _downloadLabel(settings.autoDownloadMobile, photosLabel: 'Photos only'),
-            detail: 'Your saved preference',
-            status: 'Downloader not connected',
+            detail: 'Automatic media downloads are not connected',
+            status: 'Not active',
           ),
           const SizedBox(height: 22),
           const SectionLabel(label: 'Media quality'),
@@ -92,8 +76,8 @@ class _DataStorageScreenState extends State<DataStorageScreen> {
             color: const Color(0xFF10B981),
             title: 'Media Fidelity',
             selectedValue: _qualityLabel(settings.photoQuality),
-            detail: 'Your saved preference',
-            status: 'Compression not connected',
+            detail: 'Photo compression is not connected',
+            status: 'Not active',
           ),
           const SizedBox(height: 22),
           const SectionLabel(label: 'Storage usage'),
@@ -248,6 +232,94 @@ class _DataStorageScreenState extends State<DataStorageScreen> {
   }
 }
 
+class _DataScreenHeader extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Row(children: [
+      Material(
+        color: NovynTheme.cardBg(context),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(13),
+          side: BorderSide(color: colors.outlineVariant),
+        ),
+        child: IconButton(
+          visualDensity: VisualDensity.compact,
+          onPressed: () => Navigator.maybePop(context),
+          icon: const Icon(Icons.chevron_left_rounded),
+        ),
+      ),
+      const SizedBox(width: 14),
+      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text('Data & Storage', style: Theme.of(context).textTheme.titleLarge?.copyWith(
+          fontWeight: FontWeight.w900, letterSpacing: -.6)),
+        Text('Downloads, media and storage', style: Theme.of(context).textTheme.bodySmall?.copyWith(
+          color: colors.onSurfaceVariant)),
+      ])),
+    ]);
+  }
+}
+
+class _DataSummaryCard extends StatelessWidget {
+  const _DataSummaryCard({required this.usageKey});
+  final int usageKey;
+
+  Future<int> _bytes(Directory directory) async {
+    if (!await directory.exists()) return 0;
+    var total = 0;
+    await for (final item in directory.list(recursive: true, followLinks: false)) {
+      if (item is File) {
+        try { total += await item.length(); } on FileSystemException { }
+      }
+    }
+    return total;
+  }
+
+  String _format(int bytes) => bytes < 1024
+      ? '$bytes B'
+      : bytes < 1024 * 1024
+          ? '${(bytes / 1024).toStringAsFixed(1)} KB'
+          : '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+
+  Future<int> _total() async {
+    final docs = await getApplicationDocumentsDirectory();
+    final temp = await getTemporaryDirectory();
+    return await _bytes(docs) + await _bytes(temp);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.all(17),
+      decoration: BoxDecoration(color: NovynTheme.cardBg(context),
+        borderRadius: BorderRadius.circular(23),
+        border: Border.all(color: colors.outlineVariant)),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Container(width: 64, height: 64,
+          decoration: BoxDecoration(
+            gradient: LinearGradient(colors: [colors.primary, colors.primary.withValues(alpha: .72)]),
+            borderRadius: BorderRadius.circular(32)),
+          child: const Icon(Icons.storage_rounded, color: Colors.white, size: 30)),
+        const SizedBox(width: 14),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('Manage your data', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
+          const SizedBox(height: 4),
+          Text('Control automatic downloads, media quality and temporary storage.',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant, height: 1.35)),
+          const SizedBox(height: 12),
+          FutureBuilder<int>(key: ValueKey(usageKey), future: _total(), builder: (context, snap) {
+            return Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+              decoration: BoxDecoration(color: colors.primary.withValues(alpha: .11), borderRadius: BorderRadius.circular(14)),
+              child: Text('●  ${snap.hasData ? _format(snap.data!) : 'Calculating…'} used on this device',
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(color: colors.primary, fontWeight: FontWeight.w800)));
+          }),
+        ])),
+      ]),
+    );
+  }
+}
+
 class _ActionCard extends StatelessWidget {
   final IconData icon;
   final Color color;
@@ -315,64 +387,32 @@ class _PreferenceStatusCard extends StatelessWidget {
   final String status;
 
   const _PreferenceStatusCard({
-    required this.icon,
-    required this.color,
-    required this.title,
-    required this.selectedValue,
-    required this.detail,
-    required this.status,
+    required this.icon, required this.color, required this.title,
+    required this.selectedValue, required this.detail, required this.status,
   });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final muted = theme.colorScheme.onSurfaceVariant;
+    final colors = theme.colorScheme;
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.only(bottom: 1),
       child: _CardShell(
         child: Padding(
           padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              _IconTile(icon: icon, color: color),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(title,
-                        style: theme.textTheme.titleSmall
-                            ?.copyWith(fontWeight: FontWeight.w800)),
-                    const SizedBox(height: 4),
-                    Text('$detail · $selectedValue',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: muted,
-                          height: 1.35,
-                        )),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Icon(Icons.info_outline_rounded,
-                            size: 13, color: muted),
-                        const SizedBox(width: 5),
-                        Flexible(
-                          child: Text(
-                            status,
-                            style: theme.textTheme.labelSmall?.copyWith(
-                              color: muted,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              Icon(Icons.lock_outline_rounded, size: 18, color: muted),
-            ],
-          ),
+          child: Row(children: [
+            _IconTile(icon: icon, color: color),
+            const SizedBox(width: 14),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(title, style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800)),
+              const SizedBox(height: 4),
+              Text(detail, style: theme.textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant, height: 1.35)),
+              const SizedBox(height: 8),
+              Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(color: colors.surfaceContainerHighest, borderRadius: BorderRadius.circular(10)),
+                child: Text(status, style: theme.textTheme.labelSmall?.copyWith(color: colors.onSurfaceVariant, fontWeight: FontWeight.w700))),
+            ])),
+          ]),
         ),
       ),
     );
@@ -436,7 +476,7 @@ class _StorageUsageCard extends StatelessWidget {
 
         return _CardShell(
           child: Padding(
-            padding: const EdgeInsets.all(18),
+            padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -470,7 +510,7 @@ class _StorageUsageCard extends StatelessWidget {
                   )
                 else ...[
                   _UsageRow(
-                    label: 'App data & local files',
+                    label: 'App data & local database',
                     value: _formatBytes(appBytes),
                     ratio: appRatio,
                     color: theme.colorScheme.primary,
@@ -503,7 +543,7 @@ class _StorageUsageCard extends StatelessWidget {
                 ],
                 const SizedBox(height: 8),
                 Text(
-                  'Measured from Novyn’s documents and temporary folders. Android may report additional system-managed storage.',
+                  'Measured from this app’s documents and temporary folders. System-managed cache may vary.',
                   style: theme.textTheme.labelSmall?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
                     height: 1.4,
