@@ -123,41 +123,57 @@ class AuthService extends ChangeNotifier {
   // ── Restore session from novyn-chat JWT cookie on app start ───────────────
   Future<void> _restoreSession(
       Future<Map<String, dynamic>?> Function() loadSession) async {
-    try {
-      var session = await loadSession();
-      // A saved refresh cookie can outlive the short-lived access cookie.
-      // Refresh before treating a persisted account as signed out.
-      if ((session == null || session['authenticated'] != true) &&
-          ApiService.sessionCookie != null) {
-        final refreshed = await ApiService.refreshSession();
-        if (refreshed) session = await loadSession();
-      }
+    final hadSavedCookie = ApiService.sessionCookie != null;
+    var attempt = 0;
 
-      // Recover from a cold backend or a temporary network hand-off.
-      if ((session == null || session['authenticated'] != true) &&
-          ApiService.sessionCookie != null) {
-        for (var attempt = 0; attempt < 2; attempt++) {
-          await ApiService.ping();
-          await Future<void>.delayed(const Duration(seconds: 2));
-          session = await loadSession();
-          if (session?['authenticated'] == true) break;
-          final retryRefreshed = await ApiService.refreshSession();
-          if (retryRefreshed) {
-            session = await loadSession();
-            if (session?['authenticated'] == true) break;
-          }
+    // A process restart must not turn a temporary Render/network outage into
+    // a logout. If a saved cookie exists, keep retrying until the backend
+    // confirms the account session or explicitly rejects both access and
+    // refresh credentials.
+    while (!_authReady) {
+      try {
+        final session = await loadSession();
+        if (session?['authenticated'] == true) {
+          final restoredUser = NovynUser.fromMap(session!);
+          await HybridDbService.activateAccount(restoredUser.username);
+          _user = restoredUser;
+          _authReady = true;
+          notifyListeners();
+          return;
         }
-      }
-      if (session != null && session['authenticated'] == true) {
-        final restoredUser = NovynUser.fromMap(session);
-        await HybridDbService.activateAccount(restoredUser.username);
-        _user = restoredUser;
-      }
-    } catch (_) {}
-    _authReady = true;
-    notifyListeners();
-  }
 
+        final hasSavedCredentials =
+            hadSavedCookie || ApiService.sessionCookie != null;
+        if (!hasSavedCredentials) {
+          // No persisted login cookie means this is a normal signed-out start.
+          _authReady = true;
+          notifyListeners();
+          return;
+        }
+
+        final refreshStatus = await ApiService.refreshSessionStatus();
+        if (refreshStatus == 200) {
+          attempt = 0;
+          continue;
+        }
+
+        if (refreshStatus == 401 || refreshStatus == 403) {
+          // Only a definitive rejection from the refresh endpoint clears the
+          // saved login. A timeout, 5xx, or Render cold-start is not a logout.
+          await ApiService.clearSession();
+          _authReady = true;
+          notifyListeners();
+          return;
+        }
+      } catch (_) {
+        // Keep the saved session and retry after transient startup failures.
+      }
+
+      attempt += 1;
+      final delaySeconds = (attempt * 2).clamp(2, 10);
+      await Future<void>.delayed(Duration(seconds: delaySeconds));
+    }
+  }
 
   Future<void> restoreSessionOnResume() async {
     if (!_authReady || _user == null) return;
