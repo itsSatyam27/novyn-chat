@@ -20,6 +20,7 @@ class PeopleScreen extends StatefulWidget {
 
 class _PeopleScreenState extends State<PeopleScreen> {
   String _search = '';
+  String _filter = 'All';
   final ScrollController _scrollController = ScrollController();
   final List<String> _alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ#'.split('');
 
@@ -57,9 +58,22 @@ class _PeopleScreenState extends State<PeopleScreen> {
                 ),
               ],
             ),
-            NovynSearchField(
-              hint: 'Search friends...',
-              onChanged: (value) => setState(() => _search = value.trim().toLowerCase()),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+              child: NovynSearchField(
+                hint: 'Search friends...',
+                onChanged: (value) => setState(() => _search = value.trim().toLowerCase()),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+              child: Row(children: [
+                _filterChip('All', _filter == 'All', () => setState(() => _filter = 'All')),
+                const SizedBox(width: 8),
+                _filterChip('Online', _filter == 'Online', () => setState(() => _filter = 'Online')),
+                const SizedBox(width: 8),
+                _filterChip('Favourites', _filter == 'Favourites', () => setState(() => _filter = 'Favourites')),
+              ]),
             ),
             Expanded(
               child: StreamBuilder<List<UserModel>>(
@@ -78,17 +92,17 @@ class _PeopleScreenState extends State<PeopleScreen> {
                   // Sort alphabetically
                   all.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
                   
-                  final filtered = _search.isEmpty
-                      ? all
-                      : all.where((u) =>
-                          u.name.toLowerCase().contains(_search) ||
-                          u.username.toLowerCase().contains(_search)).toList();
+                  final filtered = all.where((u) {
+                    if (_filter == 'Online' && !u.isOnline) return false;
+                    if (_search.isNotEmpty &&
+                        !u.name.toLowerCase().contains(_search) &&
+                        !u.username.toLowerCase().contains(_search)) return false;
+                    return true;
+                  }).toList();
 
                   if (filtered.isEmpty) return _buildEmpty();
 
-                  return Stack(
-                    children: [
-                      ListView.builder(
+                  return ListView.builder(
                         controller: _scrollController,
                         padding: const EdgeInsets.fromLTRB(16, 12, 34, 100),
                         itemCount: filtered.length,
@@ -125,14 +139,32 @@ class _PeopleScreenState extends State<PeopleScreen> {
                               }).toList(),
                             ),
                           ),
-                        ),
-                    ],
-                  );
+                    );
                 },
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _filterChip(String label, bool selected, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(22),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+        decoration: BoxDecoration(
+          color: selected ? const Color(0xFF6554F5) : Theme.of(context).colorScheme.surface,
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: selected ? const Color(0xFF6554F5) : Theme.of(context).colorScheme.outlineVariant),
+        ),
+        child: Text(label, style: TextStyle(
+          fontFamily: 'PlusJakartaSans', fontSize: 12, fontWeight: FontWeight.w700,
+          color: selected ? Colors.white : Theme.of(context).colorScheme.onSurface,
+        )),
       ),
     );
   }
@@ -198,18 +230,18 @@ class _FriendCard extends StatelessWidget {
       onTap: () => _openChat(context),
       child: Container(
         margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.all(13),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         decoration: BoxDecoration(
-          color: NovynColors.card,
-          borderRadius: BorderRadius.circular(19),
-          border: Border.all(color: NovynColors.glassBorder),
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: .65)),
         ),
         child: Row(
           children: [
             UserAvatar(
               name: user.name,
               photoUrl: user.photoUrl,
-              radius: 25,
+              radius: 27,
               showOnlineIndicator: true,
               isOnline: user.isOnline,
               presence: user.status,
