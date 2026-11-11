@@ -369,12 +369,14 @@ class AuthService extends ChangeNotifier {
     // account identities live separately in SettingsService and are retained.
     try {
       await ApiService.logout();
+    } catch (_) {
+      // Local identity and cache must still be cleared if the server is offline.
     } finally {
       await HybridDbService.clearAll();
       await HybridDbService.clearAccountScope();
+      _user = null;
+      notifyListeners();
     }
-
-    _user = null;
     notifyListeners();
   }
 
