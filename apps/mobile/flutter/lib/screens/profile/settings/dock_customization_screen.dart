@@ -48,13 +48,6 @@ class DockCustomizationScreen extends StatelessWidget {
         padding: EdgeInsets.fromLTRB(20, MediaQuery.of(context).padding.top + 12, 20, 32),
         children: [
           Row(children: [
-            Material(color: NovynTheme.cardBg(context),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(13),
-                side: BorderSide(color: colors.outlineVariant)),
-              child: IconButton(visualDensity: VisualDensity.compact,
-                onPressed: () => Navigator.maybePop(context),
-                icon: const Icon(Icons.chevron_left_rounded))),
-            const SizedBox(width: 14),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text('Dock appearance', style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900, letterSpacing: -.6)),
               Text('Changes apply instantly and are saved on this device', style: theme.textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant)),
