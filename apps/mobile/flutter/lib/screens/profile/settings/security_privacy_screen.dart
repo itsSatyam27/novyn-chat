@@ -21,7 +21,6 @@ class SecurityPrivacyScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final settings = context.watch<SettingsService>();
-    final auth = context.read<AuthService>();
     final socket = context.read<SocketService>();
     final dark = Theme.of(context).brightness == Brightness.dark;
     final ink = Theme.of(context).colorScheme.onSurface;
@@ -153,7 +152,7 @@ class SecurityPrivacyScreen extends StatelessWidget {
               nav(Icons.visibility_off_outlined, const Color(0xFFC2540F),
                 'Stealth Mode', 'Hide previews and block screen capture',
                 () => Navigator.push(context, MaterialPageRoute(
-                  builder: (_) => const SecurityPrivacyScreen(category: 'stealth')),
+                  builder: (_) => const SecurityPrivacyScreen(category: 'stealth'))),
                 trailing: Switch.adaptive(
                   value: settings.stealthModeEnabled,
                   onChanged: (v) => _setStealthMode(context, settings, v),
