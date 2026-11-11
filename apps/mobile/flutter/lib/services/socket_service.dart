@@ -1139,6 +1139,18 @@ class SocketService extends ChangeNotifier {
     _socket!.emit('remove_friend', username);
   }
 
+  void setMute(String username, {required bool muted}) {
+    _requireConnection();
+    _socket!.emit('set_mute', {'username': username, 'muted': muted});
+  }
+
+  void clearChat(String username) {
+    _requireConnection();
+    _socket!.emit('clear_chat', {'to': username, 'kind': 'friend'});
+    _messages = [];
+    notifyListeners();
+  }
+
   void requestDiscover() {
     if (_isConnected) _socket?.emit('discover_online');
   }
