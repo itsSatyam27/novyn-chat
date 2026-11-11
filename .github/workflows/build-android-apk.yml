@@ -8,7 +8,6 @@ on:
   pull_request:
     branches:
       - feature/real-media-storage-system
-      - feature/app-lock-recovery-hardening
 
 permissions:
   contents: read
