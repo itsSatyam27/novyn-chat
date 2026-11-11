@@ -394,18 +394,81 @@ class ProfileScreen extends StatelessWidget {
   }
 
   void _confirmLogout(BuildContext context, AuthService auth) {
-    showDialog(
+    showDialog<void>(
       context: context,
-      builder: (_) => AlertDialog(
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         title: const Text('Log out?', style: TextStyle(fontWeight: FontWeight.bold)),
         content: const Text('Are you sure you want to log out?'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
           TextButton(
             onPressed: () async {
-              Navigator.pop(context);
-              await auth.logout();
+              Navigator.pop(dialogContext);
+              // Keep the user informed while the server session and local
+              // authentication providers are being cleared.
+              showDialog<void>(
+                context: context,
+                barrierDismissible: false,
+                builder: (_) => PopScope(
+                  canPop: false,
+                  child: Dialog(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(24),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 28,
+                        vertical: 26,
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const SizedBox(
+                            width: 34,
+                            height: 34,
+                            child: CircularProgressIndicator(strokeWidth: 3),
+                          ),
+                          const SizedBox(height: 20),
+                          const Text(
+                            'Logging out…',
+                            style: TextStyle(
+                              fontSize: 17,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 7),
+                          Text(
+                            'Securing your account and signing you out',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Theme.of(context)
+                                  .textTheme
+                                  .bodySmall
+                                  ?.color
+                                  ?.withValues(alpha: 0.7),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              );
+
+              try {
+                await auth.logout();
+              } finally {
+                if (context.mounted) {
+                  Navigator.of(context, rootNavigator: true).pop();
+                }
+              }
+
               if (context.mounted) {
                 Navigator.of(context).pushAndRemoveUntil(
                   MaterialPageRoute(builder: (_) => const OnboardingScreen()),
@@ -413,7 +476,13 @@ class ProfileScreen extends StatelessWidget {
                 );
               }
             },
-            child: const Text('Log out', style: TextStyle(color: Color(0xFFEF4444), fontWeight: FontWeight.bold)),
+            child: const Text(
+              'Log out',
+              style: TextStyle(
+                color: Color(0xFFEF4444),
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ),
         ],
       ),
