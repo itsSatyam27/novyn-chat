@@ -56,7 +56,9 @@ class _ChatsScreenState extends State<ChatsScreen> {
     super.initState();
     // Never hydrate from a previous signed-in account's in-memory previews.
     final owner = context.read<AuthService>().user?.username.toLowerCase();
-    if (ChatsScreen.cachedChatsOwner != owner) ChatsScreen.resetAccountCache();
+    if (owner == null || ChatsScreen.cachedChatsOwner != owner) {
+      ChatsScreen.resetAccountCache();
+    }
     // Show cache immediately, then refresh in background
     if (ChatsScreen.cachedChats != null) {
       _chats = ChatsScreen.cachedChats!;
