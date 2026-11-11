@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'api_service.dart';
 import 'firebase_configuration.dart';
+import 'hybrid_db_service.dart';
 
 /// Novyn Auth Service — bridges Firebase Auth with novyn-chat's backend.
 ///
@@ -86,6 +87,7 @@ class AuthService extends ChangeNotifier {
   final Future<void> Function(String)? savePresence;
   final Future<void> Function(String, String)? savePassword;
   final Future<void> Function(String)? clearNotificationsToken;
+  final Future<void> Function()? onAccountReset;
   bool _updatingPresence = false;
   bool get updatingPresence => _updatingPresence;
   late final FirebaseAuth _firebaseAuth = FirebaseAuth.instance;
@@ -104,8 +106,16 @@ class AuthService extends ChangeNotifier {
       {this.savePresence,
       this.savePassword,
       this.clearNotificationsToken,
+      this.onAccountReset,
       Future<Map<String, dynamic>?> Function()? restoreSession}) {
     _restoreSession(restoreSession ?? ApiService.getSession);
+  }
+
+  Future<void> _prepareAccount(String username) async {
+    if (_user?.username.toLowerCase() != username.toLowerCase()) {
+      await onAccountReset?.call();
+    }
+    await HybridDbService.activateAccount(username);
   }
 
   // ── Restore session from novyn-chat JWT cookie on app start ───────────────
@@ -137,7 +147,9 @@ class AuthService extends ChangeNotifier {
         }
       }
       if (session != null && session['authenticated'] == true) {
-        _user = NovynUser.fromMap(session);
+        final restoredUser = NovynUser.fromMap(session);
+        await HybridDbService.activateAccount(restoredUser.username);
+        _user = restoredUser;
       }
     } catch (_) {}
     _authReady = true;
@@ -154,7 +166,11 @@ class AuthService extends ChangeNotifier {
         if (refreshed) session = await ApiService.getSession();
       }
       if (session != null && session['authenticated'] == true) {
-        _user = NovynUser.fromMap(session);
+        final refreshedUser = NovynUser.fromMap(session);
+        if (_user?.username.toLowerCase() != refreshedUser.username.toLowerCase()) {
+          await _prepareAccount(refreshedUser.username);
+        }
+        _user = refreshedUser;
         notifyListeners();
       }
     } catch (_) {
@@ -181,7 +197,11 @@ class AuthService extends ChangeNotifier {
     try {
       final session = await ApiService.getSession();
       if (session != null && session['authenticated'] == true) {
-        _user = NovynUser.fromMap(session);
+        final refreshedUser = NovynUser.fromMap(session);
+        if (_user?.username.toLowerCase() != refreshedUser.username.toLowerCase()) {
+          await _prepareAccount(refreshedUser.username);
+        }
+        _user = refreshedUser;
         notifyListeners();
       }
     } catch (_) {}
@@ -223,15 +243,19 @@ class AuthService extends ChangeNotifier {
       // 6. Load the full session profile
       final session = await ApiService.getSession();
       if (session != null && session['authenticated'] == true) {
-        _user = NovynUser.fromMap(session);
+        final signedInUser = NovynUser.fromMap(session);
+        await _prepareAccount(signedInUser.username);
+        _user = signedInUser;
       } else {
         // Fallback from the google response itself
-        _user = NovynUser(
+        final signedInUser = NovynUser(
           username: result['username'].toString(),
           displayName: result['displayName']?.toString() ??
               result['username'].toString(),
           email: result['email']?.toString() ?? googleUser.email,
         );
+        await _prepareAccount(signedInUser.username);
+        _user = signedInUser;
       }
 
       notifyListeners();
@@ -265,14 +289,18 @@ class AuthService extends ChangeNotifier {
 
     final session = await ApiService.getSession();
     if (session != null && session['authenticated'] == true) {
-      _user = NovynUser.fromMap(session);
+      final signedInUser = NovynUser.fromMap(session);
+      await _prepareAccount(signedInUser.username);
+      _user = signedInUser;
     } else {
-      _user = NovynUser(
+      final signedInUser = NovynUser(
         username: result['username'].toString(),
         displayName:
             result['displayName']?.toString() ?? result['username'].toString(),
         email: result['email']?.toString() ?? '',
       );
+      await _prepareAccount(signedInUser.username);
+      _user = signedInUser;
     }
 
     notifyListeners();
@@ -300,13 +328,17 @@ class AuthService extends ChangeNotifier {
 
     final session = await ApiService.getSession();
     if (session != null && session['authenticated'] == true) {
-      _user = NovynUser.fromMap(session);
+      final signedInUser = NovynUser.fromMap(session);
+      await _prepareAccount(signedInUser.username);
+      _user = signedInUser;
     } else {
-      _user = NovynUser(
+      final signedInUser = NovynUser(
         username: result['username'].toString(),
         displayName: name,
         email: email,
       );
+      await _prepareAccount(signedInUser.username);
+      _user = signedInUser;
     }
 
     notifyListeners();
@@ -324,14 +356,23 @@ class AuthService extends ChangeNotifier {
       }
     }
 
+    // Stop live events and discard in-memory data before changing identity.
+    await onAccountReset?.call();
+
     // Sign out from Firebase (Google SSO cleanup)
     try {
       await _googleSignIn.signOut();
       await _firebaseAuth.signOut();
     } catch (_) {}
 
-    // Invalidate novyn-chat JWT cookie
-    await ApiService.logout();
+    // Revoke the server session and erase the shared local cache. Saved
+    // account identities live separately in SettingsService and are retained.
+    try {
+      await ApiService.logout();
+    } finally {
+      await HybridDbService.clearAll();
+      await HybridDbService.clearAccountScope();
+    }
 
     _user = null;
     notifyListeners();
