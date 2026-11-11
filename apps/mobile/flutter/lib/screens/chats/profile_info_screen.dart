@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import '../../models/user_model.dart';
 import '../../widgets/user_avatar.dart';
 
@@ -9,6 +10,12 @@ class ProfileInfoScreen extends StatelessWidget {
   final VoidCallback? onVideoCall;
   final VoidCallback? onSharedMedia;
   final VoidCallback? onWallpaper;
+  final bool initiallyBlocked;
+  final VoidCallback? onMute;
+  final VoidCallback? onBlock;
+  final VoidCallback? onClearChat;
+  final VoidCallback? onRemoveFriend;
+  final VoidCallback? onExportChat;
 
   const ProfileInfoScreen({
     super.key,
@@ -17,6 +24,12 @@ class ProfileInfoScreen extends StatelessWidget {
     this.onVideoCall,
     this.onSharedMedia,
     this.onWallpaper,
+    this.initiallyBlocked = false,
+    this.onMute,
+    this.onBlock,
+    this.onClearChat,
+    this.onRemoveFriend,
+    this.onExportChat,
   });
 
   @override
@@ -174,11 +187,90 @@ class ProfileInfoScreen extends StatelessWidget {
                     _NavigationRow(icon: Icons.wallpaper_rounded, title: 'Chat wallpaper', subtitle: 'Personalise this conversation', onTap: onWallpaper!),
                 ],
               ),
-            ),
           ],
+          const SizedBox(height: 18),
+          _SectionTitle(title: 'NOTIFICATIONS & SAFETY'),
+          _InfoCard(
+            child: Column(
+              children: [
+                if (onMute != null)
+                  _NavigationRow(icon: Icons.notifications_off_outlined, title: 'Mute notifications', subtitle: 'Silence alerts from this contact', onTap: onMute!),
+                if (onMute != null) Divider(height: 16, color: scheme.outlineVariant.withValues(alpha: .6)),
+                if (onBlock != null)
+                  _NavigationRow(icon: initiallyBlocked ? Icons.lock_open_rounded : Icons.block_rounded, title: initiallyBlocked ? 'Unblock contact' : 'Block contact', subtitle: initiallyBlocked ? 'Allow this contact to reach you' : 'Stop messages and calls from this contact', onTap: onBlock!),
+                if (onBlock != null) Divider(height: 16, color: scheme.outlineVariant.withValues(alpha: .6)),
+                _NavigationRow(icon: Icons.qr_code_2_rounded, title: 'Contact QR code', subtitle: 'Show a scannable profile code', onTap: () => _showContactQr(context)),
+              ],
+            ),
+          ),
+          const SizedBox(height: 18),
+          _SectionTitle(title: 'CHAT MANAGEMENT'),
+          _InfoCard(
+            child: Column(
+              children: [
+                if (onExportChat != null)
+                  _NavigationRow(icon: Icons.ios_share_rounded, title: 'Export chat', subtitle: 'Copy a readable conversation transcript', onTap: onExportChat!),
+                if (onExportChat != null && onClearChat != null) Divider(height: 16, color: scheme.outlineVariant.withValues(alpha: .6)),
+                if (onClearChat != null)
+                  _NavigationRow(icon: Icons.delete_sweep_outlined, title: 'Clear chat history', subtitle: 'Remove messages from this conversation', onTap: () => _confirmContactAction(context, 'Clear chat history?', 'This clears the conversation history from your account and cannot be undone.', 'Clear', onClearChat!)),
+                if (onClearChat != null && onRemoveFriend != null) Divider(height: 16, color: scheme.outlineVariant.withValues(alpha: .6)),
+                if (onRemoveFriend != null)
+                  _NavigationRow(icon: Icons.person_remove_alt_1_rounded, title: 'Remove contact', subtitle: 'Remove this person from your friends', onTap: () => _confirmContactAction(context, 'Remove contact?', 'You will need to send a new friend request to chat again.', 'Remove', onRemoveFriend!)),
+              ],
+            ),
+          ),
+        ],
         ],
       ),
     );
+  }
+
+  void _showContactQr(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Contact QR code'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            QrImageView(data: 'novyn://user/${user.username}', size: 220, backgroundColor: Colors.white),
+            const SizedBox(height: 12),
+            Text('@${user.username}', style: const TextStyle(fontWeight: FontWeight.w700)),
+            const SizedBox(height: 5),
+            const Text('Scan to identify this Novyn account', textAlign: TextAlign.center),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () async {
+              await Clipboard.setData(ClipboardData(text: 'novyn://user/${user.username}'));
+              if (dialogContext.mounted) Navigator.pop(dialogContext);
+            },
+            child: const Text('Copy profile link'),
+          ),
+          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Close')),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _confirmContactAction(BuildContext context, String title, String message, String action, VoidCallback callback) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(title),
+        content: Text(message),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancel')),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            style: FilledButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.error),
+            child: Text(action),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && context.mounted) callback();
   }
 
   static String _date(DateTime value) => '${value.day.toString().padLeft(2, '0')} ${_month(value.month)} ${value.year}';
