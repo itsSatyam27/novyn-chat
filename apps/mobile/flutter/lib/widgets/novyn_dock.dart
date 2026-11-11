@@ -45,55 +45,78 @@ class NovynDock extends StatelessWidget {
     final radius = style == 'rounded_bar' ? 22.0 : (style == 'glow' ? 30.0 : 26.0);
     final background = dark ? const Color(0xE923172F) : const Color(0xF7FFFFFF);
 
-    final dockSurface = AnimatedPadding(
-        duration: duration,
-        curve: Curves.easeInOutCubic,
-        padding: EdgeInsets.fromLTRB(full ? 0 : 14, 0, full ? 0 : 14, full ? 0 : 14),
-        child: SizedBox(
-          height: 82,
-          child: Center(
-            child: AnimatedContainer(
-              duration: duration,
-              curve: Curves.easeInOutCubic,
-              width: double.infinity,
-              height: full || compact ? 72 : 82,
-              padding: EdgeInsets.symmetric(horizontal: full ? 4 : 8, vertical: 7),
-              decoration: BoxDecoration(
-                color: style == 'minimal'
-                    ? Colors.transparent
-                    : (glass ? background.withValues(alpha: .68) : background),
-                borderRadius: BorderRadius.circular(full ? 0 : radius),
-                border: style == 'minimal' || full
-                    ? null
-                    : Border.all(
-                        color: dark ? const Color(0x35C8B8F5) : const Color(0xFFDCD4FA),
-                      ),
-                boxShadow: style == 'minimal' || full
-                    ? null
-                    : [
-                        BoxShadow(
+    final dockSurface = SizedBox(
+      key: const ValueKey('novyn-dock-shell'),
+      height: 96,
+      child: Align(
+        alignment: Alignment.bottomCenter,
+        child: AnimatedPadding(
+          duration: duration,
+          curve: Curves.easeInOutCubic,
+          padding: EdgeInsets.fromLTRB(
+            full ? 0 : 14,
+            0,
+            full ? 0 : 14,
+            full ? 0 : 14,
+          ),
+          child: SizedBox(
+            height: 82,
+            child: Center(
+              child: AnimatedContainer(
+                duration: duration,
+                curve: Curves.easeInOutCubic,
+                width: double.infinity,
+                height: full || compact ? 72 : 82,
+                padding: EdgeInsets.symmetric(
+                  horizontal: full ? 4 : 8,
+                  // Compact and edge-to-edge styles need extra vertical room:
+                  // the tab's 58px body plus its vertical margins is 60px.
+                  vertical: full || compact ? 4 : 7,
+                ),
+                decoration: BoxDecoration(
+                  color: style == 'minimal'
+                      ? Colors.transparent
+                      : (glass ? background.withValues(alpha: .68) : background),
+                  borderRadius: BorderRadius.circular(full ? 0 : radius),
+                  border: style == 'minimal' || full
+                      ? null
+                      : Border.all(
                           color: dark
-                              ? Colors.black.withValues(alpha: .28)
-                              : accent.withValues(alpha: .09),
-                          blurRadius: glass ? 26 : 20,
-                          offset: const Offset(0, 8),
-                          spreadRadius: style == 'glow' ? 1 : 0,
+                              ? const Color(0x35C8B8F5)
+                              : const Color(0xFFDCD4FA),
                         ),
-                      ],
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(full ? 0 : radius),
-                child: glass
-                    ? BackdropFilter(
-                        filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-                        child: _items(context, selected, accent, dark, compact, reduceMotion),
-                      )
-                    : _items(context, selected, accent, dark, compact, reduceMotion),
+                  boxShadow: style == 'minimal' || full
+                      ? null
+                      : [
+                          BoxShadow(
+                            color: dark
+                                ? Colors.black.withValues(alpha: .28)
+                                : accent.withValues(alpha: .09),
+                            blurRadius: glass ? 26 : 20,
+                            offset: const Offset(0, 8),
+                            spreadRadius: style == 'glow' ? 1 : 0,
+                          ),
+                        ],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(full ? 0 : radius),
+                  child: glass
+                      ? BackdropFilter(
+                          filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+                          child: _items(
+                            context, selected, accent, dark, compact, reduceMotion,
+                          ),
+                        )
+                      : _items(
+                          context, selected, accent, dark, compact, reduceMotion,
+                        ),
+                ),
               ),
             ),
           ),
         ),
-      );
+      ),
+    );
     return preview ? dockSurface : SafeArea(top: false, child: dockSurface);
   }
 

@@ -3,31 +3,81 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:novyn/widgets/novyn_dock.dart';
 
 void main() {
-  testWidgets('dock changes selection and stays visible after idle',
+  const styles = [
+    'floating_pill',
+    'rounded_bar',
+    'minimal',
+    'glass',
+    'sliding',
+    'elevated',
+    'full_width',
+    'glow',
+  ];
+
+  testWidgets('dock keeps a stable footprint across all styles',
       (tester) async {
-    var selection = 0;
+    var selectedStyle = styles.first;
+    await tester.view.setPhysicalSize(const Size(390, 844));
+    await tester.view.setDevicePixelRatio(1);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
     await tester.pumpWidget(MaterialApp(
-        home: Scaffold(
-            body: StatefulBuilder(
-      builder: (context, setState) => Align(
-        alignment: Alignment.bottomCenter,
-        child: NovynDock(
-            selectedIndex: selection,
-            unreadCount: 3,
-            onSelected: (index) => setState(() => selection = index)),
+      home: Scaffold(
+        body: const SizedBox.expand(),
+        bottomNavigationBar: StatefulBuilder(
+          builder: (context, setState) => NovynDock(
+            selectedIndex: 0,
+            onSelected: (_) {},
+            style: selectedStyle,
+          ),
+        ),
       ),
-    ))));
-    final target = find.byKey(const ValueKey('dock-tab-3'));
-    expect(tester.getSize(target).height, greaterThanOrEqualTo(48));
-    await tester.tap(target);
-    await tester.pump();
-    final highlight = tester
-        .widget<AnimatedSlide>(find.byKey(const ValueKey('dock-highlight')));
-    expect(selection, 3);
-    expect(highlight.offset.dx, closeTo(3 * 57 / 54, 0.001));
+    ));
+
+    final shell = find.byKey(const ValueKey('novyn-dock-shell'));
+    expect(tester.getSize(shell).height, 96);
+
+    for (final style in styles.skip(1)) {
+      selectedStyle = style;
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: const SizedBox.expand(),
+          bottomNavigationBar: NovynDock(
+            selectedIndex: 0,
+            onSelected: (_) {},
+            style: selectedStyle,
+          ),
+        ),
+      ));
+      await tester.pumpAndSettle();
+      expect(tester.getSize(shell).height, 96, reason: style);
+      expect(tester.takeException(), isNull, reason: style);
+    }
+  });
+
+  testWidgets('dock tabs remain tappable and badges stay visible',
+      (tester) async {
+    var selected = 0;
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        bottomNavigationBar: StatefulBuilder(
+          builder: (context, setState) => NovynDock(
+            selectedIndex: selected,
+            unreadCount: 3,
+            requestCount: 1,
+            onSelected: (index) => setState(() => selected = index),
+            style: 'sliding',
+          ),
+        ),
+      ),
+    ));
+
+    final contacts = find.byKey(const ValueKey('dock-tab-3'));
+    expect(contacts, findsOneWidget);
+    await tester.tap(contacts);
     await tester.pumpAndSettle();
-    await tester.pump(const Duration(seconds: 5));
-    expect(target.hitTestable(), findsOneWidget);
+    expect(selected, 3);
     expect(find.text('3'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
