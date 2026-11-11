@@ -15,7 +15,6 @@ class AppearanceScreen extends StatelessWidget {
     ('Pink', Color(0xFFDB2777)),
     ('Orange', Color(0xFFEA580C)),
     ('Green', Color(0xFF16A34A)),
-    ('Slate', Color(0xFF475569)),
   ];
 
   @override
@@ -77,15 +76,28 @@ class AppearanceScreen extends StatelessWidget {
           const SizedBox(height: 25),
           _SectionHeading(
             title: 'Accent colour',
-            subtitle: 'Used for highlights, buttons and active states',
+            subtitle: 'Choose a colour for highlights and active states',
             trailing: _ValuePill(accentName),
+          ),
+          const SizedBox(height: 10),
+          _SurfaceCard(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+            child: SwitchListTile.adaptive(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Apply selected accent'),
+              subtitle: Text(settings.accentColorEnabled
+                  ? 'Icons and active elements use your selected colour'
+                  : 'Keep the default colourful appearance'),
+              value: settings.accentColorEnabled,
+              onChanged: settings.setAccentColorEnabled,
+            ),
           ),
           const SizedBox(height: 12),
           _SurfaceCard(
             child: GridView.builder(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
-              itemCount: _accents.length,
+              itemCount: 8,
               gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: 4,
                 mainAxisSpacing: 16,
@@ -93,6 +105,18 @@ class AppearanceScreen extends StatelessWidget {
                 childAspectRatio: 1.18,
               ),
               itemBuilder: (context, index) {
+                if (index == 7) {
+                  return _AccentChoice(
+                    name: 'Custom',
+                    color: accent,
+                    selected: selectedAccent < 0,
+                    onTap: () async {
+                      final picked = await _showCustomAccentPicker(context, accent);
+                      if (picked != null) await settings.setAccentColor(picked.value);
+                    },
+                    custom: true,
+                  );
+                }
                 final item = _accents[index];
                 final selected = accent.value == item.$2.value;
                 return _AccentChoice(
@@ -421,14 +445,15 @@ class _ValuePill extends StatelessWidget {
 }
 
 class _SurfaceCard extends StatelessWidget {
-  const _SurfaceCard({required this.child});
+  const _SurfaceCard({required this.child, this.padding = const EdgeInsets.all(15)});
   final Widget child;
+  final EdgeInsetsGeometry padding;
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     return Container(
-      padding: const EdgeInsets.all(15),
+      padding: padding,
       decoration: BoxDecoration(
         color: colors.surface,
         borderRadius: BorderRadius.circular(21),
@@ -450,6 +475,7 @@ class _ThemeChoice extends StatelessWidget {
   final ThemeMode mode;
   final bool selected;
   final VoidCallback onTap;
+  final bool custom;
 
   @override
   Widget build(BuildContext context) {
@@ -530,6 +556,90 @@ class _ThemeChoice extends StatelessWidget {
       ),
     );
   }
+}
+
+Future<Color?> _showCustomAccentPicker(BuildContext context, Color initial) {
+  var hsv = HSVColor.fromColor(initial);
+  return showDialog<Color>(
+    context: context,
+    builder: (dialogContext) => StatefulBuilder(
+      builder: (context, setState) {
+        final preview = hsv.toColor();
+        return AlertDialog(
+          title: const Text('Custom accent colour'),
+          content: SizedBox(
+            width: 320,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 54,
+                  height: 54,
+                  decoration: BoxDecoration(
+                    color: preview,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Theme.of(context).colorScheme.outlineVariant, width: 2),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                _PickerSlider(
+                  label: 'Hue',
+                  value: hsv.hue,
+                  max: 360,
+                  onChanged: (v) => setState(() => hsv = hsv.withHue(v)),
+                ),
+                _PickerSlider(
+                  label: 'Saturation',
+                  value: hsv.saturation,
+                  max: 1,
+                  onChanged: (v) => setState(() => hsv = hsv.withSaturation(v)),
+                ),
+                _PickerSlider(
+                  label: 'Brightness',
+                  value: hsv.value,
+                  max: 1,
+                  onChanged: (v) => setState(() => hsv = hsv.withValue(v)),
+                ),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text('#${preview.value.toRadixString(16).substring(2).toUpperCase()}',
+                    style: Theme.of(context).textTheme.labelMedium),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel')),
+            FilledButton(onPressed: () => Navigator.pop(dialogContext, preview), child: const Text('Apply')),
+          ],
+        );
+      },
+    ),
+  );
+}
+
+class _PickerSlider extends StatelessWidget {
+  const _PickerSlider({required this.label, required this.value, required this.max, required this.onChanged});
+  final String label;
+  final double value;
+  final double max;
+  final ValueChanged<double> onChanged;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: Theme.of(context).textTheme.labelMedium),
+          Text(max == 360 ? '${value.round()}°' : '${(value * 100).round()}%',
+            style: Theme.of(context).textTheme.labelSmall),
+        ],
+      ),
+      Slider(value: value.clamp(0, max), min: 0, max: max, onChanged: onChanged),
+    ],
+  );
 }
 
 class _AccentChoice extends StatelessWidget {
