@@ -47,7 +47,7 @@ class _AuthScreenState extends State<AuthScreen>
     return Scaffold(
       backgroundColor: const Color(0xFF5B48DD),
       body: Stack(children: [
-        const _MeshBackground(),
+        _MeshBackground(),
         SafeArea(child: Column(children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(28, 28, 28, 12),
@@ -112,7 +112,7 @@ class _AuthScreenState extends State<AuthScreen>
           unselectedLabelStyle: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w600),
           labelColor: const Color(0xFF5140D5),
           unselectedLabelColor: const Color(0xFF686487),
-          tabs: const [Tab(text: 'Sign in'), Tab(text: 'Create account')])) ;
+          tabs: const [Tab(text: 'Sign in'), Tab(text: 'Create account')])));
   }
 
 }
