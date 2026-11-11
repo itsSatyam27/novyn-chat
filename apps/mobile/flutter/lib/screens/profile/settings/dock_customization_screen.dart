@@ -68,10 +68,29 @@ class DockCustomizationScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 18),
-          _PreviewCard(
-            style: selectedStyle,
-            styleName: _styleName(selectedStyle),
-            description: _styleDescription(selectedStyle),
+          _PreviewCard(style: selectedStyle),
+          const SizedBox(height: 12),
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 220),
+            child: Column(
+              key: ValueKey(selectedStyle),
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _styleName(selectedStyle),
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  _styleDescription(selectedStyle),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: colors.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
           ),
           const SizedBox(height: 24),
           Row(
@@ -132,20 +151,16 @@ class DockCustomizationScreen extends StatelessWidget {
 class _PreviewCard extends StatelessWidget {
   const _PreviewCard({
     required this.style,
-    required this.styleName,
-    required this.description,
   });
 
   final String style;
-  final String styleName;
-  final String description;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
     return Container(
-      height: 222,
+      height: 190,
       decoration: BoxDecoration(
         color: colors.surface,
         borderRadius: BorderRadius.circular(24),
@@ -222,18 +237,6 @@ class _PreviewCard extends StatelessWidget {
             ),
           ),
           Positioned(
-            top: 86,
-            left: 17,
-            child: Container(
-              width: 96,
-              height: 6,
-              decoration: BoxDecoration(
-                color: colors.onSurface.withValues(alpha: .08),
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
-          ),
-          Positioned(
             left: 12,
             right: 12,
             bottom: 8,
@@ -244,38 +247,6 @@ class _PreviewCard extends StatelessWidget {
               unreadCount: 2,
               requestCount: 1,
               preview: true,
-            ),
-          ),
-          Positioned(
-            left: 17,
-            bottom: 112,
-            right: 17,
-            child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 220),
-              switchInCurve: Curves.easeOut,
-              switchOutCurve: Curves.easeIn,
-              child: Column(
-                key: ValueKey(style),
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    styleName,
-                    style: theme.textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    description,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: colors.onSurfaceVariant,
-                      fontSize: 11,
-                    ),
-                  ),
-                ],
-              ),
             ),
           ),
         ],
