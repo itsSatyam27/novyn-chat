@@ -498,7 +498,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         // Top item: loading indicator or "start of conversation"
         if (i == 0) {
           if (_loadingOlder) {
-            return const Padding(
+            return Padding(
               padding: EdgeInsets.symmetric(vertical: 12),
               child: Center(
                 child: SizedBox(

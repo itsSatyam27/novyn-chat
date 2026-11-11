@@ -1397,7 +1397,7 @@ class _TwoFactorSetupDialogState extends State<_TwoFactorSetupDialog> {
         else
           TextButton(
             onPressed: () => setState(() => _step = 1),
-            child: const Text(
+            child: Text(
               'Resend Code',
               style: TextStyle(fontFamily: 'PlusJakartaSans', fontWeight: FontWeight.w800, color: Theme.of(context).colorScheme.primary),
             ),
