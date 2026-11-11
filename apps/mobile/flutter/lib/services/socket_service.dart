@@ -8,6 +8,7 @@ import '../models/chat_preview.dart';
 import '../models/user_model.dart';
 import 'hybrid_db_service.dart';
 import 'api_service.dart';
+import 'media_storage_service.dart';
 import 'backend_contacts.dart';
 import 'message_encryption_service.dart';
 
@@ -343,6 +344,10 @@ class SocketService extends ChangeNotifier {
 
       // Save to local DB
       HybridDbService.saveMessage(msg);
+      if (!isOwn && msg.attachment != null) {
+        unawaited(MediaStorageService.handleIncomingAttachment(
+          msg.attachment, msg.id));
+      }
 
       // Update the open chat message list
       if (_currentChatWith != null &&
