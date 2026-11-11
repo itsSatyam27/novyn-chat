@@ -25,6 +25,13 @@ class ChatsScreen extends StatefulWidget {
   // Public statics for real-time updates from SocketService
   static int totalUnread = 0;
   static List<ChatPreview>? cachedChats;
+  static String? cachedChatsOwner;
+
+  static void resetAccountCache() {
+    totalUnread = 0;
+    cachedChats = null;
+    cachedChatsOwner = null;
+  }
 
   @override
   State<ChatsScreen> createState() => _ChatsScreenState();
@@ -47,6 +54,9 @@ class _ChatsScreenState extends State<ChatsScreen> {
   @override
   void initState() {
     super.initState();
+    // Never hydrate from a previous signed-in account's in-memory previews.
+    final owner = context.read<AuthService>().user?.username.toLowerCase();
+    if (ChatsScreen.cachedChatsOwner != owner) ChatsScreen.resetAccountCache();
     // Show cache immediately, then refresh in background
     if (ChatsScreen.cachedChats != null) {
       _chats = ChatsScreen.cachedChats!;
@@ -104,6 +114,7 @@ class _ChatsScreenState extends State<ChatsScreen> {
     // 1. Load from local cache first (instant)
     if (!silent) {
       final cachedChats = await HybridDbService.getChats();
+      if (!mounted || context.read<AuthService>().user?.username != myUsername) return;
       if (cachedChats.isNotEmpty && mounted) {
         final peerUids = cachedChats
             .map((c) => c['peerUid'] as String?)
@@ -111,6 +122,7 @@ class _ChatsScreenState extends State<ChatsScreen> {
             .cast<String>()
             .toList();
         final cachedUsers = await HybridDbService.getUsers(peerUids);
+        if (!mounted || context.read<AuthService>().user?.username != myUsername) return;
 
         final previews = <ChatPreview>[];
         for (final chat in cachedChats) {
@@ -145,6 +157,7 @@ class _ChatsScreenState extends State<ChatsScreen> {
             _loading = false;
           });
           ChatsScreen.cachedChats = previews;
+          ChatsScreen.cachedChatsOwner = myUsername.toLowerCase();
           ChatsScreen.totalUnread =
               previews.fold(0, (s, c) => s + c.unreadCount);
         }
@@ -163,6 +176,7 @@ class _ChatsScreenState extends State<ChatsScreen> {
       });
 
       ChatsScreen.cachedChats = previews;
+      ChatsScreen.cachedChatsOwner = myUsername.toLowerCase();
       ChatsScreen.totalUnread = previews.fold(0, (s, c) => s + c.unreadCount);
 
       if (!mounted) return;
