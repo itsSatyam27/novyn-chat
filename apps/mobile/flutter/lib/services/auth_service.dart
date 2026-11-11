@@ -495,6 +495,7 @@ class AuthService extends ChangeNotifier {
     _user = _user!.copyWith(
       displayName: update['displayName']?.toString(),
       bio: update['bio']?.toString(),
+      email: update['email']?.toString(),
       avatarId: update['avatarId']?.toString(),
       presenceMode: update['presenceMode']?.toString(),
     );
