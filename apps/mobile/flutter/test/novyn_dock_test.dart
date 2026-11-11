@@ -17,11 +17,6 @@ void main() {
   testWidgets('dock keeps a stable footprint across all styles',
       (tester) async {
     var selectedStyle = styles.first;
-    await tester.view.setPhysicalSize(const Size(390, 844));
-    await tester.view.setDevicePixelRatio(1);
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
-
     await tester.pumpWidget(MaterialApp(
       home: Scaffold(
         body: const SizedBox.expand(),
