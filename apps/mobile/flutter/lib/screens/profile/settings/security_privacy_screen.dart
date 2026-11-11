@@ -6,11 +6,11 @@ import '../../../services/settings_service.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/socket_service.dart';
 import '../../../services/security_service.dart';
-import '../../../widgets/novyn_empty_state.dart';
 import '../../../widgets/novyn_alert.dart';
 import '../../security/setup_pin_screen.dart';
 import 'active_sessions_screen.dart';
 import 'email_password_screen.dart';
+import 'blocked_users_screen.dart';
 import '../../../theme/novyn_theme.dart';
 import '../widgets/profile_widgets.dart';
 
@@ -379,121 +379,9 @@ class SecurityPrivacyScreen extends StatelessWidget {
   }
 
   void _showBlockedUsers(BuildContext context, SocketService socket) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (sheetContext) => BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-        child: Container(
-          height: MediaQuery.of(sheetContext).size.height * 0.75,
-          decoration: BoxDecoration(
-            color: Theme.of(sheetContext).colorScheme.surface,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
-            border: Border.all(color: Theme.of(context).colorScheme.outlineVariant, width: 1),
-          ),
-          child: Column(
-            children: [
-              const SizedBox(height: 12),
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Theme.of(sheetContext).colorScheme.onSurface.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.all(24),
-                child: Text(
-                  'Blocked Users',
-                  style: TextStyle(
-                    fontFamily: 'PlusJakartaSans',
-                    fontWeight: FontWeight.w900,
-                    fontSize: 22,
-                    color: Theme.of(sheetContext).colorScheme.onSurface,
-                  ),
-                ),
-              ),
-              Expanded(
-                child: AnimatedBuilder(
-                  animation: socket,
-                  builder: (context, _) {
-                    final blockedUsers = socket.blockedUsers;
-                    if (blockedUsers.isEmpty) {
-                      return const NovynEmptyState(
-                        icon: Icons.block_rounded,
-                        title: 'No blocked users',
-                        description: 'Your server-synced block list is empty',
-                      );
-                    }
-                    return ListView.builder(
-                      itemCount: blockedUsers.length,
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      itemBuilder: (context, index) {
-                        final username = blockedUsers[index];
-                        return Container(
-                          margin: const EdgeInsets.only(bottom: 12),
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(20),
-                            color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                          ),
-                          child: ListTile(
-                            leading: CircleAvatar(
-                              backgroundColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
-                              child: Icon(Icons.person_rounded, color: Theme.of(context).colorScheme.primary),
-                            ),
-                            title: Text(
-                              '@$username',
-                              style: const TextStyle(
-                                fontFamily: 'PlusJakartaSans',
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            trailing: TextButton(
-                              onPressed: () async {
-                                HapticFeedback.mediumImpact();
-                                try {
-                                  final result = await socket.setBlockedUser(
-                                    username,
-                                    blocked: false,
-                                  );
-                                  if (result['ok'] != true && sheetContext.mounted) {
-                                    ScaffoldMessenger.of(sheetContext).showSnackBar(
-                                      SnackBar(
-                                        content: Text(result['message']?.toString() ?? 'Could not unblock user.'),
-                                      ),
-                                    );
-                                  }
-                                } catch (error) {
-                                  if (sheetContext.mounted) {
-                                    ScaffoldMessenger.of(sheetContext).showSnackBar(
-                                      SnackBar(content: Text(error.toString().replaceFirst('Bad state: ', ''))),
-                                    );
-                                  }
-                                }
-                              },
-                              child: const Text(
-                                'Unblock',
-                                style: TextStyle(
-                                  fontFamily: 'PlusJakartaSans',
-                                  fontWeight: FontWeight.w900,
-                                  color: Color(0xFFEF4444),
-                                ),
-                              ),
-                            ),
-                          ),
-                        );
-                      },
-                    );
-                  },
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const BlockedUsersScreen()),
     );
   }
 
