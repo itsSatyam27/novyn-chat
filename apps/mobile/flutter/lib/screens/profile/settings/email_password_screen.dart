@@ -13,8 +13,6 @@ class EmailPasswordScreen extends StatefulWidget {
 }
 
 class _EmailPasswordScreenState extends State<EmailPasswordScreen> {
-  bool _busy = false;
-
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthService>();
@@ -76,7 +74,7 @@ class _EmailPasswordScreenState extends State<EmailPasswordScreen> {
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant, height: 1.4)),
               const SizedBox(height: 14),
               SizedBox(width: double.infinity, child: OutlinedButton.icon(
-                onPressed: _busy ? null : () => _changeEmail(socket, auth, email),
+                onPressed: () => _changeEmail(socket, auth),
                 icon: const Icon(Icons.edit_outlined, size: 18),
                 label: const Text('Change email'),
               )),
@@ -99,7 +97,7 @@ class _EmailPasswordScreenState extends State<EmailPasswordScreen> {
                   ? 'Add a password to your account'
                   : 'Update your current sign-in password'),
                 trailing: const Icon(Icons.chevron_right_rounded),
-                onTap: _busy ? null : () => _changePassword(auth),
+                onTap: () => _changePassword(auth),
               ),
               Divider(height: 1, indent: 68, color: colors.outlineVariant),
               ListTile(
@@ -108,7 +106,7 @@ class _EmailPasswordScreenState extends State<EmailPasswordScreen> {
                 title: const Text('Forgot password?', style: TextStyle(fontWeight: FontWeight.w800)),
                 subtitle: const Text('Reset it using a code sent to your email'),
                 trailing: const Icon(Icons.chevron_right_rounded),
-                onTap: _busy ? null : () => _forgotPassword(auth, email),
+                onTap: () => _forgotPassword(auth, email),
               ),
             ]),
           ),
@@ -121,7 +119,7 @@ class _EmailPasswordScreenState extends State<EmailPasswordScreen> {
     );
   }
 
-  Future<void> _changeEmail(SocketService socket, AuthService auth, String current) async {
+  Future<void> _changeEmail(SocketService socket, AuthService auth) async {
     final email = TextEditingController();
     final code = TextEditingController();
     var codeSent = false;
