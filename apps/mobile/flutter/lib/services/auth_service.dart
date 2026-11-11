@@ -377,7 +377,6 @@ class AuthService extends ChangeNotifier {
       _user = null;
       notifyListeners();
     }
-    notifyListeners();
   }
 
   // ── userProfile getter (alias so old screens still compile) ─────────────
