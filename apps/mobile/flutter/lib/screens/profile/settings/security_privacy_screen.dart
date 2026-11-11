@@ -14,7 +14,9 @@ import 'email_password_screen.dart';
 import '../../../theme/novyn_theme.dart';
 
 class SecurityPrivacyScreen extends StatelessWidget {
-  const SecurityPrivacyScreen({super.key});
+  const SecurityPrivacyScreen({super.key, this.category});
+
+  final String? category;
 
   @override
   Widget build(BuildContext context) {
@@ -45,46 +47,166 @@ class SecurityPrivacyScreen extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 30),
         children: [
           Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Material(color: NovynTheme.cardBg(context), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14), side: BorderSide(color: Theme.of(context).colorScheme.outlineVariant)), child: InkWell(borderRadius: BorderRadius.circular(14), onTap: () => Navigator.maybePop(context), child: SizedBox(width: 44, height: 44, child: Icon(Icons.chevron_left_rounded, color: ink, size: 28))),),
+            Material(
+              color: NovynTheme.cardBg(context),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+                side: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
+              ),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(14),
+                onTap: () => Navigator.maybePop(context),
+                child: SizedBox(width: 44, height: 44,
+                  child: Icon(Icons.chevron_left_rounded, color: ink, size: 28)),
+              ),
+            ),
             const SizedBox(width: 14),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Security & Privacy', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800, letterSpacing: -0.4, height: 1.15)),
+              Text(
+                category == null ? 'Security & Privacy' : switch (category) {
+                  'security' => 'Account Security',
+                  'privacy' => 'Privacy Controls',
+                  'stealth' => 'Stealth Mode',
+                  'danger' => 'Danger Zone',
+                  _ => 'Security & Privacy',
+                },
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.w800, letterSpacing: -0.4, height: 1.15),
+              ),
               const SizedBox(height: 4),
-              Text('Keep your account and chats safe', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: muted, fontWeight: FontWeight.w500)),
+              Text(
+                category == null
+                    ? 'Keep your account and chats safe'
+                    : switch (category) {
+                        'security' => 'Manage sign-in and device protection',
+                        'privacy' => 'Control your visibility and interactions',
+                        'stealth' => 'Keep Novyn activity private on this device',
+                        'danger' => 'Manage permanent account actions',
+                        _ => 'Keep your account and chats safe',
+                      },
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: muted, fontWeight: FontWeight.w500),
+              ),
             ])),
           ]),
           const SizedBox(height: 20),
-          Container(padding: const EdgeInsets.all(17), decoration: BoxDecoration(color: NovynTheme.cardBg(context), borderRadius: BorderRadius.circular(24), border: Border.all(color: Theme.of(context).colorScheme.outlineVariant)), child: Column(children: [
-            Row(children: [
-              Container(width: 62, height: 62, decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF8172F2), Color(0xFF4B3BC8)]), borderRadius: BorderRadius.circular(20)), child: Icon(Icons.verified_user_rounded, color: Colors.white, size: 30)),
-              const SizedBox(width: 14),
-              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(settings.appLockEnabled ? 'Your account is protected' : 'Your account, protected', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
-                const SizedBox(height: 4),
-                Text('Manage sign-in security, app privacy and who can see your activity.', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: muted, height: 1.4)),
-              ])),
+          if (category == null) ...[
+            Container(
+              padding: const EdgeInsets.all(17),
+              decoration: BoxDecoration(
+                color: NovynTheme.cardBg(context),
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+              ),
+              child: Column(children: [
+                Row(children: [
+                  Container(
+                    width: 62, height: 62,
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        begin: Alignment.topLeft, end: Alignment.bottomRight,
+                        colors: [Color(0xFF8172F2), Color(0xFF4B3BC8)],
+                      ),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: const Icon(Icons.verified_user_rounded, color: Colors.white, size: 30),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(settings.appLockEnabled ? 'Your account is protected' : 'Your account, protected',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
+                    const SizedBox(height: 4),
+                    Text('Your security and privacy settings, neatly organised.',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(color: muted, height: 1.4)),
+                  ])),
+                ]),
+                const SizedBox(height: 14),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Container(
+                    height: 38,
+                    padding: const EdgeInsets.symmetric(horizontal: 13),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1FB56A).withValues(alpha: dark ? .16 : .10),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      const Icon(Icons.check_circle_rounded, size: 16, color: Color(0xFF1F9D61)),
+                      const SizedBox(width: 7),
+                      Text(settings.appLockEnabled ? 'App Lock enabled' : 'Privacy controls available',
+                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF1F9D61))),
+                    ]),
+                  ),
+                ),
+              ]),
+            ),
+            const SizedBox(height: 22),
+            section('Manage', [
+              nav(Icons.shield_outlined, const Color(0xFF7565D9),
+                'Account Security', 'Email, password, sessions and app lock',
+                () => Navigator.push(context, MaterialPageRoute(
+                  builder: (_) => const SecurityPrivacyScreen(category: 'security')))),
+              nav(Icons.visibility_outlined, const Color(0xFF238B9B),
+                'Privacy Controls', 'Profile visibility, read receipts and blocked contacts',
+                () => Navigator.push(context, MaterialPageRoute(
+                  builder: (_) => const SecurityPrivacyScreen(category: 'privacy')))),
+              nav(Icons.visibility_off_outlined, const Color(0xFFC2540F),
+                'Stealth Mode', 'Hide previews and block screen capture',
+                () => Navigator.push(context, MaterialPageRoute(
+                  builder: (_) => const SecurityPrivacyScreen(category: 'stealth')),
+                trailing: Switch.adaptive(
+                  value: settings.stealthModeEnabled,
+                  onChanged: (v) => _setStealthMode(context, settings, v),
+                ))),
+              nav(Icons.delete_outline_rounded, const Color(0xFFB3261E),
+                'Danger Zone', 'Permanent account actions',
+                () => Navigator.push(context, MaterialPageRoute(
+                  builder: (_) => const SecurityPrivacyScreen(category: 'danger')))),
             ]),
-            const SizedBox(height: 14),
-            Align(alignment: Alignment.centerLeft, child: Container(height: 38, padding: const EdgeInsets.symmetric(horizontal: 13), decoration: BoxDecoration(color: const Color(0xFF1FB56A).withValues(alpha: dark ? .16 : .10), borderRadius: BorderRadius.circular(14)), child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.check_circle_rounded, size: 16, color: Color(0xFF1F9D61)), const SizedBox(width: 7), Text(settings.appLockEnabled ? 'App Lock enabled' : 'Privacy controls available', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF1F9D61)))]))),
-          ])),
-          const SizedBox(height: 22),
-          section('Security', [
-            nav(Icons.alternate_email_rounded, const Color(0xFF1F8A63), 'Email & Password', 'Manage email verification and sign-in password', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const EmailPasswordScreen()))),
-            nav(Icons.devices_rounded, const Color(0xFF2A78B8), 'Active Sessions', 'Sign out of other devices remotely', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ActiveSessionsScreen()))),
-            _SecurityPrivacyToggleTile(icon: Icons.verified_user_outlined, accent: const Color(0xFF7565D9), title: 'Two-Factor Authentication', subtitle: 'Unavailable until secure server-side login challenges are supported', value: false, onChanged: null),
-            _SecurityPrivacyToggleTile(icon: Icons.fingerprint_rounded, accent: const Color(0xFFB7791F), title: 'App Lock', subtitle: 'Require your PIN or available biometrics to open Novyn', value: settings.appLockEnabled, onChanged: (v) => _handleAppLockToggle(context, settings, v)),
-            if (settings.appLockEnabled) _SelectionCard(icon: Icons.timer_outlined, iconColor: const Color(0xFF64748B), iconBgColor: const Color(0xFF64748B).withValues(alpha: .12), title: 'Auto-lock', subtitle: 'When to lock after leaving app', value: settings.appLockTimeout.toString(), options: const ['0', '1', '5', '15', '30'], labels: const ['Immediately', 'After 1 min', 'After 5 mins', 'After 15 mins', 'After 30 mins'], onChanged: (v) {
-              settings.setAppLockTimeout(int.parse(v));
-              const labels = ['Immediately', 'After 1 min', 'After 5 mins', 'After 15 mins', 'After 30 mins'];
-              const values = ['0', '1', '5', '15', '30'];
-              NovynAlert.show(context, 'Auto-lock updated: ${labels[values.indexOf(v)]}.');
-            }),
-            if (settings.appLockEnabled) nav(Icons.password_rounded, const Color(0xFF64748B), 'Change PIN', 'Verify your current PIN and set a new one', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SetupPinScreen(isChanging: true)))),
-          ]),
-          section('Stealth Mode', [
+          ],
+          if (category == 'security') section('Sign-in & device protection', [
+            nav(Icons.alternate_email_rounded, const Color(0xFF1F8A63),
+              'Email & Password', 'Manage email verification and sign-in password',
+              () => Navigator.push(context, MaterialPageRoute(builder: (_) => const EmailPasswordScreen()))),
+            nav(Icons.devices_rounded, const Color(0xFF2A78B8),
+              'Active Sessions', 'Sign out of other devices remotely',
+              () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ActiveSessionsScreen()))),
             _SecurityPrivacyToggleTile(
-              icon: Icons.visibility_off_outlined,
-              accent: const Color(0xFFC2540F),
+              icon: Icons.verified_user_outlined, accent: const Color(0xFF7565D9),
+              title: 'Two-Factor Authentication',
+              subtitle: 'Unavailable until secure server-side login challenges are supported',
+              value: false, onChanged: null,
+            ),
+            _SecurityPrivacyToggleTile(
+              icon: Icons.fingerprint_rounded, accent: const Color(0xFFB7791F),
+              title: 'App Lock', subtitle: 'Require your PIN or available biometrics to open Novyn',
+              value: settings.appLockEnabled,
+              onChanged: (v) => _handleAppLockToggle(context, settings, v),
+            ),
+            if (settings.appLockEnabled) _SelectionCard(
+              icon: Icons.timer_outlined, iconColor: const Color(0xFF64748B),
+              iconBgColor: const Color(0xFF64748B).withValues(alpha: .12),
+              title: 'Auto-lock', subtitle: 'When to lock after leaving app',
+              value: settings.appLockTimeout.toString(),
+              options: const ['0', '1', '5', '15', '30'],
+              labels: const ['Immediately', 'After 1 min', 'After 5 mins', 'After 15 mins', 'After 30 mins'],
+              onChanged: (v) {
+                settings.setAppLockTimeout(int.parse(v));
+                const labels = ['Immediately', 'After 1 min', 'After 5 mins', 'After 15 mins', 'After 30 mins'];
+                const values = ['0', '1', '5', '15', '30'];
+                NovynAlert.show(context, 'Auto-lock updated: ${labels[values.indexOf(v)]}.');
+              },
+            ),
+            if (settings.appLockEnabled) nav(
+              Icons.password_rounded, const Color(0xFF64748B), 'Change PIN',
+              'Verify your current PIN and set a new one',
+              () => Navigator.push(context, MaterialPageRoute(
+                builder: (_) => const SetupPinScreen(isChanging: true))),
+            ),
+          ]),
+          if (category == 'stealth') section('Device privacy', [
+            _SecurityPrivacyToggleTile(
+              icon: Icons.visibility_off_outlined, accent: const Color(0xFFC2540F),
               title: 'Stealth Mode',
               subtitle: 'Hide app previews in Recents, block screenshots and mask notification content',
               value: settings.stealthModeEnabled,
@@ -99,26 +221,18 @@ class SecurityPrivacyScreen extends StatelessWidget {
                     color: const Color(0xFF1F9D61).withValues(alpha: .09),
                     borderRadius: BorderRadius.circular(14),
                   ),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Icon(Icons.shield_rounded, color: Color(0xFF1F9D61), size: 18),
-                      const SizedBox(width: 9),
-                      Expanded(
-                        child: Text(
-                          'Protection is active on this device. Notification previews are hidden and screenshots or screen recordings are blocked while Novyn is open.',
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: muted,
-                            height: 1.4,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+                  child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    const Icon(Icons.shield_rounded, color: Color(0xFF1F9D61), size: 18),
+                    const SizedBox(width: 9),
+                    Expanded(child: Text(
+                      'Protection is active on this device. Notification previews are hidden and screenshots or screen recordings are blocked while Novyn is open.',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(color: muted, height: 1.4),
+                    )),
+                  ]),
                 ),
               ),
           ]),
-          _PrivacyDashboard(
+          if (category == 'privacy') _PrivacyDashboard(
             lastSeen: settings.lastSeenVisibility,
             profilePhoto: settings.profilePhotoVisibility,
             readReceipts: settings.readReceipts,
@@ -126,11 +240,20 @@ class SecurityPrivacyScreen extends StatelessWidget {
             settings: settings,
             onBlocked: () => _showBlockedUsers(context, socket),
           ),
-          section('Danger Zone', [
-            _SecurityPrivacyTile(icon: Icons.delete_outline_rounded, accent: const Color(0xFFB3261E), title: 'Delete Account', subtitle: 'Permanently delete your account and associated data', isDanger: true, onTap: () => _showDeleteAccount(context)),
+          if (category == 'danger') section('Permanent actions', [
+            _SecurityPrivacyTile(
+              icon: Icons.delete_outline_rounded,
+              accent: const Color(0xFFB3261E),
+              title: 'Delete Account',
+              subtitle: 'Permanently delete your account and associated data',
+              isDanger: true,
+              onTap: () => _showDeleteAccount(context),
+            ),
           ], color: const Color(0xFFB3261E)),
           const SizedBox(height: 4),
-          Center(child: Text('NOVYN · YOUR SPACE, YOUR PEOPLE', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, letterSpacing: 1.4, color: muted))),
+          Center(child: Text('NOVYN · YOUR SPACE, YOUR PEOPLE',
+            style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800,
+              letterSpacing: 1.4, color: muted))),
         ],
       )),
     );
