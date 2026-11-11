@@ -1,647 +1,250 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import 'dart:ui';
 import 'package:audioplayers/audioplayers.dart';
-import 'package:file_picker/file_picker.dart';
-import 'dart:io';
-import 'package:path/path.dart' as p;
 import '../../../services/settings_service.dart';
 import '../../../services/haptic_service.dart';
-import '../widgets/profile_widgets.dart';
+import '../../../services/auth_service.dart';
 import '../../../theme/novyn_theme.dart';
 
 class SoundVibrationScreen extends StatefulWidget {
   const SoundVibrationScreen({super.key});
-
   @override
   State<SoundVibrationScreen> createState() => _SoundVibrationScreenState();
 }
 
 class _SoundVibrationScreenState extends State<SoundVibrationScreen> {
-  final AudioPlayer _audioPlayer = AudioPlayer();
+  final AudioPlayer _player = AudioPlayer();
+  String? _playing;
+  String _callPreview = 'ringtone';
 
   @override
-  void dispose() {
-    _audioPlayer.dispose();
-    super.dispose();
-  }
+  void dispose() { _player.dispose(); super.dispose(); }
 
-  void _previewSound(String tone, {bool isRingtone = false, String? customPath}) {
-    if (tone == 'None') return;
-    
-    // Stop any existing sound before playing new one
-    _audioPlayer.stop().then((_) {
-      if (customPath != null && customPath.isNotEmpty) {
-        _audioPlayer.play(DeviceFileSource(customPath));
-      } else {
-        String asset = isRingtone ? 'audio/call_ring.mp3' : 'audio/notification.mp3';
-        // Handle the old "random" names for backward compatibility or defaults
-        if (tone == 'Crystal') asset = 'audio/message_sent.mp3';
-        if (tone == 'Ethereal') asset = 'audio/ringtone.mp3';
-        if (tone == 'Binary') asset = 'audio/call_ring.mp3';
-        if (tone == 'Aurora') asset = 'audio/notification.mp3';
-        
-        _audioPlayer.play(AssetSource(asset));
-      }
-    });
-  }
-
-  Future<void> _pickCustomSound(bool isRingtone, SettingsService settings) async {
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.audio,
-      allowMultiple: false,
-    );
-
-    if (result != null && result.files.single.path != null) {
-      final path = result.files.single.path!;
-      if (isRingtone) {
-        await settings.setCallRingtone('Custom');
-        await settings.setCustomRingtonePath(path);
-        _previewSound('Custom', isRingtone: true, customPath: path);
-      } else {
-        await settings.setNotificationTone('Custom');
-        await settings.setCustomNotificationPath(path);
-        _previewSound('Custom', isRingtone: false, customPath: path);
-      }
+  Future<void> _play(String kind, SettingsService settings) async {
+    if (_playing == kind) {
+      await _player.stop();
+      if (mounted) setState(() => _playing = null);
+      return;
     }
+    await _player.stop();
+    final volume = kind == 'message' ? settings.messageVolume : settings.callVolume;
+    await _player.setVolume(volume);
+    final asset = kind == 'message'
+        ? (settings.notificationTone == 'Pulse' ? 'audio/message_sent.mp3' : 'audio/notification.mp3')
+        : (_callPreview == 'ringback' ? 'audio/ringtone.mp3' : 'audio/call_ring.mp3');
+    try {
+      await _player.play(AssetSource(asset));
+      if (mounted) setState(() => _playing = kind);
+    } catch (_) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Sound preview is unavailable right now.')));
+    }
+  }
+
+  void _section(String title) => Padding(
+    padding: const EdgeInsets.fromLTRB(4, 24, 4, 10),
+    child: Text(title.toUpperCase(), style: const TextStyle(
+      fontFamily: 'PlusJakartaSans', fontSize: 12, letterSpacing: 1.2,
+      fontWeight: FontWeight.w800, color: Color(0xFF6554F5))),
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    final s = context.watch<SettingsService>();
+    final busy = context.watch<AuthService>().user?.presenceMode == 'busy';
+    final ink = Theme.of(context).colorScheme.onSurface;
+    final muted = Theme.of(context).colorScheme.onSurfaceVariant;
+    return Scaffold(
+      backgroundColor: NovynTheme.pageBg(context),
+      body: SafeArea(child: Column(children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 14, 20, 8),
+          child: Row(children: [
+            _backButton(context),
+            const SizedBox(width: 16),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('Sound & Vibration', style: TextStyle(fontFamily: 'PlusJakartaSans',
+                fontSize: 23, fontWeight: FontWeight.w800, letterSpacing: -.6, color: ink)),
+              Text('Tones, previews and haptics', style: TextStyle(fontSize: 13, color: muted)),
+            ])),
+          ]),
+        ),
+        Expanded(child: ListView(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 34),
+          physics: const BouncingScrollPhysics(),
+          children: [
+            _section('Messages'),
+            _toggleCard(icon: Icons.notifications_active_outlined, title: 'Message sounds',
+              subtitle: 'Play sounds for incoming and sent messages',
+              value: s.inAppSounds, onChanged: s.setInAppSounds),
+            const SizedBox(height: 14),
+            _soundCard(title: 'Message chime', subtitle: 'Sound for incoming texts',
+              playing: _playing == 'message', enabled: s.inAppSounds,
+              volume: s.messageVolume, onPlay: () => _play('message', s),
+              onVolume: (v) { s.setMessageVolume(v); _player.setVolume(v); },
+              selected: s.notificationTone,
+              choices: const ['Drift', 'Pulse', 'Glass', 'Echo'],
+              onChoice: (v) { s.setNotificationTone(v); if (s.inAppSounds) _play('message', s); }),
+            _section('Calls'),
+            _toggleCard(icon: Icons.call_outlined, title: 'Call sounds',
+              subtitle: 'Incoming ringtone and outgoing ringback',
+              value: s.callRingtone != 'None',
+              onChanged: (v) => s.setCallRingtone(v ? 'Binary' : 'None')),
+            const SizedBox(height: 14),
+            _soundCard(title: 'Call preview',
+              subtitle: _callPreview == 'ringtone' ? 'Incoming ringtone' : 'Outgoing ringback',
+              playing: _playing == 'call', enabled: s.callRingtone != 'None',
+              volume: s.callVolume, onPlay: () => _play('call', s),
+              onVolume: (v) { s.setCallVolume(v); _player.setVolume(v); },
+              selected: _callPreview,
+              choices: const ['ringtone', 'ringback'],
+              labels: const ['Ringtone', 'Ringback'],
+              onChoice: (v) { setState(() => _callPreview = v); if (s.callRingtone != 'None') _play('call', s); }),
+            _section('Vibration'),
+            _choiceCard(icon: Icons.vibration_rounded, title: 'Vibration rhythm',
+              subtitle: 'Pattern for incoming alerts', value: s.vibrationPattern,
+              choices: const ['standard', 'staccato', 'heartbeat', 'none'],
+              labels: const ['Standard', 'Staccato', 'Heartbeat', 'Off'],
+              onChanged: (v) { s.setVibrationPattern(v); _previewVibration(v); }),
+            _toggleCard(icon: Icons.touch_app_outlined, title: 'Haptic feedback',
+              subtitle: 'Tactile response when you tap', value: s.inAppVibration,
+              onChanged: s.setInAppVibration),
+            const SizedBox(height: 14),
+            _panel(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [const _IconTile(icon: Icons.tune_rounded),
+                const SizedBox(width: 12), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('Haptic intensity', style: TextStyle(fontWeight: FontWeight.w700, color: ink, fontSize: 15)),
+                  Text('Strength of the vibration', style: TextStyle(color: muted, fontSize: 12)),
+                ])), Text('${(s.hapticIntensity * 100).round()}%', style: const TextStyle(color: Color(0xFF6554F5), fontWeight: FontWeight.w800))]),
+              Slider(value: s.hapticIntensity, onChanged: s.setHapticIntensity,
+                activeColor: const Color(0xFF6554F5), inactiveColor: const Color(0xFFE0DDF8)),
+            ])),
+            const SizedBox(height: 14),
+            _panel(child: InkWell(
+              borderRadius: BorderRadius.circular(22),
+              onTap: () => HapticService.vibrate(NovynHapticType.heavy),
+              child: const Padding(padding: EdgeInsets.all(16), child: Row(children: [
+                _IconTile(icon: Icons.play_arrow_rounded), SizedBox(width: 12),
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('Test vibration', style: TextStyle(fontWeight: FontWeight.w700, color: Color(0xFF6554F5))),
+                  Text('Feel your current pattern', style: TextStyle(fontSize: 12, color: Color(0xFF77738F))),
+                ])),
+              ])),
+            )),
+            _section('Focus'),
+            _panel(child: Row(children: [
+              const _IconTile(icon: Icons.notifications_off_outlined),
+              const SizedBox(width: 12),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('Busy mode', style: TextStyle(fontWeight: FontWeight.w700, color: ink, fontSize: 15)),
+                Text('When your status is Busy, message and call alerts are silenced.',
+                  style: TextStyle(color: muted, fontSize: 12, height: 1.45)),
+              ])),
+              Container(padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
+                decoration: BoxDecoration(color: const Color(0xFF6554F5).withValues(alpha: .1), borderRadius: BorderRadius.circular(12)),
+                child: Text(busy ? 'Active' : 'Off', style: const TextStyle(color: Color(0xFF6554F5), fontWeight: FontWeight.w700))),
+            ])),
+          ],
+        )),
+      ])),
+    );
   }
 
   void _previewVibration(String pattern) {
-    if (pattern == 'none') return;
-    
-    if (pattern == 'standard') {
-      HapticService.vibrate(NovynHapticType.medium);
-    } else if (pattern == 'staccato') {
-      HapticService.vibrate(NovynHapticType.heavy);
-    } else if (pattern == 'heartbeat') {
-      HapticService.vibrate(NovynHapticType.warning);
+    switch (pattern) {
+      case 'standard': HapticService.vibrate(NovynHapticType.medium); break;
+      case 'staccato': HapticService.vibrate(NovynHapticType.heavy); break;
+      case 'heartbeat': HapticService.vibrate(NovynHapticType.warning); break;
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final settings = context.watch<SettingsService>();
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+  Widget _backButton(BuildContext context) => Material(
+    color: Theme.of(context).colorScheme.surface, shape: const CircleBorder(),
+    child: InkWell(onTap: () => Navigator.maybePop(context), customBorder: const CircleBorder(),
+      child: const SizedBox(width: 44, height: 44, child: Icon(Icons.chevron_left_rounded, size: 25))),
+  );
 
-    return Scaffold(
-      backgroundColor: NovynTheme.pageBg(context),
-      appBar: AppBar(
-        title: Text(
-          'Sound & Vibration',
-          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-            fontWeight: FontWeight.w800,
-            letterSpacing: -0.35,
-          ),
-        ),
-        backgroundColor: NovynTheme.pageBg(context),
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        surfaceTintColor: Colors.transparent,
-        centerTitle: false,
-      ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 36),
-        physics: const BouncingScrollPhysics(),
-        children: [
-          SettingsIntroCard(title: 'Sounds & haptics', subtitle: 'Choose the tones and vibration patterns you hear across Novyn.', icon: Icons.music_note_rounded),
-          const SectionLabel(label: 'Sounds'),
-          _SelectionCard(
-            icon: Icons.music_note_rounded,
-            iconColor: const Color(0xFF8B5CF6),
-            iconBgColor: const Color(0xFF8B5CF6).withValues(alpha: 0.1),
-            title: 'Notification Tone',
-            subtitle: 'Choose the sound for incoming message alerts',
-            value: settings.notificationTone == 'Custom' && settings.customNotificationPath != null
-                ? p.basename(settings.customNotificationPath!)
-                : (settings.notificationTone == 'None' ? 'Deactivated' : 'Default'),
-            options: const ['Default', 'Custom', 'None'],
-            labels: const ['System Default', 'Set from storage...', 'Deactivated'],
-            onChanged: (v) {
-              if (v == 'Custom') {
-                _pickCustomSound(false, settings);
-              } else {
-                settings.setNotificationTone(v);
-                settings.setCustomNotificationPath(null);
-                _previewSound(v == 'Default' ? 'Aurora' : v);
-              }
-            },
-          ),
-          _SelectionCard(
-            icon: Icons.call_rounded,
-            iconColor: const Color(0xFF10B981),
-            iconBgColor: const Color(0xFF10B981).withValues(alpha: 0.1),
-            title: 'Call Ringtone',
-            subtitle: 'Choose the sound for incoming calls',
-            value: settings.callRingtone == 'Custom' && settings.customRingtonePath != null
-                ? p.basename(settings.customRingtonePath!)
-                : (settings.callRingtone == 'None' ? 'Deactivated' : 'Default'),
-            options: const ['Default', 'Custom', 'None'],
-            labels: const ['System Default', 'Set from storage...', 'Deactivated'],
-            onChanged: (v) {
-              if (v == 'Custom') {
-                _pickCustomSound(true, settings);
-              } else {
-                settings.setCallRingtone(v);
-                settings.setCustomRingtonePath(null);
-                _previewSound(v == 'Default' ? 'Binary' : v, isRingtone: true);
-              }
-            },
-          ),
-          _ToggleCard(
-            icon: Icons.volume_up_rounded,
-            iconColor: Theme.of(context).colorScheme.primary,
-            iconBgColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
-            title: 'In-App Sounds',
-            subtitle: 'Auditory feedback for internal nodes',
-            value: settings.inAppSounds,
-            onChanged: (v) => settings.setInAppSounds(v),
-          ),
-          
-          const SizedBox(height: 24),
-          const SectionLabel(label: 'Vibration'),
-          _SelectionCard(
-            icon: Icons.vibration_rounded,
-            iconColor: const Color(0xFFF43F5E),
-            iconBgColor: const Color(0xFFF43F5E).withValues(alpha: 0.1),
-            title: 'Vibration Rhythm',
-            subtitle: 'Tactile pattern for incoming streams',
-            value: settings.vibrationPattern,
-            options: const ['standard', 'staccato', 'heartbeat', 'none'],
-            labels: const ['Standard Node', 'Staccato Pulse', 'Heartbeat Rhythm', 'Deactivated'],
-            onChanged: (v) {
-              settings.setVibrationPattern(v);
-              _previewVibration(v);
-            },
-          ),
-          _IntensitySliderCard(
-            value: settings.hapticIntensity,
-            onChanged: (v) {
-              settings.setHapticIntensity(v);
-              // Small tactile feedback as they slide
-              if ((v * 100).toInt() % 10 == 0) {
-                HapticService.vibrate(NovynHapticType.selection);
-              }
-            },
-          ),
-          _ToggleCard(
-            icon: Icons.touch_app_rounded,
-            iconColor: const Color(0xFF06B6D4),
-            iconBgColor: const Color(0xFF06B6D4).withValues(alpha: 0.1),
-            title: 'Haptic Feedback',
-            subtitle: 'Tactile response for UI interactions',
-            value: settings.inAppVibration,
-            onChanged: (v) => settings.setInAppVibration(v),
-          ),
-          
-          const SizedBox(height: 24),
-          const SectionLabel(label: 'Try your settings'),
-          _DiagnosticButton(
-            label: 'Test Vibration',
-            icon: Icons.sensors_rounded,
-            onTap: () => HapticService.vibrate(NovynHapticType.heavy),
-          ),
-          const SizedBox(height: 12),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Text(
-              'Note: If resonance is not felt, ensure "Battery Saver" or system-level vibration settings are not deactivating the haptic node.',
-              style: TextStyle(
-                fontFamily: 'PlusJakartaSans',
-                fontSize: 12,
-                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3),
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ),
-          
-          const SizedBox(height: 40),
-        ],
-      ),
-    );
+  Widget _panel({required Widget child}) => Container(
+    padding: const EdgeInsets.all(16), decoration: BoxDecoration(
+      color: NovynTheme.cardBg(context), borderRadius: BorderRadius.circular(24),
+      border: Border.all(color: Theme.of(context).colorScheme.outlineVariant)));
+
+  Widget _toggleCard({required IconData icon, required String title, required String subtitle,
+    required bool value, required ValueChanged<bool> onChanged}) => _panel(child: Row(children: [
+      _IconTile(icon: icon), const SizedBox(width: 12),
+      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(title, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15, color: Theme.of(context).colorScheme.onSurface)),
+        Text(subtitle, style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant)),
+      ])),
+      Switch.adaptive(value: value, activeColor: const Color(0xFF6554F5), onChanged: onChanged),
+    ]));
+
+  Widget _choiceCard({required IconData icon, required String title, required String subtitle,
+    required String value, required List<String> choices, required List<String> labels,
+    required ValueChanged<String> onChanged}) => _panel(child: Row(children: [
+      _IconTile(icon: icon), const SizedBox(width: 12),
+      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(title, style: TextStyle(fontWeight: FontWeight.w700, color: Theme.of(context).colorScheme.onSurface)),
+        Text(subtitle, style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant)),
+      ])),
+      PopupMenuButton<String>(initialValue: value, onSelected: onChanged,
+        itemBuilder: (_) => choices.asMap().entries.map((e) => PopupMenuItem(value: e.value, child: Text(labels[e.key]))).toList(),
+        child: Row(children: [Text(labels[choices.indexOf(value).clamp(0, labels.length - 1)], style: const TextStyle(color: Color(0xFF6554F5), fontWeight: FontWeight.w700)), const Icon(Icons.chevron_right_rounded, color: Color(0xFF6554F5))])),
+    ]));
+
+  Widget _soundCard({required String title, required String subtitle, required bool playing,
+    required bool enabled, required double volume, required VoidCallback onPlay,
+    required ValueChanged<double> onVolume, required String selected,
+    required List<String> choices, List<String>? labels, required ValueChanged<String> onChoice}) {
+    final names = labels ?? choices;
+    return _panel(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [Expanded(child: Text(title, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Theme.of(context).colorScheme.onSurface))),
+        Text(subtitle, style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.onSurfaceVariant))]),
+      const SizedBox(height: 20),
+      _Waveform(playing: playing),
+      const SizedBox(height: 18),
+      Row(children: [
+        Material(color: enabled ? const Color(0xFF6554F5) : const Color(0xFFBDB8D8),
+          shape: const CircleBorder(), child: InkWell(onTap: enabled ? onPlay : null, customBorder: const CircleBorder(),
+            child: SizedBox(width: 54, height: 54, child: Icon(playing ? Icons.stop_rounded : Icons.play_arrow_rounded, color: Colors.white, size: 25)))),
+        const SizedBox(width: 14),
+        Expanded(child: Column(children: [
+          Row(children: [Expanded(child: Text(title.startsWith('Message') ? 'Message volume' : 'Call volume',
+            style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12))),
+            Text('${(volume * 100).round()}%', style: const TextStyle(color: Color(0xFF6554F5), fontWeight: FontWeight.w800))]),
+          Slider(value: volume, onChanged: enabled ? onVolume : null, activeColor: const Color(0xFF6554F5), inactiveColor: const Color(0xFFE0DDF8)),
+        ])),
+      ]),
+      const SizedBox(height: 8),
+      Wrap(spacing: 8, children: choices.asMap().entries.map((e) {
+        final active = selected == e.value;
+        return ChoiceChip(label: Text(names[e.key]), selected: active,
+          onSelected: (_) => onChoice(e.value),
+          selectedColor: const Color(0xFFECE9FF),
+          labelStyle: TextStyle(color: active ? const Color(0xFF6554F5) : Theme.of(context).colorScheme.onSurface, fontWeight: FontWeight.w700),
+          side: BorderSide(color: active ? const Color(0xFF6554F5) : Theme.of(context).colorScheme.outlineVariant));
+      }).toList()),
+    ]));
   }
 }
 
-class _SelectionCard extends StatelessWidget {
+class _IconTile extends StatelessWidget {
   final IconData icon;
-  final Color iconColor;
-  final Color iconBgColor;
-  final String title;
-  final String subtitle;
-  final String value;
-  final List<String> options;
-  final List<String> labels;
-  final ValueChanged<String> onChanged;
-
-  const _SelectionCard({
-    required this.icon,
-    required this.iconColor,
-    required this.iconBgColor,
-    required this.title,
-    required this.subtitle,
-    required this.value,
-    required this.options,
-    required this.labels,
-    required this.onChanged,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final currentLabel = value; // Now displaying the filename directly if custom
-    
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(24),
-        color: NovynTheme.cardBg(context),
-        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(24),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-          child: InkWell(
-            onTap: () {
-              HapticService.vibrate(NovynHapticType.selection);
-              _showSelectionDialog(context);
-            },
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                children: [
-                  Container(
-                    width: 52,
-                    height: 52,
-                    decoration: BoxDecoration(
-                      color: iconBgColor,
-                      borderRadius: BorderRadius.circular(18),
-                      border: Border.all(color: iconColor.withValues(alpha: 0.1)),
-                    ),
-                    child: Icon(icon, color: iconColor, size: 24),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          title,
-                          style: TextStyle(
-                            fontFamily: 'PlusJakartaSans',
-                            fontWeight: FontWeight.w800,
-                            fontSize: 16,
-                            color: Theme.of(context).colorScheme.onSurface,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          subtitle,
-                          style: TextStyle(
-                            fontFamily: 'PlusJakartaSans',
-                            fontSize: 13,
-                            fontWeight: FontWeight.w500,
-                            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text(
-                        currentLabel,
-                        style: TextStyle(
-                          fontFamily: 'PlusJakartaSans',
-                          fontSize: 14,
-                          fontWeight: FontWeight.w800,
-                          color: Theme.of(context).colorScheme.primary,
-                        ),
-                      ),
-                      Icon(
-                        Icons.chevron_right_rounded, 
-                        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.2), 
-                        size: 20
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  void _showSelectionDialog(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    showDialog(
-      context: context,
-      builder: (context) => BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
-        child: AlertDialog(
-          backgroundColor: Theme.of(context).colorScheme.surface,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(32),
-            side: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
-          ),
-          title: Text(
-            title,
-            style: TextStyle(fontFamily: 'PlusJakartaSans', fontWeight: FontWeight.w900),
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: options.asMap().entries.map((entry) {
-              final index = entry.key;
-              final option = entry.value;
-              final label = labels[index];
-              final isSelected = value == option;
-              
-              return ListTile(
-                title: Text(
-                  label,
-                  style: TextStyle(
-                    fontFamily: 'PlusJakartaSans',
-                    fontWeight: isSelected ? FontWeight.w800 : FontWeight.w500,
-                    color: isSelected ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.onSurface,
-                  ),
-                ),
-                trailing: isSelected 
-                    ? Icon(Icons.check_circle_rounded, color: Theme.of(context).colorScheme.primary) 
-                    : null,
-                onTap: () {
-                  HapticService.vibrate(NovynHapticType.medium);
-                  onChanged(option);
-                  Navigator.pop(context);
-                },
-              );
-            }).toList(),
-          ),
-        ),
-      ),
-    );
-  }
+  const _IconTile({required this.icon});
+  @override Widget build(BuildContext context) => Container(width: 42, height: 42,
+    decoration: BoxDecoration(color: const Color(0xFF6554F5).withValues(alpha: .1), borderRadius: BorderRadius.circular(14)),
+    child: Icon(icon, color: const Color(0xFF6554F5), size: 21));
 }
 
-class _IntensitySliderCard extends StatelessWidget {
-  final double value;
-  final ValueChanged<double> onChanged;
-
-  const _IntensitySliderCard({
-    required this.value,
-    required this.onChanged,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(24),
-        color: NovynTheme.cardBg(context),
-        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(24),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      width: 52,
-                      height: 52,
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(18),
-                        border: Border.all(color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1)),
-                      ),
-                      child: Icon(Icons.fingerprint_rounded, color: Theme.of(context).colorScheme.primary, size: 24),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Haptic Intensity',
-                            style: TextStyle(
-                              fontFamily: 'PlusJakartaSans',
-                              fontWeight: FontWeight.w800,
-                              fontSize: 16,
-                              color: Theme.of(context).colorScheme.onSurface,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Fine-tune the neural haptic pulse',
-                            style: TextStyle(
-                              fontFamily: 'PlusJakartaSans',
-                              fontSize: 13,
-                              fontWeight: FontWeight.w500,
-                              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Text(
-                      '${(value * 100).toInt()}%',
-                      style: TextStyle(
-                        fontFamily: 'PlusJakartaSans',
-                        fontWeight: FontWeight.w900,
-                        color: Theme.of(context).colorScheme.primary,
-                        fontSize: 15,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                SliderTheme(
-                  data: SliderTheme.of(context).copyWith(
-                    activeTrackColor: Theme.of(context).colorScheme.primary,
-                    inactiveTrackColor: Colors.white12,
-                    thumbColor: Colors.white,
-                    overlayColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.2),
-                    trackHeight: 4,
-                  ),
-                  child: Slider(
-                    value: value,
-                    onChanged: (v) {
-                      if ((v * 10).toInt() != (value * 10).toInt()) {
-                        HapticService.vibrate(NovynHapticType.selection);
-                      }
-                      onChanged(v);
-                    },
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ToggleCard extends StatelessWidget {
-  final IconData icon;
-  final Color iconColor;
-  final Color iconBgColor;
-  final String title;
-  final String subtitle;
-  final bool value;
-  final ValueChanged<bool>? onChanged;
-
-  const _ToggleCard({
-    required this.icon,
-    required this.iconColor,
-    required this.iconBgColor,
-    required this.title,
-    required this.subtitle,
-    required this.value,
-    this.onChanged,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final disabled = onChanged == null;
-
-    return Opacity(
-      opacity: disabled ? 0.4 : 1.0,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 16),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(24),
-          color: NovynTheme.cardBg(context),
-          border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(24),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                children: [
-                  Container(
-                    width: 52,
-                    height: 52,
-                    decoration: BoxDecoration(
-                      color: iconBgColor,
-                      borderRadius: BorderRadius.circular(18),
-                      border: Border.all(color: iconColor.withValues(alpha: 0.1)),
-                    ),
-                    child: Icon(icon, color: iconColor, size: 24),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          title,
-                          style: TextStyle(
-                            fontFamily: 'PlusJakartaSans',
-                            fontWeight: FontWeight.w800,
-                            fontSize: 16,
-                            color: Theme.of(context).colorScheme.onSurface,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          subtitle,
-                          style: TextStyle(
-                            fontFamily: 'PlusJakartaSans',
-                            fontSize: 13,
-                            fontWeight: FontWeight.w500,
-                            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Switch.adaptive(
-                    value: value,
-                    onChanged: disabled ? null : (v) {
-                      HapticService.vibrate(NovynHapticType.medium);
-                      onChanged?.call(v);
-                    },
-                    activeTrackColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.5),
-                    activeColor: Theme.of(context).colorScheme.primary,
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _DiagnosticButton extends StatelessWidget {
-  final String label;
-  final IconData icon;
-  final VoidCallback onTap;
-
-  const _DiagnosticButton({
-    required this.label,
-    required this.icon,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        gradient: LinearGradient(
-          colors: [Theme.of(context).colorScheme.primary, Color(0xFF40E0D0)],
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
-            blurRadius: 15,
-            offset: const Offset(0, 5),
-          ),
-        ],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(20),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(icon, color: Colors.white, size: 20),
-                const SizedBox(width: 12),
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontFamily: 'PlusJakartaSans',
-                    fontWeight: FontWeight.w800,
-                    fontSize: 16,
-                    color: Colors.white,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
+class _Waveform extends StatelessWidget {
+  final bool playing;
+  const _Waveform({required this.playing});
+  static const bars = [18,32,48,29,60,39,72,45,31,56,80,42,26,62,38,69,52,28,57,41,64,33,46,24];
+  @override Widget build(BuildContext context) => SizedBox(height: 56, child: Row(
+    crossAxisAlignment: CrossAxisAlignment.center, children: bars.map((h) => Expanded(child: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 2), child: AnimatedContainer(
+        duration: const Duration(milliseconds: 220), height: playing ? h.toDouble() : h * .78,
+        decoration: BoxDecoration(color: const Color(0xFF6554F5).withValues(alpha: playing ? .95 : .35 + (h / 100)),
+          borderRadius: BorderRadius.circular(5))))).toList()));
 }
