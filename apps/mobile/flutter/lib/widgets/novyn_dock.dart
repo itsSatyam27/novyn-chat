@@ -43,7 +43,8 @@ class NovynDock extends StatelessWidget {
     final glass = style == 'glass';
     final duration = Duration(milliseconds: reduceMotion ? 0 : 320);
     final radius = style == 'rounded_bar' ? 22.0 : (style == 'glow' ? 30.0 : 26.0);
-    final background = dark ? const Color(0xE923172F) : const Color(0xF7FFFFFF);
+    final scheme = Theme.of(context).colorScheme;
+    final background = scheme.surface;
 
     final dockSurface = SizedBox(
       key: const ValueKey('novyn-dock-shell'),
@@ -75,15 +76,13 @@ class NovynDock extends StatelessWidget {
                 ),
                 decoration: BoxDecoration(
                   color: style == 'minimal'
-                      ? Colors.transparent
-                      : (glass ? background.withValues(alpha: .68) : background),
+                      ? background.withValues(alpha: dark ? .78 : .86)
+                      : (glass ? background.withValues(alpha: .88) : background),
                   borderRadius: BorderRadius.circular(full ? 0 : radius),
                   border: style == 'minimal' || full
                       ? null
                       : Border.all(
-                          color: dark
-                              ? const Color(0x35C8B8F5)
-                              : const Color(0xFFDCD4FA),
+                          color: accent.withValues(alpha: dark ? .22 : .16),
                         ),
                   boxShadow: style == 'minimal' || full
                       ? null
@@ -102,7 +101,7 @@ class NovynDock extends StatelessWidget {
                   borderRadius: BorderRadius.circular(full ? 0 : radius),
                   child: glass
                       ? BackdropFilter(
-                          filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+                          filter: ImageFilter.blur(sigmaX: 22, sigmaY: 22),
                           child: _items(
                             context, selected, accent, dark, compact, reduceMotion,
                           ),
@@ -117,7 +116,14 @@ class NovynDock extends StatelessWidget {
         ),
       ),
     );
-    return preview ? dockSurface : SafeArea(top: false, child: dockSurface);
+    return preview
+        ? dockSurface
+        : ColoredBox(
+            // Paint the system-navigation inset too; transparent dock styles
+            // must never expose a few pixels of the page beneath the dock.
+            color: Theme.of(context).scaffoldBackgroundColor,
+            child: SafeArea(top: false, child: dockSurface),
+          );
   }
 
   Widget _items(
@@ -167,9 +173,7 @@ class NovynDock extends StatelessWidget {
                 final activeColor = (style == 'minimal' || full || sliding || style == 'glow')
                     ? accent
                     : Colors.white;
-                final inactiveColor = dark
-                    ? const Color(0xFFD4C9F2)
-                    : const Color(0xFF514477);
+                final inactiveColor = Theme.of(context).colorScheme.onSurfaceVariant;
 
                 return Expanded(
                   child: Semantics(

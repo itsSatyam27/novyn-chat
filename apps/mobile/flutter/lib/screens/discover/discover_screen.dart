@@ -499,14 +499,14 @@ class _DiscoverRadarCard extends StatelessWidget {
           height: 150,
           width: 180,
           child: CustomPaint(painter: _RadarPainter(
-            ring: dark ? const Color(0xFF514078) : const Color(0xFFD9CDFB),
-            accent: const Color(0xFF793CF0),
+            ring: Theme.of(context).colorScheme.primary.withValues(alpha: dark ? .28 : .18),
+            accent: Theme.of(context).colorScheme.primary,
           )),
         ),
         const SizedBox(height: 12),
         Text('Live online radar', style: TextStyle(
           fontFamily: 'PlusJakartaSans', fontSize: 13,
-          fontWeight: FontWeight.w700, color: const Color(0xFF793CF0),
+          fontWeight: FontWeight.w700, color: Theme.of(context).colorScheme.primary,
         )),
         const SizedBox(height: 8),
         Text('Find your people', style: TextStyle(

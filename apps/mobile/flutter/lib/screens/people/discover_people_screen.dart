@@ -21,12 +21,12 @@ class _DiscoverPeopleScreenState extends State<DiscoverPeopleScreen> {
     final friendService = context.read<FriendService>();
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF0F2FA),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Color(0xFF1A1D2E), size: 20),
+          icon: Icon(Icons.arrow_back_ios_new_rounded, color: Theme.of(context).colorScheme.onSurface, size: 20),
           onPressed: () => Navigator.pop(context),
         ),
         title: const Text(
@@ -35,7 +35,7 @@ class _DiscoverPeopleScreenState extends State<DiscoverPeopleScreen> {
             fontFamily: 'PlusJakartaSans',
             fontSize: 20,
             fontWeight: FontWeight.bold,
-            color: Color(0xFF1A1D2E),
+            color: Theme.of(context).colorScheme.onSurface,
           ),
         ),
         centerTitle: true,
@@ -64,7 +64,7 @@ class _DiscoverPeopleScreenState extends State<DiscoverPeopleScreen> {
       padding: const EdgeInsets.all(6),
       height: 54,
       decoration: BoxDecoration(
-        color: const Color(0xFFEAECF5),
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(18),
       ),
       child: Stack(
@@ -102,7 +102,7 @@ class _DiscoverPeopleScreenState extends State<DiscoverPeopleScreen> {
                           fontFamily: 'PlusJakartaSans',
                           fontSize: 14,
                           fontWeight: FontWeight.bold,
-                          color: _activeTab == 0 ? const Color(0xFF6D5DFC) : const Color(0xFF94A3B8),
+                          color: _activeTab == 0 ? Theme.of(context).colorScheme.primary : const Color(0xFF94A3B8),
                         ),
                       ),
                     ),
@@ -298,7 +298,7 @@ class _RequestItem extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFE2E5F0)),
+        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
       ),
       child: Row(
         children: [
@@ -381,7 +381,7 @@ class _DiscoverItem extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               decoration: BoxDecoration(
-                color: isPending ? const Color(0xFFF1F5F9) : const Color(0xFFECEAFD),
+                color: isPending ? const Color(0xFFF1F5F9) : Theme.of(context).colorScheme.primary.withValues(alpha: .12),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Text(
