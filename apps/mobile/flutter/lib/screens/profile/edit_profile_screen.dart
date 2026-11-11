@@ -279,159 +279,198 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     );
   }
 
-  void _showProfilePictureOptions() async {
-    final auth = context.read<AuthService>();
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    showModalBottomSheet(
+  Future<void> _showProfilePictureOptions() async {
+    final hasPhoto = context.read<AuthService>().user?.avatarId.isNotEmpty == true;
+    await showModalBottomSheet<void>(
       context: context,
+      useSafeArea: true,
+      isScrollControlled: false,
       backgroundColor: Colors.transparent,
-      builder: (context) => BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-        child: Container(
+      barrierColor: Colors.black.withValues(alpha: .42),
+      elevation: 0,
+      builder: (sheetContext) {
+        final theme = Theme.of(sheetContext);
+        return Container(
           decoration: BoxDecoration(
-            color: isDark 
-                ? const Color(0xFF1A1D2B).withValues(alpha: 0.8) 
-                : Colors.white.withValues(alpha: 0.8),
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.1), width: 1.5),
+            color: theme.colorScheme.surface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+            border: Border.all(color: theme.colorScheme.outlineVariant.withValues(alpha: .55)),
           ),
           child: SafeArea(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                SizedBox(height: 12),
-                Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-                SizedBox(height: 24),
-                Text(
-                  'Profile Picture',
-                  style: TextStyle(
-                    fontFamily: 'PlusJakartaSans',
-                    fontSize: 22,
-                    fontWeight: FontWeight.w900,
-                    color: Theme.of(context).colorScheme.onSurface,
-                  ),
-                ),
-                SizedBox(height: 24),
-                _buildOptionTile(
-                  icon: Icons.photo_library_rounded,
-                  title: 'Choose from Gallery',
-                  color: Theme.of(context).colorScheme.primary,
-                  onTap: () {
-                    Navigator.pop(context);
-                    _pickAndUploadImage(fromGallery: true);
-                  },
-                ),
-                _buildOptionTile(
-                  icon: Icons.camera_alt_rounded,
-                  title: 'Take Photo',
-                  color: const Color(0xFF40E0D0),
-                  onTap: () {
-                    Navigator.pop(context);
-                    _pickAndUploadImage(fromGallery: false);
-                  },
-                ),
-                if (auth.user?.avatarId.isNotEmpty == true)
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 14),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(child: Container(
+                    width: 36, height: 4,
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.onSurfaceVariant.withValues(alpha: .28),
+                      borderRadius: BorderRadius.circular(99),
+                    ),
+                  )),
+                  const SizedBox(height: 20),
+                  Text('Profile photo', style: theme.textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w800, letterSpacing: -.3)),
+                  const SizedBox(height: 4),
+                  Text('Choose a photo that represents you.',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant)),
+                  const SizedBox(height: 16),
                   _buildOptionTile(
-                    icon: Icons.delete_rounded,
-                    title: 'Remove Photo',
-                    color: const Color(0xFFEF4444),
-                    onTap: () {
-                      Navigator.pop(context);
-                      _deleteProfilePicture();
-                    },
+                    icon: Icons.photo_library_outlined,
+                    title: 'Choose from gallery',
+                    subtitle: 'Select an existing photo',
+                    color: theme.colorScheme.primary,
+                    onTap: () { Navigator.pop(sheetContext); _pickAndUploadImage(fromGallery: true); },
                   ),
-                SizedBox(height: 20),
-              ],
+                  const SizedBox(height: 8),
+                  _buildOptionTile(
+                    icon: Icons.camera_alt_outlined,
+                    title: 'Take a photo',
+                    subtitle: 'Use your device camera',
+                    color: const Color(0xFF0FAE9A),
+                    onTap: () { Navigator.pop(sheetContext); _pickAndUploadImage(fromGallery: false); },
+                  ),
+                  if (hasPhoto) ...[
+                    const SizedBox(height: 8),
+                    _buildOptionTile(
+                      icon: Icons.delete_outline_rounded,
+                      title: 'Remove photo',
+                      subtitle: 'Restore your default avatar',
+                      color: const Color(0xFFE5484D),
+                      onTap: () { Navigator.pop(sheetContext); _deleteProfilePicture(); },
+                    ),
+                  ],
+                  const SizedBox(height: 4),
+                ],
+              ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
   Widget _buildOptionTile({
     required IconData icon,
     required String title,
+    required String subtitle,
     required Color color,
     required VoidCallback onTap,
   }) {
-    return ListTile(
-      contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-      leading: Container(
-        width: 48,
-        height: 48,
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(16),
+    final theme = Theme.of(context);
+    return Material(
+      color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: .42),
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: () { HapticFeedback.selectionClick(); onTap(); },
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+          child: Row(children: [
+            Container(
+              width: 44, height: 44,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: .12),
+                borderRadius: BorderRadius.circular(13),
+              ),
+              child: Icon(icon, color: color, size: 22),
+            ),
+            const SizedBox(width: 13),
+            Expanded(child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w700)),
+                const SizedBox(height: 2),
+                Text(subtitle, style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant)),
+              ],
+            )),
+            Icon(Icons.chevron_right_rounded,
+              color: theme.colorScheme.onSurfaceVariant, size: 20),
+          ]),
         ),
-        child: Icon(icon, color: color, size: 24),
       ),
-      title: Text(
-        title,
-        style: TextStyle(
-          fontFamily: 'PlusJakartaSans',
-          fontWeight: FontWeight.w700,
-          fontSize: 16,
-        ),
-      ),
-      onTap: () {
-        HapticFeedback.lightImpact();
-        onTap();
-      },
     );
   }
 
-  void _pickAndUploadImage({required bool fromGallery}) async {
+  Future<void> _pickAndUploadImage({required bool fromGallery}) async {
+    var progressDialogOpen = false;
     try {
-      final auth = context.read<AuthService>();
-      final ImagePicker picker = ImagePicker();
+      final picker = ImagePicker();
       final XFile? image = await picker.pickImage(
         source: fromGallery ? ImageSource.gallery : ImageSource.camera,
-        maxWidth: 200,
-        maxHeight: 200,
-        imageQuality: 80,
+        maxWidth: 1200,
+        maxHeight: 1200,
+        imageQuality: 86,
+        requestFullMetadata: false,
       );
+      if (image == null || !mounted) return;
 
-      if (image == null) return;
+      final file = File(image.path);
+      if (!await file.exists()) {
+        _showError('The selected photo could not be read. Please choose it again.');
+        return;
+      }
+      final fileSize = await file.length();
+      if (fileSize == 0) {
+        _showError('The selected photo is empty. Please choose another photo.');
+        return;
+      }
+      if (fileSize > 15 * 1024 * 1024) {
+        _showError('Please choose a photo smaller than 15 MB.');
+        return;
+      }
 
-      if (!mounted) return;
-      showDialog(
+      showDialog<void>(
         context: context,
+        useRootNavigator: true,
         barrierDismissible: false,
-        builder: (context) => Center(
-          child: CircularProgressIndicator(color: Theme.of(context).colorScheme.primary),
+        builder: (dialogContext) => PopScope(
+          canPop: false,
+          child: Center(child: Material(
+            color: Theme.of(dialogContext).colorScheme.surface,
+            borderRadius: BorderRadius.circular(18),
+            child: const Padding(
+              padding: EdgeInsets.all(22),
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                CircularProgressIndicator(),
+                SizedBox(height: 14),
+                Text('Uploading photo…'),
+              ]),
+            ),
+          )),
         ),
       );
+      progressDialogOpen = true;
 
-      final error = await auth.uploadProfilePicture(File(image.path));
-
+      final error = await context.read<AuthService>().uploadProfilePicture(file);
       if (!mounted) return;
-      Navigator.pop(context);
-
+      if (progressDialogOpen) {
+        Navigator.of(context, rootNavigator: true).pop();
+        progressDialogOpen = false;
+      }
       if (error != null) {
         _showError(error);
       } else {
-        setState(() {}); // Refresh UI
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Profile picture updated successfully'),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+        setState(() {});
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Profile photo updated successfully'),
+          behavior: SnackBarBehavior.floating,
+        ));
       }
-    } catch (e) {
-      if (mounted) {
-        Navigator.pop(context);
-        _showError('Failed to pick image: ${e.toString()}');
+    } catch (error) {
+      if (!mounted) return;
+      if (progressDialogOpen) {
+        Navigator.of(context, rootNavigator: true).pop();
+        progressDialogOpen = false;
       }
+      _showError(error is StateError
+        ? error.message.toString()
+        : 'Could not upload this photo. Please check your connection and try again.');
     }
   }
 
