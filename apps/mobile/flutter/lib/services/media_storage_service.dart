@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:gal/gal.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -62,12 +63,22 @@ class MediaStorageService {
     }
   }
 
-  static Future<File?> compressImage(
-    List<int> bytes, {
-    required String quality,
-  }) async {
-    // Implemented in ApiService's upload pipeline to keep compression optional
-    // for non-image attachments and preserve the original MIME type.
-    return null;
+  static Future<void> exportToDevice(File file, String kind) async {
+    if (kind == 'image') {
+      if (!await Gal.hasAccess()) await Gal.requestAccess(toAlbum: true);
+      await Gal.putImage(file.path, album: 'Novyn');
+      return;
+    }
+    if (kind == 'video') {
+      if (!await Gal.hasAccess()) await Gal.requestAccess(toAlbum: true);
+      await Gal.putVideo(file.path, album: 'Novyn');
+      return;
+    }
+    // Documents/audio use Android/iOS system document picker so the user
+    // chooses a public Files/Downloads destination rather than a private path.
+    await FilePicker.platform.saveFile(
+      fileName: file.uri.pathSegments.isEmpty ? 'Novyn download' : file.uri.pathSegments.last,
+      bytes: await file.readAsBytes(),
+    );
   }
 }
