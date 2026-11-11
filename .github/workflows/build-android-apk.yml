@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - feature/app-lock-recovery-hardening
+      - fix/app-lock-media-compile-integration
 
 permissions:
   contents: read
