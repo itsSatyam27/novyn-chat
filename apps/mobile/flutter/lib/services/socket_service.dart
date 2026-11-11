@@ -145,6 +145,7 @@ class SocketService extends ChangeNotifier {
       // the socket and receive the initial friend_list + requests.
       _socket!.emit('resume_session');
 
+      MediaStorageService.watchConnectivity();
       onConnected?.call();
       notifyListeners();
     });
