@@ -365,15 +365,15 @@ class AuthService extends ChangeNotifier {
       await _firebaseAuth.signOut();
     } catch (_) {}
 
-    // Revoke the server session and erase the shared local cache. Saved
-    // account identities live separately in SettingsService and are retained.
+    // Revoke the server session, but preserve this account's local chat
+    // database. It is scoped by username and is cleared automatically when a
+    // different account is activated, so logging back into the same account
+    // can restore its cached conversations and messages immediately.
     try {
       await ApiService.logout();
     } catch (_) {
-      // Local identity and cache must still be cleared if the server is offline.
+      // The local session must still be cleared if the server is offline.
     } finally {
-      await HybridDbService.clearAll();
-      await HybridDbService.clearAccountScope();
       _user = null;
       notifyListeners();
     }
