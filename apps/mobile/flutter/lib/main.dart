@@ -83,7 +83,7 @@ class NovynApp extends StatelessWidget {
         ChangeNotifierProvider<AuthService>(create: (ctx) {
           final socket = ctx.read<SocketService>();
           final auth = AuthService(
-            savePresence: socket.updatePresence,
+            savePresence: ApiService.updatePresence,
             savePassword: socket.changePassword,
             clearNotificationsToken: NotificationService.clearToken,
             onAccountReset: () async { socket.disconnect(); },
