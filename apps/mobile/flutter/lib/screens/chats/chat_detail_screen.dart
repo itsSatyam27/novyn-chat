@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -26,6 +27,31 @@ import '../../widgets/user_avatar.dart';
 import 'profile_info_screen.dart';
 import '../../widgets/connection_banner.dart';
 import '../../screens/calls/call_screen.dart';
+
+String _mimeForFile(String filename) {
+  final name = filename.toLowerCase();
+  if (name.endsWith('.pdf')) return 'application/pdf';
+  if (name.endsWith('.doc')) return 'application/msword';
+  if (name.endsWith('.docx')) return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+  if (name.endsWith('.txt')) return 'text/plain';
+  if (name.endsWith('.csv')) return 'text/csv';
+  if (name.endsWith('.zip')) return 'application/zip';
+  if (name.endsWith('.rar')) return 'application/vnd.rar';
+  if (name.endsWith('.mp3')) return 'audio/mpeg';
+  if (name.endsWith('.m4a')) return 'audio/mp4';
+  if (name.endsWith('.wav')) return 'audio/wav';
+  if (name.endsWith('.ogg')) return 'audio/ogg';
+  if (name.endsWith('.aac')) return 'audio/aac';
+  if (name.endsWith('.mp4')) return 'video/mp4';
+  if (name.endsWith('.mov')) return 'video/quicktime';
+  if (name.endsWith('.webm')) return 'video/webm';
+  if (name.endsWith('.gif')) return 'image/gif';
+  if (name.endsWith('.png')) return 'image/png';
+  if (name.endsWith('.webp')) return 'image/webp';
+  if (name.endsWith('.bmp')) return 'image/bmp';
+  if (name.endsWith('.jpg') || name.endsWith('.jpeg')) return 'image/jpeg';
+  return 'application/octet-stream';
+}
 
 class ChatDetailScreen extends StatefulWidget {
   final UserModel peer; // the person we're chatting with
@@ -802,7 +828,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       return;
     }
     try {
-      List<int>? bytes;
+      Uint8List? bytes;
       String filename = 'attachment';
       String mime = 'application/octet-stream';
       if (type.toLowerCase().contains('photo') || type.toLowerCase().contains('image') || type.toLowerCase().contains('video')) {
@@ -1153,30 +1179,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     search.dispose();
   }
 
-  String _mimeForFile(String filename) {
-    final name = filename.toLowerCase();
-    if (name.endsWith('.pdf')) return 'application/pdf';
-    if (name.endsWith('.doc')) return 'application/msword';
-    if (name.endsWith('.docx')) return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-    if (name.endsWith('.txt')) return 'text/plain';
-    if (name.endsWith('.csv')) return 'text/csv';
-    if (name.endsWith('.zip')) return 'application/zip';
-    if (name.endsWith('.rar')) return 'application/vnd.rar';
-    if (name.endsWith('.mp3')) return 'audio/mpeg';
-    if (name.endsWith('.m4a')) return 'audio/mp4';
-    if (name.endsWith('.wav')) return 'audio/wav';
-    if (name.endsWith('.ogg')) return 'audio/ogg';
-    if (name.endsWith('.aac')) return 'audio/aac';
-    if (name.endsWith('.mp4')) return 'video/mp4';
-    if (name.endsWith('.mov')) return 'video/quicktime';
-    if (name.endsWith('.webm')) return 'video/webm';
-    if (name.endsWith('.gif')) return 'image/gif';
-    if (name.endsWith('.png')) return 'image/png';
-    if (name.endsWith('.webp')) return 'image/webp';
-    if (name.endsWith('.bmp')) return 'image/bmp';
-    if (name.endsWith('.jpg') || name.endsWith('.jpeg')) return 'image/jpeg';
-    return 'application/octet-stream';
-  }
+
 
   Future<void> _startVoiceNote() async {
     if (_isRecordingVoice || _uploadingAttachment) return;
