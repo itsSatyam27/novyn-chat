@@ -98,17 +98,7 @@ class AccessibilityScreen extends StatelessWidget {
     );
   }
 
-  void _showComingSoon(BuildContext context, String feature) {
-    HapticFeedback.lightImpact();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('$feature integration pending...', style: const TextStyle(fontFamily: 'PlusJakartaSans')),
-        behavior: SnackBarBehavior.floating,
-        backgroundColor: const Color(0xFF1A1D2B),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      ),
-    );
-  }
+
 }
 
 class _FontSizeCard extends StatelessWidget {

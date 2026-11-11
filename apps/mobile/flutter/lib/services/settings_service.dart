@@ -184,7 +184,7 @@ class SettingsService extends ChangeNotifier {
     _autoDownloadMobile = _prefs.getString(_kAutoDownloadMobile) ?? 'photos';
     _photoQuality = _prefs.getString(_kPhotoQuality) ?? 'high';
     _language = _prefs.getString(_kLanguage) ?? 'en';
-    _fontSize = _prefs.getDouble(_kFontSize) ?? 1.0;
+    _fontSize = (_prefs.getDouble(_kFontSize) ?? 1.0).clamp(0.85, 1.25).toDouble();
     _accentColorValue = _prefs.getInt(_kAccentColor) ?? 0xFF6D5DFC;
     const dockStyles = ['floating_pill','rounded_bar','minimal','glass','sliding','elevated','full_width','glow'];
     final savedDockStyle = _prefs.getString(_kDockStyle) ?? 'floating_pill';
@@ -206,7 +206,7 @@ class SettingsService extends ChangeNotifier {
     }
     _language = _prefs.getString(_kLanguage) ?? _detectDeviceLanguage();
     _vibrationPattern = _prefs.getString(_kVibrationPattern) ?? 'standard';
-    _hapticIntensity = _prefs.getDouble(_kHapticIntensity) ?? 0.8;
+    _hapticIntensity = (_prefs.getDouble(_kHapticIntensity) ?? 0.8).clamp(0.0, 1.0).toDouble();
     _appLockEnabled = _prefs.getBool(_kAppLockEnabled) ?? false;
     _appLockTimeout = _prefs.getInt(_kAppLockTimeout) ?? 0;
     // Migrate legacy PINs from plain preferences into encrypted storage.
@@ -503,6 +503,7 @@ class SettingsService extends ChangeNotifier {
   }
 
   Future<void> setHapticIntensity(double v) async {
+    v = v.clamp(0.0, 1.0).toDouble();
     _hapticIntensity = v;
     await _prefs.setDouble(_kHapticIntensity, v);
     notifyListeners();
