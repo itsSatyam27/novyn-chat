@@ -11,6 +11,7 @@ class NovynDock extends StatelessWidget {
   final int unreadCount;
   final int requestCount;
   final String style;
+  final bool preview;
 
   const NovynDock({
     super.key,
@@ -19,6 +20,7 @@ class NovynDock extends StatelessWidget {
     this.unreadCount = 0,
     this.requestCount = 0,
     this.style = 'floating_pill',
+    this.preview = false,
   });
 
   static const labels = ['Messages', 'Calls', 'Discover', 'Contacts', 'Settings'];
@@ -43,9 +45,7 @@ class NovynDock extends StatelessWidget {
     final radius = style == 'rounded_bar' ? 22.0 : (style == 'glow' ? 30.0 : 26.0);
     final background = dark ? const Color(0xE923172F) : const Color(0xF7FFFFFF);
 
-    return SafeArea(
-      top: false,
-      child: AnimatedPadding(
+    final dockSurface = AnimatedPadding(
         duration: duration,
         curve: Curves.easeInOutCubic,
         padding: EdgeInsets.fromLTRB(full ? 0 : 14, 0, full ? 0 : 14, full ? 0 : 14),
@@ -93,8 +93,8 @@ class NovynDock extends StatelessWidget {
             ),
           ),
         ),
-      ),
-    );
+      );
+    return preview ? dockSurface : SafeArea(top: false, child: dockSurface);
   }
 
   Widget _items(
