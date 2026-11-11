@@ -623,11 +623,11 @@ class SettingsService extends ChangeNotifier {
       value: _appLockFailedAttempts.toString(),
     );
     Duration? cooldown;
-    if (_appLockFailedAttempts >= 15) {
+    if (_appLockFailedAttempts == 15) {
       cooldown = const Duration(minutes: 10);
-    } else if (_appLockFailedAttempts >= 10) {
+    } else if (_appLockFailedAttempts == 10) {
       cooldown = const Duration(minutes: 2);
-    } else if (_appLockFailedAttempts >= 5) {
+    } else if (_appLockFailedAttempts == 5) {
       cooldown = const Duration(seconds: 30);
     }
     if (cooldown != null) {
