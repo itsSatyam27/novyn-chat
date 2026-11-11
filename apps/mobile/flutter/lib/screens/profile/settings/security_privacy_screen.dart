@@ -10,7 +10,6 @@ import '../../../widgets/novyn_empty_state.dart';
 import '../../../widgets/novyn_alert.dart';
 import '../../security/setup_pin_screen.dart';
 import 'active_sessions_screen.dart';
-import '../widgets/profile_widgets.dart';
 import '../../../theme/novyn_theme.dart';
 
 class SecurityPrivacyScreen extends StatelessWidget {
@@ -1624,7 +1623,7 @@ class _PrivacyDashboardState extends State<_PrivacyDashboard> {
     final colors = Theme.of(context).colorScheme;
     final presence = _values['presencePrivacy'] == 'everyone' && widget.lastSeen != 'everyone'
         ? (widget.lastSeen == 'contacts' ? 'friends' : widget.lastSeen)
-        : _values['presencePrivacy'];
+        : _values['presencePrivacy']!;
     final photo = widget.profilePhoto == 'contacts' ? 'friends' : widget.profilePhoto;
     final visibility = [
       ('Profile photo', 'profilePhotoPrivacy', photo,
