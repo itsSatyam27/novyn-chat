@@ -46,20 +46,6 @@ class SecurityPrivacyScreen extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 30),
         children: [
           Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Material(
-              color: NovynTheme.cardBg(context),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
-                side: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
-              ),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(14),
-                onTap: () => Navigator.maybePop(context),
-                child: SizedBox(width: 44, height: 44,
-                  child: Icon(Icons.chevron_left_rounded, color: ink, size: 28)),
-              ),
-            ),
-            const SizedBox(width: 14),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(
                 category == null ? 'Security & Privacy' : switch (category) {
