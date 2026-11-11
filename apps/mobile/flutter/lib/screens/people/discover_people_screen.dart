@@ -29,7 +29,7 @@ class _DiscoverPeopleScreenState extends State<DiscoverPeopleScreen> {
           icon: Icon(Icons.arrow_back_ios_new_rounded, color: Theme.of(context).colorScheme.onSurface, size: 20),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
+        title: Text(
           'Connect',
           style: TextStyle(
             fontFamily: 'PlusJakartaSans',
@@ -121,7 +121,7 @@ class _DiscoverPeopleScreenState extends State<DiscoverPeopleScreen> {
                           fontFamily: 'PlusJakartaSans',
                           fontSize: 14,
                           fontWeight: FontWeight.bold,
-                          color: _activeTab == 1 ? const Color(0xFF6D5DFC) : const Color(0xFF94A3B8),
+                          color: _activeTab == 1 ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
                       ),
                     ),
@@ -241,13 +241,13 @@ class _DiscoverPeopleScreenState extends State<DiscoverPeopleScreen> {
               shape: BoxShape.circle,
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFF6D5DFC).withValues(alpha: 0.1),
+                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
                   blurRadius: 30,
                   offset: const Offset(0, 10),
                 ),
               ],
             ),
-            child: Icon(icon, size: 48, color: const Color(0xFF6D5DFC)),
+            child: Icon(icon, size: 48, color: Theme.of(context).colorScheme.primary),
           ),
           const SizedBox(height: 24),
           Text(
@@ -390,7 +390,7 @@ class _DiscoverItem extends StatelessWidget {
                   fontFamily: 'PlusJakartaSans',
                   fontSize: 12,
                   fontWeight: FontWeight.bold,
-                  color: isPending ? const Color(0xFF94A3B8) : const Color(0xFF6D5DFC),
+                  color: isPending ? Theme.of(context).colorScheme.onSurfaceVariant : Theme.of(context).colorScheme.primary,
                 ),
               ),
             ),

@@ -107,8 +107,8 @@ class _AppLockScreenState extends State<AppLockScreen> {
                   height: 64,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: const Color(0xFF6D5DFC).withValues(alpha: 0.1),
-                    border: Border.all(color: const Color(0xFF6D5DFC).withValues(alpha: 0.2)),
+                    color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+                    border: Border.all(color: const Theme.of(context).colorScheme.primary.withValues(alpha: 0.2)),
                   ),
                   child: const Icon(Icons.lock_rounded, color: Color(0xFF6D5DFC), size: 28),
                 ),

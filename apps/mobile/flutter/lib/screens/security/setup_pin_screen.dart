@@ -168,7 +168,7 @@ class _SetupPinScreenState extends State<SetupPinScreen> {
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         color: isActive 
-                            ? const Color(0xFF6D5DFC) 
+                            ? Theme.of(context).colorScheme.primary 
                             : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.1),
                         boxShadow: isActive ? [
                           BoxShadow(

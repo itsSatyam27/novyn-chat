@@ -680,7 +680,7 @@ class _CallScreenState extends State<CallScreen>
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           border: Border.all(
-                            color: const Color(0xFF6D5DFC).withValues(alpha: 0.3),
+                            color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
                             width: 2,
                           ),
                         ),
