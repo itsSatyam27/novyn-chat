@@ -20,7 +20,7 @@ import '../../services/hybrid_db_service.dart';
 import '../../services/draft_service.dart';
 import '../../services/settings_service.dart';
 import '../../widgets/user_avatar.dart';
-import '../../widgets/profile_preview_sheet.dart';
+import 'profile_info_screen.dart';
 import '../../widgets/connection_banner.dart';
 import '../../screens/calls/call_screen.dart';
 
@@ -1615,28 +1615,28 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
 
   void _showContactInfo() {
     HapticFeedback.lightImpact();
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => ProfilePreviewSheet(
-        user: widget.peer,
-        onVoiceCall: () {
-          Navigator.pop(context);
-          _startCall('voice');
-        },
-        onVideoCall: () {
-          Navigator.pop(context);
-          _startCall('video');
-        },
-        onSharedMedia: () {
-          Navigator.pop(context);
-          _showSharedMedia();
-        },
-        onWallpaper: () {
-          Navigator.pop(context);
-          _showWallpaperPicker();
-        },
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ProfileInfoScreen(
+          user: widget.peer,
+          onVoiceCall: () {
+            Navigator.pop(context);
+            _startCall('voice');
+          },
+          onVideoCall: () {
+            Navigator.pop(context);
+            _startCall('video');
+          },
+          onSharedMedia: () {
+            Navigator.pop(context);
+            _showSharedMedia();
+          },
+          onWallpaper: () {
+            Navigator.pop(context);
+            _showWallpaperPicker();
+          },
+        ),
       ),
     );
   }
