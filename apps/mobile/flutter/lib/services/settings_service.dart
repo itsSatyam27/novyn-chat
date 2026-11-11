@@ -52,6 +52,7 @@ class SettingsService extends ChangeNotifier {
   static const _kLanguage = 'language';
   static const _kFontSize = 'font_size';
   static const _kAccentColor = 'appearance_accent_color';
+  static const _kAccentColorEnabled = 'appearance_accent_color_enabled';
   static const _kDockStyle = 'dock_style';
   static const _kTwoFactorAuth = 'two_factor_auth';
   static const _kLastSeen = 'last_seen_visibility';
@@ -101,6 +102,7 @@ class SettingsService extends ChangeNotifier {
   String _language = 'en'; // Language code
   double _fontSize = 1.0; // Font scale factor
   int _accentColorValue = 0xFF6D5DFC;
+  bool _accentColorEnabled = true;
   String _dockStyle = 'floating_pill';
   bool _twoFactorAuth = false;
   String _lastSeenVisibility = 'everyone'; // 'everyone', 'contacts', 'nobody'
@@ -153,6 +155,7 @@ class SettingsService extends ChangeNotifier {
   String get photoQuality => _photoQuality;
   double get fontSize => _fontSize;
   int get accentColorValue => _accentColorValue;
+  bool get accentColorEnabled => _accentColorEnabled;
   String get dockStyle => _dockStyle;
   bool get twoFactorAuth => _twoFactorAuth;
   String get lastSeenVisibility => _stealthModeEnabled ? 'nobody' : _lastSeenVisibility;
@@ -193,6 +196,7 @@ class SettingsService extends ChangeNotifier {
     _language = _prefs.getString(_kLanguage) ?? 'en';
     _fontSize = (_prefs.getDouble(_kFontSize) ?? 1.0).clamp(0.85, 1.25).toDouble();
     _accentColorValue = _prefs.getInt(_kAccentColor) ?? 0xFF6D5DFC;
+    _accentColorEnabled = _prefs.getBool(_kAccentColorEnabled) ?? true;
     const dockStyles = ['floating_pill','rounded_bar','minimal','glass','sliding','elevated','full_width','glow'];
     final savedDockStyle = _prefs.getString(_kDockStyle) ?? 'floating_pill';
     _dockStyle = dockStyles.contains(savedDockStyle) ? savedDockStyle : 'floating_pill';
@@ -349,6 +353,12 @@ class SettingsService extends ChangeNotifier {
   Future<void> setAccentColor(int value) async {
     _accentColorValue = value;
     await _prefs.setInt(_kAccentColor, value);
+    notifyListeners();
+  }
+
+  Future<void> setAccentColorEnabled(bool enabled) async {
+    _accentColorEnabled = enabled;
+    await _prefs.setBool(_kAccentColorEnabled, enabled);
     notifyListeners();
   }
 
@@ -677,6 +687,7 @@ class SettingsService extends ChangeNotifier {
     _language = 'en';
     _fontSize = 1.0;
     _accentColorValue = 0xFF6D5DFC;
+    _accentColorEnabled = true;
     _dockStyle = 'floating_pill';
     _twoFactorAuth = false;
     _lastSeenVisibility = 'everyone';
