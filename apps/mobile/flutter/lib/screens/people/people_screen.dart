@@ -28,6 +28,7 @@ class _PeopleScreenState extends State<PeopleScreen> {
     final auth = context.read<AuthService>();
     final friends = context.read<FriendService>();
     final myUid = auth.user?.username;
+    final cachedFriends = friends.cachedFriends ?? <UserModel>[];
 
     if (myUid == null) {
       return const Center(child: Text('Not logged in'));
@@ -41,7 +42,7 @@ class _PeopleScreenState extends State<PeopleScreen> {
           children: [
             NovynHeader(
               title: 'Contacts',
-              subtitle: '${friends.cachedFriends.length} friend${friends.cachedFriends.length == 1 ? '' : 's'} · ${friends.cachedFriends.where((u) => u.isOnline).length} online',
+              subtitle: '${cachedFriends.length} friend${cachedFriends.length == 1 ? '' : 's'} · ${cachedFriends.where((u) => u.isOnline).length} online',
               actions: [
                 NovynIconButton(
                   icon: Icons.group_add_rounded,
