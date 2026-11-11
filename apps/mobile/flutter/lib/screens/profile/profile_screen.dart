@@ -1597,7 +1597,7 @@ class _SettingsQuickToggle extends StatelessWidget {
             thumbColor: const WidgetStatePropertyAll(Colors.white),
             trackColor: WidgetStateProperty.resolveWith(
               (states) => states.contains(WidgetState.selected)
-                  ? NovynTheme.indigo
+                  ? Theme.of(context).colorScheme.primary
                   : (dark ? const Color(0xFF454456) : const Color(0xFFD7D3E8)),
             ),
             trackOutlineColor: const WidgetStatePropertyAll(Colors.transparent),

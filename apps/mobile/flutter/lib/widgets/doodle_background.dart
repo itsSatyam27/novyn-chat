@@ -4,14 +4,17 @@ import 'dart:math' as math;
 class DoodleBackground extends StatelessWidget {
   final bool isDark;
   final int seed;
+  final Color? accentColor;
   const DoodleBackground({
     super.key, 
     required this.isDark,
     this.seed = 7, // Default seed
+    this.accentColor,
   });
 
   @override
   Widget build(BuildContext context) {
+    final accent = accentColor ?? Theme.of(context).colorScheme.primary;
     return Container(
       decoration: BoxDecoration(
         gradient: LinearGradient(
@@ -23,7 +26,7 @@ class DoodleBackground extends StatelessWidget {
         ),
       ),
       child: CustomPaint(
-        painter: _DoodlePainter(isDark: isDark, seed: seed),
+        painter: _DoodlePainter(isDark: isDark, seed: seed, accentColor: accent),
         child: const SizedBox.expand(),
       ),
     );
@@ -33,24 +36,19 @@ class DoodleBackground extends StatelessWidget {
 class _DoodlePainter extends CustomPainter {
   final bool isDark;
   final int seed;
-  _DoodlePainter({required this.isDark, required this.seed});
+  final Color accentColor;
+  _DoodlePainter({required this.isDark, required this.seed, required this.accentColor});
 
   @override
   void paint(Canvas canvas, Size size) {
     final random = math.Random(seed);
 
     // Two layers — subtle fill + stroke outline
-    final strokeColor = isDark
-        ? const Color(0xFF6D5DFC).withValues(alpha: 0.12)
-        : const Color(0xFF6D5DFC).withValues(alpha: 0.10);
+    final strokeColor = accentColor.withValues(alpha: isDark ? 0.12 : 0.10);
 
-    final fillColor = isDark
-        ? const Color(0xFF6D5DFC).withValues(alpha: 0.04)
-        : const Color(0xFF6D5DFC).withValues(alpha: 0.05);
+    final fillColor = accentColor.withValues(alpha: isDark ? 0.04 : 0.05);
 
-    final accentColor = isDark
-        ? const Color(0xFFEC4899).withValues(alpha: 0.07)
-        : const Color(0xFFEC4899).withValues(alpha: 0.07);
+    final decorativeColor = accentColor.withValues(alpha: 0.07);
 
     final stroke = Paint()
       ..color = strokeColor
@@ -64,7 +62,7 @@ class _DoodlePainter extends CustomPainter {
       ..style = PaintingStyle.fill;
 
     final accent = Paint()
-      ..color = accentColor
+      ..color = decorativeColor
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.5
       ..strokeCap = StrokeCap.round;
@@ -174,7 +172,7 @@ class _DoodlePainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _DoodlePainter old) => old.isDark != isDark;
+  bool shouldRepaint(covariant _DoodlePainter old) => old.isDark != isDark || old.accentColor != accentColor;
 }
 
 class _Shape {
