@@ -5,8 +5,6 @@ on:
   push:
     branches:
       - fix/media-branch-apk-compile-errors
-      - feature/app-lock-recovery-hardening
-      - fix/app-lock-session-restore-integration
   pull_request:
     branches:
       - feature/real-media-storage-system
