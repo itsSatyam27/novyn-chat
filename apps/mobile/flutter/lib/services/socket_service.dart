@@ -64,6 +64,7 @@ class SocketService extends ChangeNotifier {
   io.Socket? _socket;
   bool _isConnected = false;
   bool _manualDisconnect = false;
+  bool _appForeground = true;
   String? _myUsername; // novyn-chat username (not Firebase UID)
   final AudioPlayer _audioPlayer = AudioPlayer();
 
@@ -149,6 +150,7 @@ class SocketService extends ChangeNotifier {
       // novyn-chat requires resume_session after connect to authenticate
       // the socket and receive the initial friend_list + requests.
       _socket!.emit('resume_session');
+      _socket!.emit('app_visibility', {'foreground': _appForeground});
 
       MediaStorageService.watchConnectivity();
       onConnected?.call();
@@ -170,6 +172,14 @@ class SocketService extends ChangeNotifier {
 
     _registerEventHandlers();
     _socket!.connect();
+  }
+
+  void setAppForeground(bool foreground) {
+    if (_appForeground == foreground) return;
+    _appForeground = foreground;
+    if (_isConnected) {
+      _socket?.emit('app_visibility', {'foreground': foreground});
+    }
   }
 
   void _scheduleReconnect(int seconds) {
@@ -376,7 +386,9 @@ class SocketService extends ChangeNotifier {
           }
         }
       } else if (!isOwn) {
-        onIncomingMessage?.call(chatPartner, msg.text);
+        if (data['toType'] != 'group') {
+          onIncomingMessage?.call(chatPartner, msg.text);
+        }
         // Sound and vibration remain independent user preferences.
         if (!(notificationsMuted?.call() ?? false)) {
           unawaited(_playIncomingMessageSound());
