@@ -90,6 +90,14 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
   bool _suppressNextCountScroll = false;
   int _voiceSeconds = 0;
   String? _voiceRecordingPath;
+  static const List<String> _defaultQuickEmojis = ['😂', '❤️', '👍', '🙏', '😍', '🥰', '🔥', '🎉'];
+  static const List<String> _emojiChoices = [
+    '😂','🤣','😊','🙂','😉','😍','🥰','😘','😎','🤔','🥳','😭',
+    '😅','🙄','😴','🤗','😇','😋','😜','🤩','❤️','🧡','💛','💚',
+    '💙','💜','🖤','🤍','💔','💕','💯','🔥','👍','👎','👏','🙌',
+    '🙏','🤝','💪','🎉','✨','🌹','🌸','💐','☕','🍕','🐱','🐶',
+  ];
+  List<String> _quickEmojis = List<String>.from(_defaultQuickEmojis);
 
   @override
   void initState() {
@@ -97,6 +105,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
     WidgetsBinding.instance.addObserver(this);
     _peerIsOnline = widget.peer.isOnline;
     _peerPresence = widget.peer.status.trim().toLowerCase();
+    _loadQuickEmojis();
     _init();
     _scroll.addListener(_onScroll);
 
@@ -814,6 +823,169 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
     );
   }
 
+  String get _quickEmojiPreferenceKey =>
+      'novyn_quick_emojis_${widget.peer.username.toLowerCase()}';
+
+  Future<void> _loadQuickEmojis() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getStringList(_quickEmojiPreferenceKey);
+    if (!mounted || saved == null || saved.isEmpty) return;
+    setState(() => _quickEmojis = saved);
+  }
+
+  void _insertQuickEmoji(String emoji) {
+    final current = _ctrl.value;
+    final selection = current.selection;
+    final start = selection.isValid ? selection.start.clamp(0, current.text.length) : current.text.length;
+    final end = selection.isValid ? selection.end.clamp(start, current.text.length) : current.text.length;
+    final updated = current.text.replaceRange(start, end, emoji);
+    _ctrl.value = TextEditingValue(
+      text: updated,
+      selection: TextSelection.collapsed(offset: start + emoji.length),
+    );
+    setState(() {});
+  }
+
+  void _showQuickEmojiPicker() {
+    final emojis = _quickEmojis.isEmpty ? _defaultQuickEmojis : _quickEmojis;
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (sheetContext) {
+        final scheme = Theme.of(sheetContext).colorScheme;
+        return SafeArea(
+          child: Container(
+            margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+            padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
+            decoration: BoxDecoration(
+              color: scheme.surface,
+              borderRadius: BorderRadius.circular(26),
+              border: Border.all(color: scheme.primary.withValues(alpha: .18)),
+              boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: .12), blurRadius: 24, offset: const Offset(0, 8))],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(children: [
+                  Expanded(child: Text('Quick emojis', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 17, fontWeight: FontWeight.w800, color: scheme.onSurface))),
+                  TextButton.icon(
+                    onPressed: () {
+                      Navigator.pop(sheetContext);
+                      _showQuickEmojiSettings();
+                    },
+                    icon: const Icon(Icons.tune_rounded, size: 17),
+                    label: const Text('Customise'),
+                  ),
+                ]),
+                const SizedBox(height: 8),
+                GridView.count(
+                  crossAxisCount: 4,
+                  shrinkWrap: true,
+                  mainAxisSpacing: 8,
+                  crossAxisSpacing: 8,
+                  physics: const NeverScrollableScrollPhysics(),
+                  children: emojis.map((emoji) => Material(
+                    color: scheme.primary.withValues(alpha: .08),
+                    borderRadius: BorderRadius.circular(16),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(16),
+                      onTap: () {
+                        _insertQuickEmoji(emoji);
+                        Navigator.pop(sheetContext);
+                      },
+                      child: Center(child: Text(emoji, style: const TextStyle(fontSize: 29))),
+                    ),
+                  )).toList(),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _showQuickEmojiSettings() {
+    final selected = Set<String>.from(_quickEmojis);
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (sheetContext) {
+        final scheme = Theme.of(sheetContext).colorScheme;
+        return StatefulBuilder(
+          builder: (context, refresh) => SafeArea(
+            child: Container(
+              height: MediaQuery.of(context).size.height * .72,
+              margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+              padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
+              decoration: BoxDecoration(
+                color: scheme.surface,
+                borderRadius: BorderRadius.circular(26),
+                border: Border.all(color: scheme.primary.withValues(alpha: .18)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Choose your quick emojis', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 18, fontWeight: FontWeight.w800, color: scheme.onSurface)),
+                  const SizedBox(height: 5),
+                  Text('Select up to 8 emojis for this chat', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 12, color: scheme.onSurfaceVariant)),
+                  const SizedBox(height: 16),
+                  Expanded(
+                    child: GridView.builder(
+                      itemCount: _emojiChoices.length,
+                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 6, mainAxisSpacing: 8, crossAxisSpacing: 8),
+                      itemBuilder: (_, index) {
+                        final emoji = _emojiChoices[index];
+                        final active = selected.contains(emoji);
+                        return Material(
+                          color: active ? scheme.primary.withValues(alpha: .16) : scheme.surfaceContainerHighest.withValues(alpha: .55),
+                          borderRadius: BorderRadius.circular(13),
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(13),
+                            onTap: () => refresh(() {
+                              if (active) {
+                                selected.remove(emoji);
+                              } else if (selected.length < 8) {
+                                selected.add(emoji);
+                              } else {
+                                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('You can select up to 8 quick emojis.')));
+                              }
+                            }),
+                            child: Stack(alignment: Alignment.center, children: [
+                              Text(emoji, style: const TextStyle(fontSize: 25)),
+                              if (active) Positioned(right: 3, top: 3, child: Icon(Icons.check_circle_rounded, size: 12, color: scheme.primary)),
+                            ]),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton(
+                      onPressed: selected.isEmpty ? null : () async {
+                        final next = selected.toList();
+                        final prefs = await SharedPreferences.getInstance();
+                        await prefs.setStringList(_quickEmojiPreferenceKey, next);
+                        if (!mounted) return;
+                        setState(() => _quickEmojis = next);
+                        if (sheetContext.mounted) Navigator.pop(sheetContext);
+                      },
+                      child: Text('Save ${selected.length}/8 emojis'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   Widget _buildInputBar(SocketService socket) {
     final hasText = _ctrl.text.trim().isNotEmpty;
     final theme = Theme.of(context);
@@ -897,15 +1069,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
 
         // ── Main input row ─────────────────────────────────────────
         Container(
-          decoration: BoxDecoration(
-            color: theme.colorScheme.surface,
-            border: Border(
-              top: BorderSide(
-                color: theme.colorScheme.outlineVariant.withValues(alpha: 0.6),
-                width: 1,
-              ),
-            ),
-          ),
+          decoration: const BoxDecoration(color: Colors.transparent),
           padding: EdgeInsets.fromLTRB(12, 9, 12, MediaQuery.of(context).viewInsets.bottom > 0 ? 10 : 14),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.end,
@@ -982,12 +1146,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                             suffixIcon: IconButton(
                               tooltip: 'Add emoji',
                               visualDensity: VisualDensity.compact,
-                              onPressed: () {
-                                final value = _ctrl.text;
-                                _ctrl.text = '${value}🙂';
-                                _ctrl.selection = TextSelection.collapsed(offset: _ctrl.text.length);
-                                setState(() {});
-                              },
+                              onPressed: _showQuickEmojiPicker,
                               icon: Icon(Icons.emoji_emotions_outlined, size: 19,
                                 color: theme.colorScheme.onSurfaceVariant),
                             ),
@@ -1912,6 +2071,10 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
           onWallpaper: () {
             Navigator.pop(context);
             _showWallpaperPicker();
+          },
+          onQuickEmojis: () {
+            Navigator.pop(context);
+            _showQuickEmojiSettings();
           },
           initiallyBlocked: context.read<SocketService>().blockedUsers.any(
             (name) => name.toLowerCase() == widget.peer.username.toLowerCase(),
