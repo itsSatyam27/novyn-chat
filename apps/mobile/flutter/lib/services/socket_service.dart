@@ -798,7 +798,10 @@ class SocketService extends ChangeNotifier {
       final displayName = item['displayName']?.toString() ??
           item['name']?.toString() ??
           username;
-      final lastMsg = item['lastMessage'];
+      // The relay keeps the encrypted envelope in lastMessageData. The
+      // legacy lastMessage field is only a placeholder and may not contain the
+      // ciphertext/IV needed for local decryption.
+      final lastMsg = item['lastMessageData'] ?? item['lastMessage'];
       if (item['publicKey'] != null) {
         _peerKeys[username.toLowerCase()] = item['publicKey'].toString();
       }
@@ -822,7 +825,9 @@ class SocketService extends ChangeNotifier {
         peer: peerModel,
         isGroup: item['kind'] == 'group' || item['groupId'] != null,
         lastMessage: lastMsg is Map
-            ? lastMsg['text']?.toString() ?? ''
+            ? (lastMsg['isEncrypted'] == true
+                ? '🔒 Encrypted message'
+                : lastMsg['text']?.toString() ?? '')
             : lastMsg?.toString() ?? '',
         lastTime: DateTime.tryParse(item['lastTimestamp']?.toString() ?? '') ??
             DateTime.now(),
