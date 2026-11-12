@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 import 'package:audioplayers/audioplayers.dart';
 import '../../../services/settings_service.dart';
 import '../../../services/haptic_service.dart';
-import '../../../services/auth_service.dart';
 import '../../../theme/novyn_theme.dart';
 
 class SoundVibrationScreen extends StatefulWidget {
@@ -56,7 +55,6 @@ class _SoundVibrationScreenState extends State<SoundVibrationScreen> {
   @override
   Widget build(BuildContext context) {
     final s = context.watch<SettingsService>();
-    final busy = context.watch<AuthService>().user?.presenceMode == 'busy';
     final ink = Theme.of(context).colorScheme.onSurface;
     final muted = Theme.of(context).colorScheme.onSurfaceVariant;
     return Scaffold(
@@ -134,19 +132,6 @@ class _SoundVibrationScreenState extends State<SoundVibrationScreen> {
                 ])),
               ])),
             )),
-            _section('Focus'),
-            _panel(child: Row(children: [
-              const _IconTile(icon: Icons.notifications_off_outlined),
-              const SizedBox(width: 12),
-              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('Busy mode', style: TextStyle(fontWeight: FontWeight.w700, color: ink, fontSize: 15)),
-                Text('When your status is Busy, message and call alerts are silenced.',
-                  style: TextStyle(color: muted, fontSize: 12, height: 1.45)),
-              ])),
-              Container(padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
-                decoration: BoxDecoration(color: const Color(0xFF6554F5).withValues(alpha: .1), borderRadius: BorderRadius.circular(12)),
-                child: Text(busy ? 'Active' : 'Off', style: const TextStyle(color: Color(0xFF6554F5), fontWeight: FontWeight.w700))),
-            ])),
           ],
         )),
       ])),
