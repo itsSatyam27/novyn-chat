@@ -6127,6 +6127,7 @@ io.on("connection", (socket) => {
       profilePhotoPrivacy: user.profilePhotoPrivacy || "everyone", presencePrivacy: user.presencePrivacy || "everyone",
       readReceiptsEnabled: user.readReceiptsEnabled !== false, typingIndicatorsEnabled: user.typingIndicatorsEnabled !== false,
       groupInvitePrivacy: user.groupInvitePrivacy || "friends", friendRequestPrivacy: user.friendRequestPrivacy || "everyone",
+      stealthModeEnabled: user.stealthModeEnabled === true,
       twoFactorEnabled: Boolean(user.twoFactorEnabled),
     });
     respond({ ok: true });
