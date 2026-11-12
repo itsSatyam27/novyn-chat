@@ -738,7 +738,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                               socket.stopTyping(widget.peer.uid);
                             }
                           },
-                          onSubmitted: (_) => _send(),
+                          onSubmitted: (_) {
+                            if (context.read<SettingsService>().chatEnterToSend) _send();
+                          },
                           decoration: InputDecoration(
                             hintText: 'Message...',
                             hintStyle: TextStyle(
