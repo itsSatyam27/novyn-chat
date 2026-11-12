@@ -11,6 +11,7 @@ import 'api_service.dart';
 import 'media_storage_service.dart';
 import 'backend_contacts.dart';
 import 'message_encryption_service.dart';
+import 'security_service.dart';
 
 /// Socket service for the shared novyn-chat backend (server.js).
 ///
@@ -78,6 +79,7 @@ class SocketService extends ChangeNotifier {
   // Messages for the currently open chat (immutable list — replaced on update)
   List<Message> _messages = [];
   String? _currentChatWith; // the username of the other party
+  bool _activeChatCaptureProtected = false;
   String _chatWallpaper = '';
   String get chatWallpaper => _chatWallpaper;
 
@@ -242,6 +244,14 @@ class SocketService extends ChangeNotifier {
             .toList();
         notifyListeners();
       }
+    });
+    _socket!.on('chat_protection_updated', (data) {
+      if (data is! Map || _currentChatWith == null) return;
+      final username = data['username']?.toString() ?? '';
+      if (username.toLowerCase() != _currentChatWith!.toLowerCase()) return;
+      final protected = data['protected'] == true;
+      _activeChatCaptureProtected = protected;
+      unawaited(SecurityService.setSafeMode(protected));
     });
     _socket!.on('block_updated', (data) {
       if (data is! Map) return;
@@ -826,15 +836,57 @@ class SocketService extends ChangeNotifier {
 
     unawaited(decryptCurrentMessages());
 
-    // Tell the server which chat is active and request latest history
-    _socket?.emit('set_active_chat', {'to': peerUsername, 'kind': 'friend'});
-    _socket?.emit('get_history', {'to': peerUsername, 'kind': 'friend'});
-    _socket?.emit('get_chat_wallpaper', {'to': peerUsername, 'toType': 'friend'});
+    // Ask the server whether this chat partner has enabled account-level
+    // screenshot protection. Only their preference protects this conversation.
+    _activeChatCaptureProtected = false;
+    unawaited(SecurityService.setSafeMode(false));
+    final connection = _socket;
+    connection?.emit('set_active_chat', {'to': peerUsername, 'kind': 'friend'});
+    if (connection != null) {
+      connection.emitWithAck('get_chat_protection', {'to': peerUsername},
+        ack: (dynamic result) {
+          if (_socket != connection ||
+              _currentChatWith?.toLowerCase() != peerUsername.toLowerCase()) return;
+          final protected = result is Map && result['ok'] == true &&
+              result['protected'] == true;
+          _activeChatCaptureProtected = protected;
+          unawaited(SecurityService.setSafeMode(protected));
+        });
+    }
+    connection?.emit('get_history', {'to': peerUsername, 'kind': 'friend'});
+    connection?.emit('get_chat_wallpaper', {'to': peerUsername, 'toType': 'friend'});
+  }
+
+  Future<void> updateStealthMode(bool enabled) async {
+    await _waitForSocketAuthentication();
+    final connection = _socket;
+    if (connection == null || !_isConnected) {
+      throw StateError('Connect to Novyn before changing Stealth Mode.');
+    }
+    final completer = Completer<Map<String, dynamic>>();
+    connection.emitWithAck('update_profile', {'stealthModeEnabled': enabled},
+      ack: (dynamic result) {
+        if (!completer.isCompleted) {
+          completer.complete(result is Map
+              ? Map<String, dynamic>.from(result)
+              : <String, dynamic>{'ok': false});
+        }
+      });
+    final result = await completer.future.timeout(
+      const Duration(seconds: 12),
+      onTimeout: () => <String, dynamic>{'ok': false},
+    );
+    if (result['ok'] != true) {
+      throw StateError(result['message']?.toString() ??
+          'Could not sync Stealth Mode with your account.');
+    }
   }
 
   void closeChat() {
     if (_typingTargetKey != null) _stopActiveTyping();
     _currentChatWith = null;
+    _activeChatCaptureProtected = false;
+    unawaited(SecurityService.setSafeMode(false));
     _messages = [];
     _peerIsTyping = false;
     notifyListeners();
