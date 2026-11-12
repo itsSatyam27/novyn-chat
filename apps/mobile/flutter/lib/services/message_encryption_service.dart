@@ -71,7 +71,7 @@ class MessageEncryptionService {
   SecureRandom _secureRandom() {
     final source = Random.secure();
     final seed = Uint8List.fromList(List<int>.generate(32, (_) => source.nextInt(256)));
-    return SecureRandom('Fortuna')..seed(KeyParameter(seed));
+    return FortunaRandom()..seed(KeyParameter(seed));
   }
 
   Future<_EcdhIdentity> _identity(String username) async {
