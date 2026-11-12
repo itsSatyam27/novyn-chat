@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:provider/provider.dart';
 import 'auth_service.dart';
 import 'settings_service.dart';
@@ -17,6 +18,11 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 
 class NotificationService {
   static final FirebaseMessaging _fcm = FirebaseMessaging.instance;
+  static final FlutterLocalNotificationsPlugin _localNotifications =
+      FlutterLocalNotificationsPlugin();
+  static const String _messageChannelId = 'novyn_messages';
+  static const String _messageChannelName = 'Messages';
+  static bool _localNotificationsReady = false;
   static AuthService? _presenceAuth;
   static SettingsService? _settings;
   static SocketService? _socket;
@@ -51,8 +57,111 @@ class NotificationService {
   static Future<void> _requestPermission() async {
     try {
       await _fcm.requestPermission(alert: true, badge: true, sound: true);
+      await _localNotifications
+          .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin>()
+          ?.requestNotificationsPermission();
     } catch (_) {
       // Permission can also be managed from the operating system settings.
+    }
+  }
+
+  static Future<void> _initializeLocalNotifications(
+      BuildContext context) async {
+    await _localNotifications.initialize(
+      const InitializationSettings(
+        android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+        iOS: DarwinInitializationSettings(),
+      ),
+      onDidReceiveNotificationResponse: (response) {
+        final username = response.payload?.trim() ?? '';
+        if (username.isNotEmpty && context.mounted) {
+          unawaited(_openChatFromNotification(username, context));
+        }
+      },
+    );
+    if (_localNotificationsReady) return;
+    const channel = AndroidNotificationChannel(
+      _messageChannelId,
+      _messageChannelName,
+      description: 'New direct messages from your Novyn contacts',
+      importance: Importance.max,
+      playSound: true,
+      enableVibration: true,
+    );
+    await _localNotifications
+        .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>()
+        ?.createNotificationChannel(channel);
+    _localNotificationsReady = true;
+  }
+
+  static Future<void> showInAppMessage(
+      String username, String messageBody, BuildContext context) async {
+    final settings = _settings;
+    if (!context.mounted || settings == null || !settings.notificationsOn) {
+      return;
+    }
+    final preview =
+        settings.messagePreview ? messageBody : 'You have a new message';
+    final title = 'New message from $username';
+    final busy = _presenceAuth?.user?.presenceMode == 'busy';
+    final soundEnabled = !busy && settings.inAppSounds;
+    final vibrationEnabled = !busy && settings.inAppVibration;
+
+    ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+      SnackBar(
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 4),
+        content: Row(
+          children: [
+            const Icon(Icons.chat_bubble_rounded, color: Colors.white, size: 19),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
+                  if (preview.isNotEmpty)
+                    Text(preview, maxLines: 1, overflow: TextOverflow.ellipsis),
+                ],
+              ),
+            ),
+          ],
+        ),
+        action: SnackBarAction(
+          label: 'OPEN',
+          onPressed: () => unawaited(_openChatFromNotification(username, context)),
+        ),
+      ),
+    );
+
+    try {
+      await _localNotifications.show(
+        DateTime.now().millisecondsSinceEpoch.remainder(2147483647),
+        title,
+        preview,
+        NotificationDetails(
+          android: AndroidNotificationDetails(
+            _messageChannelId,
+            _messageChannelName,
+            channelDescription: 'New direct messages from your Novyn contacts',
+            importance: Importance.max,
+            priority: Priority.high,
+            playSound: soundEnabled,
+            enableVibration: vibrationEnabled,
+          ),
+          iOS: DarwinNotificationDetails(
+            presentAlert: true,
+            presentBadge: true,
+            presentSound: soundEnabled,
+          ),
+        ),
+        payload: username,
+      );
+    } catch (_) {
+      // The in-app banner remains available if Android notification delivery fails.
     }
   }
 
@@ -177,6 +286,12 @@ class NotificationService {
     _presenceAuth = context.read<AuthService>();
     _presenceAuth!.addListener(_syncPresentation);
     _syncPresentation();
+    await _initializeLocalNotifications(context);
+    _socket!.onIncomingMessage = (username, body) {
+      if (context.mounted) {
+        unawaited(showInAppMessage(username, body, context));
+      }
+    };
 
     // Permission is requested after server preferences are restored on sign-in.
 
@@ -237,6 +352,7 @@ class NotificationService {
         await _socket!.clearFcmToken();
       } catch (_) {}
     }
+    if (_socket != null) _socket!.onIncomingMessage = null;
     _activeUsername = null;
     _lastRegisteredToken = null;
     _lastSyncedPreferences = null;
@@ -261,12 +377,16 @@ class NotificationService {
   static void _handleForegroundMessage(
       RemoteMessage message, BuildContext context) {
     final type = message.data['type'];
-
-    // For calls in foreground — Socket.IO already handles showing the call screen
-    // For messages in foreground — Socket.IO already shows in-app
-    // Nothing extra needed here
-    if (type == 'call') {
-      // Socket.IO handles this when app is open
+    if (type == 'call') return;
+    if (type == 'message') {
+      final username = message.data['chat']?.toString().trim() ?? '';
+      if (username.isNotEmpty) {
+        unawaited(showInAppMessage(
+          username,
+          message.notification?.body ?? 'You have a new message',
+          context,
+        ));
+      }
     }
   }
 
@@ -284,6 +404,11 @@ class NotificationService {
     final username = message.data['chat']?.toString().trim() ?? '';
     if (username.isEmpty || !context.mounted) return;
 
+    await _openChatFromNotification(username, context);
+  }
+
+  static Future<void> _openChatFromNotification(
+      String username, BuildContext context) async {
     try {
       final peer = await context.read<FriendService>().getUser(username);
       if (peer == null || !context.mounted) return;
