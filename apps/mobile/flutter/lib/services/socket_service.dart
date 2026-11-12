@@ -30,7 +30,9 @@ import 'security_service.dart';
 ///   EMIT  reject_friend            — username string
 ///   EMIT  call_invite              — { to, isVideo }
 ///   EMIT  call_accept              — { to }
-///   EMIT  call_end                 — { to, reason? }
+///   EMIT  call_start                — { to, isVideo, callId }
+///   EMIT  call_accept               — { to, callId }
+///   EMIT  call_end                  — { to, callId, reason? }
 ///   EMIT  webrtc_signal            — { to, signal }
 ///
 ///   ON    init                     — { friends, requests }
@@ -47,7 +49,7 @@ import 'security_service.dart';
 ///   ON    call_incoming            — { from, fromDisplayName, isVideo }
 ///   ON    call_accepted
 ///   ON    call_rejected
-///   ON    call_end
+///   ON    call_ended
 ///   ON    webrtc_signal            — { from, signal }
 ///   ON    profile_updated
 ///   ON    friend_request_received  — { from }
@@ -692,7 +694,7 @@ class SocketService extends ChangeNotifier {
       onCallRejectedCallback?.call();
     });
 
-    _socket!.on('call_end', (_) {
+    _socket!.on('call_ended', (_) {
       onCallEndedCallback?.call();
     });
 
