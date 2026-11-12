@@ -98,6 +98,10 @@ class FriendService {
     return _socket.sendFriendRequest(toUid);
   }
 
+  Future<void> cancelSentRequest(String username) {
+    return _socket.cancelFriendRequest(username);
+  }
+
   Future<void> acceptRequest(
       String requestId, String myUid, String otherUid) async {
     _socket.acceptFriendRequest(otherUid);
