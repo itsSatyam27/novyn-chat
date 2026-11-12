@@ -679,9 +679,6 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
   int _lastMessageCount = 0;
 
   Widget _buildMessageList(List messages) {
-    if (socketTypingForCurrentChat(messages) && _isNearLatest) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom(force: true));
-    }
     if (messages.length > _lastMessageCount) {
       final addedMessages = messages.length - _lastMessageCount;
       _lastMessageCount = messages.length;
@@ -696,6 +693,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
       }
     }
     final socket = context.read<SocketService>();
+    if (socket.peerIsTyping && _isNearLatest) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom(force: true));
+    }
     return ListView.builder(
       controller: _scroll,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
