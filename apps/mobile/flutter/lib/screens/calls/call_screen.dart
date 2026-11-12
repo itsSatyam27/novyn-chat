@@ -113,8 +113,8 @@ class _CallScreenState extends State<CallScreen>
   void _playRingtone() async {
     // Set MODE_IN_COMMUNICATION once — earpiece by default, no pause on later toggles
     await AudioManagerService.startCallMode();
-    if (!mounted ||
-        (widget.isIncoming && context.read<AuthService>().user?.presenceMode == 'busy')) {
+    if (!mounted || context.read<AuthService>().user?.presenceMode == 'busy') {
+      // Busy Mode silences both incoming ringtones and outgoing ringback audio.
       return;
     }
     final preferences = context.read<SettingsService>();
