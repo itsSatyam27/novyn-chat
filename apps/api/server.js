@@ -7702,17 +7702,24 @@ io.on("connection", (socket) => {
 
     const to = toDisplayName(payload?.to);
     const toType = normalizeChatKind(payload?.toType || "friend");
-    const isTyping = Boolean(payload?.isTyping) && normalizePresenceMode(users.get(userKey)?.presenceMode) !== "invisible" && users.get(userKey)?.typingIndicatorsEnabled !== false;
+    const me = users.get(userKey);
+    if (!me) return;
+
+    // The sender's setting controls whether they broadcast typing; each
+    // recipient's setting independently controls whether they receive it.
+    const isTyping = Boolean(payload?.isTyping) &&
+      normalizePresenceMode(me.presenceMode) !== "invisible" &&
+      me.typingIndicatorsEnabled !== false;
 
     if (toType === "group") {
       const groupId = normalizeGroupId(to);
       const group = groups.get(groupId);
-      const me = users.get(userKey);
-      if (!me || !group || !isGroupMember(group, userKey)) {
-        return;
-      }
+      if (!group || !isGroupMember(group, userKey)) return;
+
       for (const memberKey of group.members) {
         if (memberKey === userKey) continue;
+        const recipient = users.get(memberKey);
+        if (!recipient || recipient.typingIndicatorsEnabled === false) continue;
         const memberSocket = onlineUsers.get(memberKey);
         if (!memberSocket) continue;
         io.to(memberSocket).emit("typing", {
@@ -7726,11 +7733,11 @@ io.on("connection", (socket) => {
     }
 
     const toKey = normalizeName(to);
-    const me = users.get(userKey);
-    if (!me || (!me.friends.has(toKey) && !conversations.get(getConversationKey(userKey, toKey))?.length)) {
+    const recipient = users.get(toKey);
+    if (!recipient || (!me.friends.has(toKey) && !conversations.get(getConversationKey(userKey, toKey))?.length)) {
       return;
     }
-    if (usersAreBlocked(userKey, toKey)) {
+    if (usersAreBlocked(userKey, toKey) || recipient.typingIndicatorsEnabled === false) {
       return;
     }
 
