@@ -12,6 +12,7 @@ import '../../widgets/novyn_shimmer.dart';
 import '../../widgets/novyn_ui.dart';
 import '../../widgets/novyn_empty_state.dart';
 import '../../widgets/profile_preview_sheet.dart';
+import '../../widgets/user_avatar.dart';
 import '../people/discover_people_screen.dart';
 import 'package:novyn/services/haptic_service.dart';
 
@@ -26,6 +27,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
   String _search = '';
   bool _isResolvingQr = false;
   bool _sendingFriend = false;
+  final Set<String> _sendingRequests = <String>{};
   final TextEditingController _friendController = TextEditingController();
 
   @override
@@ -82,6 +84,19 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     }
   }
 
+  Future<void> _sendDiscoveredRequest(String myUid, UserModel user) async {
+    if (_sendingRequests.contains(user.uid)) return;
+    setState(() => _sendingRequests.add(user.uid));
+    try {
+      await context.read<FriendService>().sendRequest(myUid, user.uid);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Friend request sent to @${user.username}.')));
+    } catch (_) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not send request to @${user.username}.')));
+    } finally {
+      if (mounted) setState(() => _sendingRequests.remove(user.uid));
+    }
+  }
   @override
   Widget build(BuildContext context) {
     final auth = context.read<AuthService>();
@@ -259,8 +274,8 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                                 child: _DiscoverCard(
                                   user: user,
                                   isPending: isPending,
-                                  onAddFriend: () => friends.sendRequest(
-                                      myUid, user.uid),
+                                  isSending: _sendingRequests.contains(user.uid),
+                                  onAddFriend: () => _sendDiscoveredRequest(myUid, user),
                                 ),
                               );
                             },
@@ -279,11 +294,8 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
   }
 
   Widget _buildEmpty() {
-    return const NovynEmptyState(
-      icon: Icons.explore_outlined,
-      title: 'No one online yet',
-      description: 'Check back in a moment or invite a friend below.',
-    );
+    if (_search.isNotEmpty) return const NovynEmptyState(icon: Icons.search_off_rounded, title: 'No matching people', description: 'Try another name or username.');
+    return const NovynEmptyState(icon: Icons.explore_outlined, title: 'No one online yet', description: 'Check back in a moment or invite a friend below.');
   }
 
   String? _usernameFromQr(String value) {
