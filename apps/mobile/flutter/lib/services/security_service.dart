@@ -21,6 +21,25 @@ class SecurityService {
     }
   }
 
+  /// Play a custom vibration waveform on Android.
+  static Future<void> vibratePattern({
+    required List<int> timings,
+    required List<int> amplitudes,
+  }) async {
+    try {
+      if (defaultTargetPlatform == TargetPlatform.android) {
+        await _channel.invokeMethod('vibratePattern', {
+          'timings': timings,
+          'amplitudes': amplitudes,
+        });
+      } else {
+        await HapticFeedback.mediumImpact();
+      }
+    } on PlatformException catch (e) {
+      debugPrint('Failed to trigger vibration pattern: ${e.message}');
+    }
+  }
+
   /// Trigger a hardware-level vibration (bypasses some system haptic blocks)
   static Future<void> vibrate({int duration = 50}) async {
     try {
