@@ -167,7 +167,7 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
           password: password,
           encryption: context.read<SocketService>().encryption,
         );
-        if (!mounted) return;
+        if (!mounted || counts == null) return;
         _message('Restored ${counts['messages']} messages, ${counts['chats']} chats, ${counts['contacts']} contacts and ${counts['encryptionKeys']} encryption keys. Reopen Chats to refresh the list.');
       } else {
         final saved = await ChatBackupService.exportBackup(
