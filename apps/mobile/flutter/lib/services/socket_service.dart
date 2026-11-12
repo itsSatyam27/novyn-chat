@@ -1145,14 +1145,36 @@ class SocketService extends ChangeNotifier {
     await completer.future.timeout(const Duration(seconds: 12));
   }
 
-  void acceptFriendRequest(String fromUsername) {
+  Future<void> acceptFriendRequest(String fromUsername) async {
     _requireConnection();
-    _socket?.emit('accept_friend', fromUsername);
+    final completer = Completer<void>();
+    _socket!.emitWithAck('accept_friend', fromUsername, ack: (dynamic data) {
+      if (completer.isCompleted) return;
+      if (data is Map && data['ok'] == true) {
+        completer.complete();
+      } else {
+        completer.completeError(StateError(
+          data is Map ? data['message']?.toString() ?? 'Could not accept request.' : 'Could not accept request.',
+        ));
+      }
+    });
+    await completer.future.timeout(const Duration(seconds: 12));
   }
 
-  void rejectFriendRequest(String fromUsername) {
+  Future<void> rejectFriendRequest(String fromUsername) async {
     _requireConnection();
-    _socket?.emit('reject_friend', fromUsername);
+    final completer = Completer<void>();
+    _socket!.emitWithAck('reject_friend', fromUsername, ack: (dynamic data) {
+      if (completer.isCompleted) return;
+      if (data is Map && data['ok'] == true) {
+        completer.complete();
+      } else {
+        completer.completeError(StateError(
+          data is Map ? data['message']?.toString() ?? 'Could not decline request.' : 'Could not decline request.',
+        ));
+      }
+    });
+    await completer.future.timeout(const Duration(seconds: 12));
   }
 
   void removeFriend(String username) {
