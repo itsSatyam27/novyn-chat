@@ -1832,6 +1832,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       MaterialPageRoute(
         builder: (_) => ProfileInfoScreen(
           user: widget.peer,
+          chatProtected: context.read<SocketService>().activeChatCaptureProtected,
           onVoiceCall: () {
             Navigator.pop(context);
             _startCall('voice');
