@@ -62,6 +62,12 @@ class SettingsService extends ChangeNotifier {
   static const _kCallRingtone = 'call_ringtone';
   static const _kVibrationPattern = 'vibration_pattern';
   static const _kHapticIntensity = 'haptic_intensity';
+  static const _kHapticNavigation = 'haptic_navigation';
+  static const _kHapticTyping = 'haptic_typing';
+  static const _kHapticChat = 'haptic_chat';
+  static const _kHapticButtons = 'haptic_buttons';
+  static const _kHapticNotifications = 'haptic_notifications';
+  static const _kHapticCalls = 'haptic_calls';
   static const _kAppLockEnabled = 'app_lock_enabled';
   static const _kAppLockTimeout = 'app_lock_timeout';
   static const _kAppLockPin = 'app_lock_pin';
@@ -115,6 +121,12 @@ class SettingsService extends ChangeNotifier {
   String _callRingtone = 'Binary'; // Default ringtone
   String _vibrationPattern = 'standard'; // standard, staccato, heartbeat, none
   double _hapticIntensity = 0.8; // 0.0 to 1.0
+  bool _hapticNavigation = true;
+  bool _hapticTyping = true;
+  bool _hapticChat = true;
+  bool _hapticButtons = true;
+  bool _hapticNotifications = true;
+  bool _hapticCalls = true;
   double _messageVolume = 0.8;
   double _callVolume = 0.85;
   bool _appLockEnabled = false;
@@ -160,6 +172,20 @@ class SettingsService extends ChangeNotifier {
   String get language => _language;
   String get vibrationPattern => _vibrationPattern;
   double get hapticIntensity => _hapticIntensity;
+  bool get hapticNavigation => _hapticNavigation;
+  bool get hapticTyping => _hapticTyping;
+  bool get hapticChat => _hapticChat;
+  bool get hapticButtons => _hapticButtons;
+  bool get hapticNotifications => _hapticNotifications;
+  bool get hapticCalls => _hapticCalls;
+  bool hapticCategoryEnabled(String category) => switch (category) {
+    'navigation' => _hapticNavigation,
+    'typing' => _hapticTyping,
+    'chat' => _hapticChat,
+    'notifications' => _hapticNotifications,
+    'calls' => _hapticCalls,
+    _ => _hapticButtons,
+  };
   double get messageVolume => _messageVolume;
   double get callVolume => _callVolume;
   String get photoQuality => _photoQuality;
@@ -237,6 +263,12 @@ class SettingsService extends ChangeNotifier {
     _language = _prefs.getString(_kLanguage) ?? _detectDeviceLanguage();
     _vibrationPattern = _prefs.getString(_kVibrationPattern) ?? 'standard';
     _hapticIntensity = (_prefs.getDouble(_kHapticIntensity) ?? 0.8).clamp(0.0, 1.0).toDouble();
+    _hapticNavigation = _prefs.getBool(_kHapticNavigation) ?? true;
+    _hapticTyping = _prefs.getBool(_kHapticTyping) ?? true;
+    _hapticChat = _prefs.getBool(_kHapticChat) ?? true;
+    _hapticButtons = _prefs.getBool(_kHapticButtons) ?? true;
+    _hapticNotifications = _prefs.getBool(_kHapticNotifications) ?? true;
+    _hapticCalls = _prefs.getBool(_kHapticCalls) ?? true;
     _messageVolume = (_prefs.getDouble('novyn_message_volume') ?? 0.8).clamp(0.0, 1.0).toDouble();
     _callVolume = (_prefs.getDouble('novyn_call_volume') ?? 0.85).clamp(0.0, 1.0).toDouble();
     _appLockEnabled = _prefs.getBool(_kAppLockEnabled) ?? false;
@@ -351,6 +383,29 @@ class SettingsService extends ChangeNotifier {
   Future<void> setInAppVibration(bool v) async {
     _inAppVibration = v;
     await _prefs.setBool(_kInAppVibration, v);
+    notifyListeners();
+  }
+
+  Future<void> setHapticCategory(String category, bool enabled) async {
+    final key = switch (category) {
+      'navigation' => _kHapticNavigation,
+      'typing' => _kHapticTyping,
+      'chat' => _kHapticChat,
+      'notifications' => _kHapticNotifications,
+      'calls' => _kHapticCalls,
+      'buttons' => _kHapticButtons,
+      _ => null,
+    };
+    if (key == null) return;
+    switch (category) {
+      case 'navigation': _hapticNavigation = enabled; break;
+      case 'typing': _hapticTyping = enabled; break;
+      case 'chat': _hapticChat = enabled; break;
+      case 'notifications': _hapticNotifications = enabled; break;
+      case 'calls': _hapticCalls = enabled; break;
+      case 'buttons': _hapticButtons = enabled; break;
+    }
+    await _prefs.setBool(key, enabled);
     notifyListeners();
   }
 
