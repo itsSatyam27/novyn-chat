@@ -27,6 +27,7 @@ import '../../widgets/user_avatar.dart';
 import 'profile_info_screen.dart';
 import '../../widgets/connection_banner.dart';
 import '../../screens/calls/call_screen.dart';
+import 'package:novyn/services/haptic_service.dart';
 
 String _mimeForFile(String filename) {
   final name = filename.toLowerCase();
@@ -241,7 +242,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   void _send() async {
     final text = _ctrl.text.trim();
     if (_sending || text.isEmpty || _myUid == null || _chatId == null) return;
-    HapticFeedback.lightImpact();
+    HapticService.vibrate(NovynHapticType.light, category: HapticCategory.chat);
 
     final socket = context.read<SocketService>();
     socket.stopTyping(widget.peer.uid);
@@ -1207,7 +1208,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         await _voiceRecorder.stop();
         return;
       }
-      HapticFeedback.mediumImpact();
+      HapticService.vibrate(NovynHapticType.medium, category: HapticCategory.chat);
       setState(() {
         _isRecordingVoice = true;
         _voiceSeconds = 0;
@@ -1288,7 +1289,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   }
 
   void _startCall(String type) {
-    HapticFeedback.mediumImpact();
+    HapticService.vibrate(NovynHapticType.medium, category: HapticCategory.chat);
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -1643,7 +1644,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   }
 
   void _showContactInfo() {
-    HapticFeedback.lightImpact();
+    HapticService.vibrate(NovynHapticType.light, category: HapticCategory.chat);
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -2055,7 +2056,7 @@ class _MessageBubble extends StatelessWidget {
   }
 
   void _showReactionPicker(BuildContext context) {
-    HapticFeedback.mediumImpact();
+    HapticService.vibrate(NovynHapticType.medium, category: HapticCategory.chat);
     const emojis = ['❤️', '😂', '😮', '😢', '👍', '🔥'];
     showModalBottomSheet(
       context: context,
@@ -2819,7 +2820,7 @@ class _AttachmentButtonState extends State<_AttachmentButton>
   }
 
   void _toggle() {
-    HapticFeedback.lightImpact();
+    HapticService.vibrate(NovynHapticType.light, category: HapticCategory.chat);
     setState(() => _open = !_open);
     _open ? _ctrl.forward() : _ctrl.reverse();
   }
@@ -3165,7 +3166,7 @@ class _SwipeToReplyState extends State<_SwipeToReply> {
           setState(() => _drag = (_drag + d.delta.dx).clamp(0, 60));
           if (_drag >= 50 && !_triggered) {
             _triggered = true;
-            HapticFeedback.lightImpact();
+            HapticService.vibrate(NovynHapticType.light, category: HapticCategory.chat);
             widget.onSwipe();
           }
         }
