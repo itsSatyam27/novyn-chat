@@ -378,6 +378,9 @@ class NotificationService {
       RemoteMessage message, BuildContext context) {
     final type = message.data['type'];
     if (type == 'call') return;
+    // The live socket handler already presents messages while connected.
+    // This FCM path is for a foreground app whose socket is disconnected.
+    if (_socket?.isConnected == true) return;
     if (type == 'message') {
       final username = message.data['chat']?.toString().trim() ?? '';
       if (username.isNotEmpty) {
