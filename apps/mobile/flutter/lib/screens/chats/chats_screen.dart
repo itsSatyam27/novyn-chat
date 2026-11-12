@@ -147,15 +147,9 @@ class _ChatsScreenState extends State<ChatsScreen> {
         if (previews.isNotEmpty && mounted) {
           setState(() {
             _chats = previews;
-            _filtered = _search.isEmpty
-                ? previews
-                : previews
-                    .where((c) =>
-                        c.peer.name.toLowerCase().contains(_search) ||
-                        c.peer.username.toLowerCase().contains(_search))
-                    .toList();
             _loading = false;
           });
+          _applyFilters();
           ChatsScreen.cachedChats = previews;
           ChatsScreen.cachedChatsOwner = myUsername.toLowerCase();
           ChatsScreen.totalUnread =
