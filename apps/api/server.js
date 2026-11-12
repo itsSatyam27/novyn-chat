@@ -3131,7 +3131,9 @@ function deliverFriendMessage(params = {}) {
     io.to(recipientSocketId).emit("private_message", riddleForViewer(message, toKey));
   }
   if (!isSelf && !recipientViewing && !isMutedBy(friend, fromKey)) {
-    const bodyText = formatPushBody(text);
+    const bodyText = isEncrypted
+      ? "You have a new message"
+      : formatPushBody(text);
     void sendPushToUser(toKey, {
       type: "message",
       title: `New message from ${me.username}`,
