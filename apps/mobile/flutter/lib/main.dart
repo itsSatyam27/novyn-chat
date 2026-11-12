@@ -73,7 +73,9 @@ class NovynApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider<SettingsService>.value(value: settings),
         ChangeNotifierProvider<SocketService>(create: (ctx) {
-          final socket = SocketService();
+          final socket = SocketService(
+            initialStealthModeEnabled: ctx.read<SettingsService>().stealthModeEnabled,
+          );
           // Connect once auth is ready via post-frame callback
           return socket;
         }),
