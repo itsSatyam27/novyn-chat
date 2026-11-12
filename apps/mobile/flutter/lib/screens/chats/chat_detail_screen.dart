@@ -84,6 +84,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   final AudioRecorder _voiceRecorder = AudioRecorder();
   Timer? _voiceTimer;
   bool _isRecordingVoice = false;
+  bool _showJumpToLatest = false;
+  bool _isNearLatest = true;
+  bool _suppressNextCountScroll = false;
   int _voiceSeconds = 0;
   String? _voiceRecordingPath;
 
@@ -150,6 +153,14 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
 
   // Load older messages when scrolled to top
   void _onScroll() {
+    if (!_scroll.hasClients) return;
+    final nearLatest = _scroll.position.extentAfter <= 120;
+    if (nearLatest != _isNearLatest && mounted) {
+      setState(() {
+        _isNearLatest = nearLatest;
+        _showJumpToLatest = !nearLatest;
+      });
+    }
     if (_scroll.position.pixels <= 80 &&
         !_loadingOlder &&
         _hasMore &&
@@ -184,9 +195,10 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       return;
     }
 
-    // Preserve scroll position when prepending
+    // Preserve the visible message position when older history is prepended.
     final prevExtent = _scroll.position.maxScrollExtent;
-
+    final prevPixels = _scroll.position.pixels;
+    _suppressNextCountScroll = true;
     socket.prependMessages(older);
 
     setState(() => _loadingOlder = false);
@@ -195,7 +207,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scroll.hasClients) {
         final newExtent = _scroll.position.maxScrollExtent;
-        _scroll.jumpTo(newExtent - prevExtent);
+        final delta = newExtent - prevExtent;
+        _scroll.jumpTo((prevPixels + delta).clamp(0.0, _scroll.position.maxScrollExtent));
       }
     });
   }
@@ -292,16 +305,27 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     }
   }
 
-  void _scrollToBottom() {
+  void _scrollToBottom({bool force = false}) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scroll.hasClients) {
-        _scroll.animateTo(
-          _scroll.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOut,
-        );
+      if (!_scroll.hasClients || !mounted) return;
+      if (!force && !_isNearLatest) return;
+      _scroll.animateTo(
+        _scroll.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 320),
+        curve: Curves.easeOutCubic,
+      );
+      if (_showJumpToLatest && mounted) {
+        setState(() {
+          _showJumpToLatest = false;
+          _isNearLatest = true;
+        });
       }
     });
+  }
+
+  void _jumpToLatest() {
+    _isNearLatest = true;
+    _scrollToBottom(force: true);
   }
 
   @override
@@ -318,14 +342,40 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           Expanded(
             child: Container(
               decoration: _wallpaperDecoration(socket.chatWallpaper),
-              child: _loading
-                  ? Center(
-                      child: CircularProgressIndicator(color: Theme.of(context).colorScheme.primary))
-                  : messages.isEmpty
-                      ? _fetchingFromServer
-                          ? _buildLoadingShimmer()
-                          : _buildEmptyChat()
-                      : _buildMessageList(messages),
+              child: Stack(
+                children: [
+                  Positioned.fill(
+                    child: _loading
+                        ? Center(child: CircularProgressIndicator(color: Theme.of(context).colorScheme.primary))
+                        : messages.isEmpty
+                            ? _fetchingFromServer ? _buildLoadingShimmer() : _buildEmptyChat()
+                            : _buildMessageList(messages),
+                  ),
+                  if (_showJumpToLatest && messages.isNotEmpty)
+                    Positioned(
+                      right: 18,
+                      bottom: 18,
+                      child: Material(
+                        color: Theme.of(context).colorScheme.surface,
+                        elevation: 7,
+                        shape: const CircleBorder(),
+                        child: InkWell(
+                          customBorder: const CircleBorder(),
+                          onTap: _jumpToLatest,
+                          child: Container(
+                            width: 44, height: 44,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.18)),
+                            ),
+                            child: Icon(Icons.keyboard_double_arrow_down_rounded,
+                              color: Theme.of(context).colorScheme.primary, size: 23),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
             ),
           ),
           _buildInputBar(socket),
@@ -452,35 +502,92 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
 
   Widget _buildEmptyChat() {
     final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+    Widget quickAction(IconData icon, String label, VoidCallback onTap) {
+      return Material(
+        color: scheme.surface,
+        borderRadius: BorderRadius.circular(24),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(24),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: scheme.primary.withValues(alpha: 0.16)),
+            ),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Icon(icon, size: 16, color: scheme.primary),
+              const SizedBox(width: 7),
+              Text(label, style: TextStyle(
+                fontFamily: 'PlusJakartaSans', fontSize: 12,
+                fontWeight: FontWeight.w700, color: scheme.onSurface)),
+            ]),
+          ),
+        ),
+      );
+    }
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          UserAvatar(
-            name: widget.peer.name,
-            photoUrl: widget.peer.photoUrl,
-            radius: 40,
-          ),
-          const SizedBox(height: 16),
-          Text(
-            widget.peer.name,
-            style: TextStyle(
-              fontFamily: 'PlusJakartaSans',
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-              color: theme.colorScheme.onSurface,
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(5),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: LinearGradient(colors: [
+                  scheme.primary.withValues(alpha: 0.18),
+                  scheme.primary.withValues(alpha: 0.04),
+                ]),
+              ),
+              child: UserAvatar(
+                name: widget.peer.name,
+                photoUrl: widget.peer.photoUrl,
+                radius: 39,
+              ),
             ),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'Say hello! 👋',
-            style: TextStyle(
-              fontFamily: 'PlusJakartaSans',
-              fontSize: 14,
-              color: Color(0xFF94A3B8),
+            const SizedBox(height: 15),
+            Text(widget.peer.name, textAlign: TextAlign.center,
+              style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 18,
+                fontWeight: FontWeight.w800, color: scheme.onSurface)),
+            const SizedBox(height: 3),
+            Text('@${widget.peer.username}', style: TextStyle(
+              fontFamily: 'PlusJakartaSans', fontSize: 12,
+              fontWeight: FontWeight.w600, color: scheme.primary)),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+              decoration: BoxDecoration(
+                color: scheme.primary.withValues(alpha: isDark ? 0.16 : 0.08),
+                borderRadius: BorderRadius.circular(20)),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                Icon(Icons.lock_outline_rounded, size: 13, color: scheme.primary),
+                const SizedBox(width: 6),
+                Text('End-to-end encrypted', style: TextStyle(
+                  fontFamily: 'PlusJakartaSans', fontSize: 11,
+                  fontWeight: FontWeight.w700, color: scheme.primary)),
+              ]),
             ),
-          ),
-        ],
+            const SizedBox(height: 22),
+            Text('No messages yet. Start with something quick',
+              textAlign: TextAlign.center, style: TextStyle(
+                fontFamily: 'PlusJakartaSans', fontSize: 12,
+                color: scheme.onSurfaceVariant)),
+            const SizedBox(height: 15),
+            Wrap(alignment: WrapAlignment.center, spacing: 9, runSpacing: 9, children: [
+              quickAction(Icons.waving_hand_rounded, 'Wave hello', () {
+                context.read<SocketService>().sendMessage(
+                  '👋', widget.peer.uid.isNotEmpty ? widget.peer.uid : widget.peer.username);
+              }),
+              quickAction(Icons.gif_box_rounded, 'Send a GIF', () => _showGifPicker()),
+            ]),
+            const SizedBox(height: 9),
+            quickAction(Icons.sports_esports_rounded, 'Play Up or Down', _showGameLauncher),
+          ],
+        ),
       ),
     );
   }
@@ -539,8 +646,17 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
 
   Widget _buildMessageList(List messages) {
     if (messages.length > _lastMessageCount) {
+      final addedMessages = messages.length - _lastMessageCount;
       _lastMessageCount = messages.length;
-      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+      if (_suppressNextCountScroll) {
+        _suppressNextCountScroll = false;
+      } else if (_isNearLatest || addedMessages == messages.length) {
+        WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom(force: true));
+      } else if (mounted && !_showJumpToLatest) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) setState(() => _showJumpToLatest = true);
+        });
+      }
     }
     final socket = context.read<SocketService>();
     return ListView.builder(
@@ -706,7 +822,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
               ),
             ),
           ),
-          padding: const EdgeInsets.fromLTRB(12, 10, 12, 24),
+          padding: EdgeInsets.fromLTRB(12, 9, 12, MediaQuery.of(context).viewInsets.bottom > 0 ? 10 : 14),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
@@ -716,8 +832,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                   constraints: const BoxConstraints(minHeight: 48),
                   decoration: BoxDecoration(
                     color: isDark
-                        ? const Color(0xFF161722)
-                        : const Color(0xFFFBFAFF),
+                        ? const Color(0xFF11121D)
+                        : const Color(0xFFF8F6FF),
                     borderRadius: BorderRadius.circular(30),
                     border: Border.all(color: theme.colorScheme.outlineVariant),
                     boxShadow: [
@@ -778,6 +894,18 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                             focusedBorder: InputBorder.none,
                             contentPadding: const EdgeInsets.symmetric(
                                 horizontal: 8, vertical: 13),
+                            suffixIcon: IconButton(
+                              tooltip: 'Add emoji',
+                              visualDensity: VisualDensity.compact,
+                              onPressed: () {
+                                final value = _ctrl.text;
+                                _ctrl.text = '${value}🙂';
+                                _ctrl.selection = TextSelection.collapsed(offset: _ctrl.text.length);
+                                setState(() {});
+                              },
+                              icon: Icon(Icons.emoji_emotions_outlined, size: 19,
+                                color: theme.colorScheme.onSurfaceVariant),
+                            ),
                           ),
                         ),
                       ),
