@@ -12,6 +12,7 @@ import 'package:record/record.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import '../../widgets/game_message_card.dart';
 import '../../widgets/riddle_message_card.dart';
@@ -2135,20 +2136,98 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
             }
           },
           onExportChat: () async {
+            final format = await showModalBottomSheet<String>(
+              context: context,
+              backgroundColor: Theme.of(context).colorScheme.surface,
+              shape: const RoundedRectangleBorder(
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              builder: (sheetContext) => SafeArea(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 18, 20, 22),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Export chat', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
+                      const SizedBox(height: 6),
+                      Text('Choose a format to save this conversation.', style: Theme.of(context).textTheme.bodyMedium),
+                      const SizedBox(height: 16),
+                      ListTile(
+                        leading: const Icon(Icons.description_outlined),
+                        title: const Text('HTML file'),
+                        subtitle: const Text('Formatted chat transcript'),
+                        onTap: () => Navigator.pop(sheetContext, 'html'),
+                      ),
+                      ListTile(
+                        leading: const Icon(Icons.text_snippet_outlined),
+                        title: const Text('Text file (.txt)'),
+                        subtitle: const Text('Simple readable plain text'),
+                        onTap: () => Navigator.pop(sheetContext, 'txt'),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+            if (format == null || !mounted) return;
+
             final messages = context.read<SocketService>().messages;
-            final lines = messages.map((message) {
+            final title = 'Novyn chat with ${widget.peer.name}';
+            final plainLines = messages.map((message) {
               final sender = message.isFromMe ? 'You' : widget.peer.name;
               final stamp = message.createdAt.toLocal().toString().substring(0, 16);
-              final body = message.text.isNotEmpty ? message.text : '[Attachment]';
+              final body = message.text.trim().isNotEmpty ? message.text : '[Attachment]';
               return '[$stamp] $sender: $body';
             }).join('\n');
-            await Clipboard.setData(ClipboardData(
-              text: 'Novyn chat with ${widget.peer.name} (@${widget.peer.username})\n\n$lines',
-            ));
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Chat transcript copied to clipboard')),
+
+            String escapeHtml(String value) => value
+                .replaceAll('&', '&amp;')
+                .replaceAll('<', '&lt;')
+                .replaceAll('>', '&gt;')
+                .replaceAll('"', '&quot;')
+                .replaceAll("'", '&#39;');
+
+            final content = format == 'html'
+                ? '''<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${escapeHtml(title)}</title>
+<style>
+*{box-sizing:border-box}body{margin:0;padding:24px;background:#f4f0ff;color:#211d43;font:15px Arial,sans-serif}
+main{max-width:760px;margin:0 auto;background:#fff;border:1px solid #e8e1fa;border-radius:20px;overflow:hidden}
+header{padding:24px;background:linear-gradient(120deg,#d5ccfa,#eeeaff)}
+h1{margin:0 0 6px;font-size:22px}header p{margin:0;color:#625b82}
+section{padding:18px}.message{padding:13px 15px;margin:0 0 10px;border-radius:14px;background:#f7f5fc;white-space:pre-wrap;overflow-wrap:anywhere}
+.message.mine{background:#eeeaff}.meta{display:block;margin-bottom:5px;color:#716b8b;font-size:12px}
+</style></head><body><main><header><h1>${escapeHtml(title)}</h1>
+<p>@${escapeHtml(widget.peer.username)} · Exported from Novyn</p></header><section>
+${messages.map(message => {
+  const sender = message.isFromMe ? 'You' : widget.peer.name;
+  const stamp = message.createdAt.toLocal().toString().substring(0, 16);
+  const body = message.text.trim().isNotEmpty ? message.text : '[Attachment]';
+  return '<article class="message ' + (message.isFromMe ? 'mine' : '') + '"><span class="meta">' + escapeHtml(sender) + ' · ' + escapeHtml(stamp) + '</span>' + escapeHtml(body) + '</article>';
+}).join('\n')}
+</section></main></body></html>'''
+                : 'Novyn chat with ${widget.peer.name} (@${widget.peer.username})\nExported: ${DateTime.now().toLocal()}\n\n$plainLines';
+
+            try {
+              final directory = await getTemporaryDirectory();
+              final safeName = widget.peer.username.replaceAll(RegExp(r'[^a-zA-Z0-9_-]'), '_');
+              final extension = format == 'html' ? 'html' : 'txt';
+              final file = File('${directory.path}/novyn_chat_$safeName.$extension');
+              await file.writeAsString(content, flush: true);
+              await Share.shareXFiles(
+                [XFile(file.path, mimeType: format == 'html' ? 'text/html' : 'text/plain')],
+                text: title,
+                subject: title,
               );
+            } catch (error) {
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Could not export chat: $error')),
+                );
+              }
             }
           },
         ),
