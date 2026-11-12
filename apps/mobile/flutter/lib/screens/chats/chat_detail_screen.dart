@@ -65,8 +65,9 @@ class ChatDetailScreen extends StatefulWidget {
   State<ChatDetailScreen> createState() => _ChatDetailScreenState();
 }
 
-class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBindingObserver {
+class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBindingObserver, TickerProviderStateMixin {
   int _lastTypingLength = 0;
+  late final AnimationController _typingAnimation;
   final TextEditingController _ctrl = TextEditingController();
   final FocusNode _messageFocusNode = FocusNode();
   final ScrollController _scroll = ScrollController();
@@ -106,6 +107,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _typingAnimation = AnimationController(vsync: this, duration: const Duration(milliseconds: 900))..repeat();
     _peerIsOnline = widget.peer.isOnline;
     _peerPresence = widget.peer.status.trim().toLowerCase();
     _loadQuickEmojis();
@@ -288,6 +290,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _typingAnimation.dispose();
     _voiceTimer?.cancel();
     if (_isRecordingVoice) unawaited(_voiceRecorder.stop());
     unawaited(_voiceRecorder.dispose());
@@ -850,25 +853,48 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
           UserAvatar(name: widget.peer.name, photoUrl: widget.peer.photoUrl, radius: 13),
           const SizedBox(width: 8),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+            width: 58,
+            height: 38,
+            alignment: Alignment.center,
             decoration: BoxDecoration(
               color: scheme.surface,
               borderRadius: const BorderRadius.only(
                 topLeft: Radius.circular(17), topRight: Radius.circular(17),
                 bottomRight: Radius.circular(17), bottomLeft: Radius.circular(5),
               ),
-              boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, 3))],
+              boxShadow: [
+                BoxShadow(color: Colors.black.withValues(alpha: 0.05),
+                  blurRadius: 10, offset: const Offset(0, 3)),
+              ],
             ),
-            child: Row(mainAxisSize: MainAxisSize.min, children: [
-              for (var i = 0; i < 3; i++)
-                Padding(
-                  padding: EdgeInsets.only(right: i == 2 ? 0 : 4),
-                  child: Container(width: 6, height: 6,
-                    decoration: BoxDecoration(color: scheme.primary.withValues(alpha: 0.65 + i * 0.1), shape: BoxShape.circle)),
-                ),
-              const SizedBox(width: 7),
-              Text('typing', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 11, color: scheme.onSurfaceVariant, fontWeight: FontWeight.w600)),
-            ]),
+            child: AnimatedBuilder(
+              animation: _typingAnimation,
+              builder: (context, _) => Row(
+                mainAxisSize: MainAxisSize.min,
+                children: List.generate(3, (index) {
+                  final phase = (_typingAnimation.value + index * .22) % 1.0;
+                  final wave = math.sin(phase * math.pi * 2);
+                  final lift = (wave + 1) / 2;
+                  return Padding(
+                    padding: EdgeInsets.only(right: index == 2 ? 0 : 5),
+                    child: Transform.translate(
+                      offset: Offset(0, -4 * lift),
+                      child: Opacity(
+                        opacity: .45 + .55 * lift,
+                        child: Container(
+                          width: 6,
+                          height: 6,
+                          decoration: BoxDecoration(
+                            color: scheme.primary,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                }),
+              ),
+            ),
           ),
         ],
       ),

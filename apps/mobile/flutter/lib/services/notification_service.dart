@@ -32,7 +32,10 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   final hideContent = prefs.getBool('hide_notification_content') ?? false;
   final account = (prefs.getString('novyn_notification_account') ?? '').trim();
   final sender = (data['chat'] ?? '').toString().trim();
-  if (sender.isEmpty) return;
+  if (sender.isEmpty) {
+    debugPrint('[NovynNotifications] Background message has no sender chat id.');
+    return;
+  }
 
   var body = 'You have a new message';
   if (previewEnabled && !hideContent && account.isNotEmpty) {
@@ -58,11 +61,19 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
             decrypted.text != '🔒 Encrypted message' &&
             decrypted.text.trim().isNotEmpty) {
           body = decrypted.text.trim();
+          debugPrint('[NovynNotifications] Background message preview decrypted successfully.');
+        } else {
+          debugPrint('[NovynNotifications] Message preview key unavailable for this sender/account.');
         }
-      } catch (_) {
+      } catch (error) {
+        debugPrint('[NovynNotifications] Background preview decryption failed: $error');
         // Never expose ciphertext; fall back to a private generic alert.
       }
+    } else {
+      debugPrint('[NovynNotifications] Encrypted push is missing preview key material.');
     }
+  } else {
+    debugPrint('[NovynNotifications] Message preview is disabled or content is hidden.');
   }
 
   final plugin = FlutterLocalNotificationsPlugin();
