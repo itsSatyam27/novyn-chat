@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/chat_backup_service.dart';
 import '../../../services/settings_service.dart';
+import '../../../services/socket_service.dart';
 import '../../../theme/novyn_theme.dart';
 
 class ChatSettingsScreen extends StatefulWidget {
@@ -57,7 +58,7 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    'Your backup is encrypted with a password you choose. Keep that password safe—Novyn cannot recover it. Restore merges locally cached messages and contacts into this account without deleting newer local data. Conversation encryption keys are not included; encrypted history still needs its original message keys to decrypt.',
+                    'Your backup is encrypted with a password you choose. Keep that password safe—Novyn cannot recover it. Restore merges locally cached messages, contacts and conversation encryption keys into this account without deleting newer local data. Keep the backup password private because it protects both your chats and E2EE keys.',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(height: 1.45, color: colors.onSurfaceVariant),
                   ),
                 ),
@@ -161,11 +162,19 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
     setState(() => _working = true);
     try {
       if (restore) {
-        final counts = await ChatBackupService.restoreBackup(username: username, password: password);
+        final counts = await ChatBackupService.restoreBackup(
+          username: username,
+          password: password,
+          encryption: context.read<SocketService>().encryption,
+        );
         if (!mounted) return;
-        _message('Restored ${counts['messages']} messages, ${counts['chats']} chats and ${counts['contacts']} contacts. Reopen Chats to refresh the list.');
+        _message('Restored ${counts['messages']} messages, ${counts['chats']} chats, ${counts['contacts']} contacts and ${counts['encryptionKeys']} encryption keys. Reopen Chats to refresh the list.');
       } else {
-        final saved = await ChatBackupService.exportBackup(username: username, password: password);
+        final saved = await ChatBackupService.exportBackup(
+          username: username,
+          password: password,
+          encryption: context.read<SocketService>().encryption,
+        );
         if (!mounted) return;
         _message(saved ? 'Encrypted chat backup saved.' : 'Backup export was cancelled.');
       }
