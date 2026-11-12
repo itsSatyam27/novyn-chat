@@ -35,6 +35,7 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
         Uri.parse(_releasesApi),
         headers: const {'Accept': 'application/vnd.github+json'},
       ).timeout(const Duration(seconds: 15));
+      if (!mounted) return;
       if (response.statusCode == 404) {
         setState(() => _status = 'No public release is available yet. You are using Novyn v$_appVersion.');
         return;
@@ -58,7 +59,7 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
           : 'You are up to date. Novyn v$_appVersion is the latest published release.';
       });
     } catch (error) {
-      setState(() => _status = 'Could not check for updates. Check your internet connection and try again.');
+      if (mounted) setState(() => _status = 'Could not check for updates. Check your internet connection and try again.');
     } finally {
       if (mounted) setState(() => _checking = false);
     }
