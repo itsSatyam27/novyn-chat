@@ -6,6 +6,7 @@ import '../../services/friend_service.dart';
 import '../../services/socket_service.dart';
 import '../../models/user_model.dart';
 import '../../widgets/user_avatar.dart';
+import 'package:novyn/services/haptic_service.dart';
 
 class CreateGroupScreen extends StatefulWidget {
   final String myUid;
@@ -191,7 +192,7 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                   top: 0,
                   child: GestureDetector(
                     onTap: () {
-                      HapticFeedback.selectionClick();
+                      HapticService.vibrate(NovynHapticType.selection, category: HapticCategory.buttons);
                       setState(() => _selected.removeWhere((u) => u.uid == user.uid));
                     },
                     child: Container(
@@ -267,7 +268,7 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                     child: isSelected ? const Icon(Icons.check, color: Colors.white, size: 16) : null,
                   ),
                   onTap: () {
-                    HapticFeedback.lightImpact();
+                    HapticService.vibrate(NovynHapticType.light, category: HapticCategory.buttons);
                     setState(() {
                       if (isSelected) {
                         _selected.removeWhere((u) => u.uid == user.uid);
@@ -323,7 +324,7 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
   }
 
   Future<void> _handleCreate() async {
-    HapticFeedback.heavyImpact();
+    HapticService.vibrate(NovynHapticType.heavy, category: HapticCategory.buttons);
     final socket = context.read<SocketService>();
     
     try {
