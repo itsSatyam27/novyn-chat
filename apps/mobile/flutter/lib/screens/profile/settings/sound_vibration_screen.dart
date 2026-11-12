@@ -154,11 +154,9 @@ class _SoundVibrationScreenState extends State<SoundVibrationScreen> {
   }
 
   void _previewVibration(String pattern) {
-    switch (pattern) {
-      case 'standard': HapticService.vibrate(NovynHapticType.medium); break;
-      case 'staccato': HapticService.vibrate(NovynHapticType.heavy); break;
-      case 'heartbeat': HapticService.vibrate(NovynHapticType.warning); break;
-    }
+    // SettingsService has already been updated by the selector callback.
+    // Preview the exact rhythm and intensity that incoming alerts will use.
+    HapticService.vibrateNotification();
   }
 
   Widget _panel({required Widget child}) => Container(
