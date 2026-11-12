@@ -57,7 +57,7 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    'Your backup is encrypted with a password you choose. Keep that password safe—Novyn cannot recover it. Restore merges backed-up messages and contacts into this account without deleting newer local data.',
+                    'Your backup is encrypted with a password you choose. Keep that password safe—Novyn cannot recover it. Restore merges locally cached messages and contacts into this account without deleting newer local data. Conversation encryption keys are not included; encrypted history still needs its original message keys to decrypt.',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(height: 1.45, color: colors.onSurfaceVariant),
                   ),
                 ),
