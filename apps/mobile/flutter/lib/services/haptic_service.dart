@@ -20,6 +20,7 @@ class HapticService {
     _settings = settings;
   }
 
+  /// Plays the exact notification rhythm selected in Sound & Vibration.
   static Future<void> vibrateNotification() async {
     final settings = _settings;
     if (settings == null || !settings.inAppVibration) return;
@@ -28,22 +29,51 @@ class HapticService {
     if (pattern == 'none') return;
 
     final intensity = settings.hapticIntensity.clamp(0.0, 1.0);
-    final base = (25 + intensity * 65).round().clamp(20, 90).toInt();
-    final pulses = switch (pattern) {
-      'staccato' => [base, 35, base, 35, base],
-      'heartbeat' => [base, 75, (base * 1.6).round()],
-      _ => [base],
-    };
+    final amplitude = (70 + intensity * 185).round().clamp(1, 255);
 
-    for (var index = 0; index < pulses.length; index++) {
-      final duration = pulses[index];
-      if (defaultTargetPlatform == TargetPlatform.android) {
-        await SecurityService.vibrate(duration: duration);
-      } else {
-        await HapticFeedback.vibrate();
-      }
-      if (index < pulses.length - 1) {
-        await Future.delayed(const Duration(milliseconds: 65));
+    // Each entry is a duration in milliseconds. A zero amplitude is a pause.
+    // The patterns are intentionally distinct in both pulse count and spacing.
+    final List<int> timings;
+    final List<int> amplitudes;
+
+    switch (pattern) {
+      case 'staccato':
+        timings = [0, 28, 58, 28, 58, 28];
+        amplitudes = [0, amplitude, 0, amplitude, 0, amplitude];
+        break;
+      case 'heartbeat':
+        timings = [0, 48, 95, 112];
+        amplitudes = [0, amplitude, 0, amplitude];
+        break;
+      case 'standard':
+      default:
+        timings = [0, 75];
+        amplitudes = [0, amplitude];
+        break;
+    }
+
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      await SecurityService.vibratePattern(
+        timings: timings,
+        amplitudes: amplitudes,
+      );
+      return;
+    }
+
+    // iOS and other platforms: approximate the same pulse rhythm with
+    // native haptic impacts, preserving the pauses between pulses.
+    for (var i = 0; i < timings.length; i++) {
+      final duration = timings[i];
+      if (amplitudes[i] > 0) {
+        if (duration >= 90) {
+          await HapticFeedback.heavyImpact();
+        } else if (duration >= 45) {
+          await HapticFeedback.mediumImpact();
+        } else {
+          await HapticFeedback.lightImpact();
+        }
+      } else if (duration > 0) {
+        await Future.delayed(Duration(milliseconds: duration));
       }
     }
   }
@@ -52,10 +82,7 @@ class HapticService {
     if (_settings == null || !_settings!.inAppVibration) return;
 
     final intensity = _settings!.hapticIntensity;
-    
-    // Scale haptic type based on intensity if possible
-    // (Intensity 0.0-1.0)
-    
+
     switch (type) {
       case NovynHapticType.light:
         if (intensity < 0.3) {
@@ -77,7 +104,6 @@ class HapticService {
         } else if (intensity < 0.6) {
           await HapticFeedback.mediumImpact();
         } else {
-          // Native hardware vibrate for max resonance
           await SecurityService.vibrate(duration: 80);
         }
         break;
