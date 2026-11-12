@@ -360,7 +360,7 @@ class _ChatsScreenState extends State<ChatsScreen> {
         ),
       ),
       floatingActionButton: Padding(
-        padding: const EdgeInsets.only(bottom: 76),
+        padding: const EdgeInsets.only(bottom: 100),
         child: FloatingActionButton(
           heroTag: 'novyn_new_chat_fab',
           tooltip: 'New chat',
