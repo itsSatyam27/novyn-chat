@@ -154,6 +154,7 @@ class _SoundVibrationScreenState extends State<SoundVibrationScreen> {
   }
 
   void _previewVibration(String pattern) {
+    if (pattern == 'none') return;
     // SettingsService has already been updated by the selector callback.
     // Preview the exact rhythm and intensity that incoming alerts will use.
     HapticService.vibrateNotification();
