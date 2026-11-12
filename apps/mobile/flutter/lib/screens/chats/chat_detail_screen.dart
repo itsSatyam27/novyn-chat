@@ -64,6 +64,7 @@ class ChatDetailScreen extends StatefulWidget {
 }
 
 class _ChatDetailScreenState extends State<ChatDetailScreen> {
+  int _lastTypingLength = 0;
   final TextEditingController _ctrl = TextEditingController();
   final ScrollController _scroll = ScrollController();
   final AudioPlayer _audioPlayer = AudioPlayer();
@@ -726,6 +727,10 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                             color: theme.colorScheme.onSurface,
                           ),
                           onChanged: (v) {
+                            if (v.length > _lastTypingLength) {
+                              HapticService.vibrate(NovynHapticType.light, category: HapticCategory.typing);
+                            }
+                            _lastTypingLength = v.length;
                             setState(() {});
                             if (v.isNotEmpty) {
                               socket.startTyping(widget.peer.uid);
