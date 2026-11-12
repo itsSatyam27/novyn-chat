@@ -7204,6 +7204,10 @@ io.on("connection", (socket) => {
       socket.emit("error_message", { message: "You are not authorized to vote in this poll." });
       return;
     }
+    if (resolvedTarget.type === "friend" && usersAreBlocked(userKey, resolvedTarget.targetKey)) {
+      socket.emit("error_message", { message: "Poll interaction is unavailable because this contact is blocked." });
+      return;
+    }
 
     const isGroup = resolvedTarget.type === "group";
     const convKey = isGroup ? getGroupConversationKey(to) : getConversationKey(userKey, to);
@@ -7273,6 +7277,10 @@ io.on("connection", (socket) => {
     const resolvedTarget = resolveChatTargetForUser(userKey, to, "friend", { inferGroup: true });
     if (!resolvedTarget.ok) {
       socket.emit("error_message", { message: "You are not authorized to modify this game." });
+      return;
+    }
+    if (resolvedTarget.type === "friend" && usersAreBlocked(userKey, resolvedTarget.targetKey)) {
+      socket.emit("error_message", { message: "Game interaction is unavailable because this contact is blocked." });
       return;
     }
 
@@ -7822,7 +7830,7 @@ io.on("connection", (socket) => {
       recipients = Array.from(group.members);
     } else {
       const toKey = normalizeName(to);
-      if (!me.friends.has(toKey)) return;
+      if (!me.friends.has(toKey) || usersAreBlocked(userKey, toKey)) return;
       convKey = getConversationKey(userKey, toKey);
       recipients = [userKey, toKey];
     }
@@ -7905,6 +7913,7 @@ io.on("connection", (socket) => {
       if (!memberKey || memberKey === userKey) continue;
       const invitee = users.get(memberKey);
       if (!invitee?.isRegistered) continue;
+      if (usersAreBlocked(userKey, memberKey)) continue;
       if (!me.friends.has(memberKey) && invitee.groupInvitePrivacy !== "everyone") continue;
       if (invitee.groupInvitePrivacy === "nobody" || (invitee.groupInvitePrivacy === "friends" && !invitee.friends.has(userKey))) continue;
       memberKeys.add(memberKey);
@@ -7976,6 +7985,7 @@ io.on("connection", (socket) => {
       if (!memberKey || group.members.has(memberKey)) continue;
       const member = users.get(memberKey);
       if (!member?.isRegistered) continue;
+      if (usersAreBlocked(userKey, memberKey)) continue;
       if (!me.friends.has(memberKey) && member.groupInvitePrivacy !== "everyone") continue;
       if (member.groupInvitePrivacy === "nobody" || (member.groupInvitePrivacy === "friends" && !member.friends.has(userKey))) continue;
       if (group.members.size >= MAX_GROUP_MEMBERS) break;
