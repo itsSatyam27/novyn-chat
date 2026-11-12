@@ -6565,15 +6565,18 @@ io.on("connection", (socket) => {
     schedulePersist();
   });
 
-  socket.on("reject_friend", (rawRequester) => {
+  socket.on("reject_friend", (rawRequester, callback) => {
+    const reply = (result) => {
+      if (typeof callback === "function") callback(result);
+      else if (!result.ok) socket.emit("error_message", result);
+    };
     const userKey = normalizeName(socket.data.userKey || "");
-    if (!userKey) return;
+    if (!userKey) return reply({ ok: false, message: "Sign in required." });
     const requesterKey = normalizeName(rawRequester);
     const me = users.get(userKey);
     const requester = users.get(requesterKey);
     if (!me || !requester || !me.requests.has(requesterKey)) {
-      socket.emit("error_message", { message: "No pending friend request found." });
-      return;
+      return reply({ ok: false, message: "No pending friend request found." });
     }
 
     me.requests.delete(requesterKey);
@@ -6584,25 +6587,27 @@ io.on("connection", (socket) => {
     }
     emitDiscoverOnlineToAll();
     schedulePersist();
+    reply({ ok: true });
   });
 
-  socket.on("accept_friend", (rawFriendName) => {
-    const userKey = socket.data.userKey;
-    if (!userKey) return;
+  socket.on("accept_friend", (rawFriendName, callback) => {
+    const reply = (result) => {
+      if (typeof callback === "function") callback(result);
+      else if (!result.ok) socket.emit("error_message", result);
+    };
+    const userKey = normalizeName(socket.data.userKey || "");
+    if (!userKey) return reply({ ok: false, message: "Sign in required." });
 
     const friendName = toDisplayName(rawFriendName);
     const friendKey = normalizeName(friendName);
-
     const me = users.get(userKey);
     const friend = users.get(friendKey);
 
     if (!me || !friend || !me.requests.has(friendKey)) {
-      socket.emit("error_message", { message: "No pending request from this user." });
-      return;
+      return reply({ ok: false, message: "No pending request from this user." });
     }
     if (usersAreBlocked(userKey, friendKey)) {
-      socket.emit("error_message", { message: "Friend request cannot be accepted while one of you is blocked." });
-      return;
+      return reply({ ok: false, message: "Friend request cannot be accepted while one of you is blocked." });
     }
 
     me.requests.delete(friendKey);
@@ -6613,7 +6618,6 @@ io.on("connection", (socket) => {
     emitRequests(userKey);
     emitFriendList(userKey);
     emitFriendList(friendKey);
-
     socket.emit("friend_request_accepted", { by: friend.username });
 
     const friendSocket = onlineUsers.get(friendKey);
@@ -6622,6 +6626,7 @@ io.on("connection", (socket) => {
     }
 
     schedulePersist();
+    reply({ ok: true, username: friend.username });
   });
 
   socket.on("remove_friend", (rawFriendName) => {
