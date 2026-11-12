@@ -131,8 +131,6 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     final socket = context.read<SocketService>();
-    final connected =
-        context.select<SocketService, bool>((socket) => socket.isConnected);
     // The Scaffold resizes its body above the keyboard. Keep the floating dock
     // out of that resized area while typing instead of letting it ride above it.
     final keyboardVisible = MediaQuery.viewInsetsOf(context).bottom > 0;
@@ -158,25 +156,6 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
           ),
           Column(
             children: [
-              // Offline banner
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 300),
-                height: connected ? 0 : 28,
-                color: const Color(0xFFF59E0B),
-                child: connected
-                    ? const SizedBox.shrink()
-                    : const Center(
-                        child: Text(
-                          'Reconnecting...',
-                          style: TextStyle(
-                            fontFamily: 'PlusJakartaSans',
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
-              ),
               Expanded(
                 child: IndexedStack(
                   index: _selectedIndex,
