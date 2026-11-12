@@ -25,6 +25,9 @@ class ChatBackupService {
       throw const FormatException('Use a backup password with at least 8 characters.');
     }
     final data = await LocalDbService.exportChatBackupData();
+    if (data['username']?.toString().toLowerCase() != username.trim().toLowerCase()) {
+      throw const FormatException('The active local chat account does not match the signed-in account.');
+    }
     data['messageKeys'] = await encryption.exportBackupKeys(username);
     final random = Random.secure();
     final salt = List<int>.generate(16, (_) => random.nextInt(256));
@@ -107,6 +110,9 @@ class ChatBackupService {
     final decoded = jsonDecode(utf8.decode(plaintext));
     if (decoded is! Map) {
       throw const FormatException('The backup contents are invalid.');
+    }
+    if (await LocalDbService.getAccountScope() != username.trim().toLowerCase()) {
+      throw const FormatException('Sign in to the same Novyn account before restoring this backup.');
     }
     final data = Map<String, dynamic>.from(decoded);
     final keyBackup = data['messageKeys'];
