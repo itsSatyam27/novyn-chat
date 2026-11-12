@@ -229,6 +229,35 @@ class ApiService {
     }
   }
 
+  // Complete a short-lived second-factor challenge. Session cookies are
+  // stored only after the server confirms the TOTP or one-time backup code.
+  static Future<Map<String, dynamic>?> verifyTwoFactor({
+    required String challengeToken,
+    required String code,
+  }) async {
+    try {
+      final res = await http.post(
+        Uri.parse('$baseUrl/api/auth/2fa/verify'),
+        headers: await _csrfHeaders(),
+        body: jsonEncode({
+          'challengeToken': challengeToken,
+          'code': code.trim(),
+        }),
+      ).timeout(const Duration(seconds: 15));
+      if (res.statusCode == 200) {
+        await _storeSessionCookie(res);
+        return Map<String, dynamic>.from(jsonDecode(res.body));
+      }
+      try {
+        return Map<String, dynamic>.from(jsonDecode(res.body));
+      } catch (_) {
+        return {'message': 'Server error (${res.statusCode})'};
+      }
+    } catch (error) {
+      return {'message': 'Network error: $error'};
+    }
+  }
+
   // ── Auth: Register ────────────────────────────────────────────────────────
   static Future<Map<String, dynamic>?> signUp({
     required String name,
