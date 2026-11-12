@@ -12,79 +12,127 @@ class AccessibilityScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final settings = context.watch<SettingsService>();
+    final colors = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    Widget section(String title, String subtitle, List<Widget> children) =>
+        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(2, 25, 2, 11),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(title.toUpperCase(), style: TextStyle(
+                fontFamily: 'PlusJakartaSans', fontSize: 12,
+                letterSpacing: 1, fontWeight: FontWeight.w800,
+                color: colors.primary)),
+              const SizedBox(height: 4),
+              Text(subtitle, style: TextStyle(
+                fontSize: 12, color: colors.onSurfaceVariant)),
+            ]),
+          ),
+          ...children,
+        ]);
 
     return Scaffold(
       backgroundColor: NovynTheme.pageBg(context),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 36),
-        physics: const BouncingScrollPhysics(),
-        children: [
-          SettingsPageHeader(title: 'Accessibility', subtitle: 'Make Novyn easier to use'),
-          SettingsIntroCard(title: 'Make Novyn easier to use', subtitle: 'Adjust the supported display options and explore accessibility features.', icon: Icons.accessibility_new_rounded),
-          const SectionLabel(label: 'Display'),
-          _FontSizeCard(
-            value: settings.fontSize,
-            onChanged: (v) => settings.setFontSize(v),
-          ),
-          _ToggleCard(
-            icon: Icons.contrast_rounded,
-            iconColor: Theme.of(context).colorScheme.primary,
-            iconBgColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
-            title: 'High Contrast Mode',
-            subtitle: 'Use stronger text and control borders throughout Novyn',
-            value: settings.highContrast,
-            onChanged: settings.setHighContrast,
-          ),
-          _ToggleCard(
-            icon: Icons.motion_photos_off_rounded,
-            iconColor: const Color(0xFF06B6D4),
-            iconBgColor: const Color(0xFF06B6D4).withValues(alpha: 0.1),
-            title: 'Reduce motion',
-            subtitle: 'Reduce interface animations and transitions',
-            value: settings.reduceMotion,
-            onChanged: settings.setReduceMotion,
-          ),
-          
-          const SizedBox(height: 24),
-          const SectionLabel(label: 'Audio & touch'),
-          _ToggleCard(
-            icon: Icons.audiotrack_rounded,
-            iconColor: const Color(0xFFF59E0B),
-            iconBgColor: const Color(0xFFF59E0B).withValues(alpha: 0.1),
-            title: 'Audio Descriptions',
-            subtitle: 'Not available yet',
-            value: false,
-            onChanged: null,
-          ),
-          _ToggleCard(
-            icon: Icons.vibration_rounded,
-            iconColor: const Color(0xFFEC4899),
-            iconBgColor: const Color(0xFFEC4899).withValues(alpha: 0.1),
-            title: 'Enhanced Tactility',
-            subtitle: 'Not available yet',
-            value: false,
-            onChanged: null,
-          ),
-          
-          const SizedBox(height: 24),
-          const SectionLabel(label: 'Input'),
-          _ToggleCard(
-            icon: Icons.mic_rounded,
-            iconColor: const Color(0xFF10B981),
-            iconBgColor: const Color(0xFF10B981).withValues(alpha: 0.1),
-            title: 'Voice Control',
-            subtitle: 'Not available yet',
-            value: false,
-            onChanged: null,
-          ),
-          
-          const SizedBox(height: 40),
-        ],
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 36),
+          physics: const BouncingScrollPhysics(),
+          children: [
+            const SettingsPageHeader(
+              title: 'Accessibility',
+              subtitle: 'Make Novyn more comfortable to use',
+            ),
+            Container(
+              margin: const EdgeInsets.only(top: 12),
+              padding: const EdgeInsets.all(19),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(25),
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: isDark
+                    ? [const Color(0xFF29234B), const Color(0xFF17323B)]
+                    : [const Color(0xFFECE9FF), const Color(0xFFE3F7F4)],
+                ),
+                border: Border.all(color: colors.primary.withValues(alpha: .12)),
+              ),
+              child: Row(children: [
+                Container(width: 54, height: 54,
+                  decoration: BoxDecoration(
+                    color: colors.primary.withValues(alpha: .13),
+                    borderRadius: BorderRadius.circular(17)),
+                  child: Icon(Icons.accessibility_new_rounded,
+                    size: 29, color: colors.primary)),
+                const SizedBox(width: 14),
+                Expanded(child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Your comfort, your way',
+                      style: TextStyle(fontFamily: 'PlusJakartaSans',
+                        fontSize: 16, fontWeight: FontWeight.w800,
+                        color: colors.onSurface)),
+                    const SizedBox(height: 5),
+                    Text('Personalise text size, contrast and motion.',
+                      style: TextStyle(fontSize: 12, height: 1.4,
+                        color: colors.onSurfaceVariant)),
+                  ],
+                )),
+              ]),
+            ),
+            section('Display', 'Make content easier to read.',
+              [
+                _FontSizeCard(
+                  value: settings.fontSize,
+                  onChanged: settings.setFontSize,
+                ),
+                _ToggleCard(
+                  icon: Icons.contrast_rounded,
+                  iconColor: const Color(0xFF8B5CF6),
+                  iconBgColor: const Color(0xFF8B5CF6).withValues(alpha: .11),
+                  title: 'High contrast',
+                  subtitle: 'Strengthen text and control visibility',
+                  value: settings.highContrast,
+                  onChanged: settings.setHighContrast,
+                ),
+              ]),
+            section('Motion & interaction',
+              'Choose how Novyn responds to your actions.',
+              [
+                _ToggleCard(
+                  icon: Icons.motion_photos_off_rounded,
+                  iconColor: const Color(0xFF0891B2),
+                  iconBgColor: const Color(0xFF0891B2).withValues(alpha: .11),
+                  title: 'Reduce motion',
+                  subtitle: 'Reduce interface animations and transitions',
+                  value: settings.reduceMotion,
+                  onChanged: settings.setReduceMotion,
+                ),
+              ]),
+            Container(
+              margin: const EdgeInsets.only(top: 16),
+              padding: const EdgeInsets.all(15),
+              decoration: BoxDecoration(
+                color: colors.surfaceContainerHighest.withValues(alpha: .45),
+                borderRadius: BorderRadius.circular(17),
+                border: Border.all(color: colors.outlineVariant.withValues(alpha: .6)),
+              ),
+              child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Icon(Icons.tips_and_updates_outlined,
+                  size: 19, color: colors.onSurfaceVariant),
+                const SizedBox(width: 10),
+                Expanded(child: Text(
+                  'Your accessibility preferences are saved on this device. Some assistive features, such as screen reader and voice access, are managed by Android in Settings.',
+                  style: TextStyle(fontSize: 11.5, height: 1.5,
+                    color: colors.onSurfaceVariant),
+                )),
+              ]),
+            ),
+          ],
+        ),
       ),
     );
   }
-
 
 }
 
