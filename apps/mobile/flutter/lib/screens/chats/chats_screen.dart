@@ -15,6 +15,7 @@ import '../../theme/novyn_theme.dart';
 import '../../widgets/novyn_ui.dart';
 import '../../models/chat_preview.dart';
 import 'chat_detail_screen.dart';
+import 'package:novyn/services/haptic_service.dart';
 
 class ChatsScreen extends StatefulWidget {
   final VoidCallback? onNavigateToPeople;
@@ -283,7 +284,7 @@ class _ChatsScreenState extends State<ChatsScreen> {
                     radius: 16,
                     iconSize: 21,
                     onTap: () {
-                      HapticFeedback.selectionClick();
+                      HapticService.vibrate(NovynHapticType.selection, category: HapticCategory.chat);
                       setState(() {
                         _isSearching = !_isSearching;
                         if (!_isSearching) {
@@ -364,7 +365,7 @@ class _ChatsScreenState extends State<ChatsScreen> {
           heroTag: 'novyn_new_chat_fab',
           tooltip: 'New chat',
           onPressed: () {
-            HapticFeedback.mediumImpact();
+            HapticService.vibrate(NovynHapticType.medium, category: HapticCategory.chat);
             widget.onNavigateToPeople?.call();
           },
           backgroundColor: Theme.of(context).colorScheme.primary,
@@ -504,7 +505,7 @@ class _ChatCard extends StatelessWidget {
         color: Colors.transparent,
         child: InkWell(
           onTap: () {
-            HapticFeedback.lightImpact();
+            HapticService.vibrate(NovynHapticType.light, category: HapticCategory.chat);
             onTap();
           },
           borderRadius: BorderRadius.circular(22),
@@ -666,7 +667,7 @@ class _StoryCard extends StatelessWidget {
     final labelColor = Theme.of(context).colorScheme.onSurface;
     return GestureDetector(
       onTap: () {
-        HapticFeedback.lightImpact();
+        HapticService.vibrate(NovynHapticType.light, category: HapticCategory.chat);
         onTap?.call();
       },
       child: SizedBox(
