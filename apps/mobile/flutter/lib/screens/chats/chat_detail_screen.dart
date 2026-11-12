@@ -1466,7 +1466,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
     if (!_isRecordingVoice) return;
     _voiceTimer?.cancel();
     _voiceTimer = null;
-    final duration = _voiceSeconds;
+    final duration = _voiceSeconds < 1 ? 1 : _voiceSeconds;
     final path = _voiceRecordingPath;
     setState(() {
       _isRecordingVoice = false;
@@ -1497,7 +1497,10 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
         replyToText: _replyingTo?.text?.toString(),
         replyToSender: _replyingTo?.isFromMe == true ? 'You' : widget.peer.name,
       );
-      if (mounted) setState(() => _replyingTo = null);
+      if (mounted) {
+        setState(() => _replyingTo = null);
+        _scrollToBottom(force: true);
+      }
       await file.delete();
     } catch (error) {
       if (mounted) {
@@ -3127,7 +3130,7 @@ class _AttachmentButtonState extends State<_AttachmentButton>
                             onTap: () {
                               Navigator.pop(sheetContext);
                               if (!item.enabled) {
-                                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('' + item.label + ' is coming soon.')));
+                                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${item.label} is coming soon.')));
                                 return;
                               }
                               final type = item.label == 'Media' ? 'image' : item.label.toLowerCase();
