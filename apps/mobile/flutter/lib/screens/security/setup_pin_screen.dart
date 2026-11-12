@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../services/settings_service.dart';
 import '../../theme/novyn_theme.dart';
 import '../../widgets/novyn_alert.dart';
+import 'package:novyn/services/haptic_service.dart';
 
 class SetupPinScreen extends StatefulWidget {
   final bool isPanic;
@@ -65,7 +66,7 @@ class _SetupPinScreenState extends State<SetupPinScreen> {
 
   void _onNumberPress(String digit) {
     if (_saving || _activePin.length >= 4) return;
-    HapticFeedback.lightImpact();
+    HapticService.vibrate(NovynHapticType.light, category: HapticCategory.buttons);
     final next = _activePin + digit;
     setState(() {
       if (widget.isChanging && _step == 0) {
@@ -96,7 +97,7 @@ class _SetupPinScreenState extends State<SetupPinScreen> {
             isError: true);
         return;
       }
-      HapticFeedback.selectionClick();
+      HapticService.vibrate(NovynHapticType.selection, category: HapticCategory.buttons);
       setState(() => _step = 1);
       return;
     }
@@ -104,7 +105,7 @@ class _SetupPinScreenState extends State<SetupPinScreen> {
     final isNewPinStep = (widget.isChanging && _step == 1) ||
         (!widget.isChanging && _step == 0);
     if (isNewPinStep) {
-      HapticFeedback.selectionClick();
+      HapticService.vibrate(NovynHapticType.selection, category: HapticCategory.buttons);
       setState(() => _step = widget.isChanging ? 2 : 1);
       return;
     }
@@ -149,7 +150,7 @@ class _SetupPinScreenState extends State<SetupPinScreen> {
         await settings.setAppLockPin(_pin);
       }
       if (!mounted) return;
-      HapticFeedback.mediumImpact();
+      HapticService.vibrate(NovynHapticType.medium, category: HapticCategory.buttons);
       NovynAlert.show(
         context,
         widget.isPanic
@@ -175,7 +176,7 @@ class _SetupPinScreenState extends State<SetupPinScreen> {
 
   void _onBackspace() {
     if (_saving) return;
-    HapticFeedback.selectionClick();
+    HapticService.vibrate(NovynHapticType.selection, category: HapticCategory.buttons);
     setState(() {
       if (_activePin.isNotEmpty) {
         final next = _activePin.substring(0, _activePin.length - 1);
