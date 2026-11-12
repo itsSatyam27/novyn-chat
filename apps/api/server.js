@@ -4832,7 +4832,7 @@ app.post(
       return;
     }
 
-    let verified = verifyTotpCode(user.twoFactorSecret, code);
+    let verified = verifyTotpCode(decryptTotpSecret(user.twoFactorSecret), code);
     if (!verified && Array.isArray(user.twoFactorBackupCodes)) {
       const candidateHash = hashBackupCode(code);
       const backupIndex = user.twoFactorBackupCodes.findIndex((saved) => {
@@ -6364,7 +6364,7 @@ io.on("connection", (socket) => {
     }
 
     user.twoFactorEnabled = true;
-    user.twoFactorSecret = secret;
+    user.twoFactorSecret = encryptTotpSecret(secret);
     user.twoFactorBackupCodes = backupCodes;
     schedulePersist();
 
