@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../services/auth_service.dart';
 import '../../services/socket_service.dart';
 import '../../services/api_service.dart';
@@ -23,9 +24,11 @@ class CallsScreen extends StatefulWidget {
 class _CallsScreenState extends State<CallsScreen> {
   List<_CallEntry> _calls = [];
   bool _loading = true;
-  String _filter = 'All'; // All | Missed | Audio | Video
+  String _filter = 'All'; // All | Missed | Incoming | Outgoing
   String _search = '';
   String _callPrivacy = 'friends';
+  Set<String> _favoriteUsernames = <String>{};
+  String? _myUsername;
   final TextEditingController _searchController = TextEditingController();
 
   @override
@@ -37,7 +40,33 @@ class _CallsScreenState extends State<CallsScreen> {
   @override
   void initState() {
     super.initState();
+    _loadFavorites();
     _loadCalls();
+  }
+
+  Future<void> _loadFavorites() async {
+    final auth = context.read<AuthService>();
+    final username = auth.user?.username;
+    if (username == null) return;
+    final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    setState(() {
+      _myUsername = username;
+      _favoriteUsernames = (prefs.getStringList('novyn_call_favorites_${username.toLowerCase()}') ?? <String>{})
+          .toSet();
+    });
+  }
+
+  Future<void> _toggleFavorite(UserModel peer) async {
+    final username = _myUsername ?? context.read<AuthService>().user?.username;
+    if (username == null) return;
+    final next = Set<String>.from(_favoriteUsernames);
+    final key = peer.username.toLowerCase();
+    if (!next.add(key)) next.remove(key);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList('novyn_call_favorites_${username.toLowerCase()}', next.toList());
+    if (!mounted) return;
+    setState(() => _favoriteUsernames = next);
   }
 
   Future<void> _confirmClearHistory() async {
@@ -238,10 +267,10 @@ class _CallsScreenState extends State<CallsScreen> {
               onChanged: (value) => setState(() => _search = value.trim().toLowerCase()),
             ),
             NovynChipRow(
-              labels: const ['All', 'Missed', 'Audio', 'Video'],
-              selected: const ['All', 'Missed', 'Audio', 'Video'].indexOf(_filter),
+              labels: const ['All', 'Missed', 'Incoming', 'Outgoing'],
+              selected: const ['All', 'Missed', 'Incoming', 'Outgoing'].indexOf(_filter),
               onSelected: (index) => setState(() {
-                _filter = const ['All', 'Missed', 'Audio', 'Video'][index];
+                _filter = const ['All', 'Missed', 'Incoming', 'Outgoing'][index];
               }),
             ),
             Expanded(
@@ -267,11 +296,11 @@ class _CallsScreenState extends State<CallsScreen> {
       case 'Missed':
         result = result.where((call) => call.status == 'missed').toList();
         break;
-      case 'Audio':
-        result = result.where((call) => call.type != 'video').toList();
+      case 'Incoming':
+        result = result.where((call) => call.status == 'incoming').toList();
         break;
-      case 'Video':
-        result = result.where((call) => call.type == 'video').toList();
+      case 'Outgoing':
+        result = result.where((call) => call.status == 'outgoing').toList();
         break;
     }
     if (_search.isNotEmpty) {
@@ -285,81 +314,58 @@ class _CallsScreenState extends State<CallsScreen> {
 
   Widget _buildList() {
     final calls = _filteredCalls();
-    final quickCalls = context.watch<SocketService>().conversations
-        .where((chat) => chat.isPinned && !chat.isGroup && !chat.isArchived)
-        .take(5)
-        .map((chat) => chat.peer)
-        .toList();
+    final favoriteCalls = <UserModel>[
+      for (final entry in _calls)
+        if (_favoriteUsernames.contains(entry.peer.username.toLowerCase()) &&
+            !_favoriteUsernames.take(_favoriteUsernames.toList().indexOf(entry.peer.username.toLowerCase())).contains(entry.peer.username.toLowerCase()))
+          entry.peer,
+    ];
+    final seenFavorites = <String>{};
+    final uniqueFavorites = favoriteCalls.where((peer) => seenFavorites.add(peer.username.toLowerCase())).toList();
     return RefreshIndicator(
       color: Theme.of(context).colorScheme.primary,
       onRefresh: _loadCalls,
       child: ListView(
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 132),
         children: [
-          if (_search.isEmpty && _filter == 'All' && quickCalls.isNotEmpty) ...[
+          if (_search.isEmpty && _filter == 'All' && uniqueFavorites.isNotEmpty) ...[
             const NovynSectionLabel(
-              'QUICK CALL',
-              icon: Icons.bolt_rounded,
+              'FAVORITES',
+              icon: Icons.star_rounded,
               padding: EdgeInsets.fromLTRB(4, 4, 4, 10),
             ),
             SizedBox(
-              height: 92,
+              height: 94,
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
-                itemCount: quickCalls.length,
+                itemCount: uniqueFavorites.length,
                 separatorBuilder: (_, __) => const SizedBox(width: 14),
                 itemBuilder: (context, index) {
-                  final entry = quickCalls[index];
-                  return GestureDetector(
-                    onTap: () {
-                      HapticFeedback.lightImpact();
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => CallScreen(peer: entry, callType: 'voice'),
+                  final peer = uniqueFavorites[index];
+                  return SizedBox(
+                    width: 70,
+                    child: Column(
+                      children: [
+                        Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            GestureDetector(
+                              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => CallScreen(peer: peer, callType: 'voice'))),
+                              child: UserAvatar(name: peer.name, photoUrl: peer.photoUrl, radius: 27, showOnlineIndicator: true, isOnline: peer.isOnline, presence: peer.status),
+                            ),
+                            Positioned(
+                              right: -4, bottom: -4,
+                              child: Container(
+                                width: 23, height: 23,
+                                decoration: BoxDecoration(gradient: NovynGradients.selected(context), shape: BoxShape.circle, border: Border.all(color: NovynColors.bg, width: 2)),
+                                child: const Icon(Icons.call_rounded, size: 12, color: Colors.white),
+                              ),
+                            ),
+                          ],
                         ),
-                      );
-                    },
-                    child: SizedBox(
-                      width: 68,
-                      child: Column(
-                        children: [
-                          Stack(
-                            clipBehavior: Clip.none,
-                            children: [
-                              UserAvatar(
-                                name: entry.name,
-                                photoUrl: entry.photoUrl,
-                                radius: 26,
-                                showOnlineIndicator: true,
-                                isOnline: entry.isOnline,
-                                presence: entry.status,
-                              ),
-                              Positioned(
-                                right: -2,
-                                bottom: -2,
-                                child: Container(
-                                  width: 23,
-                                  height: 23,
-                                  decoration: BoxDecoration(
-                                    gradient: NovynGradients.selected(context),
-                                    shape: BoxShape.circle,
-                                    border: Border.all(color: NovynColors.bg, width: 2),
-                                  ),
-                                  child: const Icon(Icons.call_rounded, size: 12, color: Colors.white),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 7),
-                          Text(
-                            entry.name,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: NovynText.body(11, color: NovynColors.textChip),
-                          ),
-                        ],
-                      ),
+                        const SizedBox(height: 7),
+                        Text(peer.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: NovynText.body(11, color: NovynColors.textChip)),
+                      ],
                     ),
                   );
                 },
@@ -374,6 +380,8 @@ class _CallsScreenState extends State<CallsScreen> {
           for (final entry in calls)
             _CallCard(
               entry: entry,
+              isFavorite: _favoriteUsernames.contains(entry.peer.username.toLowerCase()),
+              onToggleFavorite: () => _toggleFavorite(entry.peer),
               onDismiss: () => setState(() => _calls.removeWhere((call) => call.peer.username == entry.peer.username)),
             ),
           const SizedBox(height: 80),
@@ -433,7 +441,9 @@ class _CallEntry {
 class _CallCard extends StatelessWidget {
   final _CallEntry entry;
   final VoidCallback onDismiss;
-  const _CallCard({required this.entry, required this.onDismiss});
+  final bool isFavorite;
+  final VoidCallback onToggleFavorite;
+  const _CallCard({required this.entry, required this.onDismiss, required this.isFavorite, required this.onToggleFavorite});
 
   @override
   Widget build(BuildContext context) {
@@ -544,6 +554,12 @@ class _CallCard extends StatelessWidget {
                       Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
+                          IconButton(
+                            tooltip: isFavorite ? 'Remove favorite' : 'Add to favorites',
+                            visualDensity: VisualDensity.compact,
+                            onPressed: onToggleFavorite,
+                            icon: Icon(isFavorite ? Icons.star_rounded : Icons.star_outline_rounded, color: isFavorite ? const Color(0xFFFFC857) : NovynColors.textMuted, size: 20),
+                          ),
                           NovynIconButton(
                             icon: Icons.call_rounded,
                             primary: true,
