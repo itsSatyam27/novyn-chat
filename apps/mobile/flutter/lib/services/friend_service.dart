@@ -104,11 +104,11 @@ class FriendService {
 
   Future<void> acceptRequest(
       String requestId, String myUid, String otherUid) async {
-    _socket.acceptFriendRequest(otherUid);
+    await _socket.acceptFriendRequest(otherUid);
   }
 
   Future<void> declineRequest(String requestId) async {
-    _socket.rejectFriendRequest(requestId);
+    await _socket.rejectFriendRequest(requestId);
   }
 
   Future<void> removeFriend(String myUid, String otherUid) async {
