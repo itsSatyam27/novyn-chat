@@ -861,7 +861,9 @@ class SocketService extends ChangeNotifier {
       final index = _conversations.indexWhere(
           (chat) => chat.peerUid.toLowerCase() == peer.toLowerCase());
       // Avoid replacing a newer live preview with the older friend-list snapshot.
-      if (index >= 0 && _conversations[index].lastMessage == raw['text']) {
+      if (index >= 0 &&
+          (_conversations[index].lastMessage == '🔒 Encrypted message' ||
+              _conversations[index].lastMessage == raw['text'])) {
         final updated = List<ChatPreview>.from(_conversations);
         updated[index] = updated[index].copyWith(lastMessage: decrypted.text);
         _conversations = updated;
