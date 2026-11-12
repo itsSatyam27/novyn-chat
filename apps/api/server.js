@@ -3086,6 +3086,7 @@ function deliverFriendMessage(params = {}) {
   const recipientSocket = recipientSocketId ? io.sockets.sockets.get(recipientSocketId) : null;
   const recipientViewing = Boolean(
     recipientSocket &&
+    recipientSocket.data?.appForeground !== false &&
     recipientSocket.data?.activeChatKind === "friend" &&
     normalizeName(recipientSocket.data?.activeChatWith) === fromKey
   );
@@ -3128,7 +3129,8 @@ function deliverFriendMessage(params = {}) {
   }
   if (recipientSocketId && recipientSocketId !== senderSocketId) {
     io.to(recipientSocketId).emit("private_message", riddleForViewer(message, toKey));
-  } else if (!isSelf && !isMutedBy(friend, fromKey)) {
+  }
+  if (!isSelf && !recipientViewing && !isMutedBy(friend, fromKey)) {
     const bodyText = formatPushBody(text);
     void sendPushToUser(toKey, {
       type: "message",
@@ -3206,6 +3208,7 @@ function deliverGroupMessage(params = {}) {
     const memberSocket = memberSocketId ? io.sockets.sockets.get(memberSocketId) : null;
     const viewingSameGroup = Boolean(
       memberSocket &&
+      memberSocket.data?.appForeground !== false &&
       memberSocket.data?.activeChatKind === "group" &&
       normalizeGroupId(memberSocket.data?.activeChatWith) === group.id
     );
@@ -3222,7 +3225,8 @@ function deliverGroupMessage(params = {}) {
 
     if (memberSocketId) {
       io.to(memberSocketId).emit("private_message", message);
-    } else if (memberKey !== fromKey) {
+    }
+    if (memberKey !== fromKey && !viewingSameGroup) {
       const bodyText = formatPushBody(text);
       void sendPushToUser(memberKey, {
         type: "message",
@@ -7704,6 +7708,12 @@ io.on("connection", (socket) => {
     socket.emit("scheduled_message_cancelled", { id });
     emitScheduledMessagesUpdated(userKey, { toType: entry.toType, to: entry.toKey });
     schedulePersist();
+  });
+
+  socket.on("app_visibility", (payload) => {
+    // Mobile clients report foreground/background state so pushes still arrive
+    // when Android keeps the Socket.IO connection alive in the background.
+    socket.data.appForeground = payload?.foreground === true;
   });
 
   socket.on("typing", (payload) => {
