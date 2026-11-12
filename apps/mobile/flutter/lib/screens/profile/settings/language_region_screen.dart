@@ -12,76 +12,298 @@ class LanguageRegionScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final settings = context.watch<SettingsService>();
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+    final languages = settings.getLanguagesForRegion(settings.region);
+    final languageLabel = languages[settings.language] ?? 'English';
+    final now = DateTime.now();
+    final datePreview = MaterialLocalizations.of(context).formatMediumDate(now);
+    final timePreview = TimeOfDay.now().format(context);
+    final regionFlag = switch (settings.region) {
+      'India' => '🇮🇳',
+      'United States' => '🇺🇸',
+      'United Kingdom' => '🇬🇧',
+      'Canada' => '🇨🇦',
+      'Australia' => '🇦🇺',
+      'Germany' => '🇩🇪',
+      'France' => '🇫🇷',
+      'Spain' => '🇪🇸',
+      'Italy' => '🇮🇹',
+      'Japan' => '🇯🇵',
+      'South Korea' => '🇰🇷',
+      'Russia' => '🇷🇺',
+      _ => '🌐',
+    };
+
+    Widget sectionTitle(String title, String caption) => Padding(
+      padding: const EdgeInsets.fromLTRB(2, 26, 2, 12),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(title, style: TextStyle(
+          fontFamily: 'PlusJakartaSans', fontSize: 13, letterSpacing: .7,
+          fontWeight: FontWeight.w800, color: colors.primary)),
+        const SizedBox(height: 3),
+        Text(caption, style: TextStyle(fontSize: 12, color: colors.onSurfaceVariant)),
+      ]),
+    );
+
+    Widget settingTile({
+      required IconData icon,
+      required Color tint,
+      required String title,
+      required String value,
+      required String subtitle,
+      required VoidCallback onTap,
+    }) => Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () { HapticFeedback.selectionClick(); onTap(); },
+        borderRadius: BorderRadius.circular(19),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+          child: Row(children: [
+            Container(width: 42, height: 42,
+              decoration: BoxDecoration(color: tint.withValues(alpha: isDark ? .18 : .10),
+                borderRadius: BorderRadius.circular(14)),
+              child: Icon(icon, color: tint, size: 21)),
+            const SizedBox(width: 13),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(title, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700,
+                color: colors.onSurface)),
+              const SizedBox(height: 3),
+              Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 11.5, color: colors.onSurfaceVariant)),
+            ])),
+            const SizedBox(width: 8),
+            Flexible(child: Text(value, textAlign: TextAlign.end, maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: colors.primary))),
+            const SizedBox(width: 4),
+            Icon(Icons.chevron_right_rounded, size: 20, color: colors.onSurfaceVariant),
+          ]),
+        ),
+      ),
+    );
+
+    Widget group(List<Widget> children) => Container(
+      decoration: BoxDecoration(
+        color: NovynTheme.cardBg(context),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: colors.outlineVariant.withValues(alpha: .8)),
+      ),
+      child: Column(children: [
+        for (var i = 0; i < children.length; i++) ...[
+          children[i],
+          if (i != children.length - 1)
+            Divider(height: 1, indent: 69, endIndent: 14,
+              color: colors.outlineVariant.withValues(alpha: .65)),
+        ],
+      ]),
+    );
+
     return Scaffold(
       backgroundColor: NovynTheme.pageBg(context),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 36),
-        physics: const BouncingScrollPhysics(),
-        children: [
-          SettingsPageHeader(title: 'Language & Region', subtitle: 'Language and regional formats'),
-          SettingsIntroCard(title: 'Your language, your format', subtitle: 'Set the language and regional formats used throughout the app.', icon: Icons.translate_rounded),
-          const SectionLabel(label: 'Language'),
-          _SelectionCard(
-            icon: Icons.language_rounded,
-            iconColor: const Color(0xFF8B5CF6),
-            iconBgColor: const Color(0xFF8B5CF6).withValues(alpha: 0.1),
-            title: 'App Language',
-            subtitle: 'Choose the language used in Novyn',
-            value: settings.language,
-            options: settings.getLanguagesForRegion(settings.region).keys.toList(),
-            labels: settings.getLanguagesForRegion(settings.region).values.toList(),
-            onChanged: (v) => settings.setLanguage(v),
-          ),
-          
-          const SizedBox(height: 24),
-          const SectionLabel(label: 'Region & time'),
-          _ActionCard(
-            icon: Icons.public_rounded,
-            iconColor: const Color(0xFF06B6D4),
-            iconBgColor: const Color(0xFF06B6D4).withValues(alpha: 0.1),
-            title: 'Region',
-            subtitle: settings.region,
-            onTap: () => _showRegionDialog(context, settings),
-          ),
-          _ActionCard(
-            icon: Icons.schedule_rounded,
-            iconColor: const Color(0xFFF59E0B),
-            iconBgColor: const Color(0xFFF59E0B).withValues(alpha: 0.1),
-            title: 'Time Zone',
-            subtitle: _getTimeZoneString(),
-            onTap: () => _showTimezoneDialog(context),
-          ),
-          
-          const SizedBox(height: 24),
-          const SectionLabel(label: 'Date & time format'),
-          _ActionCard(
-            icon: Icons.calendar_today_rounded,
-            iconColor: const Color(0xFF10B981),
-            iconBgColor: const Color(0xFF10B981).withValues(alpha: 0.1),
-            title: 'Date Format',
-            subtitle: _getDateFormatString(),
-            onTap: () => _showDateFormatDialog(context),
-          ),
-          _ActionCard(
-            icon: Icons.access_time_rounded,
-            iconColor: const Color(0xFFEC4899),
-            iconBgColor: const Color(0xFFEC4899).withValues(alpha: 0.1),
-            title: 'Time Format',
-            subtitle: MediaQuery.of(context).alwaysUse24HourFormat ? '24-hour' : '12-hour',
-            onTap: () => _showTimeFormatDialog(context),
-          ),
-          _ActionCard(
-            icon: Icons.numbers_rounded,
-            iconColor: Theme.of(context).colorScheme.primary,
-            iconBgColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
-            title: 'Number Format',
-            subtitle: 'Device locale',
-            onTap: () => _showNumberFormatDialog(context),
-          ),
-          const SizedBox(height: 40),
-        ],
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 36),
+          physics: const BouncingScrollPhysics(),
+          children: [
+            const SettingsPageHeader(
+              title: 'Language & Region',
+              subtitle: 'Personalise your language and local formats',
+            ),
+            Container(
+              margin: const EdgeInsets.only(top: 12),
+              padding: const EdgeInsets.all(19),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(26),
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft, end: Alignment.bottomRight,
+                  colors: isDark
+                    ? [const Color(0xFF29234B), const Color(0xFF172D3A)]
+                    : [const Color(0xFFECE9FF), const Color(0xFFE4F7F5)],
+                ),
+                border: Border.all(color: colors.primary.withValues(alpha: .12)),
+              ),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Row(children: [
+                  Container(width: 48, height: 48,
+                    decoration: BoxDecoration(
+                      color: colors.primary.withValues(alpha: .12),
+                      borderRadius: BorderRadius.circular(16)),
+                    child: Icon(Icons.language_rounded, color: colors.primary, size: 25)),
+                  const Spacer(),
+                  Container(padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+                    decoration: BoxDecoration(color: colors.surface.withValues(alpha: .75),
+                      borderRadius: BorderRadius.circular(30)),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      const Icon(Icons.check_circle_rounded, size: 14, color: Color(0xFF159B78)),
+                      const SizedBox(width: 5),
+                      Text('Saved automatically', style: TextStyle(fontSize: 10,
+                        fontWeight: FontWeight.w700, color: colors.onSurface)),
+                    ])),
+                ]),
+                const SizedBox(height: 16),
+                Text('Make Novyn feel local',
+                  style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 19,
+                    fontWeight: FontWeight.w800, color: colors.onSurface)),
+                const SizedBox(height: 5),
+                Text('Choose the language you prefer and how dates and times appear.',
+                  style: TextStyle(fontSize: 12.5, height: 1.45, color: colors.onSurfaceVariant)),
+                const SizedBox(height: 16),
+                Row(children: [
+                  Text(regionFlag, style: const TextStyle(fontSize: 25)),
+                  const SizedBox(width: 9),
+                  Expanded(child: Text(settings.region,
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800,
+                      color: colors.onSurface))),
+                  Container(width: 1, height: 28, color: colors.outlineVariant),
+                  const SizedBox(width: 12),
+                  Expanded(child: Text(languageLabel, textAlign: TextAlign.end,
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700,
+                      color: colors.primary))),
+                ]),
+              ]),
+            ),
+
+            sectionTitle('APP LANGUAGE', 'Language used by the app interface'),
+            group([
+              settingTile(
+                icon: Icons.translate_rounded,
+                tint: const Color(0xFF8B5CF6),
+                title: 'App language',
+                value: languageLabel,
+                subtitle: 'Select your preferred language',
+                onTap: () => _showLanguageDialog(context, settings),
+              ),
+            ]),
+
+            sectionTitle('REGION & TIME ZONE', 'Set the location and local time reference'),
+            group([
+              settingTile(
+                icon: Icons.public_rounded,
+                tint: const Color(0xFF0891B2),
+                title: 'Region',
+                value: '$regionFlag  ${settings.region}',
+                subtitle: 'Country or regional preference',
+                onTap: () => _showRegionDialog(context, settings),
+              ),
+              settingTile(
+                icon: Icons.schedule_rounded,
+                tint: const Color(0xFFF59E0B),
+                title: 'Time zone',
+                value: _getTimeZoneString(),
+                subtitle: 'Automatically follows your device',
+                onTap: () => _showTimezoneDialog(context),
+              ),
+            ]),
+
+            sectionTitle('FORMATS', 'Preview of the formats used on this device'),
+            Container(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 10),
+              decoration: BoxDecoration(
+                color: NovynTheme.cardBg(context),
+                borderRadius: BorderRadius.circular(22),
+                border: Border.all(color: colors.outlineVariant.withValues(alpha: .8)),
+              ),
+              child: Column(children: [
+                Row(children: [
+                  Icon(Icons.calendar_month_rounded, color: const Color(0xFF10B981), size: 20),
+                  const SizedBox(width: 11),
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('Date format', style: TextStyle(fontSize: 13,
+                      fontWeight: FontWeight.w700, color: colors.onSurface)),
+                    Text('Device regional settings', style: TextStyle(fontSize: 11,
+                      color: colors.onSurfaceVariant)),
+                  ])),
+                  Text(datePreview, style: TextStyle(fontSize: 12,
+                    fontWeight: FontWeight.w700, color: colors.primary)),
+                  IconButton(tooltip: 'About date format', onPressed: () => _showDateFormatDialog(context),
+                    icon: Icon(Icons.info_outline_rounded, size: 18, color: colors.onSurfaceVariant)),
+                ]),
+                Divider(height: 1, color: colors.outlineVariant.withValues(alpha: .65)),
+                Row(children: [
+                  const Icon(Icons.access_time_rounded, color: Color(0xFFEC4899), size: 20),
+                  const SizedBox(width: 11),
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('Time format', style: TextStyle(fontSize: 13,
+                      fontWeight: FontWeight.w700, color: colors.onSurface)),
+                    Text('Device 12 / 24-hour preference', style: TextStyle(fontSize: 11,
+                      color: colors.onSurfaceVariant)),
+                  ])),
+                  Text(timePreview, style: TextStyle(fontSize: 12,
+                    fontWeight: FontWeight.w700, color: colors.primary)),
+                  IconButton(tooltip: 'About time format', onPressed: () => _showTimeFormatDialog(context),
+                    icon: Icon(Icons.info_outline_rounded, size: 18, color: colors.onSurfaceVariant)),
+                ]),
+                Divider(height: 1, color: colors.outlineVariant.withValues(alpha: .65)),
+                Row(children: [
+                  Icon(Icons.numbers_rounded, color: colors.primary, size: 20),
+                  const SizedBox(width: 11),
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('Number format', style: TextStyle(fontSize: 13,
+                      fontWeight: FontWeight.w700, color: colors.onSurface)),
+                    Text('Device locale', style: TextStyle(fontSize: 11,
+                      color: colors.onSurfaceVariant)),
+                  ])),
+                  Text(settings.region == 'India' ? '1,23,456.78' : '123,456.78',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700,
+                      color: colors.primary)),
+                  IconButton(tooltip: 'About number format', onPressed: () => _showNumberFormatDialog(context),
+                    icon: Icon(Icons.info_outline_rounded, size: 18, color: colors.onSurfaceVariant)),
+                ]),
+              ]),
+            ),
+            const SizedBox(height: 14),
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: colors.surfaceContainerHighest.withValues(alpha: .45),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Icon(Icons.info_outline_rounded, size: 17, color: colors.onSurfaceVariant),
+                const SizedBox(width: 9),
+                Expanded(child: Text(
+                  'Time zone, date, time and number formats currently follow your Android device settings. You can change them in Android Settings.',
+                  style: TextStyle(fontSize: 11, height: 1.45, color: colors.onSurfaceVariant),
+                )),
+              ]),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showLanguageDialog(BuildContext context, SettingsService settings) {
+    final languages = settings.getLanguagesForRegion(settings.region);
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(26)),
+        title: const Text('Choose app language',
+          style: TextStyle(fontFamily: 'PlusJakartaSans', fontWeight: FontWeight.w800)),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: Column(mainAxisSize: MainAxisSize.min, children: languages.entries.map((entry) {
+            final selected = settings.language == entry.key;
+            return ListTile(
+              contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+              title: Text(entry.value, style: TextStyle(
+                fontWeight: selected ? FontWeight.w800 : FontWeight.w500,
+                color: selected ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.onSurface)),
+              trailing: selected ? Icon(Icons.check_circle_rounded,
+                color: Theme.of(context).colorScheme.primary) : null,
+              onTap: () {
+                HapticFeedback.selectionClick();
+                settings.setLanguage(entry.key);
+                Navigator.pop(dialogContext);
+              },
+            );
+          }).toList()),
+        ),
       ),
     );
   }
