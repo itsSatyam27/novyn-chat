@@ -2015,6 +2015,9 @@ async function sendPushToUser(userKey, payload) {
   const user = users.get(userKey);
   if (!user || user.notificationsEnabled === false) return;
   if (payload?.group === true && user.groupNotificationsEnabled === false) return;
+  // Busy means no message alert at all (web push or FCM), not merely silent delivery.
+  // Keep call and security notifications unaffected.
+  if (payload?.type === "message" && normalizePresenceMode(user.presenceMode) === "busy") return;
 
   const previewEnabled = user.messagePreviewEnabled !== false;
   const safePayload = {
