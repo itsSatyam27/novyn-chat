@@ -248,6 +248,13 @@ class _SoundVibrationScreenState extends State<SoundVibrationScreen> {
                   value: settings.inAppVibration,
                   onChanged: settings.setInAppVibration,
                 ),
+                const Divider(height: 1, indent: 16, endIndent: 16),
+                _HapticCategoryRow(title: 'Navigation haptics', subtitle: 'Dock, tabs and back navigation', value: settings.hapticNavigation, onChanged: (v) => settings.setHapticCategory('navigation', v)),
+                _HapticCategoryRow(title: 'Typing haptics', subtitle: 'Novyn-controlled typing interactions; keyboard vibration is managed by your keyboard app', value: settings.hapticTyping, onChanged: (v) => settings.setHapticCategory('typing', v)),
+                _HapticCategoryRow(title: 'Chat haptics', subtitle: 'Sending messages, reactions and chat actions', value: settings.hapticChat, onChanged: (v) => settings.setHapticCategory('chat', v)),
+                _HapticCategoryRow(title: 'Button haptics', subtitle: 'Buttons, switches and selections', value: settings.hapticButtons, onChanged: (v) => settings.setHapticCategory('buttons', v)),
+                _HapticCategoryRow(title: 'Notification haptics', subtitle: 'Incoming message and alert vibrations', value: settings.hapticNotifications, onChanged: (v) => settings.setHapticCategory('notifications', v)),
+                _HapticCategoryRow(title: 'Call haptics', subtitle: 'Call controls and call events', value: settings.hapticCalls, onChanged: (v) => settings.setHapticCategory('calls', v)),
                 Opacity(
                   opacity: settings.inAppVibration ? 1 : .48,
                   child: IgnorePointer(
@@ -489,6 +496,27 @@ class _SoundCard extends StatelessWidget {
       ]),
     );
   }
+}
+
+class _HapticCategoryRow extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+  const _HapticCategoryRow({required this.title, required this.subtitle, required this.value, required this.onChanged});
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.fromLTRB(18, 11, 12, 11),
+    child: Row(children: [
+      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(title, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: NovynTheme.textPrimary(context))),
+        const SizedBox(height: 2),
+        Text(subtitle, style: TextStyle(fontSize: 11.5, color: NovynTheme.textSecondary(context))),
+      ])),
+      const SizedBox(width: 10),
+      _NovynSwitch(value: value, onChanged: onChanged),
+    ]),
+  );
 }
 
 class _ToggleRow extends StatelessWidget {
