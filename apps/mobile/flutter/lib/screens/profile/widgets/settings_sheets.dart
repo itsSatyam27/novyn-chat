@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'profile_widgets.dart';
 import '../../../services/settings_service.dart';
+import 'package:novyn/services/haptic_service.dart';
 
 class AppearanceSheet extends StatelessWidget {
   final SettingsService settings;
@@ -19,7 +20,7 @@ class AppearanceSheet extends StatelessWidget {
             icon: Icons.brightness_auto_rounded,
             selected: settings.themeMode == ThemeMode.system,
             onTap: () {
-              HapticFeedback.selectionClick();
+              HapticService.vibrate(NovynHapticType.selection, category: HapticCategory.buttons);
               settings.setThemeMode(ThemeMode.system);
               Navigator.pop(context);
             },
@@ -29,7 +30,7 @@ class AppearanceSheet extends StatelessWidget {
             icon: Icons.light_mode_rounded,
             selected: settings.themeMode == ThemeMode.light,
             onTap: () {
-              HapticFeedback.selectionClick();
+              HapticService.vibrate(NovynHapticType.selection, category: HapticCategory.buttons);
               settings.setThemeMode(ThemeMode.light);
               Navigator.pop(context);
             },
@@ -39,7 +40,7 @@ class AppearanceSheet extends StatelessWidget {
             icon: Icons.dark_mode_rounded,
             selected: settings.themeMode == ThemeMode.dark,
             onTap: () {
-              HapticFeedback.selectionClick();
+              HapticService.vibrate(NovynHapticType.selection, category: HapticCategory.buttons);
               settings.setThemeMode(ThemeMode.dark);
               Navigator.pop(context);
             },
