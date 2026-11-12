@@ -946,6 +946,33 @@ function verifyAuthToken(rawToken, expectedKind) {
   });
 }
 
+function encryptTotpSecret(secret) {
+  const key = crypto.createHash("sha256").update(AUTH_SECRET).digest();
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv("aes-256-gcm", key, iv);
+  const encrypted = Buffer.concat([cipher.update(String(secret), "utf8"), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  return "enc:v1:" + Buffer.concat([iv, tag, encrypted]).toString("base64");
+}
+
+function decryptTotpSecret(value) {
+  const stored = toDisplayName(value);
+  if (!stored.startsWith("enc:v1:")) return stored; // migrate legacy plaintext on next successful settings update
+  try {
+    const payload = Buffer.from(stored.slice(7), "base64");
+    if (payload.length < 29) return "";
+    const key = crypto.createHash("sha256").update(AUTH_SECRET).digest();
+    const iv = payload.subarray(0, 12);
+    const tag = payload.subarray(12, 28);
+    const encrypted = payload.subarray(28);
+    const decipher = crypto.createDecipheriv("aes-256-gcm", key, iv);
+    decipher.setAuthTag(tag);
+    return Buffer.concat([decipher.update(encrypted), decipher.final()]).toString("utf8");
+  } catch (_) {
+    return "";
+  }
+}
+
 function resolveCurrentUserKey(rawKey) {
   let key = normalizeName(rawKey);
   const seen = new Set();
@@ -4544,7 +4571,7 @@ app.post("/api/auth/2fa/enable", requireUser, requireCsrf, (req, res) => {
 
   const backupCodes = createBackupCodes();
   user.twoFactorEnabled = true;
-  user.twoFactorSecret = secret;
+  user.twoFactorSecret = encryptTotpSecret(secret);
   user.twoFactorBackupCodes = backupCodes.map(hashBackupCode);
   schedulePersist();
   res.json({ enabled: true, backupCodes });
@@ -4561,7 +4588,7 @@ app.post("/api/auth/2fa/disable", requireUser, requireCsrf, (req, res) => {
     if (!currentPassword || !verifyPassword(currentPassword, user.passwordSalt, user.passwordHash)) {
       return res.status(401).json({ message: "Incorrect current password." });
     }
-  } else if (!verifyTotpCode(user.twoFactorSecret, code)) {
+  } else if (!verifyTotpCode(decryptTotpSecret(user.twoFactorSecret), code)) {
     return res.status(401).json({ message: "Enter a valid authenticator code to disable 2FA." });
   }
 
