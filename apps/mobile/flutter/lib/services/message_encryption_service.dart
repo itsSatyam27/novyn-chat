@@ -78,7 +78,10 @@ class MessageEncryptionService {
     final account = _account(username);
     final cached = _identities[account];
     if (cached != null) return cached;
-    return _identityLoads.putIfAbsent(account, () async {
+    final pending = _identityLoads[account];
+    if (pending != null) return pending;
+
+    final loading = () async {
       final storageKey = 'novyn_e2ee_identity_$account';
       final raw = await _read(storageKey);
       late final _EcdhIdentity identity;
@@ -88,10 +91,10 @@ class MessageEncryptionService {
           final d = _decodeB64url(saved['d'] as String);
           final x = _decodeB64url(saved['x'] as String);
           final y = _decodeB64url(saved['y'] as String);
-          if (d.length != 32 || x.length != 32 || y.length != 32) throw const FormatException('Invalid P-256 identity length.');
+          if (d.length != 32 || x.length != 32 || y.length != 32) {
+            throw const FormatException('Invalid P-256 identity length.');
+          }
           final privateKey = pc.ECPrivateKey(_bytesBigInt(d), _domain);
-          final point = _domain.curve.createPoint(_bytesBigInt(x), _bytesBigInt(y));
-          final publicKey = pc.ECPublicKey(point, _domain);
           identity = _EcdhIdentity(privateKey, d, x, y);
         } catch (_) {
           throw StateError('Your secure message identity is damaged. Restore your Novyn backup before resetting it.');
@@ -100,7 +103,9 @@ class MessageEncryptionService {
         if (!createIfMissing) {
           throw StateError('This device has no saved Novyn message identity for this account. Sign in again to restore it before decrypting notifications.');
         }
-        final generator = pc.ECKeyGenerator()..init(pc.ParametersWithRandom(pc.ECKeyGeneratorParameters(_domain), _secureRandom()));
+        final generator = pc.ECKeyGenerator()
+          ..init(pc.ParametersWithRandom(
+            pc.ECKeyGeneratorParameters(_domain), _secureRandom()));
         final pair = generator.generateKeyPair();
         final privateKey = pair.privateKey as pc.ECPrivateKey;
         final publicKey = pair.publicKey as pc.ECPublicKey;
@@ -108,11 +113,23 @@ class MessageEncryptionService {
         final x = _bigIntBytes(publicKey.Q!.x!.toBigInteger()!, 32);
         final y = _bigIntBytes(publicKey.Q!.y!.toBigInteger()!, 32);
         identity = _EcdhIdentity(privateKey, d, x, y);
-        await _write(storageKey, jsonEncode({'d': _b64url(d), 'x': _b64url(x), 'y': _b64url(y)}));
+        await _write(storageKey, jsonEncode({
+          'd': _b64url(d), 'x': _b64url(x), 'y': _b64url(y),
+        }));
       }
       _identities[account] = identity;
       return identity;
-    });
+    }();
+
+    _identityLoads[account] = loading;
+    try {
+      return await loading;
+    } catch (_) {
+      // Do not cache failed secure-storage reads: a later background retry
+      // must be able to recover without replacing the account identity.
+      _identityLoads.remove(account);
+      rethrow;
+    }
   }
   /// Creates/loads this account's stable Flutter identity and returns its public JWK.
   Future<String> initializeIdentity(String username) async {
