@@ -52,6 +52,7 @@ class SettingsService extends ChangeNotifier {
   static const _kPhotoQuality = 'photo_quality';
   static const _kLanguage = 'language';
   static const _kFontSize = 'font_size';
+  static const _kChatLabelSize = 'chat_label_size';
   static const _kAccentColor = 'appearance_accent_color';
   static const _kAccentColorEnabled = 'appearance_accent_color_enabled';
   static const _kDockStyle = 'dock_style';
@@ -112,7 +113,8 @@ class SettingsService extends ChangeNotifier {
   String _autoDownloadMobile = 'photos'; // 'all', 'photos', 'none'
   String _photoQuality = 'high'; // 'high', 'medium', 'low'
   String _language = 'en'; // Language code
-  double _fontSize = 1.0; // Font scale factor
+  double _fontSize = 1.0; // Message body font scale
+  double _chatLabelSize = 1.0;
   int _accentColorValue = 0xFF6D5DFC;
   bool _accentColorEnabled = true;
   String _dockStyle = 'floating_pill';
@@ -195,6 +197,7 @@ class SettingsService extends ChangeNotifier {
   double get callVolume => _callVolume;
   String get photoQuality => _photoQuality;
   double get fontSize => _fontSize;
+  double get chatLabelSize => _chatLabelSize;
   int get accentColorValue => _accentColorValue;
   bool get accentColorEnabled => _accentColorEnabled;
   String get dockStyle => _dockStyle;
@@ -247,6 +250,7 @@ class SettingsService extends ChangeNotifier {
     _photoQuality = _prefs.getString(_kPhotoQuality) ?? 'high';
     _language = _prefs.getString(_kLanguage) ?? 'en';
     _fontSize = (_prefs.getDouble(_kFontSize) ?? 1.0).clamp(0.85, 1.25).toDouble();
+    _chatLabelSize = (_prefs.getDouble(_kChatLabelSize) ?? 1.0).clamp(0.8, 1.4).toDouble();
     _accentColorValue = _prefs.getInt(_kAccentColor) ?? 0xFF6D5DFC;
     _accentColorEnabled = _prefs.getBool(_kAccentColorEnabled) ?? true;
     const dockStyles = ['floating_pill','rounded_bar','minimal','glass','sliding','elevated','full_width','glow'];
@@ -475,6 +479,12 @@ class SettingsService extends ChangeNotifier {
     if (!allowed.contains(style)) return;
     _dockStyle = style;
     await _prefs.setString(_kDockStyle, style);
+    notifyListeners();
+  }
+
+  Future<void> setChatLabelSize(double v) async {
+    _chatLabelSize = v.clamp(0.8, 1.4).toDouble();
+    await _prefs.setDouble(_kChatLabelSize, _chatLabelSize);
     notifyListeners();
   }
 
@@ -863,6 +873,7 @@ class SettingsService extends ChangeNotifier {
     _photoQuality = 'high';
     _language = 'en';
     _fontSize = 1.0;
+    _chatLabelSize = 1.0;
     _accentColorValue = 0xFF6D5DFC;
     _accentColorEnabled = true;
     _dockStyle = 'floating_pill';
