@@ -30,7 +30,9 @@ import 'security_service.dart';
 ///   EMIT  reject_friend            — username string
 ///   EMIT  call_invite              — { to, isVideo }
 ///   EMIT  call_accept              — { to }
-///   EMIT  call_end                 — { to, reason? }
+///   EMIT  call_start                — { to, isVideo, callId }
+///   EMIT  call_accept               — { to, callId }
+///   EMIT  call_end                  — { to, callId, reason? }
 ///   EMIT  webrtc_signal            — { to, signal }
 ///
 ///   ON    init                     — { friends, requests }
@@ -47,7 +49,7 @@ import 'security_service.dart';
 ///   ON    call_incoming            — { from, fromDisplayName, isVideo }
 ///   ON    call_accepted
 ///   ON    call_rejected
-///   ON    call_end
+///   ON    call_ended
 ///   ON    webrtc_signal            — { from, signal }
 ///   ON    profile_updated
 ///   ON    friend_request_received  — { from }
@@ -692,7 +694,7 @@ class SocketService extends ChangeNotifier {
       onCallRejectedCallback?.call();
     });
 
-    _socket!.on('call_end', (_) {
+    _socket!.on('call_ended', (_) {
       onCallEndedCallback?.call();
     });
 
@@ -1529,26 +1531,39 @@ class SocketService extends ChangeNotifier {
   }
 
   // ── Call signaling ────────────────────────────────────────────────────────
-  void sendCallInvite(String toUsername, {bool isVideo = false}) {
-    _socket?.emit('call_invite', {'to': toUsername, 'isVideo': isVideo});
+  String sendCallInvite(String toUsername, {bool isVideo = false}) {
+    final callId = DateTime.now().microsecondsSinceEpoch.toString();
+    _socket?.emit('call_start', {
+      'to': toUsername,
+      'isVideo': isVideo,
+      'callId': callId,
+    });
+    return callId;
   }
 
-  void acceptCall(String fromUsername) {
-    _socket?.emit('call_accept', {'to': fromUsername});
+  void acceptCall(String fromUsername, String callId) {
+    _socket?.emit('call_accept', {'to': fromUsername, 'callId': callId});
   }
 
-  void rejectCall(String fromUsername) {
-    _socket?.emit('call_reject', {'to': fromUsername});
+  void rejectCall(String fromUsername, String callId) {
+    endCall(fromUsername, callId: callId, reason: 'Call declined');
   }
 
-  void endCall(String peerUsername, {String? reason}) {
-    _socket?.emit(
-        'call_end', {'to': peerUsername, if (reason != null) 'reason': reason});
+  void endCall(String peerUsername, {required String callId, String? reason}) {
+    _socket?.emit('call_end', {
+      'to': peerUsername,
+      'callId': callId,
+      if (reason != null) 'reason': reason,
+    });
   }
 
   // ── WebRTC signaling ──────────────────────────────────────────────────────
-  void sendWebRTCSignal(String toUsername, dynamic signal) {
-    _socket?.emit('webrtc_signal', {'to': toUsername, 'signal': signal});
+  void sendWebRTCSignal(String toUsername, String callId, dynamic signal) {
+    _socket?.emit('webrtc_signal', {
+      'to': toUsername,
+      'callId': callId,
+      'signal': signal,
+    });
   }
 
   // ── Callback registrations ────────────────────────────────────────────────
@@ -1848,16 +1863,25 @@ class SocketService extends ChangeNotifier {
   Function(Map)? onWebRTCIceCandidate;
 
   // sendOffer / sendAnswer / sendIceCandidate — old webrtc_service.dart API
-  void sendOffer(String receiverId, dynamic offer) {
-    sendWebRTCSignal(receiverId, {'type': 'offer', 'sdp': offer});
+  void sendOffer(String receiverId, String callId, dynamic offer) {
+    sendWebRTCSignal(receiverId, callId, {
+      'type': 'offer',
+      if (offer is Map) ...Map<String, dynamic>.from(offer),
+    });
   }
 
-  void sendAnswer(String callerId, dynamic answer) {
-    sendWebRTCSignal(callerId, {'type': 'answer', 'sdp': answer});
+  void sendAnswer(String callerId, String callId, dynamic answer) {
+    sendWebRTCSignal(callerId, callId, {
+      'type': 'answer',
+      if (answer is Map) ...Map<String, dynamic>.from(answer),
+    });
   }
 
-  void sendIceCandidate(String receiverId, dynamic candidate) {
-    sendWebRTCSignal(receiverId, {'type': 'candidate', 'candidate': candidate});
+  void sendIceCandidate(String receiverId, String callId, dynamic candidate) {
+    sendWebRTCSignal(receiverId, callId, {
+      'type': 'candidate',
+      if (candidate is Map) ...Map<String, dynamic>.from(candidate),
+    });
   }
 
   // createGroup — emits create_group socket event

@@ -108,6 +108,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
             callType: callType,
             isIncoming: true,
             callerId: callerId,
+            callId: data['callId']?.toString(),
           ),
         ),
       );

@@ -21,6 +21,7 @@ class CallScreen extends StatefulWidget {
   final String callType;
   final bool isIncoming;
   final String? callerId;
+  final String? callId;
 
   const CallScreen({
     super.key,
@@ -28,6 +29,7 @@ class CallScreen extends StatefulWidget {
     required this.callType,
     this.isIncoming = false,
     this.callerId,
+    this.callId,
   });
 
   @override
@@ -48,7 +50,15 @@ class _CallScreenState extends State<CallScreen>
   late Animation<double> _pulse;
   final AudioPlayer _audioPlayer = AudioPlayer();
   late final WebRTCService _webrtc;
+  late Future<void> _webrtcInit;
   Timer? _callTimeoutTimer;
+  late String _callId;
+  bool _hasLoggedCall = false;
+  bool _mediaStarted = false;
+  bool _mediaInitializing = false;
+  String? _mediaError;
+
+  String get _peerId => widget.peer.uid.isNotEmpty ? widget.peer.uid : widget.peer.username;
 
   // Draggable PiP position
   Offset _pipPosition = const Offset(0, 0); // Will be set in initState
@@ -71,12 +81,13 @@ class _CallScreenState extends State<CallScreen>
     );
 
     _webrtc = WebRTCService();
-    _initWebRTC();
+    _callId = widget.callId ?? '';
+    _webrtcInit = _initWebRTC();
     _playRingtone();
     _listenToCallEvents();
 
     if (!widget.isIncoming) {
-      context.read<SocketService>().sendCallInvite(
+      _callId = context.read<SocketService>().sendCallInvite(
         widget.peer.uid.isNotEmpty ? widget.peer.uid : widget.peer.username,
         isVideo: _isVideo,
       );
@@ -104,11 +115,34 @@ class _CallScreenState extends State<CallScreen>
   }
 
   Future<void> _initWebRTC() async {
-    await _webrtc.init();
-    await _webrtc.startLocalStream(video: _isVideo);
-    // Default to earpiece for calls
-    await _webrtc.setEarpieceMode();
-    if (mounted) setState(() {});
+    try {
+      await _webrtc.init();
+      await _webrtc.setEarpieceMode();
+      if (mounted) setState(() {});
+    } catch (_) {
+      if (mounted) setState(() => _mediaError = 'Call audio/video could not be initialized. Check device permissions.');
+    }
+  }
+
+  Future<void> _ensureLocalMedia() async {
+    await _webrtcInit;
+    if (_mediaStarted) return;
+    if (_mediaInitializing) {
+      while (_mediaInitializing) {
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+      }
+      if (_mediaStarted) return;
+    }
+    _mediaInitializing = true;
+    try {
+      await _webrtc.startLocalStream(video: _isVideo);
+      if (_muted) _webrtc.toggleMute(true);
+      if (_cameraOff) _webrtc.toggleCamera(true);
+      _mediaStarted = true;
+      _mediaError = null;
+    } finally {
+      _mediaInitializing = false;
+    }
   }
 
   void _playRingtone() async {
@@ -165,15 +199,22 @@ class _CallScreenState extends State<CallScreen>
 
       // Caller creates the offer
       if (!widget.isIncoming) {
-        await _webrtc.createPeerConnection(socket, widget.peer.uid, true);
+        try {
+          await _ensureLocalMedia();
+          if (!mounted) return;
+          await _webrtc.createPeerConnection(socket, _peerId, true, callId: _callId);
+        } catch (_) {
+          socket.endCall(_peerId, callId: _callId, reason: 'Microphone or camera permission was denied.');
+          _handleCallEnded(logStatus: 'missed');
+        }
       }
     });
 
     // Incoming WebRTC offer → create peer connection as receiver
     socket.onWebRTCOffer = (data) async {
       if (!mounted) return;
-      await _webrtc.createPeerConnection(socket, widget.peer.uid, false);
-      await _webrtc.handleOffer(Map<String, dynamic>.from(data), socket, widget.peer.uid);
+      await _webrtc.createPeerConnection(socket, _peerId, false, callId: _callId);
+      await _webrtc.handleOffer(Map<String, dynamic>.from(data), socket, _peerId, _callId);
       if (mounted) setState(() {});
     };
 
@@ -195,11 +236,12 @@ class _CallScreenState extends State<CallScreen>
 
     socket.onCallEnded(() {
       _stopRingtone();
-      _handleCallEnded(logStatus: 'incoming');
+      _handleCallEnded(logStatus: widget.isIncoming ? 'incoming' : 'outgoing');
     });
   }
 
   void _startTimer() {
+    _timer?.cancel();
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
       _seconds.value++;
     });
@@ -207,7 +249,9 @@ class _CallScreenState extends State<CallScreen>
 
   void _handleCallEnded({required String logStatus}) {
     _timer?.cancel();
-    if (!mounted) return;
+    _callTimeoutTimer?.cancel();
+    if (!mounted || _hasLoggedCall) return;
+    _hasLoggedCall = true;
     setState(() => _state = CallState.ended);
     // Reset audio mode back to normal
     AudioManagerService.resetMode();
@@ -289,25 +333,33 @@ class _CallScreenState extends State<CallScreen>
   void _endCall() {
     HapticService.vibrate(NovynHapticType.medium, category: HapticCategory.calls);
     _stopRingtone();
-    context.read<SocketService>().endCall(widget.peer.uid);
+    context.read<SocketService>().endCall(_peerId, callId: _callId);
     _handleCallEnded(
       logStatus: _state == CallState.connected ? 'outgoing' : 'missed',
     );
   }
 
-  void _acceptCall() {
+  Future<void> _acceptCall() async {
     HapticService.vibrate(NovynHapticType.medium, category: HapticCategory.calls);
-    _stopRingtone();
-    context.read<SocketService>().acceptCall(widget.callerId ?? widget.peer.uid);
-    setState(() => _state = CallState.connected);
-    _pulseCtrl.stop();
-    _startTimer();
+    try {
+      await _ensureLocalMedia();
+      if (!mounted) return;
+      _stopRingtone();
+      context.read<SocketService>().acceptCall(widget.callerId ?? _peerId, _callId);
+      setState(() => _state = CallState.connected);
+      _pulseCtrl.stop();
+      _startTimer();
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _mediaError = 'Microphone/camera permission is required to answer this call.');
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_mediaError!)));
+    }
   }
 
   void _rejectCall() {
     HapticService.vibrate(NovynHapticType.medium, category: HapticCategory.calls);
     _stopRingtone();
-    context.read<SocketService>().rejectCall(widget.callerId ?? widget.peer.uid);
+    context.read<SocketService>().rejectCall(widget.callerId ?? _peerId, _callId);
     _handleCallEnded(logStatus: 'missed');
   }
 
@@ -333,11 +385,17 @@ class _CallScreenState extends State<CallScreen>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: _isVideo && _state == CallState.connected
-          ? _buildVideoCall()
-          : _buildVoiceCall(),
+    return PopScope<void>(
+      canPop: _state == CallState.ended,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop && _state != CallState.ended) _endCall();
+      },
+      child: Scaffold(
+        backgroundColor: Colors.black,
+        body: _isVideo && _state == CallState.connected
+            ? _buildVideoCall()
+            : _buildVoiceCall(),
+      ),
     );
   }
 
@@ -482,9 +540,9 @@ class _CallScreenState extends State<CallScreen>
               child: Row(
                 children: [
                   IconButton(
-                    icon: const Icon(Icons.arrow_back_ios_rounded,
-                        color: Colors.white),
-                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.call_end_rounded,
+                        color: Color(0xFFEF4444)), 
+                    onPressed: _endCall,
                   ),
                   Expanded(
                     child: Column(
@@ -627,9 +685,9 @@ class _CallScreenState extends State<CallScreen>
               child: Row(
                 children: [
                   IconButton(
-                    icon: const Icon(Icons.keyboard_arrow_down_rounded,
-                        color: Colors.white70, size: 32),
-                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.call_end_rounded,
+                        color: Color(0xFFEF4444), size: 26),
+                    onPressed: _endCall,
                   ),
                   Expanded(
                     child: Center(
@@ -758,6 +816,10 @@ class _CallScreenState extends State<CallScreen>
                 );
               },
             ),
+            if (_state == CallState.connected) ...[
+              const SizedBox(height: 12),
+              _NetworkQualityBadge(webrtc: _webrtc),
+            ],
 
             const Spacer(),
 
