@@ -112,6 +112,7 @@ class SocketService extends ChangeNotifier {
 
   List<Message> get messages => List.unmodifiable(_messages);
   bool get isConnected => _isConnected;
+  bool get isAuthenticated => _isAuthenticated;
   bool get peerIsTyping => _peerIsTyping;
   String? get currentChatWith => _currentChatWith;
   String? get myUsername => _myUsername;
