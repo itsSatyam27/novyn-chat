@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/settings_service.dart';
+import 'package:novyn/services/haptic_service.dart';
 
 class EditProfileSheet extends StatefulWidget {
   final AuthService auth;
@@ -66,7 +67,7 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
   }
 
   Future<void> _save() async {
-    HapticFeedback.mediumImpact();
+    HapticService.vibrate(NovynHapticType.medium);
     final username = _usernameCtrl.text.trim();
     final current  = widget.auth.userProfile?.username ?? '';
 
