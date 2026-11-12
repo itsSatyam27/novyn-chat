@@ -1946,8 +1946,8 @@ class _MessageBubble extends StatelessWidget {
                           ),
                         ],
                         if ((message.pinnedAt?.toString().isNotEmpty ?? false))
-                          const Padding(
-                            padding: EdgeInsets.only(bottom: 5),
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 5),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
@@ -2034,8 +2034,8 @@ class _MessageBubble extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     if (message.edited == true)
-                      const Padding(
-                        padding: EdgeInsets.only(right: 4),
+                      Padding(
+                        padding: const EdgeInsets.only(right: 4),
                         child: Text(
                           'edited',
                           style: TextStyle(
@@ -2220,7 +2220,7 @@ class _MessageBubble extends StatelessWidget {
             children: [
               Icon(Icons.poll_rounded, size: 17),
               const SizedBox(width: 7),
-              const Text('POLL', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 10 * context.watch<SettingsService>().chatLabelSize, fontWeight: FontWeight.w800, letterSpacing: 1)),
+              Text('POLL', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 10 * context.watch<SettingsService>().chatLabelSize, fontWeight: FontWeight.w800, letterSpacing: 1)),
               const Spacer(),
               Text('$totalVotes votes', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 10 * context.watch<SettingsService>().chatLabelSize, color: Color(0xFF94A3B8))),
             ],
@@ -2746,7 +2746,7 @@ class _GifPickerSheetState extends State<_GifPickerSheet> {
               onPressed: _loadingMore ? null : () => _load(append: true),
               child: Text(_loadingMore ? 'Loading…' : 'Load more'),
             ),
-          const Text('Powered by GIPHY', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 10 * context.watch<SettingsService>().chatLabelSize, color: Color(0xFF94A3B8))),
+          Text('Powered by GIPHY', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 10 * context.watch<SettingsService>().chatLabelSize, color: Color(0xFF94A3B8))),
         ],
       ),
     );
