@@ -243,7 +243,7 @@ class NotificationService {
     final preview = settings.messagePreview
         ? messageBody.trim()
         : 'You have a new message';
-    final title = 'New message from $username';
+    final title = username;
     // Foreground messages use only this branded in-app banner. The operating
     // system notification is reserved for background/terminated delivery.
     _inAppBannerTimer?.cancel();
