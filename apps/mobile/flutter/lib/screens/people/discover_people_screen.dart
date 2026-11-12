@@ -171,7 +171,7 @@ class _DiscoverPeopleScreenState extends State<DiscoverPeopleScreen> {
         }
         final names = (snap.data ?? <String>{}).toList()
           ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
-        if (names.isEmpty) return _empty(Icons.outgoing_mail, 'No sent requests', 'Friend requests you send will be listed here.');
+        if (names.isEmpty) return _empty(Icons.send_rounded, 'No sent requests', 'Friend requests you send will be listed here.');
         return ListView.separated(
           padding: const EdgeInsets.fromLTRB(20, 2, 20, 110),
           itemCount: names.length,
