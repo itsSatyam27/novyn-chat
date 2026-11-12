@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:http/http.dart' as http;
+import '../services/api_service.dart';
 
 /// Reusable avatar widget with Hive disk caching for instant loads
 class UserAvatar extends StatefulWidget {
@@ -79,10 +81,9 @@ class _UserAvatarState extends State<UserAvatar> {
       // Ensure cache is initialized
       await _UserAvatarState.initCache();
 
-      // Use photoUrl hash as cache key (first 20 chars for uniqueness)
-      final cacheKey = widget.photoUrl.length > 20
-          ? widget.photoUrl.substring(0, 20)
-          : widget.photoUrl;
+      // Hash the complete URL: using only its first 20 characters made every
+      // photo on the same Novyn host collide in the avatar cache.
+      final cacheKey = 'avatar_${widget.photoUrl.hashCode}';
 
       // 1. Try to load from Hive cache (instant)
       final cached = _avatarCache?.get(cacheKey);
@@ -94,7 +95,25 @@ class _UserAvatarState extends State<UserAvatar> {
         return;
       }
 
-      // 2. Decode base64 and cache it
+      // 2. Protected Novyn media URLs require the signed-in session cookie.
+      // Fetch them with authenticated headers rather than treating them as base64.
+      if (widget.photoUrl.startsWith('https://') ||
+          widget.photoUrl.startsWith('http://')) {
+        final response = await http.get(
+          Uri.parse(widget.photoUrl),
+          headers: ApiService.imageHeaders,
+        ).timeout(const Duration(seconds: 20));
+        if (response.statusCode == 200 && response.bodyBytes.isNotEmpty) {
+          final bytes = response.bodyBytes;
+          await _avatarCache?.put(cacheKey, bytes.toList());
+          if (mounted) setState(() => _cachedImage = bytes);
+          return;
+        }
+        if (mounted) setState(() => _cachedImage = null);
+        return;
+      }
+
+      // 3. Decode legacy base64 avatars and cache them.
       final decoded = _safeBase64Decode(widget.photoUrl);
       if (decoded.isNotEmpty) {
         // Save to cache for next time (async, don't await)
