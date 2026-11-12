@@ -3879,7 +3879,7 @@ function buildDiscoverOnlineList(forUser, limit = 100) {
   // Exclude people with either direction of pending request. Incoming
   // requests are in me.requests; outgoing requests live on the target user.
   const outgoingRequests = [];
-  for ( (const [candidateKey, candidate] of users.entries()) {
+  for (const [candidateKey, candidate] of users.entries()) {
     if (candidate?.requests?.has(userKey)) outgoingRequests.push(candidateKey);
   }
   const exclude = new Set([userKey, ...me.friends, ...me.requests, ...outgoingRequests]);
