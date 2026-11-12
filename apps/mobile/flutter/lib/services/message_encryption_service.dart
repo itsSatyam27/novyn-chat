@@ -26,9 +26,8 @@ Future<Map<String, dynamic>> _openKeyFile(Map<String, dynamic> input) async {
 /// Flutter E2EE compatible with the web client: P-256 ECDH + AES-GCM-256.
 /// The private identity is stored only in platform secure storage.
 class _EcdhIdentity {
-  const _EcdhIdentity(this.privateKey, this.publicKey, this.d, this.x, this.y);
+  const _EcdhIdentity(this.privateKey, this.d, this.x, this.y);
   final ECPrivateKey privateKey;
-  final ECPublicKey publicKey;
   final List<int> d;
   final List<int> x;
   final List<int> y;
@@ -46,7 +45,6 @@ class MessageEncryptionService {
   final _aes = AesGcm.with256bits();
   final Map<String, _EcdhIdentity> _identities = {};
   final Map<String, Future<_EcdhIdentity>> _identityLoads = {};
-  final Map<String, List<dynamic>> _legacyKeys = {};
 
   String _account(String username) => username.trim().toLowerCase();
 
@@ -94,7 +92,7 @@ class MessageEncryptionService {
           final privateKey = ECPrivateKey(_bytesBigInt(d), _domain);
           final point = _domain.curve.createPoint(_bytesBigInt(x), _bytesBigInt(y));
           final publicKey = ECPublicKey(point, _domain);
-          identity = _EcdhIdentity(privateKey, publicKey, d, x, y);
+          identity = _EcdhIdentity(privateKey, d, x, y);
         } catch (_) {
           throw StateError('Your secure message identity is damaged. Restore your Novyn backup before resetting it.');
         }
@@ -200,7 +198,6 @@ class MessageEncryptionService {
       merged[peer] = versions;
     }
     await _write('novyn_message_keys_${_account(username)}', jsonEncode(merged));
-    _legacyKeys[_account(username)] = merged.entries.expand((e) => e.value as List).toList();
     return imported.length;
   }
 
