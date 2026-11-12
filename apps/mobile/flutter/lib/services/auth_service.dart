@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:path/path.dart' as path;
 import 'package:firebase_auth/firebase_auth.dart';
@@ -101,6 +102,8 @@ class AuthService extends ChangeNotifier {
   bool _authReady = false;
   String? _pendingTwoFactorChallenge;
   String? _pendingTwoFactorUsername;
+  Timer? _sessionMaintenanceTimer;
+  bool _sessionRestoreInProgress = false;
 
   bool get isTwoFactorPending => _pendingTwoFactorChallenge != null;
 
@@ -115,6 +118,23 @@ class AuthService extends ChangeNotifier {
       this.onAccountReset,
       Future<Map<String, dynamic>?> Function()? restoreSession}) {
     _restoreSession(restoreSession ?? ApiService.getSession);
+    // Keep the refresh-cookie chain warm while the app remains open. Android
+    // may suspend this timer in the background; resume handling below performs
+    // an immediate check when the app becomes active again.
+    _sessionMaintenanceTimer = Timer.periodic(
+      const Duration(minutes: 20),
+      (_) {
+        if (_authReady && _user != null) {
+          unawaited(restoreSessionOnResume());
+        }
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    _sessionMaintenanceTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> _prepareAccount(String username) async {
@@ -180,23 +200,44 @@ class AuthService extends ChangeNotifier {
   }
 
   Future<void> restoreSessionOnResume() async {
-    if (!_authReady || _user == null) return;
+    if (!_authReady || _user == null || _sessionRestoreInProgress) return;
+    _sessionRestoreInProgress = true;
     try {
-      var session = await ApiService.getSession();
-      if (session == null || session['authenticated'] != true) {
-        final refreshed = await ApiService.refreshSession();
-        if (refreshed) session = await ApiService.getSession();
+      // Rehydrate encrypted cookies if the in-memory client was recreated.
+      if (ApiService.sessionCookie == null ||
+          ApiService.sessionCookie!.isEmpty) {
+        await ApiService.initializeSessionStorage();
       }
+
+      var session = await ApiService.getSession();
+      final status = session?['_httpStatus'];
+      if (session == null || session['authenticated'] != true) {
+        // Do not rotate tokens on ordinary network failures. Only attempt a
+        // refresh after the server explicitly rejects the access cookie.
+        if (status == 401 || status == 403) {
+          final refreshStatus = await ApiService.refreshSessionStatus();
+          if (refreshStatus == 200) {
+            session = await ApiService.getSession();
+          }
+        }
+      }
+
       if (session != null && session['authenticated'] == true) {
         final refreshedUser = NovynUser.fromMap(session);
-        if (_user?.username.toLowerCase() != refreshedUser.username.toLowerCase()) {
+        if (_user?.username.toLowerCase() !=
+            refreshedUser.username.toLowerCase()) {
           await _prepareAccount(refreshedUser.username);
         }
         _user = refreshedUser;
         notifyListeners();
       }
+      // A timeout, offline state, or temporary 5xx must never clear the local
+      // account. A definitive expired session is handled by the next sign-in
+      // gate only when the app is freshly started.
     } catch (_) {
-      // Keep the current user during temporary connectivity loss.
+      // Preserve the current user during temporary connectivity loss.
+    } finally {
+      _sessionRestoreInProgress = false;
     }
   }
 
