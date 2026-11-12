@@ -877,7 +877,6 @@ class SocketService extends ChangeNotifier {
   }
 
   Future<void> updateStealthMode(bool enabled) async {
-    _stealthModePreference = enabled;
     await _waitForSocketAuthentication();
     final connection = _socket;
     if (connection == null || !_isConnected) {
@@ -900,6 +899,7 @@ class SocketService extends ChangeNotifier {
       throw StateError(result['message']?.toString() ??
           'Could not sync Stealth Mode with your account.');
     }
+    _stealthModePreference = enabled;
   }
 
   void closeChat() {
