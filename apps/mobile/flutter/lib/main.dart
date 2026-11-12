@@ -178,7 +178,12 @@ class _SessionLifecycleGuardState extends State<SessionLifecycleGuard>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
+      context.read<SocketService>().setAppForeground(true);
       context.read<AuthService>().restoreSessionOnResume();
+    } else if (state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
+      context.read<SocketService>().setAppForeground(false);
     }
   }
 
