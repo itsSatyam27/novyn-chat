@@ -331,6 +331,14 @@ class _CallsScreenState extends State<CallsScreen> {
       child: ListView(
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 132),
         children: [
+          Row(
+            children: [
+              Expanded(child: _CallSummaryTile(icon: Icons.history_rounded, label: 'Call entries', value: calls.fold<int>(0, (total, call) => total + call.count).toString(), tint: Theme.of(context).colorScheme.primary)),
+              const SizedBox(width: 10),
+              Expanded(child: _CallSummaryTile(icon: Icons.call_missed_rounded, label: 'Missed calls', value: calls.fold<int>(0, (total, call) => total + call.history.where((log) => log['status'] == 'missed').length).toString(), tint: NovynColors.danger)),
+            ],
+          ),
+          const SizedBox(height: 18),
           if (_search.isEmpty && _filter == 'All' && uniqueFavorites.isNotEmpty) ...[
             const NovynSectionLabel(
               'FAVORITES',
@@ -380,17 +388,37 @@ class _CallsScreenState extends State<CallsScreen> {
             _search.isNotEmpty || _filter != 'All' ? 'RESULTS' : 'RECENT CALLS',
             padding: const EdgeInsets.fromLTRB(4, 4, 4, 10),
           ),
-          for (final entry in calls)
-            _CallCard(
-              entry: entry,
-              isFavorite: _favoriteUsernames.contains(entry.peer.username.toLowerCase()),
-              onToggleFavorite: () => _toggleFavorite(entry.peer),
-              onDismiss: () => setState(() => _calls.removeWhere((call) => call.peer.username == entry.peer.username)),
+          for (final group in _groupCallsByDay(calls).entries) ...[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(4, 10, 4, 9),
+              child: Text(group.key.toUpperCase(), style: NovynText.body(10, color: NovynColors.textMuted, weight: FontWeight.w700).copyWith(letterSpacing: 1.1)),
             ),
+            for (final entry in group.value)
+              _CallCard(
+                entry: entry,
+                isFavorite: _favoriteUsernames.contains(entry.peer.username.toLowerCase()),
+                onToggleFavorite: () => _toggleFavorite(entry.peer),
+                onDismiss: () => setState(() => _calls.removeWhere((call) => call.peer.username == entry.peer.username)),
+              ),
+          ],
           const SizedBox(height: 80),
         ],
       ),
     );
+  }
+
+  Map<String, List<_CallEntry>> _groupCallsByDay(List<_CallEntry> calls) {
+    final groups = <String, List<_CallEntry>>{};
+    final now = DateTime.now();
+    for (final call in calls) {
+      final date = call.createdAt;
+      final today = DateTime(now.year, now.month, now.day);
+      final callDay = DateTime(date.year, date.month, date.day);
+      final days = today.difference(callDay).inDays;
+      final label = days == 0 ? 'Today' : days == 1 ? 'Yesterday' : days < 7 ? const ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'][date.weekday - 1] : date.day.toString().padLeft(2, '0') + ' ' + const ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][date.month - 1] + ' ' + date.year.toString();
+      groups.putIfAbsent(label, () => <_CallEntry>[]).add(call);
+    }
+    return groups;
   }
 
   Widget _buildEmpty() {
@@ -398,6 +426,31 @@ class _CallsScreenState extends State<CallsScreen> {
       icon: Icons.call_rounded,
       title: 'No calls yet',
       description: 'Your call history will\nappear here',
+    );
+  }
+}
+
+class _CallSummaryTile extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  final Color tint;
+  const _CallSummaryTile({required this.icon, required this.label, required this.value, required this.tint});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+      decoration: BoxDecoration(color: NovynTheme.cardBg(context), borderRadius: BorderRadius.circular(18), border: Border.all(color: Theme.of(context).colorScheme.outlineVariant)),
+      child: Row(children: [
+        Container(width: 34, height: 34, decoration: BoxDecoration(color: tint.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(11)), child: Icon(icon, color: tint, size: 18)),
+        const SizedBox(width: 10),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(value, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800, height: 1.1)),
+          const SizedBox(height: 3),
+          Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: NovynText.body(10, color: NovynColors.textMuted)),
+        ])),
+      ]),
     );
   }
 }
