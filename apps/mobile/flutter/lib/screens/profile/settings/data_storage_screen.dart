@@ -84,9 +84,20 @@ class _DataStorageScreenState extends State<DataStorageScreen> {
             onRefresh: () => setState(() => _usageRefreshKey++),
           ),
           const SizedBox(height: 22),
-          const SectionLabel(label: 'Your downloads'),
-          _DownloadedFilesCard(refreshKey: _usageRefreshKey,
-            onChanged: () => setState(() => _usageRefreshKey++)),
+          const SectionLabel(label: 'Downloads'),
+          _ActionCard(
+            icon: Icons.download_for_offline_rounded,
+            color: const Color(0xFF6366F1),
+            title: 'Your downloads',
+            subtitle: 'View, open and manage downloaded files',
+            trailing: const Icon(Icons.chevron_right_rounded),
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const YourDownloadsScreen()),
+            ).then((_) {
+              if (mounted) setState(() => _usageRefreshKey++);
+            }),
+          ),
 
           const SizedBox(height: 18),
           Container(
@@ -504,18 +515,20 @@ class _ActionCard extends StatelessWidget {
   }
 }
 
-class _DownloadedFilesCard extends StatefulWidget {
-  const _DownloadedFilesCard({required this.refreshKey, required this.onChanged});
-  final int refreshKey;
-  final VoidCallback onChanged;
+class YourDownloadsScreen extends StatefulWidget {
+  const YourDownloadsScreen({super.key});
+
   @override
-  State<_DownloadedFilesCard> createState() => _DownloadedFilesCardState();
+  State<YourDownloadsScreen> createState() => _YourDownloadsScreenState();
 }
 
-class _DownloadedFilesCardState extends State<_DownloadedFilesCard> {
+class _YourDownloadsScreenState extends State<YourDownloadsScreen> {
+  int _refreshKey = 0;
+  bool _loading = false;
+
   Future<List<File>> _load() async {
     final docs = await getApplicationDocumentsDirectory();
-    final dir = Directory(docs.path + '/Novyn Downloads');
+    final dir = Directory('${docs.path}/Novyn Downloads');
     if (!await dir.exists()) return [];
     final files = <File>[];
     await for (final item in dir.list(followLinks: false)) {
@@ -526,77 +539,273 @@ class _DownloadedFilesCardState extends State<_DownloadedFilesCard> {
   }
 
   String _size(int bytes) => bytes < 1024 * 1024
-      ? (bytes / 1024).toStringAsFixed(1) + ' KB'
-      : (bytes / (1024 * 1024)).toStringAsFixed(1) + ' MB';
+      ? '${(bytes / 1024).toStringAsFixed(1)} KB'
+      : '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+
+  Future<void> _open(File file) async {
+    try {
+      final opened = await launchUrl(
+        Uri.file(file.path),
+        mode: LaunchMode.externalApplication,
+      );
+      if (!opened && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No app can open this file type.')),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not open this file.')),
+        );
+      }
+    }
+  }
+
+  Future<void> _delete(File file) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete downloaded file?'),
+        content: Text(file.uri.pathSegments.last),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await file.delete();
+      if (mounted) {
+        setState(() => _refreshKey++);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Download deleted.')),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not delete this file.')),
+        );
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return FutureBuilder<List<File>>(
-      key: ValueKey(widget.refreshKey), future: _load(),
-      builder: (context, snapshot) {
-        final files = snapshot.data ?? [];
-        Widget content;
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          content = const Center(child: Padding(padding: EdgeInsets.all(16), child: CircularProgressIndicator()));
-        } else if (snapshot.hasError) {
-          content = Text('Could not load downloaded files: ' + snapshot.error.toString());
-        } else if (files.isEmpty) {
-          content = Row(children: [
-            Icon(Icons.download_for_offline_outlined, color: theme.colorScheme.onSurfaceVariant, size: 28),
-            const SizedBox(width: 12),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('No downloads yet', style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800)),
-              Text('Use Download on a chat attachment to save it here.',
-                style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
-            ])),
-          ]);
-        } else {
-          content = Column(children: files.map((file) => ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: const Icon(Icons.insert_drive_file_outlined),
-            title: Text(file.uri.pathSegments.last, maxLines: 1, overflow: TextOverflow.ellipsis),
-            subtitle: FutureBuilder<int>(future: file.length(), builder: (_, size) =>
-              Text(size.hasData ? _size(size.data!) : 'Calculating size…')),
-            trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-              IconButton(
-                tooltip: 'Open downloaded file',
-                icon: const Icon(Icons.open_in_new_rounded),
-                onPressed: () async {
-                  final opened = await launchUrl(Uri.file(file.path), mode: LaunchMode.externalApplication);
-                  if (!opened && context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('No app can open this file type.')),
-                    );
-                  }
-                },
+    final colors = theme.colorScheme;
+    return Scaffold(
+      backgroundColor: NovynTheme.pageBg(context),
+      appBar: AppBar(
+        title: const Text('Your downloads'),
+        backgroundColor: NovynTheme.pageBg(context),
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+      ),
+      body: FutureBuilder<List<File>>(
+        key: ValueKey(_refreshKey),
+        future: _load(),
+        builder: (context, snapshot) {
+          final files = snapshot.data ?? [];
+          final totalBytes = files.fold<int>(0, (sum, file) {
+            try { return sum + file.lengthSync(); } catch (_) { return sum; }
+          });
+          return RefreshIndicator(
+            onRefresh: () async => setState(() => _refreshKey++),
+            child: ListView(
+              physics: const AlwaysScrollableScrollPhysics(
+                parent: BouncingScrollPhysics(),
               ),
-              IconButton(
-              tooltip: 'Delete download', icon: const Icon(Icons.delete_outline_rounded),
-              onPressed: () async {
-                final confirmed = await showDialog<bool>(
-                  context: context,
-                  builder: (ctx) => AlertDialog(
-                    title: const Text('Delete downloaded file?'),
-                    content: Text(file.uri.pathSegments.last),
-                    actions: [
-                      TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-                      FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Delete')),
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(18),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        colors.primary.withValues(alpha: .16),
+                        colors.primary.withValues(alpha: .06),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(22),
+                    border: Border.all(color: colors.outlineVariant),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 54,
+                        height: 54,
+                        decoration: BoxDecoration(
+                          color: colors.primary.withValues(alpha: .13),
+                          borderRadius: BorderRadius.circular(17),
+                        ),
+                        child: Icon(Icons.folder_rounded,
+                            color: colors.primary, size: 28),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Saved on this device',
+                                style: theme.textTheme.titleSmall?.copyWith(
+                                  fontWeight: FontWeight.w900,
+                                )),
+                            const SizedBox(height: 4),
+                            Text(
+                              snapshot.connectionState == ConnectionState.waiting
+                                  ? 'Loading your files…'
+                                  : '${files.length} files  ·  ${_size(totalBytes)}',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: colors.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Refresh downloads',
+                        onPressed: () => setState(() => _refreshKey++),
+                        icon: const Icon(Icons.refresh_rounded),
+                      ),
                     ],
                   ),
-                );
-                if (confirmed == true) {
-                  await file.delete();
-                  if (mounted) setState(() {});
-                  widget.onChanged();
-                }
-              },
-              ),
-            ]),
-          )).toList());
-        }
-        return _CardShell(child: Padding(padding: const EdgeInsets.all(16), child: content));
-      },
+                ),
+                const SizedBox(height: 22),
+                if (snapshot.connectionState == ConnectionState.waiting)
+                  const Padding(
+                    padding: EdgeInsets.all(36),
+                    child: Center(child: CircularProgressIndicator()),
+                  )
+                else if (snapshot.hasError)
+                  _CardShell(
+                    child: Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Text(
+                        'Could not load downloaded files. Please try again.',
+                        style: theme.textTheme.bodyMedium,
+                      ),
+                    ),
+                  )
+                else if (files.isEmpty)
+                  _CardShell(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 24, vertical: 34),
+                      child: Column(
+                        children: [
+                          Icon(Icons.download_for_offline_outlined,
+                              size: 48, color: colors.onSurfaceVariant),
+                          const SizedBox(height: 14),
+                          Text('No downloads yet',
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.w900,
+                              )),
+                          const SizedBox(height: 6),
+                          Text(
+                            'Files you download from chat attachments will appear here.',
+                            textAlign: TextAlign.center,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: colors.onSurfaceVariant,
+                              height: 1.45,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                else
+                  _CardShell(
+                    child: Column(
+                      children: [
+                        for (var i = 0; i < files.length; i++) ...[
+                          ListTile(
+                            contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 14, vertical: 5),
+                            leading: Container(
+                              width: 44,
+                              height: 44,
+                              decoration: BoxDecoration(
+                                color: colors.primary.withValues(alpha: .10),
+                                borderRadius: BorderRadius.circular(13),
+                              ),
+                              child: Icon(Icons.insert_drive_file_outlined,
+                                  color: colors.primary),
+                            ),
+                            title: Text(
+                              files[i].uri.pathSegments.last,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.titleSmall?.copyWith(
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                            subtitle: FutureBuilder<int>(
+                              future: files[i].length(),
+                              builder: (_, size) => Text(
+                                size.hasData
+                                    ? _size(size.data!)
+                                    : 'Calculating size…',
+                              ),
+                            ),
+                            trailing: PopupMenuButton<String>(
+                              tooltip: 'File actions',
+                              onSelected: (action) {
+                                if (action == 'open') _open(files[i]);
+                                if (action == 'delete') _delete(files[i]);
+                              },
+                              itemBuilder: (_) => const [
+                                PopupMenuItem(
+                                  value: 'open',
+                                  child: ListTile(
+                                    leading: Icon(Icons.open_in_new_rounded),
+                                    title: Text('Open'),
+                                    contentPadding: EdgeInsets.zero,
+                                  ),
+                                ),
+                                PopupMenuItem(
+                                  value: 'delete',
+                                  child: ListTile(
+                                    leading: Icon(Icons.delete_outline_rounded),
+                                    title: Text('Delete'),
+                                    contentPadding: EdgeInsets.zero,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (i != files.length - 1)
+                            Divider(
+                              height: 1,
+                              indent: 72,
+                              color: colors.outlineVariant,
+                            ),
+                        ],
+                      ],
+                    ),
+                  ),
+                const SizedBox(height: 14),
+                Text(
+                  'Downloads are stored locally in Novyn and remain on this device until you delete them.',
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: colors.onSurfaceVariant,
+                    height: 1.4,
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
     );
   }
 }
