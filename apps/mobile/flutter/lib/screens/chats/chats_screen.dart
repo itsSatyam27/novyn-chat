@@ -44,6 +44,7 @@ class _ChatsScreenState extends State<ChatsScreen> {
   final FocusNode _searchFocusNode = FocusNode();
   final TextEditingController _searchController = TextEditingController();
   bool _isSearching = false;
+  String _selectedTab = 'all';
 
   // Static cache moved to ChatsScreen widget class
 
@@ -248,6 +249,11 @@ class _ChatsScreenState extends State<ChatsScreen> {
     setState(() => _filtered = next);
   }
 
+  void _selectTab(String value) {
+    HapticService.vibrate(NovynHapticType.selection, category: HapticCategory.chat);
+    setState(() => _selectedTab = value);
+  }
+
   void _onSearch(String query) {
     _search = query;
     _applyFilters();
@@ -256,7 +262,17 @@ class _ChatsScreenState extends State<ChatsScreen> {
   @override
   Widget build(BuildContext context) {
     final isDecoy = context.watch<SettingsService>().decoyMode;
-    final activeChats = isDecoy ? <ChatPreview>[] : _filtered;
+    final allChats = isDecoy ? <ChatPreview>[] : _filtered;
+    final settings = context.watch<SettingsService>();
+    final favorites = settings.favoriteChatIds.toSet();
+    final activeChats = allChats.where((chat) {
+      switch (_selectedTab) {
+        case 'unread': return chat.unreadCount > 0;
+        case 'favorites': return favorites.contains(chat.chatId);
+        case 'groups': return chat.isGroup;
+        default: return true;
+      }
+    }).toList();
     final pinnedChats = activeChats.where((chat) => chat.isPinned).toList();
     final recentChats = activeChats.where((chat) => !chat.isPinned).toList();
     final unreadCount =
@@ -303,6 +319,23 @@ class _ChatsScreenState extends State<ChatsScreen> {
                     },
                   ),
                 ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 14, 20, 8),
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    _ChatFilterChip(label: 'All', value: 'all', selected: _selectedTab, count: allChats.length, onTap: _selectTab),
+                    const SizedBox(width: 8),
+                    _ChatFilterChip(label: 'Unread', value: 'unread', selected: _selectedTab, count: allChats.where((c) => c.unreadCount > 0).length, onTap: _selectTab),
+                    const SizedBox(width: 8),
+                    _ChatFilterChip(label: 'Favorites', value: 'favorites', selected: _selectedTab, count: allChats.where((c) => favorites.contains(c.chatId)).length, onTap: _selectTab),
+                    const SizedBox(width: 8),
+                    _ChatFilterChip(label: 'Groups', value: 'groups', selected: _selectedTab, count: allChats.where((c) => c.isGroup).length, onTap: _selectTab),
+                  ],
+                ),
               ),
             ),
             if (_isSearching) ...[
@@ -422,6 +455,8 @@ class _ChatsScreenState extends State<ChatsScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 12),
       child: _ChatCard(
         preview: preview,
+        isFavorite: context.watch<SettingsService>().favoriteChatIds.contains(preview.chatId),
+        onToggleFavorite: () => context.read<SettingsService>().toggleFavoriteChat(preview.chatId),
         onTap: () async {
           await Navigator.push(
             context,
@@ -485,12 +520,49 @@ class _ChatsScreenState extends State<ChatsScreen> {
 
 }
 
+class _ChatFilterChip extends StatelessWidget {
+  final String label;
+  final String value;
+  final String selected;
+  final int count;
+  final ValueChanged<String> onTap;
+  const _ChatFilterChip({required this.label, required this.value, required this.selected, required this.count, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final active = selected == value;
+    final colors = Theme.of(context).colorScheme;
+    return Material(
+      color: active ? colors.primary : colors.surface,
+      borderRadius: BorderRadius.circular(22),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(22),
+        onTap: () => onTap(value),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 9),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(color: active ? colors.primary : colors.outlineVariant.withValues(alpha: .65)),
+          ),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Text(label, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: active ? colors.onPrimary : colors.onSurface)),
+            const SizedBox(width: 6),
+            Text('$count', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: active ? colors.onPrimary.withValues(alpha: .8) : colors.onSurfaceVariant)),
+          ]),
+        ),
+      ),
+    );
+  }
+}
+
 // ── Redesigned Chat Card ───────────────────────────────────────────────────
 class _ChatCard extends StatelessWidget {
   final ChatPreview preview;
   final VoidCallback onTap;
+  final bool isFavorite;
+  final VoidCallback onToggleFavorite;
 
-  const _ChatCard({required this.preview, required this.onTap});
+  const _ChatCard({required this.preview, required this.onTap, this.isFavorite = false, required this.onToggleFavorite});
 
   @override
   Widget build(BuildContext context) {
@@ -544,6 +616,8 @@ class _ChatCard extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(width: 8),
+                          if (isFavorite) const Icon(Icons.star_rounded, size: 15, color: Color(0xFFFFB300)),
+                          const SizedBox(width: 8),
                           Text(
                             _formatTime(preview.lastTime, context.watch<SettingsService>().timeFormat),
                             style: TextStyle(
@@ -572,6 +646,14 @@ class _ChatCard extends StatelessWidget {
                                     hasUnread ? FontWeight.w600 : FontWeight.w400,
                               ),
                             ),
+                          ),
+                          IconButton(
+                            visualDensity: VisualDensity.compact,
+                            constraints: const BoxConstraints.tightFor(width: 30, height: 30),
+                            padding: EdgeInsets.zero,
+                            tooltip: isFavorite ? 'Remove from favorites' : 'Add to favorites',
+                            onPressed: onToggleFavorite,
+                            icon: Icon(isFavorite ? Icons.star_rounded : Icons.star_border_rounded, size: 19, color: isFavorite ? const Color(0xFFFFB300) : metaColor.withValues(alpha: .65)),
                           ),
                           if (hasUnread) ...[
                             const SizedBox(width: 8),
