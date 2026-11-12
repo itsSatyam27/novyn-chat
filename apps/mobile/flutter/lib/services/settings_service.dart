@@ -61,6 +61,7 @@ class SettingsService extends ChangeNotifier {
   static const _kLastSeen = 'last_seen_visibility';
   static const _kProfilePhoto = 'profile_photo_visibility';
   static const _kBlockedUids = 'blocked_uids';
+  static const _kFavoriteChatIds = 'favorite_chat_ids';
   static const _kNotificationTone = 'notification_tone';
   static const _kCallRingtone = 'call_ringtone';
   static const _kVibrationPattern = 'vibration_pattern';
@@ -124,6 +125,7 @@ class SettingsService extends ChangeNotifier {
   String _lastSeenVisibility = 'everyone'; // 'everyone', 'contacts', 'nobody'
   String _profilePhotoVisibility = 'everyone'; // 'everyone', 'contacts', 'nobody'
   List<String> _blockedUids = [];
+  List<String> _favoriteChatIds = [];
   String _notificationTone = 'Aurora'; // Default tone
   String _callRingtone = 'Binary'; // Default ringtone
   String _vibrationPattern = 'standard'; // standard, staccato, heartbeat, none
@@ -210,6 +212,7 @@ class SettingsService extends ChangeNotifier {
   String get configuredLastSeenVisibility => _lastSeenVisibility;
   String get configuredProfilePhotoVisibility => _profilePhotoVisibility;
   List<String> get blockedUids => _blockedUids;
+  List<String> get favoriteChatIds => List.unmodifiable(_favoriteChatIds);
   bool get appLockEnabled => _appLockEnabled;
   int get appLockTimeout => _appLockTimeout;
   String? get appLockPin => _appLockPin;
@@ -265,6 +268,7 @@ class SettingsService extends ChangeNotifier {
     _lastSeenVisibility = _prefs.getString(_kLastSeen) ?? 'everyone';
     _profilePhotoVisibility = _prefs.getString(_kProfilePhoto) ?? 'everyone';
     _blockedUids = _prefs.getStringList(_kBlockedUids) ?? [];
+    _favoriteChatIds = _prefs.getStringList(_kFavoriteChatIds) ?? [];
     _notificationTone = _prefs.getString(_kNotificationTone) ?? 'Aurora';
     _callRingtone = _prefs.getString(_kCallRingtone) ?? 'Binary';
     _customNotificationPath = _prefs.getString(_kCustomNotificationPath);
@@ -544,6 +548,16 @@ class SettingsService extends ChangeNotifier {
   Future<void> setProfilePhotoVisibility(String v) async {
     _profilePhotoVisibility = v;
     await _prefs.setString(_kProfilePhoto, v);
+    notifyListeners();
+  }
+
+  Future<void> toggleFavoriteChat(String chatId) async {
+    if (_favoriteChatIds.contains(chatId)) {
+      _favoriteChatIds.remove(chatId);
+    } else {
+      _favoriteChatIds.add(chatId);
+    }
+    await _prefs.setStringList(_kFavoriteChatIds, _favoriteChatIds);
     notifyListeners();
   }
 
