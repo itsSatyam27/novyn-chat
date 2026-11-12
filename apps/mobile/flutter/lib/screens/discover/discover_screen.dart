@@ -171,131 +171,103 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
               },
             ),
 
-            // ── Live radar + quick add ───────────────────────────────
-            if (MediaQuery.viewInsetsOf(context).bottom == 0) ...[
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
-                child: _DiscoverRadarCard(),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 12, 20, 2),
-              child: Row(children: [
-                Expanded(child: _DiscoverCountCard(
-                  label: 'Requests', icon: Icons.people_outline_rounded,
-                  stream: friends.pendingRequestsCountStream(myUid),
-                  onTap: () => Navigator.push(context, MaterialPageRoute(
-                    builder: (_) => DiscoverPeopleScreen(myUid: myUid, initialTab: 0),
-                  )),
-                )),
-                const SizedBox(width: 12),
-                Expanded(child: _DiscoverCountCard(
-                  label: 'Sent', icon: Icons.person_add_alt_1_rounded,
-                  stream: friends.sentPendingUidsStream(myUid).map((items) => items.length),
-                  onTap: () => Navigator.push(context, MaterialPageRoute(
-                    builder: (_) => DiscoverPeopleScreen(myUid: myUid, initialTab: 1),
-                  )),
-                )),
-              ]),
-              ),
-            ],
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-              child: _DiscoverAddFriendCard(
-                controller: _friendController,
-                sending: _sendingFriend,
-                onSend: () => _sendFriendRequest(myUid),
-                onShare: () => _showMyQrCode(myUid),
-              ),
-            ),
-
-            // ── Search ──────────────────────────────────────────────
-            NovynSearchField(
-              hint: 'Find people by name or @username...',
-              onChanged: (value) => setState(() => _search = value.trim().toLowerCase()),
-            ),
-
-            // ── User list ────────────────────────────────────────────
+            // Keep the whole Discover content in one scroll view. The previous
+            // fixed-height column squeezed the people list on normal phone screens.
             Expanded(
-              child: StreamBuilder<List<String>>(
-                stream: friends.friendUidsStream(myUid),
-                builder: (context, friendSnap) {
-                  final friendUids = friendSnap.data ?? [];
+              child: ListView(
+                padding: EdgeInsets.zero,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 10, 20, 0),
+                    child: _DiscoverRadarCard(),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 2),
+                    child: _DiscoverAddFriendCard(
+                      controller: _friendController,
+                      sending: _sendingFriend,
+                      onSend: () => _sendFriendRequest(myUid),
+                      onShare: () => _showMyQrCode(myUid),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
+                    child: NovynSearchField(
+                      hint: 'Find people by name or @username...',
+                      onChanged: (value) => setState(() => _search = value.trim().toLowerCase()),
+                    ),
+                  ),
+                  StreamBuilder<List<String>>(
+                    stream: friends.friendUidsStream(myUid),
+                    builder: (context, friendSnap) {
+                      final friendUids = friendSnap.data ?? [];
+                      return StreamBuilder<List<UserModel>>(
+                        stream: friends.discoverUsersStream(myUid, friendUids),
+                        builder: (context, userSnap) {
+                          if (userSnap.connectionState == ConnectionState.waiting) {
+                            return Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                              child: Column(
+                                children: List.generate(4, (_) => Padding(
+                                  padding: const EdgeInsets.only(bottom: 10),
+                                  child: NovynShimmer.discoverItem(),
+                                )),
+                              ),
+                            );
+                          }
 
-                  return StreamBuilder<List<UserModel>>(
-                    stream: friends.discoverUsersStream(myUid, friendUids),
-                    builder: (context, userSnap) {
-                      if (userSnap.connectionState ==
-                          ConnectionState.waiting) {
-                        return ListView.builder(
-                          padding: const EdgeInsets.symmetric(vertical: 8),
-                          itemCount: 6,
-                          itemBuilder: (_, __) => NovynShimmer.discoverItem(),
-                        );
-                      }
+                          final filtered = (userSnap.data ?? <UserModel>[])
+                              .where((user) => _search.isEmpty ||
+                                  user.name.toLowerCase().contains(_search) ||
+                                  user.username.toLowerCase().contains(_search))
+                              .toList()
+                            ..sort((a, b) => (b.isOnline ? 1 : 0) - (a.isOnline ? 1 : 0));
 
-                      final all = userSnap.data ?? [];
-                      final filtered = _search.isEmpty
-                          ? all
-                          : all
-                              .where((u) =>
-                                  u.name
-                                      .toLowerCase()
-                                      .contains(_search) ||
-                                  u.username
-                                      .toLowerCase()
-                                      .contains(_search))
-                              .toList();
+                          if (filtered.isEmpty) {
+                            return Padding(
+                              padding: const EdgeInsets.fromLTRB(20, 18, 20, 32),
+                              child: _buildEmpty(),
+                            );
+                          }
 
-                      // Sort: online first
-                      filtered.sort((a, b) =>
-                          (b.isOnline ? 1 : 0) - (a.isOnline ? 1 : 0));
-
-                      if (filtered.isEmpty) {
-                        return _buildEmpty();
-                      }
-
-                      return StreamBuilder<Set<String>>(
-                        stream: friends.sentPendingUidsStream(myUid),
-                        builder: (context, pendingSnap) {
-                          final pendingUids = pendingSnap.data ?? {};
-
-                          return ListView.separated(
-                            padding: const EdgeInsets.fromLTRB(
-                                16, 8, 16, 24),
-                            itemCount: filtered.length,
-                            separatorBuilder: (_, __) =>
-                                const SizedBox(height: 10),
-                            itemBuilder: (context, i) {
-                              final user = filtered[i];
-                              final isPending =
-                                  pendingUids.contains(user.uid);
-                              return GestureDetector(
-                                onTap: () {
-                                  HapticService.vibrate(NovynHapticType.light, category: HapticCategory.navigation);
-                                  showModalBottomSheet(
-                                    context: context,
-                                    isScrollControlled: true,
-                                    backgroundColor: Colors.transparent,
-                                    builder: (_) => ProfilePreviewSheet(
+                          return StreamBuilder<Set<String>>(
+                            stream: friends.sentPendingUidsStream(myUid),
+                            builder: (context, pendingSnap) {
+                              final pendingUids = pendingSnap.data ?? <String>{};
+                              return ListView.separated(
+                                shrinkWrap: true,
+                                physics: const NeverScrollableScrollPhysics(),
+                                padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
+                                itemCount: filtered.length,
+                                separatorBuilder: (_, __) => const SizedBox(height: 10),
+                                itemBuilder: (context, i) {
+                                  final user = filtered[i];
+                                  return GestureDetector(
+                                    onTap: () {
+                                      HapticService.vibrate(NovynHapticType.light, category: HapticCategory.navigation);
+                                      showModalBottomSheet(
+                                        context: context,
+                                        isScrollControlled: true,
+                                        backgroundColor: Colors.transparent,
+                                        builder: (_) => ProfilePreviewSheet(user: user, showActions: false),
+                                      );
+                                    },
+                                    child: _DiscoverCard(
                                       user: user,
-                                      showActions: false, 
+                                      isPending: pendingUids.contains(user.uid),
+                                      isSending: _sendingRequests.contains(user.uid),
+                                      onAddFriend: () => _sendDiscoveredRequest(myUid, user),
                                     ),
                                   );
                                 },
-                                child: _DiscoverCard(
-                                  user: user,
-                                  isPending: isPending,
-                                  isSending: _sendingRequests.contains(user.uid),
-                                  onAddFriend: () => _sendDiscoveredRequest(myUid, user),
-                                ),
                               );
                             },
                           );
                         },
                       );
                     },
-                  );
-                },
+                  ),
+                ],
               ),
             ),
           ],
@@ -507,41 +479,51 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
 class _DiscoverRadarCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    final dark = Theme.of(context).brightness == Brightness.dark;
-    final ink = Theme.of(context).colorScheme.onSurface;
-    final muted = Theme.of(context).colorScheme.onSurfaceVariant;
+    final theme = Theme.of(context);
     return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(18, 20, 18, 20),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
       ),
-      child: Column(children: [
-        SizedBox(
-          height: 150,
-          width: 180,
-          child: CustomPaint(painter: _RadarPainter(
-            ring: Theme.of(context).colorScheme.primary.withValues(alpha: dark ? .28 : .18),
-            accent: Theme.of(context).colorScheme.primary,
-          )),
-        ),
-        const SizedBox(height: 12),
-        Text('Live online radar', style: TextStyle(
-          fontFamily: 'PlusJakartaSans', fontSize: 13,
-          fontWeight: FontWeight.w700, color: Theme.of(context).colorScheme.primary,
-        )),
-        const SizedBox(height: 8),
-        Text('Find your people', style: TextStyle(
-          fontFamily: 'PlusJakartaSans', fontSize: 21,
-          fontWeight: FontWeight.w800, color: ink,
-        )),
-        const SizedBox(height: 5),
-        Text('See who is around and connect instantly.',
-          textAlign: TextAlign.center,
-          style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 13, color: muted)),
-      ]),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 68,
+            height: 68,
+            child: CustomPaint(painter: _RadarPainter(
+              ring: theme.colorScheme.primary.withValues(alpha: theme.brightness == Brightness.dark ? .28 : .18),
+              accent: theme.colorScheme.primary,
+            )),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('LIVE DISCOVER', style: TextStyle(
+                  fontFamily: 'PlusJakartaSans', fontSize: 10,
+                  fontWeight: FontWeight.w800, letterSpacing: 1.1,
+                  color: theme.colorScheme.primary,
+                )),
+                const SizedBox(height: 4),
+                Text('People around you', style: TextStyle(
+                  fontFamily: 'PlusJakartaSans', fontSize: 16,
+                  fontWeight: FontWeight.w800, color: theme.colorScheme.onSurface,
+                )),
+                const SizedBox(height: 3),
+                Text('Online people appear first', style: TextStyle(
+                  fontFamily: 'PlusJakartaSans', fontSize: 11.5,
+                  color: theme.colorScheme.onSurfaceVariant,
+                )),
+              ],
+            ),
+          ),
+          Icon(Icons.radar_rounded, color: theme.colorScheme.primary, size: 20),
+        ],
+      ),
     );
   }
 }
