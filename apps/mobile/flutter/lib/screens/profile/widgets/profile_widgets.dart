@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../theme/novyn_theme.dart';
+import 'package:novyn/services/haptic_service.dart';
 
 // ── Status Button ──────────────────────────────────────────────────────────
 class StatusButton extends StatelessWidget {
@@ -22,7 +23,7 @@ class StatusButton extends StatelessWidget {
     return Expanded(
       child: GestureDetector(
         onTap: () {
-          HapticFeedback.selectionClick();
+          HapticService.vibrate(NovynHapticType.selection, category: HapticCategory.buttons);
           onTap();
         },
         child: AnimatedContainer(
@@ -92,7 +93,7 @@ class MenuCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
         child: InkWell(
           onTap: () {
-            HapticFeedback.lightImpact();
+            HapticService.vibrate(NovynHapticType.light, category: HapticCategory.buttons);
             onTap();
           },
           borderRadius: BorderRadius.circular(20),
@@ -169,7 +170,7 @@ class ThemeTile extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         child: InkWell(
           onTap: () {
-            HapticFeedback.selectionClick();
+            HapticService.vibrate(NovynHapticType.selection, category: HapticCategory.buttons);
             onTap();
           },
           borderRadius: BorderRadius.circular(16),
@@ -230,7 +231,7 @@ class AboutTile extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         child: InkWell(
           onTap: onTap != null ? () {
-            HapticFeedback.lightImpact();
+            HapticService.vibrate(NovynHapticType.light, category: HapticCategory.buttons);
             onTap!();
           } : null,
           borderRadius: BorderRadius.circular(16),
@@ -390,7 +391,7 @@ class MenuCardWithBadge extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
         child: InkWell(
           onTap: () {
-            HapticFeedback.lightImpact();
+            HapticService.vibrate(NovynHapticType.light, category: HapticCategory.buttons);
             onTap();
           },
           borderRadius: BorderRadius.circular(20),
@@ -536,7 +537,7 @@ class SettingsToggleCard extends StatelessWidget {
                 Switch.adaptive(
                   value: value,
                   onChanged: disabled ? null : (v) {
-                    HapticFeedback.selectionClick();
+                    HapticService.vibrate(NovynHapticType.selection, category: HapticCategory.buttons);
                     onChanged!(v);
                   },
                   activeTrackColor: Theme.of(context).colorScheme.primary,
@@ -571,7 +572,7 @@ class QuickActionButton extends StatelessWidget {
     return Expanded(
       child: GestureDetector(
         onTap: () {
-          HapticFeedback.lightImpact();
+          HapticService.vibrate(NovynHapticType.light, category: HapticCategory.buttons);
           onTap();
         },
         child: Container(
