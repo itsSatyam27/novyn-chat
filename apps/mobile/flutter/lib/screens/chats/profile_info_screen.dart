@@ -12,6 +12,7 @@ class ProfileInfoScreen extends StatelessWidget {
   final VoidCallback? onWallpaper;
   final VoidCallback? onQuickEmojis;
   final bool initiallyBlocked;
+  final bool initiallyMuted;
   final VoidCallback? onMute;
   final VoidCallback? onBlock;
   final VoidCallback? onClearChat;
@@ -28,6 +29,7 @@ class ProfileInfoScreen extends StatelessWidget {
     this.onWallpaper,
     this.onQuickEmojis,
     this.initiallyBlocked = false,
+    this.initiallyMuted = false,
     this.onMute,
     this.onBlock,
     this.onClearChat,
@@ -44,9 +46,9 @@ class ProfileInfoScreen extends StatelessWidget {
     final mutedText = scheme.onSurfaceVariant;
 
     return Scaffold(
-      backgroundColor: scheme.surface,
+      backgroundColor: const Color(0xFFF4F0FF),
       appBar: AppBar(
-        backgroundColor: scheme.surface,
+        backgroundColor: const Color(0xFFF4F0FF),
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
@@ -64,34 +66,73 @@ class ProfileInfoScreen extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
         children: [
           Container(
-            padding: const EdgeInsets.fromLTRB(20, 26, 20, 22),
+            clipBehavior: Clip.antiAlias,
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 18),
             decoration: BoxDecoration(
-              color: scheme.surfaceContainerLow,
-              borderRadius: BorderRadius.circular(26),
-              border: Border.all(color: scheme.outlineVariant.withValues(alpha: .7)),
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(28),
+              border: Border.all(color: const Color(0xFFE8E1FA)),
+              boxShadow: [
+                BoxShadow(
+                  color: scheme.primary.withValues(alpha: .08),
+                  blurRadius: 26,
+                  offset: const Offset(0, 12),
+                ),
+              ],
             ),
             child: Column(
               children: [
-                Hero(
-                  tag: 'avatar_${user.uid}',
-                  child: UserAvatar(
-                    name: user.name,
-                    photoUrl: user.photoUrl,
-                    radius: 48,
-                    showOnlineIndicator: true,
-                    isOnline: online,
-                    presence: user.status,
+                Container(
+                  width: double.infinity,
+                  height: 76,
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(colors: [Color(0xFFD5CCFA), Color(0xFFEDE9FF)]),
+                    borderRadius: BorderRadius.vertical(top: Radius.circular(27)),
                   ),
                 ),
-                const SizedBox(height: 16),
+                Transform.translate(
+                  offset: const Offset(0, -42),
+                  child: Stack(
+                    alignment: Alignment.bottomRight,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(5),
+                        decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.white, boxShadow: [
+                          BoxShadow(color: const Color(0xFF6254D9).withValues(alpha: .16), blurRadius: 18, offset: const Offset(0, 7)),
+                        ]),
+                        child: Hero(
+                          tag: 'avatar_${user.uid}',
+                          child: UserAvatar(
+                            name: user.name, photoUrl: user.photoUrl, radius: 48,
+                            showOnlineIndicator: false, isOnline: online, presence: user.status,
+                          ),
+                        ),
+                      ),
+                      Container(
+                        width: 24, height: 24,
+                        decoration: BoxDecoration(
+                          color: online ? const Color(0xFF10B981) : const Color(0xFF9290A8),
+                          shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 3),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Transform.translate(offset: const Offset(0, -28), child: Column(children: [
                 Text(
                   user.name,
                   textAlign: TextAlign.center,
-                  style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 22, fontWeight: FontWeight.w800, color: scheme.onSurface),
+                  style: TextStyle(
+                    fontFamily: 'PlusJakartaSans',
+                    fontSize: 23,
+                    letterSpacing: -.45,
+                    fontWeight: FontWeight.w800,
+                    color: scheme.onSurface,
+                  ),
                 ),
-                const SizedBox(height: 7),
+                const SizedBox(height: 12),
                 InkWell(
-                  borderRadius: BorderRadius.circular(20),
+                  borderRadius: BorderRadius.circular(24),
                   onTap: () async {
                     await Clipboard.setData(ClipboardData(text: '@${user.username}'));
                     if (context.mounted) {
@@ -101,41 +142,63 @@ class ProfileInfoScreen extends StatelessWidget {
                     }
                   },
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                     decoration: BoxDecoration(
-                      color: scheme.primary.withValues(alpha: .09),
-                      borderRadius: BorderRadius.circular(20),
+                      color: scheme.surface.withValues(alpha: .72),
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(color: scheme.outlineVariant.withValues(alpha: .55)),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(Icons.alternate_email_rounded, size: 15, color: scheme.primary),
-                        const SizedBox(width: 4),
-                        Text(user.username, style: TextStyle(fontFamily: 'PlusJakartaSans', color: scheme.primary, fontSize: 13, fontWeight: FontWeight.w700)),
-                        const SizedBox(width: 6),
-                        Icon(Icons.copy_rounded, size: 13, color: scheme.primary),
+                        const SizedBox(width: 5),
+                        Text(
+                          user.username,
+                          style: TextStyle(fontFamily: 'PlusJakartaSans', color: scheme.primary, fontSize: 13, fontWeight: FontWeight.w700),
+                        ),
+                        const SizedBox(width: 7),
+                        Icon(Icons.copy_rounded, size: 12, color: scheme.onSurfaceVariant),
                       ],
                     ),
                   ),
                 ),
                 const SizedBox(height: 12),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
                   decoration: BoxDecoration(
-                    color: (online ? const Color(0xFF10B981) : mutedText).withValues(alpha: .10),
+                    color: (online ? const Color(0xFF10B981) : mutedText).withValues(alpha: .11),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Container(width: 7, height: 7, decoration: BoxDecoration(color: online ? const Color(0xFF10B981) : mutedText, shape: BoxShape.circle)),
+                      Container(
+                        width: 7,
+                        height: 7,
+                        decoration: BoxDecoration(
+                          color: online ? const Color(0xFF10B981) : mutedText,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
                       const SizedBox(width: 7),
-                      Text(online ? 'Online' : (user.status.isNotEmpty ? user.status : 'Offline'), style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: online ? const Color(0xFF059669) : mutedText)),
+                      Text(
+                        online ? 'Online now' : (user.status.isNotEmpty ? user.status : 'Offline'),
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: online ? const Color(0xFF059669) : mutedText),
+                      ),
                     ],
                   ),
                 ),
+                const SizedBox(height: 12),
+                Row(mainAxisSize: MainAxisSize.min, children: [
+                  const Icon(Icons.calendar_today_outlined, size: 17, color: Color(0xFF77718F)),
+                  const SizedBox(width: 8),
+                  Text('On Novyn since ${_date(user.createdAt)}',
+                    style: const TextStyle(fontSize: 13, color: Color(0xFF77718F), fontWeight: FontWeight.w600)),
+                ]),
+                const SizedBox(height: 22),
                 if (onVoiceCall != null || onVideoCall != null) ...[
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 22),
                   Row(
                     children: [
                       if (onVoiceCall != null)
@@ -146,10 +209,11 @@ class ProfileInfoScreen extends StatelessWidget {
                     ],
                   ),
                 ],
+                ])),
               ],
             ),
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: 22),
           if (user.bio.trim().isNotEmpty) ...[
             _SectionTitle(title: 'ABOUT'),
             _InfoCard(
@@ -164,76 +228,63 @@ class ProfileInfoScreen extends StatelessWidget {
             ),
             const SizedBox(height: 18),
           ],
-          _SectionTitle(title: 'CONTACT DETAILS'),
-          _InfoCard(
-            child: Column(
-              children: [
-                _DetailRow(icon: Icons.alternate_email_rounded, label: 'Username', value: '@${user.username}'),
-                if (user.gender.trim().isNotEmpty) _DetailRow(icon: Icons.person_outline_rounded, label: 'Gender', value: user.gender),
-                if (user.age != null) _DetailRow(icon: Icons.cake_outlined, label: 'Age', value: user.age.toString()),
-                _DetailRow(icon: Icons.calendar_today_outlined, label: 'On Novyn since', value: _date(user.createdAt)),
-                if (!online && user.lastSeen != null)
-                  _DetailRow(icon: Icons.access_time_rounded, label: 'Last seen', value: _dateTime(user.lastSeen!)),
-              ],
-            ),
-          ),
-          if (onSharedMedia != null || onWallpaper != null || onQuickEmojis != null) ...[
-            const SizedBox(height: 18),
-            _SectionTitle(title: 'CHAT'),
-            _InfoCard(
-              child: Column(
-                children: [
-                  if (onSharedMedia != null)
-                    _NavigationRow(icon: Icons.photo_library_outlined, title: 'Shared media', subtitle: 'Photos, videos and files', onTap: onSharedMedia!),
-                  if (onSharedMedia != null && onWallpaper != null)
-                    Divider(height: 18, color: scheme.outlineVariant.withValues(alpha: .6)),
-                  if (onWallpaper != null)
-                    _NavigationRow(icon: Icons.wallpaper_rounded, title: 'Chat wallpaper', subtitle: 'Personalise this conversation', onTap: onWallpaper!),
-                  if (onWallpaper != null && onQuickEmojis != null)
-                    Divider(height: 18, color: scheme.outlineVariant.withValues(alpha: .6)),
-                  if (onQuickEmojis != null)
-                    _NavigationRow(icon: Icons.emoji_emotions_outlined, title: 'Quick emojis', subtitle: 'Choose emojis for faster messaging', onTap: onQuickEmojis!),
-                ],
+          Row(children: [
+            if (onSharedMedia != null)
+              Expanded(child: _FeatureTile(icon: Icons.image_outlined, title: 'Shared media', subtitle: 'Photos, videos, files', tint: const Color(0xFFE4F1FC), accent: const Color(0xFF347DBB), onTap: onSharedMedia!)),
+            if (onSharedMedia != null && onWallpaper != null) const SizedBox(width: 10),
+            if (onWallpaper != null)
+              Expanded(child: _FeatureTile(icon: Icons.palette_outlined, title: 'Wallpaper', subtitle: 'Personalise chat', tint: const Color(0xFFFCE8F1), accent: const Color(0xFFC92B72), onTap: onWallpaper!)),
+            if ((onSharedMedia != null || onWallpaper != null) && onQuickEmojis != null) const SizedBox(width: 10),
+            if (onQuickEmojis != null)
+              Expanded(child: _FeatureTile(icon: Icons.qr_code_2_rounded, title: 'QR code', subtitle: 'Scannable profile', tint: const Color(0xFFEEE9FF), accent: const Color(0xFF6554D9), onTap: () => _showContactQr(context))),
+          ]),
+          const SizedBox(height: 26),
+          const _SectionHeading(title: 'CHAT SETTINGS', color: Color(0xFF6554D9)),
+          _SettingsCard(children: [
+            if (onMute != null)
+              _SettingsTile(
+                icon: Icons.notifications_off_outlined, title: 'Mute notifications',
+                subtitle: 'Silence alerts from this contact',
+                tint: const Color(0xFFFFF0D9), accent: const Color(0xFFB87512),
+                trailing: Switch.adaptive(value: initiallyMuted, onChanged: (_) => onMute!()),
+                onTap: onMute!,
               ),
-            ),
-          ],
-          const SizedBox(height: 18),
-          _SectionTitle(title: 'NOTIFICATIONS & SAFETY'),
-          _InfoCard(
-            child: Column(
-              children: [
-                if (onMute != null)
-                  _NavigationRow(icon: Icons.notifications_off_outlined, title: 'Mute notifications', subtitle: 'Silence alerts from this contact', onTap: onMute!),
-                if (onMute != null) Divider(height: 16, color: scheme.outlineVariant.withValues(alpha: .6)),
-                if (onBlock != null)
-                  _NavigationRow(icon: initiallyBlocked ? Icons.lock_open_rounded : Icons.block_rounded, title: initiallyBlocked ? 'Unblock contact' : 'Block contact', subtitle: initiallyBlocked ? 'Allow this contact to reach you' : 'Stop messages and calls from this contact', onTap: onBlock!),
-                if (onBlock != null) Divider(height: 16, color: scheme.outlineVariant.withValues(alpha: .6)),
-                _NavigationRow(icon: Icons.qr_code_2_rounded, title: 'Contact QR code', subtitle: 'Show a scannable profile code', onTap: () => _showContactQr(context)),
-              ],
-            ),
-          ),
-          const SizedBox(height: 18),
-          _SectionTitle(title: 'CHAT MANAGEMENT'),
-          _InfoCard(
-            child: Column(
-              children: [
-                if (chatProtected)
-                  _NavigationRow(icon: Icons.shield_rounded, title: 'Chat export disabled', subtitle: 'This contact enabled Stealth Mode', onTap: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Export is disabled because this contact enabled Stealth Mode.')),
-                    );
-                  }),
-                if (!chatProtected && onExportChat != null)
-                  _NavigationRow(icon: Icons.ios_share_rounded, title: 'Export chat', subtitle: 'Save this conversation as a file', onTap: onExportChat!),
-                if ((chatProtected || onExportChat != null) && onClearChat != null) Divider(height: 16, color: scheme.outlineVariant.withValues(alpha: .6)),
-                if (onClearChat != null)
-                  _NavigationRow(icon: Icons.delete_sweep_outlined, title: 'Clear chat history', subtitle: 'Remove messages from this conversation', onTap: () => _confirmContactAction(context, 'Clear chat history?', 'This clears the conversation history from your account and cannot be undone.', 'Clear', onClearChat!)),
-                if (onClearChat != null && onRemoveFriend != null) Divider(height: 16, color: scheme.outlineVariant.withValues(alpha: .6)),
-                if (onRemoveFriend != null)
-                  _NavigationRow(icon: Icons.person_remove_alt_1_rounded, title: 'Remove contact', subtitle: 'Remove this person from your friends', onTap: () => _confirmContactAction(context, 'Remove contact?', 'You will need to send a new friend request to chat again.', 'Remove', onRemoveFriend!)),
-              ],
-            ),
-          ),
+            if (onMute != null && !chatProtected && onExportChat != null)
+              const _SettingsDivider(),
+            if (!chatProtected && onExportChat != null)
+              _SettingsTile(icon: Icons.ios_share_rounded, title: 'Export chat',
+                subtitle: 'Export as HTML or text file',
+                tint: const Color(0xFFE0F4ED), accent: const Color(0xFF168B61),
+                onTap: onExportChat!),
+            if (chatProtected)
+              _SettingsTile(icon: Icons.shield_rounded, title: 'Chat export disabled',
+                subtitle: 'Export is unavailable while Stealth Mode is active',
+                tint: const Color(0xFFE0F4ED), accent: const Color(0xFF168B61),
+                onTap: () => ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Export is disabled because this contact enabled Stealth Mode.')))),
+          ]),
+          const SizedBox(height: 26),
+          const _SectionHeading(title: 'DANGER ZONE', color: Color(0xFFC52D25)),
+          _SettingsCard(danger: true, children: [
+            if (onBlock != null)
+              _SettingsTile(icon: initiallyBlocked ? Icons.lock_open_rounded : Icons.block_rounded,
+                title: initiallyBlocked ? 'Unblock contact' : 'Block contact',
+                subtitle: initiallyBlocked ? 'Allow this contact to reach you' : 'Stop messages and calls from this contact',
+                tint: const Color(0xFFFCE8E8), accent: const Color(0xFFC52D25), danger: true, onTap: onBlock!),
+            if (onBlock != null && onClearChat != null) const _SettingsDivider(danger: true),
+            if (onClearChat != null)
+              _SettingsTile(icon: Icons.delete_outline_rounded, title: 'Clear chat history',
+                subtitle: 'Remove messages from this conversation',
+                tint: const Color(0xFFFCE8E8), accent: const Color(0xFFC52D25), danger: true,
+                onTap: () => _confirmContactAction(context, 'Clear chat history?', 'This clears the conversation history from your account and cannot be undone.', 'Clear', onClearChat!)),
+            if ((onBlock != null || onClearChat != null) && onRemoveFriend != null) const _SettingsDivider(danger: true),
+            if (onRemoveFriend != null)
+              _SettingsTile(icon: Icons.person_remove_alt_1_rounded, title: 'Remove contact',
+                subtitle: 'Remove this person from your friends',
+                tint: const Color(0xFFFCE8E8), accent: const Color(0xFFC52D25), danger: true,
+                onTap: () => _confirmContactAction(context, 'Remove contact?', 'You will need to send a new friend request to chat again.', 'Remove', onRemoveFriend!)),
+          ]),
+
         ],
       ),
     );
@@ -392,4 +443,72 @@ class _NavigationRow extends StatelessWidget {
       ),
     );
   }
+}
+
+class _FeatureTile extends StatelessWidget {
+  final IconData icon; final String title; final String subtitle;
+  final Color tint; final Color accent; final VoidCallback onTap;
+  const _FeatureTile({required this.icon, required this.title, required this.subtitle, required this.tint, required this.accent, required this.onTap});
+  @override Widget build(BuildContext context) => InkWell(
+    onTap: onTap, borderRadius: BorderRadius.circular(22),
+    child: Container(
+      constraints: const BoxConstraints(minHeight: 126),
+      padding: const EdgeInsets.fromLTRB(7, 14, 7, 12),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(22), border: Border.all(color: const Color(0xFFEAE5F8))),
+      child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+        Container(width: 52, height: 52, decoration: BoxDecoration(color: tint, borderRadius: BorderRadius.circular(17)), child: Icon(icon, color: accent, size: 27)),
+        const SizedBox(height: 10),
+        Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Color(0xFF211D43))),
+        const SizedBox(height: 4),
+        Text(subtitle, maxLines: 2, textAlign: TextAlign.center, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 10, height: 1.25, color: Color(0xFF77718F))),
+      ]),
+    ),
+  );
+}
+
+class _SectionHeading extends StatelessWidget {
+  final String title; final Color color;
+  const _SectionHeading({required this.title, required this.color});
+  @override Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.fromLTRB(4, 0, 4, 10),
+    child: Text(title, style: TextStyle(fontSize: 12, letterSpacing: 1.15, fontWeight: FontWeight.w900, color: color)),
+  );
+}
+
+class _SettingsCard extends StatelessWidget {
+  final List<Widget> children; final bool danger;
+  const _SettingsCard({required this.children, this.danger = false});
+  @override Widget build(BuildContext context) => Container(
+    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(22),
+      border: Border.all(color: danger ? const Color(0xFFF4D4D1) : const Color(0xFFEAE5F8))),
+    child: Column(mainAxisSize: MainAxisSize.min, children: children),
+  );
+}
+
+class _SettingsDivider extends StatelessWidget {
+  final bool danger; const _SettingsDivider({this.danger = false});
+  @override Widget build(BuildContext context) => Divider(height: 1, thickness: 1, indent: 76, color: danger ? const Color(0xFFF7E3E1) : const Color(0xFFF0ECF8));
+}
+
+class _SettingsTile extends StatelessWidget {
+  final IconData icon; final String title; final String subtitle;
+  final Color tint; final Color accent; final Widget? trailing;
+  final VoidCallback onTap; final bool danger;
+  const _SettingsTile({required this.icon, required this.title, required this.subtitle, required this.tint, required this.accent, required this.onTap, this.trailing, this.danger = false});
+  @override Widget build(BuildContext context) => InkWell(
+    onTap: onTap,
+    child: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+      child: Row(children: [
+        Container(width: 46, height: 46, decoration: BoxDecoration(color: tint, borderRadius: BorderRadius.circular(15)), child: Icon(icon, color: accent, size: 25)),
+        const SizedBox(width: 13),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(title, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: danger ? accent : const Color(0xFF211D43))),
+          const SizedBox(height: 4),
+          Text(subtitle, style: const TextStyle(fontSize: 11, color: Color(0xFF77718F), height: 1.25)),
+        ])),
+        trailing ?? Icon(Icons.chevron_right_rounded, color: danger ? const Color(0xFF9D8EAB) : const Color(0xFF9D96B4), size: 22),
+      ]),
+    ),
+  );
 }

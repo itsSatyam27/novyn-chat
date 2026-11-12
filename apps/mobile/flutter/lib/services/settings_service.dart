@@ -51,6 +51,7 @@ class SettingsService extends ChangeNotifier {
   static const _kAutoDownloadMobile = 'auto_download_mobile';
   static const _kPhotoQuality = 'photo_quality';
   static const _kLanguage = 'language';
+  static const _kTimeFormat = 'chat_time_format';
   static const _kFontSize = 'font_size';
   static const _kChatLabelSize = 'chat_label_size';
   static const _kAccentColor = 'appearance_accent_color';
@@ -60,6 +61,7 @@ class SettingsService extends ChangeNotifier {
   static const _kLastSeen = 'last_seen_visibility';
   static const _kProfilePhoto = 'profile_photo_visibility';
   static const _kBlockedUids = 'blocked_uids';
+  static const _kFavoriteChatIds = 'favorite_chat_ids';
   static const _kNotificationTone = 'notification_tone';
   static const _kCallRingtone = 'call_ringtone';
   static const _kVibrationPattern = 'vibration_pattern';
@@ -113,6 +115,7 @@ class SettingsService extends ChangeNotifier {
   String _autoDownloadMobile = 'photos'; // 'all', 'photos', 'none'
   String _photoQuality = 'high'; // 'high', 'medium', 'low'
   String _language = 'en'; // Language code
+  String _timeFormat = '12h'; // '12h' or '24h'
   double _fontSize = 1.0; // Message body font scale
   double _chatLabelSize = 1.0;
   int _accentColorValue = 0xFF6D5DFC;
@@ -122,6 +125,7 @@ class SettingsService extends ChangeNotifier {
   String _lastSeenVisibility = 'everyone'; // 'everyone', 'contacts', 'nobody'
   String _profilePhotoVisibility = 'everyone'; // 'everyone', 'contacts', 'nobody'
   List<String> _blockedUids = [];
+  List<String> _favoriteChatIds = [];
   String _notificationTone = 'Aurora'; // Default tone
   String _callRingtone = 'Binary'; // Default ringtone
   String _vibrationPattern = 'standard'; // standard, staccato, heartbeat, none
@@ -177,6 +181,7 @@ class SettingsService extends ChangeNotifier {
   String? get customRingtonePath => _customRingtonePath;
   String get region => _region;
   String get language => _language;
+  String get timeFormat => _timeFormat;
   String get vibrationPattern => _vibrationPattern;
   double get hapticIntensity => _hapticIntensity;
   bool get hapticNavigation => _hapticNavigation;
@@ -207,6 +212,7 @@ class SettingsService extends ChangeNotifier {
   String get configuredLastSeenVisibility => _lastSeenVisibility;
   String get configuredProfilePhotoVisibility => _profilePhotoVisibility;
   List<String> get blockedUids => _blockedUids;
+  List<String> get favoriteChatIds => List.unmodifiable(_favoriteChatIds);
   bool get appLockEnabled => _appLockEnabled;
   int get appLockTimeout => _appLockTimeout;
   String? get appLockPin => _appLockPin;
@@ -249,6 +255,8 @@ class SettingsService extends ChangeNotifier {
     _autoDownloadMobile = _prefs.getString(_kAutoDownloadMobile) ?? 'photos';
     _photoQuality = _prefs.getString(_kPhotoQuality) ?? 'high';
     _language = _prefs.getString(_kLanguage) ?? 'en';
+    final savedTimeFormat = _prefs.getString(_kTimeFormat) ?? '12h';
+    _timeFormat = savedTimeFormat == '24h' ? '24h' : '12h';
     _fontSize = (_prefs.getDouble(_kFontSize) ?? 1.0).clamp(0.85, 1.25).toDouble();
     _chatLabelSize = (_prefs.getDouble(_kChatLabelSize) ?? 1.0).clamp(0.8, 1.4).toDouble();
     _accentColorValue = _prefs.getInt(_kAccentColor) ?? 0xFF6D5DFC;
@@ -260,6 +268,7 @@ class SettingsService extends ChangeNotifier {
     _lastSeenVisibility = _prefs.getString(_kLastSeen) ?? 'everyone';
     _profilePhotoVisibility = _prefs.getString(_kProfilePhoto) ?? 'everyone';
     _blockedUids = _prefs.getStringList(_kBlockedUids) ?? [];
+    _favoriteChatIds = _prefs.getStringList(_kFavoriteChatIds) ?? [];
     _notificationTone = _prefs.getString(_kNotificationTone) ?? 'Aurora';
     _callRingtone = _prefs.getString(_kCallRingtone) ?? 'Binary';
     _customNotificationPath = _prefs.getString(_kCustomNotificationPath);
@@ -524,6 +533,12 @@ class SettingsService extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> setTimeFormat(String value) async {
+    _timeFormat = value == '24h' ? '24h' : '12h';
+    await _prefs.setString(_kTimeFormat, _timeFormat);
+    notifyListeners();
+  }
+
   Future<void> setLastSeenVisibility(String v) async {
     _lastSeenVisibility = v;
     await _prefs.setString(_kLastSeen, v);
@@ -533,6 +548,16 @@ class SettingsService extends ChangeNotifier {
   Future<void> setProfilePhotoVisibility(String v) async {
     _profilePhotoVisibility = v;
     await _prefs.setString(_kProfilePhoto, v);
+    notifyListeners();
+  }
+
+  Future<void> toggleFavoriteChat(String chatId) async {
+    if (_favoriteChatIds.contains(chatId)) {
+      _favoriteChatIds.remove(chatId);
+    } else {
+      _favoriteChatIds.add(chatId);
+    }
+    await _prefs.setStringList(_kFavoriteChatIds, _favoriteChatIds);
     notifyListeners();
   }
 
