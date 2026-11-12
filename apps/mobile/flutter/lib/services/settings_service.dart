@@ -51,6 +51,7 @@ class SettingsService extends ChangeNotifier {
   static const _kAutoDownloadMobile = 'auto_download_mobile';
   static const _kPhotoQuality = 'photo_quality';
   static const _kLanguage = 'language';
+  static const _kTimeFormat = 'chat_time_format';
   static const _kFontSize = 'font_size';
   static const _kChatLabelSize = 'chat_label_size';
   static const _kAccentColor = 'appearance_accent_color';
@@ -113,6 +114,7 @@ class SettingsService extends ChangeNotifier {
   String _autoDownloadMobile = 'photos'; // 'all', 'photos', 'none'
   String _photoQuality = 'high'; // 'high', 'medium', 'low'
   String _language = 'en'; // Language code
+  String _timeFormat = '12h'; // '12h' or '24h'
   double _fontSize = 1.0; // Message body font scale
   double _chatLabelSize = 1.0;
   int _accentColorValue = 0xFF6D5DFC;
@@ -177,6 +179,7 @@ class SettingsService extends ChangeNotifier {
   String? get customRingtonePath => _customRingtonePath;
   String get region => _region;
   String get language => _language;
+  String get timeFormat => _timeFormat;
   String get vibrationPattern => _vibrationPattern;
   double get hapticIntensity => _hapticIntensity;
   bool get hapticNavigation => _hapticNavigation;
@@ -249,6 +252,8 @@ class SettingsService extends ChangeNotifier {
     _autoDownloadMobile = _prefs.getString(_kAutoDownloadMobile) ?? 'photos';
     _photoQuality = _prefs.getString(_kPhotoQuality) ?? 'high';
     _language = _prefs.getString(_kLanguage) ?? 'en';
+    final savedTimeFormat = _prefs.getString(_kTimeFormat) ?? '12h';
+    _timeFormat = savedTimeFormat == '24h' ? '24h' : '12h';
     _fontSize = (_prefs.getDouble(_kFontSize) ?? 1.0).clamp(0.85, 1.25).toDouble();
     _chatLabelSize = (_prefs.getDouble(_kChatLabelSize) ?? 1.0).clamp(0.8, 1.4).toDouble();
     _accentColorValue = _prefs.getInt(_kAccentColor) ?? 0xFF6D5DFC;
@@ -521,6 +526,12 @@ class SettingsService extends ChangeNotifier {
   Future<void> setTwoFactorAuth(bool v) async {
     _twoFactorAuth = v;
     await _prefs.setBool(_kTwoFactorAuth, v);
+    notifyListeners();
+  }
+
+  Future<void> setTimeFormat(String value) async {
+    _timeFormat = value == '24h' ? '24h' : '12h';
+    await _prefs.setString(_kTimeFormat, _timeFormat);
     notifyListeners();
   }
 
