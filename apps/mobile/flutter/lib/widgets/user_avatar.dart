@@ -174,8 +174,8 @@ class _UserAvatarState extends State<UserAvatar> {
           bottom: 0,
           child: Container(
             key: const ValueKey('avatar-presence'),
-            width: widget.radius * 0.45,
-            height: widget.radius * 0.45,
+            width: widget.radius * 0.55,
+            height: widget.radius * 0.55,
             decoration: BoxDecoration(
               color: !widget.isOnline
                   ? const Color(0xFF64748B)
