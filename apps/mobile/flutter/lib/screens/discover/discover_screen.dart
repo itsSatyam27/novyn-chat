@@ -348,7 +348,6 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     }
   }
   Future<void> _showScanPlaceholder(BuildContext context) async {
-    final manualUsername = TextEditingController();
     final status = await Permission.camera.request();
     if (status.isDenied || status.isPermanentlyDenied) {
       if (mounted) {
@@ -366,6 +365,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     }
 
     if (!mounted) return;
+    final manualUsername = TextEditingController();
     final theme = Theme.of(context);
     await showModalBottomSheet(
       context: context,
