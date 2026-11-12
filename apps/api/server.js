@@ -5793,6 +5793,9 @@ io.on("connection", (socket) => {
         friendRequestPrivacy: user.friendRequestPrivacy || "everyone",
         readReceiptsEnabled: user.readReceiptsEnabled !== false,
         typingIndicatorsEnabled: user.typingIndicatorsEnabled !== false,
+        notificationsEnabled: user.notificationsEnabled !== false,
+        messagePreviewEnabled: user.messagePreviewEnabled !== false,
+        groupNotificationsEnabled: user.groupNotificationsEnabled !== false,
       },
     });
   });
