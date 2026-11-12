@@ -724,7 +724,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                           cursorColor: Theme.of(context).colorScheme.primary,
                           style: TextStyle(
                             fontFamily: 'PlusJakartaSans',
-                            fontSize: 15,
+                            fontSize: 15 * context.watch<SettingsService>().fontSize,
                             color: theme.colorScheme.onSurface,
                           ),
                           onChanged: (v) {
@@ -1989,7 +1989,8 @@ class _MessageBubble extends StatelessWidget {
                                 : Theme.of(context).colorScheme.onSurface,
                           ),
                         ),
-                        if (_extractFirstUrl(message.text as String) != null)
+                        if (context.watch<SettingsService>().chatLinkPreviews &&
+                            _extractFirstUrl(message.text as String) != null)
                           _buildLinkPreview(context, _extractFirstUrl(message.text as String)!),
                         if (message.edited == true)
                           Padding(
