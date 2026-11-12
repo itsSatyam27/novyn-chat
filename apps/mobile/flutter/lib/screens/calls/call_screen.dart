@@ -119,7 +119,7 @@ class _CallScreenState extends State<CallScreen>
       await _webrtc.init();
       await _webrtc.setEarpieceMode();
       if (mounted) setState(() {});
-    } catch (error) {
+    } catch (_) {
       if (mounted) setState(() => _mediaError = 'Call audio/video could not be initialized. Check device permissions.');
     }
   }
@@ -136,6 +136,8 @@ class _CallScreenState extends State<CallScreen>
     _mediaInitializing = true;
     try {
       await _webrtc.startLocalStream(video: _isVideo);
+      if (_muted) _webrtc.toggleMute(true);
+      if (_cameraOff) _webrtc.toggleCamera(true);
       _mediaStarted = true;
       _mediaError = null;
     } finally {
@@ -533,7 +535,7 @@ class _CallScreenState extends State<CallScreen>
                   IconButton(
                     icon: const Icon(Icons.arrow_back_ios_rounded,
                         color: Colors.white),
-                    onPressed: () => Navigator.pop(context),
+                    onPressed: _endCall,
                   ),
                   Expanded(
                     child: Column(
@@ -678,7 +680,7 @@ class _CallScreenState extends State<CallScreen>
                   IconButton(
                     icon: const Icon(Icons.keyboard_arrow_down_rounded,
                         color: Colors.white70, size: 32),
-                    onPressed: () => Navigator.pop(context),
+                    onPressed: _endCall,
                   ),
                   Expanded(
                     child: Center(
@@ -807,6 +809,10 @@ class _CallScreenState extends State<CallScreen>
                 );
               },
             ),
+            if (_state == CallState.connected) ...[
+              const SizedBox(height: 12),
+              _NetworkQualityBadge(webrtc: _webrtc),
+            ],
 
             const Spacer(),
 
