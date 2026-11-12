@@ -58,7 +58,7 @@ class ChatBackupService {
     return result != null;
   }
 
-  static Future<Map<String, int>> restoreBackup({
+  static Future<Map<String, int>?> restoreBackup({
     required String username,
     required String password,
     required MessageEncryptionService encryption,
@@ -69,9 +69,7 @@ class ChatBackupService {
       withData: true,
       allowMultiple: false,
     );
-    if (picked == null || picked.files.isEmpty) {
-      throw const FormatException('No backup file selected.');
-    }
+    if (picked == null || picked.files.isEmpty) return null;
     final bytes = picked.files.single.bytes;
     if (bytes == null || bytes.length > 100 * 1024 * 1024) {
       throw const FormatException('Backup file is missing or larger than 100 MB.');
