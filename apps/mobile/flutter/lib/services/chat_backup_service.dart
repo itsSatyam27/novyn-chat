@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:cryptography/cryptography.dart';
@@ -22,8 +23,9 @@ class ChatBackupService {
       throw const FormatException('Use a backup password with at least 8 characters.');
     }
     final data = await LocalDbService.exportChatBackupData();
-    final salt = Cryptography.instance.randomBytes(16);
-    final nonce = Cryptography.instance.randomBytes(12);
+    final random = Random.secure();
+    final salt = List<int>.generate(16, (_) => random.nextInt(256));
+    final nonce = List<int>.generate(12, (_) => random.nextInt(256));
     final key = await _pbkdf2.deriveKey(
       secretKey: SecretKey(utf8.encode(password)),
       nonce: salt,
