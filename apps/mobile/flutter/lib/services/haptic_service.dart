@@ -29,7 +29,7 @@ class HapticService {
     if (pattern == 'none') return;
 
     final intensity = settings.hapticIntensity.clamp(0.0, 1.0);
-    final amplitude = (70 + intensity * 185).round().clamp(1, 255);
+    final amplitude = (70 + intensity * 185).round().clamp(1, 255).toInt();
 
     // Each entry is a duration in milliseconds. A zero amplitude is a pause.
     // The patterns are intentionally distinct in both pulse count and spacing.
