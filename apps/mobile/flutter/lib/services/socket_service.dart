@@ -79,8 +79,10 @@ class SocketService extends ChangeNotifier {
 
   // Typing
   bool _peerIsTyping = false;
-  Timer? _typingDebounce;
   Timer? _typingStopTimer;
+  String? _typingTargetKey;
+  String? _typingTargetUsername;
+  bool _typingTargetIsGroup = false;
 
   // Typing across other chats: peerUsername → true
   final Map<String, bool> _typingInChats = {};
@@ -99,8 +101,9 @@ class SocketService extends ChangeNotifier {
   Function()? onCallEndedCallback;
   Function(Map)? onWebRTCSignalCallback;
 
-  // Status callbacks
+  // Status and foreground message callbacks
   Function(String username, bool isOnline)? onUserStatusChanged;
+  Function(String sender, String body)? onIncomingMessage;
   VoidCallback? onConnected;
 
   List<Message> get messages => List.unmodifiable(_messages);
@@ -292,12 +295,12 @@ class SocketService extends ChangeNotifier {
         final newest = parsed.isEmpty
             ? DateTime.fromMillisecondsSinceEpoch(0)
             : parsed.last.createdAt;
-        _messages = [
+        _messages = _resolveReplyPreviews([
           ...decrypted,
           ..._messages.where((message) =>
               !ids.contains(message.id) && message.createdAt.isAfter(newest))
-        ];
-        HybridDbService.saveMessages(decrypted);
+        ]);
+        HybridDbService.saveMessages(_messages);
         notifyListeners();
       }
     });
@@ -373,12 +376,19 @@ class SocketService extends ChangeNotifier {
           }
         }
       } else if (!isOwn) {
-        // Message for a different chat — sound and vibration are independent preferences.
+        onIncomingMessage?.call(chatPartner, msg.text);
+        // Sound and vibration remain independent user preferences.
         if (!(notificationsMuted?.call() ?? false)) {
           unawaited(_playIncomingMessageSound());
         }
         final vibrate = notificationsVibrate;
         if (vibrate != null) unawaited(vibrate());
+      }
+
+      // Resolve encrypted reply metadata against locally decrypted originals.
+      if (_currentChatWith?.toLowerCase() == chatPartner.toLowerCase()) {
+        _messages = _resolveReplyPreviews(_messages);
+        HybridDbService.saveMessages(_messages);
       }
 
       // Update conversations list preview
@@ -764,6 +774,7 @@ class SocketService extends ChangeNotifier {
 
   // ── Open a chat ────────────────────────────────────────────────────────────
   void openChat(String peerUsername, List<Message> cachedHistory) {
+    if (_typingTargetKey != null) _stopActiveTyping();
     _currentChatWith = peerUsername;
     _chatWallpaper = '';
     _messages = List<Message>.from(cachedHistory);
@@ -779,6 +790,7 @@ class SocketService extends ChangeNotifier {
   }
 
   void closeChat() {
+    if (_typingTargetKey != null) _stopActiveTyping();
     _currentChatWith = null;
     _messages = [];
     _peerIsTyping = false;
@@ -786,7 +798,7 @@ class SocketService extends ChangeNotifier {
   }
 
   void prependOlderMessages(List<Message> older) {
-    _messages = [...older, ..._messages];
+    _messages = _resolveReplyPreviews([...older, ..._messages]);
     notifyListeners();
   }
 
@@ -1097,8 +1109,31 @@ class SocketService extends ChangeNotifier {
             ? byId[message.id] ?? message
             : message)
         .toList();
-    await HybridDbService.saveMessages(decrypted);
+    _messages = _resolveReplyPreviews(_messages);
+    await HybridDbService.saveMessages(_messages);
     notifyListeners();
+  }
+
+  List<Message> _resolveReplyPreviews(List<Message> messages) {
+    final originals = <String, Message>{
+      for (final message in messages) message.id: message,
+    };
+    return messages.map((message) {
+      final replyId = message.replyToId;
+      if (replyId == null || replyId.isEmpty) return message;
+      final original = originals[replyId];
+      if (original == null ||
+          original.text.isEmpty ||
+          original.text == '🔒 Encrypted message') {
+        return message;
+      }
+      return message.copyWith(
+        replyToText: original.text,
+        replyToSender: message.replyToSender?.isNotEmpty == true
+            ? message.replyToSender
+            : (original.isFromMe ? 'You' : original.senderId),
+      );
+    }).toList();
   }
 
   Future<int> importMessageKeys(String file, String password) async {
@@ -1118,29 +1153,48 @@ class SocketService extends ChangeNotifier {
     return count;
   }
 
-  // ── Typing indicators (debounced) ─────────────────────────────────────────
+  // ── Typing indicators ──────────────────────────────────────────────────────
+  // Emit once on transition to typing, then emit a stop after the user pauses.
+  // Per-keystroke events can hit the server's socket rate limit.
   void startTyping(String peerUsername, {bool isGroup = false}) {
-    _typingDebounce?.cancel();
+    final key = '${isGroup ? 'group' : 'friend'}:${peerUsername.toLowerCase()}';
+    if (_typingTargetKey != null && _typingTargetKey != key) {
+      _stopActiveTyping();
+    }
+    if (_typingTargetKey != key) {
+      _typingTargetKey = key;
+      _typingTargetUsername = peerUsername;
+      _typingTargetIsGroup = isGroup;
+      _socket?.emit('typing', {
+        'to': peerUsername,
+        'isTyping': true,
+        'toType': isGroup ? 'group' : 'friend',
+      });
+    }
     _typingStopTimer?.cancel();
-    _socket?.emit('typing', {
-      'to': peerUsername,
-      'isTyping': true,
-      'toType': isGroup ? 'group' : 'friend',
-    });
-    _typingDebounce = Timer(const Duration(milliseconds: 300), () {});
-    _typingStopTimer = Timer(const Duration(seconds: 3), () {
+    _typingStopTimer = Timer(const Duration(milliseconds: 2200), () {
       stopTyping(peerUsername, isGroup: isGroup);
     });
   }
 
   void stopTyping(String peerUsername, {bool isGroup = false}) {
-    _typingDebounce?.cancel();
+    final key = '${isGroup ? 'group' : 'friend'}:${peerUsername.toLowerCase()}';
+    if (_typingTargetKey != key) return;
+    _stopActiveTyping();
+  }
+
+  void _stopActiveTyping() {
+    final username = _typingTargetUsername;
+    if (username == null) return;
     _typingStopTimer?.cancel();
     _socket?.emit('typing', {
-      'to': peerUsername,
+      'to': username,
       'isTyping': false,
-      'toType': isGroup ? 'group' : 'friend',
+      'toType': _typingTargetIsGroup ? 'group' : 'friend',
     });
+    _typingTargetKey = null;
+    _typingTargetUsername = null;
+    _typingTargetIsGroup = false;
   }
 
   // ── Edit / Unsend ─────────────────────────────────────────────────────────
@@ -1687,8 +1741,7 @@ class SocketService extends ChangeNotifier {
     _typingInChats.clear();
     contacts.clear();
     _reconnectTimer?.cancel();
-    _typingDebounce?.cancel();
-    _typingStopTimer?.cancel();
+    _stopActiveTyping();
     _socket?.disconnect();
     _reconnectTimer?.cancel();
     _socket = null;
