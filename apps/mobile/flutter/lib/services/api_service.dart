@@ -795,7 +795,7 @@ class ApiService {
       final res = await http
           .post(
             Uri.parse('$baseUrl/api/profile/update'),
-            headers: _authHeaders,
+            headers: await _csrfHeaders(),
             body: jsonEncode({
               'displayName': name,
               'bio': bio,
@@ -809,7 +809,14 @@ class ApiService {
       if (res.statusCode == 200) {
         return Map<String, dynamic>.from(jsonDecode(res.body));
       }
-      return {'error': jsonDecode(res.body)['message'] ?? 'Update failed'};
+      String message = 'Update failed';
+      try {
+        final body = jsonDecode(res.body);
+        if (body is Map) {
+          message = (body['error'] ?? body['message'] ?? message).toString();
+        }
+      } catch (_) {}
+      return {'error': message};
     } catch (e) {
       return {'error': 'Network error: $e'};
     }
