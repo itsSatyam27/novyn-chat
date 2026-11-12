@@ -4494,6 +4494,19 @@ app.post("/api/auth/signin", createIpRateLimiter({ getStore: () => httpRateLimit
   }
   const remember = readRememberFlag(req.body?.remember);
   const userKey = normalizeName(result.user.username);
+  if (result.user.twoFactorEnabled) {
+    const challengeToken = createAuthToken("2fa_challenge", userKey, 5 * 60 * 1000, {
+      remember: remember ? 1 : 0,
+      nonce: crypto.randomBytes(16).toString("hex"),
+    });
+    res.json({
+      requiresTwoFactor: true,
+      challengeToken,
+      username: result.user.username,
+      message: "Enter the 6-digit code from your authenticator app.",
+    });
+    return;
+  }
   const tokens = issueAuthTokensForUser(userKey, remember);
   if (!tokens) {
     res.status(500).json({ message: "Unable to create session." });
@@ -4653,6 +4666,21 @@ app.post(
       schedulePersist();
     }
 
+    if (user.twoFactorEnabled) {
+      const challengeToken = createAuthToken("2fa_challenge", user.username, 5 * 60 * 1000, {
+        remember: remember ? 1 : 0,
+        nonce: crypto.randomBytes(16).toString("hex"),
+      });
+      res.json({
+        requiresTwoFactor: true,
+        challengeToken,
+        username: user.username,
+        email: user.email || "",
+        message: "Enter the 6-digit code from your authenticator app.",
+      });
+      return;
+    }
+
     const tokens = issueAuthTokensForUser(user.username, remember);
     if (!tokens) {
       res.status(500).json({ message: "Unable to create session." });
@@ -4664,6 +4692,57 @@ app.post(
       email: user.email || "",
       linkedExisting: Boolean(linkedExisting),
       createdAccount: Boolean(createdAccount),
+    });
+  }
+);
+
+app.post(
+  "/api/auth/2fa/verify",
+  createIpRateLimiter({ getStore: () => httpRateLimits }, "auth-2fa-verify", 10, 5 * 60 * 1000),
+  requireCsrf,
+  (req, res) => {
+    const challengeToken = toDisplayName(req.body?.challengeToken);
+    const code = toDisplayName(req.body?.code).replace(/\s+/g, "");
+    const challenge = verifyAuthToken(challengeToken, "2fa_challenge");
+    if (!challenge) {
+      res.status(401).json({ message: "Your verification session expired. Sign in again." });
+      return;
+    }
+
+    const userKey = resolveCurrentUserKey(challenge.sub);
+    const user = users.get(userKey);
+    if (!user || !user.isRegistered || !user.twoFactorEnabled || !user.twoFactorSecret) {
+      res.status(401).json({ message: "Two-factor authentication is no longer enabled for this account." });
+      return;
+    }
+
+    let verified = verifyTotpCode(user.twoFactorSecret, code);
+    if (!verified && Array.isArray(user.twoFactorBackupCodes)) {
+      const backupIndex = user.twoFactorBackupCodes.findIndex((saved) =>
+        safeTimingEqual(toDisplayName(saved).toUpperCase(), code.toUpperCase())
+      );
+      if (backupIndex >= 0) {
+        user.twoFactorBackupCodes.splice(backupIndex, 1);
+        verified = true;
+        schedulePersist();
+      }
+    }
+    if (!verified) {
+      res.status(401).json({ message: "Invalid verification code. Check the code and try again." });
+      return;
+    }
+
+    const remember = challenge.remember === 1;
+    const tokens = issueAuthTokensForUser(userKey, remember);
+    if (!tokens) {
+      res.status(500).json({ message: "Unable to create session." });
+      return;
+    }
+    applyAuthCookies(res, tokens);
+    res.json({
+      username: user.username,
+      email: user.email || "",
+      twoFactorVerified: true,
     });
   }
 );
