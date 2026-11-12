@@ -229,6 +229,78 @@ class ApiService {
     }
   }
 
+  static Future<Map<String, dynamic>> getTwoFactorStatus() async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/api/auth/2fa/status'),
+        headers: _authHeaders,
+      ).timeout(const Duration(seconds: 12));
+      final body = jsonDecode(response.body);
+      if (body is Map) {
+        return {...Map<String, dynamic>.from(body), 'httpStatus': response.statusCode};
+      }
+      return {'message': 'Unexpected server response.', 'httpStatus': response.statusCode};
+    } catch (_) {
+      return {'message': 'Could not load two-factor settings.'};
+    }
+  }
+
+  static Future<Map<String, dynamic>> beginTwoFactorSetup() async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/api/auth/2fa/setup'),
+        headers: await _csrfHeaders(),
+      ).timeout(const Duration(seconds: 15));
+      final body = jsonDecode(response.body);
+      if (body is Map) {
+        return {...Map<String, dynamic>.from(body), 'httpStatus': response.statusCode};
+      }
+      return {'message': 'Unexpected server response.'};
+    } catch (_) {
+      return {'message': 'Could not start two-factor setup.'};
+    }
+  }
+
+  static Future<Map<String, dynamic>> enableTwoFactor({
+    required String setupToken,
+    required String code,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/api/auth/2fa/enable'),
+        headers: await _csrfHeaders(),
+        body: jsonEncode({'setupToken': setupToken, 'code': code.trim()}),
+      ).timeout(const Duration(seconds: 15));
+      final body = jsonDecode(response.body);
+      if (body is Map) {
+        return {...Map<String, dynamic>.from(body), 'httpStatus': response.statusCode};
+      }
+      return {'message': 'Unexpected server response.'};
+    } catch (_) {
+      return {'message': 'Could not enable two-factor authentication.'};
+    }
+  }
+
+  static Future<Map<String, dynamic>> disableTwoFactor({
+    String currentPassword = '',
+    String code = '',
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/api/auth/2fa/disable'),
+        headers: await _csrfHeaders(),
+        body: jsonEncode({'currentPassword': currentPassword, 'code': code.trim()}),
+      ).timeout(const Duration(seconds: 15));
+      final body = jsonDecode(response.body);
+      if (body is Map) {
+        return {...Map<String, dynamic>.from(body), 'httpStatus': response.statusCode};
+      }
+      return {'message': 'Unexpected server response.'};
+    } catch (_) {
+      return {'message': 'Could not disable two-factor authentication.'};
+    }
+  }
+
   // Complete a short-lived second-factor challenge. Session cookies are
   // stored only after the server confirms the TOTP or one-time backup code.
   static Future<Map<String, dynamic>?> verifyTwoFactor({
