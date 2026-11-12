@@ -69,7 +69,41 @@ class _PeopleScreenState extends State<PeopleScreen> {
                 const SizedBox(width: 8),
                 _filterChip('Online', _filter == 'Online', () => setState(() => _filter = 'Online')),
                 const SizedBox(width: 8),
+                _filterChip('Recently Active', _filter == 'Recently Active', () => setState(() => _filter = 'Recently Active')),
               ]),
+            ),
+            StreamBuilder<List<UserModel>>(
+              stream: friends.friendsStream(myUid),
+              builder: (context, onlineSnap) {
+                final online = (onlineSnap.data ?? cachedFriends).where((u) => u.isOnline).toList();
+                if (online.isEmpty || _search.isNotEmpty || _filter == 'Recently Active') return const SizedBox.shrink();
+                return SizedBox(
+                  height: 112,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.fromLTRB(20, 2, 20, 10),
+                    itemCount: online.length,
+                    separatorBuilder: (_, __) => const SizedBox(width: 16),
+                    itemBuilder: (context, index) {
+                      final user = online[index];
+                      return GestureDetector(
+                        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ChatDetailScreen(peer: user))),
+                        child: SizedBox(
+                          width: 62,
+                          child: Column(children: [
+                            UserAvatar(name: user.name, photoUrl: user.photoUrl, radius: 25,
+                              showOnlineIndicator: true, isOnline: true, presence: user.status),
+                            const SizedBox(height: 7),
+                            Text(user.name, maxLines: 1, overflow: TextOverflow.ellipsis,
+                              style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 10.5,
+                                fontWeight: FontWeight.w700, color: Theme.of(context).colorScheme.onSurface)),
+                          ]),
+                        ),
+                      );
+                    },
+                  ),
+                );
+              },
             ),
             Expanded(
               child: StreamBuilder<List<UserModel>>(
@@ -87,6 +121,7 @@ class _PeopleScreenState extends State<PeopleScreen> {
                   all.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
                   final filtered = all.where((u) {
                     if (_filter == 'Online' && !u.isOnline) return false;
+                    if (_filter == 'Recently Active' && (u.lastSeen == null || DateTime.now().difference(u.lastSeen!).inDays > 7)) return false;
                     if (_search.isNotEmpty &&
                         !u.name.toLowerCase().contains(_search) &&
                         !u.username.toLowerCase().contains(_search)) return false;
@@ -98,7 +133,7 @@ class _PeopleScreenState extends State<PeopleScreen> {
                   return ListView.builder(
                     controller: _scrollController,
                     padding: const EdgeInsets.fromLTRB(16, 8, 16, 112),
-                    itemCount: filtered.length + 2,
+                    itemCount: filtered.length + 1,
                     itemBuilder: (context, i) {
                       if (i == 0) {
                         return Padding(
@@ -124,9 +159,6 @@ class _PeopleScreenState extends State<PeopleScreen> {
                           ),
                         );
                       }
-                      if (i == filtered.length + 1) {
-                        return _buildInviteCard(context, myUid);
-                      }
                       return _FriendCard(
                         user: filtered[i - 1],
                         myUid: myUid,
@@ -140,47 +172,6 @@ class _PeopleScreenState extends State<PeopleScreen> {
           ],
         ),
       ),
-    );
-  }
-
-  Widget _buildInviteCard(BuildContext context, String myUid) {
-    final color = Theme.of(context).colorScheme.primary;
-    return Container(
-      margin: const EdgeInsets.fromLTRB(4, 18, 4, 24),
-      padding: const EdgeInsets.fromLTRB(18, 20, 18, 18),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: color.withValues(alpha: .22), style: BorderStyle.solid),
-        color: color.withValues(alpha: .035),
-      ),
-      child: Column(children: [
-        Container(width: 48, height: 48,
-          decoration: BoxDecoration(color: color.withValues(alpha: .12), borderRadius: BorderRadius.circular(16)),
-          child: Icon(Icons.person_add_alt_1_rounded, color: color)),
-        const SizedBox(height: 12),
-        Text('Add more friends', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Theme.of(context).colorScheme.onSurface)),
-        const SizedBox(height: 5),
-        Text('Invite people to Novyn or share your username so they can find you.',
-          textAlign: TextAlign.center, style: TextStyle(fontSize: 12, height: 1.45, color: Theme.of(context).colorScheme.onSurfaceVariant)),
-        const SizedBox(height: 14),
-        Wrap(spacing: 10, children: [
-          FilledButton.icon(
-            onPressed: () async {
-              await Clipboard.setData(ClipboardData(text: '@$myUid'));
-              if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Username copied')));
-            },
-            icon: const Icon(Icons.share_outlined, size: 17), label: const Text('Invite')),
-          OutlinedButton.icon(
-            onPressed: () {
-              showDialog<void>(context: context, builder: (ctx) => AlertDialog(
-                title: const Text('Your Novyn username'),
-                content: SelectableText('@$myUid'),
-                actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close'))],
-              ));
-            },
-            icon: const Icon(Icons.qr_code_2_rounded, size: 17), label: const Text('My QR')),
-        ]),
-      ]),
     );
   }
 
