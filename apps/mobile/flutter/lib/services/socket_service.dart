@@ -841,7 +841,7 @@ class SocketService extends ChangeNotifier {
     final account = _myUsername;
     if (account == null) return;
     for (final item in list) {
-      final raw = item['lastMessage'];
+      final raw = item['lastMessageData'] ?? item['lastMessage'];
       if (raw is! Map || raw['isEncrypted'] != true) continue;
       final peer = item['username']?.toString() ?? '';
       final decrypted = await encryption.decrypt(

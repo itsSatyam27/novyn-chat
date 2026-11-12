@@ -8,14 +8,21 @@ import '../../widgets/user_avatar.dart';
 
 class DiscoverPeopleScreen extends StatefulWidget {
   final String myUid;
-  const DiscoverPeopleScreen({super.key, required this.myUid});
+  final int initialTab;
+  const DiscoverPeopleScreen({super.key, required this.myUid, this.initialTab = 0});
 
   @override
   State<DiscoverPeopleScreen> createState() => _DiscoverPeopleScreenState();
 }
 
 class _DiscoverPeopleScreenState extends State<DiscoverPeopleScreen> {
-  int _activeTab = 0;
+  late int _activeTab;
+
+  @override
+  void initState() {
+    super.initState();
+    _activeTab = widget.initialTab.clamp(0, 1).toInt();
+  }
 
   @override
   Widget build(BuildContext context) {

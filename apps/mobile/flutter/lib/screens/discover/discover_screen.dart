@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../../services/auth_service.dart';
 import '../../services/friend_service.dart';
+import '../../services/socket_service.dart';
 import '../../models/user_model.dart';
 import '../../widgets/novyn_shimmer.dart';
 import '../../widgets/novyn_ui.dart';
@@ -158,6 +159,10 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                       ],
                     ),
                     NovynIconButton(
+                      icon: Icons.refresh_rounded,
+                      onTap: () => context.read<SocketService>().requestDiscover(),
+                    ),
+                    NovynIconButton(
                       icon: Icons.qr_code_scanner_rounded,
                       onTap: () => _showScanPlaceholder(context),
                     ),
@@ -178,11 +183,17 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                 Expanded(child: _DiscoverCountCard(
                   label: 'Requests', icon: Icons.people_outline_rounded,
                   stream: friends.pendingRequestsCountStream(myUid),
+                  onTap: () => Navigator.push(context, MaterialPageRoute(
+                    builder: (_) => DiscoverPeopleScreen(myUid: myUid, initialTab: 0),
+                  )),
                 )),
                 const SizedBox(width: 12),
                 Expanded(child: _DiscoverCountCard(
                   label: 'Sent', icon: Icons.person_add_alt_1_rounded,
                   stream: friends.sentPendingUidsStream(myUid).map((items) => items.length),
+                  onTap: () => Navigator.push(context, MaterialPageRoute(
+                    builder: (_) => DiscoverPeopleScreen(myUid: myUid, initialTab: 1),
+                  )),
                 )),
               ]),
               ),
@@ -560,12 +571,15 @@ class _RadarPainter extends CustomPainter {
 }
 
 class _DiscoverCountCard extends StatelessWidget {
-  const _DiscoverCountCard({required this.label, required this.icon, required this.stream});
+  const _DiscoverCountCard({required this.label, required this.icon, required this.stream, this.onTap});
   final String label;
   final IconData icon;
   final Stream<int> stream;
+  final VoidCallback? onTap;
   @override
-  Widget build(BuildContext context) => Container(
+  Widget build(BuildContext context) => GestureDetector(
+    onTap: onTap,
+    child: Container(
     padding: const EdgeInsets.all(14),
     decoration: BoxDecoration(
       color: Theme.of(context).colorScheme.surface,
@@ -587,7 +601,7 @@ class _DiscoverCountCard extends StatelessWidget {
         ],
       ),
     ),
-  );
+  ));
 }
 
 class _DiscoverAddFriendCard extends StatelessWidget {
