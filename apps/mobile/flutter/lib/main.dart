@@ -101,6 +101,10 @@ class NovynApp extends StatelessWidget {
                 preferences.inAppVibration &&
                 auth.user?.presenceMode != 'busy';
           };
+          socket.notificationTone = () =>
+              ctx.read<SettingsService>().notificationTone;
+          socket.messageSoundVolume = () =>
+              ctx.read<SettingsService>().messageVolume;
           return auth;
         }),
         Provider<FriendService>(
