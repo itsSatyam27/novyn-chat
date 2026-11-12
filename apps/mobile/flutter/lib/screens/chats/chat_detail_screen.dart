@@ -3616,7 +3616,7 @@ class _ChatHeaderButton extends StatelessWidget {
           child: Center(
             child: Icon(icon, size: iconSize, color: color ?? scheme.primary),
           ),
-        ),,
+        ),
       ),
     );
   }
