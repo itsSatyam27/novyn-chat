@@ -35,8 +35,6 @@ void main() async {
 
   final settings = SettingsService();
   await settings.load();
-  // Re-apply native screen-capture protection after every cold start.
-  await SecurityService.setSafeMode(settings.stealthModeEnabled);
 
   // Initialize haptics with user settings
   HapticService.init(settings);
