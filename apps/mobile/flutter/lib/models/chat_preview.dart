@@ -24,6 +24,7 @@ class ChatPreview {
   });
 
   ChatPreview copyWith({
+    UserModel? peer,
     String? lastMessage,
     DateTime? lastTime,
     int? unreadCount,
@@ -34,7 +35,7 @@ class ChatPreview {
     return ChatPreview(
       chatId:      chatId,
       peerUid:     peerUid,
-      peer:        peer,
+      peer:        peer ?? this.peer,
       lastMessage: lastMessage ?? this.lastMessage,
       lastTime:    lastTime ?? this.lastTime,
       unreadCount: unreadCount ?? this.unreadCount,
