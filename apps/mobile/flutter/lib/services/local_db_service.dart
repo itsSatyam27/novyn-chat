@@ -446,6 +446,115 @@ class LocalDbService {
     }
   }
 
+  /// Export only the active account's local chat cache for a user-controlled backup.
+  static Future<Map<String, dynamic>> exportChatBackupData() async {
+    await _ensureInit();
+    final owner = await getAccountScope();
+    if (owner == null || owner.isEmpty) {
+      throw StateError('No active account is associated with this local chat data.');
+    }
+    return {
+      'username': owner,
+      'exportedAt': DateTime.now().toUtc().toIso8601String(),
+      'messages': (_messagesBox?.values ?? <Message>[]).map((m) => {
+        'id': m.id, 'text': m.text, 'time': m.time, 'isFromMe': m.isFromMe,
+        'chatId': m.chatId, 'senderId': m.senderId,
+        'createdAt': m.createdAt.toIso8601String(), 'reactions': m.reactions,
+        'replyToId': m.replyToId, 'replyToText': m.replyToText,
+        'replyToSender': m.replyToSender, 'edited': m.edited,
+        'isEncrypted': m.isEncrypted, 'ciphertext': m.ciphertext, 'iv': m.iv,
+        'attachment': m.attachment, 'poll': m.poll, 'pinnedAt': m.pinnedAt,
+        'pinnedBy': m.pinnedBy, 'riddle': m.riddle, 'game': m.game,
+      }).toList(),
+      'chats': (_chatsBox?.toMap() ?? {}).entries.map((e) => {
+        'key': e.key.toString(), 'value': Map<String, dynamic>.from(e.value as Map),
+      }).toList(),
+      'users': (_usersBox?.toMap() ?? {}).entries.map((e) {
+        final u = e.value as UserModel;
+        return {
+          'uid': u.uid, 'name': u.name, 'username': u.username, 'email': u.email,
+          'bio': u.bio, 'age': u.age, 'gender': u.gender,
+          'createdAt': u.createdAt.toIso8601String(), 'isOnline': u.isOnline,
+          'lastSeen': u.lastSeen?.toIso8601String(), 'status': u.status,
+          'photoUrl': u.photoUrl, 'lastSeenVisibility': u.lastSeenVisibility,
+          'profilePhotoVisibility': u.profilePhotoVisibility, 'readReceipts': u.readReceipts,
+        };
+      }).toList(),
+    };
+  }
+
+  /// Merge a validated backup into the active account without deleting newer local data.
+  static Future<Map<String, int>> restoreChatBackupData(Map<String, dynamic> data, String activeUsername) async {
+    await _ensureInit();
+    final backupOwner = data['username']?.toString().trim().toLowerCase();
+    final activeOwner = activeUsername.trim().toLowerCase();
+    if (backupOwner == null || backupOwner.isEmpty || backupOwner != activeOwner ||
+        await getAccountScope() != activeOwner) {
+      throw const FormatException('This backup belongs to a different Novyn account.');
+    }
+    final rawMessages = data['messages'];
+    final rawChats = data['chats'];
+    final rawUsers = data['users'];
+    if (rawMessages is! List || rawChats is! List || rawUsers is! List ||
+        rawMessages.length > 200000 || rawChats.length > 20000 || rawUsers.length > 20000) {
+      throw const FormatException('The backup file is invalid or too large.');
+    }
+    final messages = <String, Message>{};
+    for (final raw in rawMessages) {
+      if (raw is! Map) throw const FormatException('Invalid message record.');
+      final m = Map<String, dynamic>.from(raw);
+      final id = m['id']?.toString() ?? '';
+      final chatId = m['chatId']?.toString() ?? '';
+      if (id.isEmpty || chatId.isEmpty) throw const FormatException('Invalid message record.');
+      messages[id] = Message(
+        id: id, text: m['text']?.toString() ?? '', time: m['time']?.toString() ?? '',
+        isFromMe: m['isFromMe'] == true, chatId: chatId, senderId: m['senderId']?.toString() ?? '',
+        createdAt: DateTime.tryParse(m['createdAt']?.toString() ?? '') ?? DateTime.now(),
+        reactions: Message.parseReactions(m['reactions']),
+        replyToId: m['replyToId']?.toString(), replyToText: m['replyToText']?.toString(),
+        replyToSender: m['replyToSender']?.toString(), edited: m['edited'] == true,
+        isEncrypted: m['isEncrypted'] == true, ciphertext: m['ciphertext']?.toString(),
+        iv: m['iv']?.toString(),
+        attachment: m['attachment'] is Map ? Map<String, dynamic>.from(m['attachment']) : null,
+        poll: m['poll'] is Map ? Map<String, dynamic>.from(m['poll']) : null,
+        pinnedAt: m['pinnedAt']?.toString(), pinnedBy: m['pinnedBy']?.toString(),
+        riddle: m['riddle'] is Map ? Map<String, dynamic>.from(m['riddle']) : null,
+        game: m['game'] is Map ? Map<String, dynamic>.from(m['game']) : null,
+      );
+    }
+    final chats = <dynamic, dynamic>{};
+    for (final raw in rawChats) {
+      if (raw is! Map || raw['key'] == null || raw['value'] is! Map) {
+        throw const FormatException('Invalid chat record.');
+      }
+      chats[raw['key']] = Map<String, dynamic>.from(raw['value'] as Map);
+    }
+    final users = <String, UserModel>{};
+    for (final raw in rawUsers) {
+      if (raw is! Map) throw const FormatException('Invalid contact record.');
+      final u = Map<String, dynamic>.from(raw);
+      final uid = u['uid']?.toString() ?? '';
+      if (uid.isEmpty) throw const FormatException('Invalid contact record.');
+      users[uid] = UserModel(
+        uid: uid, name: u['name']?.toString() ?? '', username: u['username']?.toString() ?? '',
+        email: u['email']?.toString() ?? '', bio: u['bio']?.toString() ?? '',
+        age: u['age'] is num ? (u['age'] as num).toInt() : null,
+        gender: u['gender']?.toString() ?? '',
+        createdAt: DateTime.tryParse(u['createdAt']?.toString() ?? '') ?? DateTime.now(),
+        isOnline: u['isOnline'] == true,
+        lastSeen: DateTime.tryParse(u['lastSeen']?.toString() ?? ''),
+        status: u['status']?.toString() ?? 'Online', photoUrl: u['photoUrl']?.toString() ?? '',
+        lastSeenVisibility: u['lastSeenVisibility']?.toString() ?? 'everyone',
+        profilePhotoVisibility: u['profilePhotoVisibility']?.toString() ?? 'everyone',
+        readReceipts: u['readReceipts'] != false,
+      );
+    }
+    await _messagesBox?.putAll(messages);
+    await _chatsBox?.putAll(chats);
+    await _usersBox?.putAll(users);
+    return {'messages': messages.length, 'chats': chats.length, 'contacts': users.length};
+  }
+
   /// Get database stats
   static Future<Map<String, int>> getStats() async {
     await _ensureInit();
