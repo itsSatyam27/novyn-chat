@@ -2989,10 +2989,13 @@ class _MessageBubble extends StatelessWidget {
 
   String _formatTime(DateTime dt) {
     final local = dt.toLocal();
-    final h = local.hour % 12 == 0 ? 12 : local.hour % 12;
-    final m = local.minute.toString().padLeft(2, '0');
+    final minute = local.minute.toString().padLeft(2, '0');
+    if (context.read<SettingsService>().timeFormat == '24h') {
+      return '${local.hour.toString().padLeft(2, '0')}:$minute';
+    }
+    final hour = local.hour % 12 == 0 ? 12 : local.hour % 12;
     final period = local.hour < 12 ? 'AM' : 'PM';
-    return '$h:$m $period';
+    return '$hour:$minute $period';
   }
 
   Widget _buildTick(BuildContext context, dynamic message) {
