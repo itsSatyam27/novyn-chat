@@ -21,7 +21,7 @@ class _DiscoverPeopleScreenState extends State<DiscoverPeopleScreen> {
   @override
   void initState() {
     super.initState();
-    _activeTab = widget.initialTab.clamp(0, 1);
+    _activeTab = widget.initialTab.clamp(0, 1).toInt();
   }
 
   @override
