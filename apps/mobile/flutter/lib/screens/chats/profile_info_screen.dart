@@ -249,19 +249,15 @@ class ProfileInfoScreen extends StatelessWidget {
                 trailing: Switch.adaptive(value: initiallyMuted, onChanged: (_) => onMute!()),
                 onTap: onMute!,
               ),
-            if (onMute != null && !chatProtected && onExportChat != null)
+            if (onMute != null && onExportChat != null)
               const _SettingsDivider(),
-            if (!chatProtected && onExportChat != null)
+            if (onExportChat != null)
               _SettingsTile(icon: Icons.ios_share_rounded, title: 'Export chat',
-                subtitle: 'Export as HTML or text file',
+                subtitle: chatProtected
+                    ? 'Only your messages will be included'
+                    : 'Export as HTML or text file',
                 tint: const Color(0xFFE0F4ED), accent: const Color(0xFF168B61),
                 onTap: onExportChat!),
-            if (chatProtected)
-              _SettingsTile(icon: Icons.shield_rounded, title: 'Chat export disabled',
-                subtitle: 'Export is unavailable while Stealth Mode is active',
-                tint: const Color(0xFFE0F4ED), accent: const Color(0xFF168B61),
-                onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Export is disabled because this contact enabled Stealth Mode.')))),
           ]),
           const SizedBox(height: 26),
           const _SectionHeading(title: 'DANGER ZONE', color: Color(0xFFC52D25)),
