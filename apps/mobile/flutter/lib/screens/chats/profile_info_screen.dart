@@ -46,9 +46,10 @@ class ProfileInfoScreen extends StatelessWidget {
     final mutedText = scheme.onSurfaceVariant;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F0FF),
+      backgroundColor: scheme.surface,
       appBar: AppBar(
-        backgroundColor: const Color(0xFFF4F0FF),
+        backgroundColor: scheme.surface,
+        foregroundColor: scheme.onSurface,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
@@ -56,9 +57,20 @@ class ProfileInfoScreen extends StatelessWidget {
           icon: const Icon(Icons.arrow_back_rounded),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
-          'Profile info',
-          style: TextStyle(fontFamily: 'PlusJakartaSans', fontWeight: FontWeight.w800, fontSize: 18),
+        toolbarHeight: 68,
+        title: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Profile info',
+              style: TextStyle(fontFamily: 'PlusJakartaSans', fontWeight: FontWeight.w800, fontSize: 18),
+            ),
+            Text(
+              '@${user.username}',
+              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: scheme.onSurfaceVariant),
+            ),
+          ],
         ),
         centerTitle: false,
       ),
@@ -69,9 +81,9 @@ class ProfileInfoScreen extends StatelessWidget {
             clipBehavior: Clip.antiAlias,
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 18),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: scheme.surfaceContainerLow,
               borderRadius: BorderRadius.circular(28),
-              border: Border.all(color: const Color(0xFFE8E1FA)),
+              border: Border.all(color: scheme.outlineVariant.withValues(alpha: .65)),
               boxShadow: [
                 BoxShadow(
                   color: scheme.primary.withValues(alpha: .08),
@@ -82,43 +94,65 @@ class ProfileInfoScreen extends StatelessWidget {
             ),
             child: Column(
               children: [
-                Container(
-                  width: double.infinity,
-                  height: 76,
-                  decoration: const BoxDecoration(
-                    gradient: LinearGradient(colors: [Color(0xFFD5CCFA), Color(0xFFEDE9FF)]),
-                    borderRadius: BorderRadius.vertical(top: Radius.circular(27)),
-                  ),
-                ),
-                Transform.translate(
-                  offset: const Offset(0, -42),
+                SizedBox(
+                  height: 150,
                   child: Stack(
-                    alignment: Alignment.bottomRight,
+                    clipBehavior: Clip.none,
                     children: [
-                      Container(
-                        padding: const EdgeInsets.all(5),
-                        decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.white, boxShadow: [
-                          BoxShadow(color: const Color(0xFF6254D9).withValues(alpha: .16), blurRadius: 18, offset: const Offset(0, 7)),
-                        ]),
-                        child: Hero(
-                          tag: 'avatar_${user.uid}',
-                          child: UserAvatar(
-                            name: user.name, photoUrl: user.photoUrl, radius: 48,
-                            showOnlineIndicator: false, isOnline: online, presence: user.status,
+                      Positioned(
+                        top: 0, left: 0, right: 0,
+                        child: Container(
+                          height: 94,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [scheme.primaryContainer, scheme.secondaryContainer],
+                            ),
+                            borderRadius: const BorderRadius.vertical(top: Radius.circular(27)),
                           ),
                         ),
                       ),
-                      Container(
-                        width: 24, height: 24,
-                        decoration: BoxDecoration(
-                          color: online ? const Color(0xFF10B981) : const Color(0xFF9290A8),
-                          shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 3),
+                      Positioned(
+                        top: 43, left: 0, right: 0,
+                        child: Center(
+                          child: Stack(
+                            alignment: Alignment.bottomRight,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(5),
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: scheme.surfaceContainerLow,
+                                  border: Border.all(color: scheme.outlineVariant, width: 2),
+                                  boxShadow: [
+                                    BoxShadow(color: scheme.shadow.withValues(alpha: .16), blurRadius: 18, offset: const Offset(0, 7)),
+                                  ],
+                                ),
+                                child: Hero(
+                                  tag: 'avatar_${user.uid}',
+                                  child: UserAvatar(
+                                    name: user.name, photoUrl: user.photoUrl, radius: 48,
+                                    showOnlineIndicator: false, isOnline: online, presence: user.status,
+                                  ),
+                                ),
+                              ),
+                              Container(
+                                width: 24, height: 24,
+                                decoration: BoxDecoration(
+                                  color: online ? const Color(0xFF10B981) : mutedText,
+                                  shape: BoxShape.circle,
+                                  border: Border.all(color: scheme.surfaceContainerLow, width: 3),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ],
                   ),
                 ),
-                Transform.translate(offset: const Offset(0, -28), child: Column(children: [
+                Column(children: [
                 Text(
                   user.name,
                   textAlign: TextAlign.center,
@@ -191,10 +225,10 @@ class ProfileInfoScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
                 Row(mainAxisSize: MainAxisSize.min, children: [
-                  const Icon(Icons.calendar_today_outlined, size: 17, color: Color(0xFF77718F)),
+                  Icon(Icons.calendar_today_outlined, size: 17, color: scheme.onSurfaceVariant),
                   const SizedBox(width: 8),
                   Text('On Novyn since ${_date(user.createdAt)}',
-                    style: const TextStyle(fontSize: 13, color: Color(0xFF77718F), fontWeight: FontWeight.w600)),
+                    style: TextStyle(fontSize: 13, color: scheme.onSurfaceVariant, fontWeight: FontWeight.w600)),
                 ]),
                 const SizedBox(height: 22),
                 if (onVoiceCall != null || onVideoCall != null) ...[
@@ -209,7 +243,7 @@ class ProfileInfoScreen extends StatelessWidget {
                     ],
                   ),
                 ],
-                ])),
+                ]),
               ],
             ),
           ),
@@ -450,13 +484,13 @@ class _FeatureTile extends StatelessWidget {
     child: Container(
       constraints: const BoxConstraints(minHeight: 126),
       padding: const EdgeInsets.fromLTRB(7, 14, 7, 12),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(22), border: Border.all(color: const Color(0xFFEAE5F8))),
+      decoration: BoxDecoration(color: Theme.of(context).colorScheme.surfaceContainerLow, borderRadius: BorderRadius.circular(22), border: Border.all(color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: .7))),
       child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
         Container(width: 52, height: 52, decoration: BoxDecoration(color: tint, borderRadius: BorderRadius.circular(17)), child: Icon(icon, color: accent, size: 27)),
         const SizedBox(height: 10),
-        Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Color(0xFF211D43))),
+        Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Theme.of(context).colorScheme.onSurface)),
         const SizedBox(height: 4),
-        Text(subtitle, maxLines: 2, textAlign: TextAlign.center, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 10, height: 1.25, color: Color(0xFF77718F))),
+        Text(subtitle, maxLines: 2, textAlign: TextAlign.center, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 10, height: 1.25, color: Theme.of(context).colorScheme.onSurfaceVariant)),
       ]),
     ),
   );
@@ -474,16 +508,22 @@ class _SectionHeading extends StatelessWidget {
 class _SettingsCard extends StatelessWidget {
   final List<Widget> children; final bool danger;
   const _SettingsCard({required this.children, this.danger = false});
-  @override Widget build(BuildContext context) => Container(
-    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(22),
-      border: Border.all(color: danger ? const Color(0xFFF4D4D1) : const Color(0xFFEAE5F8))),
-    child: Column(mainAxisSize: MainAxisSize.min, children: children),
-  );
+  @override Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: danger ? scheme.error.withValues(alpha: .28) : scheme.outlineVariant.withValues(alpha: .7)),
+      ),
+      child: Column(mainAxisSize: MainAxisSize.min, children: children),
+    );
+  }
 }
 
 class _SettingsDivider extends StatelessWidget {
   final bool danger; const _SettingsDivider({this.danger = false});
-  @override Widget build(BuildContext context) => Divider(height: 1, thickness: 1, indent: 76, color: danger ? const Color(0xFFF7E3E1) : const Color(0xFFF0ECF8));
+  @override Widget build(BuildContext context) => Divider(height: 1, thickness: 1, indent: 76, color: danger ? Theme.of(context).colorScheme.error.withValues(alpha: .18) : Theme.of(context).colorScheme.outlineVariant.withValues(alpha: .55));
 }
 
 class _SettingsTile extends StatelessWidget {
@@ -499,11 +539,11 @@ class _SettingsTile extends StatelessWidget {
         Container(width: 46, height: 46, decoration: BoxDecoration(color: tint, borderRadius: BorderRadius.circular(15)), child: Icon(icon, color: accent, size: 25)),
         const SizedBox(width: 13),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(title, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: danger ? accent : const Color(0xFF211D43))),
+          Text(title, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: danger ? Theme.of(context).colorScheme.error : Theme.of(context).colorScheme.onSurface)),
           const SizedBox(height: 4),
-          Text(subtitle, style: const TextStyle(fontSize: 11, color: Color(0xFF77718F), height: 1.25)),
+          Text(subtitle, style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.onSurfaceVariant, height: 1.25)),
         ])),
-        trailing ?? Icon(Icons.chevron_right_rounded, color: danger ? const Color(0xFF9D8EAB) : const Color(0xFF9D96B4), size: 22),
+        trailing ?? Icon(Icons.chevron_right_rounded, color: Theme.of(context).colorScheme.onSurfaceVariant, size: 22),
       ]),
     ),
   );
