@@ -132,7 +132,7 @@ class SocketService extends ChangeNotifier {
   // ── Connect ───────────────────────────────────────────────────────────────
   /// Rebuild the socket handshake after the REST session cookie rotates.
   /// The server binds each socket to the session ID used at connect time.
-  void reconnectWithCurrentSession() {
+  Future<void> reconnectWithCurrentSession() async {
     final username = _myUsername;
     final serverUrl = _serverUrl;
     if (username == null || username.isEmpty ||
