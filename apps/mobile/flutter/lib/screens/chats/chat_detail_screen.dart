@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
@@ -2901,32 +2902,101 @@ class _MessageBubble extends StatelessWidget {
 
   Widget _buildTick(BuildContext context, dynamic message) {
     final status = (message.id as String).startsWith('tmp_')
-        ? 'sending'
+        ? messageStatus
         : messageStatus;
-    if (status == 'sending') {
-      return const Icon(Icons.access_time_rounded,
-          size: 12, color: Color(0xFF94A3B8));
-    }
+    const muted = Color(0xFF625C83);
+    const purple = Color(0xFF6246E8);
 
-    final color = status == 'seen'
-        ? const Color(0xFF0EA5E9)
-        : status == 'delivered'
-            ? const Color(0xFF8B83C8)
-            : const Color(0xFF94A3B8);
-    if (status == 'sent') {
-      return Icon(Icons.done_rounded, size: 14, color: color);
+    switch (status) {
+      case 'sending':
+        return const SizedBox(
+          width: 20,
+          height: 20,
+          child: CustomPaint(painter: _SendingStatusPainter()),
+        );
+      case 'sent':
+        return Container(
+          width: 9,
+          height: 9,
+          decoration: const BoxDecoration(color: muted, shape: BoxShape.circle),
+        );
+      case 'delivered':
+        return const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _StatusDot(color: muted),
+            SizedBox(width: 3),
+            _StatusDot(color: muted),
+          ],
+        );
+      case 'seen':
+        return Container(
+          width: 27,
+          height: 27,
+          alignment: Alignment.center,
+          decoration: const BoxDecoration(
+            color: Color(0xFFE8E2FF), shape: BoxShape.circle,
+          ),
+          child: const Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _StatusDot(color: purple, size: 8),
+              SizedBox(width: 2),
+              _StatusDot(color: purple, size: 8),
+            ],
+          ),
+        );
+      case 'failed':
+        return Container(
+          width: 22,
+          height: 22,
+          decoration: const BoxDecoration(
+            color: Color(0xFFD71935), shape: BoxShape.circle,
+          ),
+          child: const Icon(Icons.close_rounded, color: Colors.white, size: 16),
+        );
+      default:
+        return const _StatusDot(color: muted);
     }
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(Icons.done_rounded, size: 14, color: color),
-        Transform.translate(
-          offset: const Offset(-4, 0),
-          child: Icon(Icons.done_rounded, size: 14, color: color),
-        ),
-      ],
-    );
   }
+}
+
+class _StatusDot extends StatelessWidget {
+  final Color color;
+  final double size;
+  const _StatusDot({required this.color, this.size = 9});
+
+  @override
+  Widget build(BuildContext context) => Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+      );
+}
+
+class _SendingStatusPainter extends CustomPainter {
+  const _SendingStatusPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..color = const Color(0xFF625C83)..style = PaintingStyle.fill;
+    final center = Offset(size.width / 2, size.height / 2);
+    const count = 8;
+    for (var i = 0; i < count; i++) {
+      final angle = (i * 3.141592653589793 * 2 / count) - 1.5707963267948966;
+      final radius = size.width * .37;
+      final dotRadius = i.isEven ? 1.8 : 1.35;
+      canvas.drawCircle(
+        Offset(center.dx + radius * math.cos(angle), center.dy + radius * math.sin(angle)),
+        dotRadius,
+        paint..color = Color(0xFF625C83).withValues(alpha: .42 + (i / count) * .58),
+      );
+    }
+    canvas.drawCircle(center, 2.5, paint..color = const Color(0xFF625C83));
+  }
+
+  @override
+  bool shouldRepaint(covariant _SendingStatusPainter oldDelegate) => false;
 }
 
 // ── Contact Info Sheet ─────────────────────────────────────────────────────
