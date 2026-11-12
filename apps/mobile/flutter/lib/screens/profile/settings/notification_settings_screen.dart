@@ -1,4 +1,5 @@
 import 'dart:ui';
+import 'package:novyn/services/haptic_service.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -297,7 +298,7 @@ class _NotificationToggleCard extends StatelessWidget {
                 Switch.adaptive(
                   value: value,
                   onChanged: (next) {
-                    HapticFeedback.selectionClick();
+                    HapticService.vibrate(NovynHapticType.selection, category: HapticCategory.buttons);
                     onChanged(next);
                   },
                   activeTrackColor: colors.primary.withValues(alpha: .48),
