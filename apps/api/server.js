@@ -3871,12 +3871,18 @@ function buildFriendList(forUser) {
   return list;
 }
 
-function buildDiscoverOnlineList(forUser, limit = 20) {
+function buildDiscoverOnlineList(forUser, limit = 100) {
   const userKey = normalizeName(forUser);
   const me = users.get(userKey);
   if (!me) return [];
 
-  const exclude = new Set([userKey, ...me.friends, ...me.requests]);
+  // Exclude people with either direction of pending request. Incoming
+  // requests are in me.requests; outgoing requests live on the target user.
+  const outgoingRequests = [];
+  for (const [candidateKey, candidate] of users.entries()) {
+    if (candidate?.requests?.has(userKey)) outgoingRequests.push(candidateKey);
+  }
+  const exclude = new Set([userKey, ...me.friends, ...me.requests, ...outgoingRequests]);
   const list = [];
 
   for (const onlineKey of onlineUsers.keys()) {
@@ -3904,7 +3910,7 @@ function buildDiscoverOnlineList(forUser, limit = 20) {
   return list.slice(0, limit);
 }
 
-function emitDiscoverOnlineToAll(limit = 30) {
+function emitDiscoverOnlineToAll(limit = 100) {
   for (const [userKey, socketId] of onlineUsers.entries()) {
     if (!socketId) continue;
     io.to(socketId).emit("discover_online", {

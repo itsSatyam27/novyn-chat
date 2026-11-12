@@ -40,23 +40,31 @@ class _PeopleScreenState extends State<PeopleScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            NovynHeader(
-              title: 'Contacts',
-              subtitle: '${cachedFriends.length} friend${cachedFriends.length == 1 ? '' : 's'} · ${cachedFriends.where((u) => u.isOnline).length} online',
-              actions: [
-                NovynIconButton(
-                  icon: Icons.group_add_rounded,
-                  primary: true,
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => CreateGroupScreen(myUid: myUid),
-                      ),
-                    );
-                  },
-                ),
-              ],
+            StreamBuilder<List<UserModel>>(
+              stream: friends.friendsStream(myUid),
+              initialData: cachedFriends,
+              builder: (context, friendSnap) {
+                final liveFriends = friendSnap.data ?? cachedFriends;
+                final onlineCount = liveFriends.where((user) => user.isOnline).length;
+                return NovynHeader(
+                  title: 'Contacts',
+                  subtitle: '${liveFriends.length} friend${liveFriends.length == 1 ? '' : 's'} · $onlineCount online',
+                  actions: [
+                    NovynIconButton(
+                      icon: Icons.group_add_rounded,
+                      primary: true,
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => CreateGroupScreen(myUid: myUid),
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                );
+              },
             ),
             NovynSearchField(
               hint: 'Search contacts by name or username...',

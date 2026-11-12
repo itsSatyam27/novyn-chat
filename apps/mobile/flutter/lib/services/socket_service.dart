@@ -729,6 +729,9 @@ class SocketService extends ChangeNotifier {
       _stealthPreferenceSynced = true;
       unawaited(_syncStealthModePreference());
     }
+    // Discover requests made before authentication are intentionally not sent.
+    // Fetch the online directory only after the server has accepted this session.
+    requestDiscover();
     final ready = _authenticationReady;
     if (ready != null && !ready.isCompleted) ready.complete();
     onAuthenticated?.call();
@@ -1521,7 +1524,9 @@ class SocketService extends ChangeNotifier {
   }
 
   void requestDiscover() {
-    if (_isConnected) _socket?.emit('discover_online');
+    if (_isConnected && _isAuthenticated && _socket != null) {
+      _socket!.emit('discover_online');
+    }
   }
 
   void _requireConnection() {
