@@ -314,10 +314,6 @@ class _ChatsScreenState extends State<ChatsScreen> {
               _buildSearch(),
               const SizedBox(height: 8),
             ],
-            if (_isSearching) ...[
-              _buildSearch(),
-              const SizedBox(height: 4),
-            ],
 
             Expanded(
               child: _loading
