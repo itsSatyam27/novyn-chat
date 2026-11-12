@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../../../services/api_service.dart';
@@ -66,6 +67,19 @@ class _TwoFactorScreenState extends State<TwoFactorScreen> {
         _working = false;
       });
     }
+  }
+
+  Future<void> _copySetupKey() async {
+    final key = _secret;
+    if (key == null || key.isEmpty) return;
+    await Clipboard.setData(ClipboardData(text: key));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(const SnackBar(
+        content: Text('Setup key copied. Paste it into your authenticator app.'),
+        behavior: SnackBarBehavior.floating,
+      ));
   }
 
   Future<void> _confirmSetup() async {
@@ -398,24 +412,117 @@ class _TwoFactorScreenState extends State<TwoFactorScreen> {
                         Text('Backup codes are generated once during setup. Keep them private and store them somewhere safe.', style: TextStyle(color: muted, fontSize: 12, height: 1.5)),
                       ] else ...[
                         infoCard(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          Text('1. Scan this QR code', style: TextStyle(color: ink, fontWeight: FontWeight.w800)),
-                          const SizedBox(height: 5),
-                          Text('Open your authenticator app and scan the code below.', style: TextStyle(color: muted, fontSize: 12)),
-                          const SizedBox(height: 16),
-                          Center(child: Container(
-                            padding: const EdgeInsets.all(14),
-                            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(18), border: Border.all(color: const Color(0xFFE5E7EB))),
-                            child: QrImageView(data: _otpauthUri!, size: 210, backgroundColor: Colors.white, eyeStyle: const QrEyeStyle(color: Color(0xFF172033)), dataModuleStyle: const QrDataModuleStyle(color: Color(0xFF172033))),
-                          )),
+                          Row(children: [
+                            Container(
+                              width: 34, height: 34,
+                              decoration: BoxDecoration(
+                                color: accent.withValues(alpha: .11),
+                                borderRadius: BorderRadius.circular(11),
+                              ),
+                              child: Icon(Icons.qr_code_2_rounded, color: accent, size: 20),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                              Text('Connect your authenticator', style: TextStyle(color: ink, fontSize: 16, fontWeight: FontWeight.w800)),
+                              const SizedBox(height: 3),
+                              Text('Step 1 of 2 · Add your Novyn account', style: TextStyle(color: muted, fontSize: 11)),
+                            ])),
+                          ]),
+                          const SizedBox(height: 17),
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(13),
+                            decoration: BoxDecoration(
+                              color: accent.withValues(alpha: .07),
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(color: accent.withValues(alpha: .16)),
+                            ),
+                            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                              Icon(Icons.info_outline_rounded, color: accent, size: 19),
+                              const SizedBox(width: 9),
+                              Expanded(child: Text(
+                                'If Novyn is open on the same phone, you cannot scan its QR with that phone’s camera. Open this screen on another device, or copy the setup key below and enter it manually.',
+                                style: TextStyle(color: ink, fontSize: 12, height: 1.45),
+                              )),
+                            ]),
+                          ),
                           const SizedBox(height: 20),
-                          Text('Or enter this setup key manually', style: TextStyle(color: ink, fontWeight: FontWeight.w800)),
-                          const SizedBox(height: 9),
-                          Container(width: double.infinity, padding: const EdgeInsets.all(14), decoration: BoxDecoration(color: NovynTheme.inputBg(context), borderRadius: BorderRadius.circular(13), border: Border.all(color: border)), child: SelectableText(_secret!, style: TextStyle(color: ink, fontFamily: 'monospace', fontWeight: FontWeight.w800, letterSpacing: 1.3))),
-                          const SizedBox(height: 18),
-                          SizedBox(width: double.infinity, child: FilledButton(onPressed: _working ? null : _confirmSetup, style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))), child: const Text('Continue to verification'))),
-                          SizedBox(width: double.infinity, child: TextButton(onPressed: () => setState(() { _setupToken = null; _secret = null; _otpauthUri = null; }), child: const Text('Cancel setup'))),
+                          Center(child: Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(22),
+                              border: Border.all(color: const Color(0xFFE5E7EB)),
+                              boxShadow: const [BoxShadow(color: Color(0x12000000), blurRadius: 18, offset: Offset(0, 7))],
+                            ),
+                            child: QrImageView(
+                              data: _otpauthUri!,
+                              size: 218,
+                              backgroundColor: Colors.white,
+                              eyeStyle: const QrEyeStyle(color: Color(0xFF172033)),
+                              dataModuleStyle: const QrDataModuleStyle(color: Color(0xFF172033)),
+                            ),
+                          )),
+                          const SizedBox(height: 11),
+                          Center(child: Text('Scan with Google Authenticator, Microsoft Authenticator, or 1Password', textAlign: TextAlign.center, style: TextStyle(color: muted, fontSize: 11, height: 1.4))),
+                          const SizedBox(height: 22),
+                          Row(children: [
+                            Expanded(child: Divider(color: border)),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 10),
+                              child: Text('OR ENTER MANUALLY', style: TextStyle(color: muted, fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 1.1)),
+                            ),
+                            Expanded(child: Divider(color: border)),
+                          ]),
+                          const SizedBox(height: 15),
+                          Text('Your setup key', style: TextStyle(color: ink, fontWeight: FontWeight.w800, fontSize: 14)),
+                          const SizedBox(height: 5),
+                          Text('In your authenticator app, choose “Enter a setup key” and paste this code.', style: TextStyle(color: muted, fontSize: 12, height: 1.4)),
+                          const SizedBox(height: 11),
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.fromLTRB(14, 13, 8, 13),
+                            decoration: BoxDecoration(
+                              color: NovynTheme.inputBg(context),
+                              borderRadius: BorderRadius.circular(15),
+                              border: Border.all(color: border),
+                            ),
+                            child: Row(children: [
+                              Expanded(child: SelectableText(
+                                _secret!,
+                                style: TextStyle(color: ink, fontFamily: 'monospace', fontWeight: FontWeight.w800, letterSpacing: 1.1, fontSize: 13),
+                              )),
+                              const SizedBox(width: 6),
+                              IconButton.filledTonal(
+                                tooltip: 'Copy setup key',
+                                onPressed: _copySetupKey,
+                                icon: const Icon(Icons.copy_rounded, size: 18),
+                              ),
+                            ]),
+                          ),
+                          const SizedBox(height: 10),
+                          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                            Icon(Icons.lock_outline_rounded, color: muted, size: 15),
+                            const SizedBox(width: 7),
+                            Expanded(child: Text('Keep this key private. Anyone with it could generate your sign-in codes.', style: TextStyle(color: muted, fontSize: 11, height: 1.4))),
+                          ]),
+                          const SizedBox(height: 20),
+                          SizedBox(width: double.infinity, child: FilledButton.icon(
+                            onPressed: _working ? null : _confirmSetup,
+                            icon: const Icon(Icons.verified_user_rounded),
+                            label: const Text('I’ve added it · Verify code'),
+                            style: FilledButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 15),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                            ),
+                          )),
+                          SizedBox(width: double.infinity, child: TextButton(
+                            onPressed: _working ? null : () => setState(() { _setupToken = null; _secret = null; _otpauthUri = null; }),
+                            child: const Text('Cancel setup'),
+                          )),
                         ])),
                       ],
+                    ],                      ],
                     ],
                   ),
                 ),
