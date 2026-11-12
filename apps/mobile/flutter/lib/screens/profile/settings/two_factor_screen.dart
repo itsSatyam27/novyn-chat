@@ -522,7 +522,6 @@ class _TwoFactorScreenState extends State<TwoFactorScreen> {
                           )),
                         ])),
                       ],
-                    ],                      ],
                     ],
                   ),
                 ),
