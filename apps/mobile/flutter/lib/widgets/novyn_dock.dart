@@ -29,7 +29,7 @@ class NovynDock extends StatelessWidget {
     LucideIcons.phone,
     LucideIcons.compass,
     LucideIcons.users,
-    LucideIcons.sun,
+    LucideIcons.userRound,
   ];
 
   @override
