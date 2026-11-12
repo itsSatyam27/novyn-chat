@@ -86,6 +86,20 @@ class MainActivity : FlutterFragmentActivity() {
                         packageManager.setComponentEnabledSetting(stealthAlias, PackageManager.COMPONENT_ENABLED_STATE_DISABLED, PackageManager.DONT_KILL_APP)
                     }
                     result.success(null)
+                } else if (call.method == "vibratePattern") {
+                    val timings = (call.argument<List<Number>>("timings") ?: emptyList())
+                        .map { it.toLong().coerceAtLeast(0L) }.toLongArray()
+                    val amplitudes = (call.argument<List<Number>>("amplitudes") ?: emptyList())
+                        .map { it.toInt().coerceIn(0, 255) }.toIntArray()
+                    val vibrator = getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+                    if (vibrator.hasVibrator() && timings.isNotEmpty() && timings.size == amplitudes.size) {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            vibrator.vibrate(VibrationEffect.createWaveform(timings, amplitudes, -1))
+                        } else {
+                            vibrator.vibrate(timings, -1)
+                        }
+                    }
+                    result.success(null)
                 } else if (call.method == "vibrate") {
                     val duration = call.argument<Int>("duration") ?: 50
                     val vibrator = getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
