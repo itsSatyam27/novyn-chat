@@ -1656,7 +1656,7 @@ class _SettingsQuickToggle extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               AnimatedContainer(
-                duration: const Duration(milliseconds: 180),
+                duration: const Duration(milliseconds: 200),
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
@@ -1664,7 +1664,7 @@ class _SettingsQuickToggle extends StatelessWidget {
                   borderRadius: BorderRadius.circular(14),
                 ),
                 child: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 180),
+                  duration: const Duration(milliseconds: 200),
                   transitionBuilder: (child, animation) => ScaleTransition(
                     scale: animation,
                     child: FadeTransition(opacity: animation, child: child),
