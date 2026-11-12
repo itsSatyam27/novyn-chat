@@ -31,17 +31,26 @@ class ApiService {
   // so we store and forward them manually.
   static String? _sessionCookie;
   static String? _csrfToken;
+  static bool _sessionStorageInitialized = false;
+  static bool get sessionStorageInitialized => _sessionStorageInitialized;
   static const FlutterSecureStorage _secureStorage = FlutterSecureStorage();
   static const String _sessionCookieKey = 'novyn_auth_cookie_v1';
   static const String _csrfTokenKey = 'novyn_csrf_token_v1';
 
-  static Future<void> initializeSessionStorage() async {
+  static Future<bool> initializeSessionStorage() async {
     try {
       _sessionCookie = await _secureStorage.read(key: _sessionCookieKey);
       _csrfToken = await _secureStorage.read(key: _csrfTokenKey);
+      _sessionStorageInitialized = true;
+      return true;
     } catch (_) {
+      // A transient Android Keystore/secure-storage read failure is not proof
+      // that the user has signed out. Let AuthService retry before routing to
+      // onboarding, instead of treating an unreadable cookie as a missing one.
       _sessionCookie = null;
       _csrfToken = null;
+      _sessionStorageInitialized = false;
+      return false;
     }
   }
 
