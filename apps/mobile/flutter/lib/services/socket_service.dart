@@ -59,6 +59,9 @@ class SocketService extends ChangeNotifier {
   final encryption = MessageEncryptionService();
   Future<void>? _identityRegistration;
   String? _registeredIdentityAccount;
+  bool _isAuthenticated = false;
+  Completer<void>? _authenticationReady;
+  VoidCallback? onAuthenticated;
   final Map<String, String> _peerKeys = {};
   final BackendContacts contacts = BackendContacts();
   io.Socket? _socket;
@@ -145,6 +148,9 @@ class SocketService extends ChangeNotifier {
 
     _socket!.onConnect((_) {
       _isConnected = true;
+      _isAuthenticated = false;
+      _authenticationReady = Completer<void>();
+      _registeredIdentityAccount = null;
       _reconnectTimer?.cancel();
 
       // novyn-chat requires resume_session after connect to authenticate
@@ -159,6 +165,7 @@ class SocketService extends ChangeNotifier {
 
     _socket!.onDisconnect((_) {
       _isConnected = false;
+      _isAuthenticated = false;
       _registeredIdentityAccount = null;
       notifyListeners();
       if (!_manualDisconnect) _scheduleReconnect(3);
@@ -166,6 +173,8 @@ class SocketService extends ChangeNotifier {
 
     _socket!.onConnectError((_) {
       _isConnected = false;
+      _isAuthenticated = false;
+      _registeredIdentityAccount = null;
       notifyListeners();
       if (!_manualDisconnect) _scheduleReconnect(5);
     });
@@ -206,6 +215,7 @@ class SocketService extends ChangeNotifier {
     }
     _socket!.on('register_success', (data) {
       if (data is Map) _handleFriendList(data['friends']);
+      _markSocketAuthenticated();
       unawaited(_registerEncryptionIdentity());
     });
     // ── Initial data + friend list ────────────────────────────────────────
@@ -213,6 +223,7 @@ class SocketService extends ChangeNotifier {
       if (data is Map && data['friends'] != null) {
         _handleFriendList(data['friends']);
       }
+      _markSocketAuthenticated();
       unawaited(_registerEncryptionIdentity());
     });
 
@@ -661,10 +672,29 @@ class SocketService extends ChangeNotifier {
     });
   }
 
+  void _markSocketAuthenticated() {
+    if (!_isConnected) return;
+    _isAuthenticated = true;
+    final ready = _authenticationReady;
+    if (ready != null && !ready.isCompleted) ready.complete();
+    onAuthenticated?.call();
+  }
+
+  Future<void> _waitForSocketAuthentication() async {
+    if (_isAuthenticated) return;
+    final ready = _authenticationReady ??= Completer<void>();
+    await ready.future.timeout(
+      const Duration(seconds: 15),
+      onTimeout: () => throw StateError(
+        'Novyn is still connecting securely. Please wait a moment and try again.',
+      ),
+    );
+  }
+
   Future<void> _registerEncryptionIdentity() async {
     final account = _myUsername;
     final connection = _socket;
-    if (account == null || connection == null || !_isConnected) return;
+    if (account == null || connection == null || !_isConnected || !_isAuthenticated) return;
     if (_registeredIdentityAccount == account.toLowerCase()) return;
     final active = _identityRegistration;
     if (active != null) return active;
@@ -839,9 +869,20 @@ class SocketService extends ChangeNotifier {
         : (attachment?['kind'] == 'image' ? '[Image]' : '[File]');
     final peerKey = isGroup ? null : _peerKeys[toPeerUsername.toLowerCase()];
     if (!isGroup) {
-      await _registerEncryptionIdentity();
+      await _waitForSocketAuthentication();
+      // Authentication can complete just before the first send. Retry identity
+      // registration if the initial register_success/init callback is still running.
+      for (var attempt = 0; attempt < 3; attempt++) {
+        await _registerEncryptionIdentity();
+        if (_registeredIdentityAccount == account.toLowerCase()) break;
+        if (attempt < 2) {
+          await Future<void>.delayed(const Duration(milliseconds: 500));
+        }
+      }
       if (_registeredIdentityAccount != account.toLowerCase()) {
-        throw StateError('Secure identity is not registered yet. Please reconnect and retry.');
+        throw StateError(
+          'Secure identity setup is taking longer than expected. Please try sending again.',
+        );
       }
     }
 
@@ -1743,6 +1784,11 @@ class SocketService extends ChangeNotifier {
   void disconnect() {
     _manualDisconnect = true;
     _myUsername = null;
+    _isAuthenticated = false;
+    _registeredIdentityAccount = null;
+    _identityRegistration = null;
+    _authenticationReady = null;
+    onAuthenticated = null;
     _peerKeys.clear();
     _blockedUsers.clear();
     _conversations = [];
