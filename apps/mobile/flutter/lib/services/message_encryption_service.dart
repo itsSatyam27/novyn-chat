@@ -129,29 +129,19 @@ class MessageEncryptionService {
   Future<SecretKey> _sharedKey(String username, String peerPublicKeyJwk) async {
     final identity = await _identity(username);
     final decoded = jsonDecode(peerPublicKeyJwk);
-    if (decoded is! Map ||
-        decoded['kty'] != 'EC' ||
-        decoded['crv'] != 'P-256' ||
-        decoded['x'] is! String ||
-        decoded['y'] is! String) {
+    if (decoded is! Map || decoded['kty'] != 'EC' || decoded['crv'] != 'P-256' ||
+        decoded['x'] is! String || decoded['y'] is! String) {
       throw const FormatException('The contact has an invalid encryption key.');
     }
-    final peerKey = EcPublicKey(
-      x: _decodeB64url(decoded['x'] as String),
-      y: _decodeB64url(decoded['y'] as String),
-      type: KeyPairType.p256,
-    );
-    final shared = await _ecdh.sharedSecretKey(
-      keyPair: identity,
-      remotePublicKey: peerKey,
-    );
-    final bytes = await shared.extractBytes();
-    if (bytes.length != 32) {
-      throw StateError('Could not derive a valid message encryption key.');
-    }
+    final x = _decodeB64url(decoded['x'] as String);
+    final y = _decodeB64url(decoded['y'] as String);
+    final point = _domain.curve.createPoint(_bytesBigInt(x), _bytesBigInt(y));
+    final peerKey = ECPublicKey(point, _domain);
+    final agreement = ECDHBasicAgreement()..init(identity.privateKey);
+    // WebCrypto deriveBits(P-256, 256) returns this same 32-byte big-endian X coordinate.
+    final bytes = _bigIntBytes(agreement.calculateAgreement(peerKey), 32);
     return SecretKey(bytes);
   }
-
   static bool samePublicKey(String a, String b) {
     try {
       final left = jsonDecode(a), right = jsonDecode(b);
