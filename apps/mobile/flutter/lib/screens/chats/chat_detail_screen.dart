@@ -679,6 +679,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
   int _lastMessageCount = 0;
 
   Widget _buildMessageList(List messages) {
+    if (socketTypingForCurrentChat(messages) && _isNearLatest) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom(force: true));
+    }
     if (messages.length > _lastMessageCount) {
       final addedMessages = messages.length - _lastMessageCount;
       _lastMessageCount = messages.length;
@@ -3134,13 +3137,13 @@ class _AttachmentButtonState extends State<_AttachmentButton>
                               Container(
                                 width: 54, height: 54,
                                 decoration: BoxDecoration(
-                                  color: item.color.withValues(alpha: dark ? 0.18 : 0.13),
+                                  color: item.color.withValues(alpha: dark ? (item.enabled ? 0.18 : 0.07) : (item.enabled ? 0.13 : 0.06)),
                                   borderRadius: BorderRadius.circular(17)),
-                                child: Icon(item.icon, color: item.color, size: 24)),
+                                child: Icon(item.icon, color: item.color.withValues(alpha: item.enabled ? 1 : 0.42), size: 24)),
                               const SizedBox(height: 7),
                               Text(item.label, maxLines: 1, overflow: TextOverflow.ellipsis,
                                 style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 11,
-                                  fontWeight: FontWeight.w700, color: sheetScheme.onSurface)),
+                                  fontWeight: FontWeight.w700, color: item.enabled ? sheetScheme.onSurface : sheetScheme.onSurfaceVariant.withValues(alpha: 0.55))),
                             ]),
                           );
                         },
