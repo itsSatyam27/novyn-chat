@@ -13,6 +13,7 @@ import '../../widgets/novyn_empty_state.dart';
 import '../../widgets/novyn_ui.dart';
 import '../../theme/novyn_theme.dart';
 import '../calls/call_screen.dart';
+import 'package:novyn/services/haptic_service.dart';
 
 class CallsScreen extends StatefulWidget {
   const CallsScreen({super.key});
@@ -569,7 +570,7 @@ class _CallCard extends StatelessWidget {
                             radius: 12,
                             iconSize: 17,
                             onTap: () {
-                              HapticFeedback.lightImpact();
+                              HapticService.vibrate(NovynHapticType.light, category: HapticCategory.calls);
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
@@ -585,7 +586,7 @@ class _CallCard extends StatelessWidget {
                             radius: 12,
                             iconSize: 17,
                             onTap: () {
-                              HapticFeedback.lightImpact();
+                              HapticService.vibrate(NovynHapticType.light, category: HapticCategory.calls);
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
