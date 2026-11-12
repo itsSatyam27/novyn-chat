@@ -232,7 +232,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       socket.openChat(_chatId!, cachedMessages);
       if (cachedMessages.isEmpty) _fetchingFromServer = true;
       setState(() => _loading = false);
-      if (cachedMessages.isNotEmpty) _scrollToBottom();
+      if (cachedMessages.isNotEmpty) _jumpToLatestImmediately();
     }
 
     final history = await historyF;
@@ -243,7 +243,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       await HybridDbService.setLastSync(_chatId!, DateTime.now());
       socket.openChat(_chatId!, history);
       if (mounted) setState(() => _fetchingFromServer = false);
-      _scrollToBottom();
+      _jumpToLatestImmediately();
     } else if (mounted) {
       setState(() => _fetchingFromServer = false);
     }
@@ -302,6 +302,28 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       }
     } finally {
       _sending = false;
+    }
+  }
+
+  // Opening a conversation should land directly on the newest message.
+  // Avoid animating through the entire history, which feels slow on long chats.
+  void _jumpToLatestImmediately() {
+    var attempts = 0;
+    void jumpAfterLayout() {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !_scroll.hasClients) return;
+        final position = _scroll.position;
+        if (position.hasContentDimensions) {
+          _scroll.jumpTo(position.maxScrollExtent);
+        }
+        // A lazy ListView can refine its estimated extent over the next frames.
+        if (++attempts < 3 && mounted) jumpAfterLayout();
+      });
+    }
+    jumpAfterLayout();
+    _isNearLatest = true;
+    if (_showJumpToLatest) {
+      setState(() => _showJumpToLatest = false);
     }
   }
 
