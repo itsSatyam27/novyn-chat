@@ -95,6 +95,8 @@ class MessageEncryptionService {
             throw const FormatException('Invalid P-256 identity length.');
           }
           final privateKey = pc.ECPrivateKey(_bytesBigInt(d), _domain);
+          // Validate the stored public coordinates before trusting this identity.
+          _domain.curve.createPoint(_bytesBigInt(x), _bytesBigInt(y));
           identity = _EcdhIdentity(privateKey, d, x, y);
         } catch (_) {
           throw StateError('Your secure message identity is damaged. Restore your Novyn backup before resetting it.');
