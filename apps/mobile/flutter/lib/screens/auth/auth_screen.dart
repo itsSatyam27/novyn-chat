@@ -264,75 +264,11 @@ class _LoginTabState extends State<_LoginTab> {
   }
 
   Future<bool> _showTwoFactorChallenge() async {
-    final controller = TextEditingController();
-    String? error;
-    bool verifying = false;
-    final auth = context.read<AuthService>();
-    final verified = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (dialogContext, setDialogState) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-          title: Row(children: [
-            const Icon(Icons.verified_user_rounded, color: _kAccent),
-            const SizedBox(width: 10),
-            Expanded(child: Text('Two-step verification',
-              style: GoogleFonts.inter(fontWeight: FontWeight.w800))),
-          ]),
-          content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('Enter the 6-digit code from your authenticator app. You can also use a backup code.',
-              style: GoogleFonts.inter(fontSize: 13, height: 1.45, color: const Color(0xFF666477))),
-            const SizedBox(height: 18),
-            TextField(
-              controller: controller,
-              autofocus: true,
-              keyboardType: TextInputType.number,
-              textInputAction: TextInputAction.done,
-              maxLength: 12,
-              onChanged: (_) => setDialogState(() => error = null),
-              decoration: InputDecoration(
-                hintText: '000000',
-                counterText: '',
-                prefixIcon: const Icon(Icons.password_rounded),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
-              ),
-            ),
-            if (error != null) ...[
-              const SizedBox(height: 8),
-              Text(error!, style: GoogleFonts.inter(color: _kRed, fontSize: 12)),
-            ],
-          ]),
-          actions: [
-            TextButton(
-              onPressed: verifying ? null : () => Navigator.pop(dialogContext, false),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: verifying ? null : () async {
-                final code = controller.text.trim();
-                if (code.isEmpty) {
-                  setDialogState(() => error = 'Enter your authenticator or backup code.');
-                  return;
-                }
-                setDialogState(() { verifying = true; error = null; });
-                final result = await auth.verifyTwoFactor(code);
-                if (!dialogContext.mounted) return;
-                if (result == null) {
-                  Navigator.pop(dialogContext, true);
-                } else {
-                  setDialogState(() { verifying = false; error = result; });
-                }
-              },
-              child: verifying
-                ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                : const Text('Verify'),
-            ),
-          ],
-        ),
+    final verified = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => const TwoFactorVerificationScreen(),
       ),
     );
-    controller.dispose();
     return verified == true;
   }
 
@@ -464,6 +400,293 @@ class _LoginTabState extends State<_LoginTab> {
   }
 }
 
+
+class TwoFactorVerificationScreen extends StatefulWidget {
+  const TwoFactorVerificationScreen({super.key});
+
+  @override
+  State<TwoFactorVerificationScreen> createState() =>
+      _TwoFactorVerificationScreenState();
+}
+
+class _TwoFactorVerificationScreenState
+    extends State<TwoFactorVerificationScreen> {
+  final _codeCtrl = TextEditingController();
+  bool _backupCode = false;
+  bool _verifying = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _codeCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _verify() async {
+    if (_verifying) return;
+    final code = _codeCtrl.text.trim();
+    if (_backupCode ? code.isEmpty : !RegExp(r'^[0-9]{6}$').hasMatch(code)) {
+      setState(() => _error = _backupCode
+          ? 'Enter one of your unused backup codes.'
+          : 'Enter the 6-digit authenticator code.');
+      return;
+    }
+
+    setState(() {
+      _verifying = true;
+      _error = null;
+    });
+    final result = await context.read<AuthService>().verifyTwoFactor(code);
+    if (!mounted) return;
+    if (result == null) {
+      Navigator.of(context).pop(true);
+    } else {
+      setState(() {
+        _verifying = false;
+        _error = result;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Scaffold(
+      backgroundColor: isDark ? const Color(0xFF10101B) : const Color(0xFFF7F6FC),
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        leading: IconButton(
+          tooltip: 'Back',
+          onPressed: _verifying ? null : () => Navigator.of(context).pop(false),
+          icon: const Icon(Icons.arrow_back_rounded),
+        ),
+      ),
+      body: SafeArea(
+        top: false,
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 440),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 82,
+                      height: 82,
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [_kAccent, _kAccentDim],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius: BorderRadius.circular(26),
+                        boxShadow: [
+                          BoxShadow(
+                            color: _kAccent.withValues(alpha: .25),
+                            blurRadius: 24,
+                            offset: const Offset(0, 10),
+                          ),
+                        ],
+                      ),
+                      child: const Icon(Icons.shield_rounded,
+                          color: Colors.white, size: 40),
+                    ),
+                  ),
+                  const SizedBox(height: 28),
+                  Text(
+                    "Verify it's you",
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.inter(
+                      fontSize: 28,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -.7,
+                      color: isDark ? Colors.white : const Color(0xFF211D38),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    _backupCode
+                        ? 'Enter one of the backup codes you saved when you enabled two-factor authentication.'
+                        : 'Open your authenticator app and enter the 6-digit code for your Novyn account.',
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.inter(
+                      fontSize: 14,
+                      height: 1.55,
+                      color: isDark ? Colors.white70 : const Color(0xFF77738A),
+                    ),
+                  ),
+                  const SizedBox(height: 30),
+                  Container(
+                    padding: const EdgeInsets.all(22),
+                    decoration: BoxDecoration(
+                      color: isDark ? const Color(0xFF1C1B2B) : Colors.white,
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(
+                        color: isDark
+                            ? Colors.white.withValues(alpha: .08)
+                            : const Color(0xFFEAE7F5),
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: isDark ? .12 : .04),
+                          blurRadius: 24,
+                          offset: const Offset(0, 10),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Text(
+                          _backupCode ? 'BACKUP CODE' : 'AUTHENTICATOR CODE',
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.inter(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 1.3,
+                            color: isDark ? Colors.white60 : const Color(0xFF858098),
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        TextField(
+                          controller: _codeCtrl,
+                          autofocus: true,
+                          keyboardType: _backupCode
+                              ? TextInputType.text
+                              : TextInputType.number,
+                          textCapitalization: _backupCode
+                              ? TextCapitalization.characters
+                              : TextCapitalization.none,
+                          textInputAction: TextInputAction.done,
+                          maxLength: _backupCode ? 12 : 6,
+                          onSubmitted: (_) => _verify(),
+                          onChanged: (_) {
+                            if (_error != null) setState(() => _error = null);
+                          },
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.inter(
+                            fontSize: _backupCode ? 20 : 25,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: _backupCode ? 2 : 10,
+                            color: isDark ? Colors.white : const Color(0xFF292442),
+                          ),
+                          decoration: InputDecoration(
+                            hintText: _backupCode ? 'ABCD1234' : '000000',
+                            hintStyle: TextStyle(
+                              color: isDark ? Colors.white24 : const Color(0xFFD1CDE0),
+                              letterSpacing: _backupCode ? 2 : 10,
+                            ),
+                            counterText: '',
+                            filled: true,
+                            fillColor: isDark
+                                ? const Color(0xFF141321)
+                                : const Color(0xFFF8F7FC),
+                            contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 18),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(16),
+                              borderSide: BorderSide(
+                                color: isDark
+                                    ? Colors.white12
+                                    : const Color(0xFFE7E3F2),
+                              ),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(16),
+                              borderSide: const BorderSide(
+                                  color: _kAccent, width: 1.6),
+                            ),
+                          ),
+                        ),
+                        if (_error != null) ...[
+                          const SizedBox(height: 10),
+                          Text(
+                            _error!,
+                            textAlign: TextAlign.center,
+                            style: GoogleFonts.inter(
+                              color: _kRed,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                        const SizedBox(height: 20),
+                        SizedBox(
+                          height: 54,
+                          child: FilledButton(
+                            onPressed: _verifying ? null : _verify,
+                            style: FilledButton.styleFrom(
+                              backgroundColor: _kAccentDim,
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16)),
+                            ),
+                            child: _verifying
+                                ? const SizedBox(
+                                    width: 21,
+                                    height: 21,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2.2,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                : Text(
+                                    'Verify and continue',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 22),
+                  Center(
+                    child: TextButton(
+                      onPressed: _verifying
+                          ? null
+                          : () {
+                              setState(() {
+                                _backupCode = !_backupCode;
+                                _codeCtrl.clear();
+                                _error = null;
+                              });
+                            },
+                      child: Text(
+                        _backupCode
+                            ? 'Use authenticator app instead'
+                            : 'Use a backup code',
+                        style: GoogleFonts.inter(
+                          color: _kAccent,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Your account stays protected until this code is verified.',
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      color: isDark ? Colors.white38 : const Color(0xFFA09BAF),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 class _ForgotPasswordDialog extends StatefulWidget {
   const _ForgotPasswordDialog({super.key});
