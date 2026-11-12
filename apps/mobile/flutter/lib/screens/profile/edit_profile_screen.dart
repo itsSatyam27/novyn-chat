@@ -10,6 +10,7 @@ import '../../services/auth_service.dart';
 import '../../services/settings_service.dart';
 import '../../theme/novyn_theme.dart';
 import 'package:novyn/services/haptic_service.dart';
+import '../../services/api_service.dart';
 
 class EditProfileScreen extends StatefulWidget {
   const EditProfileScreen({super.key});
@@ -864,7 +865,8 @@ class _EditProfileAvatar extends StatelessWidget {
     ImageProvider? avatarProvider;
     final rawPhoto = photoUrl?.trim() ?? '';
     if (rawPhoto.startsWith('http://') || rawPhoto.startsWith('https://')) {
-      avatarProvider = NetworkImage(rawPhoto);
+      // Profile media is served by an authenticated /uploads endpoint.
+      avatarProvider = NetworkImage(rawPhoto, headers: ApiService.imageHeaders);
     } else if (rawPhoto.isNotEmpty) {
       try {
         final encoded = rawPhoto.startsWith('data:')
