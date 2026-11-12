@@ -1,8 +1,10 @@
 import 'dart:async';
+import 'dart:ui' as ui;
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart' hide Message;
+import 'package:flutter_local_notifications/flutter_local_notifications.dart' as fln;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'message_encryption_service.dart';
 import 'firebase_configuration.dart';
@@ -18,6 +20,7 @@ import '../screens/chats/chat_detail_screen.dart';
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp(options: FirebaseConfiguration.options);
+  ui.DartPluginRegistrant.ensureInitialized();
   final data = message.data;
   if (data['type'] != 'message' || data['kind'] == 'group') return;
 
@@ -76,19 +79,36 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   );
   await plugin.resolvePlatformSpecificImplementation<
       AndroidFlutterLocalNotificationsPlugin>()?.createNotificationChannel(channel);
+  final timestamp = DateTime.now();
+  final senderPerson = fln.Person(name: sender, key: sender);
+  final mePerson = fln.Person(name: 'You', key: account);
   await plugin.show(
     DateTime.now().millisecondsSinceEpoch ~/ 1000,
-    'New message from $sender',
+    sender,
     body,
-    const NotificationDetails(
+    NotificationDetails(
       android: AndroidNotificationDetails(
         'novyn_messages', 'Messages',
         channelDescription: 'New direct messages from your Novyn contacts',
         importance: Importance.max,
         priority: Priority.high,
+        category: AndroidNotificationCategory.message,
+        styleInformation: fln.MessagingStyleInformation(
+          mePerson,
+          messages: [fln.Message(body, timestamp, senderPerson)],
+          conversationTitle: sender,
+          groupConversation: false,
+        ),
         icon: '@drawable/novyn_wings_icon',
+        ticker: '$sender: $body',
+        onlyAlertOnce: false,
+        autoCancel: true,
       ),
-      iOS: DarwinNotificationDetails(),
+      iOS: const DarwinNotificationDetails(
+        presentAlert: true,
+        presentBadge: true,
+        presentSound: true,
+      ),
     ),
     payload: sender,
   );
