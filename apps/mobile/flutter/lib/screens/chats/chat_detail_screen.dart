@@ -63,7 +63,7 @@ class ChatDetailScreen extends StatefulWidget {
   State<ChatDetailScreen> createState() => _ChatDetailScreenState();
 }
 
-class _ChatDetailScreenState extends State<ChatDetailScreen> {
+class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBindingObserver {
   int _lastTypingLength = 0;
   final TextEditingController _ctrl = TextEditingController();
   final ScrollController _scroll = ScrollController();
@@ -93,6 +93,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _peerIsOnline = widget.peer.isOnline;
     _peerPresence = widget.peer.status.trim().toLowerCase();
     _init();
@@ -255,7 +256,19 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   }
 
   @override
+  void didChangeMetrics() {
+    if (!_ctrl.hasFocus) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_scroll.hasClients) return;
+      _scroll.jumpTo(_scroll.position.maxScrollExtent);
+      _isNearLatest = true;
+      if (_showJumpToLatest) setState(() => _showJumpToLatest = false);
+    });
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _voiceTimer?.cancel();
     if (_isRecordingVoice) unawaited(_voiceRecorder.stop());
     unawaited(_voiceRecorder.dispose());
@@ -465,9 +478,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                           ),
                         ),
                         Text(
-                          socket.peerIsTyping
-                              ? 'typing...'
-                              : switch (_peerPresence) {
+                          switch (_peerPresence) {
                                   'away' => 'Away',
                                   'busy' || 'dnd' => 'Busy',
                                   'offline' || 'invisible' => 'Offline',
@@ -477,9 +488,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                             fontFamily: 'PlusJakartaSans',
                             fontSize: 13,
                             fontWeight: FontWeight.w500,
-                            color: socket.peerIsTyping
-                                ? accent
-                                : switch (_peerPresence) {
+                            color: switch (_peerPresence) {
                                     'away' => const Color(0xFFF59E0B),
                                     'busy' || 'dnd' => const Color(0xFFEC4899),
                                     'offline' || 'invisible' =>
@@ -501,6 +510,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           _ChatHeaderButton(
             icon: Icons.call_rounded,
             color: accent,
+            filled: true,
             tooltip: 'Voice call',
             onTap: () => _startCall('voice'),
           ),
@@ -508,12 +518,14 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           _ChatHeaderButton(
             icon: Icons.videocam_rounded,
             color: accent,
+            filled: true,
             tooltip: 'Video call',
             onTap: () => _startCall('video'),
           ),
           const SizedBox(width: 6),
           _ChatHeaderButton(
-            icon: Icons.info_outline_rounded,
+            icon: Icons.info_rounded,
+            filled: true,
             tooltip: 'Contact info',
             onTap: () => _showContactInfo(),
           ),
@@ -684,7 +696,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     return ListView.builder(
       controller: _scroll,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      itemCount: messages.length + 1, // +1 for top loader
+      itemCount: messages.length + 1 + (socket.peerIsTyping ? 1 : 0), // loader + live typing row
       // Performance optimizations
       addAutomaticKeepAlives: false,
       addRepaintBoundaries: true,
@@ -734,6 +746,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           return const SizedBox(height: 8);
         }
 
+        if (socket.peerIsTyping && i == messages.length + 1) {
+          return _buildTypingIndicator();
+        }
         final msgIndex = i - 1;
         return _SwipeToReply(
           onSwipe: () => setState(() => _replyingTo = messages[msgIndex]),
@@ -749,6 +764,41 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           ),
         );
       },
+    );
+  }
+
+  Widget _buildTypingIndicator() {
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(left: 4, top: 5, bottom: 8),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          UserAvatar(name: widget.peer.name, photoUrl: widget.peer.photoUrl, radius: 13),
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+            decoration: BoxDecoration(
+              color: scheme.surface,
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(17), topRight: Radius.circular(17),
+                bottomRight: Radius.circular(17), bottomLeft: Radius.circular(5),
+              ),
+              boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, 3))],
+            ),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              for (var i = 0; i < 3; i++)
+                Padding(
+                  padding: EdgeInsets.only(right: i == 2 ? 0 : 4),
+                  child: Container(width: 6, height: 6,
+                    decoration: BoxDecoration(color: scheme.primary.withValues(alpha: 0.65 + i * 0.1), shape: BoxShape.circle)),
+                ),
+              const SizedBox(width: 7),
+              Text('typing', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 11, color: scheme.onSurfaceVariant, fontWeight: FontWeight.w600)),
+            ]),
+          ),
+        ],
+      ),
     );
   }
 
@@ -940,9 +990,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
 
               // ── Mic / Send button ──────────────────────────────────────
               GestureDetector(
-                onTap: hasText ? _send : null,
-                onLongPressStart: hasText ? null : (_) => _startVoiceNote(),
-                onLongPressEnd: hasText ? null : (_) => _stopVoiceNote(),
+                onTap: _uploadingAttachment ? null : hasText ? _send : _isRecordingVoice ? _stopVoiceNote : _startVoiceNote,
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 200),
                   curve: Curves.easeInOut,
@@ -2981,11 +3029,11 @@ class _AttachmentButtonState extends State<_AttachmentButton>
     _MenuItem(
         icon: Icons.headphones_rounded,
         label: 'Sound',
-        color: Color(0xFFEC4899)),
+        color: Color(0xFFEC4899), enabled: false),
     _MenuItem(
         icon: Icons.location_on_rounded,
         label: 'Location',
-        color: Color(0xFF10B981)),
+        color: Color(0xFF10B981), enabled: false),
   ];
 
   @override
@@ -3060,7 +3108,8 @@ class _AttachmentButtonState extends State<_AttachmentButton>
                         IconButton(onPressed: () => Navigator.pop(sheetContext),
                           icon: Icon(Icons.close_rounded, color: sheetScheme.onSurfaceVariant)),
                       ]),
-                      const SizedBox(height: 8),
+                      Align(alignment: Alignment.centerLeft, child: Text('Send a little more than a message', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 11, color: sheetScheme.onSurfaceVariant))),
+                      const SizedBox(height: 12),
                       GridView.builder(
                         shrinkWrap: true,
                         physics: const NeverScrollableScrollPhysics(),
@@ -3074,6 +3123,10 @@ class _AttachmentButtonState extends State<_AttachmentButton>
                             borderRadius: BorderRadius.circular(18),
                             onTap: () {
                               Navigator.pop(sheetContext);
+                              if (!item.enabled) {
+                                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('' + item.label + ' is coming soon.')));
+                                return;
+                              }
                               final type = item.label == 'Media' ? 'image' : item.label.toLowerCase();
                               widget.onSelected(type);
                             },
@@ -3110,8 +3163,9 @@ class _MenuItem {
   final IconData icon;
   final String label;
   final Color color;
+  final bool enabled;
   const _MenuItem(
-      {required this.icon, required this.label, required this.color});
+      {required this.icon, required this.label, required this.color, this.enabled = true});
 }
 
 // ── Spark Icon Painter ─────────────────────────────────────────────────────
@@ -3616,6 +3670,7 @@ class _ChatHeaderButton extends StatelessWidget {
     this.color,
     this.iconSize = 20,
     this.tooltip,
+    this.filled = false,
   });
 
   final IconData icon;
@@ -3623,6 +3678,7 @@ class _ChatHeaderButton extends StatelessWidget {
   final Color? color;
   final double iconSize;
   final String? tooltip;
+  final bool filled;
 
   @override
   Widget build(BuildContext context) {
@@ -3633,11 +3689,11 @@ class _ChatHeaderButton extends StatelessWidget {
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: onTap,
-        child: SizedBox(
-          width: 40,
-          height: 40,
-          child: Center(
-            child: Icon(icon, size: iconSize, color: color ?? scheme.primary),
+        child: Material(
+          color: filled ? scheme.primary.withValues(alpha: 0.10) : Colors.transparent,
+          shape: const CircleBorder(),
+          child: SizedBox(width: 40, height: 40,
+            child: Center(child: Icon(icon, size: iconSize, color: color ?? scheme.primary)),
           ),
         ),
       ),
