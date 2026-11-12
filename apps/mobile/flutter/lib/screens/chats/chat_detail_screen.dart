@@ -3610,16 +3610,13 @@ class _ChatHeaderButton extends StatelessWidget {
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: onTap,
-        child: Container(
+        child: SizedBox(
           width: 40,
           height: 40,
-          decoration: BoxDecoration(
-            color: scheme.surfaceContainerHighest,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: scheme.outlineVariant),
+          child: Center(
+            child: Icon(icon, size: iconSize, color: color ?? scheme.primary),
           ),
-          child: Icon(icon, size: iconSize, color: color ?? scheme.onSurfaceVariant),
-        ),
+        ),,
       ),
     );
   }
