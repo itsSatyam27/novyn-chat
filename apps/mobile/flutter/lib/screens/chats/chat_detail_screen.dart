@@ -102,10 +102,14 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     // Listen for real-time presence changes on this peer
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final socket = context.read<SocketService>();
+      final currentPeer = socket.contacts.findUser(widget.peer.username);
+      if (currentPeer != null && mounted) {
+        setState(() => _peerIsOnline = currentPeer.isOnline);
+      }
       final prev = socket.onUserStatusChanged;
       socket.onUserStatusChanged = (uid, isOnline) {
         prev?.call(uid, isOnline);
-        if (uid == widget.peer.uid && mounted) {
+        if (uid.toLowerCase() == widget.peer.username.toLowerCase() && mounted) {
           setState(() => _peerIsOnline = isOnline);
         }
       };
@@ -356,8 +360,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                       photoUrl: widget.peer.photoUrl,
                       radius: 21,
                       showOnlineIndicator: true,
-                      isOnline: widget.peer.isOnline,
-                      presence: widget.peer.status,
+                      isOnline: _peerIsOnline,
+                      presence: _peerIsOnline ? widget.peer.status : 'offline',
                     ),
                   ),
                   const SizedBox(width: 12),
