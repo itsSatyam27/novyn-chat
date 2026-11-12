@@ -91,6 +91,7 @@ class AuthService extends ChangeNotifier {
   final Future<void> Function(String, String)? savePassword;
   final Future<void> Function(String)? clearNotificationsToken;
   final Future<void> Function()? onAccountReset;
+  final Future<void> Function()? onSessionRefreshed;
   bool _updatingPresence = false;
   bool get updatingPresence => _updatingPresence;
   late final FirebaseAuth _firebaseAuth = FirebaseAuth.instance;
@@ -116,6 +117,7 @@ class AuthService extends ChangeNotifier {
       this.savePassword,
       this.clearNotificationsToken,
       this.onAccountReset,
+      this.onSessionRefreshed,
       Future<Map<String, dynamic>?> Function()? restoreSession}) {
     _restoreSession(restoreSession ?? ApiService.getSession);
     // Keep the refresh-cookie chain warm while the app remains open. Android
@@ -209,6 +211,7 @@ class AuthService extends ChangeNotifier {
         await ApiService.initializeSessionStorage();
       }
 
+      final cookieBeforeRestore = ApiService.sessionCookie;
       var session = await ApiService.getSession();
       final status = session?['_httpStatus'];
       if (session == null || session['authenticated'] != true) {
@@ -230,6 +233,17 @@ class AuthService extends ChangeNotifier {
         }
         _user = refreshedUser;
         notifyListeners();
+
+        // A successful session lookup can rotate the access/refresh cookies.
+        // Existing Socket.IO connections keep the old session ID, so reconnect
+        // them with the newly persisted cookie before the next account action.
+        if (ApiService.sessionCookie != cookieBeforeRestore) {
+          try {
+            await onSessionRefreshed?.call();
+          } catch (_) {
+            // Keep the signed-in account even if the socket reconnect is delayed.
+          }
+        }
       }
       // A timeout, offline state, or temporary 5xx must never clear the local
       // account. A definitive expired session is handled by the next sign-in
