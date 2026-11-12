@@ -2215,6 +2215,7 @@ function applyLoadedState(parsed) {
     user.isRegistered = Boolean(entry.isRegistered);
     user.passwordSalt = toDisplayName(entry.passwordSalt);
     user.passwordHash = toDisplayName(entry.passwordHash);
+    user.stealthModeEnabled = entry.stealthModeEnabled === true;
     user.twoFactorEnabled = Boolean(entry.twoFactorEnabled);
     user.twoFactorSecret = toDisplayName(entry.twoFactorSecret);
     user.twoFactorBackupCodes = Array.isArray(entry.twoFactorBackupCodes) ? entry.twoFactorBackupCodes : [];
