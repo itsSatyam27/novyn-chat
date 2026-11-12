@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../../../services/api_service.dart';
 import '../../../services/auth_service.dart';
+import '../../../theme/novyn_theme.dart';
 
 class TwoFactorScreen extends StatefulWidget {
   const TwoFactorScreen({super.key});
@@ -261,104 +262,163 @@ class _TwoFactorScreenState extends State<TwoFactorScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final dark = theme.brightness == Brightness.dark;
+    final ink = theme.colorScheme.onSurface;
     final muted = theme.colorScheme.onSurfaceVariant;
+    final card = NovynTheme.cardBg(context);
+    final border = theme.colorScheme.outlineVariant;
+    final accent = theme.colorScheme.primary;
+
+    Widget infoCard({required Widget child}) => Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: card,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: border),
+      ),
+      child: child,
+    );
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Two-Factor Authentication')),
+      backgroundColor: NovynTheme.pageBg(context),
+      appBar: AppBar(
+        title: const Text('Two-Factor Authentication'),
+        backgroundColor: NovynTheme.pageBg(context),
+        surfaceTintColor: Colors.transparent,
+      ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : ListView(
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(24),
-                    gradient: LinearGradient(
-                      colors: _enabled
-                          ? [const Color(0xFF147D59), const Color(0xFF24A879)]
-                          : [const Color(0xFF5140C9), const Color(0xFF8878F4)],
-                    ),
-                  ),
-                  child: Row(children: [
-                    const Icon(Icons.verified_user_rounded, color: Colors.white, size: 34),
-                    const SizedBox(width: 14),
-                    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text(_enabled ? 'Extra protection is on' : 'Protect your Novyn account',
-                        style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w800)),
-                      const SizedBox(height: 5),
-                      Text(_enabled
-                          ? 'Your sign-ins require a second verification step.'
-                          : 'Use an authenticator app to add a second sign-in check.',
-                        style: const TextStyle(color: Colors.white70, height: 1.35)),
+          ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+              CircularProgressIndicator(color: accent),
+              const SizedBox(height: 14),
+              Text('Checking your security settings…', style: TextStyle(color: muted)),
+            ]))
+          : _error != null && _setupToken == null
+              ? Center(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(24),
+                    child: infoCard(child: Column(mainAxisSize: MainAxisSize.min, children: [
+                      Container(
+                        width: 58, height: 58,
+                        decoration: BoxDecoration(color: theme.colorScheme.error.withValues(alpha: .10), shape: BoxShape.circle),
+                        child: Icon(Icons.cloud_off_rounded, color: theme.colorScheme.error, size: 28),
+                      ),
+                      const SizedBox(height: 16),
+                      Text('Security status unavailable', style: TextStyle(color: ink, fontSize: 17, fontWeight: FontWeight.w800)),
+                      const SizedBox(height: 8),
+                      Text(_error!, textAlign: TextAlign.center, style: TextStyle(color: muted, height: 1.45)),
+                      const SizedBox(height: 18),
+                      FilledButton.icon(
+                        onPressed: _working ? null : _loadStatus,
+                        icon: const Icon(Icons.refresh_rounded),
+                        label: const Text('Try again'),
+                      ),
                     ])),
-                  ]),
+                  ),
+                )
+              : RefreshIndicator(
+                  onRefresh: _loadStatus,
+                  child: ListView(
+                    physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 30),
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(24),
+                          gradient: LinearGradient(
+                            colors: _enabled
+                                ? [const Color(0xFF147D59), const Color(0xFF24A879)]
+                                : dark
+                                    ? [const Color(0xFF39318F), const Color(0xFF6657C8)]
+                                    : [const Color(0xFF6657D9), const Color(0xFF8878E8)],
+                          ),
+                          boxShadow: [BoxShadow(color: (_enabled ? const Color(0xFF147D59) : accent).withValues(alpha: .16), blurRadius: 22, offset: const Offset(0, 9))],
+                        ),
+                        child: Row(children: [
+                          Container(
+                            width: 54, height: 54,
+                            decoration: BoxDecoration(color: Colors.white.withValues(alpha: .16), borderRadius: BorderRadius.circular(17)),
+                            child: const Icon(Icons.verified_user_rounded, color: Colors.white, size: 29),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                            Text(_enabled ? 'Extra protection is on' : 'Protect your Novyn account', style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w800)),
+                            const SizedBox(height: 5),
+                            Text(_enabled ? 'Your sign-ins require a second verification step.' : 'Add another layer of security to your sign-in.', style: const TextStyle(color: Colors.white.withValues(alpha: .88), height: 1.4, fontSize: 12)),
+                          ])),
+                        ]),
+                      ),
+                      const SizedBox(height: 20),
+                      if (_error != null)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 14),
+                          child: infoCard(child: Row(children: [
+                            Icon(Icons.info_outline_rounded, color: theme.colorScheme.error),
+                            const SizedBox(width: 10),
+                            Expanded(child: Text(_error!, style: TextStyle(color: theme.colorScheme.error, height: 1.4))),
+                          ])),
+                        ),
+                      if (_enabled) ...[
+                        infoCard(child: Row(children: [
+                          Container(width: 44, height: 44, decoration: BoxDecoration(color: const Color(0xFF16A36A).withValues(alpha: .12), borderRadius: BorderRadius.circular(14)), child: const Icon(Icons.shield_rounded, color: Color(0xFF16A36A))),
+                          const SizedBox(width: 13),
+                          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                            Text('Authenticator protection enabled', style: TextStyle(color: ink, fontWeight: FontWeight.w800)),
+                            const SizedBox(height: 4),
+                            Text('$_backupCount backup codes remaining', style: TextStyle(color: muted, fontSize: 12)),
+                          ])),
+                          const Icon(Icons.check_circle_rounded, color: Color(0xFF16A36A)),
+                        ])),
+                        const SizedBox(height: 14),
+                        OutlinedButton.icon(
+                          onPressed: _working ? null : _disable,
+                          icon: const Icon(Icons.lock_open_rounded),
+                          label: const Text('Disable two-factor authentication'),
+                          style: OutlinedButton.styleFrom(foregroundColor: theme.colorScheme.error, side: BorderSide(color: theme.colorScheme.error.withValues(alpha: .45)), padding: const EdgeInsets.symmetric(vertical: 14), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))),
+                        ),
+                      ] else if (_setupToken == null) ...[
+                        infoCard(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          Row(children: [
+                            Icon(Icons.phone_iphone_rounded, color: accent),
+                            const SizedBox(width: 9),
+                            Text('Authenticator app', style: TextStyle(color: ink, fontSize: 15, fontWeight: FontWeight.w800)),
+                          ]),
+                          const SizedBox(height: 10),
+                          Text('Use an app such as Google Authenticator, Microsoft Authenticator, or 1Password to generate a one-time code when you sign in.', style: TextStyle(color: muted, height: 1.5, fontSize: 13)),
+                          const SizedBox(height: 18),
+                          SizedBox(width: double.infinity, child: FilledButton.icon(
+                            onPressed: _working ? null : _beginSetup,
+                            icon: _working ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.qr_code_2_rounded),
+                            label: const Text('Set up authenticator'),
+                            style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))),
+                          )),
+                        ])),
+                        const SizedBox(height: 14),
+                        Text('Backup codes are generated once during setup. Keep them private and store them somewhere safe.', style: TextStyle(color: muted, fontSize: 12, height: 1.5)),
+                      ] else ...[
+                        infoCard(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          Text('1. Scan this QR code', style: TextStyle(color: ink, fontWeight: FontWeight.w800)),
+                          const SizedBox(height: 5),
+                          Text('Open your authenticator app and scan the code below.', style: TextStyle(color: muted, fontSize: 12)),
+                          const SizedBox(height: 16),
+                          Center(child: Container(
+                            padding: const EdgeInsets.all(14),
+                            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(18), border: Border.all(color: const Color(0xFFE5E7EB))),
+                            child: QrImageView(data: _otpauthUri!, size: 210, backgroundColor: Colors.white, eyeStyle: const QrEyeStyle(color: Color(0xFF172033)), dataModuleStyle: const QrDataModuleStyle(color: Color(0xFF172033))),
+                          )),
+                          const SizedBox(height: 20),
+                          Text('Or enter this setup key manually', style: TextStyle(color: ink, fontWeight: FontWeight.w800)),
+                          const SizedBox(height: 9),
+                          Container(width: double.infinity, padding: const EdgeInsets.all(14), decoration: BoxDecoration(color: NovynTheme.inputBg(context), borderRadius: BorderRadius.circular(13), border: Border.all(color: border)), child: SelectableText(_secret!, style: TextStyle(color: ink, fontFamily: 'monospace', fontWeight: FontWeight.w800, letterSpacing: 1.3))),
+                          const SizedBox(height: 18),
+                          SizedBox(width: double.infinity, child: FilledButton(onPressed: _working ? null : _confirmSetup, style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))), child: const Text('Continue to verification'))),
+                          SizedBox(width: double.infinity, child: TextButton(onPressed: () => setState(() { _setupToken = null; _secret = null; _otpauthUri = null; }), child: const Text('Cancel setup'))),
+                        ])),
+                      ],
+                    ],
+                  ),
                 ),
-                const SizedBox(height: 20),
-                if (_error != null)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: Text(_error!, style: TextStyle(color: theme.colorScheme.error)),
-                  ),
-                if (_enabled) ...[
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: const Icon(Icons.shield_rounded, color: Color(0xFF16A36A)),
-                    title: const Text('Authenticator protection enabled'),
-                    subtitle: Text('$_backupCount backup codes remaining'),
-                  ),
-                  const SizedBox(height: 8),
-                  OutlinedButton.icon(
-                    onPressed: _working ? null : _disable,
-                    icon: const Icon(Icons.lock_open_rounded),
-                    label: const Text('Disable two-factor authentication'),
-                  ),
-                ] else if (_setupToken == null) ...[
-                  Text('You will need an authenticator app such as Google Authenticator, Microsoft Authenticator, or 1Password.',
-                    style: TextStyle(color: muted, height: 1.5)),
-                  const SizedBox(height: 18),
-                  FilledButton.icon(
-                    onPressed: _working ? null : _beginSetup,
-                    icon: _working
-                        ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                        : const Icon(Icons.qr_code_2_rounded),
-                    label: const Text('Set up authenticator'),
-                  ),
-                ] else ...[
-                  const Text('1. Scan this QR code with your authenticator app.'),
-                  const SizedBox(height: 12),
-                  Center(
-                    child: Container(
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(18)),
-                      child: QrImageView(data: _otpauthUri!, size: 210),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  const Text('Or enter this setup key manually:', style: TextStyle(fontWeight: FontWeight.w700)),
-                  const SizedBox(height: 8),
-                  SelectableText(_secret!, style: const TextStyle(fontFamily: 'monospace', fontWeight: FontWeight.w800, letterSpacing: 1.3)),
-                  const SizedBox(height: 18),
-                  FilledButton(
-                    onPressed: _working ? null : _confirmSetup,
-                    child: const Text('Continue to verification'),
-                  ),
-                  TextButton(
-                    onPressed: () => setState(() {
-                      _setupToken = null;
-                      _secret = null;
-                      _otpauthUri = null;
-                    }),
-                    child: const Text('Cancel setup'),
-                  ),
-                ],
-                if (!_enabled && _setupToken == null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 20),
-                    child: Text('Backup codes are generated once during setup. Keep them private and do not share them.',
-                      style: TextStyle(color: muted, fontSize: 12, height: 1.45)),
-                  ),
-              ],
-            ),
     );
   }
 }
