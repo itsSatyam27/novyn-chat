@@ -72,6 +72,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
   final ScrollController _scroll = ScrollController();
   final AudioPlayer _audioPlayer = AudioPlayer();
   bool _loading = true;
+  bool _initialPositionReady = false;
   bool _sending = false;
   bool _loadingOlder = false;
   bool _hasMore = true;
@@ -245,7 +246,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
       socket.openChat(_chatId!, cachedMessages);
       if (cachedMessages.isEmpty) _fetchingFromServer = true;
       setState(() => _loading = false);
-      if (cachedMessages.isNotEmpty) _jumpToLatestImmediately();
+      // Keep cached history covered until the server's latest history has
+      // been applied, so stale cache positions never flash on screen.
     }
 
     final history = await historyF;
@@ -259,6 +261,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
       _jumpToLatestImmediately();
     } else if (mounted) {
       setState(() => _fetchingFromServer = false);
+      if (cachedMessages.isNotEmpty) {
+        _jumpToLatestImmediately();
+      } else {
+        setState(() => _initialPositionReady = true);
+      }
     }
 
     final settings = context.read<SettingsService>();
@@ -341,23 +348,55 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
   // Opening a conversation should land directly on the newest message.
   // Avoid animating through the entire history, which feels slow on long chats.
   void _jumpToLatestImmediately() {
+    // Keep the message list mounted behind a loading veil while Flutter lays
+    // out variable-height bubbles. This prevents the user seeing the initial
+    // top/middle position before the list reaches the true latest message.
+    _initialPositionReady = false;
     var attempts = 0;
-    void jumpAfterLayout() {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted || !_scroll.hasClients) return;
-        final position = _scroll.position;
-        if (position.hasContentDimensions) {
-          _scroll.jumpTo(position.maxScrollExtent);
+    var stableFrames = 0;
+    double? previousExtent;
+
+    void retryAfterLayout() {
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        if (!mounted) return;
+        if (!_scroll.hasClients || !_scroll.position.hasContentDimensions) {
+          if (++attempts < 40) {
+            await Future<void>.delayed(const Duration(milliseconds: 30));
+            if (mounted) retryAfterLayout();
+          } else {
+            setState(() => _initialPositionReady = true);
+          }
+          return;
         }
-        // A lazy ListView can refine its estimated extent over the next frames.
-        if (++attempts < 3 && mounted) jumpAfterLayout();
+
+        final position = _scroll.position;
+        final extent = position.maxScrollExtent;
+        _scroll.jumpTo(extent);
+
+        if (previousExtent != null &&
+            (extent - previousExtent!).abs() < 1.0 &&
+            (position.maxScrollExtent - position.pixels).abs() < 1.0) {
+          stableFrames++;
+        } else {
+          stableFrames = 0;
+        }
+        previousExtent = extent;
+
+        if (++attempts < 40 && stableFrames < 3) {
+          await Future<void>.delayed(const Duration(milliseconds: 30));
+          if (mounted) retryAfterLayout();
+        } else if (mounted) {
+          _isNearLatest = true;
+          setState(() {
+            _initialPositionReady = true;
+            _showJumpToLatest = false;
+          });
+        }
       });
     }
-    jumpAfterLayout();
+
+    retryAfterLayout();
     _isNearLatest = true;
-    if (_showJumpToLatest) {
-      setState(() => _showJumpToLatest = false);
-    }
   }
 
   void _scrollToBottom({bool force = false}) {
@@ -406,6 +445,17 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                             ? _fetchingFromServer ? _buildLoadingShimmer() : _buildEmptyChat()
                             : _buildMessageList(messages),
                   ),
+                  if (!_initialPositionReady && messages.isNotEmpty)
+                    Positioned.fill(
+                      child: ColoredBox(
+                        color: Theme.of(context).colorScheme.surface,
+                        child: Center(
+                          child: CircularProgressIndicator(
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                        ),
+                      ),
+                    ),
                   if (_showJumpToLatest && messages.isNotEmpty)
                     Positioned(
                       right: 18,

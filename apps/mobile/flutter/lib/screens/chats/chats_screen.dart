@@ -450,13 +450,150 @@ class _ChatsScreenState extends State<ChatsScreen> {
     );
   }
 
+  Future<void> _showChatOptions(ChatPreview chat) async {
+    final settings = context.read<SettingsService>();
+    final socket = context.read<SocketService>();
+    final isFavorite = settings.favoriteChatIds.contains(chat.chatId);
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      showDragHandle: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetContext) {
+        final colors = Theme.of(sheetContext).colorScheme;
+        Widget option(IconData icon, String label, String value, {Color? color}) {
+          return ListTile(
+            leading: Icon(icon, color: color ?? colors.onSurfaceVariant),
+            title: Text(label, style: TextStyle(color: color ?? colors.onSurface)),
+            onTap: () => Navigator.pop(sheetContext, value),
+          );
+        }
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 4, 20, 10),
+                child: Row(children: [
+                  Expanded(
+                    child: Text(chat.peer.name,
+                      maxLines: 1, overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                  ),
+                  if (chat.isGroup) const Chip(label: Text('Group')),
+                ]),
+              ),
+              option(chat.isPinned ? Icons.push_pin : Icons.push_pin_outlined,
+                chat.isPinned ? 'Pinned' : 'Pin chat', 'pin'),
+              option(Icons.notifications_off_outlined, 'Mute notifications', 'mute'),
+              option(isFavorite ? Icons.star_rounded : Icons.star_border_rounded,
+                isFavorite ? 'Remove from favorites' : 'Add to favorites', 'favorite',
+                color: isFavorite ? const Color(0xFFFFB300) : null),
+              option(chat.unreadCount > 0 ? Icons.mark_chat_read_outlined : Icons.mark_chat_unread_outlined,
+                chat.unreadCount > 0 ? 'Mark as read' : 'Mark as unread', 'read'),
+              option(chat.isArchived ? Icons.unarchive_outlined : Icons.archive_outlined,
+                chat.isArchived ? 'Unarchive chat' : 'Archive chat', 'archive'),
+              const Divider(height: 8),
+              if (!chat.isGroup)
+                option(Icons.block_outlined, 'Block user', 'block', color: colors.error),
+              option(Icons.cleaning_services_outlined, 'Clear chat', 'clear', color: colors.error),
+              option(chat.isGroup ? Icons.logout_rounded : Icons.delete_outline_rounded,
+                chat.isGroup ? 'Exit group' : 'Delete chat', 'delete', color: colors.error),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
+    );
+    if (!mounted || action == null) return;
+
+    // Only expose actions that the mobile client can currently execute safely.
+    switch (action) {
+      case 'favorite':
+        await settings.toggleFavoriteChat(chat.chatId);
+        break;
+      case 'mute':
+        try {
+          socket.setMute(chat.peer.username, muted: true);
+          _showSnackBar('Notifications muted');
+        } catch (error) {
+          _showSnackBar(error.toString());
+        }
+        break;
+      case 'clear':
+        final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            title: const Text('Clear chat?'),
+            content: Text('Messages with ${chat.peer.name} will be cleared.'),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancel')),
+              FilledButton(
+                style: FilledButton.styleFrom(backgroundColor: Theme.of(dialogContext).colorScheme.error),
+                onPressed: () => Navigator.pop(dialogContext, true),
+                child: const Text('Clear'),
+              ),
+            ],
+          ),
+        );
+        if (confirmed == true && mounted) {
+          try {
+            socket.clearChat(chat.peer.username);
+            _showSnackBar('Chat cleared');
+            await _loadChats(silent: true);
+          } catch (error) {
+            _showSnackBar(error.toString());
+          }
+        }
+        break;
+      case 'delete':
+        if (chat.isGroup) {
+          _showSnackBar('Exit group is not yet supported in the mobile client.');
+          break;
+        }
+        final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            title: const Text('Delete chat?'),
+            content: Text('Remove ${chat.peer.name} from your contacts and delete this chat?'),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancel')),
+              FilledButton(
+                style: FilledButton.styleFrom(backgroundColor: Theme.of(dialogContext).colorScheme.error),
+                onPressed: () => Navigator.pop(dialogContext, true),
+                child: const Text('Delete'),
+              ),
+            ],
+          ),
+        );
+        if (confirmed == true && mounted) {
+          try {
+            socket.removeFriend(chat.peer.username);
+            await _loadChats(silent: true);
+            _showSnackBar('Chat deleted');
+          } catch (error) {
+            _showSnackBar(error.toString());
+          }
+        }
+        break;
+      case 'pin':
+      case 'read':
+      case 'archive':
+      case 'block':
+        _showSnackBar('This chat action is not yet available in the mobile client.');
+        break;
+    }
+  }
+
   Widget _buildChatCard(ChatPreview preview) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12),
       child: _ChatCard(
         preview: preview,
         isFavorite: context.watch<SettingsService>().favoriteChatIds.contains(preview.chatId),
-        onToggleFavorite: () => context.read<SettingsService>().toggleFavoriteChat(preview.chatId),
+        onOptions: () => _showChatOptions(preview),
         onTap: () async {
           await Navigator.push(
             context,
@@ -560,9 +697,9 @@ class _ChatCard extends StatelessWidget {
   final ChatPreview preview;
   final VoidCallback onTap;
   final bool isFavorite;
-  final VoidCallback? onToggleFavorite;
+  final VoidCallback? onOptions;
 
-  const _ChatCard({required this.preview, required this.onTap, this.isFavorite = false, this.onToggleFavorite});
+  const _ChatCard({required this.preview, required this.onTap, this.isFavorite = false, this.onOptions});
 
   @override
   Widget build(BuildContext context) {
@@ -649,11 +786,12 @@ class _ChatCard extends StatelessWidget {
                           ),
                           IconButton(
                             visualDensity: VisualDensity.compact,
-                            constraints: const BoxConstraints.tightFor(width: 30, height: 30),
+                            constraints: const BoxConstraints.tightFor(width: 34, height: 34),
                             padding: EdgeInsets.zero,
-                            tooltip: isFavorite ? 'Remove from favorites' : 'Add to favorites',
-                            onPressed: onToggleFavorite,
-                            icon: Icon(isFavorite ? Icons.star_rounded : Icons.star_border_rounded, size: 19, color: isFavorite ? const Color(0xFFFFB300) : metaColor.withValues(alpha: .65)),
+                            tooltip: 'Chat options',
+                            onPressed: onOptions,
+                            icon: Icon(Icons.keyboard_arrow_down_rounded,
+                              size: 23, color: metaColor.withValues(alpha: .8)),
                           ),
                           if (hasUnread) ...[
                             const SizedBox(width: 8),
