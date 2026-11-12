@@ -122,6 +122,7 @@ class SocketService extends ChangeNotifier {
   bool get isAuthenticated => _isAuthenticated;
   bool get peerIsTyping => _peerIsTyping;
   String? get currentChatWith => _currentChatWith;
+  bool get activeChatCaptureProtected => _activeChatCaptureProtected;
   String? get myUsername => _myUsername;
 
   // ── Connect ───────────────────────────────────────────────────────────────
