@@ -10,6 +10,7 @@ import '../../services/webrtc_service.dart';
 import '../../services/api_service.dart';
 import '../../services/auth_service.dart';
 import '../../services/audio_manager_service.dart';
+import '../../services/settings_service.dart';
 import '../../widgets/user_avatar.dart';
 
 enum CallState { calling, connected, ended }
@@ -112,8 +113,16 @@ class _CallScreenState extends State<CallScreen>
   void _playRingtone() async {
     // Set MODE_IN_COMMUNICATION once — earpiece by default, no pause on later toggles
     await AudioManagerService.startCallMode();
-    if (!mounted || (widget.isIncoming && context.read<AuthService>().user?.presenceMode == 'busy')) return;
+    if (!mounted ||
+        (widget.isIncoming && context.read<AuthService>().user?.presenceMode == 'busy')) {
+      return;
+    }
+    final preferences = context.read<SettingsService>();
+    if (preferences.callRingtone == 'None') return;
     await _audioPlayer.setReleaseMode(ReleaseMode.loop);
+    await _audioPlayer.setVolume(
+      preferences.callVolume.clamp(0.0, 1.0).toDouble(),
+    );
     final sound = widget.isIncoming ? 'audio/ringtone.mp3' : 'audio/call_ring.mp3';
     await _audioPlayer.play(AssetSource(sound));
   }
