@@ -50,6 +50,7 @@ class _CallScreenState extends State<CallScreen>
   late Animation<double> _pulse;
   final AudioPlayer _audioPlayer = AudioPlayer();
   late final WebRTCService _webrtc;
+  late Future<void> _webrtcInit;
   Timer? _callTimeoutTimer;
   late String _callId;
   bool _hasLoggedCall = false;
@@ -81,7 +82,7 @@ class _CallScreenState extends State<CallScreen>
 
     _webrtc = WebRTCService();
     _callId = widget.callId ?? '';
-    _initWebRTC();
+    _webrtcInit = _initWebRTC();
     _playRingtone();
     _listenToCallEvents();
 
@@ -124,6 +125,7 @@ class _CallScreenState extends State<CallScreen>
   }
 
   Future<void> _ensureLocalMedia() async {
+    await _webrtcInit;
     if (_mediaStarted) return;
     if (_mediaInitializing) {
       while (_mediaInitializing) {
