@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:audioplayers/audioplayers.dart';
 
@@ -86,16 +85,9 @@ class _SoundVibrationScreenState extends State<SoundVibrationScreen> {
     }
   }
 
-  void _testVibration(SettingsService settings) {
-    if (!settings.inAppVibration) return;
-    final intensity = settings.hapticIntensity;
-    if (intensity < .34) {
-      HapticFeedback.lightImpact();
-    } else if (intensity < .67) {
-      HapticFeedback.mediumImpact();
-    } else {
-      HapticFeedback.heavyImpact();
-    }
+  Future<void> _testVibration(SettingsService settings) async {
+    if (!settings.inAppVibration || settings.vibrationPattern == 'none') return;
+    await HapticService.vibrateNotification();
   }
 
   Future<void> _chooseRhythm(SettingsService settings) async {
