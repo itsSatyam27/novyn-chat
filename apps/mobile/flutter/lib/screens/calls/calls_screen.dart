@@ -333,9 +333,9 @@ class _CallsScreenState extends State<CallsScreen> {
         children: [
           Row(
             children: [
-              Expanded(child: _CallSummaryTile(icon: Icons.history_rounded, label: 'Contacts', value: calls.length.toString(), tint: Theme.of(context).colorScheme.primary)),
+              Expanded(child: _CallSummaryTile(icon: Icons.history_rounded, label: 'Call entries', value: calls.fold<int>(0, (total, call) => total + call.count).toString(), tint: Theme.of(context).colorScheme.primary)),
               const SizedBox(width: 10),
-              Expanded(child: _CallSummaryTile(icon: Icons.call_missed_rounded, label: 'Missed', value: calls.where((call) => call.status == 'missed').length.toString(), tint: NovynColors.danger)),
+              Expanded(child: _CallSummaryTile(icon: Icons.call_missed_rounded, label: 'Missed calls', value: calls.fold<int>(0, (total, call) => total + call.history.where((log) => log['status'] == 'missed').length).toString(), tint: NovynColors.danger)),
             ],
           ),
           const SizedBox(height: 18),
