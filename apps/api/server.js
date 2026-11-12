@@ -3772,8 +3772,6 @@ function buildFriendList(forUser) {
       lastSeenAt: blocked || !presenceAllowed ? null : getVisibleLastSeen(friend),
       publicKey: friend?.publicKey || "",
       muted: isMutedBy(user, friendKey),
-      blockedByMe: isBlockedBy(user, friendKey),
-      blockedYou: isBlockedBy(friend, userKey),
       memberCount: 2,
       onlineCount: presence !== "offline" ? 1 : 0,
     };
