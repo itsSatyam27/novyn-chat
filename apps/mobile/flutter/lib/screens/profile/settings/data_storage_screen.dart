@@ -524,7 +524,6 @@ class YourDownloadsScreen extends StatefulWidget {
 
 class _YourDownloadsScreenState extends State<YourDownloadsScreen> {
   int _refreshKey = 0;
-  bool _loading = false;
 
   Future<List<File>> _load() async {
     final docs = await getApplicationDocumentsDirectory();
