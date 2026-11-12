@@ -130,6 +130,19 @@ class SocketService extends ChangeNotifier {
   String? get myUsername => _myUsername;
 
   // ── Connect ───────────────────────────────────────────────────────────────
+  /// Rebuild the socket handshake after the REST session cookie rotates.
+  /// The server binds each socket to the session ID used at connect time.
+  void reconnectWithCurrentSession() {
+    final username = _myUsername;
+    final serverUrl = _serverUrl;
+    if (username == null || username.isEmpty ||
+        serverUrl == null || serverUrl.isEmpty) {
+      return;
+    }
+    disconnect();
+    connect(serverUrl, username);
+  }
+
   void connect(String serverUrl, String username) {
     _manualDisconnect = false;
     if (_socket != null && _myUsername != null &&
