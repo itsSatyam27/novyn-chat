@@ -76,7 +76,7 @@ class _PeopleScreenState extends State<PeopleScreen> {
               stream: friends.friendsStream(myUid),
               builder: (context, onlineSnap) {
                 final online = (onlineSnap.data ?? cachedFriends).where((u) => u.isOnline).toList();
-                if (online.isEmpty || _search.isNotEmpty || _filter == 'Recently Active') return const SizedBox.shrink();
+                if (online.isEmpty || _search.isNotEmpty || _filter != 'All') return const SizedBox.shrink();
                 return SizedBox(
                   height: 112,
                   child: ListView.separated(
@@ -121,7 +121,7 @@ class _PeopleScreenState extends State<PeopleScreen> {
                   all.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
                   final filtered = all.where((u) {
                     if (_filter == 'Online' && !u.isOnline) return false;
-                    if (_filter == 'Recently Active' && (u.lastSeen == null || DateTime.now().difference(u.lastSeen!).inDays > 7)) return false;
+                    if (_filter == 'Recently Active' && !u.isOnline && (u.lastSeen == null || DateTime.now().difference(u.lastSeen!).inDays > 7)) return false;
                     if (_search.isNotEmpty &&
                         !u.name.toLowerCase().contains(_search) &&
                         !u.username.toLowerCase().contains(_search)) return false;
