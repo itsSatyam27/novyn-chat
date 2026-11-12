@@ -25,6 +25,9 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   if (data['type'] != 'message' || data['kind'] == 'group') return;
 
   final prefs = await SharedPreferences.getInstance();
+  // Background FCM runs in its own isolate; refresh the plugin cache before
+  // reading account and preview preferences written by the foreground isolate.
+  await prefs.reload();
   final notificationsEnabled = prefs.getBool('notifications_on') ?? true;
   if (!notificationsEnabled) return;
 
@@ -54,9 +57,14 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
           ciphertext: ciphertext,
           iv: iv,
         );
-        final decrypted = await MessageEncryptionService().decrypt(
-          encrypted, account, peerKey,
-        );
+        final encryption = MessageEncryptionService();
+        var decrypted = await encryption.decrypt(encrypted, account, peerKey);
+        // Secure-storage access can briefly be unavailable while Android is
+        // starting the background isolate. Retry once; never send ciphertext.
+        if (decrypted.needsMessageKey) {
+          await Future<void>.delayed(const Duration(milliseconds: 350));
+          decrypted = await encryption.decrypt(encrypted, account, peerKey);
+        }
         if (!decrypted.needsMessageKey &&
             decrypted.text != '🔒 Encrypted message' &&
             decrypted.text.trim().isNotEmpty) {
