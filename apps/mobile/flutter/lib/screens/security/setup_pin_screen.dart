@@ -91,7 +91,7 @@ class _SetupPinScreenState extends State<SetupPinScreen> {
 
     if (widget.isChanging && _step == 0) {
       if (_currentPin != settings.appLockPin) {
-        HapticFeedback.vibrate();
+        HapticService.vibrate(NovynHapticType.error, category: HapticCategory.buttons);
         setState(() => _currentPin = '');
         NovynAlert.show(context, 'Current PIN is incorrect. Try again.',
             isError: true);
@@ -115,20 +115,20 @@ class _SetupPinScreenState extends State<SetupPinScreen> {
 
   Future<void> _verifyAndSave(SettingsService settings) async {
     if (_pin != _confirmPin) {
-      HapticFeedback.vibrate();
+      HapticService.vibrate(NovynHapticType.error, category: HapticCategory.buttons);
       setState(() => _confirmPin = '');
       NovynAlert.show(context, 'PINs do not match. Please try again.',
           isError: true);
       return;
     }
     if (widget.isChanging && _pin == _currentPin) {
-      HapticFeedback.vibrate();
+      HapticService.vibrate(NovynHapticType.error, category: HapticCategory.buttons);
       setState(() => _confirmPin = '');
       NovynAlert.show(context, 'Choose a PIN different from your current PIN.', isError: true);
       return;
     }
     if (widget.isPanic && _pin == settings.appLockPin) {
-      HapticFeedback.vibrate();
+      HapticService.vibrate(NovynHapticType.error, category: HapticCategory.buttons);
       setState(() {
         _pin = '';
         _confirmPin = '';
