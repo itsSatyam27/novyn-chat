@@ -314,12 +314,14 @@ class _CallsScreenState extends State<CallsScreen> {
 
   Widget _buildList() {
     final calls = _filteredCalls();
-    final favoriteCalls = <UserModel>[
-      for (final entry in _calls)
-        if (_favoriteUsernames.contains(entry.peer.username.toLowerCase()) &&
-            !_favoriteUsernames.take(_favoriteUsernames.toList().indexOf(entry.peer.username.toLowerCase())).contains(entry.peer.username.toLowerCase()))
-          entry.peer,
-    ];
+    final favoriteCalls = <UserModel>[];
+    final favoriteSeen = <String>{};
+    for (final entry in _calls) {
+      final username = entry.peer.username.toLowerCase();
+      if (_favoriteUsernames.contains(username) && favoriteSeen.add(username)) {
+        favoriteCalls.add(entry.peer);
+      }
+    }
     final seenFavorites = <String>{};
     final uniqueFavorites = favoriteCalls.where((peer) => seenFavorites.add(peer.username.toLowerCase())).toList();
     return RefreshIndicator(
