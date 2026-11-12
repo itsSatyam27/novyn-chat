@@ -926,36 +926,6 @@ class _EditProfileAvatar extends StatelessWidget {
                   ),
           ),
         ),
-
-        // ── Integrated Camera Node ──────────────────────────────────
-        Positioned(
-          bottom: 4,
-          right: 4,
-          child: Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: LinearGradient(
-                colors: [Theme.of(context).colorScheme.primary, Color(0xFF40E0D0)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.4),
-                  blurRadius: 15,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-              border: Border.all(color: Colors.white.withValues(alpha: 0.3), width: 2),
-            ),
-            child: Icon(
-              Icons.camera_alt_rounded,
-              color: Colors.white,
-              size: 20,
-            ),
-          ),
-        ),
       ],
     );
   }
