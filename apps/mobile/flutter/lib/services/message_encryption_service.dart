@@ -114,6 +114,60 @@ class MessageEncryptionService {
     return imported.length;
   }
 
+  /// Include conversation keys only inside a password-encrypted local backup.
+  Future<Map<String, dynamic>> exportBackupKeys(String username) async {
+    final account = _account(username);
+    final keys = await _keys(account);
+    return {'username': account, 'keys': jsonDecode(jsonEncode(keys))};
+  }
+
+  /// Merge password-protected backup keys without replacing newer key generations.
+  Future<int> importBackupKeys(Map<String, dynamic> backup, String username) async {
+    final account = _account(username);
+    if (backup['username']?.toString().toLowerCase() != account) {
+      throw const FormatException('Backup encryption keys belong to a different account.');
+    }
+    final raw = backup['keys'];
+    if (raw is! Map || raw.length > 10000) {
+      throw const FormatException('Invalid conversation key backup.');
+    }
+    final merged = Map<String, dynamic>.from(await _keys(account));
+    var imported = 0;
+    for (final entry in raw.entries) {
+      final peer = entry.key.toString();
+      if (peer.isEmpty || peer != _account(peer) || entry.value is! List) {
+        throw const FormatException('Invalid conversation key entry.');
+      }
+      final versions = List<dynamic>.from(merged[peer] as List? ?? []);
+      for (final rawVersion in entry.value as List) {
+        if (rawVersion is! Map) throw const FormatException('Invalid conversation key version.');
+        final version = Map<String, dynamic>.from(rawVersion);
+        final publicKey = version['publicKey']?.toString() ?? '';
+        final identity = version['identity']?.toString() ?? '';
+        final key = version['key']?.toString() ?? '';
+        try {
+          if (!samePublicKey(publicKey, publicKey) ||
+              !samePublicKey(identity, identity) ||
+              base64Decode(key).length != 32) {
+            throw const FormatException('Invalid conversation key material.');
+          }
+        } on FormatException {
+          throw const FormatException('Invalid conversation key material.');
+        }
+        if (!versions.any((existing) =>
+            existing['key'] == key &&
+            samePublicKey(existing['publicKey']?.toString() ?? '', publicKey))) {
+          versions.add(version);
+          imported++;
+        }
+      }
+      merged[peer] = versions;
+    }
+    await _write('novyn_message_keys_$account', jsonEncode(merged));
+    _accounts[account] = merged;
+    return imported;
+  }
+
   static SecretBox _box(String ciphertext, List<int> iv) {
     final bytes = base64Decode(ciphertext);
     if (iv.length != 12 || bytes.length < 16) {
