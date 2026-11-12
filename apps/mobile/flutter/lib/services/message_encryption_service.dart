@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:math';
 import 'dart:typed_data';
 import 'package:cryptography/cryptography.dart';
-import 'package:pointycastle/export.dart';
+import 'package:pointycastle/export.dart' as pc;
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../models/chat_models.dart';
@@ -27,7 +27,7 @@ Future<Map<String, dynamic>> _openKeyFile(Map<String, dynamic> input) async {
 /// The private identity is stored only in platform secure storage.
 class _EcdhIdentity {
   const _EcdhIdentity(this.privateKey, this.d, this.x, this.y);
-  final ECPrivateKey privateKey;
+  final pc.ECPrivateKey privateKey;
   final List<int> d;
   final List<int> x;
   final List<int> y;
@@ -41,7 +41,7 @@ class MessageEncryptionService {
   static const _storage = FlutterSecureStorage();
   final KeyReader _read;
   final KeyWriter _write;
-  final _domain = ECDomainParameters('secp256r1');
+  final _domain = pc.ECDomainParameters('secp256r1');
   final _aes = AesGcm.with256bits();
   final Map<String, _EcdhIdentity> _identities = {};
   final Map<String, Future<_EcdhIdentity>> _identityLoads = {};
@@ -68,10 +68,10 @@ class MessageEncryptionService {
     return BigInt.parse(hex, radix: 16);
   }
 
-  SecureRandom _secureRandom() {
+  pc.SecureRandom _secureRandom() {
     final source = Random.secure();
     final seed = Uint8List.fromList(List<int>.generate(32, (_) => source.nextInt(256)));
-    return FortunaRandom()..seed(KeyParameter(seed));
+    return pc.FortunaRandom()..seed(pc.KeyParameter(seed));
   }
 
   Future<_EcdhIdentity> _identity(String username) async {
@@ -89,22 +89,22 @@ class MessageEncryptionService {
           final x = _decodeB64url(saved['x'] as String);
           final y = _decodeB64url(saved['y'] as String);
           if (d.length != 32 || x.length != 32 || y.length != 32) throw const FormatException('Invalid P-256 identity length.');
-          final privateKey = ECPrivateKey(_bytesBigInt(d), _domain);
+          final privateKey = pc.ECPrivateKey(_bytesBigInt(d), _domain);
           final point = _domain.curve.createPoint(_bytesBigInt(x), _bytesBigInt(y));
-          final publicKey = ECPublicKey(point, _domain);
+          final publicKey = pc.ECPublicKey(point, _domain);
           identity = _EcdhIdentity(privateKey, d, x, y);
         } catch (_) {
           throw StateError('Your secure message identity is damaged. Restore your Novyn backup before resetting it.');
         }
       } else {
-        final generator = ECKeyGenerator()..init(ParametersWithRandom(ECKeyGeneratorParameters(_domain), _secureRandom()));
+        final generator = pc.ECKeyGenerator()..init(pc.ParametersWithRandom(pc.pc.ECKeyGeneratorParameters(_domain), _secureRandom()));
         final pair = generator.generateKeyPair();
-        final privateKey = pair.privateKey as ECPrivateKey;
-        final publicKey = pair.publicKey as ECPublicKey;
+        final privateKey = pair.privateKey as pc.ECPrivateKey;
+        final publicKey = pair.publicKey as pc.ECPublicKey;
         final d = _bigIntBytes(privateKey.d!, 32);
         final x = _bigIntBytes(publicKey.Q!.x!.toBigInteger()!, 32);
         final y = _bigIntBytes(publicKey.Q!.y!.toBigInteger()!, 32);
-        identity = _EcdhIdentity(privateKey, publicKey, d, x, y);
+        identity = _EcdhIdentity(privateKey, d, x, y);
         await _write(storageKey, jsonEncode({'d': _b64url(d), 'x': _b64url(x), 'y': _b64url(y)}));
       }
       _identities[account] = identity;
@@ -134,8 +134,8 @@ class MessageEncryptionService {
     final x = _decodeB64url(decoded['x'] as String);
     final y = _decodeB64url(decoded['y'] as String);
     final point = _domain.curve.createPoint(_bytesBigInt(x), _bytesBigInt(y));
-    final peerKey = ECPublicKey(point, _domain);
-    final agreement = ECDHBasicAgreement()..init(identity.privateKey);
+    final peerKey = pc.ECPublicKey(point, _domain);
+    final agreement = pc.ECDHBasicAgreement()..init(identity.privateKey);
     // WebCrypto deriveBits(P-256, 256) returns this same 32-byte big-endian X coordinate.
     final bytes = _bigIntBytes(agreement.calculateAgreement(peerKey), 32);
     return SecretKey(bytes);
