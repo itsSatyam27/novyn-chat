@@ -4483,6 +4483,95 @@ function authenticateSignupPayload(payload) {
   return { ok: true, user };
 }
 
+function generateBase32Secret(byteLength = 20) {
+  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+  const bytes = crypto.randomBytes(byteLength);
+  let bits = "";
+  for (const byte of bytes) bits += byte.toString(2).padStart(8, "0");
+  let encoded = "";
+  for (let index = 0; index < bits.length; index += 5) {
+    encoded += alphabet[parseInt(bits.slice(index, index + 5).padEnd(5, "0"), 2)];
+  }
+  return encoded;
+}
+
+function hashBackupCode(code) {
+  return "sha256:" + crypto.createHash("sha256").update(String(code).toUpperCase()).digest("hex");
+}
+
+function createBackupCodes() {
+  return Array.from({ length: 10 }, () =>
+    crypto.randomBytes(5).toString("hex").toUpperCase()
+  );
+}
+
+app.get("/api/auth/2fa/status", requireUser, (req, res) => {
+  const user = users.get(req.userKey);
+  res.json({
+    enabled: Boolean(user?.twoFactorEnabled && user?.twoFactorSecret),
+    backupCodesCount: Array.isArray(user?.twoFactorBackupCodes) ? user.twoFactorBackupCodes.length : 0,
+  });
+});
+
+app.post("/api/auth/2fa/setup", requireUser, requireCsrf, (req, res) => {
+  const user = users.get(req.userKey);
+  if (!user) return res.status(401).json({ message: "Sign in required." });
+  if (user.twoFactorEnabled) {
+    return res.status(409).json({ message: "Two-factor authentication is already enabled." });
+  }
+  const secret = generateBase32Secret();
+  const setupToken = createAuthToken("2fa_setup", req.userKey, 10 * 60 * 1000, { secret });
+  const issuer = "Novyn";
+  const label = encodeURIComponent(`${issuer}:${user.email || user.username}`);
+  const otpauthUri = `otpauth://totp/${label}?secret=${secret}&issuer=${encodeURIComponent(issuer)}&algorithm=SHA1&digits=6&period=30`;
+  res.json({ secret, setupToken, otpauthUri });
+});
+
+app.post("/api/auth/2fa/enable", requireUser, requireCsrf, (req, res) => {
+  const setupToken = verifyAuthToken(toDisplayName(req.body?.setupToken), "2fa_setup");
+  if (!setupToken || resolveCurrentUserKey(setupToken.sub) !== req.userKey) {
+    return res.status(401).json({ message: "Your setup session expired. Start again." });
+  }
+  const user = users.get(req.userKey);
+  const secret = toDisplayName(setupToken.secret);
+  const code = toDisplayName(req.body?.code).replace(/\s+/g, "");
+  if (!user || user.twoFactorEnabled) {
+    return res.status(409).json({ message: "Two-factor authentication is already enabled." });
+  }
+  if (!verifyTotpCode(secret, code)) {
+    return res.status(400).json({ message: "Invalid 6-digit code. Check your authenticator app and device time." });
+  }
+
+  const backupCodes = createBackupCodes();
+  user.twoFactorEnabled = true;
+  user.twoFactorSecret = secret;
+  user.twoFactorBackupCodes = backupCodes.map(hashBackupCode);
+  schedulePersist();
+  res.json({ enabled: true, backupCodes });
+});
+
+app.post("/api/auth/2fa/disable", requireUser, requireCsrf, (req, res) => {
+  const user = users.get(req.userKey);
+  if (!user || !user.twoFactorEnabled || !user.twoFactorSecret) {
+    return res.status(409).json({ message: "Two-factor authentication is not enabled." });
+  }
+  const currentPassword = toDisplayName(req.body?.currentPassword);
+  const code = toDisplayName(req.body?.code).replace(/\s+/g, "");
+  if (user.passwordHash && user.passwordSalt) {
+    if (!currentPassword || !verifyPassword(currentPassword, user.passwordSalt, user.passwordHash)) {
+      return res.status(401).json({ message: "Incorrect current password." });
+    }
+  } else if (!verifyTotpCode(user.twoFactorSecret, code)) {
+    return res.status(401).json({ message: "Enter a valid authenticator code to disable 2FA." });
+  }
+
+  user.twoFactorEnabled = false;
+  user.twoFactorSecret = "";
+  user.twoFactorBackupCodes = [];
+  schedulePersist();
+  res.json({ enabled: false, backupCodesCount: 0 });
+});
+
 app.post("/api/auth/signin", createIpRateLimiter({ getStore: () => httpRateLimits }, "auth-signin", 25, 15 * 60 * 1000), requireCsrf, (req, res) => {
   const result = authenticateSigninPayload(req.body || {});
   if (!result.ok) {
@@ -4718,9 +4807,14 @@ app.post(
 
     let verified = verifyTotpCode(user.twoFactorSecret, code);
     if (!verified && Array.isArray(user.twoFactorBackupCodes)) {
-      const backupIndex = user.twoFactorBackupCodes.findIndex((saved) =>
-        safeTimingEqual(toDisplayName(saved).toUpperCase(), code.toUpperCase())
-      );
+      const candidateHash = hashBackupCode(code);
+      const backupIndex = user.twoFactorBackupCodes.findIndex((saved) => {
+        const value = toDisplayName(saved);
+        // Accept legacy plaintext codes once, then migrate by consuming them.
+        return value.startsWith("sha256:")
+          ? safeTimingEqual(value, candidateHash)
+          : safeTimingEqual(value.toUpperCase(), code.toUpperCase());
+      });
       if (backupIndex >= 0) {
         user.twoFactorBackupCodes.splice(backupIndex, 1);
         verified = true;
