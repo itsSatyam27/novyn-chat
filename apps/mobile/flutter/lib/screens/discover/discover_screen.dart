@@ -650,13 +650,6 @@ class _DiscoverCard extends StatelessWidget {
     required this.onAddFriend,
   });
 
-  static const _palettes = [
-    AvatarPalette.purple,
-    AvatarPalette.blue,
-    AvatarPalette.green,
-    AvatarPalette.pink,
-  ];
-
   static String _lastSeenText(DateTime? lastSeen) {
     if (lastSeen == null) return 'Last seen: unknown';
     final diff = DateTime.now().difference(lastSeen);
@@ -713,7 +706,7 @@ class _DiscoverCard extends StatelessWidget {
                       Container(
                         width: 7,
                         height: 7,
-                        decoration: const BoxDecoration(
+                        decoration: BoxDecoration(
                           color: presenceColor,
                           shape: BoxShape.circle,
                         ),
@@ -758,7 +751,7 @@ class _DiscoverCard extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(
-                    isSending ? Icons.more_horiz_rounded : (isPending ? Icons.hourglass_top_rounded : Icons.person_add_alt_1_rounded),
+                    isSending ? Icons.hourglass_empty_rounded : (isPending ? Icons.hourglass_top_rounded : Icons.person_add_alt_1_rounded),
                     size: 14,
                     color: isPending ? theme.colorScheme.onSurfaceVariant : Colors.white,
                   ),
