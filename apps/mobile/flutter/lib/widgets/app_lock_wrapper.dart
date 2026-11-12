@@ -42,11 +42,10 @@ class _AppLockWrapperState extends State<AppLockWrapper> with WidgetsBindingObse
         final diffSeconds = now.difference(_lastPausedAt!).inSeconds;
         _lastPausedAt = null;
 
-        // Grace period: ignore backgrounding less than 5 seconds (e.g. quick app switch)
-        if (diffSeconds < 5) return;
-
-        // If timeout is 0 (immediately), always lock if past grace period
-        if (settings.appLockTimeout == 0 || (diffSeconds / 60) >= settings.appLockTimeout) {
+        // "Immediately" means every actual background/resume cycle, even
+        // when the user returns in under five seconds.
+        final timeoutSeconds = settings.appLockTimeout * 60;
+        if (settings.appLockTimeout == 0 || diffSeconds >= timeoutSeconds) {
           settings.setLocked(true);
         }
       }
