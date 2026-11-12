@@ -258,7 +258,7 @@ class ProfileInfoScreen extends StatelessWidget {
                 onTap: onExportChat!),
             if (chatProtected)
               _SettingsTile(icon: Icons.shield_rounded, title: 'Chat export disabled',
-                subtitle: 'This contact enabled Stealth Mode',
+                subtitle: 'Export is unavailable while Stealth Mode is active',
                 tint: const Color(0xFFE0F4ED), accent: const Color(0xFF168B61),
                 onTap: () => ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('Export is disabled because this contact enabled Stealth Mode.')))),
