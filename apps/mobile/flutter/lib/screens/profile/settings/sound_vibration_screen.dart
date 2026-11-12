@@ -24,9 +24,9 @@ class _SoundVibrationScreenState extends State<SoundVibrationScreen> {
     super.dispose();
   }
 
-  Future<void> _playMessage(SettingsService settings) async {
+  Future<void> _playMessage(SettingsService settings, {bool restart = false}) async {
     if (!settings.inAppSounds) return;
-    if (_playing == 'message') {
+    if (_playing == 'message' && !restart) {
       await _player.stop();
       if (mounted) setState(() => _playing = null);
       return;
@@ -35,8 +35,9 @@ class _SoundVibrationScreenState extends State<SoundVibrationScreen> {
     await _player.setVolume(settings.messageVolume);
     final asset = switch (settings.notificationTone) {
       'Pulse' => 'audio/message_sent.mp3',
-      'Glass' => 'audio/ringtone.mp3',
-      'Echo' => 'audio/call_ring.mp3',
+      // Message previews must never use call ringtone/ringback assets.
+      'Glass' => 'audio/notification.mp3',
+      'Echo' => 'audio/message_sent.mp3',
       _ => 'audio/notification.mp3',
     };
     try {
@@ -51,9 +52,9 @@ class _SoundVibrationScreenState extends State<SoundVibrationScreen> {
     }
   }
 
-  Future<void> _playCall(SettingsService settings) async {
+  Future<void> _playCall(SettingsService settings, {bool restart = false}) async {
     if (settings.callRingtone == 'None') return;
-    if (_playing == 'call') {
+    if (_playing == 'call' && !restart) {
       await _player.stop();
       if (mounted) setState(() => _playing = null);
       return;
@@ -187,7 +188,7 @@ class _SoundVibrationScreenState extends State<SoundVibrationScreen> {
                   ? settings.notificationTone : 'Drift',
               onTone: (tone) async {
                 await settings.setNotificationTone(tone);
-                if (settings.inAppSounds) _playMessage(settings);
+                if (settings.inAppSounds) _playMessage(settings, restart: true);
               },
               volume: settings.messageVolume * 100,
               volumeLabel: 'Message volume',
@@ -214,7 +215,7 @@ class _SoundVibrationScreenState extends State<SoundVibrationScreen> {
               selectedTone: _callPreview,
               onTone: (tone) {
                 setState(() => _callPreview = tone);
-                if (settings.callRingtone != 'None') _playCall(settings);
+                if (settings.callRingtone != 'None') _playCall(settings, restart: true);
               },
               volume: settings.callVolume * 100,
               volumeLabel: 'Call volume',
@@ -513,9 +514,67 @@ class _ToggleRow extends StatelessWidget {
       _IconTile(icon: icon, bg: tileBg, color: iconColor),
       const SizedBox(width: 14),
       Expanded(child: _RowText(title: title, subtitle: subtitle)),
-      Switch.adaptive(value: value, activeColor: NovynTheme.indigo, onChanged: onChanged),
+      _NovynSwitch(value: value, onChanged: onChanged),
     ]),
   );
+}
+
+class _NovynSwitch extends StatelessWidget {
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  const _NovynSwitch({required this.value, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    final trackColor = value
+        ? NovynTheme.indigo
+        : (Theme.of(context).brightness == Brightness.dark
+            ? const Color(0xFF49465F)
+            : const Color(0xFFD8D5E2));
+    return Semantics(
+      label: 'Setting',
+      value: value ? 'On' : 'Off',
+      toggled: value,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => onChanged(!value),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 190),
+          curve: Curves.easeOutCubic,
+          width: 54,
+          height: 32,
+          padding: const EdgeInsets.all(3),
+          decoration: BoxDecoration(
+            color: trackColor,
+            borderRadius: BorderRadius.circular(30),
+            boxShadow: value
+                ? [BoxShadow(color: NovynTheme.indigo.withValues(alpha: .24),
+                    blurRadius: 10, offset: const Offset(0, 3))]
+                : null,
+          ),
+          child: AnimatedAlign(
+            duration: const Duration(milliseconds: 190),
+            curve: Curves.easeOutCubic,
+            alignment: value ? Alignment.centerRight : Alignment.centerLeft,
+            child: Container(
+              width: 26,
+              height: 26,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+                boxShadow: [BoxShadow(
+                  color: Colors.black.withValues(alpha: .16),
+                  blurRadius: 4,
+                  offset: const Offset(0, 1),
+                )],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _NavRow extends StatelessWidget {
