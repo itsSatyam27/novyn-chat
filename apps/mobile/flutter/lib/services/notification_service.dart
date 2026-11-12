@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'message_encryption_service.dart';
+import 'firebase_configuration.dart';
 import '../models/chat_models.dart';
 import 'package:provider/provider.dart';
 import 'auth_service.dart';
@@ -16,7 +17,7 @@ import '../screens/chats/chat_detail_screen.dart';
 // Top-level handler — must be a top-level function
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  await Firebase.initializeApp();
+  await Firebase.initializeApp(options: FirebaseConfiguration.options);
   final data = message.data;
   if (data['type'] != 'message' || data['kind'] == 'group') return;
 
