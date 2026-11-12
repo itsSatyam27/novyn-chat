@@ -563,7 +563,6 @@ class SocketService extends ChangeNotifier {
         final updatedPeer = chat.peer.copyWith(
           isOnline: online,
           status: presence ?? (online ? 'online' : 'offline'),
-          lastSeen: DateTime.tryParse(data['lastSeenAt']?.toString() ?? ''),
         );
         return chat.copyWith(peer: updatedPeer);
       }).toList();
