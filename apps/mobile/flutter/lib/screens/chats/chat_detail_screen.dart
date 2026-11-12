@@ -831,7 +831,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                 Text('Recording  ${_formatVoiceDuration(_voiceSeconds)}',
                   style: TextStyle(fontFamily: 'PlusJakartaSans', fontWeight: FontWeight.w600, color: Color(0xFFEF4444))),
                 const Spacer(),
-                const Text('Release to send', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 11, color: Color(0xFF94A3B8))),
+                const Text('Tap to send', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 11, color: Color(0xFF94A3B8))),
               ],
             ),
           ),
