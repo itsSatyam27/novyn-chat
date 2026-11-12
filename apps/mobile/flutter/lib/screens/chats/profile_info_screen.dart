@@ -64,34 +64,72 @@ class ProfileInfoScreen extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
         children: [
           Container(
-            padding: const EdgeInsets.fromLTRB(20, 26, 20, 22),
+            clipBehavior: Clip.antiAlias,
+            padding: const EdgeInsets.fromLTRB(20, 28, 20, 22),
             decoration: BoxDecoration(
-              color: scheme.surfaceContainerLow,
-              borderRadius: BorderRadius.circular(26),
-              border: Border.all(color: scheme.outlineVariant.withValues(alpha: .7)),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  scheme.primaryContainer.withValues(alpha: .78),
+                  scheme.surfaceContainerLow,
+                  scheme.surfaceContainerLow,
+                ],
+              ),
+              borderRadius: BorderRadius.circular(30),
+              border: Border.all(color: scheme.outlineVariant.withValues(alpha: .65)),
+              boxShadow: [
+                BoxShadow(
+                  color: scheme.primary.withValues(alpha: .08),
+                  blurRadius: 26,
+                  offset: const Offset(0, 12),
+                ),
+              ],
             ),
             child: Column(
               children: [
-                Hero(
-                  tag: 'avatar_${user.uid}',
-                  child: UserAvatar(
-                    name: user.name,
-                    photoUrl: user.photoUrl,
-                    radius: 48,
-                    showOnlineIndicator: true,
-                    isOnline: online,
-                    presence: user.status,
-                  ),
+                Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    Container(
+                      width: 116,
+                      height: 116,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(color: scheme.primary.withValues(alpha: .28), width: 1.5),
+                        boxShadow: [
+                          BoxShadow(color: scheme.primary.withValues(alpha: .13), blurRadius: 22, spreadRadius: 2),
+                        ],
+                      ),
+                    ),
+                    Hero(
+                      tag: 'avatar_${user.uid}',
+                      child: UserAvatar(
+                        name: user.name,
+                        photoUrl: user.photoUrl,
+                        radius: 49,
+                        showOnlineIndicator: true,
+                        isOnline: online,
+                        presence: user.status,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 18),
                 Text(
                   user.name,
                   textAlign: TextAlign.center,
-                  style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 22, fontWeight: FontWeight.w800, color: scheme.onSurface),
+                  style: TextStyle(
+                    fontFamily: 'PlusJakartaSans',
+                    fontSize: 23,
+                    letterSpacing: -.45,
+                    fontWeight: FontWeight.w800,
+                    color: scheme.onSurface,
+                  ),
                 ),
-                const SizedBox(height: 7),
+                const SizedBox(height: 9),
                 InkWell(
-                  borderRadius: BorderRadius.circular(20),
+                  borderRadius: BorderRadius.circular(24),
                   onTap: () async {
                     await Clipboard.setData(ClipboardData(text: '@${user.username}'));
                     if (context.mounted) {
@@ -101,41 +139,55 @@ class ProfileInfoScreen extends StatelessWidget {
                     }
                   },
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                     decoration: BoxDecoration(
-                      color: scheme.primary.withValues(alpha: .09),
-                      borderRadius: BorderRadius.circular(20),
+                      color: scheme.surface.withValues(alpha: .72),
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(color: scheme.outlineVariant.withValues(alpha: .55)),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(Icons.alternate_email_rounded, size: 15, color: scheme.primary),
-                        const SizedBox(width: 4),
-                        Text(user.username, style: TextStyle(fontFamily: 'PlusJakartaSans', color: scheme.primary, fontSize: 13, fontWeight: FontWeight.w700)),
-                        const SizedBox(width: 6),
-                        Icon(Icons.copy_rounded, size: 13, color: scheme.primary),
+                        const SizedBox(width: 5),
+                        Text(
+                          user.username,
+                          style: TextStyle(fontFamily: 'PlusJakartaSans', color: scheme.primary, fontSize: 13, fontWeight: FontWeight.w700),
+                        ),
+                        const SizedBox(width: 7),
+                        Icon(Icons.copy_rounded, size: 12, color: scheme.onSurfaceVariant),
                       ],
                     ),
                   ),
                 ),
                 const SizedBox(height: 12),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
                   decoration: BoxDecoration(
-                    color: (online ? const Color(0xFF10B981) : mutedText).withValues(alpha: .10),
+                    color: (online ? const Color(0xFF10B981) : mutedText).withValues(alpha: .11),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Container(width: 7, height: 7, decoration: BoxDecoration(color: online ? const Color(0xFF10B981) : mutedText, shape: BoxShape.circle)),
+                      Container(
+                        width: 7,
+                        height: 7,
+                        decoration: BoxDecoration(
+                          color: online ? const Color(0xFF10B981) : mutedText,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
                       const SizedBox(width: 7),
-                      Text(online ? 'Online' : (user.status.isNotEmpty ? user.status : 'Offline'), style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: online ? const Color(0xFF059669) : mutedText)),
+                      Text(
+                        online ? 'Online now' : (user.status.isNotEmpty ? user.status : 'Offline'),
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: online ? const Color(0xFF059669) : mutedText),
+                      ),
                     ],
                   ),
                 ),
                 if (onVoiceCall != null || onVideoCall != null) ...[
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 22),
                   Row(
                     children: [
                       if (onVoiceCall != null)
@@ -149,7 +201,7 @@ class ProfileInfoScreen extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: 22),
           if (user.bio.trim().isNotEmpty) ...[
             _SectionTitle(title: 'ABOUT'),
             _InfoCard(
