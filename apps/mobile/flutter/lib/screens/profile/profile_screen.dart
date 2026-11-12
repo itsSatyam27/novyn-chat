@@ -73,6 +73,7 @@ class ProfileScreen extends StatelessWidget {
                   children: [
                     Expanded(
                       child: _SettingsQuickToggle(
+                        title: 'Dark Mode',
                         activeIcon: Icons.dark_mode_rounded,
                         inactiveIcon: Icons.light_mode_rounded,
                         value: isDark,
@@ -83,11 +84,12 @@ class ProfileScreen extends StatelessWidget {
                     const SizedBox(width: 12),
                     Expanded(
                       child: _SettingsQuickToggle(
-                        activeIcon: Icons.notifications_active_rounded,
-                        inactiveIcon: Icons.notifications_off_rounded,
-                        value: settings.notificationsOn,
+                        title: 'Busy Mode',
+                        activeIcon: Icons.notifications_off_rounded,
+                        inactiveIcon: Icons.notifications_active_rounded,
+                        value: auth.user?.presenceMode == 'busy',
                         accent: const Color(0xFF159C91),
-                        onChanged: settings.setNotifications,
+                        onChanged: (value) => _toggleBusyMode(context, auth, settings, value),
                       ),
                     ),
                   ],
@@ -182,6 +184,32 @@ class ProfileScreen extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  Future<void> _toggleBusyMode(
+    BuildContext context,
+    AuthService auth,
+    SettingsService settings,
+    bool enabled,
+  ) async {
+    final currentMode = auth.user?.presenceMode ?? 'online';
+    try {
+      if (enabled) {
+        if (currentMode != 'busy') {
+          await settings.setBusyPreviousPresenceMode(currentMode);
+          await auth.updateStatus('busy');
+        }
+      } else if (currentMode == 'busy') {
+        final restoreMode = settings.busyPreviousPresenceMode ?? 'online';
+        await auth.updateStatus(restoreMode);
+        await settings.setBusyPreviousPresenceMode(null);
+      }
+    } catch (error) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Busy Mode could not be updated: ${error.toString()}'),
+      ));
+    }
   }
 
   Future<void> _updateStatus(BuildContext context, AuthService auth, String mode) async {
@@ -1617,6 +1645,7 @@ class _NovynSettingsProfileCard extends StatelessWidget {
 
 class _SettingsQuickToggle extends StatelessWidget {
   const _SettingsQuickToggle({
+    required this.title,
     required this.activeIcon,
     required this.inactiveIcon,
     required this.value,
@@ -1624,6 +1653,7 @@ class _SettingsQuickToggle extends StatelessWidget {
     required this.onChanged,
   });
 
+  final String title;
   final IconData activeIcon;
   final IconData inactiveIcon;
   final bool value;
@@ -1678,6 +1708,18 @@ class _SettingsQuickToggle extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: scheme.onSurface,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
               Transform.scale(
                 scale: .88,
                 alignment: Alignment.centerRight,
