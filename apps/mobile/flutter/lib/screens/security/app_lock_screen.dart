@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:ui';
+import 'package:novyn/services/haptic_service.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -68,7 +69,7 @@ class _AppLockScreenState extends State<AppLockScreen> {
         _inputPin.length >= _pinLength) {
       return;
     }
-    HapticFeedback.lightImpact();
+    HapticService.vibrate(NovynHapticType.light, category: HapticCategory.buttons);
     setState(() {
       _errorMessage = null;
       _inputPin += num;
@@ -78,7 +79,7 @@ class _AppLockScreenState extends State<AppLockScreen> {
 
   void _onBackspace() {
     if (_isAuthenticating || context.read<SettingsService>().isAppLockCoolingDown) return;
-    HapticFeedback.selectionClick();
+    HapticService.vibrate(NovynHapticType.selection, category: HapticCategory.buttons);
     if (_inputPin.isNotEmpty) {
       setState(() {
         _inputPin = _inputPin.substring(0, _inputPin.length - 1);
@@ -95,7 +96,7 @@ class _AppLockScreenState extends State<AppLockScreen> {
     setState(() => _isAuthenticating = true);
     final enteredPin = _inputPin;
     if (enteredPin == settings.appLockPin) {
-      HapticFeedback.mediumImpact();
+      HapticService.vibrate(NovynHapticType.medium, category: HapticCategory.buttons);
       await settings.resetAppLockFailures();
       if (mounted) widget.onUnlocked();
     } else {
