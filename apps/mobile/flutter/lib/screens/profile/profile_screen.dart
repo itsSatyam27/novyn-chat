@@ -1364,6 +1364,7 @@ class _QRActionButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final accent = Theme.of(context).colorScheme.primary;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Material(
       color: primary
           ? accent
