@@ -657,7 +657,12 @@ class ProfileScreen extends StatelessWidget {
                         );
                         final bytes = await painter.toImageData(1024, format: ImageByteFormat.png);
                         if (bytes == null) throw Exception('Could not render QR image');
-                        await Gal.putImageBytes(bytes.buffer.asUint8List(), name: 'novyn_qr_$username');
+                        final hasGalleryAccess = await Gal.hasAccess();
+                        if (!hasGalleryAccess) {
+                          final granted = await Gal.requestAccess();
+                          if (!granted) throw Exception('Gallery permission denied');
+                        }
+                        await Gal.putImageBytes(bytes.buffer.asUint8List(), album: 'Novyn');
                         await showFeedback('QR code saved to gallery');
                       } catch (error) {
                         await showFeedback('Could not save QR code. Please allow gallery access.');
@@ -1337,6 +1342,54 @@ class _ThemeOption extends StatelessWidget {
                 size: 26,
               ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _QRActionButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final bool primary;
+
+  const _QRActionButton({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.primary = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final accent = Theme.of(context).colorScheme.primary;
+    return Material(
+      color: primary
+          ? accent
+          : (isDark ? Colors.white.withValues(alpha: 0.06) : const Color(0xFFF0F3F9)),
+      borderRadius: BorderRadius.circular(15),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(15),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 13, horizontal: 8),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 17, color: primary ? Colors.white : Theme.of(context).colorScheme.onSurface),
+              const SizedBox(width: 7),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  color: primary ? Colors.white : Theme.of(context).colorScheme.onSurface,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
