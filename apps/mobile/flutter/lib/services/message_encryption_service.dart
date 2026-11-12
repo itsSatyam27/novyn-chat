@@ -74,7 +74,7 @@ class MessageEncryptionService {
     return pc.FortunaRandom()..seed(pc.KeyParameter(seed));
   }
 
-  Future<_EcdhIdentity> _identity(String username) async {
+  Future<_EcdhIdentity> _identity(String username, {bool createIfMissing = true}) async {
     final account = _account(username);
     final cached = _identities[account];
     if (cached != null) return cached;
@@ -97,6 +97,9 @@ class MessageEncryptionService {
           throw StateError('Your secure message identity is damaged. Restore your Novyn backup before resetting it.');
         }
       } else {
+        if (!createIfMissing) {
+          throw StateError('This device has no saved Novyn message identity for this account. Sign in again to restore it before decrypting notifications.');
+        }
         final generator = pc.ECKeyGenerator()..init(pc.ParametersWithRandom(pc.ECKeyGeneratorParameters(_domain), _secureRandom()));
         final pair = generator.generateKeyPair();
         final privateKey = pair.privateKey as pc.ECPrivateKey;
@@ -124,8 +127,8 @@ class MessageEncryptionService {
     });
   }
 
-  Future<SecretKey> _sharedKey(String username, String peerPublicKeyJwk) async {
-    final identity = await _identity(username);
+  Future<SecretKey> _sharedKey(String username, String peerPublicKeyJwk, {bool requireExistingIdentity = false}) async {
+    final identity = await _identity(username, createIfMissing: !requireExistingIdentity);
     final decoded = jsonDecode(peerPublicKeyJwk);
     if (decoded is! Map || decoded['kty'] != 'EC' || decoded['crv'] != 'P-256' ||
         decoded['x'] is! String || decoded['y'] is! String) {
@@ -268,7 +271,9 @@ class MessageEncryptionService {
     }
     if (peerPublicKey != null && peerPublicKey.isNotEmpty) {
       try {
-        final key = await _sharedKey(account, peerPublicKey);
+        // A background notification must never generate/replace the account's
+        // E2EE identity if secure storage is temporarily unavailable.
+        final key = await _sharedKey(account, peerPublicKey, requireExistingIdentity: true);
         final bytes = await _aes.decrypt(
           _box(message.ciphertext!, base64Decode(message.iv!)),
           secretKey: key,
