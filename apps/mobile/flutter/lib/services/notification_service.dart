@@ -23,6 +23,8 @@ class NotificationService {
   static String? _activeUsername;
   static String? _lastRegisteredToken;
   static String? _lastSyncedPreferences;
+  static String? _preferencesLoadedForUser;
+  static String? _permissionRequestedForUser;
   static bool _syncingPreferences = false;
   static int _preferenceRetryCount = 0;
   static int _tokenRetryCount = 0;
@@ -34,7 +36,12 @@ class NotificationService {
 
   static void _onSettingsChanged() {
     final enabled = _settings?.notificationsOn ?? false;
-    if (_lastAlertsEnabled == false && enabled) {
+    final username = _activeUsername;
+    if (_lastAlertsEnabled == false &&
+        enabled &&
+        username != null &&
+        _permissionRequestedForUser != username) {
+      _permissionRequestedForUser = username;
       unawaited(_requestPermission());
     }
     _syncPresentation();
@@ -76,30 +83,57 @@ class NotificationService {
   static Future<void> _syncUserPreferences() async {
     final socket = _socket;
     final settings = _settings;
-    if (socket == null || settings == null || !socket.isConnected || _syncingPreferences) return;
-
-    final notificationsEnabled = settings.notificationsOn;
-    final messagePreview = notificationsEnabled && settings.messagePreview && !settings.hideNotificationContent;
-    final groupNotifications = notificationsEnabled && settings.groupNotifications;
-    final signature = '$notificationsEnabled|$messagePreview|$groupNotifications';
-    if (_lastSyncedPreferences == signature) return;
+    final username = _activeUsername;
+    if (socket == null ||
+        settings == null ||
+        username == null ||
+        !socket.isConnected ||
+        _syncingPreferences) {
+      return;
+    }
 
     _syncingPreferences = true;
     try {
+      // Restore account preferences before writing anything from local defaults.
+      if (_preferencesLoadedForUser != username) {
+        final remote = await socket.fetchAccountSettings();
+        if (remote['ok'] != true || remote['settings'] is! Map) {
+          throw StateError(remote['message']?.toString() ??
+              'Could not load notification preferences.');
+        }
+        final values = Map<String, dynamic>.from(remote['settings'] as Map);
+        await settings.setNotifications(values['notificationsEnabled'] != false);
+        await settings.setMessagePreview(values['messagePreviewEnabled'] != false);
+        await settings.setGroupNotifications(values['groupNotificationsEnabled'] != false);
+        _preferencesLoadedForUser = username;
+      }
+
+      final notificationsEnabled = settings.notificationsOn;
+      // Keep child preferences independent of the master switch.
+      final messagePreview = settings.messagePreview;
+      final groupNotifications = settings.groupNotifications;
+      final signature = '$notificationsEnabled|$messagePreview|$groupNotifications';
+      if (_lastSyncedPreferences == signature) return;
+
       final result = await socket.updateAccountSettings({
         'notificationsEnabled': notificationsEnabled,
         'messagePreviewEnabled': messagePreview,
         'groupNotificationsEnabled': groupNotifications,
       });
-      if (result['ok'] == true) {
-        _lastSyncedPreferences = signature;
-        _preferenceRetryCount = 0;
-      } else if (_preferenceRetryCount < 1) {
-        _preferenceRetryCount++;
-        Future.delayed(const Duration(seconds: 2), () => unawaited(_syncUserPreferences()));
+      if (result['ok'] != true) {
+        throw StateError(result['message']?.toString() ??
+            'Could not sync notification preferences.');
       }
+      _lastSyncedPreferences = signature;
+      _preferenceRetryCount = 0;
     } catch (_) {
-      // Retry on the next socket connection or preference change.
+      if (_preferenceRetryCount < 1) {
+        _preferenceRetryCount++;
+        Future.delayed(
+          const Duration(seconds: 2),
+          () => unawaited(_syncUserPreferences()),
+        );
+      }
     } finally {
       _syncingPreferences = false;
     }
@@ -139,17 +173,9 @@ class NotificationService {
     _presenceAuth!.addListener(_syncPresentation);
     _syncPresentation();
 
-    // 2. Ask the OS only when the user has enabled notifications.
-    if (_settings!.notificationsOn) {
-      await _fcm.requestPermission(
-        alert: true,
-        badge: true,
-        sound: true,
-      );
-      if (!context.mounted) return;
-    }
+    // Permission is requested after server preferences are restored on sign-in.
 
-    // 3. Handle foreground messages and notification taps once per app session.
+    // 2. Handle foreground messages and notification taps once per app session.
     await _foregroundSubscription?.cancel();
     await _openedSubscription?.cancel();
     _foregroundSubscription = FirebaseMessaging.onMessage.listen((message) {
@@ -170,8 +196,19 @@ class NotificationService {
 
   // ── Save FCM token for a user ─────────────────────────────────────────────
   static Future<void> saveTokenForUser(String uid) async {
+    if (_activeUsername != uid) {
+      _lastSyncedPreferences = null;
+      _preferencesLoadedForUser = null;
+      _lastRegisteredToken = null;
+    }
     _activeUsername = uid;
     await _syncUserPreferences();
+    if (_preferencesLoadedForUser == uid &&
+        (_settings?.notificationsOn ?? false) &&
+        _permissionRequestedForUser != uid) {
+      _permissionRequestedForUser = uid;
+      await _requestPermission();
+    }
     await _tokenRefreshSubscription?.cancel();
     _tokenRefreshSubscription = _fcm.onTokenRefresh.listen((_) {
       _lastRegisteredToken = null;
@@ -197,6 +234,8 @@ class NotificationService {
     _activeUsername = null;
     _lastRegisteredToken = null;
     _lastSyncedPreferences = null;
+    _preferencesLoadedForUser = null;
+    _permissionRequestedForUser = null;
     _tokenRetryCount = 0;
     _preferenceRetryCount = 0;
     _settings?.removeListener(_onSettingsChanged);
