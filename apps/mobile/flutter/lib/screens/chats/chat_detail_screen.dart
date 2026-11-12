@@ -2315,7 +2315,7 @@ class _MessageBubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isMe = message.isFromMe as bool;
-    final time = _formatTime(message.createdAt);
+    final time = _formatTime(message.createdAt, context.read<SettingsService>().timeFormat);
     final reactions = Map<String, String>.from(message.reactions ?? {});
     final labelScale = context.watch<SettingsService>().chatLabelSize;
 
@@ -2987,10 +2987,10 @@ class _MessageBubble extends StatelessWidget {
     }
   }
 
-  String _formatTime(DateTime dt) {
+  String _formatTime(DateTime dt, String timeFormat) {
     final local = dt.toLocal();
     final minute = local.minute.toString().padLeft(2, '0');
-    if (context.read<SettingsService>().timeFormat == '24h') {
+    if (timeFormat == '24h') {
       return '${local.hour.toString().padLeft(2, '0')}:$minute';
     }
     final hour = local.hour % 12 == 0 ? 12 : local.hour % 12;
