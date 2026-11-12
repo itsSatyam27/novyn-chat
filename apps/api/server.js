@@ -4599,6 +4599,79 @@ app.post("/api/auth/2fa/disable", requireUser, requireCsrf, (req, res) => {
   res.json({ enabled: false, backupCodesCount: 0 });
 });
 
+app.post(
+  "/api/profile/update",
+  createIpRateLimiter({ getStore: () => httpRateLimits }, "profile-update", 40, 15 * 60 * 1000),
+  requireCsrf,
+  requireUser,
+  (req, res) => {
+    const userKey = req.userKey;
+    const user = users.get(userKey);
+    if (!user || !user.isRegistered) {
+      res.status(401).json({ error: "Sign in again before updating your profile." });
+      return;
+    }
+
+    const body = req.body || {};
+    if (Object.prototype.hasOwnProperty.call(body, "username")) {
+      res.status(400).json({ error: "Use the dedicated username-change flow to update your username." });
+      return;
+    }
+
+    if (body.displayName !== undefined) {
+      const displayName = toDisplayName(body.displayName).slice(0, 50);
+      if (!displayName) {
+        res.status(400).json({ error: "Display name cannot be empty." });
+        return;
+      }
+      user.displayName = displayName;
+    }
+    if (body.bio !== undefined) {
+      user.bio = toDisplayName(body.bio).slice(0, 160);
+    }
+    if (body.avatarId !== undefined) {
+      const avatarId = toDisplayName(body.avatarId);
+      if (avatarId.length > 2048) {
+        res.status(400).json({ error: "Profile photo reference is too long." });
+        return;
+      }
+      user.avatarId = avatarId;
+    }
+
+    schedulePersist();
+    const profile = {
+      username: user.username,
+      displayName: user.displayName || user.username,
+      bio: user.bio || "",
+      avatarId: user.avatarId || "",
+      email: user.email || "",
+      emailVerified: user.emailVerified === true || Boolean(user.googleUid),
+      presenceMode: user.presenceMode || "online",
+    };
+
+    const socketId = onlineUsers.get(userKey);
+    if (socketId) io.to(socketId).emit("profile_updated", profile);
+    emitFriendList(userKey);
+    emitStatusToFriends(userKey);
+    emitGroupListUpdatesForUser(userKey);
+    for (const friendKey of user.friends) {
+      if (usersAreBlocked(userKey, friendKey)) continue;
+      const friendSocket = onlineUsers.get(friendKey);
+      if (friendSocket) {
+        io.to(friendSocket).emit("user_profile_updated", {
+          username: user.username,
+          displayName: user.displayName || user.username,
+          bio: user.bio || "",
+          avatarId: privacyAllows(user, friendKey, "profilePhotoPrivacy") ? user.avatarId || "" : "",
+          presenceMode: privacyAllows(user, friendKey, "presencePrivacy") ? getEffectivePresence(userKey) : "offline",
+        });
+      }
+    }
+    emitDiscoverOnlineToAll();
+    res.json({ ok: true, ...profile });
+  }
+);
+
 app.post("/api/auth/signin", createIpRateLimiter({ getStore: () => httpRateLimits }, "auth-signin", 25, 15 * 60 * 1000), requireCsrf, (req, res) => {
   const result = authenticateSigninPayload(req.body || {});
   if (!result.ok) {
