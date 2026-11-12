@@ -1129,6 +1129,22 @@ class SocketService extends ChangeNotifier {
     await result.future.timeout(const Duration(seconds: 15));
   }
 
+  Future<void> cancelFriendRequest(String username) async {
+    _requireConnection();
+    final completer = Completer<void>();
+    _socket!.emitWithAck('cancel_friend_request', username, ack: (dynamic data) {
+      if (data is Map && data['ok'] == true) {
+        contacts.applyEvent('friend_request_cancelled', {'to': username});
+        if (!completer.isCompleted) completer.complete();
+      } else if (!completer.isCompleted) {
+        completer.completeError(StateError(
+          data is Map ? data['message']?.toString() ?? 'Could not cancel request.' : 'Could not cancel request.',
+        ));
+      }
+    });
+    await completer.future.timeout(const Duration(seconds: 12));
+  }
+
   void acceptFriendRequest(String fromUsername) {
     _requireConnection();
     _socket?.emit('accept_friend', fromUsername);
