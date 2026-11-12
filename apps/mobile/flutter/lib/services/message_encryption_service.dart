@@ -1,5 +1,8 @@
 import 'dart:convert';
+import 'dart:math';
+import 'dart:typed_data';
 import 'package:cryptography/cryptography.dart';
+import 'package:pointycastle/export.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../models/chat_models.dart';
@@ -31,7 +34,7 @@ class MessageEncryptionService {
   static const _storage = FlutterSecureStorage();
   final KeyReader _read;
   final KeyWriter _write;
-  final _ecdh = Ecdh.p256(length: 256);
+  final _domain = ECDomainParameters('secp256r1');
   final _aes = AesGcm.with256bits();
   final Map<String, EcKeyPairData> _identities = {};
   final Map<String, Future<EcKeyPairData>> _identityLoads = {};
