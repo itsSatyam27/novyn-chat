@@ -231,17 +231,45 @@ class ApiService {
 
   static Future<Map<String, dynamic>> getTwoFactorStatus() async {
     try {
-      final response = await http.get(
-        Uri.parse('$baseUrl/api/auth/2fa/status'),
-        headers: _authHeaders,
-      ).timeout(const Duration(seconds: 12));
-      final body = jsonDecode(response.body);
-      if (body is Map) {
-        return {...Map<String, dynamic>.from(body), 'httpStatus': response.statusCode};
+      // Restore the persisted mobile cookie before requesting account security
+      // state. A stale access token is refreshed once using the existing
+      // refresh-cookie flow; the endpoint itself remains read-only.
+      if (_sessionCookie == null || _sessionCookie!.isEmpty) {
+        await initializeSessionStorage();
       }
-      return {'message': 'Unexpected server response.', 'httpStatus': response.statusCode};
+
+      Future<http.Response> requestStatus() => http.get(
+            Uri.parse('$baseUrl/api/auth/2fa/status'),
+            headers: _authHeaders,
+          ).timeout(const Duration(seconds: 12));
+
+      var response = await requestStatus();
+      if (response.statusCode == 401) {
+        final refreshed = await refreshSessionStatus();
+        if (refreshed == 200) response = await requestStatus();
+      }
+
+      Map<String, dynamic> body = {};
+      try {
+        final decoded = jsonDecode(response.body);
+        if (decoded is Map) body = Map<String, dynamic>.from(decoded);
+      } catch (_) {
+        return {'message': 'The security service returned an invalid response.', 'httpStatus': response.statusCode};
+      }
+      if (response.statusCode == 200 && body['enabled'] is bool) {
+        return {...body, 'httpStatus': response.statusCode};
+      }
+      final serverMessage = body['message']?.toString() ?? body['error']?.toString();
+      return {
+        'message': serverMessage ?? (response.statusCode == 401
+            ? 'Your session has expired. Please sign in again.'
+            : 'Could not load two-factor settings (' + response.statusCode.toString() + ').'),
+        'httpStatus': response.statusCode,
+      };
+    } on TimeoutException {
+      return {'message': 'The security service is taking too long. Try again.'};
     } catch (_) {
-      return {'message': 'Could not load two-factor settings.'};
+      return {'message': 'Could not reach Novyn. Check your connection and try again.'};
     }
   }
 
