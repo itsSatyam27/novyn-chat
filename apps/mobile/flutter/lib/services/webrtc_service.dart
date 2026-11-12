@@ -97,7 +97,6 @@ class WebRTCService extends ChangeNotifier {
       'rtcpMuxPolicy': 'require',
     };
 
-    _pendingIceCandidates.clear();
     _remoteDescriptionSet = false;
     _peerConnection = await createPeerConnectionWithConfig(
       _iceServers,
