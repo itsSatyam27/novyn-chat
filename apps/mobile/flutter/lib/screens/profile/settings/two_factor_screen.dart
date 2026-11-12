@@ -345,7 +345,7 @@ class _TwoFactorScreenState extends State<TwoFactorScreen> {
                           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                             Text(_enabled ? 'Extra protection is on' : 'Protect your Novyn account', style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w800)),
                             const SizedBox(height: 5),
-                            Text(_enabled ? 'Your sign-ins require a second verification step.' : 'Add another layer of security to your sign-in.', style: const TextStyle(color: Colors.white.withValues(alpha: .88), height: 1.4, fontSize: 12)),
+                            Text(_enabled ? 'Your sign-ins require a second verification step.' : 'Add another layer of security to your sign-in.', style: TextStyle(color: Colors.white.withValues(alpha: .88), height: 1.4, fontSize: 12)),
                           ])),
                         ]),
                       ),
