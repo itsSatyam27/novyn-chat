@@ -95,11 +95,13 @@ class NovynApp extends StatelessWidget {
               !ctx.read<SettingsService>().notificationsOn ||
               !ctx.read<SettingsService>().inAppSounds ||
               auth.user?.presenceMode == 'busy';
-          socket.notificationsVibrate = () {
+          socket.notificationsVibrate = () async {
             final preferences = ctx.read<SettingsService>();
-            return preferences.notificationsOn &&
+            if (preferences.notificationsOn &&
                 preferences.inAppVibration &&
-                auth.user?.presenceMode != 'busy';
+                auth.user?.presenceMode != 'busy') {
+              await HapticService.vibrateNotification();
+            }
           };
           socket.notificationTone = () =>
               ctx.read<SettingsService>().notificationTone;
