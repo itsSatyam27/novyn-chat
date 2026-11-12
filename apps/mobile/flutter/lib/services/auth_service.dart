@@ -99,6 +99,10 @@ class AuthService extends ChangeNotifier {
 
   NovynUser? _user;
   bool _authReady = false;
+  String? _pendingTwoFactorChallenge;
+  String? _pendingTwoFactorUsername;
+
+  bool get isTwoFactorPending => _pendingTwoFactorChallenge != null;
 
   NovynUser? get user => _user;
   bool get isLoggedIn => _user != null;
@@ -254,6 +258,15 @@ class AuthService extends ChangeNotifier {
       );
 
       if (result == null) return 'No response from server.';
+      if (result['requiresTwoFactor'] == true) {
+        _pendingTwoFactorChallenge = result['challengeToken']?.toString();
+        _pendingTwoFactorUsername = result['username']?.toString();
+        if (_pendingTwoFactorChallenge == null || _pendingTwoFactorChallenge!.isEmpty) {
+          return 'The server did not create a secure verification challenge.';
+        }
+        notifyListeners();
+        return null;
+      }
       if (result['username'] == null) {
         return result['message']?.toString() ?? 'Google sign-in failed.';
       }
@@ -301,6 +314,15 @@ class AuthService extends ChangeNotifier {
     );
 
     if (result == null) return 'No response from server.';
+    if (result['requiresTwoFactor'] == true) {
+      _pendingTwoFactorChallenge = result['challengeToken']?.toString();
+      _pendingTwoFactorUsername = result['username']?.toString();
+      if (_pendingTwoFactorChallenge == null || _pendingTwoFactorChallenge!.isEmpty) {
+        return 'The server did not create a secure verification challenge.';
+      }
+      notifyListeners();
+      return null;
+    }
     if (result['username'] == null) {
       return result['message']?.toString() ?? 'Login failed.';
     }
@@ -323,6 +345,44 @@ class AuthService extends ChangeNotifier {
 
     notifyListeners();
     return null; // success
+  }
+
+  Future<String?> verifyTwoFactor(String code) async {
+    final challenge = _pendingTwoFactorChallenge;
+    if (challenge == null) return 'Your verification session has expired. Sign in again.';
+    final result = await ApiService.verifyTwoFactor(
+      challengeToken: challenge,
+      code: code,
+    );
+    if (result == null) return 'No response from server.';
+    if (result['username'] == null) {
+      return result['message']?.toString() ?? 'Verification failed.';
+    }
+
+    _pendingTwoFactorChallenge = null;
+    _pendingTwoFactorUsername = null;
+    final session = await ApiService.getSession();
+    if (session != null && session['authenticated'] == true) {
+      final signedInUser = NovynUser.fromMap(session);
+      await _prepareAccount(signedInUser.username);
+      _user = signedInUser;
+    } else {
+      final signedInUser = NovynUser(
+        username: result['username'].toString(),
+        displayName: result['username'].toString(),
+        email: result['email']?.toString() ?? '',
+      );
+      await _prepareAccount(signedInUser.username);
+      _user = signedInUser;
+    }
+    notifyListeners();
+    return null;
+  }
+
+  void cancelTwoFactorChallenge() {
+    _pendingTwoFactorChallenge = null;
+    _pendingTwoFactorUsername = null;
+    notifyListeners();
   }
 
   // ── Register ──────────────────────────────────────────────────────────────
