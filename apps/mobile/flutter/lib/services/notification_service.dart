@@ -106,6 +106,11 @@ class NotificationService {
         await settings.setMessagePreview(values['messagePreviewEnabled'] != false);
         await settings.setGroupNotifications(values['groupNotificationsEnabled'] != false);
         _preferencesLoadedForUser = username;
+        if (settings.notificationsOn &&
+            _permissionRequestedForUser != username) {
+          _permissionRequestedForUser = username;
+          await _requestPermission();
+        }
       }
 
       final notificationsEnabled = settings.notificationsOn;
@@ -199,6 +204,7 @@ class NotificationService {
     if (_activeUsername != uid) {
       _lastSyncedPreferences = null;
       _preferencesLoadedForUser = null;
+      _permissionRequestedForUser = null;
       _lastRegisteredToken = null;
     }
     _activeUsername = uid;
