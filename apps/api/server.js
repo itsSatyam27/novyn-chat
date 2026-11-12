@@ -1338,6 +1338,7 @@ function serializeState() {
       isRegistered: Boolean(user.isRegistered),
       passwordSalt: toDisplayName(user.passwordSalt),
       passwordHash: toDisplayName(user.passwordHash),
+      stealthModeEnabled: user.stealthModeEnabled === true,
       twoFactorEnabled: Boolean(user.twoFactorEnabled),
       twoFactorSecret: toDisplayName(user.twoFactorSecret),
       twoFactorBackupCodes: Array.isArray(user.twoFactorBackupCodes) ? user.twoFactorBackupCodes : [],
@@ -6110,6 +6111,7 @@ io.on("connection", (socket) => {
     if (typeof payload?.groupNotificationsEnabled === "boolean") user.groupNotificationsEnabled = payload.groupNotificationsEnabled;
     if (typeof payload?.readReceiptsEnabled === "boolean") user.readReceiptsEnabled = payload.readReceiptsEnabled;
     if (typeof payload?.typingIndicatorsEnabled === "boolean") user.typingIndicatorsEnabled = payload.typingIndicatorsEnabled;
+    if (typeof payload?.stealthModeEnabled === "boolean") user.stealthModeEnabled = payload.stealthModeEnabled;
 
     schedulePersist();
 
@@ -6144,6 +6146,19 @@ io.on("connection", (socket) => {
           avatarId: privacyAllows(user, friendKey, "profilePhotoPrivacy") ? user.avatarId : "",
           presenceMode: privacyAllows(user, friendKey, "presencePrivacy") ? getEffectivePresence(userKey) : "offline",
         });
+      }
+    }
+    if (typeof payload?.stealthModeEnabled === "boolean") {
+      for (const friendKey of user.friends) {
+        const friendSocketId = onlineUsers.get(friendKey);
+        if (!friendSocketId) continue;
+        const friendSocket = io.sockets.sockets.get(friendSocketId);
+        if (friendSocket?.data?.activeChatWith === userKey && friendSocket?.data?.activeChatKind === "friend") {
+          io.to(friendSocketId).emit("chat_protection_updated", {
+            username: user.username,
+            protected: user.stealthModeEnabled === true,
+          });
+        }
       }
     }
     emitDiscoverOnlineToAll();
@@ -6907,6 +6922,20 @@ io.on("connection", (socket) => {
 
     socket.data.activeChatWith = resolved.targetKey;
     socket.data.activeChatKind = resolved.type;
+  });
+
+  socket.on("get_chat_protection", (payload, callback) => {
+    const respond = (result) => { if (typeof callback === "function") callback(result); };
+    const userKey = socket.data.userKey;
+    if (!userKey) { respond({ ok: false, protected: false }); return; }
+    const target = toDisplayName(payload?.to);
+    const resolved = resolveChatTargetForUser(userKey, target, "friend", { inferGroup: false });
+    if (!resolved.ok || resolved.type !== "friend") {
+      respond({ ok: false, protected: false });
+      return;
+    }
+    const peer = users.get(resolved.targetKey);
+    respond({ ok: true, protected: peer?.stealthModeEnabled === true });
   });
 
   socket.on("unsend_message", (payload) => {
