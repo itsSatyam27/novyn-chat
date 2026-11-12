@@ -1384,6 +1384,20 @@ class SocketService extends ChangeNotifier {
     return result;
   }
 
+  Future<Map<String, dynamic>> fetchAccountSettings() async {
+    _requireConnection();
+    final completer = Completer<Map<String, dynamic>>();
+    _socket!.emitWithAck('get_account_settings', <String, dynamic>{}, ack: (dynamic result) {
+      completer.complete(result is Map
+          ? Map<String, dynamic>.from(result)
+          : {'ok': false, 'message': 'The server did not return account settings.'});
+    });
+    return completer.future.timeout(
+      const Duration(seconds: 10),
+      onTimeout: () => {'ok': false, 'message': 'Loading account settings timed out.'},
+    );
+  }
+
   Future<Map<String, dynamic>> updateAccountSettings(Map<String, dynamic> changes) async {
     _requireConnection();
     final completer = Completer<Map<String, dynamic>>();
