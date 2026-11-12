@@ -628,25 +628,30 @@ class SocketService extends ChangeNotifier {
     if (active != null) return active;
 
     final task = () async {
-      final publicKey = await encryption.initializeIdentity(account);
-      if (_myUsername != account || _socket != connection || !_isConnected) return;
-      final completer = Completer<Map<String, dynamic>>();
-      connection.emitWithAck('register_public_key', {'publicKey': publicKey},
-          ack: (dynamic result) {
-        if (!completer.isCompleted) {
-          completer.complete(result is Map
-              ? Map<String, dynamic>.from(result)
-              : <String, dynamic>{'ok': false});
+      try {
+        final publicKey = await encryption.initializeIdentity(account);
+        if (publicKey.isEmpty || _myUsername != account ||
+            _socket != connection || !_isConnected) return;
+        final completer = Completer<Map<String, dynamic>>();
+        connection.emitWithAck('register_public_key', {'publicKey': publicKey},
+            ack: (dynamic result) {
+          if (!completer.isCompleted) {
+            completer.complete(result is Map
+                ? Map<String, dynamic>.from(result)
+                : <String, dynamic>{'ok': false});
+          }
+        });
+        final result = await completer.future.timeout(
+          const Duration(seconds: 12),
+          onTimeout: () => <String, dynamic>{'ok': false},
+        );
+        if (result['ok'] == true && _myUsername == account && _socket == connection) {
+          _registeredIdentityAccount = account.toLowerCase();
+        } else {
+          debugPrint('[NovynE2EE] Device identity registration was not confirmed.');
         }
-      });
-      final result = await completer.future.timeout(
-        const Duration(seconds: 12),
-        onTimeout: () => <String, dynamic>{'ok': false},
-      );
-      if (result['ok'] == true && _myUsername == account && _socket == connection) {
-        _registeredIdentityAccount = account.toLowerCase();
-      } else {
-        debugPrint('[NovynE2EE] Device identity registration was not confirmed.');
+      } catch (error) {
+        debugPrint('[NovynE2EE] Identity setup failed: $error');
       }
     }();
 
