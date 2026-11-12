@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../models/user_model.dart';
 import '../services/socket_service.dart';
 import '../widgets/user_avatar.dart';
+import 'package:novyn/services/haptic_service.dart';
 
 class ProfilePreviewSheet extends StatefulWidget {
   final UserModel user;
@@ -190,7 +191,7 @@ class _ProfilePreviewSheetState extends State<ProfilePreviewSheet> {
                         ? const Color(0xFFF59E0B)
                         : theme.colorScheme.onSurfaceVariant,
                     onTap: () {
-                      HapticFeedback.selectionClick();
+                      HapticService.vibrate(NovynHapticType.selection);
                       setState(() => _muted = !_muted);
                     },
                   ),
