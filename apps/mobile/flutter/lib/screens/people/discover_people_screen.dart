@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../services/friend_service.dart';
 import '../../models/user_model.dart';
-import '../../widgets/novyn_shimmer.dart';
+import '../../widgets/novyn_ui.dart';
+import '../../widgets/novyn_empty_state.dart';
 import '../../widgets/user_avatar.dart';
 
 class DiscoverPeopleScreen extends StatefulWidget {
@@ -14,43 +15,56 @@ class DiscoverPeopleScreen extends StatefulWidget {
 }
 
 class _DiscoverPeopleScreenState extends State<DiscoverPeopleScreen> {
-  int _activeTab = 0; // 0 for Requests, 1 for Discover
+  int _activeTab = 0;
 
   @override
   Widget build(BuildContext context) {
-    final friendService = context.read<FriendService>();
-
+    final service = context.read<FriendService>();
+    final theme = Theme.of(context);
     return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios_new_rounded, color: Theme.of(context).colorScheme.onSurface, size: 20),
+          icon: Icon(Icons.arrow_back_rounded, color: theme.colorScheme.onSurface),
           onPressed: () => Navigator.pop(context),
         ),
-        title: Text(
-          'Connect',
-          style: TextStyle(
-            fontFamily: 'PlusJakartaSans',
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-            color: Theme.of(context).colorScheme.onSurface,
-          ),
-        ),
-        centerTitle: true,
+        title: Text('Friend Requests',
+          style: NovynText.display(20, color: theme.colorScheme.onSurface)),
+        centerTitle: false,
       ),
       body: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const SizedBox(height: 10),
-          _buildToggle(),
-          const SizedBox(height: 20),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 18),
+            child: Text('Manage your connections',
+              style: NovynText.body(13, color: theme.colorScheme.onSurfaceVariant)),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Container(
+              padding: const EdgeInsets.all(5),
+              decoration: BoxDecoration(
+                color: theme.brightness == Brightness.dark
+                    ? const Color(0xFF171622) : const Color(0xFFF0EDFA),
+                borderRadius: BorderRadius.circular(17),
+                border: Border.all(color: theme.colorScheme.outlineVariant.withValues(alpha: .45)),
+              ),
+              child: Row(children: [
+                _tab('Received', 0, service),
+                _tab('Sent', 1, service),
+              ]),
+            ),
+          ),
+          const SizedBox(height: 18),
           Expanded(
             child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 300),
+              duration: const Duration(milliseconds: 220),
               child: _activeTab == 0
-                  ? _buildRequestsTab(friendService)
-                  : _buildDiscoverTab(friendService),
+                  ? _received(service)
+                  : _sent(service),
             ),
           ),
         ],
@@ -58,119 +72,88 @@ class _DiscoverPeopleScreenState extends State<DiscoverPeopleScreen> {
     );
   }
 
-  Widget _buildToggle() {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 24),
-      padding: const EdgeInsets.all(6),
-      height: 54,
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(18),
-      ),
-      child: Stack(
-        children: [
-          AnimatedAlign(
-            duration: const Duration(milliseconds: 250),
-            curve: Curves.easeOutCubic,
-            alignment: _activeTab == 0 ? Alignment.centerLeft : Alignment.centerRight,
-            child: Container(
-              width: (MediaQuery.of(context).size.width - 60) / 2,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(14),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.05),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-            ),
+  Widget _tab(String label, int index, FriendService service) {
+    final selected = _activeTab == index;
+    final theme = Theme.of(context);
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => setState(() => _activeTab = index),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          decoration: BoxDecoration(
+            gradient: selected ? NovynGradients.selected(context) : null,
+            borderRadius: BorderRadius.circular(13),
+            boxShadow: selected ? [
+              BoxShadow(color: theme.colorScheme.primary.withValues(alpha: .2),
+                blurRadius: 12, offset: const Offset(0, 4))
+            ] : null,
           ),
-          Row(
+          child: Center(child: Row(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Expanded(
-                child: GestureDetector(
-                  onTap: () => setState(() => _activeTab = 0),
-                  child: Container(
-                    color: Colors.transparent,
-                    child: Center(
-                      child: Text(
-                        'Requests',
-                        style: TextStyle(
-                          fontFamily: 'PlusJakartaSans',
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          color: _activeTab == 0 ? Theme.of(context).colorScheme.primary : const Color(0xFF94A3B8),
-                        ),
+              Text(label, style: NovynText.body(13, weight: FontWeight.w700,
+                color: selected ? Colors.white : theme.colorScheme.onSurfaceVariant)),
+              if (index == 0) ...[
+                const SizedBox(width: 6),
+                StreamBuilder<int>(
+                  stream: service.pendingRequestsCountStream(widget.myUid),
+                  builder: (_, snap) {
+                    final count = snap.data ?? 0;
+                    if (count == 0) return const SizedBox.shrink();
+                    return Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: selected ? Colors.white.withValues(alpha: .2) : theme.colorScheme.primary.withValues(alpha: .14),
+                        borderRadius: BorderRadius.circular(20),
                       ),
-                    ),
-                  ),
+                      child: Text('$count', style: NovynText.body(10, weight: FontWeight.w800,
+                        color: selected ? Colors.white : theme.colorScheme.primary)),
+                    );
+                  },
                 ),
-              ),
-              Expanded(
-                child: GestureDetector(
-                  onTap: () => setState(() => _activeTab = 1),
-                  child: Container(
-                    color: Colors.transparent,
-                    child: Center(
-                      child: Text(
-                        'Discover',
-                        style: TextStyle(
-                          fontFamily: 'PlusJakartaSans',
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          color: _activeTab == 1 ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
+              ],
             ],
-          ),
-        ],
+          )),
+        ),
       ),
     );
   }
 
-  Widget _buildRequestsTab(FriendService friendService) {
+  Widget _received(FriendService service) {
     return StreamBuilder<List<FriendRequest>>(
-      key: const ValueKey('requests'),
-      stream: friendService.pendingRequestsStream(widget.myUid),
+      key: const ValueKey('received-requests'),
+      stream: service.pendingRequestsStream(widget.myUid),
       builder: (context, snap) {
-        if (snap.hasError) {
-          return _buildEmptyState(
-            icon: Icons.error_outline_rounded,
-            title: 'Oops!',
-            subtitle: 'Something went wrong while fetching requests.',
-          );
+        if (snap.connectionState == ConnectionState.waiting && !snap.hasData) {
+          return const Center(child: CircularProgressIndicator());
         }
-        if (snap.connectionState == ConnectionState.waiting) {
-          return ListView.builder(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            itemCount: 5,
-            itemBuilder: (_, __) => NovynShimmer.chatItem(),
-          );
-        }
+        if (snap.hasError) return _empty(Icons.error_outline_rounded, 'Could not load requests', 'Please check your connection and try again.');
         final requests = snap.data ?? [];
-        if (requests.isEmpty) {
-          return _buildEmptyState(
-            icon: Icons.notifications_none_rounded,
-            title: 'No pending requests',
-            subtitle: 'Incoming friend requests will appear here',
-          );
-        }
-        return ListView.builder(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
+        if (requests.isEmpty) return _empty(Icons.mark_email_read_outlined, 'No received requests', 'When someone sends you a friend request, it will appear here.');
+        return ListView.separated(
+          padding: const EdgeInsets.fromLTRB(20, 2, 20, 110),
           itemCount: requests.length,
+          separatorBuilder: (_, __) => const SizedBox(height: 10),
           itemBuilder: (context, i) {
-            final req = requests[i];
-            return _RequestItem(
-              request: req,
-              onAccept: () => friendService.acceptRequest(req.id, widget.myUid, req.fromUid),
-              onDecline: () => friendService.declineRequest(req.id),
+            final request = requests[i];
+            final user = request.fromUser;
+            if (user == null) return const SizedBox.shrink();
+            return _RequestCard(
+              user: user,
+              trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                _actionIcon(Icons.close_rounded, NovynColors.danger, () async {
+                  try { await service.declineRequest(request.id); }
+                  catch (_) { _message('Could not decline request.'); }
+                }),
+                const SizedBox(width: 7),
+                _actionIcon(Icons.check_rounded, NovynColors.mint, () async {
+                  try {
+                    await service.acceptRequest(request.id, widget.myUid, request.fromUid);
+                    _message('You are now friends with @${user.username}.');
+                  } catch (_) { _message('Could not accept request.'); }
+                }),
+              ]),
             );
           },
         );
@@ -178,48 +161,48 @@ class _DiscoverPeopleScreenState extends State<DiscoverPeopleScreen> {
     );
   }
 
-  Widget _buildDiscoverTab(FriendService friendService) {
-    return StreamBuilder<List<String>>(
-      key: const ValueKey('discover'),
-      stream: friendService.friendUidsStream(widget.myUid),
-      builder: (context, friendSnap) {
-        final friendUids = friendSnap.data ?? [];
-        return StreamBuilder<List<UserModel>>(
-          stream: friendService.discoverUsersStream(widget.myUid, friendUids),
-          builder: (context, userSnap) {
-            if (userSnap.connectionState == ConnectionState.waiting) {
-              return ListView.builder(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                itemCount: 5,
-                itemBuilder: (_, __) => NovynShimmer.chatItem(),
-              );
-            }
-            final all = userSnap.data ?? [];
-            final online = all.where((u) => u.isOnline).toList();
-            
-            if (online.isEmpty) {
-              return _buildEmptyState(
-                icon: Icons.explore_outlined,
-                title: 'No one to discover',
-                subtitle: 'Check back later for new people online',
-              );
-            }
-            
-            return StreamBuilder<Set<String>>(
-              stream: friendService.sentPendingUidsStream(widget.myUid),
-              builder: (context, pendingSnap) {
-                final pendingUids = pendingSnap.data ?? {};
-                return ListView.builder(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  itemCount: online.length,
-                  itemBuilder: (context, i) {
-                    final u = online[i];
-                    return _DiscoverItem(
-                      user: u,
-                      isPending: pendingUids.contains(u.uid),
-                      onAdd: () => friendService.sendRequest(widget.myUid, u.uid),
-                    );
-                  },
+  Widget _sent(FriendService service) {
+    return StreamBuilder<Set<String>>(
+      key: const ValueKey('sent-requests'),
+      stream: service.sentPendingUidsStream(widget.myUid),
+      builder: (context, snap) {
+        if (snap.connectionState == ConnectionState.waiting && !snap.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final names = (snap.data ?? <String>{}).toList()
+          ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+        if (names.isEmpty) return _empty(Icons.outgoing_mail, 'No sent requests', 'Friend requests you send will be listed here.');
+        return ListView.separated(
+          padding: const EdgeInsets.fromLTRB(20, 2, 20, 110),
+          itemCount: names.length,
+          separatorBuilder: (_, __) => const SizedBox(height: 10),
+          itemBuilder: (context, i) {
+            final username = names[i];
+            return FutureBuilder<UserModel?>(
+              future: service.getUser(username),
+              builder: (context, userSnap) {
+                final user = userSnap.data ?? UserModel(
+                  uid: username, username: username, name: username,
+                  email: '', bio: '', createdAt: DateTime.fromMillisecondsSinceEpoch(0),
+                );
+                return _RequestCard(
+                  user: user,
+                  trailing: OutlinedButton(
+                    onPressed: () async {
+                      try {
+                        await service.cancelSentRequest(username);
+                        _message('Request to @${username} cancelled.');
+                      } catch (_) { _message('Could not cancel request.'); }
+                    },
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: NovynColors.danger,
+                      side: BorderSide(color: NovynColors.danger.withValues(alpha: .45)),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                    ),
+                    child: Text('Cancel', style: NovynText.body(12, weight: FontWeight.w700, color: NovynColors.danger)),
+                  ),
+                  subtitle: 'Pending response',
                 );
               },
             );
@@ -229,174 +212,61 @@ class _DiscoverPeopleScreenState extends State<DiscoverPeopleScreen> {
     );
   }
 
-  Widget _buildEmptyState({required IconData icon, required String title, required String subtitle}) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
-                  blurRadius: 30,
-                  offset: const Offset(0, 10),
-                ),
-              ],
-            ),
-            child: Icon(icon, size: 48, color: Theme.of(context).colorScheme.primary),
-          ),
-          const SizedBox(height: 24),
-          Text(
-            title,
-            style: const TextStyle(
-              fontFamily: 'PlusJakartaSans',
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF1A1D2E),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 40),
-            child: Text(
-              subtitle,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontFamily: 'PlusJakartaSans',
-                fontSize: 14,
-                color: Color(0xFF94A3B8),
-              ),
-            ),
-          ),
-        ],
+  Widget _empty(IconData icon, String title, String subtitle) {
+    return NovynEmptyState(icon: icon, title: title, description: subtitle);
+  }
+
+  Widget _actionIcon(IconData icon, Color color, VoidCallback onTap) {
+    return Material(
+      color: color.withValues(alpha: .12),
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: SizedBox(width: 40, height: 40, child: Icon(icon, color: color, size: 19)),
       ),
     );
   }
-}
 
-// ── Shared Items (Simplified from PeopleScreen) ──────────────────────────────
-
-class _RequestItem extends StatelessWidget {
-  final FriendRequest request;
-  final VoidCallback onAccept;
-  final VoidCallback onDecline;
-
-  const _RequestItem({required this.request, required this.onAccept, required this.onDecline});
-
-  @override
-  Widget build(BuildContext context) {
-    final user = request.fromUser;
-    if (user == null) return const SizedBox.shrink();
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
-      ),
-      child: Row(
-        children: [
-          UserAvatar(
-            name: user.name,
-            photoUrl: user.photoUrl,
-            radius: 22,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(user.name, style: const TextStyle(fontFamily: 'PlusJakartaSans', fontWeight: FontWeight.w600, fontSize: 14)),
-                Text('@${user.username}', style: const TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 12, color: Color(0xFF94A3B8))),
-              ],
-            ),
-          ),
-          Row(
-            children: [
-              IconButton(
-                onPressed: onDecline,
-                icon: const Icon(Icons.close_rounded, color: Color(0xFFEF4444), size: 20),
-                style: IconButton.styleFrom(backgroundColor: const Color(0xFFFEF2F2), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
-              ),
-              const SizedBox(width: 8),
-              IconButton(
-                onPressed: onAccept,
-                icon: const Icon(Icons.check_rounded, color: Color(0xFF22C55E), size: 20),
-                style: IconButton.styleFrom(backgroundColor: const Color(0xFFF0FDF4), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
+  void _message(String value) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(value)));
   }
 }
 
-class _DiscoverItem extends StatelessWidget {
+class _RequestCard extends StatelessWidget {
   final UserModel user;
-  final bool isPending;
-  final VoidCallback onAdd;
-
-  const _DiscoverItem({required this.user, required this.isPending, required this.onAdd});
+  final Widget trailing;
+  final String? subtitle;
+  const _RequestCard({required this.user, required this.trailing, this.subtitle});
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(13),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFE2E5F0)),
+        color: theme.brightness == Brightness.dark ? const Color(0xFF13141D) : Colors.white,
+        borderRadius: BorderRadius.circular(19),
+        border: Border.all(color: theme.colorScheme.outlineVariant.withValues(alpha: .48)),
       ),
-      child: Row(
-        children: [
-          UserAvatar(
-            name: user.name,
-            photoUrl: user.photoUrl,
-            radius: 22,
-            fallbackColor: const Color(0xFFF59E0B),
-            showOnlineIndicator: true,
-            isOnline: user.isOnline,
-            presence: user.status,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(user.name, style: const TextStyle(fontFamily: 'PlusJakartaSans', fontWeight: FontWeight.w600, fontSize: 14)),
-                Text('@${user.username}', style: const TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 12, color: Color(0xFF94A3B8))),
-              ],
-            ),
-          ),
-          GestureDetector(
-            onTap: isPending ? null : onAdd,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              decoration: BoxDecoration(
-                color: isPending ? const Color(0xFFF1F5F9) : Theme.of(context).colorScheme.primary.withValues(alpha: .12),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text(
-                isPending ? 'Pending' : 'Add',
-                style: TextStyle(
-                  fontFamily: 'PlusJakartaSans',
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                  color: isPending ? Theme.of(context).colorScheme.onSurfaceVariant : Theme.of(context).colorScheme.primary,
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
+      child: Row(children: [
+        UserAvatar(name: user.name, photoUrl: user.photoUrl, radius: 23,
+          showOnlineIndicator: true, isOnline: user.isOnline, presence: user.status),
+        const SizedBox(width: 12),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(user.name, maxLines: 1, overflow: TextOverflow.ellipsis,
+            style: NovynText.body(13.5, weight: FontWeight.w800, color: theme.colorScheme.onSurface)),
+          const SizedBox(height: 3),
+          Text('@${user.username}', style: NovynText.body(11.5, color: theme.colorScheme.onSurfaceVariant)),
+          if (subtitle != null) ...[
+            const SizedBox(height: 4),
+            Text(subtitle!, style: NovynText.body(10.5, color: theme.colorScheme.primary, weight: FontWeight.w600)),
+          ],
+        ])),
+        const SizedBox(width: 8),
+        trailing,
+      ]),
     );
   }
 }
