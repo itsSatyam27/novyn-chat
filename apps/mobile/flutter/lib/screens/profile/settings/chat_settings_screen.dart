@@ -64,21 +64,27 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
               onChanged: settings.setChatLinkPreviews,
             ),
           ),
-          _settingTile(
+          _sizeSettingTile(
             context,
             icon: Icons.text_fields_rounded,
-            title: 'Chat text size',
-            subtitle: 'Adjust the size of messages in conversations',
-            trailing: SizedBox(
-              width: 116,
-              child: Slider(
-                value: settings.fontSize,
-                min: 0.85,
-                max: 1.25,
-                divisions: 8,
-                onChanged: settings.setFontSize,
-              ),
-            ),
+            title: 'Message text size',
+            subtitle: 'Change the size of message content',
+            value: settings.fontSize,
+            min: 0.85,
+            max: 1.25,
+            divisions: 8,
+            onChanged: settings.setFontSize,
+          ),
+          _sizeSettingTile(
+            context,
+            icon: Icons.label_outline_rounded,
+            title: 'Chat labels size',
+            subtitle: 'Change timestamps, edited tags and link details',
+            value: settings.chatLabelSize,
+            min: 0.8,
+            max: 1.4,
+            divisions: 6,
+            onChanged: settings.setChatLabelSize,
           ),
           const SizedBox(height: 22),
           _section('CHAT BACKUP & RESTORE'),
@@ -225,6 +231,33 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
     ]),
   );
 
+  Widget _sizeSettingTile(BuildContext context, {
+    required IconData icon, required String title, required String subtitle,
+    required double value, required double min, required double max,
+    required int divisions, required ValueChanged<double> onChanged,
+  }) {
+    final percent = (value * 100).round().toString() + '%';
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
+      decoration: BoxDecoration(color: NovynTheme.cardBg(context), borderRadius: BorderRadius.circular(17), border: Border.all(color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: .55))),
+      child: Column(children: [
+        Row(children: [
+          Icon(icon, color: Theme.of(context).colorScheme.primary), const SizedBox(width: 12),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(title, style: const TextStyle(fontWeight: FontWeight.w800)), const SizedBox(height: 3),
+            Text(subtitle, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+          ])),
+          Text(percent, style: TextStyle(fontWeight: FontWeight.w800, color: Theme.of(context).colorScheme.primary)),
+        ]),
+        Row(children: [
+          const Text('A', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+          Expanded(child: Slider(value: value, min: min, max: max, divisions: divisions, onChanged: onChanged)),
+          const Text('A', style: TextStyle(fontSize: 21, fontWeight: FontWeight.w800)),
+        ]),
+      ]),
+    );
+  }
   Widget _backupAction(BuildContext context, {
     required IconData icon,
     required String title,
