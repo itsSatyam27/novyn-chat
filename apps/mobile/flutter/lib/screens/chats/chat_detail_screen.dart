@@ -2901,9 +2901,7 @@ class _MessageBubble extends StatelessWidget {
   }
 
   Widget _buildTick(BuildContext context, dynamic message) {
-    final status = (message.id as String).startsWith('tmp_')
-        ? messageStatus
-        : messageStatus;
+    final status = messageStatus;
     const muted = Color(0xFF625C83);
     const purple = Color(0xFF6246E8);
 
