@@ -2216,7 +2216,7 @@ section{padding:18px}.message{padding:13px 15px;margin:0 0 10px;border-radius:14
 .message.mine{background:#eeeaff}.meta{display:block;margin-bottom:5px;color:#716b8b;font-size:12px}
 </style></head><body><main><header><h1>${escapeHtml(title)}</h1>
 <p>@${escapeHtml(widget.peer.username)} · Exported from Novyn</p></header><section>
-${messages.map(message => {
+${messages.map((message) {
   const sender = message.isFromMe ? 'You' : widget.peer.name;
   const stamp = message.createdAt.toLocal().toString().substring(0, 16);
   const body = message.text.trim().isNotEmpty ? message.text : '[Attachment]';
