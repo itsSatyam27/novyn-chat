@@ -50,6 +50,12 @@ class ApiService {
         if (_cookieHeader.isNotEmpty) 'Cookie': _cookieHeader,
       };
 
+  // Protected media endpoints require the same session cookie as API calls.
+  // Image widgets must use these headers instead of anonymous NetworkImage requests.
+  static Map<String, String> get imageHeaders => {
+        if (_cookieHeader.isNotEmpty) 'Cookie': _cookieHeader,
+      };
+
   static String get _cookieHeader {
     final cookies = (_sessionCookie ?? '')
         .split(';')
@@ -685,27 +691,40 @@ class ApiService {
 
   static Future<String?> uploadVoice(
       List<int> bytes, String filename, String mimeType) async {
+    final headers = await _csrfHeaders();
+    headers.remove('Content-Type');
+    final request = http.MultipartRequest('POST', Uri.parse('$baseUrl/upload-voice'))
+      ..headers.addAll(headers)
+      ..files.add(http.MultipartFile.fromBytes(
+        'voice',
+        bytes,
+        filename: filename,
+        contentType: MediaType.parse(mimeType),
+      ));
     try {
-      final headers = await _csrfHeaders();
-      headers.remove('Content-Type');
-      final request = http.MultipartRequest('POST', Uri.parse('$baseUrl/upload-voice'))
-        ..headers.addAll(headers)
-        ..files.add(http.MultipartFile.fromBytes(
-          'voice',
-          bytes,
-          filename: filename,
-          contentType: MediaType.parse(mimeType),
-        ));
-      final streamed = await request.send().timeout(const Duration(seconds: 30));
+      final streamed = await request.send().timeout(const Duration(seconds: 45));
       final response = await http.Response.fromStream(streamed);
-      if (response.statusCode == 200) {
-        final body = jsonDecode(response.body);
-        final url = body['url']?.toString();
-        if (url == null || url.isEmpty) return null;
-        return Uri.parse(baseUrl).resolve(url).toString();
+      Map<String, dynamic> body = {};
+      try {
+        final decoded = jsonDecode(response.body);
+        if (decoded is Map) body = Map<String, dynamic>.from(decoded);
+      } catch (_) {}
+      if (response.statusCode != 200) {
+        throw StateError(body['error']?.toString() ??
+            'Voice upload failed (${response.statusCode}). Please try again.');
       }
-    } catch (_) {}
-    return null;
+      final rawUrl = body['url']?.toString();
+      if (rawUrl == null || rawUrl.isEmpty) {
+        throw StateError('The server did not return a voice message URL.');
+      }
+      return Uri.parse(baseUrl).resolve(rawUrl).toString();
+    } on StateError {
+      rethrow;
+    } on TimeoutException {
+      throw StateError('Voice upload timed out. Please try again.');
+    } catch (error) {
+      throw StateError('Could not upload voice message: $error');
+    }
   }
 
   static Future<File> downloadMedia(String mediaUrl, String filename) async {

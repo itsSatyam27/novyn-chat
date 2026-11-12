@@ -76,6 +76,8 @@ class SocketService extends ChangeNotifier {
   bool _appForeground = true;
   String? _myUsername; // novyn-chat username (not Firebase UID)
   final AudioPlayer _audioPlayer = AudioPlayer();
+  final Map<String, String> _messageStatuses = {};
+  String messageStatusFor(String messageId) => _messageStatuses[messageId] ?? 'sent';
 
   // Reconnection state
   String? _serverUrl;
@@ -122,6 +124,7 @@ class SocketService extends ChangeNotifier {
   bool get isAuthenticated => _isAuthenticated;
   bool get peerIsTyping => _peerIsTyping;
   String? get currentChatWith => _currentChatWith;
+  bool get activeChatCaptureProtected => _activeChatCaptureProtected;
   String? get myUsername => _myUsername;
 
   // ── Connect ───────────────────────────────────────────────────────────────
@@ -271,8 +274,12 @@ class SocketService extends ChangeNotifier {
 
     _socket!.on('peer_public_key_updated', (data) {
       if (data is Map) {
-        _peerKeys[data['username'].toString().toLowerCase()] =
+        final username = data['username']?.toString() ?? '';
+        _peerKeys[username.toLowerCase()] =
             data['publicKey']?.toString() ?? '';
+        if (_currentChatWith?.toLowerCase() == username.toLowerCase()) {
+          unawaited(decryptCurrentMessages());
+        }
       }
     });
 
@@ -322,6 +329,17 @@ class SocketService extends ChangeNotifier {
 
         final account = _myUsername;
         if (account == null) return;
+        for (final raw in historyList) {
+          if (raw is! Map) continue;
+          final id = raw['id']?.toString() ?? raw['messageId']?.toString() ?? '';
+          if (id.isEmpty) continue;
+          final explicit = raw['status']?.toString().toLowerCase();
+          _messageStatuses[id] = raw['seenAt'] != null || explicit == 'seen'
+              ? 'seen'
+              : raw['deliveredAt'] != null || explicit == 'delivered'
+                  ? 'delivered'
+                  : 'sent';
+        }
         final decrypted = await Future.wait(
             parsed.map((message) => encryption.decrypt(message, account, _peerKeys[withUser.toLowerCase()])));
         if (_myUsername != account ||
@@ -387,6 +405,14 @@ class SocketService extends ChangeNotifier {
       final account = _myUsername;
       if (account == null) return;
       msg = await encryption.decrypt(msg, account, _peerKeys[chatPartner.toLowerCase()]);
+      if (isOwn) {
+        final explicit = data['status']?.toString().toLowerCase();
+        _messageStatuses[msgId] = data['seenAt'] != null || explicit == 'seen'
+            ? 'seen'
+            : data['deliveredAt'] != null || explicit == 'delivered'
+                ? 'delivered'
+                : 'sent';
+      }
       if (_myUsername != account) return;
 
       // Save to local DB
@@ -529,14 +555,19 @@ class SocketService extends ChangeNotifier {
     // ── Message status (delivered / seen) ──────────────────────────────────
     _socket!.on('message_status', (data) {
       if (data is! Map) return;
-      final msgId = data['id']?.toString() ?? '';
+      final msgId = data['id']?.toString() ?? data['messageId']?.toString() ?? '';
       if (msgId.isEmpty) return;
-      final idx = _messages.indexWhere((m) => m.id == msgId);
-      if (idx != -1) {
-        // We store status info as a flag in the message for now.
-        // A full implementation would carry a status field on Message.
-        notifyListeners();
-      }
+      final explicit = data['status']?.toString().toLowerCase();
+      final next = data['seenAt'] != null || explicit == 'seen' || explicit == 'read'
+          ? 'seen'
+          : data['deliveredAt'] != null || explicit == 'delivered'
+              ? 'delivered'
+              : null;
+      if (next == null) return;
+      final current = _messageStatuses[msgId] ?? 'sent';
+      if (current == 'seen' || (current == 'delivered' && next == 'delivered')) return;
+      _messageStatuses[msgId] = next;
+      notifyListeners();
     });
 
     // ── Edit / Unsend ─────────────────────────────────────────────────────
@@ -1005,6 +1036,7 @@ class SocketService extends ChangeNotifier {
       }
     }
 
+    _messageStatuses[clientTempId] = 'sending';
     final tempMsg = Message(
       id: clientTempId,
       chatId: toPeerUsername,
@@ -1048,11 +1080,11 @@ class SocketService extends ChangeNotifier {
       }
       // The server's private_message echo replaces this optimistic message.
     } catch (_) {
-      // Remove only the temporary bubble. If the server echo already replaced
-      // it, keep the confirmed message visible.
+      // Keep the optimistic bubble visible so the user can see the failed state
+      // and the UI can offer a retry affordance in a later iteration.
       final index = _messages.indexWhere((message) => message.id == clientTempId);
       if (index >= 0) {
-        _messages = List<Message>.from(_messages)..removeAt(index);
+        _messageStatuses[clientTempId] = 'failed';
         notifyListeners();
       }
       rethrow;
@@ -1237,6 +1269,32 @@ class SocketService extends ChangeNotifier {
         .toList();
     _messages = _resolveReplyPreviews(_messages);
     await HybridDbService.saveMessages(_messages);
+
+    // Keep the conversation-list preview in sync with the decrypted latest
+    // message. The chat view can decrypt successfully after keys/history load,
+    // while the cached friend-list preview may still contain the ciphertext
+    // placeholder from the initial socket snapshot.
+    if (_messages.isNotEmpty) {
+      final latest = _messages.reduce(
+        (a, b) => a.createdAt.isAfter(b.createdAt) ? a : b,
+      );
+      if (latest.text.isNotEmpty &&
+          latest.text != '🔒 Encrypted message' &&
+          !latest.needsMessageKey) {
+        final previewIndex = _conversations.indexWhere(
+          (chat) => chat.peerUid.toLowerCase() == peer.toLowerCase(),
+        );
+        if (previewIndex >= 0) {
+          final updated = List<ChatPreview>.from(_conversations);
+          updated[previewIndex] = updated[previewIndex].copyWith(
+            lastMessage: latest.text,
+            lastTime: latest.createdAt,
+          );
+          _conversations = updated;
+          await HybridDbService.saveChat(updated[previewIndex]);
+        }
+      }
+    }
     notifyListeners();
   }
 
@@ -1506,7 +1564,13 @@ class SocketService extends ChangeNotifier {
         .clamp(0.0, 1.0)
         .toDouble();
     try {
-      await _audioPlayer.stop();
+      await _audioPlayer.setAudioContext(AudioContext(
+        android: AudioContextAndroid(
+          audioFocus: AndroidAudioFocus.none,
+          usageType: AndroidUsageType.notification,
+          contentType: AndroidContentType.sonification,
+        ),
+      ));
       await _audioPlayer.setVolume(volume);
       if (volume > 0) await _audioPlayer.play(AssetSource(asset));
     } catch (_) {
@@ -1863,6 +1927,7 @@ class SocketService extends ChangeNotifier {
     _authenticationReady = null;
     onAuthenticated = null;
     _peerKeys.clear();
+    _messageStatuses.clear();
     _blockedUsers.clear();
     _conversations = [];
     _messages = [];

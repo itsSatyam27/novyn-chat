@@ -1,7 +1,12 @@
 import 'dart:async';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart' hide Message;
+import 'package:shared_preferences/shared_preferences.dart';
+import 'message_encryption_service.dart';
+import 'firebase_configuration.dart';
+import '../models/chat_models.dart';
 import 'package:provider/provider.dart';
 import 'auth_service.dart';
 import 'settings_service.dart';
@@ -12,8 +17,81 @@ import '../screens/chats/chat_detail_screen.dart';
 // Top-level handler — must be a top-level function
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  // System handles showing the notification automatically
-  // No extra work needed here for basic notifications
+  await Firebase.initializeApp(options: FirebaseConfiguration.options);
+  final data = message.data;
+  if (data['type'] != 'message' || data['kind'] == 'group') return;
+
+  final prefs = await SharedPreferences.getInstance();
+  final notificationsEnabled = prefs.getBool('notifications_on') ?? true;
+  if (!notificationsEnabled) return;
+
+  final previewEnabled = prefs.getBool('message_preview') ?? true;
+  final hideContent = prefs.getBool('hide_notification_content') ?? false;
+  final account = (prefs.getString('novyn_notification_account') ?? '').trim();
+  final sender = (data['chat'] ?? '').toString().trim();
+  if (sender.isEmpty) return;
+
+  var body = 'You have a new message';
+  if (previewEnabled && !hideContent && account.isNotEmpty) {
+    final ciphertext = data['ciphertext']?.toString() ?? '';
+    final iv = data['iv']?.toString() ?? '';
+    final peerKey = data['senderPublicKey']?.toString() ?? '';
+    if (ciphertext.isNotEmpty && iv.isNotEmpty && peerKey.isNotEmpty) {
+      try {
+        final encrypted = Message(
+          id: data['messageId']?.toString() ?? 'notification',
+          text: '🔒 Encrypted message',
+          isFromMe: false,
+          chatId: sender,
+          senderId: sender,
+          isEncrypted: true,
+          ciphertext: ciphertext,
+          iv: iv,
+        );
+        final decrypted = await MessageEncryptionService().decrypt(
+          encrypted, account, peerKey,
+        );
+        if (!decrypted.needsMessageKey &&
+            decrypted.text != '🔒 Encrypted message' &&
+            decrypted.text.trim().isNotEmpty) {
+          body = decrypted.text.trim();
+        }
+      } catch (_) {
+        // Never expose ciphertext; fall back to a private generic alert.
+      }
+    }
+  }
+
+  final plugin = FlutterLocalNotificationsPlugin();
+  await plugin.initialize(const InitializationSettings(
+    android: AndroidInitializationSettings('@drawable/novyn_wings_icon'),
+    iOS: DarwinInitializationSettings(),
+  ));
+  const channel = AndroidNotificationChannel(
+    'novyn_messages', 'Messages',
+    description: 'New direct messages from your Novyn contacts',
+    importance: Importance.max,
+    playSound: true,
+    enableVibration: true,
+  );
+  await plugin.resolvePlatformSpecificImplementation<
+      AndroidFlutterLocalNotificationsPlugin>()?.createNotificationChannel(channel);
+  await plugin.show(
+    DateTime.now().millisecondsSinceEpoch ~/ 1000,
+    'New message from $sender',
+    body,
+    const NotificationDetails(
+      android: AndroidNotificationDetails(
+        'novyn_messages', 'Messages',
+        channelDescription: 'New direct messages from your Novyn contacts',
+        importance: Importance.max,
+        priority: Priority.high,
+        icon: '@drawable/novyn_wings_icon',
+      ),
+      iOS: DarwinNotificationDetails(),
+    ),
+    payload: sender,
+  );
 }
 
 class NotificationService {
@@ -23,6 +101,8 @@ class NotificationService {
   static const String _messageChannelId = 'novyn_messages';
   static const String _messageChannelName = 'Messages';
   static bool _localNotificationsReady = false;
+  static OverlayEntry? _inAppBannerEntry;
+  static Timer? _inAppBannerTimer;
   static AuthService? _presenceAuth;
   static SettingsService? _settings;
   static SocketService? _socket;
@@ -52,7 +132,21 @@ class NotificationService {
       unawaited(_requestPermission());
     }
     _syncPresentation();
+    unawaited(_syncBackgroundPreviewPreferences());
     unawaited(_syncUserPreferences());
+  }
+
+  static Future<void> _syncBackgroundPreviewPreferences() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final settings = _settings;
+      if (settings == null) return;
+      await prefs.setBool('notifications_on', settings.notificationsOn);
+      await prefs.setBool('message_preview', settings.messagePreview);
+      await prefs.setBool('hide_notification_content', settings.hideNotificationContent);
+    } catch (_) {
+      // The foreground preference store remains the source of truth.
+    }
   }
 
   static Future<void> _requestPermission() async {
@@ -71,7 +165,7 @@ class NotificationService {
       BuildContext context) async {
     await _localNotifications.initialize(
       const InitializationSettings(
-        android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+        android: AndroidInitializationSettings('@drawable/novyn_wings_icon'),
         iOS: DarwinInitializationSettings(),
       ),
       onDidReceiveNotificationResponse: (response) {
@@ -106,68 +200,139 @@ class NotificationService {
         _presenceAuth?.user?.presenceMode == 'busy') {
       return;
     }
-    final preview = settings.messagePreview &&
-            messageBody != '🔒 Encrypted message'
-        ? messageBody
+
+    final preview = settings.messagePreview
+        ? messageBody.trim()
         : 'You have a new message';
     final title = 'New message from $username';
-    final busy = _presenceAuth?.user?.presenceMode == 'busy';
-    final soundEnabled = !busy && settings.inAppSounds;
-    final vibrationEnabled = !busy && settings.inAppVibration;
+    // Foreground messages use only this branded in-app banner. The operating
+    // system notification is reserved for background/terminated delivery.
+    _inAppBannerTimer?.cancel();
+    _inAppBannerEntry?.remove();
+    _inAppBannerEntry = null;
 
-    ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-      SnackBar(
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 4),
-        content: Row(
-          children: [
-            const Icon(Icons.chat_bubble_rounded, color: Colors.white, size: 19),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
-                  if (preview.isNotEmpty)
-                    Text(preview, maxLines: 1, overflow: TextOverflow.ellipsis),
-                ],
+    final overlay = Overlay.maybeOf(context, rootOverlay: true);
+    if (overlay != null) {
+      late final OverlayEntry entry;
+      entry = OverlayEntry(
+        builder: (overlayContext) {
+          final topInset = MediaQuery.paddingOf(overlayContext).top;
+          return Positioned(
+            top: topInset + 10,
+            left: 14,
+            right: 14,
+            child: TweenAnimationBuilder<Offset>(
+              tween: Tween<Offset>(
+                begin: const Offset(0, -1.15),
+                end: Offset.zero,
+              ),
+              duration: const Duration(milliseconds: 280),
+              curve: Curves.easeOutCubic,
+              builder: (context, offset, child) => FractionalTranslation(
+                translation: offset,
+                child: child,
+              ),
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(22),
+                  onTap: () {
+                    _inAppBannerTimer?.cancel();
+                    if (_inAppBannerEntry == entry) {
+                      entry.remove();
+                      _inAppBannerEntry = null;
+                    }
+                    unawaited(_openChatFromNotification(username, context));
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 14),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).brightness == Brightness.dark
+                          ? const Color(0xFF242238)
+                          : Colors.white,
+                      borderRadius: BorderRadius.circular(22),
+                      border: Border.all(
+                        color: Theme.of(context).colorScheme.primary
+                            .withValues(alpha: .16),
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: .14),
+                          blurRadius: 26,
+                          offset: const Offset(0, 10),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 42,
+                          height: 42,
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).colorScheme.primary
+                                .withValues(alpha: .12),
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: Icon(
+                            Icons.forum_rounded,
+                            color: Theme.of(context).colorScheme.primary,
+                            size: 21,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                title,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: Theme.of(context).colorScheme.onSurface,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                              const SizedBox(height: 3),
+                              Text(
+                                preview.isEmpty ? 'New message' : preview,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                  fontSize: 13,
+                                  height: 1.3,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Icon(
+                          Icons.arrow_forward_ios_rounded,
+                          size: 15,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               ),
             ),
-          ],
-        ),
-        action: SnackBarAction(
-          label: 'OPEN',
-          onPressed: () => unawaited(_openChatFromNotification(username, context)),
-        ),
-      ),
-    );
-
-    try {
-      await _localNotifications.show(
-        DateTime.now().millisecondsSinceEpoch.remainder(2147483647),
-        title,
-        preview,
-        NotificationDetails(
-          android: AndroidNotificationDetails(
-            _messageChannelId,
-            _messageChannelName,
-            channelDescription: 'New direct messages from your Novyn contacts',
-            importance: Importance.max,
-            priority: Priority.high,
-            playSound: soundEnabled,
-            enableVibration: vibrationEnabled,
-          ),
-          iOS: DarwinNotificationDetails(
-            presentAlert: true,
-            presentBadge: true,
-            presentSound: soundEnabled,
-          ),
-        ),
-        payload: username,
+          );
+        },
       );
-    } catch (_) {
-      // The in-app banner remains available if Android notification delivery fails.
+      _inAppBannerEntry = entry;
+      overlay.insert(entry);
+      _inAppBannerTimer = Timer(const Duration(seconds: 3), () {
+        if (_inAppBannerEntry == entry) {
+          entry.remove();
+          _inAppBannerEntry = null;
+        }
+      });
     }
   }
 
@@ -370,6 +535,11 @@ class NotificationService {
       _lastRegisteredToken = null;
     }
     _activeUsername = uid;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('novyn_notification_account', uid);
+    await prefs.setBool('notifications_on', _settings?.notificationsOn ?? true);
+    await prefs.setBool('message_preview', _settings?.messagePreview ?? true);
+    await prefs.setBool('hide_notification_content', _settings?.hideNotificationContent ?? false);
     await _syncUserPreferences();
     if (_preferencesLoadedForUser == uid &&
         (_settings?.notificationsOn ?? false) &&
@@ -403,7 +573,12 @@ class NotificationService {
       _socket!.onIncomingMessage = null;
       _socket!.onAuthenticated = null;
     }
+    _inAppBannerTimer?.cancel();
+    _inAppBannerEntry?.remove();
+    _inAppBannerEntry = null;
     _activeUsername = null;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('novyn_notification_account');
     _lastRegisteredToken = null;
     _lastSyncedPreferences = null;
     _preferencesLoadedForUser = null;

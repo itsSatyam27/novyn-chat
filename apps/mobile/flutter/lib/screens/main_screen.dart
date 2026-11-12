@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -27,6 +28,8 @@ class MainScreen extends StatefulWidget {
 
 class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   int _selectedIndex = 0;
+  AuthService? _authService;
+  String? _activeUsername;
 
   late final List<Widget> _screens;
 
@@ -44,68 +47,78 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
       const ProfileScreen(),
     ];
 
-    // Mark user as online + connect socket + init notifications
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      final auth = context.read<AuthService>();
-      auth.setOnline(true);
-      final username = auth.user?.username;
-      if (username != null) {
-        // Connect socket to the shared novyn-chat backend
-        final socket = context.read<SocketService>();
-        socket.connect(ApiService.baseUrl, username);
+    // Auth can change without MainScreen being recreated (logout -> login).
+    // Reconnect the socket whenever a signed-in identity becomes available.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _authService = context.read<AuthService>();
+      _authService!.addListener(_handleAuthChanged);
+      _handleAuthChanged();
+    });
+  }
 
-        // Listen for user presence changes — update friend cache
-        socket.onUserStatusChanged = (peerUsername, isOnline) {
-          context
-              .read<FriendService>()
-              .updateCachedStatus(peerUsername, isOnline);
-        };
+  void _handleAuthChanged() {
+    if (!mounted) return;
+    final auth = _authService ?? context.read<AuthService>();
+    final username = auth.user?.username.trim();
+    if (username == null || username.isEmpty) {
+      _activeUsername = null;
+      return;
+    }
 
-        // Pre-warm the backend
-        ApiService.ping();
+    final socket = context.read<SocketService>();
+    if (_activeUsername?.toLowerCase() == username.toLowerCase()) {
+      return;
+    }
+    _activeUsername = username;
+    auth.setOnline(true);
+    socket.connect(ApiService.baseUrl, username);
+    socket.onUserStatusChanged = (peerUsername, isOnline) {
+      if (!mounted) return;
+      context.read<FriendService>().updateCachedStatus(peerUsername, isOnline);
+    };
+    ApiService.ping();
 
-        // Init FCM notifications
-        await NotificationService.init(context);
-        await NotificationService.saveTokenForUser(username);
+    unawaited(() async {
+      await NotificationService.init(context);
+      if (!mounted || auth.user?.username.toLowerCase() != username.toLowerCase()) return;
+      await NotificationService.saveTokenForUser(username);
+    }());
 
-        // Listen for incoming calls globally
-        socket.onCallInvite((data) async {
-          final callerId =
-              data['from']?.toString() ?? data['callerId']?.toString() ?? '';
-          final callType = data['isVideo'] == true ? 'video' : 'voice';
-          if (callerId.isEmpty || callerId == username || !mounted) return;
+    socket.onCallInvite((data) async {
+      final callerId =
+          data['from']?.toString() ?? data['callerId']?.toString() ?? '';
+      final callType = data['isVideo'] == true ? 'video' : 'voice';
+      if (callerId.isEmpty || callerId.toLowerCase() == username.toLowerCase() || !mounted) return;
 
-          // Build a minimal UserModel from the call data
-          final caller = UserModel(
-            uid: callerId,
-            name: data['fromDisplayName']?.toString() ?? callerId,
-            username: callerId,
-            email: '',
-            bio: '',
-            createdAt: DateTime.now(),
-          );
-
-          if (!mounted) return;
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => CallScreen(
-                peer: caller,
-                callType: callType,
-                isIncoming: true,
-                callerId: callerId,
-              ),
-            ),
-          );
-        });
-      }
+      final caller = UserModel(
+        uid: callerId,
+        name: data['fromDisplayName']?.toString() ?? callerId,
+        username: callerId,
+        email: '',
+        bio: '',
+        createdAt: DateTime.now(),
+      );
+      if (!mounted) return;
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => CallScreen(
+            peer: caller,
+            callType: callType,
+            isIncoming: true,
+            callerId: callerId,
+          ),
+        ),
+      );
     });
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    context.read<AuthService>().setOnline(false);
+    _authService?.removeListener(_handleAuthChanged);
+    if (_authService?.user != null) _authService!.setOnline(false);
     super.dispose();
   }
 

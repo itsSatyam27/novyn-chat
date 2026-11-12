@@ -10,12 +10,14 @@ class ProfileInfoScreen extends StatelessWidget {
   final VoidCallback? onVideoCall;
   final VoidCallback? onSharedMedia;
   final VoidCallback? onWallpaper;
+  final VoidCallback? onQuickEmojis;
   final bool initiallyBlocked;
   final VoidCallback? onMute;
   final VoidCallback? onBlock;
   final VoidCallback? onClearChat;
   final VoidCallback? onRemoveFriend;
   final VoidCallback? onExportChat;
+  final bool chatProtected;
 
   const ProfileInfoScreen({
     super.key,
@@ -24,12 +26,14 @@ class ProfileInfoScreen extends StatelessWidget {
     this.onVideoCall,
     this.onSharedMedia,
     this.onWallpaper,
+    this.onQuickEmojis,
     this.initiallyBlocked = false,
     this.onMute,
     this.onBlock,
     this.onClearChat,
     this.onRemoveFriend,
     this.onExportChat,
+    this.chatProtected = false,
   });
 
   @override
@@ -173,7 +177,7 @@ class ProfileInfoScreen extends StatelessWidget {
               ],
             ),
           ),
-          if (onSharedMedia != null || onWallpaper != null) ...[
+          if (onSharedMedia != null || onWallpaper != null || onQuickEmojis != null) ...[
             const SizedBox(height: 18),
             _SectionTitle(title: 'CHAT'),
             _InfoCard(
@@ -185,6 +189,10 @@ class ProfileInfoScreen extends StatelessWidget {
                     Divider(height: 18, color: scheme.outlineVariant.withValues(alpha: .6)),
                   if (onWallpaper != null)
                     _NavigationRow(icon: Icons.wallpaper_rounded, title: 'Chat wallpaper', subtitle: 'Personalise this conversation', onTap: onWallpaper!),
+                  if (onWallpaper != null && onQuickEmojis != null)
+                    Divider(height: 18, color: scheme.outlineVariant.withValues(alpha: .6)),
+                  if (onQuickEmojis != null)
+                    _NavigationRow(icon: Icons.emoji_emotions_outlined, title: 'Quick emojis', subtitle: 'Choose emojis for faster messaging', onTap: onQuickEmojis!),
                 ],
               ),
             ),
@@ -209,9 +217,15 @@ class ProfileInfoScreen extends StatelessWidget {
           _InfoCard(
             child: Column(
               children: [
-                if (onExportChat != null)
-                  _NavigationRow(icon: Icons.ios_share_rounded, title: 'Export chat', subtitle: 'Copy a readable conversation transcript', onTap: onExportChat!),
-                if (onExportChat != null && onClearChat != null) Divider(height: 16, color: scheme.outlineVariant.withValues(alpha: .6)),
+                if (chatProtected)
+                  _NavigationRow(icon: Icons.shield_rounded, title: 'Chat export disabled', subtitle: 'This contact enabled Stealth Mode', onTap: () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Export is disabled because this contact enabled Stealth Mode.')),
+                    );
+                  }),
+                if (!chatProtected && onExportChat != null)
+                  _NavigationRow(icon: Icons.ios_share_rounded, title: 'Export chat', subtitle: 'Save this conversation as a file', onTap: onExportChat!),
+                if ((chatProtected || onExportChat != null) && onClearChat != null) Divider(height: 16, color: scheme.outlineVariant.withValues(alpha: .6)),
                 if (onClearChat != null)
                   _NavigationRow(icon: Icons.delete_sweep_outlined, title: 'Clear chat history', subtitle: 'Remove messages from this conversation', onTap: () => _confirmContactAction(context, 'Clear chat history?', 'This clears the conversation history from your account and cannot be undone.', 'Clear', onClearChat!)),
                 if (onClearChat != null && onRemoveFriend != null) Divider(height: 16, color: scheme.outlineVariant.withValues(alpha: .6)),

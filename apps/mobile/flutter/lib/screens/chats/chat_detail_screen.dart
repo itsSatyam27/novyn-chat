@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
@@ -63,9 +64,10 @@ class ChatDetailScreen extends StatefulWidget {
   State<ChatDetailScreen> createState() => _ChatDetailScreenState();
 }
 
-class _ChatDetailScreenState extends State<ChatDetailScreen> {
+class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBindingObserver {
   int _lastTypingLength = 0;
   final TextEditingController _ctrl = TextEditingController();
+  final FocusNode _messageFocusNode = FocusNode();
   final ScrollController _scroll = ScrollController();
   final AudioPlayer _audioPlayer = AudioPlayer();
   bool _loading = true;
@@ -89,12 +91,22 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   bool _suppressNextCountScroll = false;
   int _voiceSeconds = 0;
   String? _voiceRecordingPath;
+  static const List<String> _defaultQuickEmojis = ['😂', '❤️', '👍', '🙏', '😍', '🥰', '🔥', '🎉'];
+  static const List<String> _emojiChoices = [
+    '😂','🤣','😊','🙂','😉','😍','🥰','😘','😎','🤔','🥳','😭',
+    '😅','🙄','😴','🤗','😇','😋','😜','🤩','❤️','🧡','💛','💚',
+    '💙','💜','🖤','🤍','💔','💕','💯','🔥','👍','👎','👏','🙌',
+    '🙏','🤝','💪','🎉','✨','🌹','🌸','💐','☕','🍕','🐱','🐶',
+  ];
+  List<String> _quickEmojis = List<String>.from(_defaultQuickEmojis);
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _peerIsOnline = widget.peer.isOnline;
     _peerPresence = widget.peer.status.trim().toLowerCase();
+    _loadQuickEmojis();
     _init();
     _scroll.addListener(_onScroll);
 
@@ -232,7 +244,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       socket.openChat(_chatId!, cachedMessages);
       if (cachedMessages.isEmpty) _fetchingFromServer = true;
       setState(() => _loading = false);
-      if (cachedMessages.isNotEmpty) _scrollToBottom();
+      if (cachedMessages.isNotEmpty) _jumpToLatestImmediately();
     }
 
     final history = await historyF;
@@ -243,7 +255,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       await HybridDbService.setLastSync(_chatId!, DateTime.now());
       socket.openChat(_chatId!, history);
       if (mounted) setState(() => _fetchingFromServer = false);
-      _scrollToBottom();
+      _jumpToLatestImmediately();
     } else if (mounted) {
       setState(() => _fetchingFromServer = false);
     }
@@ -255,7 +267,19 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   }
 
   @override
+  void didChangeMetrics() {
+    if (!_messageFocusNode.hasFocus) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_scroll.hasClients) return;
+      _scroll.jumpTo(_scroll.position.maxScrollExtent);
+      _isNearLatest = true;
+      if (_showJumpToLatest) setState(() => _showJumpToLatest = false);
+    });
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _voiceTimer?.cancel();
     if (_isRecordingVoice) unawaited(_voiceRecorder.stop());
     unawaited(_voiceRecorder.dispose());
@@ -263,6 +287,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     _scroll.removeListener(_onScroll);
     _ctrl.removeListener(_saveDraft);
     _ctrl.dispose();
+    _messageFocusNode.dispose();
     _scroll.dispose();
     _audioPlayer.dispose();
     super.dispose();
@@ -288,7 +313,14 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       if (_ctrl.text.trim() == text) _ctrl.clear();
       DraftService.deleteDraft(_chatId!);
       setState(() => _replyingTo = null);
-      _audioPlayer.play(AssetSource('audio/message_sent.mp3'));
+      await _audioPlayer.setAudioContext(AudioContext(
+        android: AudioContextAndroid(
+          audioFocus: AndroidAudioFocus.none,
+          usageType: AndroidUsageType.notification,
+          contentType: AndroidContentType.sonification,
+        ),
+      ));
+      await _audioPlayer.play(AssetSource('audio/message_sent.mp3'));
       _scrollToBottom();
     } catch (error) {
       if (mounted) {
@@ -302,6 +334,28 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       }
     } finally {
       _sending = false;
+    }
+  }
+
+  // Opening a conversation should land directly on the newest message.
+  // Avoid animating through the entire history, which feels slow on long chats.
+  void _jumpToLatestImmediately() {
+    var attempts = 0;
+    void jumpAfterLayout() {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !_scroll.hasClients) return;
+        final position = _scroll.position;
+        if (position.hasContentDimensions) {
+          _scroll.jumpTo(position.maxScrollExtent);
+        }
+        // A lazy ListView can refine its estimated extent over the next frames.
+        if (++attempts < 3 && mounted) jumpAfterLayout();
+      });
+    }
+    jumpAfterLayout();
+    _isNearLatest = true;
+    if (_showJumpToLatest) {
+      setState(() => _showJumpToLatest = false);
     }
   }
 
@@ -443,9 +497,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                           ),
                         ),
                         Text(
-                          socket.peerIsTyping
-                              ? 'typing...'
-                              : switch (_peerPresence) {
+                          switch (_peerPresence) {
                                   'away' => 'Away',
                                   'busy' || 'dnd' => 'Busy',
                                   'offline' || 'invisible' => 'Offline',
@@ -455,9 +507,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                             fontFamily: 'PlusJakartaSans',
                             fontSize: 13,
                             fontWeight: FontWeight.w500,
-                            color: socket.peerIsTyping
-                                ? accent
-                                : switch (_peerPresence) {
+                            color: switch (_peerPresence) {
                                     'away' => const Color(0xFFF59E0B),
                                     'busy' || 'dnd' => const Color(0xFFEC4899),
                                     'offline' || 'invisible' =>
@@ -479,6 +529,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           _ChatHeaderButton(
             icon: Icons.call_rounded,
             color: accent,
+            filled: true,
             tooltip: 'Voice call',
             onTap: () => _startCall('voice'),
           ),
@@ -486,12 +537,14 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           _ChatHeaderButton(
             icon: Icons.videocam_rounded,
             color: accent,
+            filled: true,
             tooltip: 'Video call',
             onTap: () => _startCall('video'),
           ),
           const SizedBox(width: 6),
           _ChatHeaderButton(
-            icon: Icons.info_outline_rounded,
+            icon: Icons.info_rounded,
+            filled: true,
             tooltip: 'Contact info',
             onTap: () => _showContactInfo(),
           ),
@@ -659,10 +712,13 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       }
     }
     final socket = context.read<SocketService>();
+    if (socket.peerIsTyping && _isNearLatest) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom(force: true));
+    }
     return ListView.builder(
       controller: _scroll,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      itemCount: messages.length + 1, // +1 for top loader
+      itemCount: messages.length + 1 + (socket.peerIsTyping ? 1 : 0), // loader + live typing row
       // Performance optimizations
       addAutomaticKeepAlives: false,
       addRepaintBoundaries: true,
@@ -712,6 +768,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           return const SizedBox(height: 8);
         }
 
+        if (socket.peerIsTyping && i == messages.length + 1) {
+          return _buildTypingIndicator();
+        }
         final msgIndex = i - 1;
         return _SwipeToReply(
           onSwipe: () => setState(() => _replyingTo = messages[msgIndex]),
@@ -720,10 +779,208 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
             showAvatar: !messages[msgIndex].isFromMe &&
                 (msgIndex == 0 || messages[msgIndex - 1].isFromMe),
             peer: widget.peer,
-            messagesRead: socket.messagesReadByPeer,
+            messageStatus: socket.messageStatusFor(messages[msgIndex].id),
             myUid: _myUid ?? '',
             onReply: (msg) => setState(() => _replyingTo = msg),
           onForward: _showForwardDialog,
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildTypingIndicator() {
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(left: 4, top: 5, bottom: 8),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          UserAvatar(name: widget.peer.name, photoUrl: widget.peer.photoUrl, radius: 13),
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+            decoration: BoxDecoration(
+              color: scheme.surface,
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(17), topRight: Radius.circular(17),
+                bottomRight: Radius.circular(17), bottomLeft: Radius.circular(5),
+              ),
+              boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, 3))],
+            ),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              for (var i = 0; i < 3; i++)
+                Padding(
+                  padding: EdgeInsets.only(right: i == 2 ? 0 : 4),
+                  child: Container(width: 6, height: 6,
+                    decoration: BoxDecoration(color: scheme.primary.withValues(alpha: 0.65 + i * 0.1), shape: BoxShape.circle)),
+                ),
+              const SizedBox(width: 7),
+              Text('typing', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 11, color: scheme.onSurfaceVariant, fontWeight: FontWeight.w600)),
+            ]),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String get _quickEmojiPreferenceKey =>
+      'novyn_quick_emojis_${widget.peer.username.toLowerCase()}';
+
+  Future<void> _loadQuickEmojis() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getStringList(_quickEmojiPreferenceKey);
+    if (!mounted || saved == null || saved.isEmpty) return;
+    setState(() => _quickEmojis = saved);
+  }
+
+  void _insertQuickEmoji(String emoji) {
+    final current = _ctrl.value;
+    final selection = current.selection;
+    final start = selection.isValid ? selection.start.clamp(0, current.text.length).toInt() : current.text.length;
+    final end = selection.isValid ? selection.end.clamp(start, current.text.length).toInt() : current.text.length;
+    final updated = current.text.replaceRange(start, end, emoji);
+    _ctrl.value = TextEditingValue(
+      text: updated,
+      selection: TextSelection.collapsed(offset: start + emoji.length),
+    );
+    setState(() {});
+  }
+
+  void _showQuickEmojiPicker() {
+    final emojis = _quickEmojis.isEmpty ? _defaultQuickEmojis : _quickEmojis;
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (sheetContext) {
+        final scheme = Theme.of(sheetContext).colorScheme;
+        return SafeArea(
+          child: Container(
+            margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+            padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
+            decoration: BoxDecoration(
+              color: scheme.surface,
+              borderRadius: BorderRadius.circular(26),
+              border: Border.all(color: scheme.primary.withValues(alpha: .18)),
+              boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: .12), blurRadius: 24, offset: const Offset(0, 8))],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(children: [
+                  Expanded(child: Text('Quick emojis', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 17, fontWeight: FontWeight.w800, color: scheme.onSurface))),
+                  TextButton.icon(
+                    onPressed: () {
+                      Navigator.pop(sheetContext);
+                      _showQuickEmojiSettings();
+                    },
+                    icon: const Icon(Icons.tune_rounded, size: 17),
+                    label: const Text('Customise'),
+                  ),
+                ]),
+                const SizedBox(height: 8),
+                GridView.count(
+                  crossAxisCount: 4,
+                  shrinkWrap: true,
+                  mainAxisSpacing: 8,
+                  crossAxisSpacing: 8,
+                  physics: const NeverScrollableScrollPhysics(),
+                  children: emojis.map((emoji) => Material(
+                    color: scheme.primary.withValues(alpha: .08),
+                    borderRadius: BorderRadius.circular(16),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(16),
+                      onTap: () {
+                        _insertQuickEmoji(emoji);
+                        Navigator.pop(sheetContext);
+                      },
+                      child: Center(child: Text(emoji, style: const TextStyle(fontSize: 29))),
+                    ),
+                  )).toList(),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _showQuickEmojiSettings() {
+    final selected = Set<String>.from(_quickEmojis);
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (sheetContext) {
+        final scheme = Theme.of(sheetContext).colorScheme;
+        return StatefulBuilder(
+          builder: (context, refresh) => SafeArea(
+            child: Container(
+              height: MediaQuery.of(context).size.height * .72,
+              margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+              padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
+              decoration: BoxDecoration(
+                color: scheme.surface,
+                borderRadius: BorderRadius.circular(26),
+                border: Border.all(color: scheme.primary.withValues(alpha: .18)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Choose your quick emojis', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 18, fontWeight: FontWeight.w800, color: scheme.onSurface)),
+                  const SizedBox(height: 5),
+                  Text('Select up to 8 emojis for this chat', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 12, color: scheme.onSurfaceVariant)),
+                  const SizedBox(height: 16),
+                  Expanded(
+                    child: GridView.builder(
+                      itemCount: _emojiChoices.length,
+                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 6, mainAxisSpacing: 8, crossAxisSpacing: 8),
+                      itemBuilder: (_, index) {
+                        final emoji = _emojiChoices[index];
+                        final active = selected.contains(emoji);
+                        return Material(
+                          color: active ? scheme.primary.withValues(alpha: .16) : scheme.surfaceContainerHighest.withValues(alpha: .55),
+                          borderRadius: BorderRadius.circular(13),
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(13),
+                            onTap: () => refresh(() {
+                              if (active) {
+                                selected.remove(emoji);
+                              } else if (selected.length < 8) {
+                                selected.add(emoji);
+                              } else {
+                                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('You can select up to 8 quick emojis.')));
+                              }
+                            }),
+                            child: Stack(alignment: Alignment.center, children: [
+                              Text(emoji, style: const TextStyle(fontSize: 25)),
+                              if (active) Positioned(right: 3, top: 3, child: Icon(Icons.check_circle_rounded, size: 12, color: scheme.primary)),
+                            ]),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton(
+                      onPressed: selected.isEmpty ? null : () async {
+                        final next = selected.toList();
+                        final prefs = await SharedPreferences.getInstance();
+                        await prefs.setStringList(_quickEmojiPreferenceKey, next);
+                        if (!mounted) return;
+                        setState(() => _quickEmojis = next);
+                        if (sheetContext.mounted) Navigator.pop(sheetContext);
+                      },
+                      child: Text('Save ${selected.length}/8 emojis'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
         );
       },
@@ -756,7 +1013,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                 Text('Recording  ${_formatVoiceDuration(_voiceSeconds)}',
                   style: TextStyle(fontFamily: 'PlusJakartaSans', fontWeight: FontWeight.w600, color: Color(0xFFEF4444))),
                 const Spacer(),
-                const Text('Release to send', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 11, color: Color(0xFF94A3B8))),
+                const Text('Tap to send', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 11, color: Color(0xFF94A3B8))),
               ],
             ),
           ),
@@ -813,15 +1070,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
 
         // ── Main input row ─────────────────────────────────────────
         Container(
-          decoration: BoxDecoration(
-            color: theme.colorScheme.surface,
-            border: Border(
-              top: BorderSide(
-                color: theme.colorScheme.outlineVariant.withValues(alpha: 0.6),
-                width: 1,
-              ),
-            ),
-          ),
+          decoration: const BoxDecoration(color: Colors.transparent),
           padding: EdgeInsets.fromLTRB(12, 9, 12, MediaQuery.of(context).viewInsets.bottom > 0 ? 10 : 14),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.end,
@@ -858,6 +1107,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                       Expanded(
                         child: TextField(
                           controller: _ctrl,
+                          focusNode: _messageFocusNode,
                           maxLines: 4,
                           minLines: 1,
                           textInputAction: context.read<SettingsService>().chatEnterToSend ? TextInputAction.send : TextInputAction.newline,
@@ -897,12 +1147,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                             suffixIcon: IconButton(
                               tooltip: 'Add emoji',
                               visualDensity: VisualDensity.compact,
-                              onPressed: () {
-                                final value = _ctrl.text;
-                                _ctrl.text = '${value}🙂';
-                                _ctrl.selection = TextSelection.collapsed(offset: _ctrl.text.length);
-                                setState(() {});
-                              },
+                              onPressed: _showQuickEmojiPicker,
                               icon: Icon(Icons.emoji_emotions_outlined, size: 19,
                                 color: theme.colorScheme.onSurfaceVariant),
                             ),
@@ -918,9 +1163,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
 
               // ── Mic / Send button ──────────────────────────────────────
               GestureDetector(
-                onTap: hasText ? _send : null,
-                onLongPressStart: hasText ? null : (_) => _startVoiceNote(),
-                onLongPressEnd: hasText ? null : (_) => _stopVoiceNote(),
+                onTap: _uploadingAttachment ? null : hasText ? _send : _isRecordingVoice ? _stopVoiceNote : _startVoiceNote,
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 200),
                   curve: Curves.easeInOut,
@@ -1393,7 +1636,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     if (!_isRecordingVoice) return;
     _voiceTimer?.cancel();
     _voiceTimer = null;
-    final duration = _voiceSeconds;
+    final duration = _voiceSeconds < 1 ? 1 : _voiceSeconds;
     final path = _voiceRecordingPath;
     setState(() {
       _isRecordingVoice = false;
@@ -1424,7 +1667,10 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         replyToText: _replyingTo?.text?.toString(),
         replyToSender: _replyingTo?.isFromMe == true ? 'You' : widget.peer.name,
       );
-      if (mounted) setState(() => _replyingTo = null);
+      if (mounted) {
+        setState(() => _replyingTo = null);
+        _scrollToBottom(force: true);
+      }
       await file.delete();
     } catch (error) {
       if (mounted) {
@@ -1810,6 +2056,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       MaterialPageRoute(
         builder: (_) => ProfileInfoScreen(
           user: widget.peer,
+          chatProtected: context.read<SocketService>().activeChatCaptureProtected,
           onVoiceCall: () {
             Navigator.pop(context);
             _startCall('voice');
@@ -1825,6 +2072,10 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           onWallpaper: () {
             Navigator.pop(context);
             _showWallpaperPicker();
+          },
+          onQuickEmojis: () {
+            Navigator.pop(context);
+            _showQuickEmojiSettings();
           },
           initiallyBlocked: context.read<SocketService>().blockedUsers.any(
             (name) => name.toLowerCase() == widget.peer.username.toLowerCase(),
@@ -1951,7 +2202,7 @@ class _MessageBubble extends StatelessWidget {
   final dynamic message;
   final bool showAvatar;
   final UserModel peer;
-  final bool messagesRead;
+  final String messageStatus;
   final String myUid;
   final ValueChanged<dynamic>? onReply;
   final ValueChanged<dynamic>? onForward;
@@ -1960,7 +2211,7 @@ class _MessageBubble extends StatelessWidget {
     required this.message,
     required this.showAvatar,
     required this.peer,
-    this.messagesRead = false,
+    this.messageStatus = 'sent',
     this.myUid = '',
     this.onReply,
     this.onForward,
@@ -2642,35 +2893,110 @@ class _MessageBubble extends StatelessWidget {
   }
 
   String _formatTime(DateTime dt) {
-    final h = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
-    final m = dt.minute.toString().padLeft(2, '0');
-    final period = dt.hour < 12 ? 'AM' : 'PM';
+    final local = dt.toLocal();
+    final h = local.hour % 12 == 0 ? 12 : local.hour % 12;
+    final m = local.minute.toString().padLeft(2, '0');
+    final period = local.hour < 12 ? 'AM' : 'PM';
     return '$h:$m $period';
   }
 
   Widget _buildTick(BuildContext context, dynamic message) {
-    final isSending = (message.id as String).startsWith('tmp_');
+    final status = messageStatus;
+    const muted = Color(0xFF625C83);
+    const purple = Color(0xFF6246E8);
 
-    if (isSending) {
-      return Icon(Icons.access_time_rounded,
-          size: 11, color: Color(0xFF94A3B8));
+    switch (status) {
+      case 'sending':
+        return const SizedBox(
+          width: 20,
+          height: 20,
+          child: CustomPaint(painter: _SendingStatusPainter()),
+        );
+      case 'sent':
+        return Container(
+          width: 9,
+          height: 9,
+          decoration: const BoxDecoration(color: muted, shape: BoxShape.circle),
+        );
+      case 'delivered':
+        return const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _StatusDot(color: muted),
+            SizedBox(width: 3),
+            _StatusDot(color: muted),
+          ],
+        );
+      case 'seen':
+        return Container(
+          width: 27,
+          height: 27,
+          alignment: Alignment.center,
+          decoration: const BoxDecoration(
+            color: Color(0xFFE8E2FF), shape: BoxShape.circle,
+          ),
+          child: const Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _StatusDot(color: purple, size: 8),
+              SizedBox(width: 2),
+              _StatusDot(color: purple, size: 8),
+            ],
+          ),
+        );
+      case 'failed':
+        return const SizedBox(
+          width: 20,
+          height: 20,
+          child: CustomPaint(
+            painter: _SendingStatusPainter(color: Color(0xFFD71935)),
+          ),
+        );
+      default:
+        return const _StatusDot(color: muted);
     }
-
-    // Blue = seen by peer, purple = delivered
-    final color =
-        messagesRead ? const Color(0xFF0EA5E9) : Theme.of(context).colorScheme.primary;
-
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(Icons.done_rounded, size: 13, color: color),
-        Transform.translate(
-          offset: const Offset(-4, 0),
-          child: Icon(Icons.done_rounded, size: 13, color: color),
-        ),
-      ],
-    );
   }
+}
+
+class _StatusDot extends StatelessWidget {
+  final Color color;
+  final double size;
+  const _StatusDot({required this.color, this.size = 9});
+
+  @override
+  Widget build(BuildContext context) => Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+      );
+}
+
+class _SendingStatusPainter extends CustomPainter {
+  final Color color;
+
+  const _SendingStatusPainter({this.color = const Color(0xFF625C83)});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..color = color..style = PaintingStyle.fill;
+    final center = Offset(size.width / 2, size.height / 2);
+    const count = 8;
+    for (var i = 0; i < count; i++) {
+      final angle = (i * 3.141592653589793 * 2 / count) - 1.5707963267948966;
+      final radius = size.width * .37;
+      final dotRadius = i.isEven ? 1.8 : 1.35;
+      canvas.drawCircle(
+        Offset(center.dx + radius * math.cos(angle), center.dy + radius * math.sin(angle)),
+        dotRadius,
+        paint..color = color.withValues(alpha: .42 + (i / count) * .58),
+      );
+    }
+    canvas.drawCircle(center, 2.5, paint..color = color);
+  }
+
+  @override
+  bool shouldRepaint(covariant _SendingStatusPainter oldDelegate) =>
+      oldDelegate.color != color;
 }
 
 // ── Contact Info Sheet ─────────────────────────────────────────────────────
@@ -2958,11 +3284,11 @@ class _AttachmentButtonState extends State<_AttachmentButton>
     _MenuItem(
         icon: Icons.headphones_rounded,
         label: 'Sound',
-        color: Color(0xFFEC4899)),
+        color: Color(0xFFEC4899), enabled: false),
     _MenuItem(
         icon: Icons.location_on_rounded,
         label: 'Location',
-        color: Color(0xFF10B981)),
+        color: Color(0xFF10B981), enabled: false),
   ];
 
   @override
@@ -3037,7 +3363,8 @@ class _AttachmentButtonState extends State<_AttachmentButton>
                         IconButton(onPressed: () => Navigator.pop(sheetContext),
                           icon: Icon(Icons.close_rounded, color: sheetScheme.onSurfaceVariant)),
                       ]),
-                      const SizedBox(height: 8),
+                      Align(alignment: Alignment.centerLeft, child: Text('Send a little more than a message', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 11, color: sheetScheme.onSurfaceVariant))),
+                      const SizedBox(height: 12),
                       GridView.builder(
                         shrinkWrap: true,
                         physics: const NeverScrollableScrollPhysics(),
@@ -3051,6 +3378,10 @@ class _AttachmentButtonState extends State<_AttachmentButton>
                             borderRadius: BorderRadius.circular(18),
                             onTap: () {
                               Navigator.pop(sheetContext);
+                              if (!item.enabled) {
+                                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${item.label} is coming soon.')));
+                                return;
+                              }
                               final type = item.label == 'Media' ? 'image' : item.label.toLowerCase();
                               widget.onSelected(type);
                             },
@@ -3058,13 +3389,13 @@ class _AttachmentButtonState extends State<_AttachmentButton>
                               Container(
                                 width: 54, height: 54,
                                 decoration: BoxDecoration(
-                                  color: item.color.withValues(alpha: dark ? 0.18 : 0.13),
+                                  color: item.color.withValues(alpha: dark ? (item.enabled ? 0.18 : 0.07) : (item.enabled ? 0.13 : 0.06)),
                                   borderRadius: BorderRadius.circular(17)),
-                                child: Icon(item.icon, color: item.color, size: 24)),
+                                child: Icon(item.icon, color: item.color.withValues(alpha: item.enabled ? 1 : 0.42), size: 24)),
                               const SizedBox(height: 7),
                               Text(item.label, maxLines: 1, overflow: TextOverflow.ellipsis,
                                 style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 11,
-                                  fontWeight: FontWeight.w700, color: sheetScheme.onSurface)),
+                                  fontWeight: FontWeight.w700, color: item.enabled ? sheetScheme.onSurface : sheetScheme.onSurfaceVariant.withValues(alpha: 0.55))),
                             ]),
                           );
                         },
@@ -3087,8 +3418,9 @@ class _MenuItem {
   final IconData icon;
   final String label;
   final Color color;
+  final bool enabled;
   const _MenuItem(
-      {required this.icon, required this.label, required this.color});
+      {required this.icon, required this.label, required this.color, this.enabled = true});
 }
 
 // ── Spark Icon Painter ─────────────────────────────────────────────────────
@@ -3593,6 +3925,7 @@ class _ChatHeaderButton extends StatelessWidget {
     this.color,
     this.iconSize = 20,
     this.tooltip,
+    this.filled = false,
   });
 
   final IconData icon;
@@ -3600,6 +3933,7 @@ class _ChatHeaderButton extends StatelessWidget {
   final Color? color;
   final double iconSize;
   final String? tooltip;
+  final bool filled;
 
   @override
   Widget build(BuildContext context) {
@@ -3610,11 +3944,11 @@ class _ChatHeaderButton extends StatelessWidget {
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: onTap,
-        child: SizedBox(
-          width: 40,
-          height: 40,
-          child: Center(
-            child: Icon(icon, size: iconSize, color: color ?? scheme.primary),
+        child: Material(
+          color: filled ? scheme.primary.withValues(alpha: 0.10) : Colors.transparent,
+          shape: const CircleBorder(),
+          child: SizedBox(width: 40, height: 40,
+            child: Center(child: Icon(icon, size: iconSize, color: color ?? scheme.primary)),
           ),
         ),
       ),
