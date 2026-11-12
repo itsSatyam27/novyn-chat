@@ -55,8 +55,10 @@ import 'message_encryption_service.dart';
 ///   ON    error_message            — { message }
 
 class SocketService extends ChangeNotifier {
-  // Uses the same per-conversation AES-GCM keys and relay envelope as the web client.
+  // Uses the same ECDH P-256 + AES-GCM-256 wire format as the web client.
   final encryption = MessageEncryptionService();
+  Future<void>? _identityRegistration;
+  String? _registeredIdentityAccount;
   final Map<String, String> _peerKeys = {};
   final BackendContacts contacts = BackendContacts();
   io.Socket? _socket;
@@ -190,12 +192,14 @@ class SocketService extends ChangeNotifier {
     }
     _socket!.on('register_success', (data) {
       if (data is Map) _handleFriendList(data['friends']);
+      unawaited(_registerEncryptionIdentity());
     });
     // ── Initial data + friend list ────────────────────────────────────────
     _socket!.on('init', (data) {
       if (data is Map && data['friends'] != null) {
         _handleFriendList(data['friends']);
       }
+      unawaited(_registerEncryptionIdentity());
     });
 
     _socket!.on('friend_list', (data) => _handleFriendList(data));
@@ -277,7 +281,7 @@ class SocketService extends ChangeNotifier {
         final account = _myUsername;
         if (account == null) return;
         final decrypted = await Future.wait(
-            parsed.map((message) => encryption.decrypt(message, account)));
+            parsed.map((message) => encryption.decrypt(message, account, _peerKeys[withUser.toLowerCase()])));
         if (_myUsername != account ||
             _currentChatWith?.toLowerCase() != withUser.toLowerCase()) {
           return;
@@ -340,7 +344,7 @@ class SocketService extends ChangeNotifier {
 
       final account = _myUsername;
       if (account == null) return;
-      msg = await encryption.decrypt(msg, account);
+      msg = await encryption.decrypt(msg, account, _peerKeys[chatPartner.toLowerCase()]);
       if (_myUsername != account) return;
 
       // Save to local DB
@@ -614,6 +618,45 @@ class SocketService extends ChangeNotifier {
     });
   }
 
+  Future<void> _registerEncryptionIdentity() async {
+    final account = _myUsername;
+    final connection = _socket;
+    if (account == null || connection == null || !_isConnected) return;
+    if (_registeredIdentityAccount == account.toLowerCase()) return;
+    final active = _identityRegistration;
+    if (active != null) return active;
+
+    final task = () async {
+      final publicKey = await encryption.initializeIdentity(account);
+      if (_myUsername != account || _socket != connection || !_isConnected) return;
+      final completer = Completer<Map<String, dynamic>>();
+      connection.emitWithAck('register_public_key', {'publicKey': publicKey},
+          ack: (dynamic result) {
+        if (!completer.isCompleted) {
+          completer.complete(result is Map
+              ? Map<String, dynamic>.from(result)
+              : <String, dynamic>{'ok': false});
+        }
+      });
+      final result = await completer.future.timeout(
+        const Duration(seconds: 12),
+        onTimeout: () => <String, dynamic>{'ok': false},
+      );
+      if (result['ok'] == true && _myUsername == account && _socket == connection) {
+        _registeredIdentityAccount = account.toLowerCase();
+      } else {
+        debugPrint('[NovynE2EE] Device identity registration was not confirmed.');
+      }
+    }();
+
+    _identityRegistration = task;
+    try {
+      await task;
+    } finally {
+      if (identical(_identityRegistration, task)) _identityRegistration = null;
+    }
+  }
+
   // ── Parse friend_list payload into ChatPreview list ───────────────────────
   void _handleFriendList(dynamic data) async {
     final list = data is List ? data : (data is Map ? data['friends'] : null);
@@ -676,7 +719,8 @@ class SocketService extends ChangeNotifier {
             ciphertext: raw['ciphertext']?.toString(),
             iv: raw['iv']?.toString(),
           ),
-          account);
+          account,
+          _peerKeys[peer.toLowerCase()]);
       if (_myUsername != account) return;
       if (decrypted.needsMessageKey) continue;
       final index = _conversations.indexWhere(
@@ -760,10 +804,13 @@ class SocketService extends ChangeNotifier {
       'clientTempId': clientTempId,
     };
 
-    // Match the web client: encrypt only when the peer has a published key.
-    // A missing local conversation key is an actionable error, never a silent
-    // plaintext fallback.
-    if (peerKey != null && peerKey.isNotEmpty && !isGroup) {
+    // Direct messages must always use E2EE. Never fall back to plaintext.
+    if (!isGroup) {
+      if (peerKey == null || peerKey.isEmpty) {
+        throw StateError(
+          'Secure connection is not ready yet. Reconnect to Novyn and try again.',
+        );
+      }
       final encrypted = await encryption.encrypt(
         rawText,
         account,
@@ -772,7 +819,7 @@ class SocketService extends ChangeNotifier {
       );
       if (encrypted == null) {
         throw StateError(
-          'This chat needs its message key. Import your Novyn message keys from the web app before sending.',
+          'Could not encrypt this message. Please reconnect and try again.',
         );
       }
       payload
@@ -1010,7 +1057,7 @@ class SocketService extends ChangeNotifier {
     if (account == null || peer == null) return;
     final snapshot = _messages;
     final decrypted = await Future.wait(
-        snapshot.map((message) => encryption.decrypt(message, account)));
+        snapshot.map((message) => encryption.decrypt(message, account, _peerKeys[peer.toLowerCase()])));
     if (_myUsername != account || _currentChatWith != peer) return;
     final byId = {for (final message in decrypted) message.id: message};
     _messages = _messages
