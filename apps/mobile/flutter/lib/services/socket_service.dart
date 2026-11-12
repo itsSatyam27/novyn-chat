@@ -546,9 +546,30 @@ class SocketService extends ChangeNotifier {
     // ── User presence ─────────────────────────────────────────────────────
     _socket!.on('user_status', (data) {
       if (data is! Map) return;
-      final username = data['username']?.toString() ?? '';
+      final username = data['username']?.toString().trim() ?? '';
+      if (username.isEmpty) return;
+
       final online = data['online'] == true;
-      if (username.isNotEmpty) onUserStatusChanged?.call(username, online);
+      final presence = data['presence']?.toString();
+      final normalized = username.toLowerCase();
+
+      // Keep every Flutter surface in sync: contacts, cached chat previews,
+      // and the active chat header all consume the same live presence event.
+      contacts.updateStatus(username, online, presence: presence);
+      _conversations = _conversations.map((chat) {
+        if (chat.isGroup || chat.peerUid.toLowerCase() != normalized) {
+          return chat;
+        }
+        final updatedPeer = chat.peer.copyWith(
+          isOnline: online,
+          status: presence ?? (online ? 'online' : 'offline'),
+          lastSeen: DateTime.tryParse(data['lastSeenAt']?.toString() ?? ''),
+        );
+        return chat.copyWith(peer: updatedPeer);
+      }).toList();
+
+      onUserStatusChanged?.call(username, online);
+      notifyListeners();
     });
 
     // ── Friend events ─────────────────────────────────────────────────────
