@@ -103,6 +103,7 @@ class SettingsService extends ChangeNotifier {
   
   // New settings state
   bool _inAppSounds = true;
+  bool _chatEnterToSend = true;
   bool _inAppVibration = true;
   bool _groupNotifications = true;
   String _autoDownloadWifi = 'all'; // 'all', 'photos', 'none'
@@ -160,6 +161,7 @@ class SettingsService extends ChangeNotifier {
   
   // New getters
   bool get inAppSounds => _inAppSounds;
+  bool get chatEnterToSend => _chatEnterToSend;
   bool get inAppVibration => _inAppVibration;
   bool get groupNotifications => _groupNotifications;
   String get autoDownloadWifi => _autoDownloadWifi;
@@ -233,6 +235,7 @@ class SettingsService extends ChangeNotifier {
     
     // Load new settings
     _inAppSounds = _prefs.getBool(_kInAppSounds) ?? true;
+    _chatEnterToSend = _prefs.getBool('chat_enter_to_send') ?? true;
     _inAppVibration = _prefs.getBool(_kInAppVibration) ?? true;
     _groupNotifications = _prefs.getBool(_kGroupNotifications) ?? true;
     _autoDownloadWifi = _prefs.getString(_kAutoDownloadWifi) ?? 'all';
@@ -374,6 +377,12 @@ class SettingsService extends ChangeNotifier {
   }
 
   // ── New setters ──────────────────────────────────────────────────────────
+  Future<void> setChatEnterToSend(bool v) async {
+    _chatEnterToSend = v;
+    await _prefs.setBool('chat_enter_to_send', v);
+    notifyListeners();
+  }
+
   Future<void> setInAppSounds(bool v) async {
     _inAppSounds = v;
     await _prefs.setBool(_kInAppSounds, v);
@@ -835,6 +844,7 @@ class SettingsService extends ChangeNotifier {
     
     // Reset new settings
     _inAppSounds = true;
+    _chatEnterToSend = true;
     _inAppVibration = true;
     _groupNotifications = true;
     _autoDownloadWifi = 'all';
