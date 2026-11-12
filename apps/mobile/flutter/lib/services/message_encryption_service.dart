@@ -97,7 +97,7 @@ class MessageEncryptionService {
           throw StateError('Your secure message identity is damaged. Restore your Novyn backup before resetting it.');
         }
       } else {
-        final generator = pc.ECKeyGenerator()..init(pc.ParametersWithRandom(pc.pc.ECKeyGeneratorParameters(_domain), _secureRandom()));
+        final generator = pc.ECKeyGenerator()..init(pc.ParametersWithRandom(pc.ECKeyGeneratorParameters(_domain), _secureRandom()));
         final pair = generator.generateKeyPair();
         final privateKey = pair.privateKey as pc.ECPrivateKey;
         final publicKey = pair.publicKey as pc.ECPublicKey;
