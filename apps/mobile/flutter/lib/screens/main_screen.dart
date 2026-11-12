@@ -132,6 +132,9 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     final socket = context.read<SocketService>();
     final connected =
         context.select<SocketService, bool>((socket) => socket.isConnected);
+    // The Scaffold resizes its body above the keyboard. Keep the floating dock
+    // out of that resized area while typing instead of letting it ride above it.
+    final keyboardVisible = MediaQuery.viewInsetsOf(context).bottom > 0;
 
     return PopScope(
       // Let Android close the app only from the Chats tab. From every other
@@ -185,26 +188,39 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
               ),
             ],
           ),
-          // Floating Bottom Nav overlaid on top
+          // Floating Bottom Nav. Hide it while the keyboard is open so it
+          // never jumps up and competes with the chat composer.
           Positioned(
             left: 0,
             right: 0,
             bottom: 0,
-            child: Selector<SettingsService, String>(
-              selector: (_, service) => service.dockStyle,
-              builder: (context, dockStyle, _) => Selector<SocketService, int>(
-              selector: (_, service) => service.conversations
-                  .fold(0, (total, chat) => total + chat.unreadCount),
-              builder: (context, unreadCount, _) => AnimatedBuilder(
-                animation: socket.contacts,
-                builder: (context, _) => NovynDock(
-                  selectedIndex: _selectedIndex,
-                  onSelected: _onTabTap,
-                  unreadCount: unreadCount,
-                  requestCount: socket.contacts.requests.length,
-                  style: dockStyle,
+            child: AnimatedSlide(
+              offset: keyboardVisible ? const Offset(0, 1.15) : Offset.zero,
+              duration: const Duration(milliseconds: 220),
+              curve: Curves.easeInOutCubic,
+              child: IgnorePointer(
+                ignoring: keyboardVisible,
+                child: AnimatedOpacity(
+                  opacity: keyboardVisible ? 0 : 1,
+                  duration: const Duration(milliseconds: 160),
+                  child: Selector<SettingsService, String>(
+                    selector: (_, service) => service.dockStyle,
+                    builder: (context, dockStyle, _) => Selector<SocketService, int>(
+                      selector: (_, service) => service.conversations
+                          .fold(0, (total, chat) => total + chat.unreadCount),
+                      builder: (context, unreadCount, _) => AnimatedBuilder(
+                        animation: socket.contacts,
+                        builder: (context, _) => NovynDock(
+                          selectedIndex: _selectedIndex,
+                          onSelected: _onTabTap,
+                          unreadCount: unreadCount,
+                          requestCount: socket.contacts.requests.length,
+                          style: dockStyle,
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
-              ),
               ),
             ),
           ),
