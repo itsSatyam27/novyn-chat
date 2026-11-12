@@ -80,6 +80,7 @@ class SettingsService extends ChangeNotifier {
   static const _kRegion = 'user_region';
   static const _kHighContrast = 'accessibility_high_contrast';
   static const _kReduceMotion = 'accessibility_reduce_motion';
+  static const _kBusyPreviousPresence = 'busy_previous_presence_mode';
 
   late SharedPreferences _prefs;
   bool _loaded = false;
@@ -132,6 +133,7 @@ class SettingsService extends ChangeNotifier {
   bool _stealthIconEnabled = false;
   bool _highContrast = false;
   bool _reduceMotion = false;
+  String? _busyPreviousPresenceMode;
 
   // ── Getters ─────────────────────────────────────────────────────────────
   bool get notificationsOn => _notificationsOn;
@@ -190,6 +192,7 @@ class SettingsService extends ChangeNotifier {
   bool get stealthIconEnabled => _stealthIconEnabled;
   bool get highContrast => _highContrast;
   bool get reduceMotion => _reduceMotion;
+  String? get busyPreviousPresenceMode => _busyPreviousPresenceMode;
 
   // ── Load from disk ───────────────────────────────────────────────────────
   Future<void> load() async {
@@ -281,6 +284,7 @@ class SettingsService extends ChangeNotifier {
     _stealthIconEnabled = _prefs.getBool(_kStealthIcon) ?? false;
     _highContrast = _prefs.getBool(_kHighContrast) ?? false;
     _reduceMotion = _prefs.getBool(_kReduceMotion) ?? false;
+    _busyPreviousPresenceMode = _prefs.getString(_kBusyPreviousPresence);
     
     // Load saved sessions
     final raw = _prefs.getString(_kSavedSessions);
@@ -410,6 +414,17 @@ class SettingsService extends ChangeNotifier {
   Future<void> setHighContrast(bool v) async {
     _highContrast = v;
     await _prefs.setBool(_kHighContrast, v);
+    notifyListeners();
+  }
+
+  Future<void> setBusyPreviousPresenceMode(String? mode) async {
+    const allowed = {'online', 'away', 'invisible'};
+    _busyPreviousPresenceMode = mode != null && allowed.contains(mode) ? mode : null;
+    if (_busyPreviousPresenceMode == null) {
+      await _prefs.remove(_kBusyPreviousPresence);
+    } else {
+      await _prefs.setString(_kBusyPreviousPresence, _busyPreviousPresenceMode!);
+    }
     notifyListeners();
   }
 
