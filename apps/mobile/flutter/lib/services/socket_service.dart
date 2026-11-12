@@ -56,6 +56,11 @@ import 'security_service.dart';
 ///   ON    error_message            — { message }
 
 class SocketService extends ChangeNotifier {
+  SocketService({bool initialStealthModeEnabled = false})
+      : _stealthModePreference = initialStealthModeEnabled;
+
+  bool _stealthModePreference;
+  bool _stealthPreferenceSynced = false;
   // Uses the same ECDH P-256 + AES-GCM-256 wire format as the web client.
   final encryption = MessageEncryptionService();
   Future<void>? _identityRegistration;
@@ -152,6 +157,7 @@ class SocketService extends ChangeNotifier {
     _socket!.onConnect((_) {
       _isConnected = true;
       _isAuthenticated = false;
+      _stealthPreferenceSynced = false;
       _authenticationReady = Completer<void>();
       _registeredIdentityAccount = null;
       _reconnectTimer?.cancel();
@@ -686,6 +692,10 @@ class SocketService extends ChangeNotifier {
   void _markSocketAuthenticated() {
     if (!_isConnected) return;
     _isAuthenticated = true;
+    if (!_stealthPreferenceSynced) {
+      _stealthPreferenceSynced = true;
+      unawaited(_syncStealthModePreference());
+    }
     final ready = _authenticationReady;
     if (ready != null && !ready.isCompleted) ready.complete();
     onAuthenticated?.call();
@@ -857,7 +867,17 @@ class SocketService extends ChangeNotifier {
     connection?.emit('get_chat_wallpaper', {'to': peerUsername, 'toType': 'friend'});
   }
 
+  Future<void> _syncStealthModePreference() async {
+    try {
+      await updateStealthMode(_stealthModePreference);
+    } catch (error) {
+      _stealthPreferenceSynced = false;
+      debugPrint('[NovynSecurity] Could not sync saved Stealth Mode preference: $error');
+    }
+  }
+
   Future<void> updateStealthMode(bool enabled) async {
+    _stealthModePreference = enabled;
     await _waitForSocketAuthentication();
     final connection = _socket;
     if (connection == null || !_isConnected) {
