@@ -2995,170 +2995,89 @@ class _AttachmentButtonState extends State<_AttachmentButton>
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        // ── Unique spark/grid button ───────────────────────────────
-        GestureDetector(
-          onTap: _toggle,
-          child: AnimatedBuilder(
-            animation: _ctrl,
-            builder: (context, child) {
-              return Transform.scale(
-                scale: 1.0 + (_ctrl.value * 0.12),
+    final scheme = Theme.of(context).colorScheme;
+    return Material(
+      color: scheme.primary.withValues(alpha: 0.10),
+      shape: const CircleBorder(),
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: () {
+          HapticService.vibrate(NovynHapticType.light, category: HapticCategory.chat);
+          showModalBottomSheet<void>(
+            context: context,
+            backgroundColor: Colors.transparent,
+            isScrollControlled: true,
+            builder: (sheetContext) {
+              final sheetScheme = Theme.of(sheetContext).colorScheme;
+              final dark = Theme.of(sheetContext).brightness == Brightness.dark;
+              return SafeArea(
                 child: Container(
-                  width: 40,
-                  height: 40,
+                  margin: const EdgeInsets.fromLTRB(10, 0, 10, 10),
+                  padding: const EdgeInsets.fromLTRB(18, 12, 18, 22),
                   decoration: BoxDecoration(
-                    color: Color.lerp(
-                      Theme.of(context)
-                          .colorScheme
-                          .onSurface
-                          .withValues(alpha: 0.08),
-                      Theme.of(context).colorScheme.primary.withValues(alpha: 0.15),
-                      _ctrl.value,
-                    ),
-                    shape: BoxShape.circle,
+                    color: sheetScheme.surface,
+                    borderRadius: BorderRadius.circular(28),
+                    border: Border.all(color: sheetScheme.outlineVariant.withValues(alpha: 0.7)),
+                    boxShadow: [
+                      BoxShadow(color: Colors.black.withValues(alpha: dark ? 0.28 : 0.10),
+                        blurRadius: 24, offset: const Offset(0, -5)),
+                    ],
                   ),
-                  child: CustomPaint(
-                    painter: _SparkIconPainter(
-                      progress: _ctrl.value,
-                      color: Color.lerp(
-                        Theme.of(context)
-                            .colorScheme
-                            .onSurface
-                            .withValues(alpha: 0.5),
-                        Theme.of(context).colorScheme.primary,
-                        _ctrl.value,
-                      )!,
-                    ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(width: 38, height: 4,
+                        decoration: BoxDecoration(color: sheetScheme.onSurface.withValues(alpha: 0.18),
+                          borderRadius: BorderRadius.circular(4))),
+                      const SizedBox(height: 17),
+                      Row(children: [
+                        Expanded(child: Text('Share something',
+                          style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 17,
+                            fontWeight: FontWeight.w800, color: sheetScheme.onSurface))),
+                        IconButton(onPressed: () => Navigator.pop(sheetContext),
+                          icon: Icon(Icons.close_rounded, color: sheetScheme.onSurfaceVariant)),
+                      ]),
+                      const SizedBox(height: 8),
+                      GridView.builder(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        itemCount: _items.length,
+                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 3, mainAxisSpacing: 12,
+                          crossAxisSpacing: 10, childAspectRatio: 1.12),
+                        itemBuilder: (context, index) {
+                          final item = _items[index];
+                          return InkWell(
+                            borderRadius: BorderRadius.circular(18),
+                            onTap: () {
+                              Navigator.pop(sheetContext);
+                              final type = item.label == 'Media' ? 'image' : item.label.toLowerCase();
+                              widget.onSelected(type);
+                            },
+                            child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                              Container(
+                                width: 54, height: 54,
+                                decoration: BoxDecoration(
+                                  color: item.color.withValues(alpha: dark ? 0.18 : 0.13),
+                                  borderRadius: BorderRadius.circular(17)),
+                                child: Icon(item.icon, color: item.color, size: 24)),
+                              const SizedBox(height: 7),
+                              Text(item.label, maxLines: 1, overflow: TextOverflow.ellipsis,
+                                style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 11,
+                                  fontWeight: FontWeight.w700, color: sheetScheme.onSurface)),
+                            ]),
+                          );
+                        },
+                      ),
+                    ],
                   ),
                 ),
               );
             },
-          ),
-        ),
-
-        // ── Popup menu ────────────────────────────────────────────
-        Positioned(
-          bottom: 48,
-          left: 0,
-          child: FadeTransition(
-            opacity: _fade,
-            child: ScaleTransition(
-              scale: _scale,
-              alignment: Alignment.bottomLeft,
-              child: Material(
-                color: Colors.transparent,
-                child: Builder(
-                  builder: (ctx) => Container(
-                    width: 214,
-                    decoration: BoxDecoration(
-                      color: Theme.of(ctx).colorScheme.surface,
-                      borderRadius: BorderRadius.circular(28),
-                      boxShadow: [
-                        BoxShadow(
-                          color:
-                              Theme.of(context).colorScheme.primary.withValues(alpha: 0.12),
-                          blurRadius: 24,
-                          offset: const Offset(0, 8),
-                        ),
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.08),
-                          blurRadius: 12,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                      border: Border.all(
-                        color: Theme.of(ctx).colorScheme.outlineVariant,
-                        width: 1,
-                      ),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: _items.asMap().entries.map((entry) {
-                          final i = entry.key;
-                          final item = entry.value;
-                          // Stagger each item's appearance
-                          return TweenAnimationBuilder<double>(
-                            tween: Tween(begin: 0, end: _open ? 1 : 0),
-                            duration: Duration(milliseconds: 120 + (i * 30)),
-                            curve: Curves.easeOutCubic,
-                            builder: (_, v, child) => Opacity(
-                              opacity: v,
-                              child: Transform.translate(
-                                offset: Offset(0, (1 - v) * 8),
-                                child: child,
-                              ),
-                            ),
-                            child: _buildMenuItem(item),
-                          );
-                        }).toList(),
-                      ),
-                    ),
-                  ),
-                ), // close Builder
-              ),
-            ),
-          ),
-        ),
-
-        // Invisible overlay to close on tap outside
-        if (_open)
-          Positioned(
-            left: -300,
-            right: -300,
-            top: -600,
-            bottom: -100,
-            child: GestureDetector(
-              onTap: _close,
-              behavior: HitTestBehavior.translucent,
-              child: const SizedBox.expand(),
-            ),
-          ),
-      ],
-    );
-  }
-
-  Widget _buildMenuItem(_MenuItem item) {
-    final itemColor = item.label == 'Poll' || item.label == 'Riddle'
-        ? Theme.of(context).colorScheme.primary
-        : item.color;
-    return InkWell(
-      onTap: () {
-        _close();
-        widget.onSelected(item.label);
-      },
-      borderRadius: BorderRadius.circular(12),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-        child: Row(
-          children: [
-            Container(
-              width: 42,
-              height: 42,
-              decoration: BoxDecoration(
-                color: itemColor.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: Icon(item.icon, color: itemColor, size: 21),
-            ),
-            const SizedBox(width: 14),
-            Builder(
-              builder: (ctx) => Text(
-                item.label,
-                style: TextStyle(
-                  fontFamily: 'PlusJakartaSans',
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                  color: Theme.of(ctx).colorScheme.onSurface,
-                ),
-              ),
-            ),
-          ],
-        ),
+          );
+        },
+        child: SizedBox(width: 40, height: 40,
+          child: Icon(Icons.grid_view_rounded, size: 20, color: scheme.primary)),
       ),
     );
   }
