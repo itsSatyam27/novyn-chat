@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../../services/socket_service.dart';
 import '../../../theme/novyn_theme.dart';
 import '../widgets/profile_widgets.dart';
+import 'package:novyn/services/haptic_service.dart';
 
 class BlockedUsersScreen extends StatefulWidget {
   const BlockedUsersScreen({super.key});
@@ -27,7 +28,7 @@ class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
     if (username.isEmpty || _adding) return;
     FocusScope.of(context).unfocus();
     setState(() => _adding = true);
-    HapticFeedback.selectionClick();
+    HapticService.vibrate(NovynHapticType.selection);
     try {
       final result = await socket.setBlockedUser(username, blocked: true);
       if (!mounted) return;
@@ -63,7 +64,7 @@ class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
       ),
     );
     if (confirmed != true || !mounted) return;
-    HapticFeedback.mediumImpact();
+    HapticService.vibrate(NovynHapticType.medium);
     try {
       final result = await socket.setBlockedUser(username, blocked: false);
       if (!mounted) return;
