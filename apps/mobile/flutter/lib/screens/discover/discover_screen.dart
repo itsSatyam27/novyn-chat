@@ -105,13 +105,13 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                 return NovynHeader(
                   title: 'Discover',
                   titleSize: 34,
-                  subtitle: 'Live online radar',
+                  subtitle: 'Find people and grow your circle',
                   actions: [
                     Stack(
                       clipBehavior: Clip.none,
                       children: [
                         NovynIconButton(
-                          icon: Icons.notifications_none_rounded,
+                          icon: Icons.mark_email_unread_outlined,
                           onTap: () => Navigator.push(
                             context,
                             MaterialPageRoute(
@@ -183,7 +183,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
 
             // ── Search ──────────────────────────────────────────────
             NovynSearchField(
-              hint: 'Search by name or username...',
+              hint: 'Find people by name or @username...',
               onChanged: (value) => setState(() => _search = value.trim().toLowerCase()),
             ),
 
