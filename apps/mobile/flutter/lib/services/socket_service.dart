@@ -370,7 +370,7 @@ class SocketService extends ChangeNotifier {
       } else if (!isOwn) {
         // Message for a different chat — sound and vibration are independent preferences.
         if (!(notificationsMuted?.call() ?? false)) {
-          _audioPlayer.play(AssetSource('audio/notification.mp3'));
+          unawaited(_playIncomingMessageSound());
         }
         if (notificationsVibrate?.call() ?? false) {
           unawaited(HapticFeedback.vibrate());
@@ -1194,7 +1194,29 @@ class SocketService extends ChangeNotifier {
   VoidCallback? onProfileUpdated;
   bool Function()? notificationsMuted;
   bool Function()? notificationsVibrate;
+  String Function()? notificationTone;
+  double Function()? messageSoundVolume;
   void Function(Map<String, dynamic>)? onProfileData;
+
+  Future<void> _playIncomingMessageSound() async {
+    final tone = notificationTone?.call() ?? 'Drift';
+    final asset = switch (tone) {
+      'Pulse' => 'audio/message_sent.mp3',
+      'Glass' => 'audio/ringtone.mp3',
+      'Echo' => 'audio/call_ring.mp3',
+      _ => 'audio/notification.mp3',
+    };
+    final volume = (messageSoundVolume?.call() ?? 0.8)
+        .clamp(0.0, 1.0)
+        .toDouble();
+    try {
+      await _audioPlayer.stop();
+      await _audioPlayer.setVolume(volume);
+      if (volume > 0) await _audioPlayer.play(AssetSource(asset));
+    } catch (_) {
+      // A missing sound asset must not interrupt message delivery.
+    }
+  }
   bool _changingPassword = false;
 
   Future<Map<String, dynamic>> requestEmailChangeCode(String email) async {
