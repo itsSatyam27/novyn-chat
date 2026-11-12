@@ -35,17 +35,14 @@ class ChatsScreen extends StatefulWidget {
   State<ChatsScreen> createState() => _ChatsScreenState();
 }
 
-enum ChatFilter { all, unread, favourites, groups, archived }
-
 class _ChatsScreenState extends State<ChatsScreen> {
   List<ChatPreview> _chats = [];
   List<ChatPreview> _filtered = [];
   bool _loading = true;
   String _search = '';
-  ChatFilter _activeFilter = ChatFilter.all;
   final FocusNode _searchFocusNode = FocusNode();
   final TextEditingController _searchController = TextEditingController();
-  bool _isSearching = true;
+  bool _isSearching = false;
 
   // Static cache moved to ChatsScreen widget class
 
@@ -183,12 +180,11 @@ class _ChatsScreenState extends State<ChatsScreen> {
       ChatsScreen.totalUnread = previews.fold(0, (s, c) => s + c.unreadCount);
 
       if (!mounted) return;
-      final settings = context.read<SettingsService>();
       setState(() {
         _chats = previews;
-        _applyFilters();
         _loading = false;
       });
+      _applyFilters();
       return;
     }
 
@@ -237,54 +233,28 @@ class _ChatsScreenState extends State<ChatsScreen> {
     final blockedUids = settings.blockedUids;
     final isDecoy = settings.decoyMode;
 
-    setState(() {
-      if (isDecoy) {
-        _filtered = [];
-        return;
-      }
-      _filtered = _chats.where((c) {
-        // 1. Blocked check
-        if (blockedUids.contains(c.peerUid)) return false;
+    final next = isDecoy
+        ? <ChatPreview>[]
+        : _chats.where((chat) {
+            if (chat.isArchived || blockedUids.contains(chat.peerUid)) {
+              return false;
+            }
+            if (_search.isEmpty) return true;
+            final query = _search.trim().toLowerCase();
+            return chat.peer.name.toLowerCase().contains(query) ||
+                chat.peer.username.toLowerCase().contains(query);
+          }).toList()
+      ..sort((a, b) {
+        if (a.isPinned != b.isPinned) return a.isPinned ? -1 : 1;
+        return b.lastTime.compareTo(a.lastTime);
+      });
 
-        // 2. Archive check
-        if (_activeFilter == ChatFilter.archived) {
-          if (!c.isArchived) return false;
-        } else {
-          if (c.isArchived) return false;
-        }
-
-        // 3. Unread check
-        if (_activeFilter == ChatFilter.unread && c.unreadCount == 0) return false;
-
-        // Favourites are represented by the existing persistent pin state.
-        if (_activeFilter == ChatFilter.favourites && !c.isPinned) return false;
-
-        // 4. Group check
-        if (_activeFilter == ChatFilter.groups && !c.isGroup) return false;
-
-        // 5. Hide groups in "All" if user wants (optional, but usually "All" shows everything)
-        // If we are in "All", maybe we don't filter groups.
-
-        // 5. Search check
-        if (_search.isNotEmpty) {
-          final q = _search.toLowerCase();
-          return c.peer.name.toLowerCase().contains(q) ||
-              c.peer.username.toLowerCase().contains(q);
-        }
-
-        return true;
-      }).toList();
-    });
+    if (!mounted) return;
+    setState(() => _filtered = next);
   }
 
   void _onSearch(String query) {
-    _search = query.toLowerCase();
-    _applyFilters();
-  }
-
-  void _setFilter(ChatFilter filter) {
-    HapticFeedback.selectionClick();
-    setState(() => _activeFilter = filter);
+    _search = query;
     _applyFilters();
   }
 
@@ -292,6 +262,10 @@ class _ChatsScreenState extends State<ChatsScreen> {
   Widget build(BuildContext context) {
     final isDecoy = context.watch<SettingsService>().decoyMode;
     final activeChats = isDecoy ? <ChatPreview>[] : _filtered;
+    final pinnedChats = activeChats.where((chat) => chat.isPinned).toList();
+    final recentChats = activeChats.where((chat) => !chat.isPinned).toList();
+    final unreadCount =
+        activeChats.fold<int>(0, (total, chat) => total + chat.unreadCount);
 
     return Scaffold(
       backgroundColor: NovynTheme.pageBg(context),
@@ -304,35 +278,34 @@ class _ChatsScreenState extends State<ChatsScreen> {
               padding: const EdgeInsets.only(top: 18),
               child: NovynHeader(
                 title: 'Messages',
-                subtitle: '${_chats.length} chats · all caught up',
+                subtitle: '${activeChats.length} conversations · $unreadCount unread',
                 titleSize: 28,
                 titleColor: Theme.of(context).colorScheme.onSurface,
                 subtitleColor: Theme.of(context).colorScheme.onSurfaceVariant,
                 actions: [
                   NovynIconButton(
                     icon: _isSearching ? Icons.close_rounded : Icons.search_rounded,
-                    size: 56,
-                    radius: 20,
-                    iconSize: 24,
+                    size: 46,
+                    radius: 16,
+                    iconSize: 21,
                     onTap: () {
-                      HapticFeedback.mediumImpact();
+                      HapticFeedback.selectionClick();
                       setState(() {
                         _isSearching = !_isSearching;
                         if (!_isSearching) {
                           _search = '';
-                          _applyFilters();
+                          _searchController.clear();
                         }
                       });
-                      if (_isSearching) _searchFocusNode.requestFocus();
+                      _applyFilters();
+                      if (_isSearching) {
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          if (mounted) _searchFocusNode.requestFocus();
+                        });
+                      } else {
+                        _searchFocusNode.unfocus();
+                      }
                     },
-                  ),
-                  NovynIconButton(
-                    icon: Icons.edit_outlined,
-                    primary: true,
-                    size: 56,
-                    radius: 20,
-                    iconSize: 24,
-                    onTap: () => widget.onNavigateToPeople?.call(),
                   ),
                 ],
               ),
@@ -341,7 +314,10 @@ class _ChatsScreenState extends State<ChatsScreen> {
               _buildSearch(),
               const SizedBox(height: 8),
             ],
-            _buildFilters(),
+            if (_isSearching) ...[
+              _buildSearch(),
+              const SizedBox(height: 4),
+            ],
 
             Expanded(
               child: _loading
@@ -354,36 +330,31 @@ class _ChatsScreenState extends State<ChatsScreen> {
                       child: CustomScrollView(
                         slivers: [
                           // ── Pinned Section ─────────────────────────────────
-                          if (activeChats.any((c) => c.isPinned)) ...[
+                          if (pinnedChats.isNotEmpty) ...[
                             SliverToBoxAdapter(
                               child: _buildSectionLabel('PINNED', icon: Icons.push_pin_outlined),
                             ),
                             SliverToBoxAdapter(
                               child: Padding(
                                 padding: const EdgeInsets.only(bottom: 8),
-                                child: _buildStories(),
+                                child: _buildStories(pinnedChats),
                               ),
                             ),
                           ],
 
                           // ── All chats ──────────────────────────────────────
                           SliverToBoxAdapter(
-                            child: _buildSectionLabel('ALL CHATS'),
+                            child: _buildSectionLabel('ALL MESSAGES', icon: Icons.forum_outlined),
                           ),
                           activeChats.isEmpty && !_loading
                               ? SliverFillRemaining(child: _buildEmpty())
                               : SliverList(
                                   delegate: SliverChildBuilderDelegate(
                                     (context, i) {
-                                      final recentChats = activeChats
-                                          .where((c) => !c.isPinned)
-                                          .toList();
                                       if (i >= recentChats.length) return null;
                                       return _buildChatCard(recentChats[i]);
                                     },
-                                    childCount: activeChats
-                                        .where((c) => !c.isPinned)
-                                        .length,
+                                    childCount: recentChats.length,
                                   ),
                                 ),
 
@@ -397,46 +368,35 @@ class _ChatsScreenState extends State<ChatsScreen> {
           ],
         ),
       ),
-      // Compose is available in the header; pinned-section + is the secondary shortcut.
+      floatingActionButton: Padding(
+        padding: const EdgeInsets.only(bottom: 76),
+        child: FloatingActionButton(
+          heroTag: 'novyn_new_chat_fab',
+          tooltip: 'New chat',
+          onPressed: () {
+            HapticFeedback.mediumImpact();
+            widget.onNavigateToPeople?.call();
+          },
+          backgroundColor: Theme.of(context).colorScheme.primary,
+          foregroundColor: Colors.white,
+          elevation: 8,
+          child: const Icon(Icons.add_rounded, size: 29),
+        ),
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     );
   }
 
   Widget _buildSearch() {
     return NovynSearchField(
-      hint: 'Search conversations…',
+      hint: 'Search chats by name or username...',
       controller: _searchController,
       focusNode: _searchFocusNode,
       onChanged: _onSearch,
     );
   }
 
-  Widget _buildFilters() {
-    const filters = <String>['All', 'Unread', 'Favourites', 'Groups'];
-    final selected = switch (_activeFilter) {
-      ChatFilter.all => 0,
-      ChatFilter.unread => 1,
-      ChatFilter.favourites => 2,
-      ChatFilter.groups => 3,
-      ChatFilter.archived => 0,
-    };
-    return NovynChipRow(
-      labels: filters,
-      selected: selected,
-      bottomPadding: 16,
-      onSelected: (index) {
-        const values = <ChatFilter>[
-          ChatFilter.all,
-          ChatFilter.unread,
-          ChatFilter.favourites,
-          ChatFilter.groups,
-        ];
-        _setFilter(values[index]);
-      },
-    );
-  }
-
-  Widget _buildStories() {
-    final pinnedChats = _chats.where((chat) => chat.isPinned).toList();
+  Widget _buildStories(List<ChatPreview> pinnedChats) {
     if (pinnedChats.isEmpty) return const SizedBox.shrink();
 
     return SingleChildScrollView(
@@ -446,15 +406,13 @@ class _ChatsScreenState extends State<ChatsScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           ...pinnedChats.map((chat) => Padding(
-                padding: const EdgeInsets.only(right: 22),
+                padding: const EdgeInsets.only(right: 18),
                 child: _StoryCard(
                   name: chat.peer.name.split(' ').first,
-                  color: chat.peer.avatarColor,
-                  initials: chat.peer.initials,
+                  peer: chat.peer,
                   onTap: () => _openChat(chat),
                 ),
               )),
-          _StoryAddButton(onTap: () => widget.onNavigateToPeople?.call()),
         ],
       ),
     );
@@ -608,12 +566,6 @@ class _ChatCard extends StatelessWidget {
                       const SizedBox(height: 5),
                       Row(
                         children: [
-                          if (preview.isPinned) ...[
-                            Icon(Icons.push_pin_rounded,
-                                size: 13,
-                                color: theme.colorScheme.primary),
-                            const SizedBox(width: 5),
-                          ],
                           Expanded(
                             child: Text(
                               preview.lastMessage.isEmpty
@@ -710,20 +662,17 @@ class _HeaderAction extends StatelessWidget {
 
 class _StoryCard extends StatelessWidget {
   final String name;
-  final String initials;
-  final Color color;
+  final UserModel peer;
   final VoidCallback? onTap;
 
   const _StoryCard({
     required this.name,
-    required this.initials,
-    required this.color,
+    required this.peer,
     this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    final dark = Theme.of(context).brightness == Brightness.dark;
     final labelColor = Theme.of(context).colorScheme.onSurface;
     return GestureDetector(
       onTap: () {
@@ -731,91 +680,27 @@ class _StoryCard extends StatelessWidget {
         onTap?.call();
       },
       child: SizedBox(
-        width: 68,
+        width: 66,
         child: Column(
           children: [
-            Container(
-              width: 58,
-              height: 58,
-              padding: const EdgeInsets.all(3),
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: color == Colors.transparent
-                      ? Theme.of(context).colorScheme.primary
-                      : (dark ? const Color(0xFF31D5A0) : const Color(0xFF16B987)),
-                  width: 2,
-                ),
-              ),
-              child: Container(
-                decoration: BoxDecoration(
-                  color: color,
-                  shape: BoxShape.circle,
-                ),
-                alignment: Alignment.center,
-                child: Text(
-                  initials,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 23,
-                  ),
-                ),
-              ),
+            UserAvatar(
+              name: peer.name,
+              photoUrl: peer.photoUrl,
+              radius: 27,
+              showOnlineIndicator: true,
+              isOnline: peer.isOnline,
+              presence: peer.status,
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 7),
             Text(
               name,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 fontFamily: 'PlusJakartaSans',
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-                color: labelColor.withValues(alpha: .82),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _StoryAddButton extends StatelessWidget {
-  final VoidCallback onTap;
-  const _StoryAddButton({required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final primary = Theme.of(context).colorScheme.primary;
-    final meta = Theme.of(context).colorScheme.onSurfaceVariant;
-    return GestureDetector(
-      onTap: onTap,
-      child: SizedBox(
-        width: 68,
-        child: Column(
-          children: [
-            Container(
-              width: 58,
-              height: 58,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: primary.withValues(alpha: .65),
-                  width: 1.6,
-                  style: BorderStyle.solid,
-                ),
-              ),
-              child: Icon(Icons.add_rounded, color: primary, size: 25),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Pin',
-              style: TextStyle(
-                fontFamily: 'PlusJakartaSans',
-                fontSize: 12,
-                color: meta,
+                fontSize: 11.5,
+                fontWeight: FontWeight.w600,
+                color: labelColor.withValues(alpha: .88),
               ),
             ),
           ],
