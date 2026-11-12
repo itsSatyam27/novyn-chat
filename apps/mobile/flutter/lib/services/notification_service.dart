@@ -113,9 +113,6 @@ class NotificationService {
         ? messageBody.trim()
         : 'You have a new message';
     final title = 'New message from $username';
-    final soundEnabled = settings.inAppSounds;
-    final vibrationEnabled = settings.inAppVibration;
-
     // Foreground messages use only this branded in-app banner. The operating
     // system notification is reserved for background/terminated delivery.
     _inAppBannerTimer?.cancel();
@@ -244,12 +241,6 @@ class NotificationService {
           _inAppBannerEntry = null;
         }
       });
-    }
-
-    // Foreground notifications must not also create a system tray card.
-    // FCM handles tray notifications when the app is backgrounded/terminated.
-    if (soundEnabled && vibrationEnabled) {
-      // Both are independently handled by SocketService preferences.
     }
   }
 
