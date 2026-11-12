@@ -2057,8 +2057,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
       MaterialPageRoute(
         builder: (_) => ProfileInfoScreen(
           user: widget.peer,
-          chatProtected: context.read<SocketService>().activeChatCaptureProtected ||
-              context.read<SettingsService>().stealthModeEnabled,
+          // Only the other participant's protection blocks exporting this chat.
+          // Your own Stealth Mode protects your privacy without locking you out.
+          chatProtected: context.read<SocketService>().activeChatCaptureProtected,
           onVoiceCall: () {
             Navigator.pop(context);
             _startCall('voice');
