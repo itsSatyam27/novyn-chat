@@ -16,6 +16,7 @@ import '../services/friend_service.dart';
 import '../models/user_model.dart';
 import '../widgets/novyn_dock.dart';
 import '../services/settings_service.dart';
+import 'package:novyn/services/haptic_service.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -121,7 +122,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
 
   void _onTabTap(int index) {
     if (index == _selectedIndex) return;
-    HapticFeedback.selectionClick();
+    HapticService.vibrate(NovynHapticType.selection, category: HapticCategory.navigation);
     setState(() {
       _selectedIndex = index;
     });
