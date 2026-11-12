@@ -385,36 +385,86 @@ class NovynSearchField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final dark = theme.brightness == Brightness.dark;
+    final accent = theme.colorScheme.primary;
+    final fieldFill = dark
+        ? const Color(0xFF161722)
+        : const Color(0xFFF5F3FF);
+    final fieldBorder = accent.withValues(alpha: dark ? .22 : .18);
+    final textColor = theme.colorScheme.onSurface;
+    final hintColor = theme.colorScheme.onSurfaceVariant;
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 10),
       child: Container(
-        height: 46,
+        height: 48,
         padding: const EdgeInsets.symmetric(horizontal: 14),
         decoration: BoxDecoration(
-          color: NovynColors.glass,
+          color: fieldFill,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: NovynColors.glassBorder),
+          border: Border.all(color: fieldBorder),
         ),
         child: Row(
           children: [
-            const Icon(Icons.search_rounded,
-                size: 18, color: NovynColors.textMuted),
+            Icon(Icons.search_rounded, size: 19, color: accent),
             const SizedBox(width: 10),
             Expanded(
               child: TextField(
                 controller: controller,
                 focusNode: focusNode,
                 onChanged: onChanged,
-                cursorColor: Colors.white,
-                style: NovynText.body(14),
+                maxLines: 1,
+                textAlignVertical: TextAlignVertical.center,
+                cursorColor: accent,
+                style: TextStyle(
+                  fontFamily: 'PlusJakartaSans',
+                  fontSize: 14,
+                  color: textColor,
+                ),
                 decoration: InputDecoration(
+                  // Do not inherit the global filled InputDecorationTheme here:
+                  // its fill was painting a second, almost-black rectangle.
+                  filled: false,
+                  fillColor: Colors.transparent,
+                  isDense: true,
                   isCollapsed: true,
+                  contentPadding: EdgeInsets.zero,
                   border: InputBorder.none,
+                  enabledBorder: InputBorder.none,
+                  focusedBorder: InputBorder.none,
+                  disabledBorder: InputBorder.none,
                   hintText: hint,
-                  hintStyle: NovynText.body(14, color: NovynColors.textMuted),
+                  hintStyle: TextStyle(
+                    fontFamily: 'PlusJakartaSans',
+                    fontSize: 14,
+                    color: hintColor,
+                  ),
                 ),
               ),
             ),
+            if (controller != null)
+              ValueListenableBuilder<TextEditingValue>(
+                valueListenable: controller!,
+                builder: (context, value, _) {
+                  if (value.text.isEmpty) return const SizedBox.shrink();
+                  return GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () {
+                      controller!.clear();
+                      onChanged?.call('');
+                    },
+                    child: Padding(
+                      padding: const EdgeInsets.only(left: 8),
+                      child: Icon(
+                        Icons.close_rounded,
+                        size: 18,
+                        color: hintColor,
+                      ),
+                    ),
+                  );
+                },
+              ),
           ],
         ),
       ),
