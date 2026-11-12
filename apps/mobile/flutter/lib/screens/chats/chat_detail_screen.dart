@@ -255,7 +255,6 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
     if (history.isNotEmpty) {
       await HybridDbService.saveMessages(history);
       await HybridDbService.setLastSync(_chatId!, DateTime.now());
-      _initialPositionReady = false;
       socket.openChat(_chatId!, history);
       if (mounted) setState(() => _fetchingFromServer = false);
       _jumpToLatestImmediately();
