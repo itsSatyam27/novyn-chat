@@ -78,12 +78,12 @@ class ProfileScreen extends StatelessWidget {
                   children: [
                     Expanded(
                       child: _SettingsQuickToggle(
-                        title: 'Dark Mode',
-                        activeIcon: Icons.dark_mode_rounded,
-                        inactiveIcon: Icons.light_mode_rounded,
-                        value: isDark,
-                        accent: const Color(0xFF8170E8),
-                        onChanged: (value) => settings.setThemeMode(value ? ThemeMode.dark : ThemeMode.light),
+                        title: 'Stealth Mode',
+                        activeIcon: Icons.visibility_off_rounded,
+                        inactiveIcon: Icons.visibility_rounded,
+                        value: settings.stealthModeEnabled,
+                        accent: const Color(0xFF64748B),
+                        onChanged: settings.setStealthMode,
                       ),
                     ),
                     const SizedBox(width: 12),
