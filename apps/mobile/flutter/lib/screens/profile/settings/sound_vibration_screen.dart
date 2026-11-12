@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:audioplayers/audioplayers.dart';
+
 import '../../../services/settings_service.dart';
 import '../../../services/haptic_service.dart';
 import '../../../theme/novyn_theme.dart';
 
 class SoundVibrationScreen extends StatefulWidget {
   const SoundVibrationScreen({super.key});
+
   @override
   State<SoundVibrationScreen> createState() => _SoundVibrationScreenState();
 }
@@ -14,255 +17,651 @@ class SoundVibrationScreen extends StatefulWidget {
 class _SoundVibrationScreenState extends State<SoundVibrationScreen> {
   final AudioPlayer _player = AudioPlayer();
   String? _playing;
-  String _callPreview = 'ringtone';
+  String _callPreview = 'Ringtone';
 
   @override
-  void dispose() { _player.dispose(); super.dispose(); }
+  void dispose() {
+    _player.dispose();
+    super.dispose();
+  }
 
-  Future<void> _play(String kind, SettingsService settings) async {
-    if (_playing == kind) {
+  Future<void> _playMessage(SettingsService settings) async {
+    if (!settings.inAppSounds) return;
+    if (_playing == 'message') {
       await _player.stop();
       if (mounted) setState(() => _playing = null);
       return;
     }
     await _player.stop();
-    final volume = kind == 'message' ? settings.messageVolume : settings.callVolume;
-    await _player.setVolume(volume);
-    final asset = kind == 'message'
-        ? switch (settings.notificationTone) {
-            'Pulse' => 'audio/message_sent.mp3',
-            'Glass' => 'audio/ringtone.mp3',
-            'Echo' => 'audio/call_ring.mp3',
-            _ => 'audio/notification.mp3',
-          }
-        : (_callPreview == 'ringback' ? 'audio/ringtone.mp3' : 'audio/call_ring.mp3');
+    await _player.setVolume(settings.messageVolume);
+    final asset = switch (settings.notificationTone) {
+      'Pulse' => 'audio/message_sent.mp3',
+      'Glass' => 'audio/ringtone.mp3',
+      'Echo' => 'audio/call_ring.mp3',
+      _ => 'audio/notification.mp3',
+    };
     try {
       await _player.play(AssetSource(asset));
-      if (mounted) setState(() => _playing = kind);
+      if (mounted) setState(() => _playing = 'message');
     } catch (_) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Sound preview is unavailable right now.')));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Sound preview is unavailable right now.')),
+        );
+      }
     }
   }
 
-  Widget _section(String title) => Padding(
-    padding: const EdgeInsets.fromLTRB(4, 24, 4, 10),
-    child: Text(title.toUpperCase(), style: const TextStyle(
-      fontFamily: 'PlusJakartaSans', fontSize: 12, letterSpacing: 1.2,
-      fontWeight: FontWeight.w800, color: Color(0xFF6554F5))),
-  );
+  Future<void> _playCall(SettingsService settings) async {
+    if (settings.callRingtone == 'None') return;
+    if (_playing == 'call') {
+      await _player.stop();
+      if (mounted) setState(() => _playing = null);
+      return;
+    }
+    await _player.stop();
+    await _player.setVolume(settings.callVolume);
+    final asset = _callPreview == 'Ringback'
+        ? 'audio/ringtone.mp3'
+        : 'audio/call_ring.mp3';
+    try {
+      await _player.play(AssetSource(asset));
+      if (mounted) setState(() => _playing = 'call');
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Call sound preview is unavailable right now.')),
+        );
+      }
+    }
+  }
+
+  Future<void> _toggleCallSounds(SettingsService settings, bool enabled) async {
+    if (!enabled) {
+      await _player.stop();
+      if (mounted) setState(() => _playing = null);
+      await settings.setCallRingtone('None');
+    } else {
+      await settings.setCallRingtone('Binary');
+    }
+  }
+
+  void _testVibration(SettingsService settings) {
+    if (!settings.inAppVibration) return;
+    final intensity = settings.hapticIntensity;
+    if (intensity < .34) {
+      HapticFeedback.lightImpact();
+    } else if (intensity < .67) {
+      HapticFeedback.mediumImpact();
+    } else {
+      HapticFeedback.heavyImpact();
+    }
+  }
+
+  Future<void> _chooseRhythm(SettingsService settings) async {
+    const values = ['standard', 'staccato', 'heartbeat', 'none'];
+    const labels = ['Standard', 'Staccato', 'Heartbeat', 'Off'];
+    final selected = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: NovynTheme.cardBg(context),
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Vibration rhythm', style: TextStyle(
+                fontSize: 19, fontWeight: FontWeight.w800,
+                color: NovynTheme.textPrimary(sheetContext),
+              )),
+              const SizedBox(height: 6),
+              Text('Choose how incoming alerts vibrate',
+                style: TextStyle(color: NovynTheme.textSecondary(sheetContext))),
+              const SizedBox(height: 14),
+              for (var i = 0; i < values.length; i++)
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(labels[i]),
+                  trailing: settings.vibrationPattern == values[i]
+                      ? const Icon(Icons.check_circle_rounded, color: NovynTheme.indigo)
+                      : const Icon(Icons.circle_outlined),
+                  onTap: () => Navigator.pop(sheetContext, values[i]),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (selected == null) return;
+    await settings.setVibrationPattern(selected);
+    if (selected != 'none' && settings.inAppVibration) {
+      HapticService.vibrateNotification();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final s = context.watch<SettingsService>();
-    final ink = Theme.of(context).colorScheme.onSurface;
-    final muted = Theme.of(context).colorScheme.onSurfaceVariant;
+    final settings = context.watch<SettingsService>();
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final ink = NovynTheme.textPrimary(context);
+    final muted = NovynTheme.textSecondary(context);
+
     return Scaffold(
       backgroundColor: NovynTheme.pageBg(context),
-      body: SafeArea(child: Column(children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 14, 20, 8),
-          child: Row(children: [
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Sound & Vibration', style: TextStyle(fontFamily: 'PlusJakartaSans',
-                fontSize: 23, fontWeight: FontWeight.w800, letterSpacing: -.6, color: ink)),
-              Text('Tones, previews and haptics', style: TextStyle(fontSize: 13, color: muted)),
-            ])),
-          ]),
-        ),
-        Expanded(child: ListView(
-          padding: const EdgeInsets.fromLTRB(20, 8, 20, 34),
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(20, 14, 20, 30),
           physics: const BouncingScrollPhysics(),
           children: [
-            _section('Messages'),
-            _toggleCard(icon: Icons.notifications_active_outlined, title: 'Message sounds',
+            Padding(
+              padding: const EdgeInsets.only(left: 4),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Sound & Vibration', style: TextStyle(
+                    fontFamily: NovynTheme.fontFamily,
+                    fontSize: 26, fontWeight: FontWeight.w800,
+                    height: 1.15, letterSpacing: -.3, color: ink,
+                  )),
+                  const SizedBox(height: 4),
+                  Text('Tones, previews and haptics', style: TextStyle(
+                    fontSize: 13.5, fontWeight: FontWeight.w500, color: muted,
+                  )),
+                ],
+              ),
+            ),
+            const SizedBox(height: 10),
+
+            const _SectionLabel('Messages'),
+            _SoundCard(
+              icon: Icons.notifications_active_outlined,
+              tileBg: const Color(0xFFECE9FB),
+              iconColor: NovynTheme.indigo,
+              title: 'Message sounds',
               subtitle: 'Play sounds for incoming and sent messages',
-              value: s.inAppSounds, onChanged: s.setInAppSounds),
-            const SizedBox(height: 14),
-            _soundCard(title: 'Message chime', subtitle: 'Sound for incoming texts',
-              playing: _playing == 'message', enabled: s.inAppSounds,
-              volume: s.messageVolume.clamp(0.0, 1.0).toDouble(), onPlay: () => _play('message', s),
-              onVolume: (v) { s.setMessageVolume(v); _player.setVolume(v); },
-              selected: const ['Drift', 'Pulse', 'Glass', 'Echo'].contains(s.notificationTone) ? s.notificationTone : 'Drift',
-              choices: const ['Drift', 'Pulse', 'Glass', 'Echo'],
-              onChoice: (v) { s.setNotificationTone(v); if (s.inAppSounds) _play('message', s); }),
-            _section('Calls'),
-            _toggleCard(icon: Icons.call_outlined, title: 'Call sounds',
+              enabled: settings.inAppSounds,
+              onToggle: (value) async {
+                if (!value) {
+                  await _player.stop();
+                  if (mounted) setState(() => _playing = null);
+                }
+                settings.setInAppSounds(value);
+              },
+              toneSub: 'Sound for incoming texts',
+              tones: const ['Drift', 'Pulse', 'Glass', 'Echo'],
+              selectedTone: const ['Drift', 'Pulse', 'Glass', 'Echo'].contains(settings.notificationTone)
+                  ? settings.notificationTone : 'Drift',
+              onTone: (tone) async {
+                await settings.setNotificationTone(tone);
+                if (settings.inAppSounds) _playMessage(settings);
+              },
+              volume: settings.messageVolume * 100,
+              volumeLabel: 'Message volume',
+              onVolume: (value) {
+                settings.setMessageVolume(value / 100);
+                if (_playing == 'message') _player.setVolume(value / 100);
+              },
+              playing: _playing == 'message',
+              onPlay: () => _playMessage(settings),
+              dark: dark,
+            ),
+
+            const _SectionLabel('Calls'),
+            _SoundCard(
+              icon: Icons.call_outlined,
+              tileBg: const Color(0xFFE1F3EC),
+              iconColor: const Color(0xFF1F8A63),
+              title: 'Call sounds',
               subtitle: 'Incoming ringtone and outgoing ringback',
-              value: s.callRingtone != 'None',
-              onChanged: (v) => s.setCallRingtone(v ? 'Binary' : 'None')),
-            const SizedBox(height: 14),
-            _soundCard(title: 'Call preview',
-              subtitle: _callPreview == 'ringtone' ? 'Incoming ringtone' : 'Outgoing ringback',
-              playing: _playing == 'call', enabled: s.callRingtone != 'None',
-              volume: s.callVolume.clamp(0.0, 1.0).toDouble(), onPlay: () => _play('call', s),
-              onVolume: (v) { s.setCallVolume(v); _player.setVolume(v); },
-              selected: _callPreview,
-              choices: const ['ringtone', 'ringback'],
-              labels: const ['Ringtone', 'Ringback'],
-              onChoice: (v) { setState(() => _callPreview = v); if (s.callRingtone != 'None') _play('call', s); }),
-            _section('Vibration'),
-            _choiceCard(icon: Icons.vibration_rounded, title: 'Vibration rhythm',
-              subtitle: 'Pattern for incoming alerts', value: s.vibrationPattern,
-              choices: const ['standard', 'staccato', 'heartbeat', 'none'],
-              labels: const ['Standard', 'Staccato', 'Heartbeat', 'Off'],
-              onChanged: (v) { s.setVibrationPattern(v); _previewVibration(v); }),
-            _toggleCard(icon: Icons.touch_app_outlined, title: 'Haptic feedback',
-              subtitle: 'Tactile response when you tap', value: s.inAppVibration,
-              onChanged: s.setInAppVibration),
-            const SizedBox(height: 14),
-            _panel(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Row(children: [const _IconTile(icon: Icons.tune_rounded),
-                const SizedBox(width: 12), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('Haptic intensity', style: TextStyle(fontWeight: FontWeight.w700, color: ink, fontSize: 15)),
-                  Text('Strength of the vibration', style: TextStyle(color: muted, fontSize: 12)),
-                ])), Text('${(s.hapticIntensity * 100).round()}%', style: const TextStyle(color: Color(0xFF6554F5), fontWeight: FontWeight.w800))]),
-              Slider(value: s.hapticIntensity.clamp(0.0, 1.0).toDouble(), onChanged: s.setHapticIntensity,
-                activeColor: const Color(0xFF6554F5), inactiveColor: const Color(0xFFE0DDF8)),
-            ])),
-            const SizedBox(height: 14),
-            _panel(child: InkWell(
-              borderRadius: BorderRadius.circular(22),
-              onTap: () => HapticService.vibrate(NovynHapticType.heavy),
-              child: const Padding(padding: EdgeInsets.all(16), child: Row(children: [
-                _IconTile(icon: Icons.play_arrow_rounded), SizedBox(width: 12),
-                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('Test vibration', style: TextStyle(fontWeight: FontWeight.w700, color: Color(0xFF6554F5))),
-                  Text('Feel your current pattern', style: TextStyle(fontSize: 12, color: Color(0xFF77738F))),
-                ])),
-              ])),
-            )),
+              enabled: settings.callRingtone != 'None',
+              onToggle: (value) => _toggleCallSounds(settings, value),
+              toneSub: _callPreview == 'Ringtone' ? 'Incoming ringtone' : 'Outgoing ringback',
+              tones: const ['Ringtone', 'Ringback'],
+              selectedTone: _callPreview,
+              onTone: (tone) {
+                setState(() => _callPreview = tone);
+                if (settings.callRingtone != 'None') _playCall(settings);
+              },
+              volume: settings.callVolume * 100,
+              volumeLabel: 'Call volume',
+              onVolume: (value) {
+                settings.setCallVolume(value / 100);
+                if (_playing == 'call') _player.setVolume(value / 100);
+              },
+              playing: _playing == 'call',
+              onPlay: () => _playCall(settings),
+              dark: dark,
+            ),
+
+            const _SectionLabel('Vibration'),
+            _Group(
+              children: [
+                _NavRow(
+                  icon: Icons.vibration_rounded,
+                  tileBg: const Color(0xFFFBEFD9),
+                  iconColor: const Color(0xFFB26A0B),
+                  title: 'Vibration rhythm',
+                  subtitle: 'Pattern for incoming alerts',
+                  value: _rhythmLabel(settings.vibrationPattern),
+                  onTap: () => _chooseRhythm(settings),
+                ),
+                _ToggleRow(
+                  icon: Icons.touch_app_outlined,
+                  tileBg: const Color(0xFFFCE7F1),
+                  iconColor: const Color(0xFFC21F68),
+                  title: 'Haptic feedback',
+                  subtitle: 'Tactile response when you tap',
+                  value: settings.inAppVibration,
+                  onChanged: settings.setInAppVibration,
+                ),
+                Opacity(
+                  opacity: settings.inAppVibration ? 1 : .48,
+                  child: IgnorePointer(
+                    ignoring: !settings.inAppVibration,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
+                      child: Column(
+                        children: [
+                          Row(children: [
+                            const _IconTile(
+                              icon: Icons.tune_rounded,
+                              bg: Color(0xFFECE9FB),
+                              color: NovynTheme.indigo,
+                            ),
+                            const SizedBox(width: 14),
+                            Expanded(child: _RowText(
+                              title: 'Haptic intensity',
+                              subtitle: 'Strength of the vibration',
+                            )),
+                            Text('${(settings.hapticIntensity * 100).round()}%',
+                              style: const TextStyle(fontSize: 14,
+                                fontWeight: FontWeight.w800, color: NovynTheme.indigo)),
+                          ]),
+                          const SizedBox(height: 8),
+                          _NvSlider(
+                            value: settings.hapticIntensity * 100,
+                            onChanged: (value) => settings.setHapticIntensity(value / 100),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+                  child: Material(
+                    color: const Color(0xFFECE9FB),
+                    borderRadius: BorderRadius.circular(16),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(16),
+                      onTap: () => _testVibration(settings),
+                      child: const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                        child: Row(children: [
+                          _PlayCircle(size: 40, iconSize: 18),
+                          SizedBox(width: 12),
+                          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                            Text('Test vibration', style: TextStyle(
+                              fontSize: 15, fontWeight: FontWeight.w800,
+                              color: NovynTheme.indigoDeep,
+                            )),
+                            SizedBox(height: 2),
+                            Text('Feel your current pattern', style: TextStyle(
+                              fontSize: 12.5, fontWeight: FontWeight.w500,
+                              color: Color(0xFF77738F),
+                            )),
+                          ]),
+                        ]),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ],
-        )),
-      ])),
+        ),
+      ),
     );
   }
 
-  void _previewVibration(String pattern) {
-    if (pattern == 'none') return;
-    // SettingsService has already been updated by the selector callback.
-    // Preview the exact rhythm and intensity that incoming alerts will use.
-    HapticService.vibrateNotification();
-  }
+  String _rhythmLabel(String value) => switch (value) {
+    'staccato' => 'Staccato',
+    'heartbeat' => 'Heartbeat',
+    'none' => 'Off',
+    _ => 'Standard',
+  };
+}
 
-  Widget _panel({required Widget child}) => Container(
-    padding: const EdgeInsets.all(16),
+class _SectionLabel extends StatelessWidget {
+  final String text;
+  const _SectionLabel(this.text);
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.fromLTRB(4, 22, 4, 10),
+    child: Text(text, style: TextStyle(
+      fontSize: 14, fontWeight: FontWeight.w800,
+      color: NovynTheme.textPrimary(context),
+    )),
+  );
+}
+
+class _Group extends StatelessWidget {
+  final List<Widget> children;
+  const _Group({required this.children});
+
+  @override
+  Widget build(BuildContext context) => Container(
     decoration: BoxDecoration(
       color: NovynTheme.cardBg(context),
-      borderRadius: BorderRadius.circular(24),
+      borderRadius: BorderRadius.circular(22),
       border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
     ),
-    child: child,
+    clipBehavior: Clip.antiAlias,
+    child: Column(children: children),
   );
+}
 
-  Widget _toggleCard({required IconData icon, required String title, required String subtitle,
-    required bool value, required ValueChanged<bool> onChanged}) => _panel(child: Row(children: [
-      _IconTile(icon: icon), const SizedBox(width: 12),
-      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(title, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15, color: Theme.of(context).colorScheme.onSurface)),
-        Text(subtitle, style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant)),
-      ])),
-      Switch.adaptive(value: value, activeColor: const Color(0xFF6554F5), onChanged: onChanged),
-    ]));
+class _SoundCard extends StatelessWidget {
+  final IconData icon;
+  final Color tileBg;
+  final Color iconColor;
+  final String title;
+  final String subtitle;
+  final bool enabled;
+  final ValueChanged<bool> onToggle;
+  final String toneSub;
+  final List<String> tones;
+  final String selectedTone;
+  final ValueChanged<String> onTone;
+  final double volume;
+  final String volumeLabel;
+  final ValueChanged<double> onVolume;
+  final bool playing;
+  final VoidCallback onPlay;
+  final bool dark;
 
-  Widget _choiceCard({required IconData icon, required String title, required String subtitle,
-    required String value, required List<String> choices, required List<String> labels,
-    required ValueChanged<String> onChanged}) => _panel(child: Row(children: [
-      _IconTile(icon: icon), const SizedBox(width: 12),
-      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(title, style: TextStyle(fontWeight: FontWeight.w700, color: Theme.of(context).colorScheme.onSurface)),
-        Text(subtitle, style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant)),
-      ])),
-      PopupMenuButton<String>(initialValue: value, onSelected: onChanged,
-        itemBuilder: (_) => choices.asMap().entries.map((e) => PopupMenuItem(value: e.value, child: Text(labels[e.key]))).toList(),
-        child: Row(children: [Text(labels[choices.indexOf(value).clamp(0, labels.length - 1)], style: const TextStyle(color: Color(0xFF6554F5), fontWeight: FontWeight.w700)), const Icon(Icons.chevron_right_rounded, color: Color(0xFF6554F5))])),
-    ]));
+  const _SoundCard({
+    required this.icon, required this.tileBg, required this.iconColor,
+    required this.title, required this.subtitle, required this.enabled,
+    required this.onToggle, required this.toneSub, required this.tones,
+    required this.selectedTone, required this.onTone, required this.volume,
+    required this.volumeLabel, required this.onVolume, required this.playing,
+    required this.onPlay, required this.dark,
+  });
 
-  Widget _soundCard({required String title, required String subtitle, required bool playing,
-    required bool enabled, required double volume, required VoidCallback onPlay,
-    required ValueChanged<double> onVolume, required String selected,
-    required List<String> choices, List<String>? labels, required ValueChanged<String> onChoice}) {
-    final names = labels ?? choices;
-    return _panel(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Row(children: [Expanded(child: Text(title, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Theme.of(context).colorScheme.onSurface))),
-        Text(subtitle, style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.onSurfaceVariant))]),
-      const SizedBox(height: 20),
-      _Waveform(playing: playing),
-      const SizedBox(height: 18),
-      Row(children: [
-        Material(color: enabled ? const Color(0xFF6554F5) : const Color(0xFFBDB8D8),
-          shape: const CircleBorder(), child: InkWell(onTap: enabled ? onPlay : null, customBorder: const CircleBorder(),
-            child: SizedBox(width: 54, height: 54, child: Icon(playing ? Icons.stop_rounded : Icons.play_arrow_rounded, color: Colors.white, size: 25)))),
-        const SizedBox(width: 14),
-        Expanded(child: Column(children: [
-          Row(children: [Expanded(child: Text(title.startsWith('Message') ? 'Message volume' : 'Call volume',
-            style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12))),
-            Text('${(volume * 100).round()}%', style: const TextStyle(color: Color(0xFF6554F5), fontWeight: FontWeight.w800))]),
-          Slider(value: volume, onChanged: enabled ? onVolume : null, activeColor: const Color(0xFF6554F5), inactiveColor: const Color(0xFFE0DDF8)),
-        ])),
-      ]),
-      const SizedBox(height: 8),
-      Wrap(
-        spacing: 8,
-        children: <Widget>[
-          for (var i = 0; i < choices.length; i++)
-            ChoiceChip(
-              label: Text(names[i]),
-              selected: selected == choices[i],
-              onSelected: (_) => onChoice(choices[i]),
-              selectedColor: const Color(0xFFECE9FF),
-              labelStyle: TextStyle(
-                color: selected == choices[i]
-                    ? const Color(0xFF6554F5)
-                    : Theme.of(context).colorScheme.onSurface,
-                fontWeight: FontWeight.w700,
-              ),
-              side: BorderSide(
-                color: selected == choices[i]
-                    ? const Color(0xFF6554F5)
-                    : Theme.of(context).colorScheme.outlineVariant,
-              ),
-            ),
-        ],
+  @override
+  Widget build(BuildContext context) {
+    final card = NovynTheme.cardBg(context);
+    final field = NovynTheme.inputBg(context);
+    final ink = NovynTheme.textPrimary(context);
+    final muted = NovynTheme.textSecondary(context);
+    return Container(
+      decoration: BoxDecoration(
+        color: card, borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
       ),
-    ]));
+      clipBehavior: Clip.antiAlias,
+      child: Column(children: [
+        _ToggleRow(
+          icon: icon, tileBg: tileBg, iconColor: iconColor,
+          title: title, subtitle: subtitle, value: enabled, onChanged: onToggle,
+        ),
+        Opacity(
+          opacity: enabled ? 1 : .48,
+          child: IgnorePointer(
+            ignoring: !enabled,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child: Column(children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: field, borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+                  ),
+                  child: Row(children: [
+                    GestureDetector(
+                      onTap: onPlay,
+                      child: Semantics(
+                        button: true, label: 'Play $selectedTone',
+                        child: _PlayCircle(size: 48, iconSize: 22),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(child: Column(children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Flexible(child: Text(selectedTone, overflow: TextOverflow.ellipsis,
+                            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: ink))),
+                          const SizedBox(width: 8),
+                          Flexible(child: Text(toneSub, textAlign: TextAlign.right,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: muted))),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      _Waveform(playing: playing),
+                    ])),
+                  ]),
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: dark ? const Color(0xFF292457) : const Color(0xFFF1EEFC),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Row(children: [
+                    for (final tone in tones)
+                      Expanded(child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () => onTone(tone),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 160),
+                          height: 40, alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: tone == selectedTone ? card : Colors.transparent,
+                            borderRadius: BorderRadius.circular(12),
+                            boxShadow: tone == selectedTone ? [
+                              BoxShadow(color: NovynTheme.indigo.withValues(alpha: .18),
+                                blurRadius: 8, offset: const Offset(0, 2)),
+                            ] : null,
+                          ),
+                          child: Text(tone, style: TextStyle(fontSize: 13,
+                            fontWeight: tone == selectedTone ? FontWeight.w800 : FontWeight.w700,
+                            color: tone == selectedTone ? NovynTheme.indigo : muted)),
+                        ),
+                      )),
+                  ]),
+                ),
+                const SizedBox(height: 12),
+                Row(children: [
+                  Icon(Icons.volume_up_rounded, size: 22, color: muted),
+                  const SizedBox(width: 6),
+                  Expanded(child: Semantics(
+                    label: volumeLabel,
+                    child: _NvSlider(value: volume, onChanged: onVolume),
+                  )),
+                  SizedBox(width: 44, child: Text('${volume.round()}%',
+                    textAlign: TextAlign.right, style: const TextStyle(
+                      fontSize: 14, fontWeight: FontWeight.w800, color: NovynTheme.indigo))),
+                ]),
+              ]),
+            ),
+          ),
+        ),
+      ]),
+    );
   }
+}
+
+class _ToggleRow extends StatelessWidget {
+  final IconData icon;
+  final Color tileBg;
+  final Color iconColor;
+  final String title;
+  final String subtitle;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  const _ToggleRow({
+    required this.icon, required this.tileBg, required this.iconColor,
+    required this.title, required this.subtitle, required this.value,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.fromLTRB(16, 16, 12, 14),
+    child: Row(children: [
+      _IconTile(icon: icon, bg: tileBg, color: iconColor),
+      const SizedBox(width: 14),
+      Expanded(child: _RowText(title: title, subtitle: subtitle)),
+      Switch.adaptive(value: value, activeColor: NovynTheme.indigo, onChanged: onChanged),
+    ]),
+  );
+}
+
+class _NavRow extends StatelessWidget {
+  final IconData icon;
+  final Color tileBg;
+  final Color iconColor;
+  final String title;
+  final String subtitle;
+  final String value;
+  final VoidCallback onTap;
+
+  const _NavRow({
+    required this.icon, required this.tileBg, required this.iconColor,
+    required this.title, required this.subtitle, required this.value,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) => InkWell(
+    onTap: onTap,
+    child: Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
+      child: Row(children: [
+        _IconTile(icon: icon, bg: tileBg, color: iconColor),
+        const SizedBox(width: 14),
+        Expanded(child: _RowText(title: title, subtitle: subtitle)),
+        Text(value, style: const TextStyle(
+          color: NovynTheme.indigo, fontWeight: FontWeight.w800, fontSize: 13)),
+        const SizedBox(width: 3),
+        const Icon(Icons.chevron_right_rounded, color: NovynTheme.indigo),
+      ]),
+    ),
+  );
+}
+
+class _RowText extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  const _RowText({required this.title, required this.subtitle});
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(title, style: TextStyle(
+        fontSize: 15, fontWeight: FontWeight.w800,
+        color: NovynTheme.textPrimary(context))),
+      const SizedBox(height: 2),
+      Text(subtitle, style: TextStyle(
+        fontSize: 12, fontWeight: FontWeight.w500,
+        color: NovynTheme.textSecondary(context))),
+    ],
+  );
 }
 
 class _IconTile extends StatelessWidget {
   final IconData icon;
-  const _IconTile({required this.icon});
-  @override Widget build(BuildContext context) => Container(width: 42, height: 42,
-    decoration: BoxDecoration(color: const Color(0xFF6554F5).withValues(alpha: .1), borderRadius: BorderRadius.circular(14)),
-    child: Icon(icon, color: const Color(0xFF6554F5), size: 21));
+  final Color bg;
+  final Color color;
+  const _IconTile({required this.icon, required this.bg, required this.color});
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: 44, height: 44,
+    decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(15)),
+    child: Icon(icon, color: color, size: 22),
+  );
+}
+
+class _PlayCircle extends StatelessWidget {
+  final double size;
+  final double iconSize;
+  const _PlayCircle({required this.size, required this.iconSize});
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: size, height: size,
+    decoration: BoxDecoration(
+      shape: BoxShape.circle,
+      gradient: const LinearGradient(
+        begin: Alignment.topLeft, end: Alignment.bottomRight,
+        colors: [Color(0xFF8B7CF6), NovynTheme.indigo],
+      ),
+      boxShadow: [
+        BoxShadow(color: NovynTheme.indigo.withValues(alpha: .30),
+          blurRadius: 14, offset: const Offset(0, 6)),
+      ],
+    ),
+    child: Icon(Icons.play_arrow_rounded, color: Colors.white, size: iconSize + 4),
+  );
 }
 
 class _Waveform extends StatelessWidget {
   final bool playing;
   const _Waveform({required this.playing});
-  static const bars = [18,32,48,29,60,39,72,45,31,56,80,42,26,62,38,69,52,28,57,41,64,33,46,24];
+
+  static const _heights = <double>[
+    10, 18, 26, 36, 24, 14, 30, 40, 22, 12, 28, 36,
+    18, 10, 24, 34, 20, 12, 30, 38, 16, 26, 14, 20,
+  ];
+
   @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 56,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: bars.map((height) => Expanded(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 2),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 220),
-              height: playing ? height.toDouble() : height * .78,
-              decoration: BoxDecoration(
-                color: const Color(0xFF6554F5).withValues(
-                  alpha: (playing ? .95 : (.35 + height / 100)).clamp(.35, 1.0).toDouble(),
-                ),
-                borderRadius: BorderRadius.circular(5),
-              ),
+  Widget build(BuildContext context) => SizedBox(
+    height: 40,
+    child: Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        for (var i = 0; i < _heights.length; i++)
+          Container(
+            width: 3.5, height: playing ? _heights[i] : _heights[i] * .78,
+            decoration: BoxDecoration(
+              color: i % 3 == 1 ? const Color(0xFFA99CF5) : NovynTheme.indigo,
+              borderRadius: BorderRadius.circular(2),
             ),
           ),
-        )).toList(),
-      ),
-    );
-  }
+      ],
+    ),
+  );
+}
+
+class _NvSlider extends StatelessWidget {
+  final double value;
+  final ValueChanged<double> onChanged;
+  const _NvSlider({required this.value, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) => SliderTheme(
+    data: SliderTheme.of(context).copyWith(
+      trackHeight: 6,
+      activeTrackColor: NovynTheme.indigo,
+      inactiveTrackColor: Theme.of(context).brightness == Brightness.dark
+          ? const Color(0xFF373451) : const Color(0xFFE5E1F7),
+      thumbColor: NovynTheme.indigo,
+      overlayColor: NovynTheme.indigo.withValues(alpha: .12),
+      thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 12),
+    ),
+    child: Slider(value: value.clamp(0, 100).toDouble(),
+      min: 0, max: 100, onChanged: onChanged),
+  );
 }
