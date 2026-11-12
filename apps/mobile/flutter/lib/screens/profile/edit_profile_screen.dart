@@ -9,6 +9,7 @@ import 'dart:ui';
 import '../../services/auth_service.dart';
 import '../../services/settings_service.dart';
 import '../../theme/novyn_theme.dart';
+import 'package:novyn/services/haptic_service.dart';
 
 class EditProfileScreen extends StatefulWidget {
   const EditProfileScreen({super.key});
@@ -183,7 +184,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                           ),
                           child: ElevatedButton(
                             onPressed: () {
-                              HapticFeedback.mediumImpact();
+                              HapticService.vibrate(NovynHapticType.medium);
                               setState(() {
                                 _selectedDOB = tempDate;
                                 final age = DateTime.now().year - tempDate.year;
@@ -220,7 +221,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   }
 
   Future<void> _save() async {
-    HapticFeedback.mediumImpact();
+    HapticService.vibrate(NovynHapticType.medium);
     final auth = context.read<AuthService>();
     final settings = context.read<SettingsService>();
     final username = _usernameCtrl.text.trim();
@@ -366,7 +367,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: .42),
       borderRadius: BorderRadius.circular(16),
       child: InkWell(
-        onTap: () { HapticFeedback.selectionClick(); onTap(); },
+        onTap: () { HapticService.vibrate(NovynHapticType.selection); onTap(); },
         borderRadius: BorderRadius.circular(16),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
@@ -828,7 +829,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                           ? Icon(Icons.check_circle_rounded, color: Theme.of(context).colorScheme.primary, size: 20)
                           : null,
                         onTap: () {
-                          HapticFeedback.lightImpact();
+                          HapticService.vibrate(NovynHapticType.light);
                           setState(() => _selectedGender = g);
                           Navigator.pop(context);
                         },
