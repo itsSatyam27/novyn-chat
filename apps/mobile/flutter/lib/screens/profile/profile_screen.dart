@@ -1379,7 +1379,7 @@ class _AnimatedQRContainerState extends State<_AnimatedQRContainer> with SingleT
         _isGenerated = true;
       });
       _controller.stop();
-      HapticFeedback.vibrate();
+      HapticService.vibrate(NovynHapticType.error, category: HapticCategory.buttons);
     }
   }
 
