@@ -303,7 +303,14 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
       if (_ctrl.text.trim() == text) _ctrl.clear();
       DraftService.deleteDraft(_chatId!);
       setState(() => _replyingTo = null);
-      _audioPlayer.play(AssetSource('audio/message_sent.mp3'));
+      await _audioPlayer.setAudioContext(const AudioContext(
+        android: AudioContextAndroid(
+          audioFocus: AndroidAudioFocus.none,
+          usageType: AndroidUsageType.notification,
+          contentType: AndroidContentType.sonification,
+        ),
+      ));
+      await _audioPlayer.play(AssetSource('audio/message_sent.mp3'));
       _scrollToBottom();
     } catch (error) {
       if (mounted) {
@@ -762,7 +769,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
             showAvatar: !messages[msgIndex].isFromMe &&
                 (msgIndex == 0 || messages[msgIndex - 1].isFromMe),
             peer: widget.peer,
-            messagesRead: socket.messagesReadByPeer,
+            messageStatus: socket.messageStatusFor(messages[msgIndex].id),
             myUid: _myUid ?? '',
             onReply: (msg) => setState(() => _replyingTo = msg),
           onForward: _showForwardDialog,
@@ -2031,7 +2038,7 @@ class _MessageBubble extends StatelessWidget {
   final dynamic message;
   final bool showAvatar;
   final UserModel peer;
-  final bool messagesRead;
+  final String messageStatus;
   final String myUid;
   final ValueChanged<dynamic>? onReply;
   final ValueChanged<dynamic>? onForward;
@@ -2040,7 +2047,7 @@ class _MessageBubble extends StatelessWidget {
     required this.message,
     required this.showAvatar,
     required this.peer,
-    this.messagesRead = false,
+    this.messageStatus = 'sent',
     this.myUid = '',
     this.onReply,
     this.onForward,
@@ -2722,31 +2729,37 @@ class _MessageBubble extends StatelessWidget {
   }
 
   String _formatTime(DateTime dt) {
-    final h = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
-    final m = dt.minute.toString().padLeft(2, '0');
-    final period = dt.hour < 12 ? 'AM' : 'PM';
+    final local = dt.toLocal();
+    final h = local.hour % 12 == 0 ? 12 : local.hour % 12;
+    final m = local.minute.toString().padLeft(2, '0');
+    final period = local.hour < 12 ? 'AM' : 'PM';
     return '$h:$m $period';
   }
 
   Widget _buildTick(BuildContext context, dynamic message) {
-    final isSending = (message.id as String).startsWith('tmp_');
-
-    if (isSending) {
-      return Icon(Icons.access_time_rounded,
-          size: 11, color: Color(0xFF94A3B8));
+    final status = (message.id as String).startsWith('tmp_')
+        ? 'sending'
+        : messageStatus;
+    if (status == 'sending') {
+      return const Icon(Icons.access_time_rounded,
+          size: 12, color: Color(0xFF94A3B8));
     }
 
-    // Blue = seen by peer, purple = delivered
-    final color =
-        messagesRead ? const Color(0xFF0EA5E9) : Theme.of(context).colorScheme.primary;
-
+    final color = status == 'seen'
+        ? const Color(0xFF0EA5E9)
+        : status == 'delivered'
+            ? const Color(0xFF8B83C8)
+            : const Color(0xFF94A3B8);
+    if (status == 'sent') {
+      return Icon(Icons.done_rounded, size: 14, color: color);
+    }
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(Icons.done_rounded, size: 13, color: color),
+        Icon(Icons.done_rounded, size: 14, color: color),
         Transform.translate(
           offset: const Offset(-4, 0),
-          child: Icon(Icons.done_rounded, size: 13, color: color),
+          child: Icon(Icons.done_rounded, size: 14, color: color),
         ),
       ],
     );
