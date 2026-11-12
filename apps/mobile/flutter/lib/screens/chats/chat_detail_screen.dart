@@ -77,6 +77,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   String? _chatId;
   String? _myUid;
   bool _peerIsOnline = false;
+  String _peerPresence = 'offline';
   dynamic _replyingTo; // the message being replied to
   bool _uploadingAttachment = false;
   final ImagePicker _imagePicker = ImagePicker();
@@ -90,6 +91,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   void initState() {
     super.initState();
     _peerIsOnline = widget.peer.isOnline;
+    _peerPresence = widget.peer.status.trim().toLowerCase();
     _init();
     _scroll.addListener(_onScroll);
 
@@ -104,13 +106,22 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       final socket = context.read<SocketService>();
       final currentPeer = socket.contacts.findUser(widget.peer.username);
       if (currentPeer != null && mounted) {
-        setState(() => _peerIsOnline = currentPeer.isOnline);
+        setState(() {
+          _peerIsOnline = currentPeer.isOnline;
+          _peerPresence = currentPeer.status.trim().toLowerCase();
+        });
       }
       final prev = socket.onUserStatusChanged;
       socket.onUserStatusChanged = (uid, isOnline) {
         prev?.call(uid, isOnline);
         if (uid.toLowerCase() == widget.peer.username.toLowerCase() && mounted) {
-          setState(() => _peerIsOnline = isOnline);
+          final latest = socket.contacts.findUser(uid);
+          setState(() {
+            _peerIsOnline = isOnline;
+            _peerPresence = (latest?.status ?? (isOnline ? 'online' : 'offline'))
+                .trim()
+                .toLowerCase();
+          });
         }
       };
     });
@@ -361,7 +372,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                       radius: 21,
                       showOnlineIndicator: true,
                       isOnline: _peerIsOnline,
-                      presence: _peerIsOnline ? widget.peer.status : 'offline',
+                      presence: _peerPresence,
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -384,18 +395,27 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                         Text(
                           socket.peerIsTyping
                               ? 'typing...'
-                              : _peerIsOnline
-                                  ? 'Online'
-                                  : 'Offline',
+                              : switch (_peerPresence) {
+                                  'away' => 'Away',
+                                  'busy' || 'dnd' => 'Busy',
+                                  'offline' || 'invisible' => 'Offline',
+                                  _ => _peerIsOnline ? 'Online' : 'Offline',
+                                },
                           style: TextStyle(
                             fontFamily: 'PlusJakartaSans',
                             fontSize: 13,
                             fontWeight: FontWeight.w500,
                             color: socket.peerIsTyping
                                 ? accent
-                                : _peerIsOnline
-                                    ? const Color(0xFF10B981)
-                                    : scheme.onSurfaceVariant,
+                                : switch (_peerPresence) {
+                                    'away' => const Color(0xFFF59E0B),
+                                    'busy' || 'dnd' => const Color(0xFFEC4899),
+                                    'offline' || 'invisible' =>
+                                      scheme.onSurfaceVariant,
+                                    _ => _peerIsOnline
+                                        ? const Color(0xFF10B981)
+                                        : scheme.onSurfaceVariant,
+                                  },
                           ),
                         ),
                       ],
@@ -1895,7 +1915,8 @@ class _MessageBubble extends StatelessWidget {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         // Reply quote
-                        if (message.replyToText != null) ...[
+                        if (message.replyToText != null &&
+                            message.replyToText != '🔒 Encrypted message') ...[
                           Container(
                             padding: const EdgeInsets.all(8),
                             margin: const EdgeInsets.only(bottom: 6),
