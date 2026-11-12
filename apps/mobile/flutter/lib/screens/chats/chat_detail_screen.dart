@@ -341,23 +341,36 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
   // Opening a conversation should land directly on the newest message.
   // Avoid animating through the entire history, which feels slow on long chats.
   void _jumpToLatestImmediately() {
+    // ListView.builder estimates the scroll extent before all variable-height
+    // message bubbles (images, replies, files) have been laid out. A single
+    // jump can therefore stop in the middle of a long conversation. Re-check
+    // the extent over several layout frames until it settles at the true end.
     var attempts = 0;
+    double? previousExtent;
     void jumpAfterLayout() {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
         if (!mounted || !_scroll.hasClients) return;
         final position = _scroll.position;
-        if (position.hasContentDimensions) {
-          _scroll.jumpTo(position.maxScrollExtent);
+        if (!position.hasContentDimensions) return;
+        final extent = position.maxScrollExtent;
+        _scroll.jumpTo(extent);
+        final settled = previousExtent != null &&
+            (extent - previousExtent!).abs() < 1.0 &&
+            (position.maxScrollExtent - position.pixels).abs() < 1.0;
+        previousExtent = extent;
+        if (++attempts < 12 && !settled && mounted) {
+          await Future<void>.delayed(const Duration(milliseconds: 45));
+          if (mounted) jumpAfterLayout();
+        } else if (mounted) {
+          _isNearLatest = true;
+          if (_showJumpToLatest) {
+            setState(() => _showJumpToLatest = false);
+          }
         }
-        // A lazy ListView can refine its estimated extent over the next frames.
-        if (++attempts < 3 && mounted) jumpAfterLayout();
       });
     }
     jumpAfterLayout();
     _isNearLatest = true;
-    if (_showJumpToLatest) {
-      setState(() => _showJumpToLatest = false);
-    }
   }
 
   void _scrollToBottom({bool force = false}) {
