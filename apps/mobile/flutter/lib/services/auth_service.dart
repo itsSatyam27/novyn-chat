@@ -91,6 +91,7 @@ class AuthService extends ChangeNotifier {
   final Future<void> Function(String, String)? savePassword;
   final Future<void> Function(String)? clearNotificationsToken;
   final Future<void> Function()? onAccountReset;
+  final Future<void> Function()? onSessionRefreshed;
   bool _updatingPresence = false;
   bool get updatingPresence => _updatingPresence;
   late final FirebaseAuth _firebaseAuth = FirebaseAuth.instance;
@@ -116,6 +117,7 @@ class AuthService extends ChangeNotifier {
       this.savePassword,
       this.clearNotificationsToken,
       this.onAccountReset,
+      this.onSessionRefreshed,
       Future<Map<String, dynamic>?> Function()? restoreSession}) {
     _restoreSession(restoreSession ?? ApiService.getSession);
     // Keep the refresh-cookie chain warm while the app remains open. Android
@@ -147,14 +149,26 @@ class AuthService extends ChangeNotifier {
   // ── Restore session from novyn-chat JWT cookie on app start ───────────────
   Future<void> _restoreSession(
       Future<Map<String, dynamic>?> Function() loadSession) async {
-    final hadSavedCookie = ApiService.sessionCookie != null;
+    var storageReady = ApiService.sessionStorageInitialized;
+    var hadSavedCookie = ApiService.sessionCookie != null;
     var attempt = 0;
 
-    // A process restart must not turn a temporary Render/network outage into
-    // a logout. If a saved cookie exists, keep retrying until the backend
-    // confirms the account session or explicitly rejects both access and
-    // refresh credentials.
+    // A failed secure-storage read (for example, while Android Keystore is
+    // becoming available after process recreation) must not look like a fresh
+    // install. Retry the read before deciding that no saved login exists.
     while (!_authReady) {
+      if (!storageReady) {
+        storageReady = await ApiService.initializeSessionStorage();
+        if (!storageReady) {
+          attempt += 1;
+          await Future<void>.delayed(
+            Duration(seconds: (attempt * 2).clamp(2, 10)),
+          );
+          continue;
+        }
+        hadSavedCookie = ApiService.sessionCookie != null;
+      }
+
       try {
         final session = await loadSession();
         if (session?['authenticated'] == true) {
@@ -206,9 +220,11 @@ class AuthService extends ChangeNotifier {
       // Rehydrate encrypted cookies if the in-memory client was recreated.
       if (ApiService.sessionCookie == null ||
           ApiService.sessionCookie!.isEmpty) {
-        await ApiService.initializeSessionStorage();
+        final storageReady = await ApiService.initializeSessionStorage();
+        if (!storageReady) return;
       }
 
+      final cookieBeforeRestore = ApiService.sessionCookie;
       var session = await ApiService.getSession();
       final status = session?['_httpStatus'];
       if (session == null || session['authenticated'] != true) {
@@ -230,6 +246,17 @@ class AuthService extends ChangeNotifier {
         }
         _user = refreshedUser;
         notifyListeners();
+
+        // A successful session lookup can rotate the access/refresh cookies.
+        // Existing Socket.IO connections keep the old session ID, so reconnect
+        // them with the newly persisted cookie before the next account action.
+        if (ApiService.sessionCookie != cookieBeforeRestore) {
+          try {
+            await onSessionRefreshed?.call();
+          } catch (_) {
+            // Keep the signed-in account even if the socket reconnect is delayed.
+          }
+        }
       }
       // A timeout, offline state, or temporary 5xx must never clear the local
       // account. A definitive expired session is handled by the next sign-in
