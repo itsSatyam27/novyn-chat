@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../services/api_service.dart';
 import '../../../theme/novyn_theme.dart';
+import 'package:novyn/services/haptic_service.dart';
 
 class ActiveSessionsScreen extends StatefulWidget {
   const ActiveSessionsScreen({super.key});
@@ -37,7 +38,7 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
     if (confirmed != true || !mounted) return;
 
     setState(() => _isRevoking = true);
-    HapticFeedback.mediumImpact();
+    HapticService.vibrate(NovynHapticType.medium, category: HapticCategory.buttons);
     final result = await ApiService.revokeOtherSessions();
     if (!mounted) return;
     setState(() {
@@ -60,7 +61,7 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
         ),
       ),
     );
-    if (success) HapticFeedback.selectionClick();
+    if (success) HapticService.vibrate(NovynHapticType.selection, category: HapticCategory.buttons);
   }
 
   @override
