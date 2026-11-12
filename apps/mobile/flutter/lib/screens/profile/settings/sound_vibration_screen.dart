@@ -162,9 +162,14 @@ class _SoundVibrationScreenState extends State<SoundVibrationScreen> {
   }
 
   Widget _panel({required Widget child}) => Container(
-    padding: const EdgeInsets.all(16), decoration: BoxDecoration(
-      color: NovynTheme.cardBg(context), borderRadius: BorderRadius.circular(24),
-      border: Border.all(color: Theme.of(context).colorScheme.outlineVariant)));
+    padding: const EdgeInsets.all(16),
+    decoration: BoxDecoration(
+      color: NovynTheme.cardBg(context),
+      borderRadius: BorderRadius.circular(24),
+      border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+    ),
+    child: child,
+  );
 
   Widget _toggleCard({required IconData icon, required String title, required String subtitle,
     required bool value, required ValueChanged<bool> onChanged}) => _panel(child: Row(children: [
