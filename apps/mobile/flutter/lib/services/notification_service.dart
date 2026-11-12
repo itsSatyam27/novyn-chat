@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -20,10 +21,10 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   if (data['type'] != 'message' || data['kind'] == 'group') return;
 
   final prefs = await SharedPreferences.getInstance();
-  final notificationsEnabled = prefs.getBool('notifications_enabled') ?? true;
+  final notificationsEnabled = prefs.getBool('notifications_on') ?? true;
   if (!notificationsEnabled) return;
 
-  final previewEnabled = prefs.getBool('message_preview_enabled') ?? true;
+  final previewEnabled = prefs.getBool('message_preview') ?? true;
   final hideContent = prefs.getBool('hide_notification_content') ?? false;
   final account = (prefs.getString('novyn_notification_account') ?? '').trim();
   final sender = (data['chat'] ?? '').toString().trim();
@@ -130,7 +131,21 @@ class NotificationService {
       unawaited(_requestPermission());
     }
     _syncPresentation();
+    unawaited(_syncBackgroundPreviewPreferences());
     unawaited(_syncUserPreferences());
+  }
+
+  static Future<void> _syncBackgroundPreviewPreferences() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final settings = _settings;
+      if (settings == null) return;
+      await prefs.setBool('notifications_on', settings.notificationsOn);
+      await prefs.setBool('message_preview', settings.messagePreview);
+      await prefs.setBool('hide_notification_content', settings.hideNotificationContent);
+    } catch (_) {
+      // The foreground preference store remains the source of truth.
+    }
   }
 
   static Future<void> _requestPermission() async {
@@ -521,8 +536,8 @@ class NotificationService {
     _activeUsername = uid;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('novyn_notification_account', uid);
-    await prefs.setBool('notifications_enabled', _settings?.notificationsOn ?? true);
-    await prefs.setBool('message_preview_enabled', _settings?.messagePreview ?? true);
+    await prefs.setBool('notifications_on', _settings?.notificationsOn ?? true);
+    await prefs.setBool('message_preview', _settings?.messagePreview ?? true);
     await prefs.setBool('hide_notification_content', _settings?.hideNotificationContent ?? false);
     await _syncUserPreferences();
     if (_preferencesLoadedForUser == uid &&
