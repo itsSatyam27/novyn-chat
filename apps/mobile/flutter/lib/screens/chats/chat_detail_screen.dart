@@ -836,8 +836,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
   void _insertQuickEmoji(String emoji) {
     final current = _ctrl.value;
     final selection = current.selection;
-    final start = selection.isValid ? selection.start.clamp(0, current.text.length) : current.text.length;
-    final end = selection.isValid ? selection.end.clamp(start, current.text.length) : current.text.length;
+    final start = selection.isValid ? selection.start.clamp(0, current.text.length).toInt() : current.text.length;
+    final end = selection.isValid ? selection.end.clamp(start, current.text.length).toInt() : current.text.length;
     final updated = current.text.replaceRange(start, end, emoji);
     _ctrl.value = TextEditingValue(
       text: updated,
