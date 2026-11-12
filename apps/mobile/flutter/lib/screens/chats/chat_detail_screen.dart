@@ -720,6 +720,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                           controller: _ctrl,
                           maxLines: 4,
                           minLines: 1,
+                          textInputAction: context.read<SettingsService>().chatEnterToSend ? TextInputAction.send : TextInputAction.newline,
                           cursorColor: Theme.of(context).colorScheme.primary,
                           style: TextStyle(
                             fontFamily: 'PlusJakartaSans',
