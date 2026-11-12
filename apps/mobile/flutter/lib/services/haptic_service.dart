@@ -3,6 +3,8 @@ import 'package:flutter/foundation.dart';
 import 'settings_service.dart';
 import 'security_service.dart';
 
+enum HapticCategory { navigation, typing, chat, buttons, notifications, calls }
+
 enum NovynHapticType {
   light,
   medium,
@@ -23,7 +25,7 @@ class HapticService {
   /// Plays the exact notification rhythm selected in Sound & Vibration.
   static Future<void> vibrateNotification() async {
     final settings = _settings;
-    if (settings == null || !settings.inAppVibration) return;
+    if (settings == null || !settings.inAppVibration || !settings.hapticNotifications) return;
 
     final pattern = settings.vibrationPattern;
     if (pattern == 'none') return;
@@ -78,10 +80,14 @@ class HapticService {
     }
   }
 
-  static Future<void> vibrate(NovynHapticType type) async {
-    if (_settings == null || !_settings!.inAppVibration) return;
+  static Future<void> vibrate(
+    NovynHapticType type, { HapticCategory category = HapticCategory.buttons }
+  ) async {
+    final settings = _settings;
+    if (settings == null || !settings.inAppVibration) return;
+    if (!settings.hapticCategoryEnabled(category.name)) return;
 
-    final intensity = _settings!.hapticIntensity;
+    final intensity = settings.hapticIntensity.clamp(0.0, 1.0);
 
     switch (type) {
       case NovynHapticType.light:
@@ -120,9 +126,11 @@ class HapticService {
         }
         break;
       case NovynHapticType.error:
+        if (intensity <= 0) return;
         await SecurityService.vibrate(duration: 150);
         break;
       case NovynHapticType.warning:
+        if (intensity <= 0) return;
         await SecurityService.vibrate(duration: 50);
         await Future.delayed(const Duration(milliseconds: 100));
         await SecurityService.vibrate(duration: 50);
