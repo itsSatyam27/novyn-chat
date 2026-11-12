@@ -14,6 +14,7 @@ import 'email_password_screen.dart';
 import 'blocked_users_screen.dart';
 import '../../../theme/novyn_theme.dart';
 import '../widgets/profile_widgets.dart';
+import 'package:novyn/services/haptic_service.dart';
 
 class SecurityPrivacyScreen extends StatelessWidget {
   const SecurityPrivacyScreen({super.key, this.category});
@@ -357,7 +358,7 @@ class SecurityPrivacyScreen extends StatelessWidget {
             ),
             TextButton(
               onPressed: () {
-                HapticFeedback.heavyImpact();
+                HapticService.vibrate(NovynHapticType.heavy, category: HapticCategory.buttons);
                 Navigator.pop(context);
                 settings.setTwoFactorAuth(false);
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -597,7 +598,7 @@ class _ToggleCard extends StatelessWidget {
               Switch.adaptive(
                 value: value,
                 onChanged: disabled ? null : (v) {
-                  HapticFeedback.lightImpact();
+                  HapticService.vibrate(NovynHapticType.light, category: HapticCategory.buttons);
                   onChanged?.call(v);
                 },
                 activeTrackColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.8),
@@ -643,7 +644,7 @@ class _ActionCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(24),
         child: InkWell(
           onTap: () {
-            HapticFeedback.selectionClick();
+            HapticService.vibrate(NovynHapticType.selection, category: HapticCategory.buttons);
             onTap();
           },
           child: Padding(
@@ -816,7 +817,7 @@ class _SelectionCard extends StatelessWidget {
                   child: InkWell(
                     borderRadius: BorderRadius.circular(18),
                     onTap: () {
-                      HapticFeedback.selectionClick();
+                      HapticService.vibrate(NovynHapticType.selection, category: HapticCategory.buttons);
                       onChanged(option);
                       Navigator.pop(sheetContext);
                     },
@@ -1016,7 +1017,7 @@ class _ChangePasswordDialogState extends State<_ChangePasswordDialog> {
                       }
 
                       setState(() => _isLoading = true);
-                      HapticFeedback.mediumImpact();
+                      HapticService.vibrate(NovynHapticType.medium, category: HapticCategory.buttons);
 
                       final error = await auth.changePassword(
                         _currentPasswordController.text,
@@ -1168,7 +1169,7 @@ class _TwoFactorSetupDialogState extends State<_TwoFactorSetupDialog> {
   void _nextStep() {
     setState(() => _step++);
     if (_step == 1) {
-      HapticFeedback.mediumImpact();
+      HapticService.vibrate(NovynHapticType.medium, category: HapticCategory.buttons);
       Future.delayed(const Duration(seconds: 2), () {
         if (mounted) setState(() => _step = 2);
       });
@@ -1346,7 +1347,7 @@ class _TwoFactorSetupDialogState extends State<_TwoFactorSetupDialog> {
                 ),
                 onChanged: (value) {
                   if (value.isNotEmpty) {
-                    HapticFeedback.selectionClick();
+                    HapticService.vibrate(NovynHapticType.selection, category: HapticCategory.buttons);
                     if (index < 5) {
                       _focusNodes[index + 1].requestFocus();
                     } else {
@@ -1378,7 +1379,7 @@ class _TwoFactorSetupDialogState extends State<_TwoFactorSetupDialog> {
 
   void _finalize() async {
     setState(() => _isFinalizing = true);
-    HapticFeedback.mediumImpact();
+    HapticService.vibrate(NovynHapticType.medium, category: HapticCategory.buttons);
     
     // Simulate verification delay
     await Future.delayed(const Duration(seconds: 1));
