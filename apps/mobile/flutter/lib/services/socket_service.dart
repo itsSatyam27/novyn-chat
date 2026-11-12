@@ -1564,7 +1564,7 @@ class SocketService extends ChangeNotifier {
         .clamp(0.0, 1.0)
         .toDouble();
     try {
-      await _audioPlayer.setAudioContext(const AudioContext(
+      await _audioPlayer.setAudioContext(AudioContext(
         android: AudioContextAndroid(
           audioFocus: AndroidAudioFocus.none,
           usageType: AndroidUsageType.notification,
