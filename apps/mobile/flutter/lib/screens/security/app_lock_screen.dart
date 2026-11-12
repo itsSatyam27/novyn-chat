@@ -100,7 +100,7 @@ class _AppLockScreenState extends State<AppLockScreen> {
       await settings.resetAppLockFailures();
       if (mounted) widget.onUnlocked();
     } else {
-      HapticFeedback.vibrate();
+      HapticService.vibrate(NovynHapticType.error, category: HapticCategory.buttons);
       await settings.recordFailedAppLockAttempt();
       if (!mounted) return;
       setState(() {
