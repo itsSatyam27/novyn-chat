@@ -21,6 +21,8 @@ import 'settings/language_region_screen.dart';
 import 'settings/accessibility_screen.dart';
 import 'settings/sound_vibration_screen.dart';
 import 'settings/appearance_screen.dart';
+import 'settings/chat_settings_screen.dart';
+import 'settings/support_screens.dart';
 import 'package:novyn/services/haptic_service.dart';
 
 class ProfileScreen extends StatelessWidget {
@@ -105,6 +107,13 @@ class ProfileScreen extends StatelessWidget {
                     onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SecurityPrivacyScreen())),
                   ),
                   _NovynSettingsTile(
+                    icon: Icons.chat_bubble_outline_rounded,
+                    title: 'Chat Settings',
+                    subtitle: 'Chat behavior and backup & restore',
+                    accent: const Color(0xFF0F9B8E),
+                    onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ChatSettingsScreen())),
+                  ),
+                  _NovynSettingsTile(
                     icon: Icons.storage_rounded,
                     title: 'Data & Storage',
                     subtitle: 'Storage usage and downloads',
@@ -159,14 +168,14 @@ class ProfileScreen extends StatelessWidget {
                     title: l10n.helpSupport,
                     subtitle: 'FAQs and get help',
                     accent: const Color(0xFF7C6CF2),
-                    onTap: () => _showHelpSupport(context),
+                    onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const HelpSupportScreen())),
                   ),
                   _NovynSettingsTile(
                     icon: Icons.info_outline_rounded,
                     title: 'About Novyn',
                     subtitle: 'App information and credits',
                     accent: const Color(0xFF64748B),
-                    onTap: () => _showAboutNovyn(context),
+                    onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AboutNovynScreen())),
                     showDivider: false,
                   ),
                 ]),
@@ -235,8 +244,8 @@ class ProfileScreen extends StatelessWidget {
       {'title': 'Accessibility', 'subtitle': 'Make Novyn easier to use', 'icon': Icons.accessibility_new_rounded, 'open': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AccessibilityScreen()))},
       {'title': 'Security & Privacy', 'subtitle': 'Privacy and account protection', 'icon': Icons.shield_outlined, 'open': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SecurityPrivacyScreen()))},
       {'title': 'QR Code', 'subtitle': 'Share your Novyn profile', 'icon': Icons.qr_code_2_rounded, 'open': () => _showQRCode(context)},
-      {'title': 'Help & Support', 'subtitle': 'FAQs and get help', 'icon': Icons.help_outline_rounded, 'open': () => _showHelpSupport(context)},
-      {'title': 'About Novyn', 'subtitle': 'App information and credits', 'icon': Icons.info_outline_rounded, 'open': () => _showAboutNovyn(context)},
+      {'title': 'Help & Support', 'subtitle': 'FAQs and get help', 'icon': Icons.help_outline_rounded, 'open': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const HelpSupportScreen()))},
+      {'title': 'About Novyn', 'subtitle': 'App information and credits', 'icon': Icons.info_outline_rounded, 'open': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AboutNovynScreen()))},
     ];
     showModalBottomSheet<void>(
       context: context,
