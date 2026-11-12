@@ -66,6 +66,7 @@ class ChatDetailScreen extends StatefulWidget {
 class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBindingObserver {
   int _lastTypingLength = 0;
   final TextEditingController _ctrl = TextEditingController();
+  final FocusNode _messageFocusNode = FocusNode();
   final ScrollController _scroll = ScrollController();
   final AudioPlayer _audioPlayer = AudioPlayer();
   bool _loading = true;
@@ -257,7 +258,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
 
   @override
   void didChangeMetrics() {
-    if (!_ctrl.hasFocus) return;
+    if (!_messageFocusNode.hasFocus) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || !_scroll.hasClients) return;
       _scroll.jumpTo(_scroll.position.maxScrollExtent);
@@ -276,6 +277,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
     _scroll.removeListener(_onScroll);
     _ctrl.removeListener(_saveDraft);
     _ctrl.dispose();
+    _messageFocusNode.dispose();
     _scroll.dispose();
     _audioPlayer.dispose();
     super.dispose();
@@ -933,6 +935,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                       Expanded(
                         child: TextField(
                           controller: _ctrl,
+                          focusNode: _messageFocusNode,
                           maxLines: 4,
                           minLines: 1,
                           textInputAction: context.read<SettingsService>().chatEnterToSend ? TextInputAction.send : TextInputAction.newline,
