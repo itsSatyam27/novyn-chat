@@ -34,10 +34,9 @@ class _SoundVibrationScreenState extends State<SoundVibrationScreen> {
     await _player.stop();
     await _player.setVolume(settings.messageVolume);
     final asset = switch (settings.notificationTone) {
-      'Pulse' => 'audio/message_sent.mp3',
-      // Message previews must never use call ringtone/ringback assets.
-      'Glass' => 'audio/notification.mp3',
-      'Echo' => 'audio/message_sent.mp3',
+      'Pulse' => 'audio/chime-pulse.wav',
+      'Glass' => 'audio/chime-glass.wav',
+      'Echo' => 'audio/chime-echo.wav',
       _ => 'audio/notification.mp3',
     };
     try {
