@@ -249,9 +249,91 @@ class _LoginTabState extends State<_LoginTab> {
     if (!mounted) return;
     if (err != null) {
       setState(() { _error = err; _loading = false; });
+    } else if (auth.isTwoFactorPending) {
+      final verified = await _showTwoFactorChallenge();
+      if (!mounted) return;
+      if (verified) {
+        _navigateToMain();
+      } else {
+        auth.cancelTwoFactorChallenge();
+        setState(() => _loading = false);
+      }
     } else {
       _navigateToMain();
     }
+  }
+
+  Future<bool> _showTwoFactorChallenge() async {
+    final controller = TextEditingController();
+    String? error;
+    bool verifying = false;
+    final auth = context.read<AuthService>();
+    final verified = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          title: Row(children: [
+            const Icon(Icons.verified_user_rounded, color: _kAccent),
+            const SizedBox(width: 10),
+            Expanded(child: Text('Two-step verification',
+              style: GoogleFonts.inter(fontWeight: FontWeight.w800))),
+          ]),
+          content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('Enter the 6-digit code from your authenticator app. You can also use a backup code.',
+              style: GoogleFonts.inter(fontSize: 13, height: 1.45, color: const Color(0xFF666477))),
+            const SizedBox(height: 18),
+            TextField(
+              controller: controller,
+              autofocus: true,
+              keyboardType: TextInputType.number,
+              textInputAction: TextInputAction.done,
+              maxLength: 12,
+              onChanged: (_) => setDialogState(() => error = null),
+              decoration: InputDecoration(
+                hintText: '000000',
+                counterText: '',
+                prefixIcon: const Icon(Icons.password_rounded),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+              ),
+            ),
+            if (error != null) ...[
+              const SizedBox(height: 8),
+              Text(error!, style: GoogleFonts.inter(color: _kRed, fontSize: 12)),
+            ],
+          ]),
+          actions: [
+            TextButton(
+              onPressed: verifying ? null : () => Navigator.pop(dialogContext, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: verifying ? null : () async {
+                final code = controller.text.trim();
+                if (code.isEmpty) {
+                  setDialogState(() => error = 'Enter your authenticator or backup code.');
+                  return;
+                }
+                setDialogState(() { verifying = true; error = null; });
+                final result = await auth.verifyTwoFactor(code);
+                if (!dialogContext.mounted) return;
+                if (result == null) {
+                  Navigator.pop(dialogContext, true);
+                } else {
+                  setDialogState(() { verifying = false; error = result; });
+                }
+              },
+              child: verifying
+                ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                : const Text('Verify'),
+            ),
+          ],
+        ),
+      ),
+    );
+    controller.dispose();
+    return verified == true;
   }
 
   void _showForgotPassword() {
@@ -280,6 +362,15 @@ class _LoginTabState extends State<_LoginTab> {
     if (!mounted) return;
     if (err != null && err != 'Sign-in cancelled.') {
       setState(() { _error = err; _loading = false; });
+    } else if (err == null && auth.isTwoFactorPending) {
+      final verified = await _showTwoFactorChallenge();
+      if (!mounted) return;
+      if (verified) {
+        _navigateToMain();
+      } else {
+        auth.cancelTwoFactorChallenge();
+        setState(() => _loading = false);
+      }
     } else if (err == null) {
       _navigateToMain();
     } else {
