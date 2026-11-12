@@ -5776,6 +5776,27 @@ io.on("connection", (socket) => {
     respond({ ok: true });
   });
 
+  socket.on("get_account_settings", (payload, callback) => {
+    const respond = (result) => { if (typeof callback === "function") callback(result); };
+    const userKey = socket.data.userKey;
+    if (!userKey) { respond({ ok: false, message: "Sign in again to load privacy settings." }); return; }
+    const user = users.get(userKey);
+    if (!user) { respond({ ok: false, message: "Account not found." }); return; }
+    respond({
+      ok: true,
+      settings: {
+        callPrivacy: user.callPrivacy || "friends",
+        messagePrivacy: user.messagePrivacy || "friends",
+        profilePhotoPrivacy: user.profilePhotoPrivacy || "everyone",
+        presencePrivacy: user.presencePrivacy || "everyone",
+        groupInvitePrivacy: user.groupInvitePrivacy || "friends",
+        friendRequestPrivacy: user.friendRequestPrivacy || "everyone",
+        readReceiptsEnabled: user.readReceiptsEnabled !== false,
+        typingIndicatorsEnabled: user.typingIndicatorsEnabled !== false,
+      },
+    });
+  });
+
   socket.on("update_profile", (payload, callback) => {
     const respond = (result) => { if (typeof callback === "function") callback(result); };
     const userKey = socket.data.userKey;
