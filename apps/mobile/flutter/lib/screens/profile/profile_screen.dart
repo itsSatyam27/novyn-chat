@@ -10,6 +10,8 @@ import 'dart:math' as math;
 import 'dart:ui';
 import '../../services/settings_service.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:gal/gal.dart';
 import '../../services/auth_service.dart';
 import '../auth/onboarding_screen.dart';
 import 'widgets/profile_widgets.dart';
@@ -532,104 +534,151 @@ class ProfileScreen extends StatelessWidget {
 
   void _showQRCode(BuildContext context) {
     final auth = context.read<AuthService>();
-    final myUsername = auth.user?.username ?? 'unknown';
     final username = auth.user?.username ?? 'user';
+    final profileUrl = 'https://novyn.app/user/$username';
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final foreground = isDark ? const Color(0xFFF7F8FC) : const Color(0xFF172033);
+    final muted = isDark ? const Color(0xFFA8B1C4) : const Color(0xFF647087);
+    final panel = isDark ? const Color(0xFF191F30) : const Color(0xFFF4F6FB);
+    final accent = Theme.of(context).colorScheme.primary;
 
-    showDialog(
+    Future<void> showFeedback(String message) async {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(message), behavior: SnackBarBehavior.floating));
+    }
+
+    showDialog<void>(
       context: context,
-      barrierColor: Colors.black.withValues(alpha: 0.6),
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (context, setState) {
-          bool isGenerated = false;
-          bool isGenerating = false;
-
-          return Center(
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
-              child: Dialog(
-                backgroundColor: Colors.transparent,
-                elevation: 0,
-                child: Container(
-                  width: MediaQuery.of(context).size.width * 0.9,
-                  padding: const EdgeInsets.all(32),
+      barrierColor: Colors.black.withValues(alpha: 0.58),
+      builder: (dialogContext) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 22, vertical: 24),
+        child: Container(
+          constraints: BoxConstraints(maxWidth: 420, maxHeight: MediaQuery.of(dialogContext).size.height * 0.88),
+          padding: const EdgeInsets.fromLTRB(22, 20, 22, 22),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF111827) : Colors.white,
+            borderRadius: BorderRadius.circular(30),
+            border: Border.all(color: isDark ? Colors.white.withValues(alpha: 0.10) : const Color(0xFFDCE3EF)),
+            boxShadow: [
+              BoxShadow(color: Colors.black.withValues(alpha: isDark ? 0.32 : 0.12), blurRadius: 34, offset: const Offset(0, 18)),
+            ],
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 42, height: 42,
+                      decoration: BoxDecoration(color: accent.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(14)),
+                      child: Icon(Icons.qr_code_2_rounded, color: accent, size: 24),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text('My QR code', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 20, fontWeight: FontWeight.w900, color: foreground)),
+                        const SizedBox(height: 2),
+                        Text('Let people find you on Novyn', style: TextStyle(fontSize: 12, color: muted, fontWeight: FontWeight.w500)),
+                      ]),
+                    ),
+                    IconButton(
+                      tooltip: 'Close',
+                      onPressed: () => Navigator.pop(dialogContext),
+                      icon: Icon(Icons.close_rounded, color: muted),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 22),
+                Container(
+                  padding: const EdgeInsets.all(18),
                   decoration: BoxDecoration(
-                    color: isDark 
-                        ? const Color(0xFF1A1D2B).withValues(alpha: 0.9) 
-                        : Colors.white.withValues(alpha: 0.9),
-                    borderRadius: BorderRadius.circular(40),
-                    border: Border.all(color: Colors.white.withValues(alpha: 0.1), width: 1.5),
+                    color: panel,
+                    borderRadius: BorderRadius.circular(25),
+                    border: Border.all(color: isDark ? Colors.white.withValues(alpha: 0.07) : const Color(0xFFE3E8F1)),
                   ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        'Profile Node',
-                        style: TextStyle(
-                          fontFamily: 'PlusJakartaSans',
-                          fontWeight: FontWeight.w900,
-                          fontSize: 26,
-                          color: Theme.of(context).colorScheme.onSurface,
-                        ),
+                  child: Column(children: [
+                    Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)),
+                      child: QrImageView(
+                        data: profileUrl,
+                        version: QrVersions.auto,
+                        size: 214,
+                        backgroundColor: Colors.white,
+                        eyeStyle: const QrEyeStyle(eyeShape: QrEyeShape.square, color: Color(0xFF172033)),
+                        dataModuleStyle: const QrDataModuleStyle(dataModuleShape: QrDataModuleShape.square, color: Color(0xFF172033)),
+                        errorCorrectionLevel: QrErrorCorrectLevel.H,
                       ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Your unique cryptographic identity',
-                        style: TextStyle(
-                          fontFamily: 'PlusJakartaSans',
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5),
-                        ),
-                      ),
-                      const SizedBox(height: 40),
-
-                      // QR Container with Animation
-                      _AnimatedQRContainer(
-                        data: 'https://novyn.app/user/$myUsername',
-                        isDark: isDark,
-                      ),
-
-                      const SizedBox(height: 40),
-                      Text(
-                        '@$username',
-                        style: const TextStyle(
-                          fontFamily: 'PlusJakartaSans',
-                          fontWeight: FontWeight.w900,
-                          fontSize: 22,
-                          color: Color(0xFFE0E0E0),
-                        ),
-                      ),
-                      const SizedBox(height: 40),
-
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _AuroraDialogButton(
-                              label: 'Close',
-                              onTap: () => Navigator.pop(dialogContext),
-                              isSecondary: true,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: _AuroraDialogButton(
-                              label: 'Share Node',
-                              onTap: () {
-                                HapticService.vibrate(NovynHapticType.medium);
-                                // Share logic
-                              },
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
+                    ),
+                    const SizedBox(height: 16),
+                    Text('@$username', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 19, fontWeight: FontWeight.w900, color: foreground)),
+                    const SizedBox(height: 5),
+                    Text('Scan this code to open your profile', textAlign: TextAlign.center, style: TextStyle(fontSize: 12, color: muted)),
+                  ]),
+                ),
+                const SizedBox(height: 18),
+                Row(children: [
+                  Expanded(child: _QRActionButton(
+                    icon: Icons.copy_rounded,
+                    label: 'Copy link',
+                    onTap: () async {
+                      await Clipboard.setData(ClipboardData(text: profileUrl));
+                      if (dialogContext.mounted) Navigator.pop(dialogContext);
+                      await showFeedback('Profile link copied');
+                    },
+                  )),
+                  const SizedBox(width: 10),
+                  Expanded(child: _QRActionButton(
+                    icon: Icons.share_rounded,
+                    label: 'Share',
+                    primary: true,
+                    onTap: () async {
+                      await Share.share(profileUrl, subject: 'Connect with me on Novyn');
+                    },
+                  )),
+                ]),
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: () async {
+                      try {
+                        final painter = QrPainter(
+                          data: profileUrl,
+                          version: QrVersions.auto,
+                          errorCorrectionLevel: QrErrorCorrectLevel.H,
+                          gapless: true,
+                          color: const Color(0xFF172033),
+                          emptyColor: Colors.white,
+                        );
+                        final bytes = await painter.toImageData(1024, format: ImageByteFormat.png);
+                        if (bytes == null) throw Exception('Could not render QR image');
+                        await Gal.putImageBytes(bytes.buffer.asUint8List(), name: 'novyn_qr_$username');
+                        await showFeedback('QR code saved to gallery');
+                      } catch (error) {
+                        await showFeedback('Could not save QR code. Please allow gallery access.');
+                      }
+                    },
+                    icon: const Icon(Icons.download_rounded, size: 18),
+                    label: const Text('Save QR image'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: foreground,
+                      side: BorderSide(color: isDark ? Colors.white24 : const Color(0xFFD5DDEA)),
+                      padding: const EdgeInsets.symmetric(vertical: 13),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                    ),
                   ),
                 ),
-              ),
+                const SizedBox(height: 8),
+                Text('Your QR code contains only your public profile link.', textAlign: TextAlign.center, style: TextStyle(fontSize: 10, color: muted)),
+              ],
             ),
-          );
-        }
+          ),
+        ),
       ),
     );
   }
