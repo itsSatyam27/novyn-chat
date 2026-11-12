@@ -5,6 +5,7 @@ import 'dart:ui';
 import '../../../services/settings_service.dart';
 import '../widgets/profile_widgets.dart';
 import '../../../theme/novyn_theme.dart';
+import 'package:novyn/services/haptic_service.dart';
 
 class LanguageRegionScreen extends StatelessWidget {
   const LanguageRegionScreen({super.key});
@@ -57,7 +58,7 @@ class LanguageRegionScreen extends StatelessWidget {
     }) => Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: () { HapticFeedback.selectionClick(); onTap(); },
+        onTap: () { HapticService.vibrate(NovynHapticType.selection); onTap(); },
         borderRadius: BorderRadius.circular(19),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
@@ -297,7 +298,7 @@ class LanguageRegionScreen extends StatelessWidget {
               trailing: selected ? Icon(Icons.check_circle_rounded,
                 color: Theme.of(context).colorScheme.primary) : null,
               onTap: () {
-                HapticFeedback.selectionClick();
+                HapticService.vibrate(NovynHapticType.selection);
                 settings.setLanguage(entry.key);
                 Navigator.pop(dialogContext);
               },
@@ -345,7 +346,7 @@ class LanguageRegionScreen extends StatelessWidget {
                       ? Icon(Icons.check_circle_rounded, color: Theme.of(context).colorScheme.primary) 
                       : null,
                   onTap: () {
-                    HapticFeedback.mediumImpact();
+                    HapticService.vibrate(NovynHapticType.medium);
                     settings.setRegion(region);
                     Navigator.pop(context);
                   },
@@ -457,7 +458,7 @@ class _ActionCard extends StatelessWidget {
           filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
           child: InkWell(
             onTap: () {
-              HapticFeedback.selectionClick();
+              HapticService.vibrate(NovynHapticType.selection);
               onTap();
             },
             child: Padding(
@@ -558,7 +559,7 @@ class _SelectionCard extends StatelessWidget {
           filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
           child: InkWell(
             onTap: () {
-              HapticFeedback.selectionClick();
+              HapticService.vibrate(NovynHapticType.selection);
               _showSelectionDialog(context);
             },
             child: Padding(
@@ -669,7 +670,7 @@ class _SelectionCard extends StatelessWidget {
                       ? Icon(Icons.check_circle_rounded, color: Theme.of(context).colorScheme.primary) 
                       : null,
                   onTap: () {
-                    HapticFeedback.mediumImpact();
+                    HapticService.vibrate(NovynHapticType.medium);
                     onChanged(option);
                     Navigator.pop(context);
                   },
