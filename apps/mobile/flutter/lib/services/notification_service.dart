@@ -32,6 +32,7 @@ class NotificationService {
   static String? _preferencesLoadedForUser;
   static String? _permissionRequestedForUser;
   static bool _syncingPreferences = false;
+  static bool _syncingDeviceToken = false;
   static int _preferenceRetryCount = 0;
   static int _tokenRetryCount = 0;
   static StreamSubscription<String>? _tokenRefreshSubscription;
@@ -177,7 +178,14 @@ class NotificationService {
 
   static Future<void> _syncDeviceToken() async {
     final socket = _socket;
-    if (socket == null || !socket.isConnected || _activeUsername == null) return;
+    if (socket == null ||
+        !socket.isConnected ||
+        !socket.isAuthenticated ||
+        _activeUsername == null ||
+        _syncingDeviceToken) {
+      return;
+    }
+    _syncingDeviceToken = true;
     try {
       final token = await _fcm.getToken();
       if (token == null) {
@@ -201,8 +209,14 @@ class NotificationService {
           Future.delayed(const Duration(seconds: 3), () => unawaited(_syncDeviceToken()));
         }
       }
-    } catch (_) {
-      // Retry after the socket reconnects.
+    } catch (error) {
+      debugPrint('[NovynNotifications] Device token sync failed: $error');
+      if (_tokenRetryCount < 3) {
+        _tokenRetryCount++;
+        Future.delayed(const Duration(seconds: 3), () => unawaited(_syncDeviceToken()));
+      }
+    } finally {
+      _syncingDeviceToken = false;
     }
   }
 
@@ -313,6 +327,10 @@ class NotificationService {
       unawaited(_syncUserPreferences());
       unawaited(_syncDeviceToken());
     };
+    if (_socket!.isAuthenticated) {
+      unawaited(_syncDeviceToken());
+      unawaited(_syncUserPreferences());
+    }
 
     // Permission is requested after server preferences are restored on sign-in.
 
@@ -392,6 +410,7 @@ class NotificationService {
     _permissionRequestedForUser = null;
     _tokenRetryCount = 0;
     _preferenceRetryCount = 0;
+    _syncingDeviceToken = false;
     _settings?.removeListener(_onSettingsChanged);
     _socket?.removeListener(_onSocketChanged);
     _presenceAuth?.removeListener(_syncPresentation);
