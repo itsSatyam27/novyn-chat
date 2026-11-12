@@ -154,6 +154,7 @@ class SocketService extends ChangeNotifier {
 
     _socket!.onDisconnect((_) {
       _isConnected = false;
+      _registeredIdentityAccount = null;
       notifyListeners();
       if (!_manualDisconnect) _scheduleReconnect(3);
     });
@@ -788,6 +789,12 @@ class SocketService extends ChangeNotifier {
         ? trimmedText
         : (attachment?['kind'] == 'image' ? '[Image]' : '[File]');
     final peerKey = isGroup ? null : _peerKeys[toPeerUsername.toLowerCase()];
+    if (!isGroup) {
+      await _registerEncryptionIdentity();
+      if (_registeredIdentityAccount != account.toLowerCase()) {
+        throw StateError('Secure identity is not registered yet. Please reconnect and retry.');
+      }
+    }
 
     final payload = <String, dynamic>{
       'to': toPeerUsername,
