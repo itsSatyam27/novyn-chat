@@ -12,6 +12,7 @@ import '../../services/auth_service.dart';
 import '../../services/audio_manager_service.dart';
 import '../../services/settings_service.dart';
 import '../../widgets/user_avatar.dart';
+import 'package:novyn/services/haptic_service.dart';
 
 enum CallState { calling, connected, ended }
 
@@ -133,7 +134,7 @@ class _CallScreenState extends State<CallScreen>
 
   // ── Speaker toggle — works during ringing AND active call ────────────
   void _toggleSpeaker() async {
-    HapticFeedback.selectionClick();
+    HapticService.vibrate(NovynHapticType.selection, category: HapticCategory.calls);
     final newVal = !_speakerOn;
     setState(() => _speakerOn = newVal);
     await AudioManagerService.setSpeakerphoneOn(newVal);
@@ -141,7 +142,7 @@ class _CallScreenState extends State<CallScreen>
 
   // ── Mute toggle — works during ringing AND active call ───────────────
   void _toggleMute() {
-    HapticFeedback.selectionClick();
+    HapticService.vibrate(NovynHapticType.selection, category: HapticCategory.calls);
     final newVal = !_muted;
     setState(() => _muted = newVal);
     // Disable WebRTC audio track (works when connected)
@@ -286,7 +287,7 @@ class _CallScreenState extends State<CallScreen>
   }
 
   void _endCall() {
-    HapticFeedback.mediumImpact();
+    HapticService.vibrate(NovynHapticType.medium, category: HapticCategory.calls);
     _stopRingtone();
     context.read<SocketService>().endCall(widget.peer.uid);
     _handleCallEnded(
@@ -295,7 +296,7 @@ class _CallScreenState extends State<CallScreen>
   }
 
   void _acceptCall() {
-    HapticFeedback.mediumImpact();
+    HapticService.vibrate(NovynHapticType.medium, category: HapticCategory.calls);
     _stopRingtone();
     context.read<SocketService>().acceptCall(widget.callerId ?? widget.peer.uid);
     setState(() => _state = CallState.connected);
@@ -304,7 +305,7 @@ class _CallScreenState extends State<CallScreen>
   }
 
   void _rejectCall() {
-    HapticFeedback.mediumImpact();
+    HapticService.vibrate(NovynHapticType.medium, category: HapticCategory.calls);
     _stopRingtone();
     context.read<SocketService>().rejectCall(widget.callerId ?? widget.peer.uid);
     _handleCallEnded(logStatus: 'missed');
@@ -383,7 +384,7 @@ class _CallScreenState extends State<CallScreen>
               _snapToEdge();
             },
             onTap: () async {
-              HapticFeedback.selectionClick();
+              HapticService.vibrate(NovynHapticType.selection, category: HapticCategory.calls);
               await _webrtc.switchCamera();
               setState(() => _frontCamera = !_frontCamera);
             },
@@ -593,7 +594,7 @@ class _CallScreenState extends State<CallScreen>
                     icon: Icons.flip_camera_ios_rounded,
                     active: false,
                     onTap: () async {
-                      HapticFeedback.selectionClick();
+                      HapticService.vibrate(NovynHapticType.selection, category: HapticCategory.calls);
                       await _webrtc.switchCamera();
                       setState(() => _frontCamera = !_frontCamera);
                     },
@@ -912,7 +913,7 @@ class _CallScreenState extends State<CallScreen>
                   label: _cameraOff ? 'Cam off' : 'Camera',
                   active: _cameraOff,
                   onTap: () {
-                    HapticFeedback.selectionClick();
+                    HapticService.vibrate(NovynHapticType.selection, category: HapticCategory.calls);
                     setState(() => _cameraOff = !_cameraOff);
                     _webrtc.toggleCamera(_cameraOff);
                   },
