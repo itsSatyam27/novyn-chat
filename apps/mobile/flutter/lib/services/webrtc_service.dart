@@ -11,6 +11,8 @@ class WebRTCService extends ChangeNotifier {
   final RTCVideoRenderer remoteRenderer = RTCVideoRenderer();
 
   bool _isInitialized = false;
+  bool _remoteDescriptionSet = false;
+  final List<RTCIceCandidate> _pendingIceCandidates = <RTCIceCandidate>[];
   bool get isInitialized => _isInitialized;
 
   MediaStream? get localStream  => _localStream;
@@ -95,6 +97,8 @@ class WebRTCService extends ChangeNotifier {
       'rtcpMuxPolicy': 'require',
     };
 
+    _pendingIceCandidates.clear();
+    _remoteDescriptionSet = false;
     _peerConnection = await createPeerConnectionWithConfig(
       _iceServers,
       config,
@@ -175,6 +179,8 @@ class WebRTCService extends ChangeNotifier {
       offerData['type'],
     );
     await _peerConnection!.setRemoteDescription(offer);
+    _remoteDescriptionSet = true;
+    await _flushPendingIceCandidates();
 
     final answer = await _peerConnection!.createAnswer();
     await _peerConnection!.setLocalDescription(answer);
@@ -192,16 +198,32 @@ class WebRTCService extends ChangeNotifier {
       answerData['type'],
     );
     await _peerConnection!.setRemoteDescription(answer);
+    _remoteDescriptionSet = true;
+    await _flushPendingIceCandidates();
   }
 
   // ── Handle ICE candidate ─────────────────────────────────────────────────
   Future<void> handleIceCandidate(Map<String, dynamic> data) async {
     final candidate = RTCIceCandidate(
-      data['candidate'],
-      data['sdpMid'],
-      data['sdpMLineIndex'],
+      data['candidate']?.toString(),
+      data['sdpMid']?.toString(),
+      (data['sdpMLineIndex'] as num?)?.toInt(),
     );
-    await _peerConnection?.addCandidate(candidate);
+    if (_peerConnection == null || !_remoteDescriptionSet) {
+      _pendingIceCandidates.add(candidate);
+      return;
+    }
+    await _peerConnection!.addCandidate(candidate);
+  }
+
+  Future<void> _flushPendingIceCandidates() async {
+    final connection = _peerConnection;
+    if (connection == null || !_remoteDescriptionSet || _pendingIceCandidates.isEmpty) return;
+    final pending = List<RTCIceCandidate>.from(_pendingIceCandidates);
+    _pendingIceCandidates.clear();
+    for (final candidate in pending) {
+      await connection.addCandidate(candidate);
+    }
   }
 
   // ── Toggle mute ──────────────────────────────────────────────────────────
@@ -249,6 +271,8 @@ class WebRTCService extends ChangeNotifier {
     _localStream = null;
     _remoteStream = null;
     _peerConnection = null;
+    _pendingIceCandidates.clear();
+    _remoteDescriptionSet = false;
     _isInitialized = false;
     super.dispose();
   }
