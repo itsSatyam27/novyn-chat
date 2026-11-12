@@ -42,6 +42,45 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
               onChanged: settings.setChatEnterToSend,
             ),
           ),
+          _settingTile(
+            context,
+            icon: Icons.visibility_outlined,
+            title: 'Message preview',
+            subtitle: 'Show message text in chat notifications',
+            trailing: Switch.adaptive(
+              value: settings.messagePreview,
+              onChanged: settings.setMessagePreview,
+            ),
+          ),
+          const SizedBox(height: 22),
+          _section('MEDIA & STORAGE'),
+          _choiceTile(
+            context,
+            icon: Icons.wifi_rounded,
+            title: 'Auto-download on Wi-Fi',
+            subtitle: _downloadLabel(settings.autoDownloadWifi),
+            value: settings.autoDownloadWifi,
+            onChanged: settings.setAutoDownloadWifi,
+            options: const {'all': 'All media', 'photos': 'Photos only', 'none': 'Never'},
+          ),
+          _choiceTile(
+            context,
+            icon: Icons.network_cell_rounded,
+            title: 'Auto-download on mobile data',
+            subtitle: _downloadLabel(settings.autoDownloadMobile),
+            value: settings.autoDownloadMobile,
+            onChanged: settings.setAutoDownloadMobile,
+            options: const {'all': 'All media', 'photos': 'Photos only', 'none': 'Never'},
+          ),
+          _choiceTile(
+            context,
+            icon: Icons.high_quality_outlined,
+            title: 'Photo upload quality',
+            subtitle: _qualityLabel(settings.photoQuality),
+            value: settings.photoQuality,
+            onChanged: settings.setPhotoQuality,
+            options: const {'high': 'High quality', 'medium': 'Balanced', 'low': 'Data saver'},
+          ),
           const SizedBox(height: 22),
           _section('CHAT BACKUP & RESTORE'),
           Container(
@@ -90,6 +129,69 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
       ),
     );
   }
+
+  String _downloadLabel(String value) => switch (value) {
+    'all' => 'All media',
+    'photos' => 'Photos only',
+    _ => 'Never',
+  };
+
+  String _qualityLabel(String value) => switch (value) {
+    'high' => 'High quality',
+    'medium' => 'Balanced',
+    _ => 'Data saver',
+  };
+
+  Widget _choiceTile(BuildContext context, {
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required String value,
+    required Map<String, String> options,
+    required ValueChanged<String> onChanged,
+  }) => Container(
+    margin: const EdgeInsets.only(bottom: 8),
+    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+    decoration: BoxDecoration(
+      color: NovynTheme.cardBg(context),
+      borderRadius: BorderRadius.circular(17),
+      border: Border.all(color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: .55)),
+    ),
+    child: ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: Icon(icon, color: Theme.of(context).colorScheme.primary),
+      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
+      subtitle: Text(subtitle),
+      trailing: const Icon(Icons.expand_more_rounded),
+      onTap: () => showModalBottomSheet<void>(
+        context: context,
+        showDragHandle: true,
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        builder: (sheetContext) => SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(18, 4, 18, 20),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Align(alignment: Alignment.centerLeft, child: Text(
+                title,
+                style: Theme.of(sheetContext).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+              )),
+              const SizedBox(height: 12),
+              ...options.entries.map((entry) => ListTile(
+                title: Text(entry.value),
+                trailing: value == entry.key
+                    ? Icon(Icons.check_circle_rounded, color: Theme.of(sheetContext).colorScheme.primary)
+                    : null,
+                onTap: () {
+                  onChanged(entry.key);
+                  Navigator.pop(sheetContext);
+                },
+              )),
+            ]),
+          ),
+        ),
+      ),
+    ),
+  );
 
   Widget _section(String title) => Padding(
     padding: const EdgeInsets.fromLTRB(4, 12, 4, 10),
