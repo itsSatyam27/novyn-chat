@@ -95,7 +95,7 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
         category: AndroidNotificationCategory.message,
         styleInformation: fln.MessagingStyleInformation(
           mePerson,
-          [fln.Message(body, timestamp, senderPerson)],
+          messages: [fln.Message(body, timestamp, senderPerson)],
           conversationTitle: sender,
           groupConversation: false,
         ),
