@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'dart:ui';
 import '../../../services/settings_service.dart';
+import 'two_factor_screen.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/socket_service.dart';
 import '../../../services/security_service.dart';
@@ -130,11 +131,14 @@ class SecurityPrivacyScreen extends StatelessWidget {
             nav(Icons.devices_rounded, const Color(0xFF2A78B8),
               'Active Sessions', 'Sign out of other devices remotely',
               () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ActiveSessionsScreen()))),
-            _SecurityPrivacyToggleTile(
-              icon: Icons.verified_user_outlined, accent: const Color(0xFF7565D9),
+            _SecurityPrivacyTile(
+              icon: Icons.verified_user_outlined,
+              accent: const Color(0xFF7565D9),
               title: 'Two-Factor Authentication',
-              subtitle: 'Unavailable until secure server-side login challenges are supported',
-              value: false, onChanged: null,
+              subtitle: 'Authenticator app and one-time backup codes',
+              onTap: () => Navigator.push(context, MaterialPageRoute(
+                builder: (_) => const TwoFactorScreen(),
+              )),
             ),
             _SecurityPrivacyToggleTile(
               icon: Icons.fingerprint_rounded, accent: const Color(0xFFB7791F),
