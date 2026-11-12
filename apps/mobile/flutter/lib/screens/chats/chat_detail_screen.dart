@@ -303,7 +303,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
       if (_ctrl.text.trim() == text) _ctrl.clear();
       DraftService.deleteDraft(_chatId!);
       setState(() => _replyingTo = null);
-      await _audioPlayer.setAudioContext(const AudioContext(
+      await _audioPlayer.setAudioContext(AudioContext(
         android: AudioContextAndroid(
           audioFocus: AndroidAudioFocus.none,
           usageType: AndroidUsageType.notification,
