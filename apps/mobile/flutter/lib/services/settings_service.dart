@@ -35,6 +35,7 @@ class SavedSession {
 class SettingsService extends ChangeNotifier {
   static const _kNotifications = 'notifications_on';
   static const _kMessagePreview = 'message_preview';
+  static const _kChatLinkPreviews = 'chat_link_previews';
   static const _kReadReceipts = 'read_receipts';
   static const _kOnlineStatus = 'online_status';
   static const _kThemeMode = 'theme_mode';
@@ -94,6 +95,7 @@ class SettingsService extends ChangeNotifier {
   // ── Settings state ──────────────────────────────────────────────────────
   bool _notificationsOn = true;
   bool _messagePreview = true;
+  bool _chatLinkPreviews = true;
   bool _readReceipts = true;
   bool _onlineStatus = true;
   ThemeMode _themeMode = ThemeMode.dark;
@@ -151,6 +153,7 @@ class SettingsService extends ChangeNotifier {
   // ── Getters ─────────────────────────────────────────────────────────────
   bool get notificationsOn => _notificationsOn;
   bool get messagePreview => _messagePreview;
+  bool get chatLinkPreviews => _chatLinkPreviews;
   bool get readReceipts => _readReceipts;
   bool get onlineStatus => _onlineStatus;
   ThemeMode get themeMode => _themeMode;
@@ -227,6 +230,7 @@ class SettingsService extends ChangeNotifier {
     _prefs = await SharedPreferences.getInstance();
     _notificationsOn = _prefs.getBool(_kNotifications) ?? true;
     _messagePreview = _prefs.getBool(_kMessagePreview) ?? true;
+    _chatLinkPreviews = _prefs.getBool(_kChatLinkPreviews) ?? true;
     _readReceipts = _prefs.getBool(_kReadReceipts) ?? true;
     _onlineStatus = _prefs.getBool(_kOnlineStatus) ?? true;
     _themeMode = ThemeMode.values[_prefs.getInt(_kThemeMode) ?? ThemeMode.dark.index];
@@ -341,6 +345,12 @@ class SettingsService extends ChangeNotifier {
   Future<void> setNotifications(bool v) async {
     _notificationsOn = v;
     await _prefs.setBool(_kNotifications, v);
+    notifyListeners();
+  }
+
+  Future<void> setChatLinkPreviews(bool v) async {
+    _chatLinkPreviews = v;
+    await _prefs.setBool(_kChatLinkPreviews, v);
     notifyListeners();
   }
 
@@ -835,6 +845,7 @@ class SettingsService extends ChangeNotifier {
     await _secureStorage.delete(key: _securePanicPin);
     _notificationsOn = true;
     _messagePreview = true;
+    _chatLinkPreviews = true;
     _readReceipts = true;
     _onlineStatus = true;
     _themeMode = ThemeMode.system;
