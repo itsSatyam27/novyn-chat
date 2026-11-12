@@ -23,9 +23,17 @@ Future<Map<String, dynamic>> _openKeyFile(Map<String, dynamic> input) async {
   }
 }
 
-/// Flutter E2EE compatible with the web client:
-/// ECDH P-256 -> raw 256-bit shared secret -> AES-GCM-256.
-/// The private identity is stored only in Android/iOS secure storage.
+/// Flutter E2EE compatible with the web client: P-256 ECDH + AES-GCM-256.
+/// The private identity is stored only in platform secure storage.
+class _EcdhIdentity {
+  const _EcdhIdentity(this.privateKey, this.publicKey, this.d, this.x, this.y);
+  final ECPrivateKey privateKey;
+  final ECPublicKey publicKey;
+  final List<int> d;
+  final List<int> x;
+  final List<int> y;
+}
+
 class MessageEncryptionService {
   MessageEncryptionService({KeyReader? read, KeyWriter? write})
       : _read = read ?? ((key) => _storage.read(key: key)),
@@ -36,8 +44,8 @@ class MessageEncryptionService {
   final KeyWriter _write;
   final _domain = ECDomainParameters('secp256r1');
   final _aes = AesGcm.with256bits();
-  final Map<String, EcKeyPairData> _identities = {};
-  final Map<String, Future<EcKeyPairData>> _identityLoads = {};
+  final Map<String, _EcdhIdentity> _identities = {};
+  final Map<String, Future<_EcdhIdentity>> _identityLoads = {};
   final Map<String, List<dynamic>> _legacyKeys = {};
 
   String _account(String username) => username.trim().toLowerCase();
@@ -50,42 +58,61 @@ class MessageEncryptionService {
     return base64.decode(normalized.padRight((normalized.length + 3) ~/ 4 * 4, '='));
   }
 
-  Future<EcKeyPairData> _identity(String username) async {
+  static List<int> _bigIntBytes(BigInt value, int length) {
+    final hex = value.toRadixString(16).padLeft(length * 2, '0');
+    if (hex.length > length * 2) throw const FormatException('Invalid P-256 key length.');
+    return List<int>.generate(length, (i) => int.parse(hex.substring(i * 2, i * 2 + 2), radix: 16));
+  }
+
+  static BigInt _bytesBigInt(List<int> bytes) {
+    if (bytes.length != 32) throw const FormatException('Invalid P-256 coordinate.');
+    final hex = bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
+    return BigInt.parse(hex, radix: 16);
+  }
+
+  SecureRandom _secureRandom() {
+    final source = Random.secure();
+    final seed = Uint8List.fromList(List<int>.generate(32, (_) => source.nextInt(256)));
+    return SecureRandom('Fortuna')..seed(KeyParameter(seed));
+  }
+
+  Future<_EcdhIdentity> _identity(String username) async {
     final account = _account(username);
     final cached = _identities[account];
     if (cached != null) return cached;
     return _identityLoads.putIfAbsent(account, () async {
       final storageKey = 'novyn_e2ee_identity_$account';
       final raw = await _read(storageKey);
-      EcKeyPairData identity;
+      late final _EcdhIdentity identity;
       if (raw != null && raw.isNotEmpty) {
         try {
           final saved = jsonDecode(raw) as Map<String, dynamic>;
-          identity = EcKeyPairData(
-            d: _decodeB64url(saved['d'] as String),
-            x: _decodeB64url(saved['x'] as String),
-            y: _decodeB64url(saved['y'] as String),
-            type: KeyPairType.p256,
-          );
+          final d = _decodeB64url(saved['d'] as String);
+          final x = _decodeB64url(saved['x'] as String);
+          final y = _decodeB64url(saved['y'] as String);
+          if (d.length != 32 || x.length != 32 || y.length != 32) throw const FormatException('Invalid P-256 identity length.');
+          final privateKey = ECPrivateKey(_bytesBigInt(d), _domain);
+          final point = _domain.curve.createPoint(_bytesBigInt(x), _bytesBigInt(y));
+          final publicKey = ECPublicKey(point, _domain);
+          identity = _EcdhIdentity(privateKey, publicKey, d, x, y);
         } catch (_) {
-          // Never silently replace a damaged identity: doing so would make
-          // previously encrypted messages permanently unreadable.
           throw StateError('Your secure message identity is damaged. Restore your Novyn backup before resetting it.');
         }
       } else {
-        final generated = await _ecdh.newKeyPair();
-        identity = await generated.extract();
-        await _write(storageKey, jsonEncode({
-          'd': _b64url(identity.d),
-          'x': _b64url(identity.x),
-          'y': _b64url(identity.y),
-        }));
+        final generator = ECKeyGenerator()..init(ParametersWithRandom(ECKeyGeneratorParameters(_domain), _secureRandom()));
+        final pair = generator.generateKeyPair();
+        final privateKey = pair.privateKey as ECPrivateKey;
+        final publicKey = pair.publicKey as ECPublicKey;
+        final d = _bigIntBytes(privateKey.d!, 32);
+        final x = _bigIntBytes(publicKey.Q!.x!.toBigInteger()!, 32);
+        final y = _bigIntBytes(publicKey.Q!.y!.toBigInteger()!, 32);
+        identity = _EcdhIdentity(privateKey, publicKey, d, x, y);
+        await _write(storageKey, jsonEncode({'d': _b64url(d), 'x': _b64url(x), 'y': _b64url(y)}));
       }
       _identities[account] = identity;
       return identity;
     });
   }
-
   /// Creates/loads this account's stable Flutter identity and returns its public JWK.
   Future<String> initializeIdentity(String username) async {
     final identity = await _identity(username);
