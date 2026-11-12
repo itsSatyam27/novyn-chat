@@ -21,6 +21,7 @@ class CallScreen extends StatefulWidget {
   final String callType;
   final bool isIncoming;
   final String? callerId;
+  final String? callId;
 
   const CallScreen({
     super.key,
@@ -28,6 +29,7 @@ class CallScreen extends StatefulWidget {
     required this.callType,
     this.isIncoming = false,
     this.callerId,
+    this.callId,
   });
 
   @override
@@ -49,6 +51,8 @@ class _CallScreenState extends State<CallScreen>
   final AudioPlayer _audioPlayer = AudioPlayer();
   late final WebRTCService _webrtc;
   Timer? _callTimeoutTimer;
+  late String _callId;
+  bool _hasLoggedCall = false;
 
   // Draggable PiP position
   Offset _pipPosition = const Offset(0, 0); // Will be set in initState
@@ -71,12 +75,13 @@ class _CallScreenState extends State<CallScreen>
     );
 
     _webrtc = WebRTCService();
+    _callId = widget.callId ?? '';
     _initWebRTC();
     _playRingtone();
     _listenToCallEvents();
 
     if (!widget.isIncoming) {
-      context.read<SocketService>().sendCallInvite(
+      _callId = context.read<SocketService>().sendCallInvite(
         widget.peer.uid.isNotEmpty ? widget.peer.uid : widget.peer.username,
         isVideo: _isVideo,
       );
@@ -165,15 +170,15 @@ class _CallScreenState extends State<CallScreen>
 
       // Caller creates the offer
       if (!widget.isIncoming) {
-        await _webrtc.createPeerConnection(socket, widget.peer.uid, true);
+        await _webrtc.createPeerConnection(socket, widget.peer.uid, true, callId: _callId);
       }
     });
 
     // Incoming WebRTC offer → create peer connection as receiver
     socket.onWebRTCOffer = (data) async {
       if (!mounted) return;
-      await _webrtc.createPeerConnection(socket, widget.peer.uid, false);
-      await _webrtc.handleOffer(Map<String, dynamic>.from(data), socket, widget.peer.uid);
+      await _webrtc.createPeerConnection(socket, widget.peer.uid, false, callId: _callId);
+      await _webrtc.handleOffer(Map<String, dynamic>.from(data), socket, widget.peer.uid, _callId);
       if (mounted) setState(() {});
     };
 
@@ -195,7 +200,7 @@ class _CallScreenState extends State<CallScreen>
 
     socket.onCallEnded(() {
       _stopRingtone();
-      _handleCallEnded(logStatus: 'incoming');
+      _handleCallEnded(logStatus: widget.isIncoming ? 'incoming' : 'outgoing');
     });
   }
 
@@ -207,7 +212,9 @@ class _CallScreenState extends State<CallScreen>
 
   void _handleCallEnded({required String logStatus}) {
     _timer?.cancel();
-    if (!mounted) return;
+    _callTimeoutTimer?.cancel();
+    if (!mounted || _hasLoggedCall) return;
+    _hasLoggedCall = true;
     setState(() => _state = CallState.ended);
     // Reset audio mode back to normal
     AudioManagerService.resetMode();
@@ -289,7 +296,10 @@ class _CallScreenState extends State<CallScreen>
   void _endCall() {
     HapticService.vibrate(NovynHapticType.medium, category: HapticCategory.calls);
     _stopRingtone();
-    context.read<SocketService>().endCall(widget.peer.uid);
+    context.read<SocketService>().endCall(
+      widget.peer.uid.isNotEmpty ? widget.peer.uid : widget.peer.username,
+      callId: _callId,
+    );
     _handleCallEnded(
       logStatus: _state == CallState.connected ? 'outgoing' : 'missed',
     );
@@ -298,7 +308,7 @@ class _CallScreenState extends State<CallScreen>
   void _acceptCall() {
     HapticService.vibrate(NovynHapticType.medium, category: HapticCategory.calls);
     _stopRingtone();
-    context.read<SocketService>().acceptCall(widget.callerId ?? widget.peer.uid);
+    context.read<SocketService>().acceptCall(widget.callerId ?? widget.peer.uid, _callId);
     setState(() => _state = CallState.connected);
     _pulseCtrl.stop();
     _startTimer();
@@ -307,7 +317,7 @@ class _CallScreenState extends State<CallScreen>
   void _rejectCall() {
     HapticService.vibrate(NovynHapticType.medium, category: HapticCategory.calls);
     _stopRingtone();
-    context.read<SocketService>().rejectCall(widget.callerId ?? widget.peer.uid);
+    context.read<SocketService>().rejectCall(widget.callerId ?? widget.peer.uid, _callId);
     _handleCallEnded(logStatus: 'missed');
   }
 
