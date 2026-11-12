@@ -1,10 +1,12 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import 'dart:ui';
+
 import '../../../services/settings_service.dart';
-import '../widgets/profile_widgets.dart';
 import '../../../theme/novyn_theme.dart';
+import '../widgets/profile_widgets.dart';
 
 class NotificationSettingsScreen extends StatelessWidget {
   const NotificationSettingsScreen({super.key});
@@ -12,16 +14,19 @@ class NotificationSettingsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final settings = context.watch<SettingsService>();
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final enabled = settings.notificationsOn;
+    final previews = settings.messagePreview;
 
     return Scaffold(
       backgroundColor: NovynTheme.pageBg(context),
       appBar: AppBar(
         title: Text(
           'Notifications',
-          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-            fontWeight: FontWeight.w800,
-            letterSpacing: -0.35,
+          style: theme.textTheme.titleLarge?.copyWith(
+            fontWeight: FontWeight.w900,
+            letterSpacing: -.45,
           ),
         ),
         backgroundColor: NovynTheme.pageBg(context),
@@ -31,310 +36,272 @@ class NotificationSettingsScreen extends StatelessWidget {
         centerTitle: false,
       ),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 36),
+        padding: const EdgeInsets.fromLTRB(20, 10, 20, 36),
         physics: const BouncingScrollPhysics(),
         children: [
-          SettingsIntroCard(title: 'Stay in the loop', subtitle: 'Decide which alerts reach you and what appears in message previews.', icon: Icons.notifications_active_rounded),
-          const SectionLabel(label: 'General'),
-          _ToggleCard(
+          _NotificationHero(enabled: enabled),
+          const SectionLabel(label: 'Notification controls'),
+          _NotificationToggleCard(
             icon: Icons.notifications_active_rounded,
-            iconColor: const Color(0xFFEC4899),
-            iconBgColor: const Color(0xFFEC4899).withValues(alpha: 0.1),
-            title: 'Push Notifications',
-            subtitle: 'Turn all Novyn notifications on or off',
-            value: settings.notificationsOn,
-            onChanged: (v) => settings.setNotifications(v),
+            color: const Color(0xFFEC4899),
+            title: 'Push notifications',
+            subtitle: 'Receive alerts for new activity in Novyn',
+            value: enabled,
+            onChanged: settings.setNotifications,
+            isPrimary: true,
           ),
-          _ToggleCard(
-            icon: Icons.visibility_rounded,
-            iconColor: Theme.of(context).colorScheme.primary,
-            iconBgColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
-            title: 'Message Preview',
-            subtitle: 'Show message content in notification alerts',
-            value: settings.messagePreview,
-            onChanged: settings.notificationsOn ? (v) => settings.setMessagePreview(v) : null,
+          AnimatedOpacity(
+            duration: const Duration(milliseconds: 200),
+            opacity: enabled ? 1 : .48,
+            child: IgnorePointer(
+              ignoring: !enabled,
+              child: _NotificationToggleCard(
+                icon: Icons.visibility_rounded,
+                color: const Color(0xFF6366F1),
+                title: 'Message previews',
+                subtitle: 'Show message text in notification alerts',
+                value: previews,
+                onChanged: settings.setMessagePreview,
+              ),
+            ),
           ),
-          
-          const SizedBox(height: 24),
-          const SectionLabel(label: 'Message & group alerts'),
-          _ToggleCard(
-            icon: Icons.groups_rounded,
-            iconColor: const Color(0xFF10B981),
-            iconBgColor: const Color(0xFF10B981).withValues(alpha: 0.1),
-            title: 'Group Notifications',
-            subtitle: 'Get notified about activity in your groups',
-            value: settings.groupNotifications,
-            onChanged: settings.notificationsOn ? (v) => settings.setGroupNotifications(v) : null,
+          const SectionLabel(label: 'Conversation alerts'),
+          AnimatedOpacity(
+            duration: const Duration(milliseconds: 200),
+            opacity: enabled ? 1 : .48,
+            child: IgnorePointer(
+              ignoring: !enabled,
+              child: _NotificationToggleCard(
+                icon: Icons.groups_rounded,
+                color: const Color(0xFF10B981),
+                title: 'Group notifications',
+                subtitle: 'Get notified about activity in your groups',
+                value: settings.groupNotifications,
+                onChanged: settings.setGroupNotifications,
+              ),
+            ),
           ),
-          const SizedBox(height: 40),
+          const SectionLabel(label: 'Preview'),
+          _NotificationPreviewCard(
+            enabled: enabled,
+            showMessage: previews,
+          ),
+          const SizedBox(height: 16),
+          _NotificationHint(enabled: enabled, previews: previews),
+          const SizedBox(height: 20),
+          Center(
+            child: Text(
+              'NOVYN  ·  YOUR SPACE, YOUR PEOPLE',
+              style: theme.textTheme.labelSmall?.copyWith(
+                letterSpacing: 1.35,
+                fontWeight: FontWeight.w700,
+                color: colors.onSurfaceVariant.withValues(alpha: .55),
+              ),
+            ),
+          ),
         ],
       ),
     );
   }
 }
 
-
-class _SelectionCard extends StatelessWidget {
-  final IconData icon;
-  final Color iconColor;
-  final Color iconBgColor;
-  final String title;
-  final String subtitle;
-  final String value;
-  final List<String> options;
-  final List<String> labels;
-  final ValueChanged<String> onChanged;
-
-  const _SelectionCard({
-    required this.icon,
-    required this.iconColor,
-    required this.iconBgColor,
-    required this.title,
-    required this.subtitle,
-    required this.value,
-    required this.options,
-    required this.labels,
-    required this.onChanged,
-  });
+class _NotificationHero extends StatelessWidget {
+  const _NotificationHero({required this.enabled});
+  final bool enabled;
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final currentIndex = options.indexOf(value);
-    final currentLabel = currentIndex >= 0 ? labels[currentIndex] : labels[0];
-    
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final accent = enabled ? const Color(0xFFEC4899) : colors.onSurfaceVariant;
+
     return Container(
-      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(24),
         color: NovynTheme.cardBg(context),
-        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+        borderRadius: BorderRadius.circular(26),
+        border: Border.all(color: colors.outlineVariant),
       ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(24),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-          child: InkWell(
-            onTap: () {
-              HapticFeedback.selectionClick();
-              _showSelectionDialog(context);
-            },
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                children: [
-                  Container(
-                    width: 52,
-                    height: 52,
-                    decoration: BoxDecoration(
-                      color: iconBgColor,
-                      borderRadius: BorderRadius.circular(18),
-                      border: Border.all(color: iconColor.withValues(alpha: 0.1)),
-                    ),
-                    child: Icon(icon, color: iconColor, size: 24),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          title,
-                          style: TextStyle(
-                            fontFamily: 'PlusJakartaSans',
-                            fontWeight: FontWeight.w800,
-                            fontSize: 16,
-                            color: Theme.of(context).colorScheme.onSurface,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          subtitle,
-                          style: TextStyle(
-                            fontFamily: 'PlusJakartaSans',
-                            fontSize: 13,
-                            fontWeight: FontWeight.w500,
-                            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text(
-                        currentLabel,
-                        style: TextStyle(
-                          fontFamily: 'PlusJakartaSans',
-                          fontSize: 14,
-                          fontWeight: FontWeight.w800,
-                          color: Theme.of(context).colorScheme.primary,
-                        ),
-                      ),
-                      Icon(
-                        Icons.chevron_right_rounded, 
-                        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.2), 
-                        size: 20
-                      ),
-                    ],
-                  ),
+      child: Row(
+        children: [
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 220),
+            width: 68,
+            height: 68,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  accent.withValues(alpha: .78),
+                  accent,
                 ],
               ),
+              boxShadow: [
+                BoxShadow(
+                  color: accent.withValues(alpha: .20),
+                  blurRadius: 18,
+                  offset: const Offset(0, 7),
+                ),
+              ],
+            ),
+            child: Icon(
+              enabled
+                  ? Icons.notifications_active_rounded
+                  : Icons.notifications_off_rounded,
+              color: Colors.white,
+              size: 30,
             ),
           ),
-        ),
-      ),
-    );
-  }
-
-  void _showSelectionDialog(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    showDialog(
-      context: context,
-      builder: (context) => BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
-        child: AlertDialog(
-          backgroundColor: Theme.of(context).colorScheme.surface,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(32),
-            side: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
-          ),
-          title: Text(
-            title,
-            style: TextStyle(fontFamily: 'PlusJakartaSans', fontWeight: FontWeight.w900),
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: options.asMap().entries.map((entry) {
-              final index = entry.key;
-              final option = entry.value;
-              final label = labels[index];
-              final isSelected = value == option;
-              
-              return ListTile(
-                title: Text(
-                  label,
-                  style: TextStyle(
-                    fontFamily: 'PlusJakartaSans',
-                    fontWeight: isSelected ? FontWeight.w800 : FontWeight.w500,
-                    color: isSelected ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.onSurface,
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  enabled ? 'Stay connected' : 'Notifications paused',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: -.25,
                   ),
                 ),
-                trailing: isSelected 
-                    ? Icon(Icons.check_circle_rounded, color: Theme.of(context).colorScheme.primary) 
-                    : null,
-                onTap: () {
-                  HapticFeedback.mediumImpact();
-                  onChanged(option);
-                  Navigator.pop(context);
-                },
-              );
-            }).toList(),
+                const SizedBox(height: 5),
+                Text(
+                  enabled
+                      ? 'Choose what you want to hear about and what stays private.'
+                      : 'You will not receive Novyn alerts until notifications are turned on.',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: colors.onSurfaceVariant,
+                    height: 1.4,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Container(
+                      width: 7,
+                      height: 7,
+                      decoration: BoxDecoration(
+                        color: enabled ? const Color(0xFF10B981) : colors.onSurfaceVariant,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 7),
+                    Text(
+                      enabled ? 'Alerts are enabled' : 'Alerts are turned off',
+                      style: theme.textTheme.labelMedium?.copyWith(
+                        color: enabled ? const Color(0xFF10B981) : colors.onSurfaceVariant,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
 }
 
-class _IntensitySliderCard extends StatelessWidget {
-  final double value;
-  final ValueChanged<double> onChanged;
-
-  const _IntensitySliderCard({
+class _NotificationToggleCard extends StatelessWidget {
+  const _NotificationToggleCard({
+    required this.icon,
+    required this.color,
+    required this.title,
+    required this.subtitle,
     required this.value,
     required this.onChanged,
+    this.isPrimary = false,
   });
+
+  final IconData icon;
+  final Color color;
+  final String title;
+  final String subtitle;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+  final bool isPrimary;
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 16),
+      margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(24),
         color: NovynTheme.cardBg(context),
-        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+        borderRadius: BorderRadius.circular(21),
+        border: Border.all(
+          color: value && isPrimary
+              ? color.withValues(alpha: .35)
+              : colors.outlineVariant,
+        ),
+        boxShadow: [
+          if (value && isPrimary)
+            BoxShadow(
+              color: color.withValues(alpha: .07),
+              blurRadius: 16,
+              offset: const Offset(0, 5),
+            ),
+        ],
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(21),
         child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
           child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 15),
+            child: Row(
               children: [
-                Row(
-                  children: [
-                    Container(
-                      width: 52,
-                      height: 52,
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(18),
-                        border: Border.all(color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1)),
-                      ),
-                      child: Icon(Icons.fingerprint_rounded, color: Theme.of(context).colorScheme.primary, size: 24),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Haptic Intensity',
-                            style: TextStyle(
-                              fontFamily: 'PlusJakartaSans',
-                              fontWeight: FontWeight.w800,
-                              fontSize: 16,
-                              color: Theme.of(context).colorScheme.onSurface,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Fine-tune the neural haptic pulse',
-                            style: TextStyle(
-                              fontFamily: 'PlusJakartaSans',
-                              fontSize: 13,
-                              fontWeight: FontWeight.w500,
-                              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Text(
-                      '${(value * 100).toInt()}%',
-                      style: TextStyle(
-                        fontFamily: 'PlusJakartaSans',
-                        fontWeight: FontWeight.w900,
-                        color: Theme.of(context).colorScheme.primary,
-                        fontSize: 15,
-                      ),
-                    ),
-                  ],
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: value ? .15 : .08),
+                    borderRadius: BorderRadius.circular(15),
+                  ),
+                  child: Icon(
+                    icon,
+                    color: value ? color : colors.onSurfaceVariant,
+                    size: 23,
+                  ),
                 ),
-                const SizedBox(height: 12),
-                SliderTheme(
-                  data: SliderTheme.of(context).copyWith(
-                    activeTrackColor: Theme.of(context).colorScheme.primary,
-                    inactiveTrackColor: Colors.white12,
-                    thumbColor: Colors.white,
-                    overlayColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.2),
-                    trackHeight: 4,
+                const SizedBox(width: 13),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        subtitle,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: colors.onSurfaceVariant,
+                          height: 1.35,
+                        ),
+                      ),
+                    ],
                   ),
-                  child: Slider(
-                    value: value,
-                    onChanged: (v) {
-                      if ((v * 10).toInt() != (value * 10).toInt()) {
-                        HapticFeedback.selectionClick();
-                      }
-                      onChanged(v);
-                    },
-                  ),
+                ),
+                const SizedBox(width: 8),
+                Switch.adaptive(
+                  value: value,
+                  onChanged: (next) {
+                    HapticFeedback.selectionClick();
+                    onChanged(next);
+                  },
+                  activeTrackColor: colors.primary.withValues(alpha: .48),
+                  activeColor: colors.primary,
                 ),
               ],
             ),
@@ -345,98 +312,183 @@ class _IntensitySliderCard extends StatelessWidget {
   }
 }
 
-class _ToggleCard extends StatelessWidget {
-  final IconData icon;
-  final Color iconColor;
-  final Color iconBgColor;
-  final String title;
-  final String subtitle;
-  final bool value;
-  final ValueChanged<bool>? onChanged;
-
-  const _ToggleCard({
-    required this.icon,
-    required this.iconColor,
-    required this.iconBgColor,
-    required this.title,
-    required this.subtitle,
-    required this.value,
-    this.onChanged,
+class _NotificationPreviewCard extends StatelessWidget {
+  const _NotificationPreviewCard({
+    required this.enabled,
+    required this.showMessage,
   });
+
+  final bool enabled;
+  final bool showMessage;
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final disabled = onChanged == null;
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
 
-    return Opacity(
-      opacity: disabled ? 0.4 : 1.0,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 16),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(24),
-          color: NovynTheme.cardBg(context),
-          border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(24),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: NovynTheme.cardBg(context),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: colors.outlineVariant),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.phone_android_rounded,
+                  size: 18, color: colors.primary),
+              const SizedBox(width: 8),
+              Text(
+                'Lock screen preview',
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 9, vertical: 5),
+                decoration: BoxDecoration(
+                  color: colors.primary.withValues(alpha: .10),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  'EXAMPLE',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: colors.primary,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: .6,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          AnimatedOpacity(
+            duration: const Duration(milliseconds: 200),
+            opacity: enabled ? 1 : .5,
+            child: Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: colors.surfaceContainerHighest.withValues(alpha: .72),
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: colors.outlineVariant),
+              ),
               child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Container(
-                    width: 52,
-                    height: 52,
+                    width: 42,
+                    height: 42,
                     decoration: BoxDecoration(
-                      color: iconBgColor,
-                      borderRadius: BorderRadius.circular(18),
-                      border: Border.all(color: iconColor.withValues(alpha: 0.1)),
+                      color: colors.primary,
+                      borderRadius: BorderRadius.circular(13),
                     ),
-                    child: Icon(icon, color: iconColor, size: 24),
+                    child: const Icon(
+                      Icons.chat_bubble_rounded,
+                      color: Colors.white,
+                      size: 21,
+                    ),
                   ),
-                  const SizedBox(width: 16),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          title,
-                          style: TextStyle(
-                            fontFamily: 'PlusJakartaSans',
-                            fontWeight: FontWeight.w800,
-                            fontSize: 16,
-                            color: Theme.of(context).colorScheme.onSurface,
-                          ),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                'Novyn · Alex',
+                                style: theme.textTheme.labelLarge?.copyWith(
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                            ),
+                            Text(
+                              'now',
+                              style: theme.textTheme.labelSmall?.copyWith(
+                                color: colors.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          subtitle,
-                          style: TextStyle(
-                            fontFamily: 'PlusJakartaSans',
-                            fontSize: 13,
-                            fontWeight: FontWeight.w500,
-                            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
+                          showMessage ? 'Hey, are you free to chat?' : 'New message',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: colors.onSurfaceVariant,
                           ),
                         ),
                       ],
                     ),
                   ),
-                  Switch.adaptive(
-                    value: value,
-                    onChanged: disabled ? null : (v) {
-                      HapticFeedback.mediumImpact();
-                      onChanged?.call(v);
-                    },
-                    activeTrackColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.5),
-                    activeColor: Theme.of(context).colorScheme.primary,
-                  ),
                 ],
               ),
             ),
           ),
-        ),
+          const SizedBox(height: 11),
+          Text(
+            !enabled
+                ? 'This is only a preview. Notifications are currently turned off.'
+                : showMessage
+                    ? 'Message text will be visible in notification previews.'
+                    : 'Message content is hidden. You will only see that a new message arrived.',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: colors.onSurfaceVariant,
+              height: 1.4,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _NotificationHint extends StatelessWidget {
+  const _NotificationHint({
+    required this.enabled,
+    required this.previews,
+  });
+
+  final bool enabled;
+  final bool previews;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final message = !enabled
+        ? 'Turning notifications off does not delete messages. You can still open Novyn and read your chats.'
+        : previews
+            ? 'Want more privacy? Turn off Message previews to hide message text from notification alerts.'
+            : 'Your message content stays hidden in notification previews while this setting is off.';
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: colors.surfaceContainerHighest.withValues(alpha: .42),
+        borderRadius: BorderRadius.circular(17),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.info_outline_rounded,
+              size: 19, color: colors.onSurfaceVariant),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              message,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: colors.onSurfaceVariant,
+                height: 1.45,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
