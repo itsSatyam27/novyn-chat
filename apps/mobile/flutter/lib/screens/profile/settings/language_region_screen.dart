@@ -20,7 +20,10 @@ class LanguageRegionScreen extends StatelessWidget {
     final languageLabel = languages[settings.language] ?? 'English';
     final now = DateTime.now();
     final datePreview = MaterialLocalizations.of(context).formatMediumDate(now);
-    final timePreview = TimeOfDay.now().format(context);
+    final currentTime = TimeOfDay.now();
+    final timePreview = settings.timeFormat == '24h'
+        ? '${currentTime.hour.toString().padLeft(2, '0')}:${currentTime.minute.toString().padLeft(2, '0')}'
+        : currentTime.format(context);
     final regionFlag = switch (settings.region) {
       'India' => '🇮🇳',
       'United States' => '🇺🇸',
@@ -234,8 +237,16 @@ class LanguageRegionScreen extends StatelessWidget {
                   ])),
                   Text(timePreview, style: TextStyle(fontSize: 12,
                     fontWeight: FontWeight.w700, color: colors.primary)),
-                  IconButton(tooltip: 'About time format', onPressed: () => _showTimeFormatDialog(context),
-                    icon: Icon(Icons.info_outline_rounded, size: 18, color: colors.onSurfaceVariant)),
+                  PopupMenuButton<String>(
+                    tooltip: 'Choose time format',
+                    initialValue: settings.timeFormat,
+                    onSelected: settings.setTimeFormat,
+                    itemBuilder: (menuContext) => const [
+                      PopupMenuItem(value: '12h', child: Text('12-hour (6:09 PM)')),
+                      PopupMenuItem(value: '24h', child: Text('24-hour (18:09)')),
+                    ],
+                    icon: Icon(Icons.expand_more_rounded, size: 20, color: colors.onSurfaceVariant),
+                  ),
                 ]),
                 Divider(height: 1, color: colors.outlineVariant.withValues(alpha: .65)),
                 Row(children: [
