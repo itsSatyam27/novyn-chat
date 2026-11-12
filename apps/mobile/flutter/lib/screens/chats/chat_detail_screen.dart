@@ -246,7 +246,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
       socket.openChat(_chatId!, cachedMessages);
       if (cachedMessages.isEmpty) _fetchingFromServer = true;
       setState(() => _loading = false);
-      if (cachedMessages.isNotEmpty) _jumpToLatestImmediately();
+      // Keep cached history covered until the server's latest history has
+      // been applied, so stale cache positions never flash on screen.
     }
 
     final history = await historyF;
@@ -259,10 +260,12 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
       if (mounted) setState(() => _fetchingFromServer = false);
       _jumpToLatestImmediately();
     } else if (mounted) {
-      setState(() {
-        _fetchingFromServer = false;
-        if (cachedMessages.isEmpty) _initialPositionReady = true;
-      });
+      setState(() => _fetchingFromServer = false);
+      if (cachedMessages.isNotEmpty) {
+        _jumpToLatestImmediately();
+      } else {
+        setState(() => _initialPositionReady = true);
+      }
     }
 
     final settings = context.read<SettingsService>();
