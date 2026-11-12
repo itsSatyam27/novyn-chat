@@ -628,11 +628,13 @@ class _DiscoverAddFriendCard extends StatelessWidget {
 class _DiscoverCard extends StatelessWidget {
   final UserModel user;
   final bool isPending;
+  final bool isSending;
   final VoidCallback onAddFriend;
 
   const _DiscoverCard({
     required this.user,
     required this.isPending,
+    required this.isSending,
     required this.onAddFriend,
   });
 
@@ -656,27 +658,30 @@ class _DiscoverCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final initial = user.name.isNotEmpty
-        ? user.name.substring(0, 1).toUpperCase()
-        : '?';
-    final palette = _palettes[(user.name.isNotEmpty ? user.name.codeUnitAt(0) : 0) % _palettes.length];
+    final theme = Theme.of(context);
+    final online = user.isOnline && !{'invisible', 'offline'}.contains(user.status.trim().toLowerCase());
+    final presenceColor = !online ? theme.colorScheme.onSurfaceVariant : switch (user.status.trim().toLowerCase()) { 'away' => const Color(0xFFF59E0B), 'busy' || 'dnd' => const Color(0xFFEC4899), _ => const Color(0xFF10B981) };
+    final presenceLabel = !online ? _lastSeenText(user.lastSeen) : switch (user.status.trim().toLowerCase()) { 'away' => 'Away', 'busy' || 'dnd' => 'Do not disturb', _ => 'Online now' };
 
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 12),
       decoration: BoxDecoration(
-        color: NovynColors.card,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: NovynColors.glassBorder),
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: theme.colorScheme.outlineVariant.withValues(alpha: .65)),
       ),
       child: Row(
         children: [
-          NovynAvatar(
-            size: 54,
-            letter: initial,
-            colors: palette,
-            statusColor: user.isOnline ? NovynColors.mint : null,
+          UserAvatar(
+            name: user.name,
+            photoUrl: user.photoUrl,
+            radius: 24,
+            showOnlineIndicator: true,
+            isOnline: online,
+            presence: user.status,
+            fallbackColor: user.avatarColor,
           ),
-          const SizedBox(width: 14),
+          const SizedBox(width: 11),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -688,16 +693,16 @@ class _DiscoverCard extends StatelessWidget {
                         user.name,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: NovynText.body(15, weight: FontWeight.w700),
+                        style: NovynText.body(14, weight: FontWeight.w800, color: theme.colorScheme.onSurface),
                       ),
                     ),
-                    if (user.isOnline) ...[
+                    if (online) ...[
                       const SizedBox(width: 6),
                       Container(
                         width: 7,
                         height: 7,
                         decoration: const BoxDecoration(
-                          color: NovynColors.mint,
+                          color: presenceColor,
                           shape: BoxShape.circle,
                         ),
                       ),
@@ -705,15 +710,13 @@ class _DiscoverCard extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 3),
-                Text('@${user.username}', style: NovynText.body(12, color: NovynColors.textMuted)),
+                Text('@${user.username}', maxLines: 1, overflow: TextOverflow.ellipsis, style: NovynText.body(11.5, color: theme.colorScheme.onSurfaceVariant)),
                 const SizedBox(height: 5),
                 Text(
-                  user.isOnline ? 'Active now' : _lastSeenText(user.lastSeen),
-                  style: NovynText.body(
-                    11.5,
-                    weight: user.isOnline ? FontWeight.w700 : FontWeight.w500,
-                    color: user.isOnline ? NovynColors.mint : NovynColors.timeMuted,
-                  ),
+                  presenceLabel,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: NovynText.body(10.5, weight: FontWeight.w700, color: presenceColor),
                 ),
                 if (user.bio.isNotEmpty) ...[
                   const SizedBox(height: 3),
@@ -721,7 +724,7 @@ class _DiscoverCard extends StatelessWidget {
                     user.bio,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: NovynText.body(11.5, color: NovynColors.textSub),
+                    style: NovynText.body(10.5, color: theme.colorScheme.onSurfaceVariant),
                   ),
                 ],
               ],
@@ -729,31 +732,31 @@ class _DiscoverCard extends StatelessWidget {
           ),
           const SizedBox(width: 10),
           GestureDetector(
-            onTap: isPending ? null : onAddFriend,
+            onTap: (isPending || isSending) ? null : onAddFriend,
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 220),
-              padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
               decoration: BoxDecoration(
                 gradient: isPending ? null : NovynGradients.selected(context),
-                color: isPending ? NovynColors.glass : null,
+                color: isPending ? theme.colorScheme.surfaceContainerHighest : null,
                 borderRadius: BorderRadius.circular(12),
-                border: isPending ? Border.all(color: NovynColors.glassBorder) : null,
+                border: isPending ? Border.all(color: theme.colorScheme.outlineVariant) : null,
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(
-                    isPending ? Icons.hourglass_top_rounded : Icons.person_add_alt_1_rounded,
+                    isSending ? Icons.more_horiz_rounded : (isPending ? Icons.hourglass_top_rounded : Icons.person_add_alt_1_rounded),
                     size: 14,
-                    color: isPending ? NovynColors.textMuted : Colors.white,
+                    color: isPending ? theme.colorScheme.onSurfaceVariant : Colors.white,
                   ),
                   const SizedBox(width: 5),
                   Text(
-                    isPending ? 'Pending' : 'Add',
+                    isSending ? 'Sending' : (isPending ? 'Pending' : 'Add'),
                     style: NovynText.body(
                       12,
                       weight: FontWeight.w700,
-                      color: isPending ? NovynColors.textMuted : Colors.white,
+                      color: isPending ? theme.colorScheme.onSurfaceVariant : Colors.white,
                     ),
                   ),
                 ],
