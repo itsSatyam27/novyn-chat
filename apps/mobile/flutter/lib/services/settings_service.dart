@@ -765,23 +765,6 @@ class SettingsService extends ChangeNotifier {
 
   Future<void> setStealthMode(bool v) async {
     if (v == _stealthModeEnabled) return;
-
-    if (v) {
-      // Remember the user's previous notification privacy choice, then mask
-      // previews while stealth protection is active.
-      await _prefs.setBool(
-        _kStealthPreviousNotificationPrivacy,
-        _hideNotificationContent,
-      );
-      _hideNotificationContent = true;
-      await _prefs.setBool(_kHideNotificationContent, true);
-    } else {
-      final previous = _prefs.getBool(_kStealthPreviousNotificationPrivacy) ?? false;
-      _hideNotificationContent = previous;
-      await _prefs.setBool(_kHideNotificationContent, previous);
-      await _prefs.remove(_kStealthPreviousNotificationPrivacy);
-    }
-
     _stealthModeEnabled = v;
     await _prefs.setBool(_kStealthMode, v);
     notifyListeners();
