@@ -149,14 +149,26 @@ class AuthService extends ChangeNotifier {
   // ── Restore session from novyn-chat JWT cookie on app start ───────────────
   Future<void> _restoreSession(
       Future<Map<String, dynamic>?> Function() loadSession) async {
-    final hadSavedCookie = ApiService.sessionCookie != null;
+    var storageReady = ApiService.sessionStorageInitialized;
+    var hadSavedCookie = ApiService.sessionCookie != null;
     var attempt = 0;
 
-    // A process restart must not turn a temporary Render/network outage into
-    // a logout. If a saved cookie exists, keep retrying until the backend
-    // confirms the account session or explicitly rejects both access and
-    // refresh credentials.
+    // A failed secure-storage read (for example, while Android Keystore is
+    // becoming available after process recreation) must not look like a fresh
+    // install. Retry the read before deciding that no saved login exists.
     while (!_authReady) {
+      if (!storageReady) {
+        storageReady = await ApiService.initializeSessionStorage();
+        if (!storageReady) {
+          attempt += 1;
+          await Future<void>.delayed(
+            Duration(seconds: (attempt * 2).clamp(2, 10)),
+          );
+          continue;
+        }
+        hadSavedCookie = ApiService.sessionCookie != null;
+      }
+
       try {
         final session = await loadSession();
         if (session?['authenticated'] == true) {
@@ -208,7 +220,8 @@ class AuthService extends ChangeNotifier {
       // Rehydrate encrypted cookies if the in-memory client was recreated.
       if (ApiService.sessionCookie == null ||
           ApiService.sessionCookie!.isEmpty) {
-        await ApiService.initializeSessionStorage();
+        final storageReady = await ApiService.initializeSessionStorage();
+        if (!storageReady) return;
       }
 
       final cookieBeforeRestore = ApiService.sessionCookie;
