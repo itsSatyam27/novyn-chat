@@ -216,6 +216,31 @@
     window.location.replace(DASHBOARD_PATH);
   }
 
+  async function completeTwoFactorIfRequired(authData) {
+    if (authData?.requiresTwoFactor !== true) return true;
+    const challengeToken = String(authData.challengeToken || "");
+    if (!challengeToken) {
+      setMessage("The server did not create a secure verification challenge.", "error");
+      return false;
+    }
+    const code = window.prompt(
+      "Two-step verification\\nEnter the 6-digit authenticator code or a one-time backup code:"
+    );
+    if (!code) {
+      setMessage("Two-step verification was cancelled. You are not signed in.", "error");
+      return false;
+    }
+    const result = await postAuth("/api/auth/2fa/verify", {
+      challengeToken,
+      code: String(code).trim(),
+    });
+    if (!result?.ok) {
+      setMessage(result?.data?.message || "Two-step verification failed.", "error");
+      return false;
+    }
+    return true;
+  }
+
   async function handleGoogleAuth(event) {
     if (event?.preventDefault) event.preventDefault();
     setLoading(true);
@@ -239,6 +264,8 @@
       if (!response?.ok) {
         throw new Error(response?.data?.message || "Google authentication failed.");
       }
+      const secondFactorPassed = await completeTwoFactorIfRequired(response.data);
+      if (!secondFactorPassed) return;
       const linkedExisting = Boolean(response?.data?.linkedExisting);
       const createdAccount = Boolean(response?.data?.createdAccount);
       if (linkedExisting && !createdAccount) {
@@ -342,6 +369,8 @@
         setMessage(result?.data?.message || "Authentication failed.", "error");
         return;
       }
+      const secondFactorPassed = await completeTwoFactorIfRequired(result.data);
+      if (!secondFactorPassed) return;
       setMessage("Signed in. Redirecting...", "success");
       redirectToDashboard();
     } catch (_) {
