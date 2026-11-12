@@ -208,7 +208,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       if (_scroll.hasClients) {
         final newExtent = _scroll.position.maxScrollExtent;
         final delta = newExtent - prevExtent;
-        _scroll.jumpTo((prevPixels + delta).clamp(0.0, _scroll.position.maxScrollExtent));
+        _scroll.jumpTo((prevPixels + delta).clamp(0.0, _scroll.position.maxScrollExtent).toDouble());
       }
     });
   }
