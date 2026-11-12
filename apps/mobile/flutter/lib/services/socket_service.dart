@@ -271,8 +271,12 @@ class SocketService extends ChangeNotifier {
 
     _socket!.on('peer_public_key_updated', (data) {
       if (data is Map) {
-        _peerKeys[data['username'].toString().toLowerCase()] =
+        final username = data['username']?.toString() ?? '';
+        _peerKeys[username.toLowerCase()] =
             data['publicKey']?.toString() ?? '';
+        if (_currentChatWith?.toLowerCase() == username.toLowerCase()) {
+          unawaited(decryptCurrentMessages());
+        }
       }
     });
 
@@ -1237,6 +1241,32 @@ class SocketService extends ChangeNotifier {
         .toList();
     _messages = _resolveReplyPreviews(_messages);
     await HybridDbService.saveMessages(_messages);
+
+    // Keep the conversation-list preview in sync with the decrypted latest
+    // message. The chat view can decrypt successfully after keys/history load,
+    // while the cached friend-list preview may still contain the ciphertext
+    // placeholder from the initial socket snapshot.
+    if (_messages.isNotEmpty) {
+      final latest = _messages.reduce(
+        (a, b) => a.createdAt.isAfter(b.createdAt) ? a : b,
+      );
+      if (latest.text.isNotEmpty &&
+          latest.text != '🔒 Encrypted message' &&
+          !latest.needsMessageKey) {
+        final previewIndex = _conversations.indexWhere(
+          (chat) => chat.peerUid.toLowerCase() == peer.toLowerCase(),
+        );
+        if (previewIndex >= 0) {
+          final updated = List<ChatPreview>.from(_conversations);
+          updated[previewIndex] = updated[previewIndex].copyWith(
+            lastMessage: latest.text,
+            lastTime: latest.createdAt,
+          );
+          _conversations = updated;
+          await HybridDbService.saveChat(updated[previewIndex]);
+        }
+      }
+    }
     notifyListeners();
   }
 
