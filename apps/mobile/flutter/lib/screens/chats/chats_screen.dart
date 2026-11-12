@@ -545,7 +545,7 @@ class _ChatCard extends StatelessWidget {
                           ),
                           const SizedBox(width: 8),
                           Text(
-                            _formatTime(preview.lastTime),
+                            _formatTime(preview.lastTime, context.watch<SettingsService>().timeFormat),
                             style: TextStyle(
                               fontFamily: 'PlusJakartaSans',
                               fontSize: 12,
@@ -701,21 +701,28 @@ class _StoryCard extends StatelessWidget {
   }
 }
 
-String _formatTime(DateTime dt) {
+String _formatTime(DateTime timestamp, String format) {
+  final dt = timestamp.toLocal();
   final now = DateTime.now();
-  final diff = now.difference(dt);
+  final today = DateTime(now.year, now.month, now.day);
+  final messageDay = DateTime(dt.year, dt.month, dt.day);
+  final dayDifference = today.difference(messageDay).inDays;
 
-  if (diff.inDays == 0) {
-    final h = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
-    final m = dt.minute.toString().padLeft(2, '0');
-    final p = dt.hour < 12 ? 'AM' : 'PM';
-    return '$h:$m $p';
-  } else if (diff.inDays == 1) {
-    return 'Yesterday';
-  } else if (diff.inDays < 7) {
+  String clock() {
+    final minute = dt.minute.toString().padLeft(2, '0');
+    if (format == '24h') {
+      return '${dt.hour.toString().padLeft(2, '0')}:$minute';
+    }
+    final hour = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
+    final period = dt.hour < 12 ? 'AM' : 'PM';
+    return '$hour:$minute $period';
+  }
+
+  if (dayDifference == 0) return clock();
+  if (dayDifference == 1) return 'Yesterday';
+  if (dayDifference >= 2 && dayDifference < 7) {
     const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     return days[dt.weekday - 1];
-  } else {
-    return '${dt.day}/${dt.month}/${dt.year.toString().substring(2)}';
   }
+  return '${dt.day}/${dt.month}/${dt.year.toString().substring(2)}';
 }
