@@ -72,6 +72,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
   final ScrollController _scroll = ScrollController();
   final AudioPlayer _audioPlayer = AudioPlayer();
   bool _loading = true;
+  bool _initialPositionReady = false;
   bool _sending = false;
   bool _loadingOlder = false;
   bool _hasMore = true;
@@ -254,11 +255,15 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
     if (history.isNotEmpty) {
       await HybridDbService.saveMessages(history);
       await HybridDbService.setLastSync(_chatId!, DateTime.now());
+      _initialPositionReady = false;
       socket.openChat(_chatId!, history);
       if (mounted) setState(() => _fetchingFromServer = false);
       _jumpToLatestImmediately();
     } else if (mounted) {
-      setState(() => _fetchingFromServer = false);
+      setState(() {
+        _fetchingFromServer = false;
+        if (cachedMessages.isEmpty) _initialPositionReady = true;
+      });
     }
 
     final settings = context.read<SettingsService>();
@@ -341,35 +346,54 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
   // Opening a conversation should land directly on the newest message.
   // Avoid animating through the entire history, which feels slow on long chats.
   void _jumpToLatestImmediately() {
-    // ListView.builder estimates the scroll extent before all variable-height
-    // message bubbles (images, replies, files) have been laid out. A single
-    // jump can therefore stop in the middle of a long conversation. Re-check
-    // the extent over several layout frames until it settles at the true end.
+    // Keep the message list mounted behind a loading veil while Flutter lays
+    // out variable-height bubbles. This prevents the user seeing the initial
+    // top/middle position before the list reaches the true latest message.
+    _initialPositionReady = false;
     var attempts = 0;
+    var stableFrames = 0;
     double? previousExtent;
-    void jumpAfterLayout() {
+
+    void retryAfterLayout() {
       WidgetsBinding.instance.addPostFrameCallback((_) async {
-        if (!mounted || !_scroll.hasClients) return;
+        if (!mounted) return;
+        if (!_scroll.hasClients || !_scroll.position.hasContentDimensions) {
+          if (++attempts < 40) {
+            await Future<void>.delayed(const Duration(milliseconds: 30));
+            if (mounted) retryAfterLayout();
+          } else {
+            setState(() => _initialPositionReady = true);
+          }
+          return;
+        }
+
         final position = _scroll.position;
-        if (!position.hasContentDimensions) return;
         final extent = position.maxScrollExtent;
         _scroll.jumpTo(extent);
-        final settled = previousExtent != null &&
+
+        if (previousExtent != null &&
             (extent - previousExtent!).abs() < 1.0 &&
-            (position.maxScrollExtent - position.pixels).abs() < 1.0;
+            (position.maxScrollExtent - position.pixels).abs() < 1.0) {
+          stableFrames++;
+        } else {
+          stableFrames = 0;
+        }
         previousExtent = extent;
-        if (++attempts < 12 && !settled && mounted) {
-          await Future<void>.delayed(const Duration(milliseconds: 45));
-          if (mounted) jumpAfterLayout();
+
+        if (++attempts < 40 && stableFrames < 3) {
+          await Future<void>.delayed(const Duration(milliseconds: 30));
+          if (mounted) retryAfterLayout();
         } else if (mounted) {
           _isNearLatest = true;
-          if (_showJumpToLatest) {
-            setState(() => _showJumpToLatest = false);
-          }
+          setState(() {
+            _initialPositionReady = true;
+            _showJumpToLatest = false;
+          });
         }
       });
     }
-    jumpAfterLayout();
+
+    retryAfterLayout();
     _isNearLatest = true;
   }
 
@@ -419,6 +443,17 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                             ? _fetchingFromServer ? _buildLoadingShimmer() : _buildEmptyChat()
                             : _buildMessageList(messages),
                   ),
+                  if (!_initialPositionReady && messages.isNotEmpty)
+                    Positioned.fill(
+                      child: ColoredBox(
+                        color: Theme.of(context).colorScheme.surface,
+                        child: Center(
+                          child: CircularProgressIndicator(
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                        ),
+                      ),
+                    ),
                   if (_showJumpToLatest && messages.isNotEmpty)
                     Positioned(
                       right: 18,
