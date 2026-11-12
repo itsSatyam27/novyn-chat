@@ -172,7 +172,7 @@ class SecurityPrivacyScreen extends StatelessWidget {
             _SecurityPrivacyToggleTile(
               icon: Icons.visibility_off_outlined, accent: const Color(0xFFC2540F),
               title: 'Stealth Mode',
-              subtitle: 'Hide app previews in Recents, block screenshots and mask notification content',
+              subtitle: 'Prevent others from capturing your chats, even when their Stealth Mode is off',
               value: settings.stealthModeEnabled,
               onChanged: (v) => _setStealthMode(context, settings, v),
             ),
@@ -189,7 +189,7 @@ class SecurityPrivacyScreen extends StatelessWidget {
                     const Icon(Icons.shield_rounded, color: Color(0xFF1F9D61), size: 18),
                     const SizedBox(width: 9),
                     Expanded(child: Text(
-                      'Protection is active on this device. Notification previews are hidden and screenshots or screen recordings are blocked while Novyn is open.',
+                      'Your chats are protected on the other person’s Novyn Android app. Their own Stealth Mode can stay off; your setting controls protection of your conversations.',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(color: muted, height: 1.4),
                     )),
                   ]),
@@ -233,35 +233,28 @@ class SecurityPrivacyScreen extends StatelessWidget {
     SettingsService settings,
     bool enabled,
   ) async {
-    final auth = context.read<AuthService>();
-    final savedLastSeen = settings.configuredLastSeenVisibility;
-    final savedProfilePhoto = settings.configuredProfilePhotoVisibility;
-
+    final socket = context.read<SocketService>();
+    final previous = settings.stealthModeEnabled;
     try {
-      // Persist the preference and apply the Android FLAG_SECURE protection.
+      // Save locally for immediate UI state, then persist the account preference.
       await settings.setStealthMode(enabled);
-      await SecurityService.setSafeMode(enabled);
-
-      // Keep the server-side privacy profile in sync with the local override.
-      await auth.updatePrivacySettings(
-        lastSeenVisibility: enabled ? 'nobody' : savedLastSeen,
-        profilePhotoVisibility: enabled ? 'nobody' : savedProfilePhoto,
-      );
+      await socket.updateStealthMode(enabled);
 
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(enabled
-              ? 'Stealth Mode enabled. Screen capture and previews are blocked.'
-              : 'Stealth Mode disabled. Your previous privacy settings are restored.'),
+              ? 'Stealth Mode enabled. Your chats are now protected on friends’ Novyn Android devices.'
+              : 'Stealth Mode disabled. Your chats can now be captured again.'),
           behavior: SnackBarBehavior.floating,
         ),
       );
     } catch (error) {
+      await settings.setStealthMode(previous);
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Could not fully apply Stealth Mode: $error'),
+          content: Text('Could not sync Stealth Mode: $error'),
           behavior: SnackBarBehavior.floating,
         ),
       );
