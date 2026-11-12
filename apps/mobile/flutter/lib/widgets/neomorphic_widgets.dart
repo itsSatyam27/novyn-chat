@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../theme/novyn_theme.dart';
+import 'package:novyn/services/haptic_service.dart';
 
 /// A custom neomorphic container that supports outer shadows (convex/extruded)
 /// and inner shadows (concave/sunken) without external library dependencies.
@@ -199,7 +200,7 @@ class _NeoButtonState extends State<NeoButton> {
 
   void _onPressDown() {
     if (widget.onTap != null) {
-      HapticFeedback.lightImpact();
+      HapticService.vibrate(NovynHapticType.light);
       setState(() => _isPressed = true);
     }
   }
