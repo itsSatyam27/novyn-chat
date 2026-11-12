@@ -10,7 +10,7 @@ on:
       - feature/real-media-storage-system
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build-apk:
@@ -82,6 +82,16 @@ jobs:
         working-directory: apps/mobile/flutter
         run: flutter build apk --release
 
+      - name: Publish direct APK download
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          APK="apps/mobile/flutter/build/app/outputs/flutter-apk/app-release.apk"
+          TAG="novyn-apk-${GITHUB_RUN_NUMBER}-${GITHUB_RUN_ATTEMPT}"
+          gh release create "$TAG" "$APK#Novyn Android APK" \
+            --title "Novyn Android APK - Build ${GITHUB_RUN_NUMBER}" \
+            --notes "Direct APK download. No ZIP extraction required."
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
