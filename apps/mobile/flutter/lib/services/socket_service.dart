@@ -372,9 +372,8 @@ class SocketService extends ChangeNotifier {
         if (!(notificationsMuted?.call() ?? false)) {
           unawaited(_playIncomingMessageSound());
         }
-        if (notificationsVibrate?.call() ?? false) {
-          unawaited(HapticFeedback.vibrate());
-        }
+        final vibrate = notificationsVibrate;
+        if (vibrate != null) unawaited(vibrate());
       }
 
       // Update conversations list preview
@@ -1193,7 +1192,7 @@ class SocketService extends ChangeNotifier {
   // ── Callback registrations ────────────────────────────────────────────────
   VoidCallback? onProfileUpdated;
   bool Function()? notificationsMuted;
-  bool Function()? notificationsVibrate;
+  Future<void> Function()? notificationsVibrate;
   String Function()? notificationTone;
   double Function()? messageSoundVolume;
   void Function(Map<String, dynamic>)? onProfileData;
