@@ -253,7 +253,7 @@ class ProfileInfoScreen extends StatelessWidget {
               const _SettingsDivider(),
             if (!chatProtected && onExportChat != null)
               _SettingsTile(icon: Icons.ios_share_rounded, title: 'Export chat',
-                subtitle: 'Copy a readable conversation transcript',
+                subtitle: 'Export as HTML or text file',
                 tint: const Color(0xFFE0F4ED), accent: const Color(0xFF168B61),
                 onTap: onExportChat!),
             if (chatProtected)
