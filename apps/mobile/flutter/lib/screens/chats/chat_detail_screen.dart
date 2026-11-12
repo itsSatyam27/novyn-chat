@@ -2057,7 +2057,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
       MaterialPageRoute(
         builder: (_) => ProfileInfoScreen(
           user: widget.peer,
-          chatProtected: context.read<SocketService>().activeChatCaptureProtected,
+          chatProtected: context.read<SocketService>().activeChatCaptureProtected ||
+              context.read<SettingsService>().stealthModeEnabled,
           onVoiceCall: () {
             Navigator.pop(context);
             _startCall('voice');
@@ -2136,6 +2137,12 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
             }
           },
           onExportChat: () async {
+            if (context.read<SettingsService>().stealthModeEnabled) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Chat export is disabled while Stealth Mode is on.')),
+              );
+              return;
+            }
             final format = await showModalBottomSheet<String>(
               context: context,
               backgroundColor: Theme.of(context).colorScheme.surface,
@@ -2171,6 +2178,13 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
               ),
             );
             if (format == null || !mounted) return;
+            // Re-check in case Stealth Mode was enabled while the format sheet was open.
+            if (context.read<SettingsService>().stealthModeEnabled) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Chat export is disabled while Stealth Mode is on.')),
+              );
+              return;
+            }
 
             final messages = context.read<SocketService>().messages;
             final title = 'Novyn chat with ${widget.peer.name}';
