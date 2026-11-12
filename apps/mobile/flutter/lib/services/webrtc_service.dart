@@ -86,9 +86,9 @@ class WebRTCService extends ChangeNotifier {
   Future<void> createPeerConnection(
     SocketService socket,
     String peerId,
-    bool isOffer,
+    bool isOffer, {
     required String callId,
-  ) async {
+  }) async {
     // Peer connection configuration with optimized settings
     final config = {
       'sdpSemantics': 'unified-plan',
