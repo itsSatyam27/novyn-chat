@@ -53,6 +53,11 @@ class _CallScreenState extends State<CallScreen>
   Timer? _callTimeoutTimer;
   late String _callId;
   bool _hasLoggedCall = false;
+  bool _mediaStarted = false;
+  bool _mediaInitializing = false;
+  String? _mediaError;
+
+  String get _peerId => widget.peer.uid.isNotEmpty ? widget.peer.uid : widget.peer.username;
 
   // Draggable PiP position
   Offset _pipPosition = const Offset(0, 0); // Will be set in initState
@@ -109,11 +114,31 @@ class _CallScreenState extends State<CallScreen>
   }
 
   Future<void> _initWebRTC() async {
-    await _webrtc.init();
-    await _webrtc.startLocalStream(video: _isVideo);
-    // Default to earpiece for calls
-    await _webrtc.setEarpieceMode();
-    if (mounted) setState(() {});
+    try {
+      await _webrtc.init();
+      await _webrtc.setEarpieceMode();
+      if (mounted) setState(() {});
+    } catch (error) {
+      if (mounted) setState(() => _mediaError = 'Call audio/video could not be initialized. Check device permissions.');
+    }
+  }
+
+  Future<void> _ensureLocalMedia() async {
+    if (_mediaStarted) return;
+    if (_mediaInitializing) {
+      while (_mediaInitializing) {
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+      }
+      if (_mediaStarted) return;
+    }
+    _mediaInitializing = true;
+    try {
+      await _webrtc.startLocalStream(video: _isVideo);
+      _mediaStarted = true;
+      _mediaError = null;
+    } finally {
+      _mediaInitializing = false;
+    }
   }
 
   void _playRingtone() async {
@@ -170,15 +195,22 @@ class _CallScreenState extends State<CallScreen>
 
       // Caller creates the offer
       if (!widget.isIncoming) {
-        await _webrtc.createPeerConnection(socket, widget.peer.uid, true, callId: _callId);
+        try {
+          await _ensureLocalMedia();
+          if (!mounted) return;
+          await _webrtc.createPeerConnection(socket, _peerId, true, callId: _callId);
+        } catch (_) {
+          socket.endCall(_peerId, callId: _callId, reason: 'Microphone or camera permission was denied.');
+          _handleCallEnded(logStatus: 'missed');
+        }
       }
     });
 
     // Incoming WebRTC offer → create peer connection as receiver
     socket.onWebRTCOffer = (data) async {
       if (!mounted) return;
-      await _webrtc.createPeerConnection(socket, widget.peer.uid, false, callId: _callId);
-      await _webrtc.handleOffer(Map<String, dynamic>.from(data), socket, widget.peer.uid, _callId);
+      await _webrtc.createPeerConnection(socket, _peerId, false, callId: _callId);
+      await _webrtc.handleOffer(Map<String, dynamic>.from(data), socket, _peerId, _callId);
       if (mounted) setState(() {});
     };
 
@@ -296,28 +328,33 @@ class _CallScreenState extends State<CallScreen>
   void _endCall() {
     HapticService.vibrate(NovynHapticType.medium, category: HapticCategory.calls);
     _stopRingtone();
-    context.read<SocketService>().endCall(
-      widget.peer.uid.isNotEmpty ? widget.peer.uid : widget.peer.username,
-      callId: _callId,
-    );
+    context.read<SocketService>().endCall(_peerId, callId: _callId);
     _handleCallEnded(
       logStatus: _state == CallState.connected ? 'outgoing' : 'missed',
     );
   }
 
-  void _acceptCall() {
+  Future<void> _acceptCall() async {
     HapticService.vibrate(NovynHapticType.medium, category: HapticCategory.calls);
-    _stopRingtone();
-    context.read<SocketService>().acceptCall(widget.callerId ?? widget.peer.uid, _callId);
-    setState(() => _state = CallState.connected);
-    _pulseCtrl.stop();
-    _startTimer();
+    try {
+      await _ensureLocalMedia();
+      if (!mounted) return;
+      _stopRingtone();
+      context.read<SocketService>().acceptCall(widget.callerId ?? _peerId, _callId);
+      setState(() => _state = CallState.connected);
+      _pulseCtrl.stop();
+      _startTimer();
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _mediaError = 'Microphone/camera permission is required to answer this call.');
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_mediaError!)));
+    }
   }
 
   void _rejectCall() {
     HapticService.vibrate(NovynHapticType.medium, category: HapticCategory.calls);
     _stopRingtone();
-    context.read<SocketService>().rejectCall(widget.callerId ?? widget.peer.uid, _callId);
+    context.read<SocketService>().rejectCall(widget.callerId ?? _peerId, _callId);
     _handleCallEnded(logStatus: 'missed');
   }
 
