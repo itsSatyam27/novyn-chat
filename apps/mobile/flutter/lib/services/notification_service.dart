@@ -23,6 +23,8 @@ class NotificationService {
   static const String _messageChannelId = 'novyn_messages';
   static const String _messageChannelName = 'Messages';
   static bool _localNotificationsReady = false;
+  static OverlayEntry? _inAppBannerEntry;
+  static Timer? _inAppBannerTimer;
   static AuthService? _presenceAuth;
   static SettingsService? _settings;
   static SocketService? _socket;
@@ -71,7 +73,7 @@ class NotificationService {
       BuildContext context) async {
     await _localNotifications.initialize(
       const InitializationSettings(
-        android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+        android: AndroidInitializationSettings('@drawable/novyn_wings_icon'),
         iOS: DarwinInitializationSettings(),
       ),
       onDidReceiveNotificationResponse: (response) {
@@ -106,68 +108,148 @@ class NotificationService {
         _presenceAuth?.user?.presenceMode == 'busy') {
       return;
     }
-    final preview = settings.messagePreview &&
-            messageBody != '🔒 Encrypted message'
-        ? messageBody
+
+    final preview = settings.messagePreview
+        ? messageBody.trim()
         : 'You have a new message';
     final title = 'New message from $username';
-    final busy = _presenceAuth?.user?.presenceMode == 'busy';
-    final soundEnabled = !busy && settings.inAppSounds;
-    final vibrationEnabled = !busy && settings.inAppVibration;
+    final soundEnabled = settings.inAppSounds;
+    final vibrationEnabled = settings.inAppVibration;
 
-    ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-      SnackBar(
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 4),
-        content: Row(
-          children: [
-            const Icon(Icons.chat_bubble_rounded, color: Colors.white, size: 19),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
-                  if (preview.isNotEmpty)
-                    Text(preview, maxLines: 1, overflow: TextOverflow.ellipsis),
-                ],
+    // Foreground messages use only this branded in-app banner. The operating
+    // system notification is reserved for background/terminated delivery.
+    _inAppBannerTimer?.cancel();
+    _inAppBannerEntry?.remove();
+    _inAppBannerEntry = null;
+
+    final overlay = Overlay.maybeOf(context, rootOverlay: true);
+    if (overlay != null) {
+      late final OverlayEntry entry;
+      entry = OverlayEntry(
+        builder: (overlayContext) {
+          final topInset = MediaQuery.paddingOf(overlayContext).top;
+          return Positioned(
+            top: topInset + 10,
+            left: 14,
+            right: 14,
+            child: TweenAnimationBuilder<Offset>(
+              tween: Tween<Offset>(
+                begin: const Offset(0, -1.15),
+                end: Offset.zero,
+              ),
+              duration: const Duration(milliseconds: 280),
+              curve: Curves.easeOutCubic,
+              builder: (context, offset, child) => FractionalTranslation(
+                translation: offset,
+                child: child,
+              ),
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(22),
+                  onTap: () {
+                    _inAppBannerTimer?.cancel();
+                    if (_inAppBannerEntry == entry) {
+                      entry.remove();
+                      _inAppBannerEntry = null;
+                    }
+                    unawaited(_openChatFromNotification(username, context));
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 14),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).brightness == Brightness.dark
+                          ? const Color(0xFF242238)
+                          : Colors.white,
+                      borderRadius: BorderRadius.circular(22),
+                      border: Border.all(
+                        color: Theme.of(context).colorScheme.primary
+                            .withValues(alpha: .16),
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: .14),
+                          blurRadius: 26,
+                          offset: const Offset(0, 10),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 42,
+                          height: 42,
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).colorScheme.primary
+                                .withValues(alpha: .12),
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: Icon(
+                            Icons.forum_rounded,
+                            color: Theme.of(context).colorScheme.primary,
+                            size: 21,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                title,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: Theme.of(context).colorScheme.onSurface,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                              const SizedBox(height: 3),
+                              Text(
+                                preview.isEmpty ? 'New message' : preview,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                  fontSize: 13,
+                                  height: 1.3,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Icon(
+                          Icons.arrow_forward_ios_rounded,
+                          size: 15,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               ),
             ),
-          ],
-        ),
-        action: SnackBarAction(
-          label: 'OPEN',
-          onPressed: () => unawaited(_openChatFromNotification(username, context)),
-        ),
-      ),
-    );
-
-    try {
-      await _localNotifications.show(
-        DateTime.now().millisecondsSinceEpoch.remainder(2147483647),
-        title,
-        preview,
-        NotificationDetails(
-          android: AndroidNotificationDetails(
-            _messageChannelId,
-            _messageChannelName,
-            channelDescription: 'New direct messages from your Novyn contacts',
-            importance: Importance.max,
-            priority: Priority.high,
-            playSound: soundEnabled,
-            enableVibration: vibrationEnabled,
-          ),
-          iOS: DarwinNotificationDetails(
-            presentAlert: true,
-            presentBadge: true,
-            presentSound: soundEnabled,
-          ),
-        ),
-        payload: username,
+          );
+        },
       );
-    } catch (_) {
-      // The in-app banner remains available if Android notification delivery fails.
+      _inAppBannerEntry = entry;
+      overlay.insert(entry);
+      _inAppBannerTimer = Timer(const Duration(seconds: 3), () {
+        if (_inAppBannerEntry == entry) {
+          entry.remove();
+          _inAppBannerEntry = null;
+        }
+      });
+    }
+
+    // Foreground notifications must not also create a system tray card.
+    // FCM handles tray notifications when the app is backgrounded/terminated.
+    if (soundEnabled && vibrationEnabled) {
+      // Both are independently handled by SocketService preferences.
     }
   }
 
@@ -403,6 +485,9 @@ class NotificationService {
       _socket!.onIncomingMessage = null;
       _socket!.onAuthenticated = null;
     }
+    _inAppBannerTimer?.cancel();
+    _inAppBannerEntry?.remove();
+    _inAppBannerEntry = null;
     _activeUsername = null;
     _lastRegisteredToken = null;
     _lastSyncedPreferences = null;
