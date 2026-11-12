@@ -76,6 +76,8 @@ class SocketService extends ChangeNotifier {
   bool _appForeground = true;
   String? _myUsername; // novyn-chat username (not Firebase UID)
   final AudioPlayer _audioPlayer = AudioPlayer();
+  final Map<String, String> _messageStatuses = {};
+  String messageStatusFor(String messageId) => _messageStatuses[messageId] ?? 'sent';
 
   // Reconnection state
   String? _serverUrl;
@@ -327,6 +329,17 @@ class SocketService extends ChangeNotifier {
 
         final account = _myUsername;
         if (account == null) return;
+        for (final raw in historyList) {
+          if (raw is! Map) continue;
+          final id = raw['id']?.toString() ?? raw['messageId']?.toString() ?? '';
+          if (id.isEmpty) continue;
+          final explicit = raw['status']?.toString().toLowerCase();
+          _messageStatuses[id] = raw['seenAt'] != null || explicit == 'seen'
+              ? 'seen'
+              : raw['deliveredAt'] != null || explicit == 'delivered'
+                  ? 'delivered'
+                  : 'sent';
+        }
         final decrypted = await Future.wait(
             parsed.map((message) => encryption.decrypt(message, account, _peerKeys[withUser.toLowerCase()])));
         if (_myUsername != account ||
@@ -392,6 +405,14 @@ class SocketService extends ChangeNotifier {
       final account = _myUsername;
       if (account == null) return;
       msg = await encryption.decrypt(msg, account, _peerKeys[chatPartner.toLowerCase()]);
+      if (isOwn) {
+        final explicit = data['status']?.toString().toLowerCase();
+        _messageStatuses[msgId] = data['seenAt'] != null || explicit == 'seen'
+            ? 'seen'
+            : data['deliveredAt'] != null || explicit == 'delivered'
+                ? 'delivered'
+                : 'sent';
+      }
       if (_myUsername != account) return;
 
       // Save to local DB
@@ -534,14 +555,19 @@ class SocketService extends ChangeNotifier {
     // ── Message status (delivered / seen) ──────────────────────────────────
     _socket!.on('message_status', (data) {
       if (data is! Map) return;
-      final msgId = data['id']?.toString() ?? '';
+      final msgId = data['id']?.toString() ?? data['messageId']?.toString() ?? '';
       if (msgId.isEmpty) return;
-      final idx = _messages.indexWhere((m) => m.id == msgId);
-      if (idx != -1) {
-        // We store status info as a flag in the message for now.
-        // A full implementation would carry a status field on Message.
-        notifyListeners();
-      }
+      final explicit = data['status']?.toString().toLowerCase();
+      final next = data['seenAt'] != null || explicit == 'seen' || explicit == 'read'
+          ? 'seen'
+          : data['deliveredAt'] != null || explicit == 'delivered'
+              ? 'delivered'
+              : null;
+      if (next == null) return;
+      final current = _messageStatuses[msgId] ?? 'sent';
+      if (current == 'seen' || (current == 'delivered' && next == 'delivered')) return;
+      _messageStatuses[msgId] = next;
+      notifyListeners();
     });
 
     // ── Edit / Unsend ─────────────────────────────────────────────────────
@@ -1010,6 +1036,7 @@ class SocketService extends ChangeNotifier {
       }
     }
 
+    _messageStatuses[clientTempId] = 'sending';
     final tempMsg = Message(
       id: clientTempId,
       chatId: toPeerUsername,
@@ -1537,7 +1564,13 @@ class SocketService extends ChangeNotifier {
         .clamp(0.0, 1.0)
         .toDouble();
     try {
-      await _audioPlayer.stop();
+      await _audioPlayer.setAudioContext(const AudioContext(
+        android: AudioContextAndroid(
+          audioFocus: AndroidAudioFocus.none,
+          usageType: AndroidUsageType.notification,
+          contentType: AndroidContentType.sonification,
+        ),
+      ));
       await _audioPlayer.setVolume(volume);
       if (volume > 0) await _audioPlayer.play(AssetSource(asset));
     } catch (_) {
@@ -1894,6 +1927,7 @@ class SocketService extends ChangeNotifier {
     _authenticationReady = null;
     onAuthenticated = null;
     _peerKeys.clear();
+    _messageStatuses.clear();
     _blockedUsers.clear();
     _conversations = [];
     _messages = [];
