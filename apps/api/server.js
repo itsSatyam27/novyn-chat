@@ -5995,7 +5995,7 @@ io.on("connection", (socket) => {
     socket.emit("password_changed", { hasPassword: true });
   });
 
-  socket.on("delete_account", (payload) => {
+  socket.on("delete_account", async (payload) => {
     const userKey = socket.data.userKey;
     if (!userKey) return;
     const user = users.get(userKey);
@@ -6006,18 +6006,43 @@ io.on("connection", (socket) => {
 
     const currentPassword = toDisplayName(payload?.currentPassword || payload?.password);
     const confirmationText = toDisplayName(payload?.confirmationText || payload?.confirm);
+    const isHandleMatch =
+      confirmationText.toLowerCase() === `@${user.username}`.toLowerCase() ||
+      confirmationText.toLowerCase() === user.username.toLowerCase();
     const hasExistingPassword = Boolean(user.passwordHash && user.passwordSalt);
 
-    if (hasExistingPassword) {
-      if (!currentPassword || !verifyPassword(currentPassword, user.passwordSalt, user.passwordHash)) {
-        socket.emit("account_deletion_failed", { message: "Incorrect password." });
+    // Always require the explicit handle confirmation. A client-supplied
+    // "confirmed" flag must never bypass this server-side check.
+    if (!isHandleMatch) {
+      socket.emit("account_deletion_failed", {
+        message: `Please type @${user.username} to confirm account deletion.`,
+      });
+      return;
+    }
+    if (hasExistingPassword &&
+        (!currentPassword || !verifyPassword(currentPassword, user.passwordSalt, user.passwordHash))) {
+      socket.emit("account_deletion_failed", { message: "Incorrect password." });
+      return;
+    }
+
+    // Remove the linked Google identity too, otherwise the same Firebase
+    // account could sign in again and recreate a deleted Novyn account.
+    if (user.googleUid) {
+      if (!firebaseAdmin) {
+        socket.emit("account_deletion_failed", {
+          message: "Google identity deletion is unavailable right now. Please try again later.",
+        });
         return;
       }
-    } else {
-      const isHandleMatch = confirmationText === `@${user.username}` || confirmationText === user.username;
-      if (confirmationText !== "DELETE" && !isHandleMatch && !payload?.confirmed) {
-        socket.emit("account_deletion_failed", { message: `Please type @${user.username} to confirm account deletion.` });
-        return;
+      try {
+        await firebaseAdmin.auth().deleteUser(user.googleUid);
+      } catch (error) {
+        if (error?.code !== "auth/user-not-found") {
+          socket.emit("account_deletion_failed", {
+            message: "Could not remove the linked Google identity. Your account was not deleted.",
+          });
+          return;
+        }
       }
     }
 
@@ -6054,25 +6079,52 @@ io.on("connection", (socket) => {
     });
 
     for (const [groupId, group] of groups.entries()) {
-      if (group.members instanceof Set && group.members.has(userKey)) {
-        group.members.delete(userKey);
-        if (group.admins instanceof Set) group.admins.delete(userKey);
-        if (group.ownerKey === userKey) {
-          const nextOwner = [...(group.admins || [])][0] || [...(group.members || [])][0];
-          if (nextOwner) {
-            group.ownerKey = nextOwner;
-            if (group.admins instanceof Set) group.admins.add(nextOwner);
-          } else {
-            groups.delete(groupId);
-          }
+      if (!(group.members instanceof Set) || !group.members.has(userKey)) continue;
+      group.members.delete(userKey);
+      if (group.admins instanceof Set) group.admins.delete(userKey);
+      if (group.ownerKey === userKey) {
+        const nextOwner = [...(group.admins || [])][0] || [...(group.members || [])][0];
+        if (nextOwner) {
+          group.ownerKey = nextOwner;
+          if (group.admins instanceof Set) group.admins.add(nextOwner);
+        } else {
+          groups.delete(groupId);
+          conversations.delete(getGroupConversationKey(groupId));
+          continue;
         }
-        group.updatedAt = nowIso();
+      }
+      group.updatedAt = nowIso();
+      for (const memberKey of group.members) {
+        impacted.add(memberKey);
+        emitGroupInfoToMember(memberKey, group);
       }
     }
 
-    for (const [sId, scheduled] of scheduledMessages.entries()) {
+    // Delete private conversation histories involving this account. For
+    // surviving groups, remove messages authored by the deleted account while
+    // retaining the rest of the group's shared history.
+    for (const [conversationKey, history] of conversations.entries()) {
+      if (!isGroupConversationKey(conversationKey) &&
+          conversationKey.split("::").includes(userKey)) {
+        conversations.delete(conversationKey);
+        continue;
+      }
+      if (isGroupConversationKey(conversationKey) && Array.isArray(history)) {
+        const retained = history.filter((message) =>
+          normalizeName(message?.fromKey || message?.from || "") !== userKey
+        );
+        if (retained.length !== history.length) {
+          conversations.set(conversationKey, retained);
+        }
+      }
+    }
+
+    for (const [scheduledId, scheduled] of scheduledMessages.entries()) {
       if (scheduled.fromKey === userKey || scheduled.toKey === userKey) {
-        scheduledMessages.delete(sId);
+        const timer = scheduledMessageTimers.get(scheduledId);
+        if (timer) clearTimeout(timer);
+        scheduledMessageTimers.delete(scheduledId);
+        scheduledMessages.delete(scheduledId);
       }
     }
 
