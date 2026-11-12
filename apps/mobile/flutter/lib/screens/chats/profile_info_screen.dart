@@ -16,6 +16,7 @@ class ProfileInfoScreen extends StatelessWidget {
   final VoidCallback? onClearChat;
   final VoidCallback? onRemoveFriend;
   final VoidCallback? onExportChat;
+  final bool chatProtected;
 
   const ProfileInfoScreen({
     super.key,
@@ -30,6 +31,7 @@ class ProfileInfoScreen extends StatelessWidget {
     this.onClearChat,
     this.onRemoveFriend,
     this.onExportChat,
+    this.chatProtected = false,
   });
 
   @override
@@ -209,9 +211,15 @@ class ProfileInfoScreen extends StatelessWidget {
           _InfoCard(
             child: Column(
               children: [
-                if (onExportChat != null)
-                  _NavigationRow(icon: Icons.ios_share_rounded, title: 'Export chat', subtitle: 'Copy a readable conversation transcript', onTap: onExportChat!),
-                if (onExportChat != null && onClearChat != null) Divider(height: 16, color: scheme.outlineVariant.withValues(alpha: .6)),
+                if (chatProtected)
+                  _NavigationRow(icon: Icons.shield_rounded, title: 'Chat export disabled', subtitle: 'This contact enabled Stealth Mode', onTap: () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Export is disabled because this contact enabled Stealth Mode.')),
+                    );
+                  }),
+                if (!chatProtected && onExportChat != null)
+                  _NavigationRow(icon: Icons.ios_share_rounded, title: 'Export chat', subtitle: 'Save this conversation as a file', onTap: onExportChat!),
+                if ((chatProtected || onExportChat != null) && onClearChat != null) Divider(height: 16, color: scheme.outlineVariant.withValues(alpha: .6)),
                 if (onClearChat != null)
                   _NavigationRow(icon: Icons.delete_sweep_outlined, title: 'Clear chat history', subtitle: 'Remove messages from this conversation', onTap: () => _confirmContactAction(context, 'Clear chat history?', 'This clears the conversation history from your account and cannot be undone.', 'Clear', onClearChat!)),
                 if (onClearChat != null && onRemoveFriend != null) Divider(height: 16, color: scheme.outlineVariant.withValues(alpha: .6)),
