@@ -13,6 +13,7 @@ import '../../widgets/novyn_ui.dart';
 import '../../widgets/novyn_empty_state.dart';
 import '../../widgets/profile_preview_sheet.dart';
 import '../people/discover_people_screen.dart';
+import 'package:novyn/services/haptic_service.dart';
 
 class DiscoverScreen extends StatefulWidget {
   const DiscoverScreen({super.key});
@@ -244,7 +245,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                                   pendingUids.contains(user.uid);
                               return GestureDetector(
                                 onTap: () {
-                                  HapticFeedback.lightImpact();
+                                  HapticService.vibrate(NovynHapticType.light, category: HapticCategory.navigation);
                                   showModalBottomSheet(
                                     context: context,
                                     isScrollControlled: true,
