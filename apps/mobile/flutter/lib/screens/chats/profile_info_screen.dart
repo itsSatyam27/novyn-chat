@@ -10,6 +10,7 @@ class ProfileInfoScreen extends StatelessWidget {
   final VoidCallback? onVideoCall;
   final VoidCallback? onSharedMedia;
   final VoidCallback? onWallpaper;
+  final VoidCallback? onQuickEmojis;
   final bool initiallyBlocked;
   final VoidCallback? onMute;
   final VoidCallback? onBlock;
@@ -25,6 +26,7 @@ class ProfileInfoScreen extends StatelessWidget {
     this.onVideoCall,
     this.onSharedMedia,
     this.onWallpaper,
+    this.onQuickEmojis,
     this.initiallyBlocked = false,
     this.onMute,
     this.onBlock,
@@ -175,7 +177,7 @@ class ProfileInfoScreen extends StatelessWidget {
               ],
             ),
           ),
-          if (onSharedMedia != null || onWallpaper != null) ...[
+          if (onSharedMedia != null || onWallpaper != null || onQuickEmojis != null) ...[
             const SizedBox(height: 18),
             _SectionTitle(title: 'CHAT'),
             _InfoCard(
@@ -187,6 +189,10 @@ class ProfileInfoScreen extends StatelessWidget {
                     Divider(height: 18, color: scheme.outlineVariant.withValues(alpha: .6)),
                   if (onWallpaper != null)
                     _NavigationRow(icon: Icons.wallpaper_rounded, title: 'Chat wallpaper', subtitle: 'Personalise this conversation', onTap: onWallpaper!),
+                  if (onWallpaper != null && onQuickEmojis != null)
+                    Divider(height: 18, color: scheme.outlineVariant.withValues(alpha: .6)),
+                  if (onQuickEmojis != null)
+                    _NavigationRow(icon: Icons.emoji_emotions_outlined, title: 'Quick emojis', subtitle: 'Choose emojis for faster messaging', onTap: onQuickEmojis!),
                 ],
               ),
             ),
