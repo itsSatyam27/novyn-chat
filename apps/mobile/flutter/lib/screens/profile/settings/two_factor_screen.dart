@@ -22,6 +22,7 @@ class _TwoFactorScreenState extends State<TwoFactorScreen> {
   String? _setupToken;
   String? _secret;
   String? _otpauthUri;
+  bool _reuseExistingSecret = false;
   List<String> _backupCodes = const [];
 
   @override
@@ -52,13 +53,22 @@ class _TwoFactorScreenState extends State<TwoFactorScreen> {
     setState(() { _working = true; _error = null; });
     final result = await ApiService.beginTwoFactorSetup();
     if (!mounted) return;
-    if (result['setupToken'] is String &&
+    if (result['setupToken'] is String && result['reuseExisting'] == true) {
+      setState(() {
+        _setupToken = result['setupToken'].toString();
+        _secret = null;
+        _otpauthUri = null;
+        _reuseExistingSecret = true;
+        _working = false;
+      });
+    } else if (result['setupToken'] is String &&
         result['secret'] is String &&
         result['otpauthUri'] is String) {
       setState(() {
         _setupToken = result['setupToken'].toString();
         _secret = result['secret'].toString();
         _otpauthUri = result['otpauthUri'].toString();
+        _reuseExistingSecret = false;
         _working = false;
       });
     } else {
@@ -91,9 +101,11 @@ class _TwoFactorScreenState extends State<TwoFactorScreen> {
       barrierDismissible: false,
       builder: (dialogContext) => StatefulBuilder(
         builder: (dialogContext, setDialogState) => AlertDialog(
-          title: const Text('Verify authenticator'),
+          title: Text(_reuseExistingSecret ? 'Re-enable two-factor authentication' : 'Verify authenticator'),
           content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Text('Enter the current 6-digit code shown in your authenticator app.'),
+            Text(_reuseExistingSecret
+                ? 'Your existing authenticator is still linked. Enter its current 6-digit code to turn protection back on.'
+                : 'Enter the current 6-digit code shown in your authenticator app.'),
             const SizedBox(height: 14),
             TextField(
               controller: codeController,
@@ -138,7 +150,7 @@ class _TwoFactorScreenState extends State<TwoFactorScreen> {
               },
               child: submitting
                   ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Text('Verify & enable'),
+                  : Text(_reuseExistingSecret ? 'Verify & re-enable' : 'Verify & enable'),
             ),
           ],
         ),
@@ -154,6 +166,7 @@ class _TwoFactorScreenState extends State<TwoFactorScreen> {
       _setupToken = null;
       _secret = null;
       _otpauthUri = null;
+      _reuseExistingSecret = false;
     });
     await _showBackupCodes();
   }
@@ -269,7 +282,7 @@ class _TwoFactorScreenState extends State<TwoFactorScreen> {
     passwordController.dispose();
     codeController.dispose();
     if (result == true && mounted) {
-      setState(() { _enabled = false; _backupCount = 0; });
+      setState(() { _enabled = false; _backupCount = 0; _setupToken = null; _reuseExistingSecret = false; });
     }
   }
 
@@ -391,6 +404,27 @@ class _TwoFactorScreenState extends State<TwoFactorScreen> {
                           label: const Text('Disable two-factor authentication'),
                           style: OutlinedButton.styleFrom(foregroundColor: theme.colorScheme.error, side: BorderSide(color: theme.colorScheme.error.withValues(alpha: .45)), padding: const EdgeInsets.symmetric(vertical: 14), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))),
                         ),
+                      ] else if (_setupToken != null && _reuseExistingSecret) ...[
+                        infoCard(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          Row(children: [
+                            Icon(Icons.verified_user_rounded, color: accent),
+                            const SizedBox(width: 9),
+                            Expanded(child: Text('Reuse your existing authenticator', style: TextStyle(color: ink, fontSize: 15, fontWeight: FontWeight.w800))),
+                          ]),
+                          const SizedBox(height: 10),
+                          Text('No new QR code or setup key is needed. Your previously linked authenticator will work as before.', style: TextStyle(color: muted, height: 1.5, fontSize: 13)),
+                          const SizedBox(height: 16),
+                          SizedBox(width: double.infinity, child: FilledButton.icon(
+                            onPressed: _working ? null : _confirmSetup,
+                            icon: const Icon(Icons.lock_reset_rounded),
+                            label: const Text('Re-enable with existing authenticator'),
+                            style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))),
+                          )),
+                          TextButton(
+                            onPressed: _working ? null : () => setState(() { _setupToken = null; _reuseExistingSecret = false; }),
+                            child: const Text('Cancel'),
+                          ),
+                        ])),
                       ] else if (_setupToken == null) ...[
                         infoCard(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                           Row(children: [

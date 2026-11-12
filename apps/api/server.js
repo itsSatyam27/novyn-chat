@@ -4589,12 +4589,26 @@ app.post("/api/auth/2fa/setup", requireUser, requireCsrf, (req, res) => {
   if (user.twoFactorEnabled) {
     return res.status(409).json({ message: "Two-factor authentication is already enabled." });
   }
-  const secret = generateBase32Secret();
+  // Keep the encrypted authenticator secret when 2FA is temporarily disabled.
+  // Re-enabling can then verify the same authenticator without exposing its secret.
+  let existingSecret = "";
+  if (user.twoFactorSecret) {
+    try {
+      existingSecret = toDisplayName(decryptTotpSecret(user.twoFactorSecret));
+    } catch (_) {
+      existingSecret = "";
+    }
+  }
+  const reuseExisting = Boolean(existingSecret);
+  const secret = reuseExisting ? existingSecret : generateBase32Secret();
   const setupToken = createAuthToken("2fa_setup", req.userKey, 10 * 60 * 1000, { secret });
+  if (reuseExisting) {
+    return res.json({ reuseExisting: true, setupToken });
+  }
   const issuer = "Novyn";
   const label = encodeURIComponent(`${issuer}:${user.email || user.username}`);
   const otpauthUri = `otpauth://totp/${label}?secret=${secret}&issuer=${encodeURIComponent(issuer)}&algorithm=SHA1&digits=6&period=30`;
-  res.json({ secret, setupToken, otpauthUri });
+  res.json({ reuseExisting: false, secret, setupToken, otpauthUri });
 });
 
 app.post("/api/auth/2fa/enable", requireUser, requireCsrf, (req, res) => {
@@ -4636,7 +4650,9 @@ app.post("/api/auth/2fa/disable", requireUser, requireCsrf, (req, res) => {
   }
 
   user.twoFactorEnabled = false;
-  user.twoFactorSecret = "";
+  // Retain the encrypted authenticator secret so the same authenticator can
+  // be reused if the account owner enables 2FA again. Backup codes are one-time
+  // credentials and are invalidated whenever 2FA is disabled.
   user.twoFactorBackupCodes = [];
   schedulePersist();
   res.json({ enabled: false, backupCodesCount: 0 });
