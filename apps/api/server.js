@@ -2062,35 +2062,60 @@ async function sendPushToUser(userKey, payload) {
     try {
       const token = toDisplayName(user.fcmToken);
       if (token) {
+        const isEncryptedDirectMessage =
+          safePayload.type === "message" &&
+          safePayload.group !== true &&
+          typeof safePayload.ciphertext === "string" &&
+          typeof safePayload.iv === "string" &&
+          typeof safePayload.senderPublicKey === "string";
+        // Encrypted direct messages use data-only delivery. The recipient app
+        // decrypts locally and creates the visible notification; plaintext
+        // never passes through FCM or this server.
+        const data = {
+          type: toDisplayName(safePayload.type) || "message",
+          url: toDisplayName(safePayload.url),
+          tag: toDisplayName(safePayload.tag),
+          chat: toDisplayName(payload?.group === true ? payload?.groupId : payload?.chat) || "",
+          kind: payload?.group === true ? "group" : "friend",
+        };
+        if (isEncryptedDirectMessage) {
+          data.title = toDisplayName(safePayload.title) || "Novyn";
+          data.ciphertext = safePayload.ciphertext;
+          data.iv = safePayload.iv;
+          data.senderPublicKey = safePayload.senderPublicKey;
+          data.messageId = toDisplayName(safePayload.messageId);
+          data.previewEnabled = previewEnabled ? "1" : "0";
+        }
         const message = {
           token,
-          notification: {
-            title: toDisplayName(safePayload.title) || "Novyn",
-            body: toDisplayName(safePayload.body) || "You have a new message",
-          },
-          data: {
-            type: toDisplayName(safePayload.type) || "message",
-            url: toDisplayName(safePayload.url),
-            tag: toDisplayName(safePayload.tag),
-            chat: toDisplayName(payload?.group === true ? payload?.groupId : payload?.chat) || "",
-            kind: payload?.group === true ? "group" : "friend",
-          },
+          ...(!isEncryptedDirectMessage ? {
+            notification: {
+              title: toDisplayName(safePayload.title) || "Novyn",
+              body: toDisplayName(safePayload.body) || "You have a new message",
+            },
+          } : {}),
+          data,
           android: {
             priority: safePayload.silent ? "normal" : "high",
-            notification: {
-              tag: toDisplayName(safePayload.tag) || undefined,
-              ...(safePayload.silent ? {} : { sound: "default" }),
-            },
-          },
-          apns: {
-            payload: {
-              aps: {
-                alert: {
-                  title: toDisplayName(safePayload.title) || "Novyn",
-                  body: toDisplayName(safePayload.body) || "You have a new message",
-                },
+            ...(!isEncryptedDirectMessage ? {
+              notification: {
+                tag: toDisplayName(safePayload.tag) || undefined,
                 ...(safePayload.silent ? {} : { sound: "default" }),
               },
+            } : {}),
+          },
+          apns: {
+            headers: isEncryptedDirectMessage ? { "apns-push-type": "background", "apns-priority": "5" } : undefined,
+            payload: {
+              aps: isEncryptedDirectMessage
+                ? { "content-available": 1 }
+                : {
+                    alert: {
+                      title: toDisplayName(safePayload.title) || "Novyn",
+                      body: toDisplayName(safePayload.body) || "You have a new message",
+                    },
+                    ...(safePayload.silent ? {} : { sound: "default" }),
+                  },
             },
           },
         };
@@ -3146,6 +3171,12 @@ function deliverFriendMessage(params = {}) {
       type: "message",
       title: `New message from ${me.username}`,
       body: bodyText,
+      ...(params.isEncrypted === true ? {
+        ciphertext: params.ciphertext,
+        iv: params.iv,
+        senderPublicKey: me.publicKey || "",
+        messageId: message.id || message.messageId || "",
+      } : {}),
       tag: `msg-${fromKey}`,
       chat: me.username,
       url: `/?source=push&chat=${encodeURIComponent(me.username)}`,
