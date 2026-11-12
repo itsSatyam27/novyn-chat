@@ -2945,13 +2945,12 @@ class _MessageBubble extends StatelessWidget {
           ),
         );
       case 'failed':
-        return Container(
-          width: 22,
-          height: 22,
-          decoration: const BoxDecoration(
-            color: Color(0xFFD71935), shape: BoxShape.circle,
+        return const SizedBox(
+          width: 20,
+          height: 20,
+          child: CustomPaint(
+            painter: _SendingStatusPainter(color: Color(0xFFD71935)),
           ),
-          child: const Icon(Icons.close_rounded, color: Colors.white, size: 16),
         );
       default:
         return const _StatusDot(color: muted);
@@ -2973,11 +2972,13 @@ class _StatusDot extends StatelessWidget {
 }
 
 class _SendingStatusPainter extends CustomPainter {
-  const _SendingStatusPainter();
+  final Color color;
+
+  const _SendingStatusPainter({this.color = const Color(0xFF625C83)});
 
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()..color = const Color(0xFF625C83)..style = PaintingStyle.fill;
+    final paint = Paint()..color = color..style = PaintingStyle.fill;
     final center = Offset(size.width / 2, size.height / 2);
     const count = 8;
     for (var i = 0; i < count; i++) {
@@ -2987,14 +2988,15 @@ class _SendingStatusPainter extends CustomPainter {
       canvas.drawCircle(
         Offset(center.dx + radius * math.cos(angle), center.dy + radius * math.sin(angle)),
         dotRadius,
-        paint..color = Color(0xFF625C83).withValues(alpha: .42 + (i / count) * .58),
+        paint..color = color.withValues(alpha: .42 + (i / count) * .58),
       );
     }
-    canvas.drawCircle(center, 2.5, paint..color = const Color(0xFF625C83));
+    canvas.drawCircle(center, 2.5, paint..color = color);
   }
 
   @override
-  bool shouldRepaint(covariant _SendingStatusPainter oldDelegate) => false;
+  bool shouldRepaint(covariant _SendingStatusPainter oldDelegate) =>
+      oldDelegate.color != color;
 }
 
 // ── Contact Info Sheet ─────────────────────────────────────────────────────
