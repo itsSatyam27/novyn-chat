@@ -102,8 +102,10 @@ class NotificationService {
     if (!context.mounted || settings == null || !settings.notificationsOn) {
       return;
     }
-    final preview =
-        settings.messagePreview ? messageBody : 'You have a new message';
+    final preview = settings.messagePreview &&
+            messageBody != '🔒 Encrypted message'
+        ? messageBody
+        : 'You have a new message';
     final title = 'New message from $username';
     final busy = _presenceAuth?.user?.presenceMode == 'busy';
     final soundEnabled = !busy && settings.inAppSounds;
@@ -311,6 +313,14 @@ class NotificationService {
     final initial = await _fcm.getInitialMessage();
     if (initial != null && context.mounted) {
       unawaited(_handleNotificationTap(initial, context));
+    }
+    final localLaunch = await _localNotifications.getNotificationAppLaunchDetails();
+    final localUsername =
+        localLaunch?.notificationResponse?.payload?.trim() ?? '';
+    if (localLaunch?.didNotificationLaunchApp == true &&
+        localUsername.isNotEmpty &&
+        context.mounted) {
+      unawaited(_openChatFromNotification(localUsername, context));
     }
   }
 
