@@ -241,6 +241,7 @@ class _CallScreenState extends State<CallScreen>
   }
 
   void _startTimer() {
+    _timer?.cancel();
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
       _seconds.value++;
     });
@@ -384,11 +385,17 @@ class _CallScreenState extends State<CallScreen>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: _isVideo && _state == CallState.connected
-          ? _buildVideoCall()
-          : _buildVoiceCall(),
+    return PopScope<void>(
+      canPop: _state == CallState.ended,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop && _state != CallState.ended) _endCall();
+      },
+      child: Scaffold(
+        backgroundColor: Colors.black,
+        body: _isVideo && _state == CallState.connected
+            ? _buildVideoCall()
+            : _buildVoiceCall(),
+      ),
     );
   }
 
@@ -533,8 +540,8 @@ class _CallScreenState extends State<CallScreen>
               child: Row(
                 children: [
                   IconButton(
-                    icon: const Icon(Icons.arrow_back_ios_rounded,
-                        color: Colors.white),
+                    icon: const Icon(Icons.call_end_rounded,
+                        color: Color(0xFFEF4444)), 
                     onPressed: _endCall,
                   ),
                   Expanded(
@@ -678,8 +685,8 @@ class _CallScreenState extends State<CallScreen>
               child: Row(
                 children: [
                   IconButton(
-                    icon: const Icon(Icons.keyboard_arrow_down_rounded,
-                        color: Colors.white70, size: 32),
+                    icon: const Icon(Icons.call_end_rounded,
+                        color: Color(0xFFEF4444), size: 26),
                     onPressed: _endCall,
                   ),
                   Expanded(
