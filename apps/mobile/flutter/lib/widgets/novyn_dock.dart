@@ -2,6 +2,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:novyn/services/haptic_service.dart';
 
 /// Persistent bottom navigation. Its outer footprint stays constant across
 /// styles so changing a dock never shifts the page or causes a size jump.
@@ -190,7 +191,7 @@ class NovynDock extends StatelessWidget {
                       onTap: active
                           ? null
                           : () {
-                              HapticFeedback.selectionClick();
+                              HapticService.vibrate(NovynHapticType.selection, category: HapticCategory.navigation);
                               onSelected(index);
                             },
                       child: Center(
