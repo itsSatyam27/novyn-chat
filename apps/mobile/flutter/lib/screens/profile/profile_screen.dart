@@ -73,18 +73,20 @@ class ProfileScreen extends StatelessWidget {
                   children: [
                     Expanded(
                       child: _SettingsQuickToggle(
-                        icon: Icons.dark_mode_outlined,
-                        label: 'Dark mode',
+                        activeIcon: Icons.dark_mode_rounded,
+                        inactiveIcon: Icons.light_mode_rounded,
                         value: isDark,
+                        accent: const Color(0xFF8170E8),
                         onChanged: (value) => settings.setThemeMode(value ? ThemeMode.dark : ThemeMode.light),
                       ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: _SettingsQuickToggle(
-                        icon: Icons.notifications_none_rounded,
-                        label: 'Alerts',
+                        activeIcon: Icons.notifications_active_rounded,
+                        inactiveIcon: Icons.notifications_off_rounded,
                         value: settings.notificationsOn,
+                        accent: const Color(0xFF159C91),
                         onChanged: settings.setNotifications,
                       ),
                     ),
@@ -1615,25 +1617,23 @@ class _NovynSettingsProfileCard extends StatelessWidget {
 
 class _SettingsQuickToggle extends StatelessWidget {
   const _SettingsQuickToggle({
-    required this.icon,
-    required this.label,
+    required this.activeIcon,
+    required this.inactiveIcon,
     required this.value,
+    required this.accent,
     required this.onChanged,
   });
 
-  final IconData icon;
-  final String label;
+  final IconData activeIcon;
+  final IconData inactiveIcon;
   final bool value;
+  final Color accent;
   final ValueChanged<bool> onChanged;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final dark = Theme.of(context).brightness == Brightness.dark;
-    final accent = label == 'Dark mode'
-        ? const Color(0xFF8170E8)
-        : const Color(0xFF159C91);
-    final stateText = value ? 'On' : 'Off';
 
     return Material(
       color: NovynTheme.cardBg(context),
@@ -1642,8 +1642,8 @@ class _SettingsQuickToggle extends StatelessWidget {
         borderRadius: BorderRadius.circular(18),
         onTap: () => onChanged(!value),
         child: Container(
-          constraints: const BoxConstraints(minHeight: 82),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          constraints: const BoxConstraints(minHeight: 72),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(18),
             border: Border.all(
@@ -1653,49 +1653,31 @@ class _SettingsQuickToggle extends StatelessWidget {
             ),
           ),
           child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Container(
-                width: 42,
-                height: 42,
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                width: 44,
+                height: 44,
                 decoration: BoxDecoration(
-                  color: accent.withValues(alpha: dark ? .20 : .11),
+                  color: accent.withValues(alpha: value ? (dark ? .24 : .14) : .08),
                   borderRadius: BorderRadius.circular(14),
                 ),
-                child: Icon(icon, size: 21, color: accent),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      label,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: NovynText.body(
-                        13,
-                        weight: FontWeight.w800,
-                        color: scheme.onSurface,
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 160),
-                      child: Text(
-                        stateText,
-                        key: ValueKey(value),
-                        style: NovynText.body(
-                          11,
-                          weight: FontWeight.w700,
-                          color: value ? accent : scheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ),
-                  ],
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 180),
+                  transitionBuilder: (child, animation) => ScaleTransition(
+                    scale: animation,
+                    child: FadeTransition(opacity: animation, child: child),
+                  ),
+                  child: Icon(
+                    value ? activeIcon : inactiveIcon,
+                    key: ValueKey(value),
+                    size: 22,
+                    color: value ? accent : scheme.onSurfaceVariant,
+                  ),
                 ),
               ),
-              const SizedBox(width: 4),
+              const SizedBox(width: 8),
               Transform.scale(
                 scale: .88,
                 alignment: Alignment.centerRight,
