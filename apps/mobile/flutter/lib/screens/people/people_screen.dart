@@ -58,12 +58,9 @@ class _PeopleScreenState extends State<PeopleScreen> {
                 ),
               ],
             ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-              child: NovynSearchField(
-                hint: 'Search friends...',
-                onChanged: (value) => setState(() => _search = value.trim().toLowerCase()),
-              ),
+            NovynSearchField(
+              hint: 'Search contacts by name or username...',
+              onChanged: (value) => setState(() => _search = value.trim().toLowerCase()),
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
@@ -100,11 +97,42 @@ class _PeopleScreenState extends State<PeopleScreen> {
                   }
                   return ListView.builder(
                     controller: _scrollController,
-                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
-                    itemCount: filtered.length + 1,
-                    itemBuilder: (context, i) => i == filtered.length
-                        ? _buildInviteCard(context, myUid)
-                        : _FriendCard(user: filtered[i], myUid: myUid, friendService: friends),
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 112),
+                    itemCount: filtered.length + 2,
+                    itemBuilder: (context, i) {
+                      if (i == 0) {
+                        return Padding(
+                          padding: const EdgeInsets.fromLTRB(4, 4, 4, 10),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: NovynSectionLabel(
+                                  _search.isEmpty ? 'ALL CONTACTS' : 'SEARCH RESULTS',
+                                  padding: EdgeInsets.zero,
+                                ),
+                              ),
+                              Text(
+                                '${filtered.length}',
+                                style: TextStyle(
+                                  fontFamily: 'PlusJakartaSans',
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }
+                      if (i == filtered.length + 1) {
+                        return _buildInviteCard(context, myUid);
+                      }
+                      return _FriendCard(
+                        user: filtered[i - 1],
+                        myUid: myUid,
+                        friendService: friends,
+                      );
+                    },
                   );
                 },
               ),
@@ -163,21 +191,48 @@ class _PeopleScreenState extends State<PeopleScreen> {
   }
 
   Widget _filterChip(String label, bool selected, VoidCallback onTap) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(22),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
-        decoration: BoxDecoration(
-          color: selected ? const Color(0xFF6554F5) : Theme.of(context).colorScheme.surface,
-          borderRadius: BorderRadius.circular(22),
-          border: Border.all(color: selected ? const Color(0xFF6554F5) : Theme.of(context).colorScheme.outlineVariant),
+    final theme = Theme.of(context);
+    final accent = theme.colorScheme.primary;
+    final dark = theme.brightness == Brightness.dark;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(22),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+          decoration: BoxDecoration(
+            gradient: selected ? NovynGradients.selected(context) : null,
+            color: selected
+                ? null
+                : (dark ? const Color(0xFF171622) : Colors.white),
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(
+              color: selected
+                  ? accent.withValues(alpha: .7)
+                  : theme.colorScheme.outlineVariant.withValues(alpha: .7),
+            ),
+            boxShadow: selected
+                ? [
+                    BoxShadow(
+                      color: accent.withValues(alpha: .22),
+                      blurRadius: 14,
+                      offset: const Offset(0, 5),
+                    ),
+                  ]
+                : null,
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontFamily: 'PlusJakartaSans',
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: selected ? Colors.white : theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
         ),
-        child: Text(label, style: TextStyle(
-          fontFamily: 'PlusJakartaSans', fontSize: 12, fontWeight: FontWeight.w700,
-          color: selected ? Colors.white : Theme.of(context).colorScheme.onSurface,
-        )),
       ),
     );
   }
@@ -204,78 +259,116 @@ class _FriendCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () => _openChat(context),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surface,
-          borderRadius: BorderRadius.circular(22),
-          border: Border.all(color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: .65)),
-        ),
-        child: Row(
-          children: [
-            UserAvatar(
-              name: user.name,
-              photoUrl: user.photoUrl,
-              radius: 27,
-              showOnlineIndicator: true,
-              isOnline: user.isOnline,
-              presence: user.status,
-            ),
-            const SizedBox(width: 13),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    user.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: NovynText.body(15, weight: FontWeight.w700),
-                  ),
-                  const SizedBox(height: 3),
-                  Text(
-                    '@${user.username}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: NovynText.body(12, color: NovynColors.textMuted),
-                  ),
-                  const SizedBox(height: 5),
-                  Row(
-                    children: [
-                      Container(
-                        width: 6,
-                        height: 6,
-                        decoration: BoxDecoration(
-                          color: user.isOnline ? NovynColors.mint : NovynColors.offline,
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        user.isOnline ? 'Online' : 'Offline',
-                        style: NovynText.body(
-                          11,
-                          weight: FontWeight.w600,
-                          color: user.isOnline ? NovynColors.mint : NovynColors.timeMuted,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
+    final theme = Theme.of(context);
+    final accent = theme.colorScheme.primary;
+    final statusColor = user.isOnline
+        ? const Color(0xFF3DDC97)
+        : theme.colorScheme.onSurfaceVariant;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => _openChat(context),
+        borderRadius: BorderRadius.circular(18),
+        child: Container(
+          margin: const EdgeInsets.symmetric(horizontal: 3),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+          decoration: BoxDecoration(
+            border: Border(
+              bottom: BorderSide(
+                color: theme.colorScheme.outlineVariant.withValues(alpha: .42),
               ),
             ),
-            const SizedBox(width: 8),
-            NovynIconButton(
-              icon: Icons.chat_bubble_outline_rounded,
-              size: 38,
-              radius: 12,
-              iconSize: 17,
-              onTap: () => _openChat(context),
-            ),
-          ],
+          ),
+          child: Row(
+            children: [
+              UserAvatar(
+                name: user.name,
+                photoUrl: user.photoUrl,
+                radius: 24,
+                showOnlineIndicator: true,
+                isOnline: user.isOnline,
+                presence: user.status,
+              ),
+              const SizedBox(width: 13),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      user.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontFamily: 'PlusJakartaSans',
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.w800,
+                        color: theme.colorScheme.onSurface,
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    Row(
+                      children: [
+                        Container(
+                          width: 7,
+                          height: 7,
+                          decoration: BoxDecoration(
+                            color: statusColor,
+                            shape: BoxShape.circle,
+                            boxShadow: user.isOnline
+                                ? [
+                                    BoxShadow(
+                                      color: statusColor.withValues(alpha: .35),
+                                      blurRadius: 7,
+                                      spreadRadius: 1,
+                                    ),
+                                  ]
+                                : null,
+                          ),
+                        ),
+                        const SizedBox(width: 7),
+                        Text(
+                          user.isOnline ? 'Online' : 'Offline',
+                          style: TextStyle(
+                            fontFamily: 'PlusJakartaSans',
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w600,
+                            color: statusColor,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          '· @${user.username}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontFamily: 'PlusJakartaSans',
+                            fontSize: 11,
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: accent.withValues(alpha: .10),
+                  borderRadius: BorderRadius.circular(13),
+                  border: Border.all(color: accent.withValues(alpha: .16)),
+                ),
+                child: Icon(
+                  Icons.chat_bubble_outline_rounded,
+                  size: 17,
+                  color: accent,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
