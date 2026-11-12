@@ -1552,24 +1552,32 @@ class SocketService extends ChangeNotifier {
 
   Future<void> updatePresence(String mode) async {
     _requireConnection();
-    final connection = _socket!;
     final confirmed = Completer<void>();
-    void received(dynamic data) {
-      if (data is Map &&
-          data['presenceMode'] == mode &&
-          data['username'] == _myUsername &&
-          !confirmed.isCompleted) {
-        confirmed.complete();
-      }
-    }
-
-    connection.on('profile_updated', received);
-    try {
-      connection.emit('update_profile', {'presenceMode': mode});
-      await confirmed.future.timeout(const Duration(seconds: 10));
-    } finally {
-      connection.off('profile_updated', received);
-    }
+    _socket!.emitWithAck(
+      'update_profile',
+      {'presenceMode': mode},
+      ack: (dynamic result) {
+        if (confirmed.isCompleted) return;
+        if (result is Map && result['ok'] == true) {
+          confirmed.complete();
+        } else {
+          final message = result is Map
+              ? result['message']?.toString()
+              : null;
+          confirmed.completeError(StateError(
+            message?.isNotEmpty == true
+                ? message!
+                : 'The server did not confirm the status update.',
+          ));
+        }
+      },
+    );
+    await confirmed.future.timeout(
+      const Duration(seconds: 15),
+      onTimeout: () => throw TimeoutException(
+        'Status update timed out. Check your connection and try again.',
+      ),
+    );
   }
 
   // messagesReadByPeer — used by chat_detail_screen for read tick color
