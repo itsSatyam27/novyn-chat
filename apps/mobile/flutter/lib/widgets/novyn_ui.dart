@@ -183,7 +183,7 @@ class NovynDock extends StatelessWidget {
     ('Calls', Icons.call_outlined),
     ('Discover', Icons.explore_outlined),
     ('Contacts', Icons.group_outlined),
-    ('Settings', Icons.wb_sunny_outlined),
+    ('Settings', Icons.person_outline_rounded),
   ];
 
   @override
