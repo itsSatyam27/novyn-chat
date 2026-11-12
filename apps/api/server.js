@@ -6155,6 +6155,7 @@ io.on("connection", (socket) => {
     }
     if (typeof payload?.stealthModeEnabled === "boolean") {
       for (const friendKey of user.friends) {
+        if (usersAreBlocked(userKey, friendKey)) continue;
         const friendSocketId = onlineUsers.get(friendKey);
         if (!friendSocketId) continue;
         const friendSocket = io.sockets.sockets.get(friendSocketId);
