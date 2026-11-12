@@ -1,4 +1,5 @@
 import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart';
 import 'settings_service.dart';
 import 'security_service.dart';
 
@@ -17,6 +18,34 @@ class HapticService {
 
   static void init(SettingsService settings) {
     _settings = settings;
+  }
+
+  static Future<void> vibrateNotification() async {
+    final settings = _settings;
+    if (settings == null || !settings.inAppVibration) return;
+
+    final pattern = settings.vibrationPattern;
+    if (pattern == 'none') return;
+
+    final intensity = settings.hapticIntensity.clamp(0.0, 1.0);
+    final base = (25 + intensity * 65).round().clamp(20, 90);
+    final pulses = switch (pattern) {
+      'staccato' => [base, 35, base, 35, base],
+      'heartbeat' => [base, 75, (base * 1.6).round()],
+      _ => [base],
+    };
+
+    for (var index = 0; index < pulses.length; index++) {
+      final duration = pulses[index];
+      if (defaultTargetPlatform == TargetPlatform.android) {
+        await SecurityService.vibrate(duration: duration);
+      } else {
+        await HapticFeedback.vibrate();
+      }
+      if (index < pulses.length - 1) {
+        await Future.delayed(const Duration(milliseconds: 65));
+      }
+    }
   }
 
   static Future<void> vibrate(NovynHapticType type) async {
