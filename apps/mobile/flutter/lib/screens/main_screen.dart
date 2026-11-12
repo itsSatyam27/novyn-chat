@@ -67,8 +67,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     }
 
     final socket = context.read<SocketService>();
-    if (_activeUsername?.toLowerCase() == username.toLowerCase() &&
-        socket.isConnected) {
+    if (_activeUsername?.toLowerCase() == username.toLowerCase()) {
       return;
     }
     _activeUsername = username;
