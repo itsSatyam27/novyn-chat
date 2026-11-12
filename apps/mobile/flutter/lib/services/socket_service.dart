@@ -1080,11 +1080,11 @@ class SocketService extends ChangeNotifier {
       }
       // The server's private_message echo replaces this optimistic message.
     } catch (_) {
-      // Remove only the temporary bubble. If the server echo already replaced
-      // it, keep the confirmed message visible.
+      // Keep the optimistic bubble visible so the user can see the failed state
+      // and the UI can offer a retry affordance in a later iteration.
       final index = _messages.indexWhere((message) => message.id == clientTempId);
       if (index >= 0) {
-        _messages = List<Message>.from(_messages)..removeAt(index);
+        _messageStatuses[clientTempId] = 'failed';
         notifyListeners();
       }
       rethrow;
