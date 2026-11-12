@@ -50,6 +50,12 @@ class ApiService {
         if (_cookieHeader.isNotEmpty) 'Cookie': _cookieHeader,
       };
 
+  // Protected media endpoints require the same session cookie as API calls.
+  // Image widgets must use these headers instead of anonymous NetworkImage requests.
+  static Map<String, String> get imageHeaders => {
+        if (_cookieHeader.isNotEmpty) 'Cookie': _cookieHeader,
+      };
+
   static String get _cookieHeader {
     final cookies = (_sessionCookie ?? '')
         .split(';')
