@@ -28,7 +28,7 @@ class HapticService {
     if (pattern == 'none') return;
 
     final intensity = settings.hapticIntensity.clamp(0.0, 1.0);
-    final base = (25 + intensity * 65).round().clamp(20, 90);
+    final base = (25 + intensity * 65).round().clamp(20, 90).toInt();
     final pulses = switch (pattern) {
       'staccato' => [base, 35, base, 35, base],
       'heartbeat' => [base, 75, (base * 1.6).round()],
