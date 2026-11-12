@@ -168,7 +168,7 @@ class SecurityPrivacyScreen extends StatelessWidget {
                 builder: (_) => const SetupPinScreen(isChanging: true))),
             ),
           ]),
-          if (category == null || category == 'device') section('Device privacy & account actions', [
+          if (category == null || category == 'device') section('Chat privacy & account actions', [
             _SecurityPrivacyToggleTile(
               icon: Icons.visibility_off_outlined, accent: const Color(0xFFC2540F),
               title: 'Stealth Mode',
