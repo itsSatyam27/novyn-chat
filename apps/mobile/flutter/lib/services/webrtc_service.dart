@@ -85,6 +85,7 @@ class WebRTCService extends ChangeNotifier {
     SocketService socket,
     String peerId,
     bool isOffer,
+    required String callId,
   ) async {
     // Peer connection configuration with optimized settings
     final config = {
@@ -115,9 +116,9 @@ class WebRTCService extends ChangeNotifier {
 
     // Send ICE candidates to peer via socket
     _peerConnection!.onIceCandidate = (candidate) {
-      socket.sendIceCandidate(peerId, {
-        'candidate':     candidate.candidate,
-        'sdpMid':        candidate.sdpMid,
+      socket.sendIceCandidate(peerId, callId, {
+        'candidate': candidate.candidate,
+        'sdpMid': candidate.sdpMid,
         'sdpMLineIndex': candidate.sdpMLineIndex,
       });
     };
@@ -142,12 +143,12 @@ class WebRTCService extends ChangeNotifier {
     };
 
     if (isOffer) {
-      await _createAndSendOffer(socket, peerId);
+      await _createAndSendOffer(socket, peerId, callId);
     }
   }
 
   // ── Create and send offer (caller) ───────────────────────────────────────
-  Future<void> _createAndSendOffer(SocketService socket, String peerId) async {
+  Future<void> _createAndSendOffer(SocketService socket, String peerId, String callId) async {
     // Offer options for better video quality
     final offerOptions = {
       'offerToReceiveAudio': true,
@@ -156,8 +157,8 @@ class WebRTCService extends ChangeNotifier {
     
     final offer = await _peerConnection!.createOffer(offerOptions);
     await _peerConnection!.setLocalDescription(offer);
-    socket.sendOffer(peerId, {
-      'sdp':  offer.sdp,
+    socket.sendOffer(peerId, callId, {
+      'sdp': offer.sdp,
       'type': offer.type,
     });
   }
@@ -167,6 +168,7 @@ class WebRTCService extends ChangeNotifier {
     Map<String, dynamic> offerData,
     SocketService socket,
     String peerId,
+    String callId,
   ) async {
     final offer = RTCSessionDescription(
       offerData['sdp'],
@@ -177,8 +179,8 @@ class WebRTCService extends ChangeNotifier {
     final answer = await _peerConnection!.createAnswer();
     await _peerConnection!.setLocalDescription(answer);
 
-    socket.sendAnswer(peerId, {
-      'sdp':  answer.sdp,
+    socket.sendAnswer(peerId, callId, {
+      'sdp': answer.sdp,
       'type': answer.type,
     });
   }
