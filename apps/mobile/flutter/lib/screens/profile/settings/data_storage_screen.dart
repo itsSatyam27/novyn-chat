@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:ui';
+import 'package:novyn/services/haptic_service.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -260,7 +261,7 @@ class _DataStorageScreenState extends State<DataStorageScreen> {
 
     if (confirmed != true || !mounted) return;
     setState(() => _clearingCache = true);
-    HapticFeedback.mediumImpact();
+    HapticService.vibrate(NovynHapticType.medium);
 
     try {
       final temporaryDirectory = await getTemporaryDirectory();
