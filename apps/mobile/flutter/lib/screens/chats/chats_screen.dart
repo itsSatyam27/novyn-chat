@@ -560,9 +560,9 @@ class _ChatCard extends StatelessWidget {
   final ChatPreview preview;
   final VoidCallback onTap;
   final bool isFavorite;
-  final VoidCallback onToggleFavorite;
+  final VoidCallback? onToggleFavorite;
 
-  const _ChatCard({required this.preview, required this.onTap, this.isFavorite = false, required this.onToggleFavorite});
+  const _ChatCard({required this.preview, required this.onTap, this.isFavorite = false, this.onToggleFavorite});
 
   @override
   Widget build(BuildContext context) {
