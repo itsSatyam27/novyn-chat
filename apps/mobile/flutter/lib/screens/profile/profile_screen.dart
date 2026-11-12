@@ -21,6 +21,7 @@ import 'settings/language_region_screen.dart';
 import 'settings/accessibility_screen.dart';
 import 'settings/sound_vibration_screen.dart';
 import 'settings/appearance_screen.dart';
+import 'package:novyn/services/haptic_service.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
@@ -605,7 +606,7 @@ class ProfileScreen extends StatelessWidget {
                             child: _AuroraDialogButton(
                               label: 'Share Node',
                               onTap: () {
-                                HapticFeedback.mediumImpact();
+                                HapticService.vibrate(NovynHapticType.medium);
                                 // Share logic
                               },
                             ),
@@ -737,7 +738,7 @@ class ProfileScreen extends StatelessWidget {
                     iconColor: const Color(0xFFE0E0E0),
                     isSelected: settings.themeMode == ThemeMode.system,
                     onTap: () {
-                      HapticFeedback.selectionClick();
+                      HapticService.vibrate(NovynHapticType.selection);
                       settings.setThemeMode(ThemeMode.system);
                       Navigator.pop(context);
                     },
@@ -749,7 +750,7 @@ class ProfileScreen extends StatelessWidget {
                     iconColor: const Color(0xFFF59E0B),
                     isSelected: settings.themeMode == ThemeMode.light,
                     onTap: () {
-                      HapticFeedback.selectionClick();
+                      HapticService.vibrate(NovynHapticType.selection);
                       settings.setThemeMode(ThemeMode.light);
                       Navigator.pop(context);
                     },
@@ -761,7 +762,7 @@ class ProfileScreen extends StatelessWidget {
                     iconColor: const Color(0xFF8B5CF6),
                     isSelected: settings.themeMode == ThemeMode.dark,
                     onTap: () {
-                      HapticFeedback.selectionClick();
+                      HapticService.vibrate(NovynHapticType.selection);
                       settings.setThemeMode(ThemeMode.dark);
                       Navigator.pop(context);
                     },
@@ -802,7 +803,7 @@ class _StatusDot extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: () {
-        HapticFeedback.selectionClick();
+        HapticService.vibrate(NovynHapticType.selection);
         onTap();
       },
       child: Container(
@@ -1061,7 +1062,7 @@ class _AuroraMenuCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 10),
       child: InkWell(
         onTap: () {
-          HapticFeedback.lightImpact();
+          HapticService.vibrate(NovynHapticType.light);
           onTap();
         },
         borderRadius: BorderRadius.circular(24),
@@ -1366,7 +1367,7 @@ class _AnimatedQRContainerState extends State<_AnimatedQRContainer> with SingleT
     setState(() {
       _isGenerating = true;
     });
-    HapticFeedback.mediumImpact();
+    HapticService.vibrate(NovynHapticType.medium);
     
     _controller.repeat();
     
