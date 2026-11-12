@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'auth_screen.dart';
+import 'package:novyn/services/haptic_service.dart';
 
 const _brand = Color(0xFF7667F5);
 
@@ -37,7 +38,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   }
 
   void _openAuth() {
-    HapticFeedback.lightImpact();
+    HapticService.vibrate(NovynHapticType.light, category: HapticCategory.buttons);
     Navigator.of(context).pushReplacement(PageRouteBuilder(
       pageBuilder: (_, __, ___) => const AuthScreen(),
       transitionsBuilder: (_, animation, __, child) =>
@@ -51,7 +52,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       _openAuth();
       return;
     }
-    HapticFeedback.selectionClick();
+    HapticService.vibrate(NovynHapticType.selection, category: HapticCategory.buttons);
     _page.nextPage(
       duration: const Duration(milliseconds: 420),
       curve: Curves.easeInOutCubic,
