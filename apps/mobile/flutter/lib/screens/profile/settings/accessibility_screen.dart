@@ -5,6 +5,7 @@ import 'dart:ui';
 import '../../../services/settings_service.dart';
 import '../widgets/profile_widgets.dart';
 import '../../../theme/novyn_theme.dart';
+import 'package:novyn/services/haptic_service.dart';
 
 class AccessibilityScreen extends StatelessWidget {
   const AccessibilityScreen({super.key});
@@ -257,7 +258,7 @@ class _FontSizeCard extends StatelessWidget {
                           max: 1.5,
                           divisions: 7,
                           onChanged: (v) {
-                            if (v != value) HapticFeedback.selectionClick();
+                            if (v != value) HapticService.vibrate(NovynHapticType.selection, category: HapticCategory.buttons);
                             onChanged(v);
                           },
                         ),
@@ -360,7 +361,7 @@ class _ToggleCard extends StatelessWidget {
                   Switch.adaptive(
                     value: value,
                     onChanged: disabled ? null : (v) {
-                      HapticFeedback.mediumImpact();
+                      HapticService.vibrate(NovynHapticType.medium, category: HapticCategory.buttons);
                       onChanged?.call(v);
                     },
                     activeTrackColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.5),
