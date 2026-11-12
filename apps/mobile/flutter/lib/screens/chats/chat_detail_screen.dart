@@ -1781,12 +1781,12 @@ class _MessageBubble extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.all(10),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(data['siteName']?.toString() ?? data['domain']?.toString() ?? 'Link', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 10, fontWeight: FontWeight.w700, color: Color(0xFF94A3B8))),
+                Text(data['siteName']?.toString() ?? data['domain']?.toString() ?? 'Link', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 10 * labelScale, fontWeight: FontWeight.w700, color: Color(0xFF94A3B8))),
                 const SizedBox(height: 4),
-                Text(data['title']?.toString() ?? url, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 12, fontWeight: FontWeight.w700)),
+                Text(data['title']?.toString() ?? url, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 12 * labelScale, fontWeight: FontWeight.w700)),
                 if ((data['description']?.toString() ?? '').isNotEmpty) ...[
                   const SizedBox(height: 3),
-                  Text(data['description'].toString(), maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 10, color: Color(0xFF94A3B8))),
+                  Text(data['description'].toString(), maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 10 * labelScale, color: Color(0xFF94A3B8))),
                 ],
               ]),
             ),
@@ -1819,6 +1819,7 @@ class _MessageBubble extends StatelessWidget {
     final isMe = message.isFromMe as bool;
     final time = _formatTime(message.createdAt);
     final reactions = Map<String, String>.from(message.reactions ?? {});
+    final labelScale = context.watch<SettingsService>().chatLabelSize;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),
@@ -1916,7 +1917,7 @@ class _MessageBubble extends StatelessWidget {
                                   message.replyToSender ?? '',
                                   style: TextStyle(
                                     fontFamily: 'PlusJakartaSans',
-                                    fontSize: 11,
+                                    fontSize: 11 * labelScale,
                                     fontWeight: FontWeight.w700,
                                     color: isMe
                                         ? Colors.white.withValues(alpha: 0.9)
@@ -1928,7 +1929,7 @@ class _MessageBubble extends StatelessWidget {
                                   message.replyToText ?? '',
                                   style: TextStyle(
                                     fontFamily: 'PlusJakartaSans',
-                                    fontSize: 12,
+                                    fontSize: 12 * labelScale,
                                     color: isMe
                                         ? Colors.white.withValues(alpha: 0.7)
                                         : const Color(0xFF64748B),
@@ -1948,7 +1949,7 @@ class _MessageBubble extends StatelessWidget {
                               children: [
                                 Icon(Icons.push_pin_rounded, size: 11),
                                 SizedBox(width: 4),
-                                Text('Pinned message', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 10, fontWeight: FontWeight.w700)),
+                                Text('Pinned message', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 10 * labelScale, fontWeight: FontWeight.w700)),
                               ],
                             ),
                           ),
@@ -1999,7 +2000,7 @@ class _MessageBubble extends StatelessWidget {
                               'edited',
                               style: TextStyle(
                                 fontFamily: 'PlusJakartaSans',
-                                fontSize: 10,
+                                fontSize: 10 * labelScale,
                                 fontStyle: FontStyle.italic,
                                 color: isMe
                                     ? Colors.white.withValues(alpha: 0.5)
@@ -2035,7 +2036,7 @@ class _MessageBubble extends StatelessWidget {
                           'edited',
                           style: TextStyle(
                             fontFamily: 'PlusJakartaSans',
-                            fontSize: 10,
+                            fontSize: 10 * labelScale,
                             fontStyle: FontStyle.italic,
                             color: Color(0xFF94A3B8),
                           ),
@@ -2045,7 +2046,7 @@ class _MessageBubble extends StatelessWidget {
                       time,
                       style: TextStyle(
                         fontFamily: 'PlusJakartaSans',
-                        fontSize: 10,
+                        fontSize: 10 * labelScale,
                         color: Color(0xFF94A3B8),
                       ),
                     ),
@@ -2215,9 +2216,9 @@ class _MessageBubble extends StatelessWidget {
             children: [
               Icon(Icons.poll_rounded, size: 17),
               const SizedBox(width: 7),
-              const Text('POLL', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 1)),
+              const Text('POLL', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 10 * labelScale, fontWeight: FontWeight.w800, letterSpacing: 1)),
               const Spacer(),
-              Text('$totalVotes votes', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 10, color: Color(0xFF94A3B8))),
+              Text('$totalVotes votes', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 10 * labelScale, color: Color(0xFF94A3B8))),
             ],
           ),
           const SizedBox(height: 8),
@@ -2250,8 +2251,8 @@ class _MessageBubble extends StatelessWidget {
                     children: [
                       Row(
                         children: [
-                          Expanded(child: Text(option['text']?.toString() ?? '', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 12, fontWeight: FontWeight.w600))),
-                          Text('$count', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 11, color: Color(0xFF94A3B8))),
+                          Expanded(child: Text(option['text']?.toString() ?? '', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 12 * labelScale, fontWeight: FontWeight.w600))),
+                          Text('$count', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 11 * labelScale, color: Color(0xFF94A3B8))),
                           if (selected) const Padding(padding: EdgeInsets.only(left: 5), child: Icon(Icons.check_circle, size: 14)),
                         ],
                       ),
@@ -2741,7 +2742,7 @@ class _GifPickerSheetState extends State<_GifPickerSheet> {
               onPressed: _loadingMore ? null : () => _load(append: true),
               child: Text(_loadingMore ? 'Loading…' : 'Load more'),
             ),
-          const Text('Powered by GIPHY', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 10, color: Color(0xFF94A3B8))),
+          const Text('Powered by GIPHY', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 10 * labelScale, color: Color(0xFF94A3B8))),
         ],
       ),
     );
