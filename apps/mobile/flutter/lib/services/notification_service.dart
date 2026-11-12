@@ -99,7 +99,10 @@ class NotificationService {
   static Future<void> showInAppMessage(
       String username, String messageBody, BuildContext context) async {
     final settings = _settings;
-    if (!context.mounted || settings == null || !settings.notificationsOn) {
+    if (!context.mounted ||
+        settings == null ||
+        !settings.notificationsOn ||
+        _presenceAuth?.user?.presenceMode == 'busy') {
       return;
     }
     final preview = settings.messagePreview &&
@@ -177,14 +180,26 @@ class NotificationService {
     if (socket == null || !socket.isConnected || _activeUsername == null) return;
     try {
       final token = await _fcm.getToken();
-      if (token == null || token == _lastRegisteredToken) return;
+      if (token == null) {
+        debugPrint('[NovynNotifications] FCM token is not available yet.');
+        if (_tokenRetryCount < 3) {
+          _tokenRetryCount++;
+          Future.delayed(const Duration(seconds: 3), () => unawaited(_syncDeviceToken()));
+        }
+        return;
+      }
+      if (token == _lastRegisteredToken) return;
       final result = await socket.registerFcmToken(token);
       if (result['ok'] == true) {
         _lastRegisteredToken = token;
         _tokenRetryCount = 0;
-      } else if (_tokenRetryCount < 1) {
-        _tokenRetryCount++;
-        Future.delayed(const Duration(seconds: 2), () => unawaited(_syncDeviceToken()));
+        debugPrint('[NovynNotifications] Device token registered with Novyn.');
+      } else {
+        debugPrint('[NovynNotifications] Device token registration failed: ${result['message']}');
+        if (_tokenRetryCount < 3) {
+          _tokenRetryCount++;
+          Future.delayed(const Duration(seconds: 3), () => unawaited(_syncDeviceToken()));
+        }
       }
     } catch (_) {
       // Retry after the socket reconnects.
@@ -294,6 +309,10 @@ class NotificationService {
         unawaited(showInAppMessage(username, body, context));
       }
     };
+    _socket!.onAuthenticated = () {
+      unawaited(_syncUserPreferences());
+      unawaited(_syncDeviceToken());
+    };
 
     // Permission is requested after server preferences are restored on sign-in.
 
@@ -362,7 +381,10 @@ class NotificationService {
         await _socket!.clearFcmToken();
       } catch (_) {}
     }
-    if (_socket != null) _socket!.onIncomingMessage = null;
+    if (_socket != null) {
+      _socket!.onIncomingMessage = null;
+      _socket!.onAuthenticated = null;
+    }
     _activeUsername = null;
     _lastRegisteredToken = null;
     _lastSyncedPreferences = null;
