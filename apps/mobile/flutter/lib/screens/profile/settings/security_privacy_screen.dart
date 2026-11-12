@@ -1453,9 +1453,56 @@ class _PrivacyDashboardState extends State<_PrivacyDashboard> {
   @override
   void initState() {
     super.initState();
-    _loading = false;
+    _values['profilePhotoPrivacy'] =
+        widget.profilePhoto == 'contacts' ? 'friends' : widget.profilePhoto;
+    _values['presencePrivacy'] =
+        widget.lastSeen == 'contacts' ? 'friends' : widget.lastSeen;
+    _loadAccountSettings();
   }
 
+  Future<void> _loadAccountSettings() async {
+    try {
+      final result = await widget.socket.fetchAccountSettings();
+      if (result['ok'] != true || result['settings'] is! Map) {
+        throw StateError(result['message']?.toString() ??
+            'Could not load your privacy settings.');
+      }
+      final data = Map<String, dynamic>.from(result['settings'] as Map);
+      const stringKeys = [
+        'callPrivacy',
+        'messagePrivacy',
+        'profilePhotoPrivacy',
+        'presencePrivacy',
+        'groupInvitePrivacy',
+        'friendRequestPrivacy',
+      ];
+      if (!mounted) return;
+      setState(() {
+        for (final key in stringKeys) {
+          final value = data[key]?.toString();
+          if (value != null && value.isNotEmpty) _values[key] = value;
+        }
+        _typing = data['typingIndicatorsEnabled'] != false;
+        _loading = false;
+      });
+      final presence = _values['presencePrivacy']!;
+      final photo = _values['profilePhotoPrivacy']!;
+      await widget.settings.setLastSeenVisibility(
+          presence == 'friends' ? 'contacts' : presence);
+      await widget.settings.setProfilePhotoVisibility(
+          photo == 'friends' ? 'contacts' : photo);
+      await widget.settings.setReadReceipts(
+          data['readReceiptsEnabled'] != false);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _loading = false);
+      NovynAlert.show(
+        context,
+        'Could not load privacy settings: ${error.toString().replaceFirst('Bad state: ', '')}',
+        isError: true,
+      );
+    }
+  }
 
   Future<void> _save(String key, String value) async {
     if (_saving) return;
@@ -1489,6 +1536,9 @@ class _PrivacyDashboardState extends State<_PrivacyDashboard> {
 
   Future<void> _saveToggle(String key, bool value) async {
     if (_saving) return;
+    final previous = key == 'readReceiptsEnabled'
+        ? widget.settings.readReceipts
+        : _typing;
     setState(() => _saving = true);
     try {
       final result = await widget.socket.updateAccountSettings({key: value});
@@ -1501,8 +1551,14 @@ class _PrivacyDashboardState extends State<_PrivacyDashboard> {
       }
       if (mounted) NovynAlert.show(context, 'Privacy setting updated.');
     } catch (error) {
-      if (mounted) NovynAlert.show(context,
-        error.toString().replaceFirst('Bad state: ', ''), isError: true);
+      if (mounted) {
+        if (key == 'typingIndicatorsEnabled') {
+          setState(() => _typing = previous);
+        }
+        NovynAlert.show(context,
+          error.toString().replaceFirst('Bad state: ', ''),
+          isError: true);
+      }
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -1519,10 +1575,8 @@ class _PrivacyDashboardState extends State<_PrivacyDashboard> {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    final presence = _values['presencePrivacy'] == 'everyone' && widget.lastSeen != 'everyone'
-        ? (widget.lastSeen == 'contacts' ? 'friends' : widget.lastSeen)
-        : _values['presencePrivacy']!;
-    final photo = widget.profilePhoto == 'contacts' ? 'friends' : widget.profilePhoto;
+    final presence = _values['presencePrivacy']!;
+    final photo = _values['profilePhotoPrivacy']!;
     final visibility = [
       ('Profile photo', 'profilePhotoPrivacy', photo,
         Icons.account_circle_outlined, 'Control who can view your profile picture'),
