@@ -186,47 +186,44 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
   }
 
   Future<void> _loadOlderMessages() async {
+    if (_loadingOlder || !_hasMore || _chatId == null) return;
     final socket = context.read<SocketService>();
     final messages = socket.messages;
     if (messages.isEmpty) return;
 
     setState(() => _loadingOlder = true);
+    final previousExtent = _scroll.hasClients
+        ? _scroll.position.maxScrollExtent
+        : 0.0;
+    final previousPixels = _scroll.hasClients
+        ? _scroll.position.pixels
+        : 0.0;
 
-    // Use the oldest message's timestamp as cursor
-    final oldest = messages.first.createdAt.toIso8601String();
-    final older = await ApiService.getMessages(
-      _chatId!,
-      myUsername: _myUid,
-      before: oldest,
-      limit: 30,
-    );
+    try {
+      final hasMore = await socket.loadOlderHistory(
+        _chatId!,
+        messages.first.id,
+      );
+      if (!mounted) return;
+      _hasMore = hasMore;
+      _suppressNextCountScroll = true;
+      setState(() => _loadingOlder = false);
 
-    if (!mounted) return;
-
-    if (older.isEmpty) {
-      setState(() {
-        _loadingOlder = false;
-        _hasMore = false;
-      });
-      return;
-    }
-
-    // Preserve the visible message position when older history is prepended.
-    final prevExtent = _scroll.position.maxScrollExtent;
-    final prevPixels = _scroll.position.pixels;
-    _suppressNextCountScroll = true;
-    socket.prependMessages(older);
-
-    setState(() => _loadingOlder = false);
-
-    // Jump scroll to maintain position after prepend
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scroll.hasClients) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!_scroll.hasClients || !mounted) return;
         final newExtent = _scroll.position.maxScrollExtent;
-        final delta = newExtent - prevExtent;
-        _scroll.jumpTo((prevPixels + delta).clamp(0.0, _scroll.position.maxScrollExtent).toDouble());
-      }
-    });
+        final delta = newExtent - previousExtent;
+        if (delta > 0) {
+          _scroll.jumpTo(
+            (previousPixels + delta)
+                .clamp(0.0, _scroll.position.maxScrollExtent)
+                .toDouble(),
+          );
+        }
+      });
+    } catch (_) {
+      if (mounted) setState(() => _loadingOlder = false);
+    }
   }
 
   Future<void> _init() async {
