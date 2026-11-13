@@ -1,13 +1,16 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'package:path/path.dart' as path;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'api_service.dart';
 import 'firebase_configuration.dart';
 import 'hybrid_db_service.dart';
+import 'local_db_service.dart';
 
 /// Novyn Auth Service — bridges Firebase Auth with novyn-chat's backend.
 ///
@@ -87,6 +90,9 @@ class NovynUser {
 }
 
 class AuthService extends ChangeNotifier {
+  static const FlutterSecureStorage _identityStorage = FlutterSecureStorage();
+  static const String _cachedIdentityKey = 'novyn_last_signed_in_identity_v1';
+
   final Future<void> Function(String)? savePresence;
   final Future<void> Function(String, String)? savePassword;
   final Future<void> Function(String)? clearNotificationsToken;
@@ -139,86 +145,180 @@ class AuthService extends ChangeNotifier {
     super.dispose();
   }
 
+  Map<String, dynamic> _identityToMap(NovynUser user) => {
+        'username': user.username,
+        'displayName': user.displayName,
+        'email': user.email,
+        'avatarId': user.avatarId,
+        'bio': user.bio,
+        'presenceMode': user.presenceMode,
+        'emailVerified': user.emailVerified,
+        'hasPassword': user.hasPassword,
+        'isGoogleUser': user.isGoogleUser,
+      };
+
+  Future<void> _persistIdentity(NovynUser user) async {
+    try {
+      await _identityStorage.write(
+        key: _cachedIdentityKey,
+        value: jsonEncode(_identityToMap(user)),
+      ).timeout(const Duration(seconds: 3));
+    } catch (error) {
+      debugPrint('[NovynAuth] Could not cache signed-in identity: $error');
+    }
+  }
+
+  Future<NovynUser?> _readCachedIdentity() async {
+    try {
+      final raw = await _identityStorage
+          .read(key: _cachedIdentityKey)
+          .timeout(const Duration(seconds: 3));
+      if (raw == null || raw.isEmpty) return null;
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map) return null;
+      final user = NovynUser.fromMap(Map<String, dynamic>.from(decoded));
+      return user.username.trim().isEmpty ? null : user;
+    } catch (error) {
+      debugPrint('[NovynAuth] Cached identity is temporarily unavailable: $error');
+      return null;
+    }
+  }
+
+  Future<void> _clearCachedIdentity() async {
+    try {
+      await _identityStorage
+          .delete(key: _cachedIdentityKey)
+          .timeout(const Duration(seconds: 3));
+    } catch (error) {
+      debugPrint('[NovynAuth] Could not clear cached identity: $error');
+    }
+  }
+
   Future<void> _prepareAccount(String username) async {
     if (_user?.username.toLowerCase() != username.toLowerCase()) {
-      await onAccountReset?.call();
+      try {
+        await onAccountReset?.call().timeout(const Duration(seconds: 4));
+      } catch (error) {
+        debugPrint('[NovynAuth] Previous account cleanup was incomplete: $error');
+      }
     }
-    await HybridDbService.activateAccount(username);
+    await HybridDbService.activateAccount(username)
+        .timeout(const Duration(seconds: 8));
   }
 
   // ── Restore session from novyn-chat JWT cookie on app start ───────────────
+  // The old restore loop could run forever on a Render cold start or a
+  // transient Keystore/network failure, leaving SplashScreen waiting forever.
+  // A bounded restore now falls back to the last locally cached identity only
+  // when a saved session cookie exists; it never resurrects a manually logged
+  // out account.
   Future<void> _restoreSession(
       Future<Map<String, dynamic>?> Function() loadSession) async {
+    final cachedIdentity = await _readCachedIdentity();
+    final clock = Stopwatch()..start();
     var storageReady = ApiService.sessionStorageInitialized;
     var hadSavedCookie = ApiService.sessionCookie != null;
     var attempt = 0;
+    var definitiveRejections = 0;
 
-    // A failed secure-storage read (for example, while Android Keystore is
-    // becoming available after process recreation) must not look like a fresh
-    // install. Retry the read before deciding that no saved login exists.
-    while (!_authReady) {
+    while (!_authReady && clock.elapsed < const Duration(seconds: 32)) {
       if (!storageReady) {
-        storageReady = await ApiService.initializeSessionStorage();
+        try {
+          storageReady = await ApiService.initializeSessionStorage()
+              .timeout(const Duration(seconds: 4), onTimeout: () => false);
+        } catch (_) {
+          storageReady = false;
+        }
+        hadSavedCookie = hadSavedCookie || ApiService.sessionCookie != null;
         if (!storageReady) {
-          attempt += 1;
-          await Future<void>.delayed(
-            Duration(seconds: (attempt * 2).clamp(2, 10)),
-          );
+          await Future<void>.delayed(const Duration(milliseconds: 700));
           continue;
         }
-        hadSavedCookie = ApiService.sessionCookie != null;
+      }
+
+      hadSavedCookie = hadSavedCookie || ApiService.sessionCookie != null;
+      if (!hadSavedCookie) {
+        _user = null;
+        await _clearCachedIdentity();
+        _authReady = true;
+        notifyListeners();
+        return;
       }
 
       try {
-        final session = await loadSession();
+        final session = await loadSession()
+            .timeout(const Duration(seconds: 8), onTimeout: () => null);
         if (session?['authenticated'] == true) {
           final restoredUser = NovynUser.fromMap(session!);
-          await HybridDbService.activateAccount(restoredUser.username);
+          await HybridDbService.activateAccount(restoredUser.username)
+              .timeout(const Duration(seconds: 8));
           _user = restoredUser;
+          await _persistIdentity(restoredUser);
           _authReady = true;
           notifyListeners();
           return;
         }
 
-        final hasSavedCredentials =
-            hadSavedCookie || ApiService.sessionCookie != null;
-        if (!hasSavedCredentials) {
-          // No persisted login cookie means this is a normal signed-out start.
-          _authReady = true;
-          notifyListeners();
-          return;
-        }
-
-        final refreshStatus = await ApiService.refreshSessionStatus();
-        if (refreshStatus == 200) {
-          attempt = 0;
-          continue;
-        }
-
-        if (refreshStatus == 401 || refreshStatus == 403) {
-          // A single rejection immediately after process recreation can race
-          // backend auth-state hydration. Re-check the persisted cookie chain
-          // before treating the account as signed out.
-          if (attempt < 3) {
-            attempt += 1;
-            await Future<void>.delayed(
-              Duration(seconds: attempt * 2),
-            );
+        final status = session?['_httpStatus'];
+        if (status == 401 || status == 403) {
+          final refreshStatus = await ApiService.refreshSessionStatus()
+              .timeout(const Duration(seconds: 8), onTimeout: () => null);
+          if (refreshStatus == 200) {
+            definitiveRejections = 0;
+            attempt++;
+            await Future<void>.delayed(const Duration(milliseconds: 500));
             continue;
           }
-          await ApiService.clearSession();
-          _authReady = true;
-          notifyListeners();
-          return;
+          if (refreshStatus == 401 || refreshStatus == 403) {
+            definitiveRejections++;
+            if (definitiveRejections >= 3) {
+              await ApiService.clearSession();
+              await _clearCachedIdentity();
+              _user = null;
+              _authReady = true;
+              notifyListeners();
+              return;
+            }
+          }
         }
-      } catch (_) {
-        // Keep the saved session and retry after transient startup failures.
+      } catch (error) {
+        debugPrint('[NovynAuth] Session restore attempt failed: $error');
       }
 
-      attempt += 1;
-      final delaySeconds = (attempt * 2).clamp(2, 10);
-      await Future<void>.delayed(Duration(seconds: delaySeconds));
+      attempt++;
+      await Future<void>.delayed(
+        Duration(milliseconds: (attempt * 900).clamp(900, 3000)),
+      );
     }
+
+    // Do not mistake a backend outage for a logout. The cookie must still be
+    // present and the server must not have definitively rejected refresh.
+    if (hadSavedCookie) {
+      var fallback = cachedIdentity;
+      if (fallback == null && storageReady) {
+        try {
+          final owner = await LocalDbService.getAccountScope()
+              .timeout(const Duration(seconds: 3));
+          if (owner != null && owner.trim().isNotEmpty) {
+            fallback = NovynUser(
+              username: owner.trim(),
+              displayName: owner.trim(),
+              email: '',
+            );
+          }
+        } catch (_) {}
+      }
+      if (fallback != null) {
+        _user = fallback;
+        try {
+          await HybridDbService.activateAccount(fallback.username)
+              .timeout(const Duration(seconds: 5));
+        } catch (_) {}
+      }
+    }
+
+    _authReady = true;
+    notifyListeners();
   }
 
   Future<void> restoreSessionOnResume() async {
@@ -253,6 +353,7 @@ class AuthService extends ChangeNotifier {
           await _prepareAccount(refreshedUser.username);
         }
         _user = refreshedUser;
+        await _persistIdentity(refreshedUser);
         notifyListeners();
 
         // A successful session lookup can rotate the access/refresh cookies.
@@ -300,6 +401,7 @@ class AuthService extends ChangeNotifier {
           await _prepareAccount(refreshedUser.username);
         }
         _user = refreshedUser;
+        await _persistIdentity(refreshedUser);
         notifyListeners();
       }
     } catch (_) {}
@@ -353,6 +455,7 @@ class AuthService extends ChangeNotifier {
         final signedInUser = NovynUser.fromMap(session);
         await _prepareAccount(signedInUser.username);
         _user = signedInUser;
+        await _persistIdentity(signedInUser);
       } else {
         // Fallback from the google response itself
         final signedInUser = NovynUser(
@@ -363,6 +466,7 @@ class AuthService extends ChangeNotifier {
         );
         await _prepareAccount(signedInUser.username);
         _user = signedInUser;
+        await _persistIdentity(signedInUser);
       }
 
       notifyListeners();
@@ -408,6 +512,7 @@ class AuthService extends ChangeNotifier {
       final signedInUser = NovynUser.fromMap(session);
       await _prepareAccount(signedInUser.username);
       _user = signedInUser;
+          await _persistIdentity(signedInUser);
     } else {
       final signedInUser = NovynUser(
         username: result['username'].toString(),
@@ -417,6 +522,7 @@ class AuthService extends ChangeNotifier {
       );
       await _prepareAccount(signedInUser.username);
       _user = signedInUser;
+          await _persistIdentity(signedInUser);
     }
 
     notifyListeners();
@@ -442,6 +548,7 @@ class AuthService extends ChangeNotifier {
       final signedInUser = NovynUser.fromMap(session);
       await _prepareAccount(signedInUser.username);
       _user = signedInUser;
+          await _persistIdentity(signedInUser);
     } else {
       final signedInUser = NovynUser(
         username: result['username'].toString(),
@@ -450,6 +557,7 @@ class AuthService extends ChangeNotifier {
       );
       await _prepareAccount(signedInUser.username);
       _user = signedInUser;
+          await _persistIdentity(signedInUser);
     }
     notifyListeners();
     return null;
@@ -485,6 +593,7 @@ class AuthService extends ChangeNotifier {
       final signedInUser = NovynUser.fromMap(session);
       await _prepareAccount(signedInUser.username);
       _user = signedInUser;
+          await _persistIdentity(signedInUser);
     } else {
       final signedInUser = NovynUser(
         username: result['username'].toString(),
@@ -493,6 +602,7 @@ class AuthService extends ChangeNotifier {
       );
       await _prepareAccount(signedInUser.username);
       _user = signedInUser;
+          await _persistIdentity(signedInUser);
     }
 
     notifyListeners();
@@ -502,34 +612,45 @@ class AuthService extends ChangeNotifier {
   // ── Logout ────────────────────────────────────────────────────────────────
   Future<void> logout() async {
     final username = _user?.username;
+
+    // Change the local auth state first. Navigation must never wait on push
+    // cleanup, Firebase sign-out, a slow backend or a socket disconnect.
+    _user = null;
+    _authReady = true;
+    notifyListeners();
+    unawaited(_clearCachedIdentity());
+
     if (username != null && clearNotificationsToken != null) {
       try {
-        await clearNotificationsToken!(username);
-      } catch (_) {
-        // A push-token cleanup failure must not block account logout.
+        await clearNotificationsToken!(username)
+            .timeout(const Duration(seconds: 4));
+      } catch (error) {
+        debugPrint('[NovynAuth] Push-token cleanup skipped: $error');
       }
     }
 
-    // Stop live events and discard in-memory data before changing identity.
-    await onAccountReset?.call();
-
-    // Sign out from Firebase (Google SSO cleanup)
     try {
-      await _googleSignIn.signOut();
-      await _firebaseAuth.signOut();
-    } catch (_) {}
+      await onAccountReset?.call().timeout(const Duration(seconds: 4));
+    } catch (error) {
+      debugPrint('[NovynAuth] Socket cleanup skipped during logout: $error');
+    }
 
-    // Revoke the server session, but preserve this account's local chat
-    // database. It is scoped by username and is cleared automatically when a
-    // different account is activated, so logging back into the same account
-    // can restore its cached conversations and messages immediately.
+    // Firebase is only an identity broker for Google sign-in.
     try {
-      await ApiService.logout();
-    } catch (_) {
-      // The local session must still be cleared if the server is offline.
+      await _googleSignIn.signOut().timeout(const Duration(seconds: 4));
+      await _firebaseAuth.signOut().timeout(const Duration(seconds: 4));
+    } catch (error) {
+      debugPrint('[NovynAuth] Firebase cleanup skipped: $error');
+    }
+
+    // Revoke remotely when possible, but always erase local session material.
+    try {
+      await ApiService.logout().timeout(const Duration(seconds: 5));
+    } catch (error) {
+      debugPrint('[NovynAuth] Remote logout skipped: $error');
     } finally {
-      _user = null;
-      notifyListeners();
+      await ApiService.clearSession();
+      await _clearCachedIdentity();
     }
   }
 
