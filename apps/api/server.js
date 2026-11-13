@@ -687,6 +687,46 @@ app.get("/api/rtc/ice", (req, res) => {
   });
 });
 
+// Call history is scoped to the authenticated account. callId makes retries idempotent.
+app.get("/api/calls", requireUser, (req, res) => {
+  const user = users.get(req.userKey);
+  const logs = Array.isArray(user?.callLogs) ? user.callLogs : [];
+  res.json(logs.slice(0, 500));
+});
+
+app.post("/api/calls", requireUser, requireCsrf, (req, res) => {
+  const callerId = toDisplayName(req.body?.callerId).slice(0, 64);
+  const receiverId = toDisplayName(req.body?.receiverId).slice(0, 64);
+  const callId = toDisplayName(req.body?.callId).slice(0, 128);
+  const type = req.body?.type === "video" ? "video" : "voice";
+  const status = ["missed", "incoming", "outgoing"].includes(req.body?.status) ? req.body.status : "";
+  const duration = Math.max(0, Math.min(86400, Math.floor(Number(req.body?.duration) || 0)));
+  const callerKey = normalizeName(callerId);
+  const receiverKey = normalizeName(receiverId);
+  if (!callerKey || !receiverKey || callerKey === receiverKey || !status ||
+      ![callerKey, receiverKey].includes(req.userKey)) {
+    res.status(400).json({ error: "Invalid call log entry." });
+    return;
+  }
+  const user = users.get(req.userKey);
+  if (!Array.isArray(user.callLogs)) user.callLogs = [];
+  const entry = {
+    callId: callId || createMessageId(),
+    callerId,
+    receiverId,
+    type,
+    status,
+    duration,
+    createdAt: nowIso(),
+  };
+  const existingIndex = user.callLogs.findIndex((item) => item?.callId === entry.callId);
+  if (existingIndex >= 0) user.callLogs[existingIndex] = { ...user.callLogs[existingIndex], ...entry };
+  else user.callLogs.unshift(entry);
+  user.callLogs = user.callLogs.slice(0, 500);
+  schedulePersist();
+  res.json({ ok: true });
+});
+
 app.get("/api/stats", (req, res) => {
   const totalUsers = Array.from(users.values()).filter((user) => user?.isRegistered).length;
   const onlineCount = onlineUsers.size;
@@ -1314,6 +1354,7 @@ function createUserRecord(username) {
     typingIndicatorsEnabled: true,
     groupInvitePrivacy: "friends",
     friendRequestPrivacy: "everyone",
+    callLogs: [],
   };
 }
 
@@ -1357,6 +1398,7 @@ function serializeState() {
       profilePhotoPrivacy: user.profilePhotoPrivacy || "everyone", presencePrivacy: user.presencePrivacy || "everyone",
       readReceiptsEnabled: user.readReceiptsEnabled !== false, typingIndicatorsEnabled: user.typingIndicatorsEnabled !== false,
       groupInvitePrivacy: user.groupInvitePrivacy || "friends", friendRequestPrivacy: user.friendRequestPrivacy || "everyone",
+      callLogs: Array.isArray(user.callLogs) ? user.callLogs.slice(0, 500) : [],
     })),
     conversations: Array.from(conversations.entries()).map(([key, messages]) => ({
       key,
@@ -1566,6 +1608,7 @@ async function persistMongoNow() {
               lastSeenAt: toDisplayName(entry.lastSeenAt),
               presenceMode: normalizePresenceMode(entry.presenceMode),
               publicKey: toDisplayName(entry.publicKey),
+              callLogs: Array.isArray(entry.callLogs) ? entry.callLogs.slice(0, 500) : [],
               snapshotId,
               updatedAt,
             },
@@ -2264,6 +2307,7 @@ function applyLoadedState(parsed) {
     user.typingIndicatorsEnabled = entry.typingIndicatorsEnabled !== false;
     user.groupInvitePrivacy = ["everyone", "friends", "nobody"].includes(entry.groupInvitePrivacy) ? entry.groupInvitePrivacy : "friends";
     user.friendRequestPrivacy = ["everyone", "mutuals", "nobody"].includes(entry.friendRequestPrivacy) ? entry.friendRequestPrivacy : "everyone";
+    user.callLogs = Array.isArray(entry.callLogs) ? entry.callLogs.slice(0, 500) : [];
     user.pushSubs = Array.isArray(entry.pushSubs)
       ? entry.pushSubs.filter((sub) => sub && sub.endpoint && sub.keys)
       : [];
@@ -2478,6 +2522,7 @@ function toSerializedUserEntry(doc) {
     profilePhotoPrivacy: doc?.profilePhotoPrivacy || "everyone", presencePrivacy: doc?.presencePrivacy || "everyone",
     readReceiptsEnabled: doc?.readReceiptsEnabled !== false, typingIndicatorsEnabled: doc?.typingIndicatorsEnabled !== false,
     groupInvitePrivacy: doc?.groupInvitePrivacy || "friends", friendRequestPrivacy: doc?.friendRequestPrivacy || "everyone",
+    callLogs: Array.isArray(doc?.callLogs) ? doc.callLogs.slice(0, 500) : [],
   };
 }
 
@@ -7502,7 +7547,18 @@ io.on("connection", (socket) => {
     clearCallPair,
     io,
     allowSocketAction,
-    usersAreBlocked
+    usersAreBlocked,
+    sendPushToUser,
+    recordCallLog: (userKey, entry) => {
+      const user = users.get(normalizeName(userKey));
+      if (!user) return;
+      if (!Array.isArray(user.callLogs)) user.callLogs = [];
+      const existingIndex = user.callLogs.findIndex((item) => item?.callId === entry.callId);
+      if (existingIndex >= 0) user.callLogs[existingIndex] = { ...user.callLogs[existingIndex], ...entry };
+      else user.callLogs.unshift(entry);
+      user.callLogs = user.callLogs.slice(0, 500);
+      schedulePersist();
+    }
   });
 
   socket.on("private_message", (payload, callback) => {
