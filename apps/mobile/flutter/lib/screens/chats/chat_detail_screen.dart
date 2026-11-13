@@ -2123,13 +2123,18 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
     );
   }
 
-  void _showContactInfo() {
+  Future<void> _showContactInfo() async {
     HapticService.vibrate(NovynHapticType.light, category: HapticCategory.chat);
+    final mutePrefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    final muteKey = 'novyn_mute_${widget.peer.username.toLowerCase()}';
+    final initiallyMuted = mutePrefs.getBool(muteKey) ?? false;
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => ProfileInfoScreen(
           user: widget.peer,
+          initiallyMuted: initiallyMuted,
           // Only the other participant's protection blocks exporting this chat.
           // Your own Stealth Mode protects your privacy without locking you out.
           chatProtected: context.read<SocketService>().activeChatCaptureProtected,
