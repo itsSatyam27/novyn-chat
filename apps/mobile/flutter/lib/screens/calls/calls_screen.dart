@@ -31,10 +31,13 @@ class _CallsScreenState extends State<CallsScreen> {
   Set<String> _favoriteUsernames = <String>{};
   String? _myUsername;
   final TextEditingController _searchController = TextEditingController();
+  final FocusNode _searchFocusNode = FocusNode();
+  bool _searchOpen = false;
 
   @override
   void dispose() {
     _searchController.dispose();
+    _searchFocusNode.dispose();
     super.dispose();
   }
 
@@ -228,9 +231,44 @@ class _CallsScreenState extends State<CallsScreen> {
             NovynHeader(
               title: 'Calls',
               actions: [
+                IconButton(
+                  tooltip: _searchOpen ? 'Close search' : 'Search calls',
+                  visualDensity: VisualDensity.compact,
+                  icon: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 180),
+                    transitionBuilder: (child, animation) => RotationTransition(
+                      turns: Tween<double>(begin: 0.88, end: 1).animate(animation),
+                      child: FadeTransition(opacity: animation, child: child),
+                    ),
+                    child: Icon(
+                      _searchOpen ? Icons.close_rounded : Icons.search_rounded,
+                      key: ValueKey(_searchOpen),
+                      size: 23,
+                    ),
+                  ),
+                  onPressed: () {
+                    setState(() {
+                      _searchOpen = !_searchOpen;
+                      if (!_searchOpen) {
+                        _search = '';
+                        _searchController.clear();
+                      }
+                    });
+                    if (_searchOpen) {
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        if (mounted && _searchOpen) _searchFocusNode.requestFocus();
+                      });
+                    } else {
+                      _searchFocusNode.unfocus();
+                    }
+                  },
+                ),
                 PopupMenuButton<String>(
                   tooltip: 'Call options',
                   icon: const Icon(Icons.more_horiz_rounded, size: 25),
+                  offset: const Offset(0, 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                  elevation: 10,
                   onSelected: (value) {
                     if (value == 'privacy') _showCallPrivacy();
                     if (value == 'clear') _confirmClearHistory();
@@ -240,30 +278,68 @@ class _CallsScreenState extends State<CallsScreen> {
                     }
                   },
                   itemBuilder: (context) => [
-                    const PopupMenuItem(value: 'privacy', child: ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: Icon(Icons.shield_outlined),
-                      title: Text('Call privacy'),
-                    )),
+                    PopupMenuItem(
+                      value: 'privacy',
+                      height: 52,
+                      child: _CallMenuItem(
+                        icon: Icons.shield_outlined,
+                        title: 'Call privacy',
+                        subtitle: 'Manage who can call you',
+                      ),
+                    ),
                     if (_calls.isNotEmpty)
-                      const PopupMenuItem(value: 'clear', child: ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        leading: Icon(Icons.delete_outline_rounded),
-                        title: Text('Clear history'),
-                      )),
-                    const PopupMenuItem(value: 'refresh', child: ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: Icon(Icons.refresh_rounded),
-                      title: Text('Refresh'),
-                    )),
+                      PopupMenuItem(
+                        value: 'clear',
+                        height: 52,
+                        child: _CallMenuItem(
+                          icon: Icons.delete_outline_rounded,
+                          title: 'Clear history',
+                          subtitle: 'Remove calls from this device',
+                          danger: true,
+                        ),
+                      ),
+                    PopupMenuItem(
+                      value: 'refresh',
+                      height: 52,
+                      child: _CallMenuItem(
+                        icon: Icons.refresh_rounded,
+                        title: 'Refresh',
+                        subtitle: 'Sync recent calls',
+                      ),
+                    ),
                   ],
                 ),
-              ],
+              ],,
             ),
-            NovynSearchField(
-              hint: 'Search call history…',
-              controller: _searchController,
-              onChanged: (value) => setState(() => _search = value.trim().toLowerCase()),
+            AnimatedSize(
+              duration: const Duration(milliseconds: 280),
+              curve: Curves.easeInOutCubic,
+              alignment: Alignment.topCenter,
+              child: _searchOpen
+                  ? Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Focus(
+                        onKeyEvent: (_, event) {
+                          if (event is KeyDownEvent && event.logicalKey == LogicalKeyboardKey.escape) {
+                            setState(() {
+                              _searchOpen = false;
+                              _search = '';
+                              _searchController.clear();
+                            });
+                            _searchFocusNode.unfocus();
+                            return KeyEventResult.handled;
+                          }
+                          return KeyEventResult.ignored;
+                        },
+                        child: NovynSearchField(
+                          hint: 'Search call history…',
+                          controller: _searchController,
+                          focusNode: _searchFocusNode,
+                          onChanged: (value) => setState(() => _search = value.trim().toLowerCase()),
+                        ),
+                      ),
+                    )
+                  : const SizedBox(width: double.infinity),
             ),
             _buildFilterCards(),
             const SizedBox(height: 8),
@@ -508,6 +584,51 @@ class _CallSummaryTile extends StatelessWidget {
           ]),
         ),
       ),
+    );
+  }
+}
+
+class _CallMenuItem extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final bool danger;
+
+  const _CallMenuItem({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    this.danger = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color = danger ? NovynColors.danger : Theme.of(context).colorScheme.onSurface;
+    return Row(
+      children: [
+        Container(
+          width: 34,
+          height: 34,
+          decoration: BoxDecoration(
+            color: (danger ? NovynColors.danger : Theme.of(context).colorScheme.primary).withValues(alpha: 0.10),
+            borderRadius: BorderRadius.circular(11),
+          ),
+          child: Icon(icon, size: 17, color: danger ? NovynColors.danger : Theme.of(context).colorScheme.primary),
+        ),
+        const SizedBox(width: 11),
+        Expanded(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title, style: NovynText.body(12.5, color: color, weight: FontWeight.w700)),
+              const SizedBox(height: 2),
+              Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis,
+                style: NovynText.body(10, color: NovynColors.textMuted)),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
