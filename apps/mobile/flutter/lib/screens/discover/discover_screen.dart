@@ -150,11 +150,31 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                   StreamBuilder<List<String>>(
                     stream: friends.friendUidsStream(myUid),
                     builder: (context, friendSnap) {
+                      if (friendSnap.hasError) {
+                        return Padding(
+                          padding: const EdgeInsets.fromLTRB(20, 22, 20, 32),
+                          child: _buildLoadError(
+                            'Could not load your connections',
+                            'Try refreshing Discover.',
+                            () => context.read<SocketService>().requestDiscover(),
+                          ),
+                        );
+                      }
                       final friendUids = friendSnap.data ?? [];
                       return StreamBuilder<List<UserModel>>(
                         stream: friends.discoverUsersStream(myUid, friendUids),
                         builder: (context, userSnap) {
-                          if (userSnap.connectionState == ConnectionState.waiting) {
+                          if (userSnap.hasError) {
+                            return Padding(
+                              padding: const EdgeInsets.fromLTRB(20, 22, 20, 32),
+                              child: _buildLoadError(
+                                'Could not load people',
+                                'Check your connection and pull to refresh.',
+                                () => context.read<SocketService>().requestDiscover(),
+                              ),
+                            );
+                          }
+                          if (userSnap.connectionState == ConnectionState.waiting && !userSnap.hasData) {
                             return Padding(
                               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                               child: Column(
@@ -183,6 +203,16 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                           return StreamBuilder<Set<String>>(
                             stream: friends.sentPendingUidsStream(myUid),
                             builder: (context, pendingSnap) {
+                              if (pendingSnap.hasError) {
+                                return Padding(
+                                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+                                  child: _buildLoadError(
+                                    'Could not load request status',
+                                    'Refresh Discover to try again.',
+                                    () => context.read<SocketService>().requestDiscover(),
+                                  ),
+                                );
+                              }
                               final pendingUids = pendingSnap.data ?? <String>{};
                               return ListView.separated(
                                 shrinkWrap: true,
@@ -229,6 +259,29 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
   Widget _buildEmpty() {
     if (_search.isNotEmpty) return const NovynEmptyState(icon: Icons.search_off_rounded, title: 'No matching people', description: 'Try another name or username.');
     return const NovynEmptyState(icon: Icons.explore_outlined, title: 'No one online yet', description: 'Check back in a moment or invite a friend below.');
+  }
+
+  Widget _buildLoadError(String title, String message, VoidCallback onRetry) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.all(22),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
+      ),
+      child: Column(
+        children: [
+          Icon(Icons.cloud_off_rounded, size: 34, color: theme.colorScheme.onSurfaceVariant),
+          const SizedBox(height: 10),
+          Text(title, style: NovynText.body(14, weight: FontWeight.w800, color: theme.colorScheme.onSurface)),
+          const SizedBox(height: 5),
+          Text(message, textAlign: TextAlign.center, style: NovynText.body(12, color: theme.colorScheme.onSurfaceVariant)),
+          const SizedBox(height: 14),
+          OutlinedButton.icon(onPressed: onRetry, icon: const Icon(Icons.refresh_rounded, size: 17), label: const Text('Try again')),
+        ],
+      ),
+    );
   }
 
   String? _usernameFromQr(String value) {
@@ -304,122 +357,164 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      builder: (sheetContext) => Container(
-        height: MediaQuery.of(sheetContext).size.height * 0.75,
-        width: double.infinity,
-        decoration: BoxDecoration(
-          color: theme.colorScheme.surface,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
-        ),
-        child: Column(
-          children: [
-            const SizedBox(height: 12),
-            Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            const SizedBox(height: 32),
-            const Icon(Icons.qr_code_scanner_rounded, size: 64, color: Color(0xFFBDBDBD)),
-            const SizedBox(height: 24),
-            Text(
-              'Scan QR Code',
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: theme.colorScheme.onSurface,
-              ),
-            ),
-            const SizedBox(height: 12),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 48),
-              child: Text(
-                'Hold your device over a friend\'s QR code to connect instantly.',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: theme.colorScheme.onSurfaceVariant,
-                  height: 1.5,
-                ),
-              ),
-            ),
-            const Spacer(),
-            Container(
-              margin: const EdgeInsets.all(32),
-              width: double.infinity,
-              height: 300,
-              decoration: BoxDecoration(
-                color: Colors.black,
-                borderRadius: BorderRadius.circular(24),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.2),
-                    blurRadius: 20,
-                    offset: const Offset(0, 10),
-                  ),
-                ],
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(24),
-                child: Stack(
-                  children: [
-                    MobileScanner(
-                      onDetect: (capture) {
-                        if (_isResolvingQr) return;
-                        final List<Barcode> barcodes = capture.barcodes;
-                        for (final barcode in barcodes) {
-                          if (barcode.rawValue != null) {
-                            _onQRScanned(barcode.rawValue!);
-                            break;
-                          }
-                        }
-                      },
+      builder: (sheetContext) {
+        final screenHeight = MediaQuery.of(sheetContext).size.height;
+        final sheetHeight = screenHeight * 0.82;
+        return Container(
+          height: sheetHeight,
+          width: double.infinity,
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
+            border: Border.all(color: theme.colorScheme.outlineVariant.withValues(alpha: .45)),
+            boxShadow: [
+              BoxShadow(color: Colors.black.withValues(alpha: .18), blurRadius: 28, offset: const Offset(0, -8)),
+            ],
+          ),
+          child: SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+              child: Column(
+                children: [
+                  Container(
+                    width: 38,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.outlineVariant,
+                      borderRadius: BorderRadius.circular(8),
                     ),
-                    // Optional Scanner Overlay
-                    Center(
-                      child: Container(
-                        width: 200,
-                        height: 200,
+                  ),
+                  const SizedBox(height: 18),
+                  Row(
+                    children: [
+                      Container(
+                        width: 44,
+                        height: 44,
                         decoration: BoxDecoration(
-                          border: Border.all(color: Colors.white54, width: 2),
-                          borderRadius: BorderRadius.circular(24),
+                          gradient: NovynGradients.selected(context),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: const Icon(Icons.qr_code_scanner_rounded, color: Colors.white, size: 23),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Scan a Novyn QR', style: NovynText.display(19, color: theme.colorScheme.onSurface)),
+                            const SizedBox(height: 3),
+                            Text('Align the code inside the frame to open a profile.', style: NovynText.body(11.5, color: theme.colorScheme.onSurfaceVariant)),
+                          ],
                         ),
                       ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: manualUsername,
-                      textInputAction: TextInputAction.go,
-                      onSubmitted: (value) => _onQRScanned(value),
-                      decoration: const InputDecoration(
-                        hintText: 'Or enter a username',
-                        prefixIcon: Icon(Icons.alternate_email_rounded),
-                        isDense: true,
+                      IconButton(
+                        tooltip: 'Close scanner',
+                        onPressed: () => Navigator.pop(sheetContext),
+                        icon: Icon(Icons.close_rounded, color: theme.colorScheme.onSurfaceVariant),
                       ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  Expanded(
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        final side = math.min(constraints.maxWidth - 28, constraints.maxHeight - 8).clamp(150.0, 280.0).toDouble();
+                        return Center(
+                          child: AspectRatio(
+                            aspectRatio: 1,
+                            child: Container(
+                              constraints: BoxConstraints(maxWidth: side, maxHeight: side),
+                              decoration: BoxDecoration(
+                                color: Colors.black,
+                                borderRadius: BorderRadius.circular(24),
+                                boxShadow: [
+                                  BoxShadow(color: theme.colorScheme.primary.withValues(alpha: .16), blurRadius: 22, spreadRadius: 1),
+                                ],
+                              ),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(24),
+                                child: Stack(
+                                  fit: StackFit.expand,
+                                  children: [
+                                    MobileScanner(
+                                      onDetect: (capture) {
+                                        if (_isResolvingQr) return;
+                                        for (final barcode in capture.barcodes) {
+                                          if (barcode.rawValue != null) {
+                                            _onQRScanned(barcode.rawValue!);
+                                            break;
+                                          }
+                                        }
+                                      },
+                                    ),
+                                    Center(
+                                      child: SizedBox(
+                                        width: side * .68,
+                                        height: side * .68,
+                                        child: DecoratedBox(
+                                          decoration: BoxDecoration(
+                                            border: Border.all(color: Colors.white.withValues(alpha: .9), width: 2.4),
+                                            borderRadius: BorderRadius.circular(20),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    Positioned(
+                                      left: 0, right: 0, bottom: 12,
+                                      child: Center(
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+                                          decoration: BoxDecoration(color: Colors.black.withValues(alpha: .58), borderRadius: BorderRadius.circular(20)),
+                                          child: const Text('Scanning automatically', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w600)),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
+                      },
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  IconButton.filled(
-                    onPressed: () => _onQRScanned(manualUsername.text),
-                    icon: const Icon(Icons.arrow_forward_rounded),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: manualUsername,
+                          textInputAction: TextInputAction.go,
+                          onSubmitted: (value) => _onQRScanned(value),
+                          decoration: InputDecoration(
+                            hintText: 'Enter username instead',
+                            prefixIcon: const Icon(Icons.alternate_email_rounded, size: 19),
+                            isDense: true,
+                            filled: true,
+                            fillColor: theme.colorScheme.surfaceContainerHighest.withValues(alpha: .5),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide.none),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 9),
+                      SizedBox(
+                        height: 48,
+                        child: FilledButton(
+                          onPressed: () => _onQRScanned(manualUsername.text),
+                          style: FilledButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
+                          child: const Icon(Icons.arrow_forward_rounded),
+                        ),
+                      ),
+                    ],
                   ),
+                  const SizedBox(height: 4),
                 ],
               ),
             ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
     manualUsername.dispose();
   }
