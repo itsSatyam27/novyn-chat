@@ -333,8 +333,6 @@ class _ChatsScreenState extends State<ChatsScreen> {
     }).toList();
     final pinnedChats = activeChats.where((chat) => chat.isPinned).toList();
     final recentChats = activeChats.where((chat) => !chat.isPinned).toList();
-    final unreadCount =
-        activeChats.fold<int>(0, (total, chat) => total + chat.unreadCount);
 
     return Scaffold(
       backgroundColor: NovynTheme.pageBg(context),
