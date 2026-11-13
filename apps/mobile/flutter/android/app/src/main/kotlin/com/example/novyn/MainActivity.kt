@@ -2,6 +2,10 @@ package com.example.novyn
 
 import android.content.Context
 import android.media.AudioManager
+import android.media.AudioDeviceInfo
+import android.media.AudioDeviceCallback
+import android.os.Handler
+import android.os.Looper
 import android.content.pm.PackageManager
 import android.content.ComponentName
 import android.os.Vibrator
@@ -12,6 +16,7 @@ import android.util.Rational
 import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
+import io.flutter.plugin.common.EventChannel
 import android.view.WindowManager
 
 class MainActivity : FlutterFragmentActivity() {
@@ -19,6 +24,9 @@ class MainActivity : FlutterFragmentActivity() {
     private val CHANNEL = "com.example.novyn/audio"
     private val SECURITY_CHANNEL = "com.example.novyn/security"
     private val CALL_CHANNEL = "com.example.novyn/call"
+    private val AUDIO_ROUTE_EVENTS = "com.example.novyn/audio_routes"
+    private var audioRouteSink: EventChannel.EventSink? = null
+    private var audioDeviceCallback: AudioDeviceCallback? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -32,9 +40,20 @@ class MainActivity : FlutterFragmentActivity() {
                     // Call once at call start — sets mode, defaults to earpiece
                     "startCallMode" -> {
                         audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
-                        @Suppress("DEPRECATION")
-                        audioManager.isSpeakerphoneOn = false
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                            audioManager.clearCommunicationDevice()
+                        } else {
+                            @Suppress("DEPRECATION")
+                            audioManager.isSpeakerphoneOn = false
+                            @Suppress("DEPRECATION")
+                            audioManager.stopBluetoothSco()
+                        }
                         result.success(null)
+                    }
+                    "getAudioRoutes" -> result.success(getCallAudioRoutes(audioManager))
+                    "setAudioRoute" -> {
+                        val routeId = call.argument<String>("routeId") ?: ""
+                        result.success(selectCallAudioRoute(audioManager, routeId))
                     }
                     // Toggle only — mode already set, no re-negotiation, no pause
                     "setSpeakerphoneOn" -> {
@@ -51,8 +70,16 @@ class MainActivity : FlutterFragmentActivity() {
                     }
                     // Call when call ends — restores normal audio
                     "resetMode" -> {
-                        @Suppress("DEPRECATION")
-                        audioManager.isSpeakerphoneOn = false
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                            audioManager.clearCommunicationDevice()
+                        } else {
+                            @Suppress("DEPRECATION")
+                            audioManager.stopBluetoothSco()
+                            @Suppress("DEPRECATION")
+                            audioManager.isBluetoothScoOn = false
+                            @Suppress("DEPRECATION")
+                            audioManager.isSpeakerphoneOn = false
+                        }
                         audioManager.isMicrophoneMute = false
                         audioManager.mode = AudioManager.MODE_NORMAL
                         result.success(null)
@@ -60,6 +87,35 @@ class MainActivity : FlutterFragmentActivity() {
                     else -> result.notImplemented()
                 }
             }
+
+        EventChannel(flutterEngine.dartExecutor.binaryMessenger, AUDIO_ROUTE_EVENTS)
+            .setStreamHandler(object : EventChannel.StreamHandler {
+                override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
+                    audioRouteSink = events
+                    val manager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        audioDeviceCallback = object : AudioDeviceCallback() {
+                            override fun onAudioDevicesAdded(addedDevices: Array<out AudioDeviceInfo>) {
+                                publishCallAudioRoutes(manager)
+                            }
+                            override fun onAudioDevicesRemoved(removedDevices: Array<out AudioDeviceInfo>) {
+                                publishCallAudioRoutes(manager)
+                            }
+                        }
+                        manager.registerAudioDeviceCallback(audioDeviceCallback, Handler(Looper.getMainLooper()))
+                    }
+                    publishCallAudioRoutes(manager)
+                }
+
+                override fun onCancel(arguments: Any?) {
+                    val manager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        audioDeviceCallback?.let { manager.unregisterAudioDeviceCallback(it) }
+                    }
+                    audioDeviceCallback = null
+                    audioRouteSink = null
+                }
+            })
 
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CALL_CHANNEL)
             .setMethodCallHandler { call, result ->
@@ -139,5 +195,73 @@ class MainActivity : FlutterFragmentActivity() {
                     result.notImplemented()
                 }
             }
+    private fun getCallAudioRoutes(audioManager: AudioManager): List<Map<String, Any>> {
+        val routes = mutableListOf<Map<String, Any>>()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val available = audioManager.availableCommunicationDevices
+            val selectedId = audioManager.communicationDevice?.id
+            for (device in available) {
+                val bluetooth = device.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO ||
+                    device.type == AudioDeviceInfo.TYPE_BLE_HEADSET
+                val id = when (device.type) {
+                    AudioDeviceInfo.TYPE_BUILTIN_EARPIECE -> "earpiece"
+                    AudioDeviceInfo.TYPE_BUILTIN_SPEAKER -> "speaker"
+                    else -> if (bluetooth) "bluetooth:${device.id}" else continue
+                }
+                routes.add(mapOf(
+                    "id" to id,
+                    "name" to if (bluetooth) (device.productName?.toString()?.takeIf { it.isNotBlank() } ?: "Bluetooth") else if (id == "speaker") "Speaker" else "Phone",
+                    "kind" to if (bluetooth) "bluetooth" else id,
+                    "selected" to (selectedId == device.id)
+                ))
+            }
+        } else {
+            routes.add(mapOf("id" to "earpiece", "name" to "Phone", "kind" to "earpiece", "selected" to !audioManager.isSpeakerphoneOn && !audioManager.isBluetoothScoOn))
+            routes.add(mapOf("id" to "speaker", "name" to "Speaker", "kind" to "speaker", "selected" to audioManager.isSpeakerphoneOn))
+            @Suppress("DEPRECATION")
+            val sco = audioManager.isBluetoothScoOn
+            if (sco) routes.add(mapOf("id" to "bluetooth:legacy", "name" to "Bluetooth", "kind" to "bluetooth", "selected" to true))
+        }
+        return routes
+    }
+
+    private fun selectCallAudioRoute(audioManager: AudioManager, routeId: String): Boolean {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val target = if (routeId.startsWith("bluetooth:")) {
+                val deviceId = routeId.substringAfter(":").toIntOrNull() ?: return false
+                audioManager.availableCommunicationDevices.firstOrNull { it.id == deviceId }
+            } else {
+                val type = if (routeId == "speaker") AudioDeviceInfo.TYPE_BUILTIN_SPEAKER else AudioDeviceInfo.TYPE_BUILTIN_EARPIECE
+                audioManager.availableCommunicationDevices.firstOrNull { it.type == type }
+            } ?: return false
+            val changed = audioManager.setCommunicationDevice(target)
+            publishCallAudioRoutes(audioManager)
+            return changed
+        }
+
+        @Suppress("DEPRECATION")
+        if (routeId.startsWith("bluetooth:")) {
+            audioManager.isSpeakerphoneOn = false
+            audioManager.startBluetoothSco()
+            audioManager.isBluetoothScoOn = true
+        } else if (routeId == "speaker") {
+            audioManager.stopBluetoothSco()
+            audioManager.isBluetoothScoOn = false
+            audioManager.isSpeakerphoneOn = true
+        } else {
+            audioManager.stopBluetoothSco()
+            audioManager.isBluetoothScoOn = false
+            audioManager.isSpeakerphoneOn = false
+        }
+        publishCallAudioRoutes(audioManager)
+        return true
+    }
+
+    private fun publishCallAudioRoutes(audioManager: AudioManager) {
+        runOnUiThread {
+            audioRouteSink?.success(getCallAudioRoutes(audioManager))
+        }
+    }
+
     }
 }
