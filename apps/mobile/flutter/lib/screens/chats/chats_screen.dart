@@ -406,7 +406,7 @@ class _ChatsScreenState extends State<ChatsScreen> {
               ),
             ),
             _buildSearch(),
-            _buildFilterCards(allChats, favorites),
+            _buildFilterCards(),
             Expanded(
               child: _loading
                   ? Center(child: CircularProgressIndicator(
@@ -463,7 +463,7 @@ class _ChatsScreenState extends State<ChatsScreen> {
     );
   }
 
-  Widget _buildFilterCards(List<ChatPreview> chats, Set<String> favorites) {
+  Widget _buildFilterCards() {
     const filters = [
       ('all', 'All'),
       ('unread', 'Unread'),
