@@ -1,5 +1,6 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
+import '../../widgets/novyn_brand_mark.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../services/auth_service.dart';
@@ -255,14 +256,8 @@ class _SplashScreenV2State extends State<SplashScreenV2>
                   Container(
                     width: 146,
                     height: 146,
-                    padding: const EdgeInsets.all(25),
                     decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(38),
-                      gradient: const LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [Color(0xFF7C6CFF), Color(0xFF5141CD)],
-                      ),
+                      shape: BoxShape.circle,
                       boxShadow: [
                         BoxShadow(
                           color: const Color(0xFF5141CD).withValues(alpha: .30),
@@ -272,10 +267,7 @@ class _SplashScreenV2State extends State<SplashScreenV2>
                         ),
                       ],
                     ),
-                    child: Image.asset(
-                      'assets/icons/app_icon_foreground.png',
-                      fit: BoxFit.contain,
-                    ),
+                    child: const NovynBrandMark(size: 146),
                   ),
                 ],
               ),
