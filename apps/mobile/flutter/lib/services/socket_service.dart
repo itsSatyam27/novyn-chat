@@ -677,12 +677,17 @@ class SocketService extends ChangeNotifier {
       if (data is! Map) return;
       final from = data['from']?.toString() ?? '';
       final isTyping = data['isTyping'] == true;
+      final isGroupTyping = data['toType']?.toString() == 'group';
+      final conversationKey = isGroupTyping
+          ? (data['to']?.toString() ?? '')
+          : from;
+      if (conversationKey.isEmpty) return;
 
       if (_currentChatWith != null &&
-          from.toLowerCase() == _currentChatWith!.toLowerCase()) {
+          conversationKey.toLowerCase() == _currentChatWith!.toLowerCase()) {
         _peerIsTyping = isTyping;
       }
-      _typingInChats[from.toLowerCase()] = isTyping;
+      _typingInChats[conversationKey.toLowerCase()] = isTyping;
       notifyListeners();
     });
 
