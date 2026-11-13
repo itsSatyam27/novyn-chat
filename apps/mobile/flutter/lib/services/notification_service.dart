@@ -41,6 +41,10 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
     await plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()?.createNotificationChannel(channel);
     final caller = data['chat']?.toString() ?? 'Novyn contact';
     final callId = data['callId']?.toString() ?? '';
+    if (callStatus == 'ended') {
+      if (callId.isNotEmpty) await plugin.cancel(callId.hashCode);
+      return;
+    }
     final isVideo = data['isVideo']?.toString() == '1';
     final title = data['title']?.toString() ?? (isIncoming ? (isVideo ? 'Incoming video call' : 'Incoming voice call') : 'Missed call');
     final body = data['body']?.toString() ?? (isIncoming ? caller + ' is calling you' : 'You missed a call from ' + caller);
@@ -49,6 +53,7 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
         channelDescription: 'Incoming voice and video calls', importance: Importance.max,
         priority: Priority.max, category: isIncoming ? AndroidNotificationCategory.call : AndroidNotificationCategory.missedCall,
         fullScreenIntent: isIncoming, ongoing: isIncoming, autoCancel: !isIncoming,
+        timeoutAfter: isIncoming ? const Duration(seconds: 45) : null,
         playSound: true, enableVibration: true, icon: '@drawable/novyn_wings_icon'),
       iOS: const DarwinNotificationDetails(presentAlert: true, presentBadge: true, presentSound: true),
     ), payload: 'call:' + callId + '|' + caller + '|' + (isVideo ? '1' : '0'));
@@ -716,9 +721,13 @@ class NotificationService {
       if (!(_settings?.notificationsOn ?? false)) return;
       if (_socket?.isConnected == true && message.data['callStatus'] == 'incoming') return;
       final callStatus = message.data['callStatus']?.toString() ?? 'missed';
+      final callId = message.data['callId']?.toString() ?? '';
+      if (callStatus == 'ended') {
+        if (callId.isNotEmpty) unawaited(_localNotifications.cancel(callId.hashCode));
+        return;
+      }
       final isIncoming = callStatus == 'incoming';
       final caller = message.data['chat']?.toString() ?? 'Novyn contact';
-      final callId = message.data['callId']?.toString() ?? '';
       final isVideo = message.data['isVideo']?.toString() == '1';
       unawaited(_localNotifications.show(
         callId.hashCode,
@@ -732,6 +741,7 @@ class NotificationService {
             importance: Importance.max, priority: Priority.max,
             category: isIncoming ? AndroidNotificationCategory.call : AndroidNotificationCategory.missedCall,
             fullScreenIntent: isIncoming, ongoing: isIncoming, autoCancel: !isIncoming,
+            timeoutAfter: isIncoming ? const Duration(seconds: 45) : null,
             playSound: true, enableVibration: true,
           ),
           iOS: const DarwinNotificationDetails(presentAlert: true, presentBadge: true, presentSound: true),
