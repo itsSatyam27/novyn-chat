@@ -150,6 +150,11 @@ function registerCallHandlers(socket, deps) {
     const friendSocketId = onlineUsers.get(friendKey);
     const active = activeCalls.get(userKey);
     if (!active || active.peerKey !== friendKey || active.callId !== callId) return;
+    if (!friendSocketId && active.status === "ringing") {
+      expireRingingCall(friendKey, userKey, callId, active.type === "video");
+      socket.emit("call_ended", { callId, reason: "Caller is unavailable" });
+      return;
+    }
     clearRingingTimer(callId);
     setCallPair(userKey, friendKey, "connected", callId);
     console.log(`[Call] Call accepted by ${userKey} for ${friendKey} (socket: ${friendSocketId})`);
