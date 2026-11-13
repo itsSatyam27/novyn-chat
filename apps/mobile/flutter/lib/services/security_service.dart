@@ -44,7 +44,10 @@ class SecurityService {
   static Future<void> vibrate({int duration = 50, int amplitude = 255}) async {
     try {
       if (defaultTargetPlatform == TargetPlatform.android) {
-        await _channel.invokeMethod('vibrate', {\n          'duration': duration.clamp(1, 5000),\n          'amplitude': amplitude.clamp(1, 255),\n        });
+        await _channel.invokeMethod('vibrate', {
+          'duration': duration.clamp(1, 5000),
+          'amplitude': amplitude.clamp(1, 255),
+        });
       }
     } on PlatformException catch (e) {
       debugPrint('Failed to trigger native vibration: ${e.message}');
