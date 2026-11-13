@@ -1838,13 +1838,37 @@ class _NovynSettingsProfileCardState extends State<_NovynSettingsProfileCard> {
         border: Border.all(color: theme.colorScheme.outlineVariant),
       ),
       child: AnimatedSize(
-        duration: const Duration(milliseconds: 260),
-        curve: Curves.easeInOutCubic,
+        duration: const Duration(milliseconds: 360),
+        curve: Curves.easeInOutQuart,
         alignment: Alignment.topCenter,
         child: AnimatedSwitcher(
-          duration: const Duration(milliseconds: 220),
+          duration: const Duration(milliseconds: 300),
+          reverseDuration: const Duration(milliseconds: 240),
           switchInCurve: Curves.easeOutCubic,
           switchOutCurve: Curves.easeInCubic,
+          transitionBuilder: (child, animation) {
+            final slide = Tween<Offset>(
+              begin: const Offset(0, .035),
+              end: Offset.zero,
+            ).animate(CurvedAnimation(
+              parent: animation,
+              curve: Curves.easeOutCubic,
+            ));
+            final scale = Tween<double>(
+              begin: .985,
+              end: 1,
+            ).animate(CurvedAnimation(
+              parent: animation,
+              curve: Curves.easeOutCubic,
+            ));
+            return FadeTransition(
+              opacity: animation,
+              child: SlideTransition(
+                position: slide,
+                child: ScaleTransition(scale: scale, child: child),
+              ),
+            );
+          },
           child: _editing ? _buildEditor(theme) : _buildSummary(theme),
         ),
       ),
@@ -1880,7 +1904,44 @@ class _NovynSettingsProfileCardState extends State<_NovynSettingsProfileCard> {
             ],
           ],
         )),
-        NovynIconButton(icon: Icons.edit_outlined, onTap: _beginEdit),
+        Transform.translate(
+          offset: const Offset(0, -6),
+          child: Tooltip(
+            message: 'Edit profile',
+            child: Material(
+              color: theme.colorScheme.primary.withValues(alpha: .11),
+              borderRadius: BorderRadius.circular(14),
+              child: InkWell(
+                onTap: _beginEdit,
+                borderRadius: BorderRadius.circular(14),
+                splashColor: theme.colorScheme.primary.withValues(alpha: .16),
+                highlightColor: theme.colorScheme.primary.withValues(alpha: .07),
+                child: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: theme.colorScheme.primary.withValues(alpha: .22),
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: theme.colorScheme.primary.withValues(alpha: .10),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Icon(
+                    Icons.edit_rounded,
+                    size: 18,
+                    color: theme.colorScheme.primary,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
       ]),
       const SizedBox(height: 14),
       Row(children: [

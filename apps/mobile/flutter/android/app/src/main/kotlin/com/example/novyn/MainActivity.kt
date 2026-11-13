@@ -101,11 +101,12 @@ class MainActivity : FlutterFragmentActivity() {
                     }
                     result.success(null)
                 } else if (call.method == "vibrate") {
-                    val duration = call.argument<Int>("duration") ?: 50
+                    val duration = (call.argument<Int>("duration") ?: 50).coerceIn(1, 5000)
+                    val amplitude = (call.argument<Int>("amplitude") ?: 255).coerceIn(1, 255)
                     val vibrator = getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
                     if (vibrator.hasVibrator()) {
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                            vibrator.vibrate(VibrationEffect.createOneShot(duration.toLong(), VibrationEffect.DEFAULT_AMPLITUDE))
+                            vibrator.vibrate(VibrationEffect.createOneShot(duration.toLong(), amplitude))
                         } else {
                             vibrator.vibrate(duration.toLong())
                         }
