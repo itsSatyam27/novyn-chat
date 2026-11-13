@@ -2142,7 +2142,6 @@ class SocketService extends ChangeNotifier {
   Future<String> createGroup({
     required String name,
     required List<String> memberIds,
-    bool isStealth = false,
   }) async {
     await _waitForSocketAuthentication();
     final connection = _socket;
@@ -2162,7 +2161,6 @@ class SocketService extends ChangeNotifier {
       'name': name.trim(),
       // The API authorizes members by Novyn username, not Firebase UID.
       'members': members,
-      'isStealth': isStealth,
     }, ack: (dynamic result) {
       if (acknowledgement.isCompleted) return;
       acknowledgement.complete(result is Map
@@ -2248,6 +2246,7 @@ class SocketService extends ChangeNotifier {
     _conversations = [];
     _messages = [];
     _currentChatWith = null;
+    _currentChatIsGroup = false;
     _chatWallpaper = '';
     _peerIsTyping = false;
     _typingInChats.clear();
