@@ -9,7 +9,6 @@ import '../../widgets/novyn_empty_state.dart';
 import '../../widgets/user_avatar.dart';
 import '../../widgets/novyn_ui.dart';
 import '../chats/chat_detail_screen.dart';
-import 'create_group_screen.dart';
 
 class PeopleScreen extends StatefulWidget {
   const PeopleScreen({super.key});
@@ -49,20 +48,7 @@ class _PeopleScreenState extends State<PeopleScreen> {
                 return NovynHeader(
                   title: 'Contacts',
                   subtitle: '${liveFriends.length} friend${liveFriends.length == 1 ? '' : 's'} · $onlineCount online',
-                  actions: [
-                    NovynIconButton(
-                      icon: Icons.group_add_rounded,
-                      primary: true,
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => CreateGroupScreen(myUid: myUid),
-                          ),
-                        );
-                      },
-                    ),
-                  ],
+                  actions: const [],
                 );
               },
             ),

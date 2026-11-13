@@ -16,6 +16,7 @@ import '../../theme/novyn_theme.dart';
 import '../../widgets/novyn_ui.dart';
 import '../../models/chat_preview.dart';
 import 'chat_detail_screen.dart';
+import '../people/create_group_screen.dart';
 import 'package:novyn/services/haptic_service.dart';
 
 class ChatsScreen extends StatefulWidget {
@@ -391,6 +392,115 @@ class _ChatsScreenState extends State<ChatsScreen> {
                         _searchFocusNode.unfocus();
                       }
                     },
+                  ),
+                  const SizedBox(width: 2),
+                  PopupMenuButton<int>(
+                    tooltip: 'More actions',
+                    position: PopupMenuPosition.under,
+                    offset: const Offset(0, 10),
+                    elevation: 14,
+                    color: Theme.of(context).brightness == Brightness.dark
+                        ? const Color(0xFF211D30)
+                        : Colors.white,
+                    surfaceTintColor: Colors.transparent,
+                    shadowColor: Colors.black.withValues(alpha: .22),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(18),
+                      side: BorderSide(
+                        color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: .55),
+                      ),
+                    ),
+                    constraints: const BoxConstraints(minWidth: 224, maxWidth: 260),
+                    onSelected: (value) {
+                      if (value == 1) {
+                        HapticService.vibrate(
+                          NovynHapticType.selection,
+                          category: HapticCategory.chat,
+                        );
+                        final myUid = context.read<AuthService>().user?.username;
+                        if (myUid == null || myUid.isEmpty) return;
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => CreateGroupScreen(myUid: myUid),
+                          ),
+                        );
+                      }
+                    },
+                    itemBuilder: (context) => [
+                      PopupMenuItem<int>(
+                        value: 1,
+                        height: 66,
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 42,
+                              height: 42,
+                              decoration: BoxDecoration(
+                                gradient: NovynGradients.selected(context),
+                                borderRadius: BorderRadius.circular(13),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Theme.of(context).colorScheme.primary.withValues(alpha: .22),
+                                    blurRadius: 12,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ],
+                              ),
+                              child: const Icon(
+                                Icons.group_add_rounded,
+                                color: Colors.white,
+                                size: 20,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Create group',
+                                    style: TextStyle(
+                                      fontFamily: 'PlusJakartaSans',
+                                      fontSize: 13.5,
+                                      fontWeight: FontWeight.w800,
+                                      color: Theme.of(context).colorScheme.onSurface,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    'Start a group conversation',
+                                    style: TextStyle(
+                                      fontFamily: 'PlusJakartaSans',
+                                      fontSize: 11,
+                                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Icon(
+                              Icons.chevron_right_rounded,
+                              size: 19,
+                              color: Theme.of(context).colorScheme.onSurfaceVariant,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                    child: SizedBox(
+                      width: 42,
+                      height: 42,
+                      child: Center(
+                        child: Icon(
+                          Icons.more_vert_rounded,
+                          size: 23,
+                          color: Theme.of(context).colorScheme.onSurface,
+                        ),
+                      ),
+                    ),
                   ),
                 ],
               ),
