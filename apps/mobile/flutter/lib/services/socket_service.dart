@@ -1111,7 +1111,6 @@ class SocketService extends ChangeNotifier {
     Map<String, dynamic>? attachment,
     bool isGroup = false,
   }) async {
-    _requireConnection();
     final account = _myUsername;
     if (account == null) throw StateError('Sign in before sending messages.');
     final trimmedText = text.trim();
@@ -1125,8 +1124,16 @@ class SocketService extends ChangeNotifier {
         ? trimmedText
         : (attachment?['kind'] == 'image' ? '[Image]' : '[File]');
     final peerKey = isGroup ? null : _peerKeys[toPeerUsername.toLowerCase()];
+
+    // A resumed app may still be reconnecting after Android suspended its
+    // process. Wait for an authenticated socket before rejecting the send.
+    if (!_isConnected && !_manualDisconnect) {
+      _scheduleReconnect(1);
+    }
+    await _waitForSocketAuthentication();
+    _requireConnection();
+
     if (!isGroup) {
-      await _waitForSocketAuthentication();
       // Authentication can complete just before the first send. Retry identity
       // registration if the initial register_success/init callback is still running.
       for (var attempt = 0; attempt < 3; attempt++) {

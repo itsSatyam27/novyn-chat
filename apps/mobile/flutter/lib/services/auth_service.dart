@@ -196,8 +196,16 @@ class AuthService extends ChangeNotifier {
         }
 
         if (refreshStatus == 401 || refreshStatus == 403) {
-          // Only a definitive rejection from the refresh endpoint clears the
-          // saved login. A timeout, 5xx, or Render cold-start is not a logout.
+          // A single rejection immediately after process recreation can race
+          // backend auth-state hydration. Re-check the persisted cookie chain
+          // before treating the account as signed out.
+          if (attempt < 3) {
+            attempt += 1;
+            await Future<void>.delayed(
+              Duration(seconds: attempt * 2),
+            );
+            continue;
+          }
           await ApiService.clearSession();
           _authReady = true;
           notifyListeners();

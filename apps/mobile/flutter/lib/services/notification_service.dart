@@ -793,14 +793,36 @@ class NotificationService {
   }
   static Future<void> _openChatFromNotification(
       String username, BuildContext context) async {
+    final target = username.trim();
+    if (target.isEmpty || !context.mounted) return;
     try {
-      final peer = await context.read<FriendService>().getUser(username);
+      final auth = context.read<AuthService>();
+      final socket = context.read<SocketService>();
+
+      // Notification taps can arrive before the app has finished restoring
+      // its secure cookie and authenticating the socket after process resume.
+      for (var attempt = 0; attempt < 40; attempt++) {
+        if (!context.mounted) return;
+        if (auth.authReady && auth.isLoggedIn && socket.isAuthenticated) break;
+        await Future<void>.delayed(const Duration(milliseconds: 250));
+      }
+      if (!context.mounted || !auth.isLoggedIn || !socket.isAuthenticated) {
+        return;
+      }
+
+      final peer = await context.read<FriendService>().getUser(target);
       if (peer == null || !context.mounted) return;
-      Navigator.of(context).push(
+
+      // A notification must take the user to the conversation, not leave an
+      // old Profile Details route visible underneath it. Normalize the root
+      // stack before opening the destination.
+      final navigator = Navigator.of(context, rootNavigator: true);
+      navigator.popUntil((route) => route.isFirst);
+      await navigator.push(
         MaterialPageRoute(builder: (_) => ChatDetailScreen(peer: peer)),
       );
-    } catch (_) {
-      // A failed profile lookup should not interrupt app startup.
+    } catch (error) {
+      debugPrint('[NovynNotifications] Could not open chat from notification: $error');
     }
   }
 
