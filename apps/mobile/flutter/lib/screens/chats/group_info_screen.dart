@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
-import '../../models/user_model.dart';
 import '../../services/socket_service.dart';
 import '../../widgets/user_avatar.dart';
 import '../../widgets/novyn_toast.dart';
@@ -364,7 +363,7 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
                               child: Container(
                                 padding: const EdgeInsets.all(5),
                                 decoration: BoxDecoration(color: scheme.surfaceContainerLow, shape: BoxShape.circle, border: Border.all(color: scheme.outlineVariant, width: 2)),
-                                child: UserAvatar(name: name, radius: 45),
+                                child: UserAvatar(name: name, photoUrl: group['avatarId']?.toString() ?? '', radius: 45),
                               ),
                             ),
                           ),
