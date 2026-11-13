@@ -21,6 +21,7 @@ import '../screens/calls/call_screen.dart';
 // Top-level handler — must be a top-level function
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: FirebaseConfiguration.options);
   ui.DartPluginRegistrant.ensureInitialized();
   final data = message.data;
@@ -73,8 +74,20 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await prefs.reload();
   final notificationsEnabled = prefs.getBool('notifications_on') ?? true;
   if (!notificationsEnabled) return;
+  final localPresence = (prefs.getString('novyn_notification_presence_mode') ?? '').toLowerCase();
+  // Busy suppresses message alerts in every app lifecycle state. The server
+  // also suppresses these pushes; this guard covers delayed/already queued FCM.
+  if (localPresence == 'busy' ||
+      data['silent']?.toString().toLowerCase() == 'true' ||
+      data['silent']?.toString() == '1') {
+    debugPrint('[NovynNotifications] Message alert suppressed while Busy.');
+    return;
+  }
 
-  final previewEnabled = prefs.getBool('message_preview') ?? true;
+  // Respect both the locally persisted preference and the server-side value
+  // carried with encrypted pushes; either can disable previews.
+  final previewEnabled = (prefs.getBool('message_preview') ?? true) &&
+      data['previewEnabled']?.toString() != '0';
   final hideContent = prefs.getBool('hide_notification_content') ?? false;
   final account = (prefs.getString('novyn_notification_account') ?? '').trim();
   final sender = (data['chat'] ?? '').toString().trim();
@@ -102,10 +115,13 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
         );
         final encryption = MessageEncryptionService();
         var decrypted = await encryption.decrypt(encrypted, account, peerKey);
-        // Secure-storage access can briefly be unavailable while Android is
-        // starting the background isolate. Retry once; never send ciphertext.
-        if (decrypted.needsMessageKey) {
-          await Future<void>.delayed(const Duration(milliseconds: 350));
+        // Secure storage can take longer to become available in Android's
+        // background isolate. Retry with bounded backoff; never expose
+        // ciphertext or fall back to plaintext from the server.
+        const retryDelays = [350, 700, 1200];
+        for (final delay in retryDelays) {
+          if (!decrypted.needsMessageKey) break;
+          await Future<void>.delayed(Duration(milliseconds: delay));
           decrypted = await encryption.decrypt(encrypted, account, peerKey);
         }
         if (!decrypted.needsMessageKey &&
@@ -121,7 +137,7 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
         // Never expose ciphertext; fall back to a private generic alert.
       }
     } else {
-      debugPrint('[NovynNotifications] Encrypted push is missing preview key material.');
+      debugPrint('[NovynNotifications] Encrypted push is missing preview key material (ciphertext: ${ciphertext.isNotEmpty}, iv: ${iv.isNotEmpty}, sender key: ${peerKey.isNotEmpty}, account: ${account.isNotEmpty}).');
     }
   } else {
     debugPrint('[NovynNotifications] Message preview is disabled or content is hidden.');

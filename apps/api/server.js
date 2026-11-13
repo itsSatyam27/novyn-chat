@@ -2049,6 +2049,18 @@ function detachSubscriptionFromAll(endpoint, exceptKey) {
   return changed;
 }
 
+function normalizePushPublicKey(value) {
+  const raw = typeof value === "string" ? value.trim() : "";
+  if (!raw || raw.length > 2048) return "";
+  try {
+    const key = JSON.parse(raw);
+    if (key?.kty === "EC" && key?.crv === "P-256" &&
+        typeof key.x === "string" && typeof key.y === "string" &&
+        key.x.length >= 40 && key.y.length >= 40) return raw;
+  } catch (_) {}
+  return "";
+}
+
 function formatPushBody(text, fallback = "New message") {
   const cleaned = String(text || "").replace(/\s+/g, " ").trim();
   if (!cleaned) return fallback;
@@ -2946,6 +2958,19 @@ function getEffectivePresence(userKey) {
   return mode === "invisible" ? "offline" : mode;
 }
 
+// Keep a user's explicitly selected Busy state visible while disconnected,
+// without falsely marking them online. This separates preference from socket
+// reachability so friends do not see Busy turn into Offline in the background.
+function getDisplayPresence(userKey) {
+  const key = normalizeName(userKey);
+  const user = users.get(key);
+  if (!user) return "offline";
+  const mode = normalizePresenceMode(user.presenceMode);
+  if (mode === "invisible") return "offline";
+  if (mode === "busy" && !isSocketOnline(key)) return "busy";
+  return getEffectivePresence(key);
+}
+
 function isUserAvailable(userKey) {
   return getEffectivePresence(userKey) !== "offline";
 }
@@ -2974,12 +2999,12 @@ function buildGroupInfoForViewer(group, viewerKey) {
     const role = getGroupMemberRole(group, memberKey);
     const presenceAllowed = privacyAllows(user, viewer, "presencePrivacy");
     const photoAllowed = privacyAllows(user, viewer, "profilePhotoPrivacy");
-    const presence = presenceAllowed ? getEffectivePresence(memberKey) : "offline";
+    const presence = presenceAllowed ? getDisplayPresence(memberKey) : "offline";
     members.push({
       username,
       displayName: user?.displayName || "",
       avatarId: photoAllowed ? (user?.avatarId || "") : "",
-      online: presence !== "offline",
+      online: isSocketOnline(memberKey) && presence !== "offline",
       presence,
       lastSeenAt: presenceAllowed ? getVisibleLastSeen(user) : "",
       role,
@@ -3236,7 +3261,10 @@ function deliverFriendMessage(params = {}) {
       ...(params.isEncrypted === true ? {
         ciphertext: params.ciphertext,
         iv: params.iv,
-        senderPublicKey: me.publicKey || "",
+        // Multi-device accounts can have different private ECDH identities.
+        // Use the sender device's key for this message, not the last account
+        // key registered on the server.
+        senderPublicKey: normalizePushPublicKey(params.senderPublicKey) || normalizePushPublicKey(me.publicKey),
         messageId: message.id || message.messageId || "",
       } : {}),
       tag: `msg-${fromKey}`,
@@ -3861,14 +3889,16 @@ function buildFriendList(forUser) {
     const blocked = usersAreBlocked(userKey, friendKey);
     const presenceAllowed = privacyAllows(friend, userKey, "presencePrivacy");
     const photoAllowed = privacyAllows(friend, userKey, "profilePhotoPrivacy");
-    const presence = blocked || !presenceAllowed ? "offline" : getEffectivePresence(friendKey);
+    const presence = blocked || !presenceAllowed ? "offline" : getDisplayPresence(friendKey);
+    const isOnline = !blocked && presenceAllowed &&
+      isSocketOnline(friendKey) && presence !== "offline";
 
     return {
       username: friend?.username || friendKey,
       kind: "friend",
       isFriend: user.friends.has(friendKey),
       groupId: "",
-      online: presence !== "offline",
+      online: isOnline,
       presence,
       unreadCount: getUnreadCount(user, friendKey),
       lastMessage: summary.lastMessage,
@@ -3882,7 +3912,7 @@ function buildFriendList(forUser) {
       publicKey: friend?.publicKey || "",
       muted: isMutedBy(user, friendKey),
       memberCount: 2,
-      onlineCount: presence !== "offline" ? 1 : 0,
+      onlineCount: isOnline ? 1 : 0,
     };
   });
 
@@ -4040,7 +4070,7 @@ function emitStatusToFriends(username) {
     io.to(friendSocket).emit("user_status", {
       username: user.username,
       online: !blocked && presenceAllowed && online,
-      presence: blocked || !presenceAllowed ? "offline" : presence,
+      presence: blocked || !presenceAllowed ? "offline" : getDisplayPresence(userKey),
       lastSeenAt: blocked || !presenceAllowed ? null : getVisibleLastSeen(user) || null,
     });
   }

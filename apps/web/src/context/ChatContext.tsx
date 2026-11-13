@@ -1526,7 +1526,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Check if peer has public key for E2EE encryption
       const peerPubKey = activeConv?.publicKey;
       if (toType === 'friend' && peerPubKey && !activeConv?.isSelf) {
-          encryptMessageContent(rawText, targetChat, peerPubKey).then((encrypted) => {
+          encryptMessageContent(rawText, targetChat, peerPubKey).then(async (encrypted) => {
           if (encrypted) {
             // Keep message bodies and quoted message bodies off the relay. The UI
             // retains the local plaintext until it receives and decrypts the echo.
@@ -1537,6 +1537,9 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
             payload.ciphertext = encrypted.ciphertext;
             payload.iv = encrypted.iv;
             payload.isEncrypted = true;
+            // Bind the notification envelope to this exact browser identity;
+            // another signed-in device may have registered a different key.
+            payload.senderPublicKey = await getMyPublicKeyJwk();
           }
           if (!encrypted) { fail('Encryption failed. Please retry.'); return; }
           transmit();
