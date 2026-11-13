@@ -418,11 +418,34 @@ class _ChatsScreenState extends State<ChatsScreen> {
                     )
                   : const SizedBox(width: double.infinity),
             ),
-            AnimatedSize(
-              duration: const Duration(milliseconds: 300),
-              curve: Curves.easeInOutCubic,
-              alignment: Alignment.topCenter,
-              child: _filtersVisible ? _buildFilterCards(allChats, favorites) : const SizedBox(width: double.infinity),
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 280),
+              reverseDuration: const Duration(milliseconds: 220),
+              switchInCurve: Curves.easeOutCubic,
+              switchOutCurve: Curves.easeInCubic,
+              transitionBuilder: (child, animation) => SizeTransition(
+                sizeFactor: animation,
+                axisAlignment: -1,
+                child: FadeTransition(
+                  opacity: animation,
+                  child: SlideTransition(
+                    position: Tween<Offset>(
+                      begin: const Offset(0, -0.08),
+                      end: Offset.zero,
+                    ).animate(animation),
+                    child: child,
+                  ),
+                ),
+              ),
+              child: _filtersVisible
+                  ? KeyedSubtree(
+                      key: const ValueKey('chat-filters-visible'),
+                      child: _buildFilterCards(allChats, favorites),
+                    )
+                  : const SizedBox(
+                      key: ValueKey('chat-filters-hidden'),
+                      width: double.infinity,
+                    ),
             ),
 
             Expanded(
@@ -435,10 +458,17 @@ class _ChatsScreenState extends State<ChatsScreen> {
                       onRefresh: _loadChats,
                       child: NotificationListener<UserScrollNotification>(
                         onNotification: (notification) {
-                          if (_isSearching) return false;
-                          final nextVisible = notification.direction != ScrollDirection.reverse;
-                          if (nextVisible != _filtersVisible && notification.direction != ScrollDirection.idle) {
-                            setState(() => _filtersVisible = nextVisible);
+                          if (_isSearching ||
+                              notification.direction == ScrollDirection.idle) {
+                            return false;
+                          }
+
+                          // A downward finger swipe toggles the filter shelf.
+                          if (notification.direction == ScrollDirection.forward) {
+                            setState(() => _filtersVisible = !_filtersVisible);
+                          } else if (notification.direction == ScrollDirection.reverse &&
+                              _filtersVisible) {
+                            setState(() => _filtersVisible = false);
                           }
                           return false;
                         },
@@ -509,11 +539,12 @@ class _ChatsScreenState extends State<ChatsScreen> {
       }
     }
 
-    const filters = [
+    final filters = [
       ('all', 'All chats', Icons.forum_outlined),
       ('unread', 'Unread', Icons.mark_email_unread_outlined),
       ('favorites', 'Favorites', Icons.star_outline_rounded),
-      ('groups', 'Groups', Icons.groups_outlined),
+      if (chats.any((chat) => chat.isGroup))
+        ('groups', 'Groups', Icons.groups_outlined),
     ];
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
