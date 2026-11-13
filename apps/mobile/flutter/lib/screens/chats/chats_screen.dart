@@ -346,7 +346,7 @@ class _ChatsScreenState extends State<ChatsScreen> {
               padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
               child: NovynHeader(
                 title: 'Chats',
-                titleSize: 30,
+                titleSize: 36,
                 titleColor: Theme.of(context).colorScheme.onSurface,
                 actions: [
                   NovynIconButton(
@@ -837,26 +837,26 @@ class _ChatCard extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 3),
       child: Material(
         color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(25),
+        borderRadius: BorderRadius.circular(27),
         child: InkWell(
           onTap: () {
             HapticService.vibrate(NovynHapticType.light, category: HapticCategory.chat);
             onTap();
           },
           onLongPress: onOptions,
-          borderRadius: BorderRadius.circular(25),
+          borderRadius: BorderRadius.circular(27),
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 14),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 17),
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(25),
-              border: Border.all(color: theme.colorScheme.outlineVariant.withValues(alpha: dark ? .18 : .28)),
+              borderRadius: BorderRadius.circular(27),
+              border: Border.all(color: theme.colorScheme.outlineVariant.withValues(alpha: dark ? .26 : .42), width: 1.15),
             ),
             child: Row(
               children: [
                 UserAvatar(
                   name: preview.peer.name,
                   photoUrl: preview.peer.photoUrl,
-                  radius: 32,
+                  radius: 36,
                   showOnlineIndicator: true,
                   isOnline: preview.peer.isOnline,
                   presence: preview.peer.status,
@@ -875,7 +875,7 @@ class _ChatCard extends StatelessWidget {
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
                                 fontFamily: 'PlusJakartaSans',
-                                fontSize: 16.5,
+                                fontSize: 17.5,
                                 fontWeight: FontWeight.w800,
                                 letterSpacing: -.35,
                                 color: titleColor,
@@ -899,7 +899,7 @@ class _ChatCard extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           fontFamily: 'PlusJakartaSans',
-                          fontSize: 14,
+                          fontSize: 14.5,
                           color: hasUnread ? titleColor : metaColor,
                           fontWeight: hasUnread ? FontWeight.w600 : FontWeight.w400,
                         ),
@@ -916,7 +916,7 @@ class _ChatCard extends StatelessWidget {
                       _formatTime(preview.lastTime, context.watch<SettingsService>().timeFormat),
                       style: TextStyle(
                         fontFamily: 'PlusJakartaSans',
-                        fontSize: 12.5,
+                        fontSize: 13,
                         fontWeight: hasUnread ? FontWeight.w800 : FontWeight.w500,
                         color: hasUnread ? theme.colorScheme.primary : metaColor,
                       ),
