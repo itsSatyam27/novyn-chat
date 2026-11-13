@@ -731,6 +731,25 @@ class SocketService extends ChangeNotifier {
       onProfileUpdated?.call();
     });
 
+    _socket!.on('user_profile_updated', (data) {
+      if (data is! Map) return;
+      final profile = Map<String, dynamic>.from(data);
+      final username = profile['username']?.toString().trim() ?? '';
+      if (username.isEmpty) return;
+      contacts.updateProfile(profile);
+      _conversations = _conversations.map((chat) {
+        if (chat.isGroup || chat.peerUid.toLowerCase() != username.toLowerCase()) return chat;
+        final updatedPeer = chat.peer.copyWith(
+          name: profile['displayName']?.toString(),
+          bio: profile['bio']?.toString(),
+          photoUrl: profile['avatarId']?.toString(),
+        );
+        return chat.copyWith(peer: updatedPeer);
+      }).toList();
+      unawaited(HybridDbService.saveChats(_conversations));
+      notifyListeners();
+    });
+
     // ── Call signaling ────────────────────────────────────────────────────
     _socket!.on('call_incoming', (data) {
       onCallInviteCallback?.call(Map<String, dynamic>.from(data));
