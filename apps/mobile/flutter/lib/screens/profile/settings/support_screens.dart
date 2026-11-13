@@ -103,12 +103,25 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
           Center(
             child: Column(children: [
               Container(
-                width: 92, height: 92,
+                width: 92,
+                height: 92,
+                padding: const EdgeInsets.all(17),
                 decoration: BoxDecoration(
-                  color: colors.primary.withValues(alpha: .12),
-                  borderRadius: BorderRadius.circular(28),
+                  borderRadius: BorderRadius.circular(27),
+                  gradient: const LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [Color(0xFF7C6CFF), Color(0xFF5141CD)],
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF5141CD).withValues(alpha: .22),
+                      blurRadius: 22,
+                      offset: const Offset(0, 9),
+                    ),
+                  ],
                 ),
-                child: Icon(Icons.hub_rounded, size: 48, color: colors.primary),
+                child: Image.asset('assets/icons/app_icon_foreground.png', fit: BoxFit.contain),
               ),
               const SizedBox(height: 16),
               Text('Novyn', style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w900)),
