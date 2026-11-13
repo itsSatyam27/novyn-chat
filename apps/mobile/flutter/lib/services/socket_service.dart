@@ -68,6 +68,7 @@ class SocketService extends ChangeNotifier {
   Future<void>? _identityRegistration;
   String? _registeredIdentityAccount;
   bool _isAuthenticated = false;
+  bool _hasLoadedConversations = false;
   Completer<void>? _authenticationReady;
   Completer<bool>? _olderHistoryCompleter;
   VoidCallback? onAuthenticated;
@@ -125,6 +126,7 @@ class SocketService extends ChangeNotifier {
   List<Message> get messages => List.unmodifiable(_messages);
   bool get isConnected => _isConnected;
   bool get isAuthenticated => _isAuthenticated;
+  bool get hasLoadedConversations => _hasLoadedConversations;
   bool get peerIsTyping => _peerIsTyping;
   String? get currentChatWith => _currentChatWith;
   bool get activeChatCaptureProtected => _activeChatCaptureProtected;
@@ -753,7 +755,8 @@ class SocketService extends ChangeNotifier {
 
     // ── Server error messages ─────────────────────────────────────────────
     _socket!.on('error_message', (data) {
-      debugPrint('[NovynSocket] Server error: ${data['message']}');
+      final message = data is Map ? data['message'] : data;
+      debugPrint('[NovynSocket] Server error: $message');
     });
   }
 
@@ -831,13 +834,28 @@ class SocketService extends ChangeNotifier {
   }
 
   // ── Parse friend_list payload into ChatPreview list ───────────────────────
-  void _handleFriendList(dynamic data) async {
-    final list = data is List ? data : (data is Map ? data['friends'] : null);
-    if (list is! List) return;
+  void _handleFriendList(dynamic data) {
+    // Socket.IO callbacks do not await async handlers. Keep failures contained
+    // so one malformed friend record cannot escape as an unhandled async error.
+    unawaited(_applyFriendList(data));
+  }
 
-    final previews = list.map<ChatPreview>((item) {
+  Future<void> _applyFriendList(dynamic data) async {
+    final rawList = data is List ? data : (data is Map ? data['friends'] : null);
+    if (rawList is! List) return;
+    final account = _myUsername;
+    if (account == null || account.isEmpty) return;
+
+    try {
+      final list = rawList
+          .whereType<Map>()
+          .map((item) => Map<String, dynamic>.from(item))
+          .toList();
+      final peers = <UserModel>[];
+      final previews = list.map<ChatPreview?>((item) {
       final username =
           item['username']?.toString() ?? item['groupId']?.toString() ?? '';
+      if (username.trim().isEmpty) return null;
       final displayName = item['displayName']?.toString() ??
           item['name']?.toString() ??
           username;
@@ -861,6 +879,7 @@ class SocketService extends ChangeNotifier {
         status: item['presence']?.toString() ?? 'Online',
         photoUrl: item['avatarId']?.toString() ?? '',
       );
+      peers.add(peerModel);
 
       return ChatPreview(
         chatId: username.toLowerCase(),
@@ -876,14 +895,18 @@ class SocketService extends ChangeNotifier {
             DateTime.now(),
         unreadCount: (item['unreadCount'] as num?)?.toInt() ?? 0,
       );
-    }).toList();
+      }).whereType<ChatPreview>().toList();
 
-    _conversations = previews;
-    HybridDbService.saveChats(previews);
-    notifyListeners();
-    final account = _myUsername;
-    if (account == null) return;
-    for (final item in list) {
+      // Persist both previews and their peer profiles. Without the profiles,
+      // logout/login cache hydration sees chat rows but cannot rebuild cards.
+      _conversations = previews;
+      _hasLoadedConversations = true;
+      await HybridDbService.saveUsers(peers);
+      await HybridDbService.saveChats(previews);
+      if (_myUsername != account) return;
+      notifyListeners();
+
+      for (final item in list) {
       final raw = item['lastMessageData'] ?? item['lastMessage'];
       if (raw is! Map || raw['isEncrypted'] != true) continue;
       final peer = item['username']?.toString() ?? '';
@@ -900,6 +923,7 @@ class SocketService extends ChangeNotifier {
           account,
           _peerKeys[peer.toLowerCase()]);
       if (_myUsername != account) return;
+      if (_myUsername != account) return;
       if (decrypted.needsMessageKey) continue;
       final index = _conversations.indexWhere(
           (chat) => chat.peerUid.toLowerCase() == peer.toLowerCase());
@@ -913,6 +937,12 @@ class SocketService extends ChangeNotifier {
         HybridDbService.saveChat(updated[index]);
         notifyListeners();
       }
+      }
+    } catch (error, stackTrace) {
+      debugPrint('[NovynSocket] Friend list refresh failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      // Keep the last good cached snapshot visible; a later server event retries.
+      notifyListeners();
     }
   }
 
@@ -2041,6 +2071,7 @@ class SocketService extends ChangeNotifier {
     _manualDisconnect = true;
     _myUsername = null;
     _isAuthenticated = false;
+    _hasLoadedConversations = false;
     _registeredIdentityAccount = null;
     _identityRegistration = null;
     _authenticationReady = null;
