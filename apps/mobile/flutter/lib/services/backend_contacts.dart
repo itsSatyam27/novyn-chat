@@ -80,16 +80,21 @@ class BackendContacts extends ChangeNotifier {
   }
 
   void updateStatus(String username, bool online, {String? presence}) {
-    friends = friends
-        .map((user) => user.username.toLowerCase() == username.toLowerCase()
-            ? user.copyWith(
-                isOnline: online,
-                status: presence ??
-                    (online
-                        ? (user.status == 'offline' ? 'online' : user.status)
-                        : 'offline'))
-            : user)
-        .toList();
+    UserModel update(UserModel user) {
+      if (user.username.toLowerCase() != username.toLowerCase()) return user;
+      return user.copyWith(
+        isOnline: online,
+        status: presence ??
+            (online
+                ? (user.status == 'offline' ? 'online' : user.status)
+                : 'offline'),
+      );
+    }
+
+    // Presence events are broadcast for every account, not only friends.
+    // Keep the Discover directory in sync so online badges and sorting update live.
+    friends = friends.map(update).toList();
+    discovered = discovered.map(update).toList();
     notifyListeners();
   }
 
