@@ -718,7 +718,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
               style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 18,
                 fontWeight: FontWeight.w800, color: scheme.onSurface)),
             const SizedBox(height: 3),
-            Text('@${widget.peer.username}', style: TextStyle(
+            Text(widget.isGroup ? 'Group chat' : '@${widget.peer.username}', style: TextStyle(
               fontFamily: 'PlusJakartaSans', fontSize: 12,
               fontWeight: FontWeight.w600, color: scheme.primary)),
             const SizedBox(height: 12),
@@ -728,7 +728,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                 color: scheme.primary.withValues(alpha: isDark ? 0.16 : 0.08),
                 borderRadius: BorderRadius.circular(20)),
               child: Row(mainAxisSize: MainAxisSize.min, children: [
-                Icon(Icons.lock_outline_rounded, size: 13, color: scheme.primary),
+                Icon(widget.isGroup ? Icons.groups_rounded : Icons.lock_outline_rounded, size: 13, color: scheme.primary),
                 const SizedBox(width: 6),
                 Text(widget.isGroup ? 'Group conversation' : 'End-to-end encrypted', style: TextStyle(
                   fontFamily: 'PlusJakartaSans', fontSize: 11,
