@@ -1332,15 +1332,32 @@ class SocketService extends ChangeNotifier {
     return titles[type] ?? 'Game';
   }
 
-  void makeGameMove(String messageId, String peerUsername, Map<String, dynamic> moveData,
-      {bool isGroup = false}) {
+  Future<Map<String, dynamic>> makeGameMove(
+    String messageId,
+    String peerUsername,
+    Map<String, dynamic> moveData, {
+    bool isGroup = false,
+  }) async {
     _requireConnection();
-    _socket!.emit('game_move', {
+    final completer = Completer<Map<String, dynamic>>();
+    _socket!.emitWithAck('game_move', {
       'messageId': messageId,
       'to': peerUsername,
       'toType': isGroup ? 'group' : 'friend',
       'moveData': moveData,
+    }, ack: (dynamic result) {
+      completer.complete(result is Map
+          ? Map<String, dynamic>.from(result)
+          : {'ok': false, 'message': 'Could not update the game.'});
     });
+    final result = await completer.future.timeout(
+      const Duration(seconds: 12),
+      onTimeout: () => {'ok': false, 'message': 'Game move timed out. Please retry.'},
+    );
+    if (result['ok'] != true) {
+      throw StateError(result['message']?.toString() ?? 'Game move failed.');
+    }
+    return result;
   }
 
   Future<Map<String, dynamic>> sendRiddle({
@@ -1350,11 +1367,13 @@ class SocketService extends ChangeNotifier {
     required String answer,
     String? hint,
     int maxTries = 3,
+    bool isGroup = false,
   }) async {
     _requireConnection();
     final completer = Completer<Map<String, dynamic>>();
     _socket!.emitWithAck('riddle_message', {
       'to': peerUsername,
+      'toType': isGroup ? 'group' : 'friend',
       'secret': secret,
       'question': question,
       'answer': answer,
@@ -1376,12 +1395,15 @@ class SocketService extends ChangeNotifier {
     required String messageId,
     required String fromUsername,
     required String answer,
+    bool isGroup = false,
   }) async {
     _requireConnection();
     final completer = Completer<Map<String, dynamic>>();
     _socket!.emitWithAck('unlock_riddle', {
       'messageId': messageId,
       'from': fromUsername,
+      'to': fromUsername,
+      'toType': isGroup ? 'group' : 'friend',
       'answer': answer,
     }, ack: (dynamic result) {
       completer.complete(result is Map
