@@ -1197,7 +1197,15 @@ class SocketService extends ChangeNotifier {
       }
     }
 
+    final senderPublicKey = !isGroup
+        ? await encryption.initializeIdentity(account)
+        : '';
+    if (!isGroup && senderPublicKey.isEmpty) {
+      throw StateError('Secure notification identity is not ready. Reconnect and try again.');
+    }
+
     final payload = <String, dynamic>{
+      'senderPublicKey': senderPublicKey,
       'to': toPeerUsername,
       'toType': toType,
       'text': rawText,
