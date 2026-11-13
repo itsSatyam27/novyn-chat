@@ -401,7 +401,7 @@ class AuthService extends ChangeNotifier {
           await _prepareAccount(refreshedUser.username);
         }
         _user = refreshedUser;
-          await _persistIdentity(refreshedUser);
+        await _persistIdentity(refreshedUser);
         notifyListeners();
       }
     } catch (_) {}
@@ -466,7 +466,7 @@ class AuthService extends ChangeNotifier {
         );
         await _prepareAccount(signedInUser.username);
         _user = signedInUser;
-          await _persistIdentity(signedInUser);
+        await _persistIdentity(signedInUser);
       }
 
       notifyListeners();
@@ -617,8 +617,8 @@ class AuthService extends ChangeNotifier {
     // cleanup, Firebase sign-out, a slow backend or a socket disconnect.
     _user = null;
     _authReady = true;
-    await _clearCachedIdentity();
     notifyListeners();
+    unawaited(_clearCachedIdentity());
 
     if (username != null && clearNotificationsToken != null) {
       try {
