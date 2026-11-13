@@ -269,7 +269,7 @@ class _ChatsScreenState extends State<ChatsScreen> {
       PageRouteBuilder(
         transitionDuration: const Duration(milliseconds: 300),
         pageBuilder: (context, animation, secondaryAnimation) =>
-            ChatDetailScreen(peer: chat.peer),
+            ChatDetailScreen(peer: chat.peer, isGroup: chat.isGroup),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           return FadeTransition(opacity: animation, child: child);
         },
