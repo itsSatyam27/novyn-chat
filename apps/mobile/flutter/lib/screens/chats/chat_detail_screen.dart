@@ -1619,7 +1619,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
           subtitle: Text(game['subtitle']!, style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 12)),
           trailing: Icon(Icons.arrow_forward_ios_rounded, size: 15),
           onTap: () {
-            context.read<SocketService>().sendGameChallenge(game['id']!, widget.peer.uid.isNotEmpty ? widget.peer.uid : widget.peer.username);
+            context.read<SocketService>().sendGameChallenge(
+              game['id']!,
+              widget.peer.uid.isNotEmpty ? widget.peer.uid : widget.peer.username,
+              isGroup: widget.isGroup,
+            );
             Navigator.pop(sheetContext);
           },
         )),
