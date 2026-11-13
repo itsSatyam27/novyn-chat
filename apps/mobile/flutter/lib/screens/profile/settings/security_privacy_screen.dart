@@ -210,6 +210,27 @@ class SecurityPrivacyScreen extends StatelessWidget {
                 ),
               ),
           ], color: const Color(0xFFC2540F)),
+          if (category == 'privacy') section('Notification privacy', [
+            _SecurityPrivacyToggleTile(
+              icon: Icons.do_not_disturb_on_outlined,
+              accent: const Color(0xFF8B5CF6),
+              title: 'Do Not Disturb',
+              subtitle: 'Only messages and call alerts from your favourite contacts will notify you',
+              value: settings.doNotDisturbEnabled,
+              onChanged: settings.setDoNotDisturbEnabled,
+            ),
+            if (settings.doNotDisturbEnabled)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                child: Text(
+                  'Manage your favourites from the Chats screen. DND does not change your online presence or block incoming calls.',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: muted,
+                    height: 1.4,
+                  ),
+                ),
+              ),
+          ], color: const Color(0xFF8B5CF6)),
           if (category == 'privacy') _PrivacyDashboard(
             lastSeen: settings.lastSeenVisibility,
             profilePhoto: settings.profilePhotoVisibility,
