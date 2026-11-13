@@ -28,11 +28,6 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
   bool _isResolvingQr = false;
   final Set<String> _sendingRequests = <String>{};
 
-  @override
-  void dispose() {
-    super.dispose();
-  }
-
   Future<void> _sendDiscoveredRequest(String myUid, UserModel user) async {
     if (_sendingRequests.contains(user.uid)) return;
     setState(() => _sendingRequests.add(user.uid));
