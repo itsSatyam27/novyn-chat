@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -91,6 +92,7 @@ class SettingsService extends ChangeNotifier {
   static const _kHighContrast = 'accessibility_high_contrast';
   static const _kReduceMotion = 'accessibility_reduce_motion';
   static const _kBusyPreviousPresence = 'busy_previous_presence_mode';
+  static const _kFocusModeUntil = 'focus_mode_until_ms';
 
   late SharedPreferences _prefs;
   bool _loaded = false;
@@ -155,6 +157,8 @@ class SettingsService extends ChangeNotifier {
   bool _highContrast = false;
   bool _reduceMotion = false;
   String? _busyPreviousPresenceMode;
+  int? _focusModeUntilMs;
+  Timer? _focusModeExpiryTimer;
 
   // ── Getters ─────────────────────────────────────────────────────────────
   bool get notificationsOn => _notificationsOn;
@@ -233,6 +237,8 @@ class SettingsService extends ChangeNotifier {
   bool get highContrast => _highContrast;
   bool get reduceMotion => _reduceMotion;
   String? get busyPreviousPresenceMode => _busyPreviousPresenceMode;
+  bool get focusModeEnabled => _focusModeUntilMs != null && _focusModeUntilMs! > DateTime.now().millisecondsSinceEpoch;
+  DateTime? get focusModeEndsAt => focusModeEnabled ? DateTime.fromMillisecondsSinceEpoch(_focusModeUntilMs!) : null;
 
   // ── Load from disk ───────────────────────────────────────────────────────
   Future<void> load() async {
@@ -337,6 +343,8 @@ class SettingsService extends ChangeNotifier {
     _highContrast = _prefs.getBool(_kHighContrast) ?? false;
     _reduceMotion = _prefs.getBool(_kReduceMotion) ?? false;
     _busyPreviousPresenceMode = _prefs.getString(_kBusyPreviousPresence);
+    _focusModeUntilMs = _prefs.getInt(_kFocusModeUntil);
+    _scheduleFocusModeExpiry();
     
     // Load saved sessions
     final raw = _prefs.getString(_kSavedSessions);
@@ -508,6 +516,36 @@ class SettingsService extends ChangeNotifier {
     _highContrast = v;
     await _prefs.setBool(_kHighContrast, v);
     notifyListeners();
+  }
+
+  Future<void> setFocusMode(Duration? duration) async {
+    _focusModeExpiryTimer?.cancel();
+    if (duration == null) {
+      _focusModeUntilMs = null;
+      await _prefs.remove(_kFocusModeUntil);
+    } else {
+      _focusModeUntilMs = DateTime.now().add(duration).millisecondsSinceEpoch;
+      await _prefs.setInt(_kFocusModeUntil, _focusModeUntilMs!);
+      _scheduleFocusModeExpiry();
+    }
+    notifyListeners();
+  }
+
+  void _scheduleFocusModeExpiry() {
+    _focusModeExpiryTimer?.cancel();
+    final until = _focusModeUntilMs;
+    if (until == null) return;
+    final remaining = until - DateTime.now().millisecondsSinceEpoch;
+    if (remaining <= 0) {
+      _focusModeUntilMs = null;
+      unawaited(_prefs.remove(_kFocusModeUntil));
+      return;
+    }
+    _focusModeExpiryTimer = Timer(Duration(milliseconds: remaining), () {
+      _focusModeUntilMs = null;
+      unawaited(_prefs.remove(_kFocusModeUntil));
+      notifyListeners();
+    });
   }
 
   Future<void> setBusyPreviousPresenceMode(String? mode) async {
