@@ -120,6 +120,9 @@ class SocketService extends ChangeNotifier {
   // Conversations list (mirrors novyn-chat's friend_list)
   List<ChatPreview> _conversations = [];
   List<ChatPreview> get conversations => List.unmodifiable(_conversations);
+  Map<String, dynamic>? _latestGroupInfo;
+  Map<String, dynamic>? get latestGroupInfo =>
+      _latestGroupInfo == null ? null : Map<String, dynamic>.from(_latestGroupInfo!);
   List<String> _blockedUsers = [];
   List<String> get blockedUsers => List.unmodifiable(_blockedUsers);
 
@@ -288,6 +291,11 @@ class SocketService extends ChangeNotifier {
 
     _socket!.on('friend_list', (data) => _handleFriendList(data));
     _socket!.on('friend_list_updated', (data) => _handleFriendList(data));
+    _socket!.on('group_info', (data) {
+      if (data is! Map || data['group'] is! Map) return;
+      _latestGroupInfo = Map<String, dynamic>.from(data['group'] as Map);
+      notifyListeners();
+    });
 
     _socket!.on('safety_state_updated', (data) {
       if (data is! Map) return;
@@ -2151,8 +2159,64 @@ class SocketService extends ChangeNotifier {
     if (result['ok'] != true || result['group'] is! Map) {
       throw StateError(result['message']?.toString() ?? 'Could not load group information.');
     }
+    _latestGroupInfo = Map<String, dynamic>.from(result['group'] as Map);
+    notifyListeners();
     return Map<String, dynamic>.from(result['group'] as Map);
   }
+
+  Future<Map<String, dynamic>> _groupAction(
+    String event,
+    Map<String, dynamic> payload,
+  ) async {
+    await _waitForSocketAuthentication();
+    _requireConnection();
+    final completer = Completer<Map<String, dynamic>>();
+    _socket!.emitWithAck(event, payload, ack: (dynamic response) {
+      if (completer.isCompleted) return;
+      completer.complete(response is Map
+          ? Map<String, dynamic>.from(response)
+          : <String, dynamic>{'ok': false, 'message': 'The server did not confirm this group update.'});
+    });
+    final result = await completer.future.timeout(
+      const Duration(seconds: 12),
+      onTimeout: () => <String, dynamic>{'ok': false, 'message': 'Group update timed out. Please retry.'},
+    );
+    final group = result['group'];
+    if (group is Map) {
+      _latestGroupInfo = Map<String, dynamic>.from(group);
+      notifyListeners();
+    }
+    return result;
+  }
+
+  Future<Map<String, dynamic>> addGroupMembers(
+    String groupId,
+    List<String> usernames,
+  ) => _groupAction('add_group_members', {
+    'groupId': groupId,
+    'members': usernames,
+  });
+
+  Future<Map<String, dynamic>> removeGroupMember(
+    String groupId,
+    String username,
+  ) => _groupAction('remove_group_member', {
+    'groupId': groupId,
+    'username': username,
+  });
+
+  Future<Map<String, dynamic>> setGroupMemberRole(
+    String groupId,
+    String username, {
+    required String role,
+  }) => _groupAction('set_group_member_role', {
+    'groupId': groupId,
+    'username': username,
+    'role': role,
+  });
+
+  Future<Map<String, dynamic>> leaveGroup(String groupId) =>
+      _groupAction('leave_group', {'groupId': groupId});
 
   Future<String> createGroup({
     required String name,
@@ -2259,6 +2323,7 @@ class SocketService extends ChangeNotifier {
     _messageStatuses.clear();
     _blockedUsers.clear();
     _conversations = [];
+    _latestGroupInfo = null;
     _messages = [];
     _currentChatWith = null;
     _currentChatIsGroup = false;
