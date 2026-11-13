@@ -1521,7 +1521,18 @@ class _PrivacyDashboardState extends State<_PrivacyDashboard> {
     }
   }
 
+  bool _requireStealthModeOff() {
+    if (!widget.settings.stealthModeEnabled) return false;
+    NovynAlert.show(
+      context,
+      'Turn off Stealth Mode first to change your privacy settings.',
+      isError: true,
+    );
+    return true;
+  }
+
   Future<void> _save(String key, String value) async {
+    if (_requireStealthModeOff()) return;
     if (_saving) return;
     final previous = _values[key] ?? 'everyone';
     setState(() {
@@ -1552,6 +1563,7 @@ class _PrivacyDashboardState extends State<_PrivacyDashboard> {
   }
 
   Future<void> _saveToggle(String key, bool value) async {
+    if (_requireStealthModeOff()) return;
     if (_saving) return;
     final previous = key == 'readReceiptsEnabled'
         ? widget.settings.readReceipts
@@ -1691,7 +1703,10 @@ class _PrivacyDashboardState extends State<_PrivacyDashboard> {
           subtitle: const Text('View and manage people you have blocked'),
           trailing: Icon(Icons.chevron_right_rounded,
             color: colors.onSurfaceVariant),
-          onTap: widget.onBlocked,
+          onTap: () {
+            if (_requireStealthModeOff()) return;
+            widget.onBlocked();
+          },
         ),
       ]),
       const SizedBox(height: 18),
@@ -1721,6 +1736,7 @@ class _PrivacyDashboardState extends State<_PrivacyDashboard> {
   }
 
   Future<void> _choose(String key, String current, List<String> options) async {
+    if (_requireStealthModeOff()) return;
     final selected = await showModalBottomSheet<String>(
       context: context,
       backgroundColor: Colors.transparent,
