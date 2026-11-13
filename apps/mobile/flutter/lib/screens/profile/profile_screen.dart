@@ -91,12 +91,12 @@ class ProfileScreen extends StatelessWidget {
                     const SizedBox(width: 12),
                     Expanded(
                       child: _SettingsQuickToggle(
-                        title: 'Focus Mode',
+                        title: 'Do Not Disturb',
                         activeIcon: Icons.do_not_disturb_on_rounded,
                         inactiveIcon: Icons.notifications_active_rounded,
-                        value: settings.focusModeEnabled,
+                        value: settings.doNotDisturbEnabled,
                         accent: const Color(0xFF159C91),
-                        onChanged: (value) => _toggleFocusMode(context, settings, value),
+                        onChanged: settings.setDoNotDisturbEnabled,
                       ),
                     ),
                   ],
@@ -241,72 +241,6 @@ class ProfileScreen extends StatelessWidget {
           const SnackBar(content: Text('App Lock disabled.')),
         );
       }
-    }
-  }
-
-  Future<void> _toggleFocusMode(
-    BuildContext context,
-    SettingsService settings,
-    bool enabled,
-  ) async {
-    if (!enabled) {
-      await settings.setFocusMode(null);
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Focus Mode turned off. Message alerts are back on.')),
-        );
-      }
-      return;
-    }
-
-    final duration = await showModalBottomSheet<Duration>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (sheetContext) => Container(
-        margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-        padding: const EdgeInsets.fromLTRB(18, 14, 18, 18),
-        decoration: BoxDecoration(
-          color: Theme.of(sheetContext).colorScheme.surface,
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: Theme.of(sheetContext).colorScheme.outlineVariant),
-        ),
-        child: SafeArea(
-          top: false,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Pause message alerts',
-                style: Theme.of(sheetContext).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
-              const SizedBox(height: 5),
-              Text('You will stay online. Calls and their alerts will still come through.',
-                style: Theme.of(sheetContext).textTheme.bodySmall?.copyWith(
-                  color: Theme.of(sheetContext).colorScheme.onSurfaceVariant)),
-              const SizedBox(height: 12),
-              for (final option in <(String, Duration)>[
-                ('1 hour', const Duration(hours: 1)),
-                ('2 hours', const Duration(hours: 2)),
-                ('4 hours', const Duration(hours: 4)),
-                ('8 hours', const Duration(hours: 8)),
-              ])
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.notifications_paused_outlined),
-                  title: Text(option.$1, style: const TextStyle(fontWeight: FontWeight.w700)),
-                  trailing: const Icon(Icons.chevron_right_rounded),
-                  onTap: () => Navigator.pop(sheetContext, option.$2),
-                ),
-            ],
-          ),
-        ),
-      ),
-    );
-    if (duration == null || !context.mounted) return;
-    await settings.setFocusMode(duration);
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Focus Mode enabled for ' + duration.inHours.toString() + ' hour(s). You will stay online.')),
-      );
     }
   }
 
