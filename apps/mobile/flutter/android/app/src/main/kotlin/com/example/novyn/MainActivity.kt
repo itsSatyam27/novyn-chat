@@ -7,6 +7,8 @@ import android.content.ComponentName
 import android.os.Vibrator
 import android.os.VibrationEffect
 import android.os.Build
+import android.app.PictureInPictureParams
+import android.util.Rational
 import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -16,6 +18,7 @@ class MainActivity : FlutterFragmentActivity() {
 
     private val CHANNEL = "com.example.novyn/audio"
     private val SECURITY_CHANNEL = "com.example.novyn/security"
+    private val CALL_CHANNEL = "com.example.novyn/call"
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -53,6 +56,27 @@ class MainActivity : FlutterFragmentActivity() {
                         audioManager.isMicrophoneMute = false
                         audioManager.mode = AudioManager.MODE_NORMAL
                         result.success(null)
+                    }
+                    else -> result.notImplemented()
+                }
+            }
+
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CALL_CHANNEL)
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "enterPictureInPicture" -> {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            try {
+                                val params = PictureInPictureParams.Builder()
+                                    .setAspectRatio(Rational(9, 16))
+                                    .build()
+                                result.success(enterPictureInPictureMode(params))
+                            } catch (error: IllegalArgumentException) {
+                                result.success(false)
+                            }
+                        } else {
+                            result.success(false)
+                        }
                     }
                     else -> result.notImplemented()
                 }
