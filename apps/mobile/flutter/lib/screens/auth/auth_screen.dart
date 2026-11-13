@@ -54,7 +54,7 @@ class _AuthScreenState extends State<AuthScreen>
       backgroundColor: const Color(0xFF5141CD),
       body: Stack(
         children: [
-          const _MeshBackground(),
+          _MeshBackground(),
           SafeArea(
             child: LayoutBuilder(
               builder: (context, pageConstraints) {
