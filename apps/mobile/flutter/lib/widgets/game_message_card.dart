@@ -48,7 +48,7 @@ class _GameMessageCardState extends State<GameMessageCard> {
   String get _type => widget.game['gameType']?.toString() ?? '';
   String get _title => widget.game['title']?.toString() ?? 'Game';
   String get _creator => widget.game['createdBy']?.toString() ?? '';
-  String get _opponent => _data['player2']?.toString() ?? widget.game['opponent']?.toString() ?? (widget.isGroup ? 'Waiting for player' : widget.peerUsername);
+  String get _opponent => (_data['player2'] ?? _data['playerO'] ?? widget.game['opponent'])?.toString() ?? (widget.isGroup ? 'Waiting for player' : widget.peerUsername);
   String get _turn => widget.game['turn']?.toString() ?? '';
   String get _state => widget.game['state']?.toString() ?? 'in_progress';
   String get _winner => widget.game['winner']?.toString() ?? '';
@@ -326,7 +326,7 @@ class _GameMessageCardState extends State<GameMessageCard> {
     final isDrawer = widget.currentUsername.toLowerCase() == player1.toLowerCase();
     final player2 = _data['player2']?.toString() ?? _opponent;
     final isGuesser = player2.toLowerCase() == widget.currentUsername.toLowerCase();
-    final canJoin = widget.isGroup && player2.isEmpty && !isDrawer;
+    final canJoin = widget.isGroup && player2 == 'Waiting for player' && !isDrawer;
     if (!isDrawer && !isGuesser && !canJoin) return const Text('Doodle Duel is already joined by two players.', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 11));
     if (!isDrawer) {
       return Column(
