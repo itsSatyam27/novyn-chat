@@ -78,19 +78,15 @@ class _ChatsScreenState extends State<ChatsScreen> {
       _loadChats();
     }
 
-    // Refresh when socket reconnects or notifies (new group created, etc)
+    // Listen for authenticated server snapshots and real-time changes.
+    // The initial cache load above already runs once; avoid a second competing
+    // load during the first frame.
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
       final socket = context.read<SocketService>();
-
-      // Initial load
-      _loadChats(silent: true);
-
-      // Listen for real-time changes (like new group creation)
       socket.addListener(_handleSocketUpdate);
-
-      socket.onConnected = () {
-        if (mounted) _loadChats(silent: true);
-      };
+      // The socket may have authenticated before this screen attached.
+      _handleSocketUpdate();
     });
   }
 
@@ -132,6 +128,9 @@ class _ChatsScreenState extends State<ChatsScreen> {
     if (!socket.isAuthenticated || !socket.hasLoadedConversations ||
         socket.myUsername?.toLowerCase() != owner) return;
 
+    // A completed server snapshot supersedes any in-flight cache hydration.
+    // This prevents an older local read from overwriting fresh conversations.
+    _loadGeneration++;
     final previews =
         List<ChatPreview>.from(socket.conversations);
     previews.sort((a, b) {
@@ -218,11 +217,15 @@ class _ChatsScreenState extends State<ChatsScreen> {
       }
     }
 
-    // 2. Use conversations from SocketService (populated via friend_list event)
+    // 2. Use only the authenticated account's completed server snapshot.
+    // An unauthenticated/empty socket list must never replace the local cache.
     final socket = context.read<SocketService>();
+    final hasCurrentServerSnapshot = socket.isAuthenticated &&
+        socket.hasLoadedConversations &&
+        socket.myUsername?.toLowerCase() == myUsername.toLowerCase();
     final conversations = socket.conversations;
 
-    if (conversations.isNotEmpty && mounted) {
+    if (hasCurrentServerSnapshot && mounted) {
       final previews = List<ChatPreview>.from(conversations);
       previews.sort((a, b) {
         if (a.isPinned != b.isPinned) return a.isPinned ? -1 : 1;
@@ -242,8 +245,11 @@ class _ChatsScreenState extends State<ChatsScreen> {
       return;
     }
 
-    // 3. Fallback: getChats returns empty on novyn-chat (data comes via socket)
-    if (!silent) setState(() => _loading = false);
+    // 3. No authenticated snapshot yet: keep the last account-scoped cache
+    // visible while Socket.IO resumes and delivers friend_list.
+    if (!silent && _chats.isEmpty && mounted) {
+      setState(() => _loading = false);
+    }
   }
 
   @override

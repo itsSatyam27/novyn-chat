@@ -4,8 +4,8 @@ import 'package:provider/provider.dart';
 import '../services/socket_service.dart';
 import '../services/sync_service.dart';
 
-/// Avoid flashing an orange banner during short Android background/resume
-/// socket interruptions. A real outage is still shown after a brief grace period.
+/// A compact, delayed connection hint. Brief Android resume/reconnect gaps
+/// should not push the conversation timeline down with a full-width banner.
 class ConnectionBanner extends StatefulWidget {
   const ConnectionBanner({super.key});
 
@@ -35,7 +35,7 @@ class _ConnectionBannerState extends State<ConnectionBanner> {
       if (!sync.isSyncing) return const SizedBox.shrink();
     } else {
       if (!_showConnecting && _connectDelay == null) {
-        _connectDelay = Timer(const Duration(milliseconds: 1200), () {
+        _connectDelay = Timer(const Duration(seconds: 4), () {
           _connectDelay = null;
           if (mounted && !context.read<SocketService>().isConnected) {
             setState(() => _showConnecting = true);
@@ -45,45 +45,56 @@ class _ConnectionBannerState extends State<ConnectionBanner> {
       if (!_showConnecting) return const SizedBox.shrink();
     }
 
-    final message = socket.isConnected ? 'Syncing messages...' : 'Connecting...';
-    final color = socket.isConnected
-        ? const Color(0xFF3B82F6)
-        : const Color(0xFFF59E0B);
-    final icon = socket.isConnected
-        ? Icons.sync_rounded
-        : Icons.cloud_off_rounded;
+    final isOffline = !socket.isConnected;
+    final scheme = Theme.of(context).colorScheme;
+    final foreground = isOffline ? scheme.onSurfaceVariant : scheme.primary;
+    final background = isOffline
+        ? scheme.surfaceContainerHighest
+        : scheme.primaryContainer.withValues(alpha: 0.72);
 
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 250),
-      height: 32,
-      width: double.infinity,
-      decoration: BoxDecoration(color: color.withValues(alpha: 0.9)),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, color: Colors.white, size: 16),
-          const SizedBox(width: 8),
-          Text(
-            message,
-            style: const TextStyle(
-              fontFamily: 'PlusJakartaSans',
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: Colors.white,
-            ),
+    return Padding(
+      padding: const EdgeInsets.only(top: 5, bottom: 5),
+      child: Center(
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 220),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: background,
+            borderRadius: BorderRadius.circular(30),
+            border: Border.all(color: foreground.withValues(alpha: 0.12)),
           ),
-          if (sync.isSyncing && socket.isConnected) ...[
-            const SizedBox(width: 8),
-            const SizedBox(
-              width: 12,
-              height: 12,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                valueColor: AlwaysStoppedAnimation(Colors.white),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                isOffline ? Icons.cloud_off_rounded : Icons.sync_rounded,
+                color: foreground,
+                size: 14,
               ),
-            ),
-          ],
-        ],
+              const SizedBox(width: 7),
+              Text(
+                isOffline ? 'Reconnecting…' : 'Syncing messages…',
+                style: TextStyle(
+                  fontFamily: 'PlusJakartaSans',
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: foreground,
+                ),
+              ),
+              if (sync.isSyncing && socket.isConnected) ...[
+                const SizedBox(width: 7),
+                SizedBox(
+                  width: 11,
+                  height: 11,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 1.8,
+                    valueColor: AlwaysStoppedAnimation(foreground),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -96,37 +107,28 @@ class OfflineIndicator extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final socket = context.watch<SocketService>();
+    if (socket.isConnected) return const SizedBox.shrink();
 
-    if (socket.isConnected) {
-      return const SizedBox.shrink();
-    }
-
+    final scheme = Theme.of(context).colorScheme;
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: const Color(0xFFF59E0B).withValues(alpha: 0.1),
+        color: scheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: const Color(0xFFF59E0B).withValues(alpha: 0.3),
-          width: 1,
-        ),
+        border: Border.all(color: scheme.outlineVariant),
       ),
       child: Row(
         children: [
-          Icon(
-            Icons.cloud_off_rounded,
-            color: const Color(0xFFF59E0B),
-            size: 18,
-          ),
+          Icon(Icons.cloud_off_rounded, color: scheme.onSurfaceVariant, size: 18),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
-              'You\'re offline. Messages will be sent when you reconnect.',
+              "You're offline. Messages will be sent when you reconnect.",
               style: TextStyle(
                 fontFamily: 'PlusJakartaSans',
                 fontSize: 12,
-                color: const Color(0xFFF59E0B),
+                color: scheme.onSurfaceVariant,
                 fontWeight: FontWeight.w500,
               ),
             ),
