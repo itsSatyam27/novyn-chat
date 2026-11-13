@@ -176,10 +176,20 @@ class _ChatsScreenState extends State<ChatsScreen> {
         for (final chat in cachedChats) {
           final peerUid = chat['peerUid'] as String?;
           if (peerUid == null) continue;
-          final peer = cachedUsers[peerUid];
-          if (peer == null) continue;
           final lastTime =
               DateTime.tryParse(chat['lastTime'] ?? '') ?? DateTime.now();
+          // Older app versions stored chat rows without persisting peer
+          // profiles. Rebuild a usable row from the username until the server
+          // refresh supplies the full display name and avatar.
+          final peer = cachedUsers[peerUid] ??
+              UserModel(
+                uid: peerUid,
+                name: peerUid,
+                username: peerUid,
+                email: '',
+                bio: '',
+                createdAt: lastTime,
+              );
           previews.add(ChatPreview(
             chatId: chat['chatId'] ?? '',
             peerUid: peerUid,
