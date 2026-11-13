@@ -69,6 +69,7 @@ class SocketService extends ChangeNotifier {
   String? _registeredIdentityAccount;
   bool _isAuthenticated = false;
   Completer<void>? _authenticationReady;
+  Completer<bool>? _olderHistoryCompleter;
   VoidCallback? onAuthenticated;
   final Map<String, String> _peerKeys = {};
   final BackendContacts contacts = BackendContacts();
@@ -389,6 +390,10 @@ class SocketService extends ChangeNotifier {
           ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
         _messages = _resolveReplyPreviews(timeline);
         HybridDbService.saveMessages(_messages);
+        final olderRequest = _olderHistoryCompleter;
+        if (olderRequest != null && !olderRequest.isCompleted) {
+          olderRequest.complete(data['hasMore'] == true);
+        }
         notifyListeners();
       }
     });
@@ -986,6 +991,29 @@ class SocketService extends ChangeNotifier {
     _messages = [];
     _peerIsTyping = false;
     notifyListeners();
+  }
+
+  Future<bool> loadOlderHistory(String peerUsername, String beforeMessageId) async {
+    if (beforeMessageId.isEmpty || !_isConnected || !_isAuthenticated) return false;
+    _olderHistoryCompleter?.complete(false);
+    final completer = Completer<bool>();
+    _olderHistoryCompleter = completer;
+    _socket?.emit('get_history', {
+      'to': peerUsername,
+      'kind': 'friend',
+      'limit': 30,
+      'before': beforeMessageId,
+    });
+    try {
+      return await completer.future.timeout(
+        const Duration(seconds: 12),
+        onTimeout: () => false,
+      );
+    } finally {
+      if (identical(_olderHistoryCompleter, completer)) {
+        _olderHistoryCompleter = null;
+      }
+    }
   }
 
   /// Merge server history with the locally cached timeline without dropping
