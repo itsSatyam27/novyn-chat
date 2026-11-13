@@ -29,6 +29,7 @@ import '../../services/media_storage_service.dart';
 import '../../widgets/user_avatar.dart';
 import '../../widgets/novyn_toast.dart';
 import 'profile_info_screen.dart';
+import 'group_info_screen.dart';
 import '../../widgets/connection_banner.dart';
 import '../../screens/calls/call_screen.dart';
 import 'package:novyn/services/haptic_service.dart';
@@ -2231,97 +2232,26 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
 
   Future<void> _showGroupInfo() async {
     HapticService.vibrate(NovynHapticType.light, category: HapticCategory.chat);
-    try {
-      final group = await context.read<SocketService>().getGroupInfo(widget.peer.uid);
-      if (!mounted) return;
-      final members = (group['members'] as List? ?? const [])
-          .whereType<Map>()
-          .map((member) => Map<String, dynamic>.from(member))
-          .toList();
-      await showModalBottomSheet<void>(
-        context: context,
-        isScrollControlled: true,
-        backgroundColor: Colors.transparent,
-        builder: (sheetContext) {
-          final scheme = Theme.of(sheetContext).colorScheme;
-          return SafeArea(
-            child: Container(
-              constraints: BoxConstraints(
-                maxHeight: MediaQuery.of(sheetContext).size.height * 0.72,
-              ),
-              padding: const EdgeInsets.fromLTRB(20, 18, 20, 24),
-              decoration: BoxDecoration(
-                color: scheme.surface,
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(26)),
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 38,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: scheme.onSurfaceVariant.withValues(alpha: .3),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  UserAvatar(name: group['name']?.toString() ?? widget.peer.name, photoUrl: '', radius: 32),
-                  const SizedBox(height: 10),
-                  Text(
-                    group['name']?.toString() ?? widget.peer.name,
-                    style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800, color: scheme.onSurface),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '${members.length} members',
-                    style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
-                  ),
-                  const SizedBox(height: 14),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text('Members', style: TextStyle(fontWeight: FontWeight.w800, color: scheme.onSurface)),
-                  ),
-                  const SizedBox(height: 8),
-                  Flexible(
-                    child: ListView.separated(
-                      shrinkWrap: true,
-                      itemCount: members.length,
-                      separatorBuilder: (_, __) => Divider(height: 1, color: scheme.outlineVariant.withValues(alpha: .45)),
-                      itemBuilder: (_, index) {
-                        final member = members[index];
-                        final name = member['displayName']?.toString().trim().isNotEmpty == true
-                            ? member['displayName'].toString()
-                            : member['username']?.toString() ?? 'Member';
-                        final role = member['role']?.toString() ?? 'member';
-                        return ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          leading: UserAvatar(
-                            name: name,
-                            photoUrl: member['avatarId']?.toString() ?? '',
-                            radius: 20,
-                          ),
-                          title: Text(name, style: const TextStyle(fontWeight: FontWeight.w700)),
-                          subtitle: Text('@${member['username'] ?? ''}'),
-                          trailing: role == 'member'
-                              ? null
-                              : Text(role.toUpperCase(), style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: scheme.primary)),
-                        );
-                      },
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
-        },
-      );
-    } catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error is StateError ? error.message.toString() : 'Could not load group information.')),
-      );
-    }
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => GroupInfoScreen(
+          groupId: widget.peer.uid,
+          fallbackName: widget.peer.name,
+          onSharedMedia: () {
+            Navigator.pop(context);
+            _showSharedMedia();
+          },
+          onWallpaper: () {
+            Navigator.pop(context);
+            _showWallpaperPicker();
+          },
+          onLeft: () {
+            if (mounted) Navigator.pop(context);
+          },
+        ),
+      ),
+    );
   }
 
   Future<void> _showContactInfo() async {
