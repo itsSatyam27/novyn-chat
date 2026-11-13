@@ -124,45 +124,77 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
 
   Widget _buildUsernameCard(BuildContext context, AuthService auth) {
     final colors = Theme.of(context).colorScheme;
-    final username = auth.user?.username ?? '';
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: NovynTheme.cardBg(context),
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: colors.outlineVariant),
+    return Card(
+      color: NovynTheme.cardBg(context),
+      child: ListTile(
+        leading: CircleAvatar(
+          backgroundColor: colors.primary.withValues(alpha: .12),
+          child: Icon(Icons.alternate_email_rounded, color: colors.primary),
+        ),
+        title: const Text('Username', style: TextStyle(fontWeight: FontWeight.w800)),
+        subtitle: Text('@${auth.user?.username ?? ''}'),
+        trailing: IconButton(
+          tooltip: 'Change username',
+          onPressed: () => _changeUsername(auth),
+          icon: Icon(Icons.edit_outlined, color: colors.primary),
+        ),
       ),
-      child: Row(children: [
-        CircleAvatar(radius: 23, backgroundColor: colors.primary.withValues(alpha: .12),
-          child: Icon(Icons.alternate_email_rounded, color: colors.primary)),
-        const SizedBox(width: 12),
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('Username', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800)),
-          const SizedBox(height: 3),
-          Text('@$username', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: colors.onSurfaceVariant)),
-          const SizedBox(height: 4),
-          Text('Your unique Novyn identity', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant)),
-        ])),
-        IconButton(onPressed: () => _changeUsername(auth),
-          icon: Icon(Icons.edit_outlined, color: colors.primary), tooltip: 'Change username'),
-      ]),
     );
   }
 
   Future<void> _changeUsername(AuthService auth) async {
     final username = TextEditingController(text: auth.user?.username ?? '');
     final password = TextEditingController();
-    var checking = false;
-    var available = false;
-    var checkedValue = '';
-    var saving = false;
-    final result = await showModalBottomSheet<bool>(
-      context: context, isScrollControlled: true, backgroundColor: Colors.transparent,
-      builder: (sheet) => StatefulBuilder(builder: (sheet, setSheet) {
-        final colors = Theme.of(sheet).colorScheme;
-        final hasPassword = auth.user?.hasPassword != false;
-        final candidate = username.text.trim().toLowerCase();
-        final valid = RegExp(r'^[a-z0-9_]{3,24}
+    final hasPassword = auth.user?.hasPassword != false;
+    final candidate = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Change username'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: username,
+              autofocus: true,
+              textCapitalization: TextCapitalization.none,
+              decoration: const InputDecoration(
+                labelText: 'New username',
+                prefixText: '@',
+                helperText: '3–24 lowercase letters, numbers or underscores',
+              ),
+            ),
+            if (hasPassword) ...[
+              const SizedBox(height: 12),
+              TextField(
+                controller: password,
+                obscureText: true,
+                decoration: const InputDecoration(labelText: 'Current password'),
+              ),
+            ] else
+              const Padding(
+                padding: EdgeInsets.only(top: 10),
+                child: Text('Your signed-in session will be used to verify this change.'),
+              ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, username.text.trim().toLowerCase()),
+            child: const Text('Continue'),
+          ),
+        ],
+      ),
+    );
+    if (candidate == null) {
+      username.dispose();
+      password.dispose();
+      return;
+    }
+    final valid = RegExp(r'^[a-z0-9_]{3,24}
     final email = TextEditingController();
     final code = TextEditingController();
     var codeSent = false;
@@ -343,83 +375,34 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
   }
 }
 ).hasMatch(candidate);
-        final isSame = candidate == (auth.user?.username.toLowerCase() ?? '');
-        final canSave = valid && !isSame && available && checkedValue == candidate && !saving;
-        return Padding(
-          padding: EdgeInsets.only(bottom: MediaQuery.of(sheet).viewInsets.bottom),
-          child: Container(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 22),
-            decoration: BoxDecoration(color: colors.surface,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(28))),
-            child: SafeArea(top: false, child: Column(mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('Change username', style: Theme.of(sheet).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
-                const SizedBox(height: 7),
-                Text('Use 3–24 lowercase letters, numbers or underscores. You may need to sign in again on other devices.',
-                  style: Theme.of(sheet).textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant, height: 1.4)),
-                const SizedBox(height: 15),
-                TextField(controller: username, enabled: !saving,
-                  autocorrect: false, textCapitalization: TextCapitalization.none,
-                  onChanged: (_) => setSheet(() { checkedValue = ''; available = false; }),
-                  decoration: InputDecoration(labelText: 'New username', prefixText: '@',
-                    helperText: candidate.isEmpty || valid ? null : '3–24 characters: a–z, 0–9 and _',
-                    suffixIcon: checkedValue == candidate && available
-                      ? const Icon(Icons.check_circle_rounded, color: Color(0xFF159A64)) : null)),
-                const SizedBox(height: 10),
-                if (hasPassword) TextField(controller: password, enabled: !saving, obscureText: true,
-                  onChanged: (_) => setSheet(() {}),
-                  decoration: const InputDecoration(labelText: 'Current password', prefixIcon: Icon(Icons.lock_outline_rounded))),
-                if (!hasPassword) Padding(padding: const EdgeInsets.only(top: 8), child: Text(
-                  'This account has no Novyn password. The server will verify the signed-in session.',
-                  style: Theme.of(sheet).textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant))),
-                const SizedBox(height: 14),
-                Row(children: [
-                  Expanded(child: OutlinedButton(onPressed: saving ? null : () => Navigator.pop(sheet),
-                    child: const Text('Cancel'))),
-                  const SizedBox(width: 10),
-                  Expanded(child: OutlinedButton(
-                    onPressed: (!valid || isSame || checking || saving) ? null : () async {
-                      setSheet(() => checking = true);
-                      final result = await auth.isUsernameAvailable(candidate);
-                      if (!sheet.mounted) return;
-                      setSheet(() { checking = false; checkedValue = candidate; available = result; });
-                      if (!result) NovynAlert.show(sheet,
-                        'That username is already taken or could not be verified.', isError: true);
-                    },
-                    child: checking ? const SizedBox(width: 16, height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2)) : const Text('Check availability'),
-                  )),
-                ]),
-                const SizedBox(height: 8),
-                SizedBox(width: double.infinity, child: FilledButton(
-                  onPressed: canSave && (!hasPassword || password.text.isNotEmpty) ? () async {
-                    setSheet(() => saving = true);
-                    try {
-                      await context.read<SocketService>().changeUsername(
-                        newUsername: candidate, currentPassword: password.text);
-                      await auth.refreshProfile();
-                      if (sheet.mounted) Navigator.pop(sheet, true);
-                    } catch (error) {
-                      if (sheet.mounted) {
-                        setSheet(() => saving = false);
-                        NovynAlert.show(sheet,
-                          error.toString().replaceFirst('Bad state: ', ''), isError: true);
-                      }
-                    }
-                  } : null,
-                  child: saving ? const SizedBox(width: 18, height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                    : const Text('Update username'),
-                )),
-              ])),
-          ),
-        );
-      }),
-    );
-    username.dispose();
-    password.dispose();
-    if (result == true && mounted) {
-      NovynAlert.show(context, 'Username updated successfully.');
+    if (!valid) {
+      username.dispose();
+      password.dispose();
+      if (mounted) NovynAlert.show(context, 'Username must be 3–24 characters and use only lowercase letters, numbers or underscores.', isError: true);
+      return;
+    }
+    if (candidate == (auth.user?.username ?? '').toLowerCase()) {
+      username.dispose();
+      password.dispose();
+      return;
+    }
+    try {
+      final available = await auth.isUsernameAvailable(candidate);
+      if (!available) {
+        if (mounted) NovynAlert.show(context, 'That username is unavailable.', isError: true);
+        return;
+      }
+      await context.read<SocketService>().changeUsername(
+        newUsername: candidate,
+        currentPassword: password.text,
+      );
+      await auth.refreshProfile();
+      if (mounted) NovynAlert.show(context, 'Username updated successfully.');
+    } catch (error) {
+      if (mounted) NovynAlert.show(context, error.toString().replaceFirst('Bad state: ', ''), isError: true);
+    } finally {
+      username.dispose();
+      password.dispose();
     }
   }
 
