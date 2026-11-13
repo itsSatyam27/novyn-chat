@@ -183,223 +183,66 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
             child: const Text('Cancel'),
           ),
           FilledButton(
-            onPressed: () => Navigator.pop(dialogContext, username.text.trim().toLowerCase()),
+            onPressed: () => Navigator.pop(
+              dialogContext,
+              username.text.trim().toLowerCase(),
+            ),
             child: const Text('Continue'),
           ),
         ],
       ),
     );
+
     if (candidate == null) {
       username.dispose();
       password.dispose();
       return;
     }
-    final valid = RegExp(r'^[a-z0-9_]{3,24}
-    final email = TextEditingController();
-    final code = TextEditingController();
-    var codeSent = false;
-    final result = await showModalBottomSheet<bool>(
-      context: context, isScrollControlled: true, backgroundColor: Colors.transparent,
-      builder: (sheet) => StatefulBuilder(builder: (sheet, setSheet) {
-        final colors = Theme.of(sheet).colorScheme;
-        return Padding(
-          padding: EdgeInsets.only(bottom: MediaQuery.of(sheet).viewInsets.bottom),
-          child: Container(
-            padding: const EdgeInsets.fromLTRB(20, 14, 20, 22),
-            decoration: BoxDecoration(color: colors.surface,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(28))),
-            child: SafeArea(top: false, child: Column(mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Center(child: Container(width: 38, height: 4,
-                  decoration: BoxDecoration(color: colors.outlineVariant, borderRadius: BorderRadius.circular(8)))),
-                const SizedBox(height: 18),
-                Text(codeSent ? 'Verify new email' : 'Change email',
-                  style: Theme.of(sheet).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
-                const SizedBox(height: 7),
-                Text(codeSent ? 'Enter the verification code sent to ${email.text.trim()}.' :
-                  'We will send a one-time verification code to your new email address.',
-                  style: Theme.of(sheet).textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant)),
-                const SizedBox(height: 16),
-                if (!codeSent) TextField(controller: email, keyboardType: TextInputType.emailAddress,
-                  autofillHints: const [AutofillHints.email], decoration: const InputDecoration(
-                    labelText: 'New email address', prefixIcon: Icon(Icons.mail_outline_rounded))),
-                if (codeSent) TextField(controller: code, keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(labelText: '6-digit verification code',
-                    prefixIcon: Icon(Icons.verified_user_outlined))),
-                const SizedBox(height: 14),
-                SizedBox(width: double.infinity, child: FilledButton(
-                  onPressed: () async {
-                    setSheet(() {});
-                    if (!codeSent) {
-                      final response = await socket.requestEmailChangeCode(email.text);
-                      if (response['ok'] == true) {
-                        setSheet(() => codeSent = true);
-                      } else if (sheet.mounted) {
-                        NovynAlert.show(sheet, response['message']?.toString() ?? 'Could not send code.', isError: true);
-                      }
-                    } else {
-                      final response = await socket.verifyEmailChangeCode(email: email.text, code: code.text);
-                      if (response['ok'] == true) {
-                        if (sheet.mounted) Navigator.pop(sheet, true);
-                      } else if (sheet.mounted) {
-                        NovynAlert.show(sheet, response['message']?.toString() ?? 'Verification failed.', isError: true);
-                      }
-                    }
-                  },
-                  child: Text(codeSent ? 'Verify & update email' : 'Send verification code'),
-                )),
-              ])),
-          ),
-        );
-      }),
-    );
-    email.dispose();
-    code.dispose();
-    if (result == true) {
-      await auth.refreshProfile();
-      if (mounted) NovynAlert.show(context, 'Email address updated successfully.');
-    }
-  }
 
-  Future<void> _changePassword(AuthService auth) async {
-    final current = TextEditingController();
-    final next = TextEditingController();
-    final confirm = TextEditingController();
-    final result = await showModalBottomSheet<bool>(
-      context: context, isScrollControlled: true, backgroundColor: Colors.transparent,
-      builder: (sheet) => Padding(
-        padding: EdgeInsets.only(bottom: MediaQuery.of(sheet).viewInsets.bottom),
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 22),
-          decoration: BoxDecoration(color: Theme.of(sheet).colorScheme.surface,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(28))),
-          child: SafeArea(top: false, child: Column(mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Change password', style: Theme.of(sheet).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
-              const SizedBox(height: 15),
-              if (auth.user?.hasPassword != false) ...[
-                TextField(controller: current, obscureText: true,
-                  decoration: const InputDecoration(labelText: 'Current password')),
-                const SizedBox(height: 10),
-              ],
-              TextField(controller: next, obscureText: true,
-                decoration: const InputDecoration(labelText: 'New password')),
-              const SizedBox(height: 10),
-              TextField(controller: confirm, obscureText: true,
-                decoration: const InputDecoration(labelText: 'Confirm new password')),
-              const SizedBox(height: 16),
-              SizedBox(width: double.infinity, child: FilledButton(
-                onPressed: () async {
-                  if (next.text.length < 12 || next.text != confirm.text) {
-                    NovynAlert.show(sheet, next.text.length < 12
-                      ? 'Use at least 12 characters.' : 'Passwords do not match.', isError: true);
-                    return;
-                  }
-                  final error = await auth.changePassword(current.text, next.text);
-                  if (error == null && sheet.mounted) Navigator.pop(sheet, true);
-                  else if (sheet.mounted) NovynAlert.show(sheet, error ?? 'Could not update password.', isError: true);
-                },
-                child: const Text('Update password'),
-              )),
-            ])),
-        ),
-      ),
-    );
-    current.dispose(); next.dispose(); confirm.dispose();
-    if (result == true && mounted) NovynAlert.show(context, 'Password updated successfully.');
-  }
-
-  Future<void> _forgotPassword(AuthService auth, String email) async {
-    final identifier = TextEditingController(text: email);
-    final code = TextEditingController();
-    final password = TextEditingController();
-    var sent = false;
-    final result = await showModalBottomSheet<bool>(
-      context: context, isScrollControlled: true, backgroundColor: Colors.transparent,
-      builder: (sheet) => StatefulBuilder(builder: (sheet, setSheet) {
-        final colors = Theme.of(sheet).colorScheme;
-        return Padding(
-          padding: EdgeInsets.only(bottom: MediaQuery.of(sheet).viewInsets.bottom),
-          child: Container(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 22),
-            decoration: BoxDecoration(color: colors.surface,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(28))),
-            child: SafeArea(top: false, child: Column(mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(sent ? 'Reset password' : 'Forgot password?',
-                  style: Theme.of(sheet).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
-                const SizedBox(height: 8),
-                Text(sent ? 'Enter the code sent to your account email and choose a new password.' :
-                  'We will send a one-time reset code if this account is eligible.',
-                  style: Theme.of(sheet).textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant)),
-                const SizedBox(height: 14),
-                if (!sent) TextField(controller: identifier,
-                  keyboardType: TextInputType.emailAddress,
-                  decoration: const InputDecoration(labelText: 'Email or username')),
-                if (sent) ...[
-                  TextField(controller: code, keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(labelText: 'Reset code')),
-                  const SizedBox(height: 10),
-                  TextField(controller: password, obscureText: true,
-                    decoration: const InputDecoration(labelText: 'New password (12+ characters)')),
-                ],
-                const SizedBox(height: 15),
-                SizedBox(width: double.infinity, child: FilledButton(
-                  onPressed: () async {
-                    if (!sent) {
-                      final response = await auth.requestPasswordReset(identifier.text);
-                      if (response['ok'] == true && sheet.mounted) setSheet(() => sent = true);
-                      else if (sheet.mounted) NovynAlert.show(sheet,
-                        response['message']?.toString() ?? 'Could not request a reset code.', isError: true);
-                    } else {
-                      if (password.text.length < 12) {
-                        NovynAlert.show(sheet, 'Use at least 12 characters.', isError: true);
-                        return;
-                      }
-                      final response = await auth.confirmPasswordReset(
-                        identifier: identifier.text, code: code.text, newPassword: password.text);
-                      if (response['ok'] == true && sheet.mounted) Navigator.pop(sheet, true);
-                      else if (sheet.mounted) NovynAlert.show(sheet,
-                        response['message']?.toString() ?? 'Password reset failed.', isError: true);
-                    }
-                  },
-                  child: Text(sent ? 'Reset password' : 'Send reset code'),
-                )),
-              ])),
-          ),
-        );
-      }),
-    );
-    identifier.dispose(); code.dispose(); password.dispose();
-    if (result == true && mounted) NovynAlert.show(context, 'Password reset successfully. Please sign in again.');
-  }
-}
-).hasMatch(candidate);
+    final valid = RegExp(r'^[a-z0-9_]{3,24}$').hasMatch(candidate);
     if (!valid) {
       username.dispose();
       password.dispose();
-      if (mounted) NovynAlert.show(context, 'Username must be 3–24 characters and use only lowercase letters, numbers or underscores.', isError: true);
+      if (mounted) {
+        NovynAlert.show(
+          context,
+          'Username must be 3–24 characters and use only lowercase letters, numbers or underscores.',
+          isError: true,
+        );
+      }
       return;
     }
+
     if (candidate == (auth.user?.username ?? '').toLowerCase()) {
       username.dispose();
       password.dispose();
       return;
     }
+
     try {
+      if (hasPassword && password.text.isEmpty) {
+        throw Exception('Enter your current password to continue.');
+      }
       final available = await auth.isUsernameAvailable(candidate);
       if (!available) {
-        if (mounted) NovynAlert.show(context, 'That username is unavailable.', isError: true);
-        return;
+        throw Exception('That username is unavailable.');
       }
       await context.read<SocketService>().changeUsername(
         newUsername: candidate,
         currentPassword: password.text,
       );
       await auth.refreshProfile();
-      if (mounted) NovynAlert.show(context, 'Username updated successfully.');
+      if (mounted) {
+        NovynAlert.show(context, 'Username updated successfully.');
+      }
     } catch (error) {
-      if (mounted) NovynAlert.show(context, error.toString().replaceFirst('Bad state: ', ''), isError: true);
+      if (mounted) {
+        NovynAlert.show(
+          context,
+          error.toString().replaceFirst('Exception: ', '').replaceFirst('Bad state: ', ''),
+          isError: true,
+        );
+      }
     } finally {
       username.dispose();
       password.dispose();
