@@ -119,15 +119,23 @@ class NovynApp extends StatelessWidget {
           socket.onProfileData = auth.applyProfileUpdate;
           // Respect both the user's global notification switch and Busy presence.
           // Settings are loaded before runApp and provided above AuthService.
-          socket.notificationsMuted = () =>
-              !ctx.read<SettingsService>().notificationsOn ||
-              !ctx.read<SettingsService>().inAppSounds ||
-              auth.user?.presenceMode == 'busy';
-          socket.notificationsVibrate = () async {
+          socket.notificationsMuted = ([String? sender]) {
             final preferences = ctx.read<SettingsService>();
+            final favorite = sender != null && preferences.favoriteChatIds
+                .contains(sender.trim().toLowerCase());
+            return !preferences.notificationsOn ||
+                !preferences.inAppSounds ||
+                auth.user?.presenceMode == 'busy' ||
+                (preferences.doNotDisturbEnabled && !favorite);
+          };
+          socket.notificationsVibrate = ([String? sender]) async {
+            final preferences = ctx.read<SettingsService>();
+            final favorite = sender != null && preferences.favoriteChatIds
+                .contains(sender.trim().toLowerCase());
             if (preferences.notificationsOn &&
                 preferences.inAppVibration &&
-                auth.user?.presenceMode != 'busy') {
+                auth.user?.presenceMode != 'busy' &&
+                (!preferences.doNotDisturbEnabled || favorite)) {
               await HapticService.vibrateNotification();
             }
           };
