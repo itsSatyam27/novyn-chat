@@ -45,7 +45,19 @@ class HybridDbService {
     await _ensureInit();
     try {
       // FastDbService already returns models.Message (converted in fast_db_service.dart)
-      return await _fastDb!.getMessages(chatId, limit: limit);
+      // Drift provides indexed ordering; Hive retains the complete Message model
+      // (including attachments, polls, games and other optional payloads).
+      final indexed = await _fastDb!.getMessages(chatId, limit: limit);
+      final complete = await LocalDbService.getMessages(chatId, limit: limit);
+      final merged = <String, Message>{
+        for (final message in indexed) message.id: message,
+        for (final message in complete) message.id: message,
+      };
+      final result = merged.values.toList()
+        ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+      return result.length > limit
+          ? result.sublist(result.length - limit)
+          : result;
     } catch (e) {
       print('Error getting messages: $e');
       return [];
@@ -61,7 +73,17 @@ class HybridDbService {
     await _ensureInit();
     try {
       // FastDbService already returns models.Message (converted in fast_db_service.dart)
-      return await _fastDb!.getOlderMessages(chatId, before, limit: limit);
+      final indexed = await _fastDb!.getOlderMessages(chatId, before, limit: limit);
+      final complete = await LocalDbService.getOlderMessages(chatId, before, limit: limit);
+      final merged = <String, Message>{
+        for (final message in indexed) message.id: message,
+        for (final message in complete) message.id: message,
+      };
+      final result = merged.values.toList()
+        ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+      return result.length > limit
+          ? result.sublist(result.length - limit)
+          : result;
     } catch (e) {
       print('Error getting older messages: $e');
       return [];
@@ -72,7 +94,10 @@ class HybridDbService {
   static Future<void> saveMessage(Message message) async {
     await _ensureInit();
     try {
-      await _fastDb!.saveMessage(message);
+      await Future.wait([
+        _fastDb!.saveMessage(message),
+        LocalDbService.saveMessage(message),
+      ]);
     } catch (e) {
       print('Error saving message: $e');
     }
@@ -82,7 +107,10 @@ class HybridDbService {
   static Future<void> saveMessages(List<Message> messages) async {
     await _ensureInit();
     try {
-      await _fastDb!.saveMessages(messages);
+      await Future.wait([
+        _fastDb!.saveMessages(messages),
+        LocalDbService.saveMessages(messages),
+      ]);
     } catch (e) {
       print('Error saving messages: $e');
     }
@@ -92,7 +120,10 @@ class HybridDbService {
   static Future<void> updateMessage(String messageId, Message updated) async {
     await _ensureInit();
     try {
-      await _fastDb!.updateMessage(messageId, updated);
+      await Future.wait([
+        _fastDb!.updateMessage(messageId, updated),
+        LocalDbService.updateMessage(messageId, updated),
+      ]);
     } catch (e) {
       print('Error updating message: $e');
     }
@@ -102,7 +133,10 @@ class HybridDbService {
   static Future<void> deleteMessage(String messageId) async {
     await _ensureInit();
     try {
-      await _fastDb!.deleteMessage(messageId);
+      await Future.wait([
+        _fastDb!.deleteMessage(messageId),
+        LocalDbService.deleteMessage(messageId),
+      ]);
     } catch (e) {
       print('Error deleting message: $e');
     }
@@ -112,7 +146,9 @@ class HybridDbService {
   static Future<int> getMessageCount(String chatId) async {
     await _ensureInit();
     try {
-      return await _fastDb!.getMessageCount(chatId);
+      final driftCount = await _fastDb!.getMessageCount(chatId);
+      final hiveCount = await LocalDbService.getMessageCount(chatId);
+      return driftCount > hiveCount ? driftCount : hiveCount;
     } catch (e) {
       print('Error getting message count: $e');
       return 0;
@@ -128,17 +164,28 @@ class HybridDbService {
     await _ensureInit();
     try {
       final driftChats = await _fastDb!.getChats();
-      
-      // Convert Drift Chat to map format
-      return driftChats.map((dc) => {
-        'chatId': dc.chatId,
-        'peerUid': dc.peerUid,
-        'lastMessage': dc.lastMessage,
-        'lastTime': dc.lastTime.toIso8601String(),
-        'unreadCount': dc.unreadCount,
-        'isPinned': dc.isPinned,
-        'isArchived': dc.isArchived,
-      }).toList();
+      final hiveChats = await LocalDbService.getChats();
+      final merged = <String, Map<String, dynamic>>{
+        for (final chat in driftChats)
+          chat.chatId: {
+            'chatId': chat.chatId,
+            'peerUid': chat.peerUid,
+            'lastMessage': chat.lastMessage,
+            'lastTime': chat.lastTime.toIso8601String(),
+            'unreadCount': chat.unreadCount,
+            'isPinned': chat.isPinned,
+            'isArchived': chat.isArchived,
+          },
+        for (final chat in hiveChats)
+          chat['chatId']?.toString() ?? '': chat,
+      }..remove('');
+      final result = merged.values.toList()
+        ..sort((a, b) {
+          final aTime = DateTime.tryParse(a['lastTime']?.toString() ?? '') ?? DateTime(2000);
+          final bTime = DateTime.tryParse(b['lastTime']?.toString() ?? '') ?? DateTime(2000);
+          return bTime.compareTo(aTime);
+        });
+      return result;
     } catch (e) {
       print('Error getting chats: $e');
       return [];
@@ -149,15 +196,18 @@ class HybridDbService {
   static Future<void> saveChat(ChatPreview chat) async {
     await _ensureInit();
     try {
-      await _fastDb!.saveChat(
-        chat.chatId,
-        chat.peerUid,
-        chat.lastMessage,
-        chat.lastTime,
-        chat.unreadCount,
-        isPinned: chat.isPinned,
-        isArchived: chat.isArchived,
-      );
+      await Future.wait([
+        _fastDb!.saveChat(
+          chat.chatId,
+          chat.peerUid,
+          chat.lastMessage,
+          chat.lastTime,
+          chat.unreadCount,
+          isPinned: chat.isPinned,
+          isArchived: chat.isArchived,
+        ),
+        LocalDbService.saveChat(chat),
+      ]);
     } catch (e) {
       print('Error saving chat: $e');
     }
@@ -167,8 +217,8 @@ class HybridDbService {
   static Future<void> saveChats(List<ChatPreview> chats) async {
     await _ensureInit();
     try {
-      for (final chat in chats) {
-        await _fastDb!.saveChat(
+      await Future.wait([
+        Future.wait(chats.map((chat) => _fastDb!.saveChat(
           chat.chatId,
           chat.peerUid,
           chat.lastMessage,
@@ -176,8 +226,9 @@ class HybridDbService {
           chat.unreadCount,
           isPinned: chat.isPinned,
           isArchived: chat.isArchived,
-        );
-      }
+        ))),
+        LocalDbService.saveChats(chats),
+      ]);
     } catch (e) {
       print('Error saving chats: $e');
     }
@@ -193,14 +244,24 @@ class HybridDbService {
   }) async {
     await _ensureInit();
     try {
-      await _fastDb!.updateChat(
-        chatId,
-        lastMessage: lastMessage,
-        lastTime: lastTime,
-        unreadCount: unreadCount,
-        isPinned: isPinned,
-        isArchived: isArchived,
-      );
+      await Future.wait([
+        _fastDb!.updateChat(
+          chatId,
+          lastMessage: lastMessage,
+          lastTime: lastTime,
+          unreadCount: unreadCount,
+          isPinned: isPinned,
+          isArchived: isArchived,
+        ),
+        LocalDbService.updateChat(
+          chatId,
+          lastMessage: lastMessage,
+          lastTime: lastTime,
+          unreadCount: unreadCount,
+          isPinned: isPinned,
+          isArchived: isArchived,
+        ),
+      ]);
     } catch (e) {
       print('Error updating chat: $e');
     }
@@ -210,7 +271,10 @@ class HybridDbService {
   static Future<void> deleteChat(String chatId) async {
     await _ensureInit();
     try {
-      await _fastDb!.deleteChat(chatId);
+      await Future.wait([
+        _fastDb!.deleteChat(chatId),
+        LocalDbService.deleteChat(chatId),
+      ]);
     } catch (e) {
       print('Error deleting chat: $e');
     }
