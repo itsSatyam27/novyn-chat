@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../models/user_model.dart';
 import '../../services/auth_service.dart';
 import '../../services/settings_service.dart';
@@ -39,6 +40,7 @@ class _ChatsScreenState extends State<ChatsScreen> {
   List<ChatPreview> _filtered = [];
   bool _loading = true;
   bool _isSearchVisible = false;
+  Set<String> _pinnedChatUsernames = <String>{};
   String _search = '';
   final FocusNode _searchFocusNode = FocusNode();
   final TextEditingController _searchController = TextEditingController();
@@ -58,6 +60,10 @@ class _ChatsScreenState extends State<ChatsScreen> {
     _observedUsername =
         _authService!.user?.username.trim().toLowerCase();
     _authService!.addListener(_handleAuthChanged);
+    final initialUsername = _observedUsername;
+    if (initialUsername != null && initialUsername.isNotEmpty) {
+      _loadPinnedChatPreferences(initialUsername);
+    }
 
     // Never hydrate from a previous signed-in account's in-memory previews.
     final owner = _observedUsername;
@@ -95,6 +101,7 @@ class _ChatsScreenState extends State<ChatsScreen> {
     _loadGeneration++;
 
     if (username == null || username.isEmpty) {
+      _pinnedChatUsernames = <String>{};
       ChatsScreen.resetAccountCache();
       setState(() {
         _chats = [];
@@ -104,6 +111,8 @@ class _ChatsScreenState extends State<ChatsScreen> {
       return;
     }
 
+    _pinnedChatUsernames = <String>{};
+    _loadPinnedChatPreferences(username);
     setState(() {
       _chats = [];
       _filtered = [];
@@ -112,6 +121,115 @@ class _ChatsScreenState extends State<ChatsScreen> {
     // Non-silent load first restores this account's username-scoped local DB.
     // The authenticated friend_list event will replace it with server state.
     _loadChats();
+  }
+
+  String _pinnedPreferenceKey(String username) =>
+      'novyn_pinned_${username.trim().toLowerCase()}';
+
+  Future<void> _loadPinnedChatPreferences(String username) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final stored = prefs.getStringList(_pinnedPreferenceKey(username)) ?? [];
+      if (!mounted ||
+          context.read<AuthService>().user?.username.trim().toLowerCase() !=
+              username.trim().toLowerCase()) {
+        return;
+      }
+
+      setState(() {
+        _pinnedChatUsernames = stored
+            .map((value) => value.trim().toLowerCase())
+            .where((value) => value.isNotEmpty)
+            .take(5)
+            .toSet();
+        _chats = _withPinnedPreferences(_chats);
+      });
+      ChatsScreen.cachedChats = List<ChatPreview>.from(_chats);
+      ChatsScreen.cachedChatsOwner = username.trim().toLowerCase();
+      _applyFilters();
+    } catch (error) {
+      debugPrint('Could not load pinned chats: $error');
+    }
+  }
+
+  List<ChatPreview> _withPinnedPreferences(List<ChatPreview> chats) {
+    final previews = chats
+        .map((chat) => chat.copyWith(
+              isPinned: _pinnedChatUsernames.contains(
+                chat.peer.username.trim().toLowerCase(),
+              ),
+            ))
+        .toList();
+    previews.sort((a, b) {
+      if (a.isPinned != b.isPinned) return a.isPinned ? -1 : 1;
+      return b.lastTime.compareTo(a.lastTime);
+    });
+    return previews;
+  }
+
+  Future<void> _togglePinChat(ChatPreview chat) async {
+    final username =
+        context.read<AuthService>().user?.username.trim().toLowerCase();
+    final peerUsername = chat.peer.username.trim().toLowerCase();
+    if (username == null || username.isEmpty || peerUsername.isEmpty) {
+      _showSnackBar('Could not update this chat pin.');
+      return;
+    }
+
+    final shouldPin = !_pinnedChatUsernames.contains(peerUsername);
+    final next = Set<String>.from(_pinnedChatUsernames);
+    if (shouldPin) {
+      if (next.length >= 5) {
+        _showSnackBar('You can pin up to 5 chats. Unpin one to add another.');
+        return;
+      }
+      next.add(peerUsername);
+    } else {
+      next.remove(peerUsername);
+    }
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final orderedPins = next.toList();
+      final saved = await prefs.setStringList(
+        _pinnedPreferenceKey(username),
+        orderedPins,
+      );
+      if (!saved) throw StateError('Could not save your pinned chats.');
+      if (!mounted ||
+          context.read<AuthService>().user?.username.trim().toLowerCase() !=
+              username) {
+        return;
+      }
+
+      final updated = _withPinnedPreferences(_chats);
+      setState(() {
+        _pinnedChatUsernames = next;
+        _chats = updated;
+      });
+      ChatsScreen.cachedChats = List<ChatPreview>.from(updated);
+      ChatsScreen.cachedChatsOwner = username;
+      ChatsScreen.totalUnread =
+          updated.fold(0, (total, item) => total + item.unreadCount);
+      _applyFilters();
+
+      // Keep the local chat databases in step with the account preference.
+      final updatedChat = chat.copyWith(isPinned: shouldPin);
+      await HybridDbService.saveChat(updatedChat);
+      if (!mounted) return;
+
+      HapticService.vibrate(
+        NovynHapticType.selection,
+        category: HapticCategory.chat,
+      );
+      _showSnackBar(
+        shouldPin ? '${chat.peer.name} pinned' : '${chat.peer.name} unpinned',
+      );
+    } catch (error) {
+      if (mounted) {
+        _showSnackBar('Could not update pin: ${error.toString()}');
+      }
+    }
   }
 
   void _handleSocketUpdate() {
@@ -127,8 +245,9 @@ class _ChatsScreenState extends State<ChatsScreen> {
     // A completed server snapshot supersedes any in-flight cache hydration.
     // This prevents an older local read from overwriting fresh conversations.
     _loadGeneration++;
-    final previews =
-        List<ChatPreview>.from(socket.conversations);
+    final previews = _withPinnedPreferences(
+      List<ChatPreview>.from(socket.conversations),
+    );
     previews.sort((a, b) {
       if (a.isPinned != b.isPinned) return a.isPinned ? -1 : 1;
       return b.lastTime.compareTo(a.lastTime);
@@ -194,7 +313,9 @@ class _ChatsScreenState extends State<ChatsScreen> {
             lastMessage: chat['lastMessage'] ?? '',
             lastTime: lastTime,
             unreadCount: (chat['unreadCount'] as num?)?.toInt() ?? 0,
-            isPinned: chat['isPinned'] == true,
+            isPinned: _pinnedChatUsernames.contains(
+              peer.username.trim().toLowerCase(),
+            ),
             isArchived: chat['isArchived'] == true,
             isGroup: chat['isGroup'] == true,
           ));
@@ -222,7 +343,9 @@ class _ChatsScreenState extends State<ChatsScreen> {
     final conversations = socket.conversations;
 
     if (hasCurrentServerSnapshot && mounted) {
-      final previews = List<ChatPreview>.from(conversations);
+      final previews = _withPinnedPreferences(
+        List<ChatPreview>.from(conversations),
+      );
       previews.sort((a, b) {
         if (a.isPinned != b.isPinned) return a.isPinned ? -1 : 1;
         return b.lastTime.compareTo(a.lastTime);
@@ -715,8 +838,12 @@ class _ChatsScreenState extends State<ChatsScreen> {
                   if (chat.isGroup) const Chip(label: Text('Group')),
                 ]),
               ),
-              option(chat.isPinned ? Icons.push_pin : Icons.push_pin_outlined,
-                chat.isPinned ? 'Pinned' : 'Pin chat', 'pin'),
+              option(
+                chat.isPinned ? Icons.push_pin_rounded : Icons.push_pin_outlined,
+                chat.isPinned ? 'Unpin chat' : 'Pin chat',
+                'pin',
+                color: chat.isPinned ? colors.primary : null,
+              ),
               option(Icons.notifications_off_outlined, 'Mute notifications', 'mute'),
               option(isFavorite ? Icons.star_rounded : Icons.star_border_rounded,
                 isFavorite ? 'Remove from favorites' : 'Add to favorites', 'favorite',
@@ -741,6 +868,9 @@ class _ChatsScreenState extends State<ChatsScreen> {
 
     // Only expose actions that the mobile client can currently execute safely.
     switch (action) {
+      case 'pin':
+        await _togglePinChat(chat);
+        break;
       case 'favorite':
         await settings.toggleFavoriteChat(chat.chatId);
         break;
@@ -808,7 +938,6 @@ class _ChatsScreenState extends State<ChatsScreen> {
           }
         }
         break;
-      case 'pin':
       case 'read':
       case 'archive':
       case 'block':
@@ -1130,7 +1259,7 @@ class _ChatCard extends StatelessWidget {
                         Icon(
                           Icons.push_pin_rounded,
                           size: 14,
-                          color: metaColor,
+                          color: colors.primary,
                         ),
                       ],
                       if (isFavorite) ...[
