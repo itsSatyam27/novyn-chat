@@ -2619,7 +2619,11 @@ class _MessageBubble extends StatelessWidget {
                           _buildAttachmentPreview(context, message.attachment as Map),
                           const SizedBox(height: 6),
                         ],
-                        if ((message.text as String).isNotEmpty)
+                        if ((message.text as String).isNotEmpty &&
+                            !((message.attachment is Map) &&
+                                (message.attachment['kind']?.toString().toLowerCase() == 'image' ||
+                                    message.attachment['mime']?.toString().toLowerCase().startsWith('image/') == true) &&
+                                (message.text as String).trim() == '[Image]'))
                           Text(
                           message.text as String,
                           style: TextStyle(
@@ -3140,6 +3144,7 @@ class _MessageBubble extends StatelessWidget {
                               maxScale: 4,
                               child: Image.network(
                                 url,
+                                headers: ApiService.imageHeaders,
                                 fit: BoxFit.contain,
                                 errorBuilder: (_, __, ___) => const Column(
                                   mainAxisSize: MainAxisSize.min,
@@ -3158,6 +3163,7 @@ class _MessageBubble extends StatelessWidget {
                   },
                   child: Image.network(
                     url,
+                    headers: ApiService.imageHeaders,
                     width: 236,
                     height: 188,
                     fit: BoxFit.cover,
@@ -3188,22 +3194,6 @@ class _MessageBubble extends StatelessWidget {
                           ),
                         ],
                       ),
-                    ),
-                  ),
-                ),
-              ),
-              Positioned(
-                right: 9,
-                top: 9,
-                child: Material(
-                  color: Colors.black.withValues(alpha: 0.58),
-                  shape: const CircleBorder(),
-                  child: InkWell(
-                    customBorder: const CircleBorder(),
-                    onTap: () => _downloadAttachment(context, url, name),
-                    child: const Padding(
-                      padding: EdgeInsets.all(8),
-                      child: Icon(Icons.download_rounded, size: 18, color: Colors.white),
                     ),
                   ),
                 ),
