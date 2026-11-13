@@ -132,15 +132,18 @@ class _SplashScreenV2State extends State<SplashScreenV2>
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-    final dark = theme.brightness == Brightness.dark;
-    final accent = scheme.primary;
+    const scheme = ColorScheme.light(
+      primary: Color(0xFF6D5DFC),
+      onSurface: Color(0xFF17152B),
+      onSurfaceVariant: Color(0xFF77748B),
+    );
+    const background = Color(0xFFFAFAFF);
+    const accent = Color(0xFF6D5DFC);
     final size = MediaQuery.sizeOf(context);
     final compact = size.height < 700;
 
     return Scaffold(
-      backgroundColor: theme.scaffoldBackgroundColor,
+      backgroundColor: background,
       body: Stack(
         children: [
           Positioned.fill(
@@ -149,10 +152,7 @@ class _SplashScreenV2State extends State<SplashScreenV2>
                 gradient: RadialGradient(
                   center: const Alignment(-.85, -1),
                   radius: 1.25,
-                  colors: [
-                    accent.withValues(alpha: dark ? .22 : .13),
-                    theme.scaffoldBackgroundColor,
-                  ],
+                  colors: [accent.withValues(alpha: .13), background],
                 ),
               ),
             ),
@@ -163,9 +163,9 @@ class _SplashScreenV2State extends State<SplashScreenV2>
             child: Container(
               width: 280,
               height: 280,
-              decoration: BoxDecoration(
+              decoration: const BoxDecoration(
                 shape: BoxShape.circle,
-                color: const Color(0xFF19B99A).withValues(alpha: dark ? .09 : .08),
+                color: Color(0x1419B99A),
               ),
             ),
           ),
@@ -175,34 +175,43 @@ class _SplashScreenV2State extends State<SplashScreenV2>
                 physics: const ClampingScrollPhysics(),
                 child: ConstrainedBox(
                   constraints: BoxConstraints(minHeight: constraints.maxHeight),
-                  child: Padding(
-                    padding: EdgeInsets.symmetric(
-                      horizontal: 28,
-                      vertical: compact ? 20 : 32,
-                    ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        SizedBox(height: compact ? 22 : 38),
-                        _buildLogoSection(),
-                        SizedBox(height: compact ? 22 : 30),
-                        _buildWordmark(),
-                        const SizedBox(height: 9),
-                        _buildTagline(),
-                        SizedBox(height: compact ? 42 : 58),
-                        _buildLoadingBar(),
-                        SizedBox(height: compact ? 22 : 38),
-                        Text(
-                          'A little more connected.',
-                          style: GoogleFonts.inter(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w500,
-                            letterSpacing: .4,
-                            color: scheme.onSurfaceVariant.withValues(alpha: .58),
+                  child: IntrinsicHeight(
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: compact ? 12 : 24,
+                      ),
+                      child: Center(
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 440),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              SizedBox(height: compact ? 8 : 18),
+                              _buildLogoSection(),
+                              SizedBox(height: compact ? 16 : 24),
+                              _buildWordmark(),
+                              const SizedBox(height: 8),
+                              _buildTagline(),
+                              SizedBox(height: compact ? 28 : 42),
+                              _buildLoadingBar(),
+                              SizedBox(height: compact ? 16 : 26),
+                              Text(
+                                'A little more connected.',
+                                textAlign: TextAlign.center,
+                                style: GoogleFonts.inter(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w500,
+                                  letterSpacing: .4,
+                                  color: scheme.onSurfaceVariant.withValues(alpha: .68),
+                                ),
+                              ),
+                              SizedBox(height: compact ? 8 : 16),
+                            ],
                           ),
                         ),
-                      ],
+                      ),
                     ),
                   ),
                 ),
@@ -216,8 +225,8 @@ class _SplashScreenV2State extends State<SplashScreenV2>
 
   // ── Animated Novyn brand mark ─────────────────────────────────────────────
   Widget _buildLogoSection() {
-    final scheme = Theme.of(context).colorScheme;
-    final dark = Theme.of(context).brightness == Brightness.dark;
+    const scheme = ColorScheme.light(primary: Color(0xFF6D5DFC), onSurface: Color(0xFF17152B), onSurfaceVariant: Color(0xFF77748B));
+    const dark = false;
     return AnimatedBuilder(
       animation: Listenable.merge([_mainController, _loadController]),
       builder: (context, _) {
@@ -280,7 +289,7 @@ class _SplashScreenV2State extends State<SplashScreenV2>
                         color: const Color(0xFF25D6A2),
                         shape: BoxShape.circle,
                         border: Border.all(
-                          color: Theme.of(context).scaffoldBackgroundColor,
+                          color: const Color(0xFFFAFAFF),
                           width: 2,
                         ),
                         boxShadow: [
@@ -343,7 +352,7 @@ class _SplashScreenV2State extends State<SplashScreenV2>
 
   // ── Wordmark ──────────────────────────────────────────────────────────────
   Widget _buildWordmark() {
-    final scheme = Theme.of(context).colorScheme;
+    const scheme = ColorScheme.light(primary: Color(0xFF6D5DFC), onSurface: Color(0xFF17152B), onSurfaceVariant: Color(0xFF77748B));
     return AnimatedBuilder(
       animation: _mainController,
       builder: (context, _) => Transform.translate(
@@ -366,7 +375,7 @@ class _SplashScreenV2State extends State<SplashScreenV2>
 
   // ── Tagline ───────────────────────────────────────────────────────────────
   Widget _buildTagline() {
-    final scheme = Theme.of(context).colorScheme;
+    const scheme = ColorScheme.light(primary: Color(0xFF6D5DFC), onSurface: Color(0xFF17152B), onSurfaceVariant: Color(0xFF77748B));
     return AnimatedBuilder(
       animation: _mainController,
       builder: (context, _) => Opacity(
