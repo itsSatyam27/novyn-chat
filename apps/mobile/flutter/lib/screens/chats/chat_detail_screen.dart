@@ -2907,97 +2907,203 @@ class _MessageBubble extends StatelessWidget {
 
   Widget _buildAttachmentPreview(BuildContext context, Map attachment) {
     final url = attachment['url']?.toString() ?? '';
-    final name = attachment['name']?.toString() ?? 'Attachment';
-    final kind = attachment['kind']?.toString() ?? 'file';
+    final name = attachment['name']?.toString().trim().isNotEmpty == true
+        ? attachment['name'].toString().trim()
+        : 'Attachment';
+    final rawKind = attachment['kind']?.toString().toLowerCase() ?? '';
+    final mime = attachment['mime']?.toString().toLowerCase() ?? '';
+    final mediaPath = (Uri.tryParse(url)?.path ?? url).toLowerCase();
+    final fileHint = name.toLowerCase();
+    final isImage = rawKind == 'image' ||
+        mime.startsWith('image/') ||
+        const ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.heic']
+            .any((extension) => mediaPath.endsWith(extension) || fileHint.endsWith(extension));
+    final isVideo = rawKind == 'video' ||
+        mime.startsWith('video/') ||
+        const ['.mp4', '.mov', '.webm', '.m4v']
+            .any((extension) => mediaPath.endsWith(extension) || fileHint.endsWith(extension));
+    final kind = isImage ? 'image' : isVideo ? 'video' : rawKind.isNotEmpty ? rawKind : 'file';
+
     if (kind == 'audio' && url.isNotEmpty) {
-      return Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-        VoiceMessagePlayer(url: url, label: name, durationSeconds: (attachment['duration'] as num?)?.toInt()),
-        TextButton.icon(onPressed: () => _downloadAttachment(context, url, name), icon: const Icon(Icons.download_rounded, size: 17), label: const Text('Download')),
-      ]);
-    }
-    if (kind == 'image' && url.isNotEmpty) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: Image.network(
-              url, width: 220, height: 180, fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => _attachmentFileTile(name, Icons.broken_image_outlined),
-              loadingBuilder: (context, child, progress) => progress == null
-                  ? child
-                  : Container(
-                      width: 220, height: 130, alignment: Alignment.center,
-                      color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                      child: const CircularProgressIndicator(strokeWidth: 2),
-                    ),
-            ),
+          VoiceMessagePlayer(
+            url: url,
+            label: name,
+            durationSeconds: (attachment['duration'] as num?)?.toInt(),
           ),
-          const SizedBox(height: 6),
-          Align(
-            alignment: Alignment.centerRight,
-            child: TextButton.icon(
-              onPressed: () async {
-                final messenger = ScaffoldMessenger.of(context);
-                try {
-                  final file = await ApiService.downloadMedia(url, name);
-                  final saved = await MediaStorageService.exportToDevice(file, 'image');
-                  if (!context.mounted || !saved) return;
-                  messenger.showSnackBar(SnackBar(
-                    content: const Text('Saved to your Gallery and Novyn Downloads.'),
-                    behavior: SnackBarBehavior.floating,
-                  ));
-                } catch (error) {
-                  if (!context.mounted) return;
-                  messenger.showSnackBar(SnackBar(
-                    content: Text('Download failed: ' + error.toString()),
-                    behavior: SnackBarBehavior.floating,
-                  ));
-                }
-              },
-              icon: const Icon(Icons.download_rounded, size: 17),
-              label: const Text('Download'),
-            ),
+          TextButton.icon(
+            onPressed: () => _downloadAttachment(context, url, name),
+            icon: const Icon(Icons.download_rounded, size: 17),
+            label: const Text('Download'),
           ),
         ],
       );
     }
+
+    if (kind == 'image' && url.isNotEmpty) {
+      final scheme = Theme.of(context).colorScheme;
+      return Container(
+        width: 244,
+        decoration: BoxDecoration(
+          color: scheme.surfaceContainerHighest.withValues(alpha: 0.42),
+          borderRadius: BorderRadius.circular(17),
+          border: Border.all(color: scheme.outlineVariant.withValues(alpha: 0.55)),
+        ),
+        padding: const EdgeInsets.all(4),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(13),
+          child: Stack(
+            children: [
+              Material(
+                color: scheme.surfaceContainerHighest,
+                child: InkWell(
+                  onTap: () {
+                    showDialog<void>(
+                      context: context,
+                      barrierColor: Colors.black,
+                      builder: (viewerContext) => Dialog.fullscreen(
+                        backgroundColor: Colors.black,
+                        child: Scaffold(
+                          backgroundColor: Colors.black,
+                          appBar: AppBar(
+                            backgroundColor: Colors.black,
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            leading: IconButton(
+                              tooltip: 'Close image',
+                              icon: const Icon(Icons.close_rounded),
+                              onPressed: () => Navigator.of(viewerContext).pop(),
+                            ),
+                            actions: [
+                              IconButton(
+                                tooltip: 'Download image',
+                                icon: const Icon(Icons.download_rounded),
+                                onPressed: () => _downloadAttachment(context, url, name),
+                              ),
+                              const SizedBox(width: 8),
+                            ],
+                          ),
+                          body: Center(
+                            child: InteractiveViewer(
+                              minScale: 0.7,
+                              maxScale: 4,
+                              child: Image.network(
+                                url,
+                                fit: BoxFit.contain,
+                                errorBuilder: (_, __, ___) => const Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.broken_image_outlined, color: Colors.white70, size: 42),
+                                    SizedBox(height: 10),
+                                    Text('Image unavailable', style: TextStyle(color: Colors.white70)),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                  child: Image.network(
+                    url,
+                    width: 236,
+                    height: 188,
+                    fit: BoxFit.cover,
+                    frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+                      if (wasSynchronouslyLoaded || frame != null) return child;
+                      return SizedBox(
+                        width: 236,
+                        height: 188,
+                        child: Center(
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: scheme.primary,
+                          ),
+                        ),
+                      );
+                    },
+                    errorBuilder: (_, __, ___) => SizedBox(
+                      width: 236,
+                      height: 188,
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.broken_image_outlined, size: 34, color: scheme.onSurfaceVariant),
+                          const SizedBox(height: 7),
+                          Text(
+                            'Image unavailable',
+                            style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              Positioned(
+                right: 9,
+                top: 9,
+                child: Material(
+                  color: Colors.black.withValues(alpha: 0.58),
+                  shape: const CircleBorder(),
+                  child: InkWell(
+                    customBorder: const CircleBorder(),
+                    onTap: () => _downloadAttachment(context, url, name),
+                    child: const Padding(
+                      padding: EdgeInsets.all(8),
+                      child: Icon(Icons.download_rounded, size: 18, color: Colors.white),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     final icon = kind == 'video'
         ? Icons.play_circle_outline_rounded
         : kind == 'audio'
             ? Icons.audio_file_outlined
             : Icons.insert_drive_file_outlined;
-    return Row(mainAxisSize: MainAxisSize.min, children: [
-      Flexible(child: InkWell(
-        borderRadius: BorderRadius.circular(10),
-        onTap: url.isEmpty ? null : () async {
-          final uri = Uri.tryParse(url);
-          if (uri == null) return;
-          try {
-            final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
-            if (!opened && context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('No app could open this attachment.')),
-              );
-            }
-          } catch (_) {
-            if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Could not open this attachment.')),
-              );
-            }
-          }
-        },
-        child: _attachmentFileTile(name, icon),
-      )),
-      if (url.isNotEmpty)
-        IconButton(
-          tooltip: 'Download attachment',
-          icon: const Icon(Icons.download_rounded),
-          onPressed: () => _downloadAttachment(context, url, name),
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Flexible(
+          child: InkWell(
+            borderRadius: BorderRadius.circular(10),
+            onTap: url.isEmpty
+                ? null
+                : () async {
+                    final uri = Uri.tryParse(url);
+                    if (uri == null) return;
+                    try {
+                      final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+                      if (!opened && context.mounted) {
+                        NovynToast.show(context, 'No app could open this attachment.', isError: true);
+                      }
+                    } catch (_) {
+                      if (context.mounted) {
+                        NovynToast.show(context, 'Could not open this attachment.', isError: true);
+                      }
+                    }
+                  },
+            child: _attachmentFileTile(name, icon),
+          ),
         ),
-    ]);
+        if (url.isNotEmpty)
+          IconButton(
+            tooltip: 'Download attachment',
+            icon: const Icon(Icons.download_rounded),
+            onPressed: () => _downloadAttachment(context, url, name),
+          ),
+      ],
+    );
   }
 
   Widget _attachmentFileTile(String name, IconData icon) {
