@@ -367,44 +367,70 @@ class _CallsScreenState extends State<CallsScreen> {
   }
 
   Widget _buildFilterCards() {
-    int countFor(String filter) {
-      return _calls.fold<int>(0, (total, call) {
-        if (filter == 'All') return total + call.history.length;
-        return total + call.history.where((log) => log['status'] == filter.toLowerCase()).length;
-      });
-    }
-
-    const filters = [
-      ('All', 'Call entries', Icons.history_rounded),
-      ('Missed', 'Missed calls', Icons.call_missed_rounded),
-      ('Incoming', 'Incoming calls', Icons.call_received_rounded),
-      ('Outgoing', 'Outgoing calls', Icons.call_made_rounded),
-    ];
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
-      child: GridView.count(
-        crossAxisCount: 2,
-        mainAxisSpacing: 10,
-        crossAxisSpacing: 10,
-        childAspectRatio: 2.65,
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(20, 10, 20, 8),
+      child: Row(
         children: [
-          for (final item in filters)
-            _CallSummaryTile(
-              icon: item.$3,
-              label: item.$2,
-              value: countFor(item.$1).toString(),
-              tint: item.$1 == 'Missed'
-                  ? NovynColors.danger
-                  : item.$1 == 'Incoming'
-                      ? NovynColors.mint
-                      : item.$1 == 'Outgoing'
-                          ? const Color(0xFF79B8FF)
-                          : Theme.of(context).colorScheme.primary,
-              selected: _filter == item.$1,
-              onTap: () => setState(() => _filter = item.$1),
+          Expanded(
+            child: Container(
+              padding: const EdgeInsets.all(5),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.primary.withValues(alpha: .09),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Row(
+                children: [
+                  for (final option in const ['All', 'Missed'])
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () => setState(() => _filter = option),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 180),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          decoration: BoxDecoration(
+                            color: _filter == option
+                                ? Theme.of(context).colorScheme.surface
+                                : Colors.transparent,
+                            borderRadius: BorderRadius.circular(15),
+                          ),
+                          child: Text(
+                            option,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontFamily: 'PlusJakartaSans',
+                              fontSize: 14,
+                              fontWeight: FontWeight.w800,
+                              color: _filter == option
+                                  ? Theme.of(context).colorScheme.primary
+                                  : Theme.of(context).colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
             ),
+          ),
+          const SizedBox(width: 8),
+          PopupMenuButton<String>(
+            tooltip: 'More call filters',
+            initialValue: ['Incoming', 'Outgoing'].contains(_filter) ? _filter : null,
+            onSelected: (value) => setState(() => _filter = value),
+            itemBuilder: (_) => const [
+              PopupMenuItem(value: 'Incoming', child: Text('Incoming calls')),
+              PopupMenuItem(value: 'Outgoing', child: Text('Outgoing calls')),
+            ],
+            child: Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surface,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Icon(Icons.tune_rounded, color: Theme.of(context).colorScheme.onSurfaceVariant),
+            ),
+          ),
         ],
       ),
     );
@@ -444,6 +470,72 @@ class _CallsScreenState extends State<CallsScreen> {
     return result;
   }
 
+  Future<void> _showQuickCallPicker() async {
+    final friends = List<UserModel>.from(context.read<SocketService>().contacts.friends)
+      ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+    if (!mounted) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: SizedBox(
+          height: MediaQuery.of(sheetContext).size.height * .72,
+          child: Column(
+            children: [
+              const SizedBox(height: 12),
+              Container(width: 38, height: 4, decoration: BoxDecoration(
+                color: Theme.of(sheetContext).colorScheme.outlineVariant,
+                borderRadius: BorderRadius.circular(5),
+              )),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 18, 20, 12),
+                child: Row(children: [
+                  Expanded(child: Text('Add quick call',
+                    style: Theme.of(sheetContext).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800))),
+                  Text('${friends.length} friends',
+                    style: TextStyle(color: Theme.of(sheetContext).colorScheme.onSurfaceVariant)),
+                ]),
+              ),
+              Expanded(
+                child: friends.isEmpty
+                    ? const Center(child: Text('Your friends will appear here'))
+                    : ListView.separated(
+                        itemCount: friends.length,
+                        separatorBuilder: (_, __) => const Divider(height: 1, indent: 76),
+                        itemBuilder: (context, index) {
+                          final peer = friends[index];
+                          final favorite = _favoriteUsernames.contains(peer.username.toLowerCase());
+                          return ListTile(
+                            leading: UserAvatar(name: peer.name, photoUrl: peer.photoUrl, radius: 23),
+                            title: Text(peer.name, style: const TextStyle(fontWeight: FontWeight.w700)),
+                            subtitle: Text('@${peer.username}'),
+                            trailing: IconButton(
+                              tooltip: favorite ? 'Remove from quick call' : 'Add to quick call',
+                              onPressed: () => _toggleFavorite(peer),
+                              icon: Icon(favorite ? Icons.star_rounded : Icons.star_outline_rounded,
+                                color: favorite ? const Color(0xFFFFB84D) : Theme.of(context).colorScheme.onSurfaceVariant),
+                            ),
+                            onTap: () {
+                              Navigator.pop(sheetContext);
+                              Navigator.push(context, MaterialPageRoute(
+                                builder: (_) => CallScreen(peer: peer, callType: 'voice'),
+                              ));
+                            },
+                          );
+                        },
+                      ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildList() {
     final calls = _filteredCalls();
     final favoriteCalls = <UserModel>[];
@@ -456,75 +548,121 @@ class _CallsScreenState extends State<CallsScreen> {
     }
     final seenFavorites = <String>{};
     final uniqueFavorites = favoriteCalls.where((peer) => seenFavorites.add(peer.username.toLowerCase())).toList();
+    final groups = _groupCallsByDay(calls);
+
     return RefreshIndicator(
       color: Theme.of(context).colorScheme.primary,
       onRefresh: _loadCalls,
       child: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 132),
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 120),
         children: [
-          if (_search.isEmpty && _filter == 'All' && uniqueFavorites.isNotEmpty) ...[
-            const NovynSectionLabel(
-              'FAVORITES',
-              icon: Icons.star_rounded,
-              padding: EdgeInsets.fromLTRB(4, 4, 4, 10),
-            ),
-            SizedBox(
-              height: 94,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                itemCount: uniqueFavorites.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 14),
-                itemBuilder: (context, index) {
-                  final peer = uniqueFavorites[index];
-                  return SizedBox(
-                    width: 70,
-                    child: Column(
+          if (_search.isEmpty && _filter == 'All') ...[
+            Container(
+              padding: const EdgeInsets.fromLTRB(17, 17, 17, 13),
+              margin: const EdgeInsets.only(bottom: 14),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surface,
+                borderRadius: BorderRadius.circular(26),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('QUICK CALL', style: TextStyle(
+                    fontFamily: 'PlusJakartaSans',
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 1.3,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  )),
+                  const SizedBox(height: 14),
+                  SizedBox(
+                    height: 94,
+                    child: ListView(
+                      scrollDirection: Axis.horizontal,
                       children: [
-                        Stack(
-                          clipBehavior: Clip.none,
-                          children: [
-                            GestureDetector(
-                              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => CallScreen(peer: peer, callType: 'voice'))),
-                              child: UserAvatar(name: peer.name, photoUrl: peer.photoUrl, radius: 27, showOnlineIndicator: true, isOnline: peer.isOnline, presence: peer.status),
-                            ),
-                            Positioned(
-                              right: -4, bottom: -4,
-                              child: Container(
-                                width: 23, height: 23,
-                                decoration: BoxDecoration(gradient: NovynGradients.selected(context), shape: BoxShape.circle, border: Border.all(color: NovynColors.bg, width: 2)),
-                                child: const Icon(Icons.call_rounded, size: 12, color: Colors.white),
+                        for (final peer in uniqueFavorites)
+                          SizedBox(
+                            width: 76,
+                            child: GestureDetector(
+                              onTap: () => Navigator.push(context, MaterialPageRoute(
+                                builder: (_) => CallScreen(peer: peer, callType: 'voice'),
+                              )),
+                              onLongPress: () => _toggleFavorite(peer),
+                              child: Column(
+                                children: [
+                                  UserAvatar(name: peer.name, photoUrl: peer.photoUrl, radius: 28,
+                                    showOnlineIndicator: true, isOnline: peer.isOnline, presence: peer.status),
+                                  const SizedBox(height: 7),
+                                  Text(peer.name.split(' ').first, maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600,
+                                      color: Theme.of(context).colorScheme.onSurface)),
+                                ],
                               ),
                             ),
-                          ],
+                          ),
+                        SizedBox(
+                          width: 76,
+                          child: GestureDetector(
+                            onTap: _showQuickCallPicker,
+                            child: Column(children: [
+                              Container(
+                                width: 56, height: 56,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  border: Border.all(color: Theme.of(context).colorScheme.primary.withValues(alpha: .5), width: 1.5),
+                                ),
+                                child: Icon(Icons.add_rounded, size: 27, color: Theme.of(context).colorScheme.primary),
+                              ),
+                              const SizedBox(height: 7),
+                              Text('Add', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600,
+                                color: Theme.of(context).colorScheme.onSurface)),
+                            ]),
+                          ),
                         ),
-                        const SizedBox(height: 7),
-                        Text(peer.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: NovynText.body(11, color: NovynColors.textChip)),
                       ],
                     ),
-                  );
-                },
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 12),
           ],
-          NovynSectionLabel(
-            _search.isNotEmpty || _filter != 'All' ? 'RESULTS' : 'RECENT CALLS',
-            padding: const EdgeInsets.fromLTRB(4, 4, 4, 10),
-          ),
-          for (final group in _groupCallsByDay(calls).entries) ...[
+          if (_search.isNotEmpty || _filter != 'All')
             Padding(
-              padding: const EdgeInsets.fromLTRB(4, 10, 4, 9),
-              child: Text(group.key.toUpperCase(), style: NovynText.body(10, color: NovynColors.textMuted, weight: FontWeight.w700).copyWith(letterSpacing: 1.1)),
+              padding: const EdgeInsets.fromLTRB(4, 4, 4, 10),
+              child: Text('RESULTS', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800,
+                letterSpacing: 1.2, color: Theme.of(context).colorScheme.onSurfaceVariant)),
             ),
-            for (final entry in group.value)
-              _CallCard(
-                entry: entry,
-                isFavorite: _favoriteUsernames.contains(entry.peer.username.toLowerCase()),
-                onToggleFavorite: () => _toggleFavorite(entry.peer),
-                onDismiss: () => setState(() => _calls.removeWhere((call) => call.peer.username == entry.peer.username)),
+          for (final group in groups.entries) ...[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(5, 12, 5, 10),
+              child: Text(group.key.toUpperCase(), style: TextStyle(
+                fontSize: 12, fontWeight: FontWeight.w800, letterSpacing: 1.25,
+                color: Theme.of(context).colorScheme.onSurfaceVariant)),
+            ),
+            Container(
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surface,
+                borderRadius: BorderRadius.circular(26),
               ),
+              child: Column(
+                children: [
+                  for (var index = 0; index < group.value.length; index++) ...[
+                    _CallCard(
+                      entry: group.value[index],
+                      isFavorite: _favoriteUsernames.contains(group.value[index].peer.username.toLowerCase()),
+                      onToggleFavorite: () => _toggleFavorite(group.value[index].peer),
+                      onDismiss: () => setState(() => _calls.removeWhere((call) =>
+                        call.peer.username == group.value[index].peer.username)),
+                    ),
+                    if (index != group.value.length - 1)
+                      Divider(height: 1, indent: 78, color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: .45)),
+                  ],
+                ],
+              ),
+            ),
           ],
-          const SizedBox(height: 80),
+          const SizedBox(height: 36),
         ],
       ),
     );
@@ -683,26 +821,30 @@ class _CallCard extends StatelessWidget {
   final VoidCallback onDismiss;
   final bool isFavorite;
   final VoidCallback onToggleFavorite;
-  const _CallCard({required this.entry, required this.onDismiss, required this.isFavorite, required this.onToggleFavorite});
+
+  const _CallCard({
+    required this.entry,
+    required this.onDismiss,
+    required this.isFavorite,
+    required this.onToggleFavorite,
+  });
 
   @override
   Widget build(BuildContext context) {
     final isMissed = entry.status == 'missed';
-    final isIncoming = entry.status == 'incoming';
     final isVideo = entry.type == 'video';
     final statusColor = isMissed
-        ? NovynColors.danger
-        : isIncoming
-            ? NovynColors.mint
-            : const Color(0xFF79B8FF);
+        ? const Color(0xFFD92D2D)
+        : Theme.of(context).colorScheme.onSurfaceVariant;
     final statusIcon = isMissed
         ? Icons.call_missed_rounded
-        : isIncoming
+        : entry.status == 'incoming'
             ? Icons.call_received_rounded
             : Icons.call_made_rounded;
+    final callColor = Theme.of(context).colorScheme.primary;
 
     return Slidable(
-      key: ValueKey(entry.createdAt.millisecondsSinceEpoch),
+      key: ValueKey('${entry.peer.username}_${entry.createdAt.millisecondsSinceEpoch}'),
       endActionPane: ActionPane(
         motion: const StretchMotion(),
         children: [
@@ -712,133 +854,115 @@ class _CallCard extends StatelessWidget {
             foregroundColor: Colors.white,
             icon: Icons.delete_rounded,
             label: 'Dismiss',
+            borderRadius: BorderRadius.circular(14),
           ),
         ],
       ),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 10),
-        decoration: BoxDecoration(
-          color: NovynTheme.cardBg(context),
-          borderRadius: BorderRadius.circular(22),
-          border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
-        ),
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: () => _showHistory(context),
-            borderRadius: BorderRadius.circular(22),
-            child: Padding(
-              padding: const EdgeInsets.all(13),
-              child: Row(
-                children: [
-                  UserAvatar(
-                    name: entry.peer.name,
-                    photoUrl: entry.peer.photoUrl,
-                    radius: 27,
-                    showOnlineIndicator: true,
-                    isOnline: entry.peer.isOnline,
-                    presence: entry.peer.status,
-                  ),
-                  const SizedBox(width: 13),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                entry.peer.name,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context).textTheme.titleMedium?.copyWith(fontSize: 15, fontWeight: FontWeight.w700),
-                              ),
-                            ),
-                            if (entry.count > 1) ...[
-                              const SizedBox(width: 5),
-                              Text('(${entry.count})',
-                                  style: NovynText.body(11, color: NovynColors.textMuted)),
-                            ],
-                          ],
+      child: InkWell(
+        onTap: () => _showHistory(context),
+        borderRadius: BorderRadius.circular(22),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+          child: Row(
+            children: [
+              GestureDetector(
+                onLongPress: onToggleFavorite,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    UserAvatar(
+                      name: entry.peer.name,
+                      photoUrl: entry.peer.photoUrl,
+                      radius: 32,
+                      showOnlineIndicator: true,
+                      isOnline: entry.peer.isOnline,
+                      presence: entry.peer.status,
+                    ),
+                    if (isFavorite)
+                      Positioned(
+                        right: -2,
+                        bottom: -2,
+                        child: Container(
+                          width: 20,
+                          height: 20,
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).colorScheme.surface,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.star_rounded, size: 15, color: Color(0xFFFFB84D)),
                         ),
-                        const SizedBox(height: 5),
-                        Row(
-                          children: [
-                            Icon(statusIcon, size: 14, color: statusColor),
-                            const SizedBox(width: 5),
-                            Flexible(
-                              child: Text(
-                                _statusLabel(entry.type, entry.status),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: NovynText.body(11.5, color: statusColor, weight: FontWeight.w500),
-                              ),
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      entry.peer.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontFamily: 'PlusJakartaSans',
+                        fontSize: 16.5,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -.3,
+                        color: isMissed ? statusColor : Theme.of(context).colorScheme.onSurface,
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    Row(
+                      children: [
+                        Icon(statusIcon, size: 17, color: statusColor),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            '${_formatTime(entry.createdAt)} · ${isVideo ? 'Video' : 'Voice'}${isMissed ? ' · Missed' : entry.duration > 0 ? ' · ${_formatDuration(entry.duration)}' : ''}',
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontFamily: 'PlusJakartaSans',
+                              fontSize: 13.5,
+                              height: 1.35,
+                              color: isMissed ? statusColor : Theme.of(context).colorScheme.onSurfaceVariant,
+                              fontWeight: FontWeight.w500,
                             ),
-                            if (entry.duration > 0) ...[
-                              Text(' · ', style: NovynText.body(11, color: NovynColors.textMuted)),
-                              Text(_formatDuration(entry.duration),
-                                  style: NovynText.body(11, color: NovynColors.textMuted)),
-                            ],
-                          ],
+                          ),
                         ),
                       ],
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text(_formatTime(entry.createdAt),
-                          style: NovynText.body(10.5, color: NovynColors.timeMuted)),
-                      const SizedBox(height: 8),
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          IconButton(
-                            tooltip: isFavorite ? 'Remove favorite' : 'Add to favorites',
-                            visualDensity: VisualDensity.compact,
-                            onPressed: onToggleFavorite,
-                            icon: Icon(isFavorite ? Icons.star_rounded : Icons.star_outline_rounded, color: isFavorite ? const Color(0xFFFFC857) : NovynColors.textMuted, size: 20),
-                          ),
-                          NovynIconButton(
-                            icon: Icons.call_rounded,
-                            primary: true,
-                            size: 36,
-                            radius: 12,
-                            iconSize: 17,
-                            onTap: () {
-                              HapticService.vibrate(NovynHapticType.light, category: HapticCategory.calls);
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => CallScreen(peer: entry.peer, callType: 'voice'),
-                                ),
-                              );
-                            },
-                          ),
-                          const SizedBox(width: 7),
-                          NovynIconButton(
-                            icon: Icons.videocam_rounded,
-                            size: 36,
-                            radius: 12,
-                            iconSize: 17,
-                            onTap: () {
-                              HapticService.vibrate(NovynHapticType.light, category: HapticCategory.calls);
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => CallScreen(peer: entry.peer, callType: 'video'),
-                                ),
-                              );
-                            },
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
+              const SizedBox(width: 10),
+              Material(
+                color: callColor.withValues(alpha: .12),
+                shape: const CircleBorder(),
+                child: InkWell(
+                  customBorder: const CircleBorder(),
+                  onTap: () {
+                    HapticService.vibrate(NovynHapticType.light, category: HapticCategory.calls);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => CallScreen(peer: entry.peer, callType: isVideo ? 'video' : 'voice'),
+                      ),
+                    );
+                  },
+                  child: SizedBox(
+                    width: 54,
+                    height: 54,
+                    child: Icon(
+                      isVideo ? Icons.videocam_rounded : Icons.call_rounded,
+                      color: callColor,
+                      size: 25,
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -854,41 +978,18 @@ class _CallCard extends StatelessWidget {
     );
   }
 
-  String _statusLabel(String type, String status) {
-    switch (status) {
-      case 'missed':   return 'Missed $type call';
-      case 'incoming': return 'Incoming $type call';
-      case 'outgoing': return 'Outgoing $type call';
-      default:         return status;
-    }
+  String _formatTime(DateTime dt) {
+    final h = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
+    final m = dt.minute.toString().padLeft(2, '0');
+    final p = dt.hour < 12 ? 'AM' : 'PM';
+    return '$h:$m $p';
   }
 
   String _formatDuration(int seconds) {
     if (seconds < 60) return '${seconds}s';
-    final m = seconds ~/ 60;
-    final s = seconds % 60;
-    return s > 0 ? '${m}m ${s}s' : '${m}m';
-  }
-
-  String _formatTime(DateTime dt) {
-    final now = DateTime.now();
-    final todayStart = DateTime(now.year, now.month, now.day);
-    final dtStart   = DateTime(dt.year,  dt.month,  dt.day);
-    final daysDiff  = todayStart.difference(dtStart).inDays;
-
-    if (daysDiff == 0) {
-      final h = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
-      final m = dt.minute.toString().padLeft(2, '0');
-      final p = dt.hour < 12 ? 'AM' : 'PM';
-      return '$h:$m $p';
-    } else if (daysDiff == 1) {
-      return 'Yesterday';
-    } else if (daysDiff < 7) {
-      const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-      return days[dt.weekday - 1];
-    } else {
-      return '${dt.day}/${dt.month}';
-    }
+    final minutes = seconds ~/ 60;
+    final remaining = seconds % 60;
+    return remaining > 0 ? '${minutes}m ${remaining}s' : '${minutes}m';
   }
 }
 
