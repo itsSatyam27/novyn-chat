@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'dart:io';
 import 'dart:convert';
-import 'dart:ui';
 import '../../services/auth_service.dart';
 import '../../services/settings_service.dart';
 import '../../theme/novyn_theme.dart';
@@ -23,19 +21,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   late final TextEditingController _nameCtrl;
   late final TextEditingController _usernameCtrl;
   late final TextEditingController _bioCtrl;
-  late final TextEditingController _ageCtrl;
-  DateTime? _selectedDOB;
-  String _selectedGender = '';
   bool _checkingUsername = false;
   bool? _usernameAvailable;
   bool _saving = false;
-
-  static const _genders = [
-    'Male',
-    'Female',
-    'Non-binary',
-    'Prefer not to say',
-  ];
 
   @override
   void initState() {
@@ -45,13 +33,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     _nameCtrl = TextEditingController(text: p?.displayName ?? '');
     _usernameCtrl = TextEditingController(text: p?.username ?? '');
     _bioCtrl = TextEditingController(text: p?.bio ?? '');
-    _ageCtrl = TextEditingController();
-    _selectedGender = p?.gender ?? '';
-    // If age exists, we don't have DOB stored yet in this version, so we'll just leave it empty or set a default
-    // In a real app, you'd store DOB and calculate age.
-    if (p?.age != null) {
-      _ageCtrl.text = '${p!.age} years old';
-    }
   }
 
   @override
@@ -59,7 +40,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     _nameCtrl.dispose();
     _usernameCtrl.dispose();
     _bioCtrl.dispose();
-    _ageCtrl.dispose();
     super.dispose();
   }
 
@@ -89,138 +69,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     });
   }
 
-  Future<void> _selectDate() async {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    DateTime tempDate = _selectedDOB ?? DateTime(2000);
-    
-    await showDialog(
-      context: context,
-      builder: (context) => BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-        child: Center(
-          child: Material(
-            type: MaterialType.transparency,
-            child: Container(
-              width: MediaQuery.of(context).size.width * 0.85,
-              padding: const EdgeInsets.all(28),
-              decoration: BoxDecoration(
-                color: isDark 
-                    ? const Color(0xFF1A1D2B).withValues(alpha: 0.9) 
-                    : Colors.white.withValues(alpha: 0.9),
-                borderRadius: BorderRadius.circular(32),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.2), width: 1.5),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.1),
-                    blurRadius: 40,
-                    offset: const Offset(0, 20),
-                  ),
-                ],
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    'Select Date of Birth',
-                    style: TextStyle(
-                      fontFamily: 'PlusJakartaSans',
-                      fontSize: 22,
-                      fontWeight: FontWeight.w900,
-                      color: Theme.of(context).colorScheme.onSurface,
-                    ),
-                  ),
-                  SizedBox(height: 24),
-                  SizedBox(
-                    height: 200,
-                    child: CupertinoTheme(
-                      data: CupertinoThemeData(
-                        textTheme: CupertinoTextThemeData(
-                          dateTimePickerTextStyle: TextStyle(
-                            fontFamily: 'PlusJakartaSans',
-                            fontSize: 20,
-                            fontWeight: FontWeight.w600,
-                            color: Theme.of(context).colorScheme.onSurface,
-                          ),
-                        ),
-                      ),
-                      child: CupertinoDatePicker(
-                        mode: CupertinoDatePickerMode.date,
-                        initialDateTime: tempDate,
-                        maximumDate: DateTime.now(),
-                        onDateTimeChanged: (d) => tempDate = d,
-                      ),
-                    ),
-                  ),
-                  SizedBox(height: 32),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextButton(
-                          onPressed: () => Navigator.pop(context),
-                          child: Text(
-                            'Cancel',
-                            style: TextStyle(
-                              fontFamily: 'PlusJakartaSans',
-                              fontWeight: FontWeight.w700,
-                              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
-                            ),
-                          ),
-                        ),
-                      ),
-                      SizedBox(width: 16),
-                      Expanded(
-                        child: Container(
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(16),
-                            gradient: LinearGradient(
-                              colors: [Theme.of(context).colorScheme.primary, Color(0xFF40E0D0)],
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
-                                blurRadius: 12,
-                                offset: const Offset(0, 4),
-                              ),
-                            ],
-                          ),
-                          child: ElevatedButton(
-                            onPressed: () {
-                              HapticService.vibrate(NovynHapticType.medium);
-                              setState(() {
-                                _selectedDOB = tempDate;
-                                final age = DateTime.now().year - tempDate.year;
-                                _ageCtrl.text = '$age years old';
-                              });
-                              Navigator.pop(context);
-                            },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.transparent,
-                              shadowColor: Colors.transparent,
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                            ),
-                            child: Text(
-                              'Confirm',
-                              style: TextStyle(
-                                fontFamily: 'PlusJakartaSans',
-                                fontWeight: FontWeight.w900,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
   Future<void> _save() async {
     HapticService.vibrate(NovynHapticType.medium);
     final auth = context.read<AuthService>();
@@ -233,21 +81,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       return;
     }
 
-    int? age;
-    if (_selectedDOB != null) {
-      age = DateTime.now().year - _selectedDOB!.year;
-    } else if (_ageCtrl.text.isNotEmpty) {
-      age = int.tryParse(_ageCtrl.text.split(' ')[0]);
-    }
-
     setState(() => _saving = true);
 
     final err = await auth.updateProfile(
       name: _nameCtrl.text.trim(),
       bio: _bioCtrl.text.trim(),
       username: username.isNotEmpty ? username : null,
-      age: age,
-      gender: _selectedGender.isNotEmpty ? _selectedGender : null,
     );
 
     await settings.setProfile(
@@ -582,20 +421,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       onChanged: (_) => setState(() {})),
                   ]),
                   const SizedBox(height: 28),
-                  _profileSectionLabel('Personal details'),
-                  _profileFieldsCard([
-                    _profilePicker(title: 'Date of birth',
-                      value: _ageCtrl.text.isEmpty ? 'Add your birthday' : _ageCtrl.text,
-                      icon: Icons.cake_outlined, onTap: _selectDate),
-                    _profilePicker(title: 'Gender',
-                      value: _selectedGender.isEmpty ? 'Choose your gender' : _selectedGender,
-                      icon: Icons.person_outline_rounded,
-                      onTap: () => _showGenderPicker(context)),
-                  ]),
-                  const SizedBox(height: 12),
-                  Text('Your personal details help make your profile feel more like you.',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant)),
                 ],
               ),
             ),
@@ -781,71 +606,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     );
   }
 
-  void _showGenderPicker(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    
-    showDialog(
-      context: context,
-      builder: (context) => BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-        child: Center(
-          child: Material(
-            type: MaterialType.transparency,
-            child: Container(
-              width: MediaQuery.of(context).size.width * 0.8,
-              padding: const EdgeInsets.symmetric(vertical: 24),
-              decoration: BoxDecoration(
-                color: isDark 
-                    ? const Color(0xFF1A1D2B).withValues(alpha: 0.95) 
-                    : Colors.white.withValues(alpha: 0.95),
-                borderRadius: BorderRadius.circular(28),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
-              ),
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      'Select Gender',
-                      style: TextStyle(
-                        fontFamily: 'PlusJakartaSans',
-                        fontWeight: FontWeight.bold,
-                        fontSize: 20,
-                      ),
-                    ),
-                    SizedBox(height: 16),
-                    ..._genders.map((g) {
-                      final isSelected = _selectedGender == g;
-                      return ListTile(
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 24),
-                        title: Text(
-                          g,
-                          style: TextStyle(
-                            fontFamily: 'PlusJakartaSans',
-                            fontWeight: isSelected ? FontWeight.w900 : FontWeight.w500,
-                            color: isSelected ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
-                          ),
-                        ),
-                        trailing: isSelected 
-                          ? Icon(Icons.check_circle_rounded, color: Theme.of(context).colorScheme.primary, size: 20)
-                          : null,
-                        onTap: () {
-                          HapticService.vibrate(NovynHapticType.light);
-                          setState(() => _selectedGender = g);
-                          Navigator.pop(context);
-                        },
-                      );
-                    }),
-                    SizedBox(height: 8),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
 }
 
 class _EditProfileAvatar extends StatelessWidget {
