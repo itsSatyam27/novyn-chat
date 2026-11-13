@@ -816,7 +816,7 @@ class _CallScreenState extends State<CallScreen>
                           ? const Center(child: Icon(Icons.videocam_off_rounded, color: Colors.white70, size: 28))
                           : _webrtc.localStream != null
                               ? RTCVideoView(_webrtc.localRenderer, mirror: _frontCamera, objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover)
-                              : Center(child: UserAvatar(name: 'You', radius: 34)),
+                              : Center(child: UserAvatar(name: 'You', photoUrl: '', radius: 34)),
                     ),
                   ),
                 ),
