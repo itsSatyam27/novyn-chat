@@ -176,6 +176,8 @@ class LocalDbService {
         'lastMessage': chat.lastMessage,
         'lastTime': chat.lastTime.toIso8601String(),
         'unreadCount': chat.unreadCount,
+        'isPinned': chat.isPinned,
+        'isArchived': chat.isArchived,
       });
     } catch (e) {
       print('Error saving chat: $e');
@@ -193,6 +195,8 @@ class LocalDbService {
           'lastMessage': c.lastMessage,
           'lastTime': c.lastTime.toIso8601String(),
           'unreadCount': c.unreadCount,
+          'isPinned': c.isPinned,
+          'isArchived': c.isArchived,
         }
       };
       await _chatsBox?.putAll(map);
@@ -228,6 +232,8 @@ class LocalDbService {
     String? lastMessage,
     DateTime? lastTime,
     int? unreadCount,
+    bool? isPinned,
+    bool? isArchived,
   }) async {
     await _ensureInit();
     try {
@@ -237,6 +243,8 @@ class LocalDbService {
         if (lastMessage != null) updated['lastMessage'] = lastMessage;
         if (lastTime != null) updated['lastTime'] = lastTime.toIso8601String();
         if (unreadCount != null) updated['unreadCount'] = unreadCount;
+        if (isPinned != null) updated['isPinned'] = isPinned;
+        if (isArchived != null) updated['isArchived'] = isArchived;
         await _chatsBox?.put(chatId, updated);
       }
     } catch (e) {
