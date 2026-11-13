@@ -838,33 +838,39 @@ class _ChatCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final hasUnread = preview.unreadCount > 0;
+    final dark = theme.brightness == Brightness.dark;
     final titleColor = theme.colorScheme.onSurface;
     final metaColor = theme.colorScheme.onSurfaceVariant;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 3),
       child: Material(
-        color: Colors.transparent,
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(25),
         child: InkWell(
           onTap: () {
             HapticService.vibrate(NovynHapticType.light, category: HapticCategory.chat);
             onTap();
           },
-          borderRadius: BorderRadius.circular(22),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 15),
+          onLongPress: onOptions,
+          borderRadius: BorderRadius.circular(25),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 14),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(25),
+              border: Border.all(color: theme.colorScheme.outlineVariant.withValues(alpha: dark ? .18 : .28)),
+            ),
             child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 UserAvatar(
                   name: preview.peer.name,
                   photoUrl: preview.peer.photoUrl,
-                  radius: 28,
+                  radius: 32,
                   showOnlineIndicator: true,
                   isOnline: preview.peer.isOnline,
                   presence: preview.peer.status,
                 ),
-                const SizedBox(width: 16),
+                const SizedBox(width: 14),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -878,79 +884,66 @@ class _ChatCard extends StatelessWidget {
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
                                 fontFamily: 'PlusJakartaSans',
-                                fontSize: 17,
-                                fontWeight: FontWeight.w700,
+                                fontSize: 16.5,
+                                fontWeight: FontWeight.w800,
                                 letterSpacing: -.35,
                                 color: titleColor,
                               ),
                             ),
                           ),
-                          const SizedBox(width: 8),
-                          if (isFavorite) const Icon(Icons.star_rounded, size: 15, color: Color(0xFFFFB300)),
-                          const SizedBox(width: 8),
-                          Text(
-                            _formatTime(preview.lastTime, context.watch<SettingsService>().timeFormat),
-                            style: TextStyle(
-                              fontFamily: 'PlusJakartaSans',
-                              fontSize: 12,
-                              color: metaColor,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 5),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              preview.lastMessage.isEmpty
-                                  ? 'Tap to chat'
-                                  : preview.lastMessage,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontFamily: 'PlusJakartaSans',
-                                fontSize: 13.5,
-                                color: hasUnread ? titleColor : metaColor,
-                                fontWeight:
-                                    hasUnread ? FontWeight.w600 : FontWeight.w400,
-                              ),
-                            ),
-                          ),
-                          IconButton(
-                            visualDensity: VisualDensity.compact,
-                            constraints: const BoxConstraints.tightFor(width: 34, height: 34),
-                            padding: EdgeInsets.zero,
-                            tooltip: 'Chat options',
-                            onPressed: onOptions,
-                            icon: Icon(Icons.keyboard_arrow_down_rounded,
-                              size: 23, color: metaColor.withValues(alpha: .8)),
-                          ),
-                          if (hasUnread) ...[
-                            const SizedBox(width: 8),
-                            Container(
-                              constraints: const BoxConstraints(minWidth: 22),
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 7, vertical: 4),
-                              decoration: BoxDecoration(
-                                gradient: NovynGradients.selected(context),
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: Text(
-                                '${preview.unreadCount}',
-                                textAlign: TextAlign.center,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ),
+                          if (preview.isPinned) ...[
+                            const SizedBox(width: 5),
+                            Icon(Icons.push_pin_rounded, size: 15, color: metaColor),
+                          ],
+                          if (isFavorite) ...[
+                            const SizedBox(width: 5),
+                            const Icon(Icons.star_rounded, size: 15, color: Color(0xFFFFB300)),
                           ],
                         ],
                       ),
+                      const SizedBox(height: 5),
+                      Text(
+                        preview.lastMessage.isEmpty ? 'Tap to chat' : preview.lastMessage,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontFamily: 'PlusJakartaSans',
+                          fontSize: 14,
+                          color: hasUnread ? titleColor : metaColor,
+                          fontWeight: hasUnread ? FontWeight.w600 : FontWeight.w400,
+                        ),
+                      ),
                     ],
                   ),
+                ),
+                const SizedBox(width: 10),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      _formatTime(preview.lastTime, context.watch<SettingsService>().timeFormat),
+                      style: TextStyle(
+                        fontFamily: 'PlusJakartaSans',
+                        fontSize: 12.5,
+                        fontWeight: hasUnread ? FontWeight.w800 : FontWeight.w500,
+                        color: hasUnread ? theme.colorScheme.primary : metaColor,
+                      ),
+                    ),
+                    if (hasUnread) ...[
+                      const SizedBox(height: 7),
+                      Container(
+                        constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(color: theme.colorScheme.primary, shape: BoxShape.circle),
+                        child: Text(
+                          '${preview.unreadCount}',
+                          style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w800),
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ],
             ),
