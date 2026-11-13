@@ -45,8 +45,8 @@ class SecurityService {
     try {
       if (defaultTargetPlatform == TargetPlatform.android) {
         await _channel.invokeMethod('vibrate', {
-          'duration': duration.clamp(1, 5000),
-          'amplitude': amplitude.clamp(1, 255),
+          'duration': duration.clamp(1, 5000).toInt(),
+          'amplitude': amplitude.clamp(1, 255).toInt(),
         });
       }
     } on PlatformException catch (e) {
