@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
@@ -848,4 +849,259 @@ class _ChatSummaryTile extends StatelessWidget {
       ),
     );
   }
+}
+
+
+class _ChatCard extends StatelessWidget {
+  final ChatPreview preview;
+  final VoidCallback onTap;
+  final bool isFavorite;
+  final VoidCallback? onOptions;
+
+  const _ChatCard({required this.preview, required this.onTap, this.isFavorite = false, this.onOptions});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final hasUnread = preview.unreadCount > 0;
+    final titleColor = theme.colorScheme.onSurface;
+    final metaColor = theme.colorScheme.onSurfaceVariant;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () {
+            HapticService.vibrate(NovynHapticType.light, category: HapticCategory.chat);
+            onTap();
+          },
+          borderRadius: BorderRadius.circular(22),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 15),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                UserAvatar(
+                  name: preview.peer.name,
+                  photoUrl: preview.peer.photoUrl,
+                  radius: 28,
+                  showOnlineIndicator: true,
+                  isOnline: preview.peer.isOnline,
+                  presence: preview.peer.status,
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              preview.peer.name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontFamily: 'PlusJakartaSans',
+                                fontSize: 17,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: -.35,
+                                color: titleColor,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          if (isFavorite) const Icon(Icons.star_rounded, size: 15, color: Color(0xFFFFB300)),
+                          const SizedBox(width: 8),
+                          Text(
+                            _formatTime(preview.lastTime, context.watch<SettingsService>().timeFormat),
+                            style: TextStyle(
+                              fontFamily: 'PlusJakartaSans',
+                              fontSize: 12,
+                              color: metaColor,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 5),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              preview.lastMessage.isEmpty
+                                  ? 'Tap to chat'
+                                  : preview.lastMessage,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontFamily: 'PlusJakartaSans',
+                                fontSize: 13.5,
+                                color: hasUnread ? titleColor : metaColor,
+                                fontWeight:
+                                    hasUnread ? FontWeight.w600 : FontWeight.w400,
+                              ),
+                            ),
+                          ),
+                          IconButton(
+                            visualDensity: VisualDensity.compact,
+                            constraints: const BoxConstraints.tightFor(width: 34, height: 34),
+                            padding: EdgeInsets.zero,
+                            tooltip: 'Chat options',
+                            onPressed: onOptions,
+                            icon: Icon(Icons.keyboard_arrow_down_rounded,
+                              size: 23, color: metaColor.withValues(alpha: .8)),
+                          ),
+                          if (hasUnread) ...[
+                            const SizedBox(width: 8),
+                            Container(
+                              constraints: const BoxConstraints(minWidth: 22),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 7, vertical: 4),
+                              decoration: BoxDecoration(
+                                gradient: NovynGradients.selected(context),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Text(
+                                '${preview.unreadCount}',
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Helper Widgets ──────────────────────────────────────────────────────────
+
+class _HeaderAction extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onTap;
+  final bool active;
+
+  const _HeaderAction(
+      {required this.icon, required this.onTap, this.active = false});
+
+  @override
+  Widget build(BuildContext context) {
+    final onSurface = Theme.of(context).colorScheme.onSurface;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 36,
+        height: 36,
+        decoration: BoxDecoration(
+          color: active
+              ? const Color(0xFF00C97A).withValues(alpha: 0.12)
+              : onSurface.withValues(alpha: isDark ? 0.06 : 0.04),
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: active
+                ? const Color(0xFF00C97A).withValues(alpha: 0.2)
+                : onSurface.withValues(alpha: isDark ? 0.08 : 0.06),
+          ),
+        ),
+        child: Icon(
+          icon,
+          size: 18,
+          color: active
+              ? const Color(0xFF00C97A)
+              : onSurface.withValues(alpha: 0.75),
+        ),
+      ),
+    );
+  }
+}
+
+class _StoryCard extends StatelessWidget {
+  final String name;
+  final UserModel peer;
+  final VoidCallback? onTap;
+
+  const _StoryCard({
+    required this.name,
+    required this.peer,
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final labelColor = Theme.of(context).colorScheme.onSurface;
+    return GestureDetector(
+      onTap: () {
+        HapticService.vibrate(NovynHapticType.light, category: HapticCategory.chat);
+        onTap?.call();
+      },
+      child: SizedBox(
+        width: 66,
+        child: Column(
+          children: [
+            UserAvatar(
+              name: peer.name,
+              photoUrl: peer.photoUrl,
+              radius: 27,
+              showOnlineIndicator: true,
+              isOnline: peer.isOnline,
+              presence: peer.status,
+            ),
+            const SizedBox(height: 7),
+            Text(
+              name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontFamily: 'PlusJakartaSans',
+                fontSize: 11.5,
+                fontWeight: FontWeight.w600,
+                color: labelColor.withValues(alpha: .88),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+String _formatTime(DateTime timestamp, String format) {
+  final dt = timestamp.toLocal();
+  final now = DateTime.now();
+  final today = DateTime(now.year, now.month, now.day);
+  final messageDay = DateTime(dt.year, dt.month, dt.day);
+  final dayDifference = today.difference(messageDay).inDays;
+
+  String clock() {
+    final minute = dt.minute.toString().padLeft(2, '0');
+    if (format == '24h') {
+      return '${dt.hour.toString().padLeft(2, '0')}:$minute';
+    }
+    final hour = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
+    final period = dt.hour < 12 ? 'AM' : 'PM';
+    return '$hour:$minute $period';
+  }
+
+  if (dayDifference == 0) return clock();
+  if (dayDifference == 1) return 'Yesterday';
+  if (dayDifference >= 2 && dayDifference < 7) {
+    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    return days[dt.weekday - 1];
+  }
+  return '${dt.day}/${dt.month}/${dt.year.toString().substring(2)}';
 }
