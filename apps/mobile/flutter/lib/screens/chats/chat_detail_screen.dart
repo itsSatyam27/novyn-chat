@@ -230,47 +230,76 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
   Future<void> _init() async {
     final auth = context.read<AuthService>();
     final socket = context.read<SocketService>();
-    _myUid = auth.user?.username; // username is our identity
-    if (_myUid == null) return;
-
-    // chatId on novyn-chat is just the peer's username
-    _chatId =
-        widget.peer.uid.isNotEmpty ? widget.peer.uid : widget.peer.username;
-
-    // 1. Load cache immediately
-    final cacheF = HybridDbService.getMessages(_chatId!);
-    final historyF = ApiService.getHistory(_chatId!, myUsername: _myUid);
-
-    final cachedMessages = await cacheF;
-    if (mounted) {
-      socket.openChat(_chatId!, cachedMessages);
-      if (cachedMessages.isEmpty) _fetchingFromServer = true;
-      setState(() => _loading = false);
-      // Keep cached history covered until the server's latest history has
-      // been applied, so stale cache positions never flash on screen.
+    _myUid = auth.user?.username;
+    if (_myUid == null || _myUid!.isEmpty) {
+      if (mounted) setState(() => _loading = false);
+      return;
     }
 
-    final history = await historyF;
+    _chatId = widget.peer.uid.isNotEmpty
+        ? widget.peer.uid
+        : widget.peer.username;
+
+    List<Message> cachedMessages = [];
+    try {
+      // Never let a slow local database keep the whole conversation screen
+      // on its first-load spinner indefinitely.
+      cachedMessages = await HybridDbService.getMessages(_chatId!)
+          .timeout(const Duration(seconds: 6), onTimeout: () => <Message>[]);
+    } catch (error) {
+      debugPrint('[NovynChat] Local message cache read failed: $error');
+    }
     if (!mounted) return;
 
-    if (history.isNotEmpty) {
-      await HybridDbService.saveMessages(history);
-      await HybridDbService.setLastSync(_chatId!, DateTime.now());
-      socket.mergeChatHistory(history);
-      if (mounted) setState(() => _fetchingFromServer = false);
-      _jumpToLatestImmediately();
-    } else if (mounted) {
-      setState(() => _fetchingFromServer = false);
-      if (cachedMessages.isNotEmpty) {
+    socket.openChat(_chatId!, cachedMessages);
+    setState(() {
+      _loading = false;
+      _fetchingFromServer = cachedMessages.isEmpty;
+    });
+
+    try {
+      final history = await ApiService.getHistory(
+        _chatId!,
+        myUsername: _myUid,
+      ).timeout(const Duration(seconds: 12), onTimeout: () => <Message>[]);
+
+      if (!mounted) return;
+      if (history.isNotEmpty) {
+        // Publish messages to the active timeline before waiting for disk I/O.
+        socket.mergeChatHistory(history);
+        unawaited(HybridDbService.saveMessages(history));
+        unawaited(HybridDbService.setLastSync(_chatId!, DateTime.now()));
+        _jumpToLatestImmediately();
+      } else if (cachedMessages.isNotEmpty) {
         _jumpToLatestImmediately();
       } else {
-        setState(() => _initialPositionReady = true);
+        // Socket history is also requested by openChat/resume_session. Give
+        // that authenticated response a short chance to arrive before showing
+        // the empty-conversation state.
+        await Future<void>.delayed(const Duration(milliseconds: 900));
+        if (!mounted) return;
+        if (socket.messages.isNotEmpty) {
+          _jumpToLatestImmediately();
+        } else {
+          setState(() => _initialPositionReady = true);
+        }
       }
-    }
 
-    final settings = context.read<SettingsService>();
-    if (settings.readReceipts) {
-      ApiService.markRead(_chatId!, _myUid!);
+      final settings = context.read<SettingsService>();
+      if (settings.readReceipts) {
+        unawaited(ApiService.markRead(_chatId!, _myUid!));
+      }
+    } catch (error) {
+      debugPrint('[NovynChat] Conversation history load failed: $error');
+      if (mounted) {
+        if (socket.messages.isNotEmpty) {
+          _jumpToLatestImmediately();
+        } else {
+          setState(() => _initialPositionReady = true);
+        }
+      }
+    } finally {
+      if (mounted) setState(() => _fetchingFromServer = false);
     }
   }
 
