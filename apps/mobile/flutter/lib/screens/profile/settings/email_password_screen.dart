@@ -365,6 +365,7 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
                       ? const Icon(Icons.check_circle_rounded, color: Color(0xFF159A64)) : null)),
                 const SizedBox(height: 10),
                 if (hasPassword) TextField(controller: password, enabled: !saving, obscureText: true,
+                  onChanged: (_) => setSheet(() {}),
                   decoration: const InputDecoration(labelText: 'Current password', prefixIcon: Icon(Icons.lock_outline_rounded))),
                 if (!hasPassword) Padding(padding: const EdgeInsets.only(top: 8), child: Text(
                   'This account has no Novyn password. The server will verify the signed-in session.',
