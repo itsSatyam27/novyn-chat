@@ -27,7 +27,6 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   if (data['type'] == 'call') {
     final prefs = await SharedPreferences.getInstance();
     await prefs.reload();
-    if (!(prefs.getBool('notifications_on') ?? true)) return;
     final callStatus = data['callStatus']?.toString() ?? 'missed';
     final isIncoming = callStatus == 'incoming';
     final plugin = FlutterLocalNotificationsPlugin();
@@ -45,6 +44,7 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
       if (callId.isNotEmpty) await plugin.cancel(callId.hashCode);
       return;
     }
+    if (!(prefs.getBool('notifications_on') ?? true)) return;
     final isVideo = data['isVideo']?.toString() == '1';
     final title = data['title']?.toString() ?? (isIncoming ? (isVideo ? 'Incoming video call' : 'Incoming voice call') : 'Missed call');
     final body = data['body']?.toString() ?? (isIncoming ? caller + ' is calling you' : 'You missed a call from ' + caller);
@@ -718,14 +718,14 @@ class NotificationService {
       RemoteMessage message, BuildContext context) {
     final type = message.data['type'];
     if (type == 'call') {
-      if (!(_settings?.notificationsOn ?? false)) return;
-      if (_socket?.isConnected == true && message.data['callStatus'] == 'incoming') return;
       final callStatus = message.data['callStatus']?.toString() ?? 'missed';
       final callId = message.data['callId']?.toString() ?? '';
       if (callStatus == 'ended') {
         if (callId.isNotEmpty) unawaited(_localNotifications.cancel(callId.hashCode));
         return;
       }
+      if (!(_settings?.notificationsOn ?? false)) return;
+      if (_socket?.isConnected == true && callStatus == 'incoming') return;
       final isIncoming = callStatus == 'incoming';
       final caller = message.data['chat']?.toString() ?? 'Novyn contact';
       final isVideo = message.data['isVideo']?.toString() == '1';
