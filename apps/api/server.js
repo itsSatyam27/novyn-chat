@@ -3890,7 +3890,8 @@ function buildFriendList(forUser) {
     const presenceAllowed = privacyAllows(friend, userKey, "presencePrivacy");
     const photoAllowed = privacyAllows(friend, userKey, "profilePhotoPrivacy");
     const presence = blocked || !presenceAllowed ? "offline" : getDisplayPresence(friendKey);
-    const isOnline = !blocked && presenceAllowed && isSocketOnline(friendKey);
+    const isOnline = !blocked && presenceAllowed &&
+      isSocketOnline(friendKey) && presence !== "offline";
 
     return {
       username: friend?.username || friendKey,
