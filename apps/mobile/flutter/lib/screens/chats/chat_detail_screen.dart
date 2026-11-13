@@ -1742,6 +1742,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
             replyToId: _replyingTo?.id?.toString(),
             replyToText: _replyingTo?.text?.toString(),
             replyToSender: _replyingTo?.isFromMe == true ? 'You' : widget.peer.name,
+            isGroup: widget.isGroup,
           );
           if (mounted) setState(() => _replyingTo = null);
         },
@@ -1833,6 +1834,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
         replyToId: _replyingTo?.id?.toString(),
         replyToText: _replyingTo?.text?.toString(),
         replyToSender: _replyingTo?.isFromMe == true ? 'You' : widget.peer.name,
+        isGroup: widget.isGroup,
       );
       if (mounted) {
         setState(() => _replyingTo = null);
