@@ -866,29 +866,23 @@ class SocketService extends ChangeNotifier {
   Future<void> _waitForSocketAuthentication() async {
     if (_isConnected && _isAuthenticated) return;
 
-    // Wait for transport recovery first; then wait for this socket's own
-    // register_success/init event. Never trust an old completed future.
-    final deadline = DateTime.now().add(const Duration(seconds: 20));
-    while (!_isConnected) {
+    // Poll the live transport/auth state rather than awaiting a completer that
+    // can become detached when a socket disconnects and is replaced.
+    final deadline = DateTime.now().add(const Duration(seconds: 30));
+    while (!_isConnected || !_isAuthenticated) {
       if (_manualDisconnect) {
         throw StateError('Reconnect to Novyn before changing account settings.');
       }
       if (DateTime.now().isAfter(deadline)) {
-        throw StateError('Novyn could not reconnect. Check your connection and try again.');
+        throw StateError(
+          _isConnected
+              ? 'Novyn is still verifying your session. Please wait and try again.'
+              : 'Novyn could not reconnect. Check your connection and try again.',
+        );
       }
-      await Future<void>.delayed(const Duration(milliseconds: 250));
-    }
-
-    if (_isAuthenticated) return;
-    final ready = _authenticationReady ??= Completer<void>();
-    await ready.future.timeout(
-      const Duration(seconds: 15),
-      onTimeout: () => throw StateError(
-        'Novyn is still verifying your session. Please wait a moment and try again.',
-      ),
-    );
-    if (!_isConnected || !_isAuthenticated) {
-      throw StateError('Novyn is reconnecting securely. Please try your change again.');
+      await Future<void>.delayed(
+        Duration(milliseconds: _isConnected ? 120 : 250),
+      );
     }
   }
 
