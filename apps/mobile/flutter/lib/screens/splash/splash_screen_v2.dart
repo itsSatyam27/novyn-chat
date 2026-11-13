@@ -165,7 +165,7 @@ class _SplashScreenV2State extends State<SplashScreenV2>
               height: 280,
               decoration: const BoxDecoration(
                 shape: BoxShape.circle,
-                color: Color(0x1419B99A),
+                color: Color(0x147C6CFF),
               ),
             ),
           ),
@@ -245,7 +245,7 @@ class _SplashScreenV2State extends State<SplashScreenV2>
                     width: 174,
                     height: 174,
                     decoration: BoxDecoration(
-                      shape: BoxShape.circle,
+                      borderRadius: BorderRadius.circular(44),
                       border: Border.all(
                         color: scheme.primary.withValues(alpha: dark ? .20 : .14),
                         width: 1,
@@ -255,50 +255,26 @@ class _SplashScreenV2State extends State<SplashScreenV2>
                   Container(
                     width: 146,
                     height: 146,
+                    padding: const EdgeInsets.all(25),
                     decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: LinearGradient(
+                      borderRadius: BorderRadius.circular(38),
+                      gradient: const LinearGradient(
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
-                        colors: [
-                          scheme.primary,
-                          Color.lerp(scheme.primary, const Color(0xFF19B99A), .30)!,
-                        ],
+                        colors: [Color(0xFF7C6CFF), Color(0xFF5141CD)],
                       ),
                       boxShadow: [
                         BoxShadow(
-                          color: scheme.primary.withValues(alpha: .28),
+                          color: const Color(0xFF5141CD).withValues(alpha: .30),
                           blurRadius: 38,
                           spreadRadius: 2,
                           offset: const Offset(0, 12),
                         ),
                       ],
                     ),
-                    child: CustomPaint(
-                      size: const Size(100, 100),
-                      painter: _NovynWingsPainter(),
-                    ),
-                  ),
-                  Positioned(
-                    top: 12,
-                    right: 17,
-                    child: Container(
-                      width: 11,
-                      height: 11,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF25D6A2),
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: const Color(0xFFFAFAFF),
-                          width: 2,
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(0xFF25D6A2).withValues(alpha: .55),
-                            blurRadius: 12,
-                          ),
-                        ],
-                      ),
+                    child: Image.asset(
+                      'assets/icons/app_icon_foreground.png',
+                      fit: BoxFit.contain,
                     ),
                   ),
                 ],
