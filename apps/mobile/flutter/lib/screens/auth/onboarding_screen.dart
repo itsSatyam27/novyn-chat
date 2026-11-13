@@ -48,14 +48,14 @@ class _OnboardingScreenState extends State<OnboardingScreen>
     super.dispose();
   }
 
-  void _openAuth() {
+  void _openAuth({bool createAccount = false}) {
     HapticService.vibrate(
       NovynHapticType.light,
       category: HapticCategory.buttons,
     );
     Navigator.of(context).pushReplacement(
       PageRouteBuilder(
-        pageBuilder: (_, __, ___) => const AuthScreen(),
+        pageBuilder: (_, __, ___) => AuthScreen(initialTab: createAccount ? 1 : 0),
         transitionsBuilder: (_, animation, __, child) =>
             FadeTransition(opacity: animation, child: child),
         transitionDuration: const Duration(milliseconds: 320),
@@ -193,10 +193,13 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                           dy: 18,
                           child: Column(
                             children: [
-                              _GetStartedButton(onTap: _openAuth, p: p),
+                              _GetStartedButton(
+                                onTap: () => _openAuth(createAccount: true),
+                                p: p,
+                              ),
                               const SizedBox(height: 5),
                               TextButton(
-                                onPressed: _openAuth,
+                                onPressed: () => _openAuth(),
                                 style: TextButton.styleFrom(
                                   minimumSize: const Size.fromHeight(44),
                                   foregroundColor: p.muted,
