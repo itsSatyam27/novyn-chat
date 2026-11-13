@@ -423,10 +423,6 @@ class _ChatsScreenState extends State<ChatsScreen> {
                             ),
                           ],
 
-                          // ── All chats ──────────────────────────────────────
-                          SliverToBoxAdapter(
-                            child: _buildSectionLabel('ALL MESSAGES', icon: Icons.forum_outlined),
-                          ),
                           activeChats.isEmpty && !_loading
                               ? SliverFillRemaining(child: _buildEmpty())
                               : SliverList(
@@ -722,26 +718,54 @@ class _ChatFilterChip extends StatelessWidget {
   final ValueChanged<String> onTap;
   const _ChatFilterChip({required this.label, required this.value, required this.selected, required this.count, required this.onTap});
 
+  IconData get _icon {
+    switch (value) {
+      case 'unread': return Icons.mark_email_unread_outlined;
+      case 'favorites': return Icons.star_outline_rounded;
+      case 'groups': return Icons.groups_outlined;
+      default: return Icons.forum_outlined;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final active = selected == value;
     final colors = Theme.of(context).colorScheme;
+    final foreground = active ? colors.onPrimaryContainer : colors.onSurfaceVariant;
     return Material(
-      color: active ? colors.primary : colors.surface,
-      borderRadius: BorderRadius.circular(22),
+      color: active ? colors.primaryContainer : colors.surface,
+      borderRadius: BorderRadius.circular(18),
       child: InkWell(
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(18),
         onTap: () => onTap(value),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 9),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOut,
+          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(22),
-            border: Border.all(color: active ? colors.primary : colors.outlineVariant.withValues(alpha: .65)),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: active
+                  ? colors.primary.withValues(alpha: .55)
+                  : colors.outlineVariant.withValues(alpha: .65),
+              width: active ? 1.2 : 1,
+            ),
           ),
           child: Row(mainAxisSize: MainAxisSize.min, children: [
-            Text(label, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: active ? colors.onPrimary : colors.onSurface)),
+            Icon(_icon, size: 15, color: foreground),
             const SizedBox(width: 6),
-            Text('$count', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: active ? colors.onPrimary.withValues(alpha: .8) : colors.onSurfaceVariant)),
+            Text(label, style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: active ? colors.onPrimaryContainer : colors.onSurface)),
+            const SizedBox(width: 7),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: active
+                    ? colors.primary.withValues(alpha: .12)
+                    : colors.surfaceContainerHighest.withValues(alpha: .8),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text('$count', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: foreground)),
+            ),
           ]),
         ),
       ),
