@@ -27,7 +27,6 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   if (data['type'] == 'call') {
     final prefs = await SharedPreferences.getInstance();
     await prefs.reload();
-    if (!(prefs.getBool('notifications_on') ?? true)) return;
     final callStatus = data['callStatus']?.toString() ?? 'missed';
     final isIncoming = callStatus == 'incoming';
     final plugin = FlutterLocalNotificationsPlugin();
@@ -35,20 +34,32 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
       android: AndroidInitializationSettings('@drawable/novyn_wings_icon'),
       iOS: DarwinInitializationSettings(),
     ));
-    const channel = AndroidNotificationChannel('novyn_incoming_calls', 'Incoming calls',
+    const incomingChannel = AndroidNotificationChannel('novyn_incoming_calls', 'Incoming calls',
       description: 'Incoming voice and video calls', importance: Importance.max,
       playSound: true, enableVibration: true);
-    await plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()?.createNotificationChannel(channel);
+    const missedChannel = AndroidNotificationChannel('novyn_calls', 'Missed calls',
+      description: 'Missed voice and video calls', importance: Importance.max,
+      playSound: true, enableVibration: true);
+    final androidPlugin = plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+    await androidPlugin?.createNotificationChannel(incomingChannel);
+    await androidPlugin?.createNotificationChannel(missedChannel);
     final caller = data['chat']?.toString() ?? 'Novyn contact';
     final callId = data['callId']?.toString() ?? '';
+    if (callStatus == 'ended') {
+      if (callId.isNotEmpty) await plugin.cancel(callId.hashCode);
+      return;
+    }
+    if (!(prefs.getBool('notifications_on') ?? true)) return;
     final isVideo = data['isVideo']?.toString() == '1';
     final title = data['title']?.toString() ?? (isIncoming ? (isVideo ? 'Incoming video call' : 'Incoming voice call') : 'Missed call');
     final body = data['body']?.toString() ?? (isIncoming ? caller + ' is calling you' : 'You missed a call from ' + caller);
     await plugin.show(callId.hashCode, title, body, NotificationDetails(
-      android: AndroidNotificationDetails('novyn_incoming_calls', 'Incoming calls',
-        channelDescription: 'Incoming voice and video calls', importance: Importance.max,
+      android: AndroidNotificationDetails(isIncoming ? 'novyn_incoming_calls' : 'novyn_calls',
+        isIncoming ? 'Incoming calls' : 'Missed calls',
+        channelDescription: 'Voice and video call alerts', importance: Importance.max,
         priority: Priority.max, category: isIncoming ? AndroidNotificationCategory.call : AndroidNotificationCategory.missedCall,
         fullScreenIntent: isIncoming, ongoing: isIncoming, autoCancel: !isIncoming,
+        timeoutAfter: isIncoming ? 45000 : null,
         playSound: true, enableVibration: true, icon: '@drawable/novyn_wings_icon'),
       iOS: const DarwinNotificationDetails(presentAlert: true, presentBadge: true, presentSound: true),
     ), payload: 'call:' + callId + '|' + caller + '|' + (isVideo ? '1' : '0'));
@@ -287,6 +298,18 @@ class NotificationService {
         enableVibration: true,
       ),
     );
+    // Clear legacy incoming-call alerts created before the 45-second timeout
+    // existed. Keep missed-call and message notifications untouched.
+    try {
+      final active = await _localNotifications.getActiveNotifications();
+      for (final notification in active) {
+        if (notification.channelId == 'novyn_incoming_calls' && notification.id != null) {
+          await _localNotifications.cancel(notification.id!);
+        }
+      }
+    } catch (error) {
+      debugPrint('[NovynCalls] Could not clean legacy call alerts: $error');
+    }
     _localNotificationsReady = true;
   }
 
@@ -713,12 +736,16 @@ class NotificationService {
       RemoteMessage message, BuildContext context) {
     final type = message.data['type'];
     if (type == 'call') {
-      if (!(_settings?.notificationsOn ?? false)) return;
-      if (_socket?.isConnected == true && message.data['callStatus'] == 'incoming') return;
       final callStatus = message.data['callStatus']?.toString() ?? 'missed';
+      final callId = message.data['callId']?.toString() ?? '';
+      if (callStatus == 'ended') {
+        if (callId.isNotEmpty) unawaited(_localNotifications.cancel(callId.hashCode));
+        return;
+      }
+      if (!(_settings?.notificationsOn ?? false)) return;
+      if (_socket?.isConnected == true && callStatus == 'incoming') return;
       final isIncoming = callStatus == 'incoming';
       final caller = message.data['chat']?.toString() ?? 'Novyn contact';
-      final callId = message.data['callId']?.toString() ?? '';
       final isVideo = message.data['isVideo']?.toString() == '1';
       unawaited(_localNotifications.show(
         callId.hashCode,
@@ -732,6 +759,7 @@ class NotificationService {
             importance: Importance.max, priority: Priority.max,
             category: isIncoming ? AndroidNotificationCategory.call : AndroidNotificationCategory.missedCall,
             fullScreenIntent: isIncoming, ongoing: isIncoming, autoCancel: !isIncoming,
+            timeoutAfter: isIncoming ? 45000 : null,
             playSound: true, enableVibration: true,
           ),
           iOS: const DarwinNotificationDetails(presentAlert: true, presentBadge: true, presentSound: true),
