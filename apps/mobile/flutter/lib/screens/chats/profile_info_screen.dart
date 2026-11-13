@@ -230,7 +230,6 @@ class ProfileInfoScreen extends StatelessWidget {
                   Text('On Novyn since ${_date(user.createdAt)}',
                     style: TextStyle(fontSize: 13, color: scheme.onSurfaceVariant, fontWeight: FontWeight.w600)),
                 ]),
-                const SizedBox(height: 22),
                 if (onVoiceCall != null || onVideoCall != null) ...[
                   const SizedBox(height: 22),
                   Row(
