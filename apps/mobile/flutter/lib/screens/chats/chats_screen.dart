@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import '../../models/user_model.dart';
@@ -9,9 +7,7 @@ import '../../services/settings_service.dart';
 import '../../services/socket_service.dart';
 import '../../services/hybrid_db_service.dart';
 import '../../widgets/user_avatar.dart';
-import '../../widgets/doodle_background.dart';
 import '../../widgets/novyn_empty_state.dart';
-import '../../widgets/neomorphic_widgets.dart';
 import '../../theme/novyn_theme.dart';
 import '../../widgets/novyn_ui.dart';
 import '../../models/chat_preview.dart';
@@ -45,11 +41,6 @@ class _ChatsScreenState extends State<ChatsScreen> {
   String _search = '';
   final FocusNode _searchFocusNode = FocusNode();
   final TextEditingController _searchController = TextEditingController();
-  bool _isSearching = false;
-  bool _filtersVisible = true;
-  bool _sawDownwardScrollGesture = false;
-  int _downwardSwipeCount = 0;
-  DateTime? _lastDownwardSwipeAt;
   String _selectedTab = 'all';
   AuthService? _authService;
   String? _observedUsername;
@@ -351,296 +342,103 @@ class _ChatsScreenState extends State<ChatsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ── Novyn redesigned header ───────────────────────────────
             Padding(
-              padding: const EdgeInsets.only(top: 18),
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
               child: NovynHeader(
-                title: 'Messages',
-                titleSize: 28,
+                title: 'Chats',
+                titleSize: 30,
                 titleColor: Theme.of(context).colorScheme.onSurface,
                 actions: [
-                  IconButton(
-                    tooltip: _isSearching ? 'Close search' : 'Search chats',
-                    visualDensity: VisualDensity.compact,
-                    icon: AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 180),
-                      transitionBuilder: (child, animation) => RotationTransition(
-                        turns: Tween<double>(begin: 0.88, end: 1).animate(animation),
-                        child: FadeTransition(opacity: animation, child: child),
-                      ),
-                      child: Icon(
-                        _isSearching ? Icons.close_rounded : Icons.search_rounded,
-                        key: ValueKey(_isSearching),
-                        size: 23,
-                      ),
-                    ),
-                    onPressed: () {
-                      HapticService.vibrate(NovynHapticType.selection, category: HapticCategory.chat);
-                      setState(() {
-                        _isSearching = !_isSearching;
-                        if (!_isSearching) {
-                          _search = '';
-                          _searchController.clear();
-                        }
-                      });
-                      _applyFilters();
-                      if (_isSearching) {
-                        WidgetsBinding.instance.addPostFrameCallback((_) {
-                          if (mounted && _isSearching) _searchFocusNode.requestFocus();
-                        });
-                      } else {
-                        _searchFocusNode.unfocus();
-                      }
-                    },
+                  NovynIconButton(
+                    icon: Icons.qr_code_scanner_rounded,
+                    size: 44,
+                    radius: 17,
+                    iconSize: 21,
+                    onTap: widget.onNavigateToPeople,
                   ),
-                  const SizedBox(width: 2),
                   PopupMenuButton<int>(
                     tooltip: 'More actions',
                     position: PopupMenuPosition.under,
                     offset: const Offset(0, 10),
                     elevation: 14,
                     color: Theme.of(context).brightness == Brightness.dark
-                        ? const Color(0xFF211D30)
-                        : Colors.white,
+                        ? const Color(0xFF211D30) : Colors.white,
                     surfaceTintColor: Colors.transparent,
-                    shadowColor: Colors.black.withValues(alpha: .22),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(18),
-                      side: BorderSide(
-                        color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: .55),
-                      ),
                     ),
-                    constraints: const BoxConstraints(minWidth: 224, maxWidth: 260),
                     onSelected: (value) {
                       if (value == 1) {
-                        HapticService.vibrate(
-                          NovynHapticType.selection,
-                          category: HapticCategory.chat,
-                        );
                         final myUid = context.read<AuthService>().user?.username;
                         if (myUid == null || myUid.isEmpty) return;
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => CreateGroupScreen(myUid: myUid),
-                          ),
-                        );
+                        Navigator.push(context, MaterialPageRoute(
+                          builder: (_) => CreateGroupScreen(myUid: myUid),
+                        ));
                       }
                     },
-                    itemBuilder: (context) => [
+                    itemBuilder: (_) => const [
                       PopupMenuItem<int>(
                         value: 1,
-                        height: 66,
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 42,
-                              height: 42,
-                              decoration: BoxDecoration(
-                                gradient: NovynGradients.selected(context),
-                                borderRadius: BorderRadius.circular(13),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Theme.of(context).colorScheme.primary.withValues(alpha: .22),
-                                    blurRadius: 12,
-                                    offset: const Offset(0, 4),
-                                  ),
-                                ],
-                              ),
-                              child: const Icon(
-                                Icons.group_add_rounded,
-                                color: Colors.white,
-                                size: 20,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Create group',
-                                    style: TextStyle(
-                                      fontFamily: 'PlusJakartaSans',
-                                      fontSize: 13.5,
-                                      fontWeight: FontWeight.w800,
-                                      color: Theme.of(context).colorScheme.onSurface,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    'Start a group conversation',
-                                    style: TextStyle(
-                                      fontFamily: 'PlusJakartaSans',
-                                      fontSize: 11,
-                                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Icon(
-                              Icons.chevron_right_rounded,
-                              size: 19,
-                              color: Theme.of(context).colorScheme.onSurfaceVariant,
-                            ),
-                          ],
+                        child: ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          leading: Icon(Icons.group_add_rounded),
+                          title: Text('Create group'),
+                          subtitle: Text('Start a group conversation'),
                         ),
                       ),
                     ],
-                    child: SizedBox(
-                      width: 42,
-                      height: 42,
-                      child: Center(
-                        child: Icon(
-                          Icons.more_vert_rounded,
-                          size: 23,
-                          color: Theme.of(context).colorScheme.onSurface,
-                        ),
+                    child: Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.surface,
+                        borderRadius: BorderRadius.circular(17),
                       ),
+                      child: Icon(Icons.more_horiz_rounded,
+                        color: Theme.of(context).colorScheme.onSurface, size: 23),
                     ),
                   ),
                 ],
               ),
             ),
-            AnimatedSize(
-              duration: const Duration(milliseconds: 280),
-              curve: Curves.easeInOutCubic,
-              alignment: Alignment.topCenter,
-              child: _isSearching
-                  ? Padding(
-                      padding: const EdgeInsets.only(top: 4),
-                      child: Focus(
-                        onKeyEvent: (_, event) {
-                          if (event is KeyDownEvent && event.logicalKey == LogicalKeyboardKey.escape) {
-                            setState(() {
-                              _isSearching = false;
-                              _search = '';
-                              _searchController.clear();
-                            });
-                            _searchFocusNode.unfocus();
-                            _applyFilters();
-                            return KeyEventResult.handled;
-                          }
-                          return KeyEventResult.ignored;
-                        },
-                        child: _buildSearch(),
-                      ),
-                    )
-                  : const SizedBox(width: double.infinity),
-            ),
-            AnimatedSwitcher(
-              duration: const Duration(milliseconds: 280),
-              reverseDuration: const Duration(milliseconds: 220),
-              switchInCurve: Curves.easeOutCubic,
-              switchOutCurve: Curves.easeInCubic,
-              transitionBuilder: (child, animation) => SizeTransition(
-                sizeFactor: animation,
-                axisAlignment: -1,
-                child: FadeTransition(
-                  opacity: animation,
-                  child: SlideTransition(
-                    position: Tween<Offset>(
-                      begin: const Offset(0, -0.08),
-                      end: Offset.zero,
-                    ).animate(animation),
-                    child: child,
-                  ),
-                ),
-              ),
-              child: _filtersVisible
-                  ? KeyedSubtree(
-                      key: const ValueKey('chat-filters-visible'),
-                      child: _buildFilterCards(allChats, favorites),
-                    )
-                  : const SizedBox(
-                      key: ValueKey('chat-filters-hidden'),
-                      width: double.infinity,
-                    ),
-            ),
-
+            _buildSearch(),
+            _buildFilterCards(allChats, favorites),
             Expanded(
               child: _loading
-                  ? Center(
-                      child: CircularProgressIndicator(
-                          color: Theme.of(context).colorScheme.primary))
+                  ? Center(child: CircularProgressIndicator(
+                      color: Theme.of(context).colorScheme.primary))
                   : RefreshIndicator(
                       color: Theme.of(context).colorScheme.primary,
                       onRefresh: _loadChats,
-                      child: NotificationListener<ScrollEndNotification>(
-                        onNotification: (notification) {
-                          if (_isSearching || !_sawDownwardScrollGesture) {
-                            _sawDownwardScrollGesture = false;
-                            return false;
-                          }
-                          _sawDownwardScrollGesture = false;
-                          final now = DateTime.now();
-                          final previous = _lastDownwardSwipeAt;
-                          _downwardSwipeCount = previous != null &&
-                                  now.difference(previous).inMilliseconds <= 850
-                              ? _downwardSwipeCount + 1
-                              : 1;
-                          _lastDownwardSwipeAt = now;
-                          if (_downwardSwipeCount >= 2) {
-                            _downwardSwipeCount = 0;
-                            _lastDownwardSwipeAt = null;
-                            setState(() => _filtersVisible = !_filtersVisible);
-                          }
-                          return false;
-                        },
-                        child: NotificationListener<UserScrollNotification>(
-                          onNotification: (notification) {
-                            if (_isSearching) return false;
-                            if (notification.direction == ScrollDirection.forward) {
-                              _sawDownwardScrollGesture = true;
-                            }
-                            return false;
-                          },
-                          child: NotificationListener<OverscrollNotification>(
-                            onNotification: (notification) {
-                              // At the top of the list a downward swipe is an
-                              // overscroll, so count it as a deliberate gesture too.
-                              if (!_isSearching && notification.overscroll < 0) {
-                                _sawDownwardScrollGesture = true;
-                              }
-                              return false;
-                            },
-                            child: CustomScrollView(
+                      child: CustomScrollView(
+                        physics: const AlwaysScrollableScrollPhysics(),
                         slivers: [
-                          // ── Pinned Section ─────────────────────────────────
                           if (pinnedChats.isNotEmpty) ...[
                             SliverToBoxAdapter(
-                              child: _buildSectionLabel('PINNED', icon: Icons.push_pin_outlined),
+                              child: _buildSectionLabel('PINNED'),
                             ),
-                            SliverToBoxAdapter(
-                              child: Padding(
-                                padding: const EdgeInsets.only(bottom: 8),
-                                child: _buildStories(pinnedChats),
+                            SliverList(
+                              delegate: SliverChildBuilderDelegate(
+                                (context, index) => _buildChatCard(pinnedChats[index]),
+                                childCount: pinnedChats.length,
                               ),
                             ),
                           ],
-
-                          activeChats.isEmpty && !_loading
-                              ? SliverFillRemaining(child: _buildEmpty())
-                              : SliverList(
-                                  delegate: SliverChildBuilderDelegate(
-                                    (context, i) {
-                                      if (i >= recentChats.length) return null;
-                                      return _buildChatCard(recentChats[i]);
-                                    },
-                                    childCount: recentChats.length,
-                                  ),
-                                ),
-
-                          // Bottom padding
-                          const SliverToBoxAdapter(
-                              child: SizedBox(height: 100)),
-                        ],
+                          if (recentChats.isNotEmpty)
+                            SliverToBoxAdapter(
+                              child: _buildSectionLabel('ALL CHATS'),
                             ),
-                          ),
-                        ),
+                          if (activeChats.isEmpty)
+                            SliverFillRemaining(child: _buildEmpty())
+                          else if (recentChats.isNotEmpty)
+                            SliverList(
+                              delegate: SliverChildBuilderDelegate(
+                                (context, index) => _buildChatCard(recentChats[index]),
+                                childCount: recentChats.length,
+                              ),
+                            ),
+                          const SliverToBoxAdapter(child: SizedBox(height: 112)),
+                        ],
                       ),
                     ),
             ),
@@ -659,7 +457,7 @@ class _ChatsScreenState extends State<ChatsScreen> {
           backgroundColor: Theme.of(context).colorScheme.primary,
           foregroundColor: Colors.white,
           elevation: 8,
-          child: const Icon(Icons.add_rounded, size: 29),
+          child: const Icon(Icons.edit_rounded, size: 25),
         ),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
@@ -667,46 +465,39 @@ class _ChatsScreenState extends State<ChatsScreen> {
   }
 
   Widget _buildFilterCards(List<ChatPreview> chats, Set<String> favorites) {
-    int countFor(String filter) {
-      switch (filter) {
-        case 'unread': return chats.where((chat) => chat.unreadCount > 0).length;
-        case 'favorites': return chats.where((chat) => favorites.contains(chat.chatId)).length;
-        case 'groups': return chats.where((chat) => chat.isGroup).length;
-        default: return chats.length;
-      }
-    }
-
     final filters = [
-      ('all', 'All chats', Icons.forum_outlined),
-      ('unread', 'Unread', Icons.mark_email_unread_outlined),
-      ('favorites', 'Favorites', Icons.star_outline_rounded),
-      if (chats.any((chat) => chat.isGroup))
-        ('groups', 'Groups', Icons.groups_outlined),
+      ('all', 'All'),
+      ('unread', 'Unread'),
+      ('groups', 'Groups'),
+      ('favorites', 'Favourites'),
     ];
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
-      child: GridView.count(
-        crossAxisCount: 2,
-        mainAxisSpacing: 10,
-        crossAxisSpacing: 10,
-        childAspectRatio: 2.65,
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.fromLTRB(20, 5, 20, 13),
+      child: Row(
         children: [
           for (final item in filters)
-            _ChatSummaryTile(
-              icon: item.$3,
-              label: item.$2,
-              value: countFor(item.$1).toString(),
-              selected: _selectedTab == item.$1,
-              tint: item.$1 == 'unread'
-                  ? NovynColors.mint
-                  : item.$1 == 'favorites'
-                      ? const Color(0xFFFFC857)
-                      : item.$1 == 'groups'
-                          ? const Color(0xFF79B8FF)
-                          : Theme.of(context).colorScheme.primary,
-              onTap: () => _selectTab(item.$1),
+            Padding(
+              padding: const EdgeInsets.only(right: 9),
+              child: ChoiceChip(
+                label: Text(item.$2),
+                selected: _selectedTab == item.$1,
+                onSelected: (_) => _selectTab(item.$1),
+                showCheckmark: false,
+                selectedColor: Theme.of(context).colorScheme.primary,
+                backgroundColor: Theme.of(context).colorScheme.surface,
+                side: BorderSide.none,
+                shape: const StadiumBorder(),
+                labelStyle: TextStyle(
+                  fontFamily: 'PlusJakartaSans',
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: _selectedTab == item.$1
+                      ? Colors.white
+                      : Theme.of(context).colorScheme.onSurface,
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
+              ),
             ),
         ],
       ),
@@ -715,7 +506,7 @@ class _ChatsScreenState extends State<ChatsScreen> {
 
   Widget _buildSearch() {
     return NovynSearchField(
-      hint: 'Search chats by name or username...',
+      hint: 'Search chats ya messages',
       controller: _searchController,
       focusNode: _searchFocusNode,
       onChanged: _onSearch,
@@ -902,7 +693,7 @@ class _ChatsScreenState extends State<ChatsScreen> {
             PageRouteBuilder(
               transitionDuration: const Duration(milliseconds: 300),
               pageBuilder: (context, animation, secondaryAnimation) =>
-                  ChatDetailScreen(peer: preview.peer),
+                  ChatDetailScreen(peer: preview.peer, isGroup: preview.isGroup),
               transitionsBuilder:
                   (context, animation, secondaryAnimation, child) {
                 return FadeTransition(opacity: animation, child: child);
@@ -1038,33 +829,39 @@ class _ChatCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final hasUnread = preview.unreadCount > 0;
+    final dark = theme.brightness == Brightness.dark;
     final titleColor = theme.colorScheme.onSurface;
     final metaColor = theme.colorScheme.onSurfaceVariant;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 3),
       child: Material(
-        color: Colors.transparent,
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(25),
         child: InkWell(
           onTap: () {
             HapticService.vibrate(NovynHapticType.light, category: HapticCategory.chat);
             onTap();
           },
-          borderRadius: BorderRadius.circular(22),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 15),
+          onLongPress: onOptions,
+          borderRadius: BorderRadius.circular(25),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 14),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(25),
+              border: Border.all(color: theme.colorScheme.outlineVariant.withValues(alpha: dark ? .18 : .28)),
+            ),
             child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 UserAvatar(
                   name: preview.peer.name,
                   photoUrl: preview.peer.photoUrl,
-                  radius: 28,
+                  radius: 32,
                   showOnlineIndicator: true,
                   isOnline: preview.peer.isOnline,
                   presence: preview.peer.status,
                 ),
-                const SizedBox(width: 16),
+                const SizedBox(width: 14),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -1078,79 +875,66 @@ class _ChatCard extends StatelessWidget {
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
                                 fontFamily: 'PlusJakartaSans',
-                                fontSize: 17,
-                                fontWeight: FontWeight.w700,
+                                fontSize: 16.5,
+                                fontWeight: FontWeight.w800,
                                 letterSpacing: -.35,
                                 color: titleColor,
                               ),
                             ),
                           ),
-                          const SizedBox(width: 8),
-                          if (isFavorite) const Icon(Icons.star_rounded, size: 15, color: Color(0xFFFFB300)),
-                          const SizedBox(width: 8),
-                          Text(
-                            _formatTime(preview.lastTime, context.watch<SettingsService>().timeFormat),
-                            style: TextStyle(
-                              fontFamily: 'PlusJakartaSans',
-                              fontSize: 12,
-                              color: metaColor,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 5),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              preview.lastMessage.isEmpty
-                                  ? 'Tap to chat'
-                                  : preview.lastMessage,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontFamily: 'PlusJakartaSans',
-                                fontSize: 13.5,
-                                color: hasUnread ? titleColor : metaColor,
-                                fontWeight:
-                                    hasUnread ? FontWeight.w600 : FontWeight.w400,
-                              ),
-                            ),
-                          ),
-                          IconButton(
-                            visualDensity: VisualDensity.compact,
-                            constraints: const BoxConstraints.tightFor(width: 34, height: 34),
-                            padding: EdgeInsets.zero,
-                            tooltip: 'Chat options',
-                            onPressed: onOptions,
-                            icon: Icon(Icons.keyboard_arrow_down_rounded,
-                              size: 23, color: metaColor.withValues(alpha: .8)),
-                          ),
-                          if (hasUnread) ...[
-                            const SizedBox(width: 8),
-                            Container(
-                              constraints: const BoxConstraints(minWidth: 22),
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 7, vertical: 4),
-                              decoration: BoxDecoration(
-                                gradient: NovynGradients.selected(context),
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: Text(
-                                '${preview.unreadCount}',
-                                textAlign: TextAlign.center,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ),
+                          if (preview.isPinned) ...[
+                            const SizedBox(width: 5),
+                            Icon(Icons.push_pin_rounded, size: 15, color: metaColor),
+                          ],
+                          if (isFavorite) ...[
+                            const SizedBox(width: 5),
+                            const Icon(Icons.star_rounded, size: 15, color: Color(0xFFFFB300)),
                           ],
                         ],
                       ),
+                      const SizedBox(height: 5),
+                      Text(
+                        preview.lastMessage.isEmpty ? 'Tap to chat' : preview.lastMessage,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontFamily: 'PlusJakartaSans',
+                          fontSize: 14,
+                          color: hasUnread ? titleColor : metaColor,
+                          fontWeight: hasUnread ? FontWeight.w600 : FontWeight.w400,
+                        ),
+                      ),
                     ],
                   ),
+                ),
+                const SizedBox(width: 10),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      _formatTime(preview.lastTime, context.watch<SettingsService>().timeFormat),
+                      style: TextStyle(
+                        fontFamily: 'PlusJakartaSans',
+                        fontSize: 12.5,
+                        fontWeight: hasUnread ? FontWeight.w800 : FontWeight.w500,
+                        color: hasUnread ? theme.colorScheme.primary : metaColor,
+                      ),
+                    ),
+                    if (hasUnread) ...[
+                      const SizedBox(height: 7),
+                      Container(
+                        constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(color: theme.colorScheme.primary, shape: BoxShape.circle),
+                        child: Text(
+                          '${preview.unreadCount}',
+                          style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w800),
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ],
             ),
