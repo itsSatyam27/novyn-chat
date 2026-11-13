@@ -172,32 +172,6 @@ class SecurityPrivacyScreen extends StatelessWidget {
             ),
           ]),
           if (category == null || category == 'device') section('Chat privacy & account actions', [
-            _SecurityPrivacyToggleTile(
-              icon: Icons.visibility_off_outlined, accent: const Color(0xFFC2540F),
-              title: 'Stealth Mode',
-              subtitle: 'Prevent others from capturing your chats, even when their Stealth Mode is off',
-              value: settings.stealthModeEnabled,
-              onChanged: (v) => _setStealthMode(context, settings, v),
-            ),
-            if (settings.stealthModeEnabled)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                child: Container(
-                  padding: const EdgeInsets.all(13),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1F9D61).withValues(alpha: .09),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    const Icon(Icons.shield_rounded, color: Color(0xFF1F9D61), size: 18),
-                    const SizedBox(width: 9),
-                    Expanded(child: Text(
-                      'Your chats are protected on the other person’s Novyn Android app. Their own Stealth Mode can stay off; your setting controls protection of your conversations.',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(color: muted, height: 1.4),
-                    )),
-                  ]),
-                ),
-              ),
             _SecurityPrivacyTile(
               icon: Icons.delete_outline_rounded,
               accent: const Color(0xFFB3261E),
@@ -215,6 +189,27 @@ class SecurityPrivacyScreen extends StatelessWidget {
             ),
             const SizedBox(height: 12),
           ],
+          if (category == 'privacy') section('Chat protection', [
+            _SecurityPrivacyToggleTile(
+              icon: Icons.visibility_off_outlined,
+              accent: const Color(0xFFC2540F),
+              title: 'Stealth Mode',
+              subtitle: 'Prevent screenshots of your conversations on supported Novyn Android devices',
+              value: settings.stealthModeEnabled,
+              onChanged: (v) => _setStealthMode(context, settings, v),
+            ),
+            if (settings.stealthModeEnabled)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                child: Text(
+                  'Your Stealth Mode setting protects your conversations on the other person’s supported Novyn Android app.',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: muted,
+                    height: 1.4,
+                  ),
+                ),
+              ),
+          ], color: const Color(0xFFC2540F)),
           if (category == 'privacy') _PrivacyDashboard(
             lastSeen: settings.lastSeenVisibility,
             profilePhoto: settings.profilePhotoVisibility,
