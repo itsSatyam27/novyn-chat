@@ -2755,19 +2755,19 @@ class _MessageBubble extends StatelessWidget {
                             game: Map<String, dynamic>.from(message.game as Map),
                             currentUsername: myUid,
                             peerUsername: peer.uid.isNotEmpty ? peer.uid : peer.username,
-                            isGroup: widget.isGroup,
+                            isGroup: isGroup,
                           ),
                           const SizedBox(height: 6),
                         ],
                         if (message.riddle is Map) ...[
                           RiddleMessageCard(
                             messageId: message.id.toString(),
-                            fromUsername: widget.isGroup
+                            fromUsername: isGroup
                                 ? (peer.uid.isNotEmpty ? peer.uid : peer.username)
                                 : message.senderId.toString(),
                             riddle: Map<String, dynamic>.from(message.riddle as Map),
                             isMe: isMe,
-                            isGroup: widget.isGroup,
+                            isGroup: isGroup,
                           ),
                           const SizedBox(height: 6),
                         ],
