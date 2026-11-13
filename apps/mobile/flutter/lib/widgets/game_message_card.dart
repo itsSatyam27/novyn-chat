@@ -204,7 +204,7 @@ class _GameMessageCardState extends State<GameMessageCard> {
     final chip = widget.currentUsername.toLowerCase() == player1.toLowerCase() ? 'R' : 'Y';
     return Column(
       children: [
-        Text('@$player1   VS   ${player2 == 'Waiting for player' ? player2 : '@$player2'}', style: const TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 10)),
+        Text('@$player1   VS   $player2', style: const TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 10)),
         const SizedBox(height: 8),
         Row(
           children: List.generate(7, (column) => Expanded(
