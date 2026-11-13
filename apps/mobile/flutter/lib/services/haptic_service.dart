@@ -88,53 +88,86 @@ class HapticService {
     if (!settings.hapticCategoryEnabled(category.name)) return;
 
     final intensity = settings.hapticIntensity.clamp(0.0, 1.0);
+    if (intensity <= 0) return;
 
+    // Android's HapticFeedback channel follows the device-wide touch-feedback
+    // switch. Use the app's vibrator channel for deliberate in-app haptics so
+    // Novyn's own vibration toggle/intensity remain authoritative. Notification
+    // vibration stays on its separate pattern and preference path.
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      switch (type) {
+        case NovynHapticType.light:
+          await SecurityService.vibrate(
+            duration: 12,
+            amplitude: (65 * intensity).round().clamp(1, 255),
+          );
+          break;
+        case NovynHapticType.medium:
+          await SecurityService.vibrate(
+            duration: 22,
+            amplitude: (135 * intensity).round().clamp(1, 255),
+          );
+          break;
+        case NovynHapticType.heavy:
+          await SecurityService.vibrate(
+            duration: 36,
+            amplitude: (220 * intensity).round().clamp(1, 255),
+          );
+          break;
+        case NovynHapticType.selection:
+          await SecurityService.vibrate(
+            duration: 8,
+            amplitude: (55 * intensity).round().clamp(1, 255),
+          );
+          break;
+        case NovynHapticType.success:
+          await SecurityService.vibrate(
+            duration: 18,
+            amplitude: (110 * intensity).round().clamp(1, 255),
+          );
+          await Future.delayed(const Duration(milliseconds: 65));
+          await SecurityService.vibrate(
+            duration: 24,
+            amplitude: (155 * intensity).round().clamp(1, 255),
+          );
+          break;
+        case NovynHapticType.error:
+          await SecurityService.vibrate(
+            duration: 90,
+            amplitude: (190 * intensity).round().clamp(1, 255),
+          );
+          break;
+        case NovynHapticType.warning:
+          await SecurityService.vibrate(
+            duration: 28,
+            amplitude: (150 * intensity).round().clamp(1, 255),
+          );
+          await Future.delayed(const Duration(milliseconds: 75));
+          await SecurityService.vibrate(
+            duration: 28,
+            amplitude: (150 * intensity).round().clamp(1, 255),
+          );
+          break;
+      }
+      return;
+    }
+
+    // iOS and other platforms use native semantic haptic feedback.
     switch (type) {
       case NovynHapticType.light:
-        if (intensity < 0.3) {
-          await HapticFeedback.selectionClick();
-        } else {
-          await HapticFeedback.lightImpact();
-        }
-        break;
-      case NovynHapticType.medium:
-        if (intensity < 0.4) {
-          await HapticFeedback.lightImpact();
-        } else {
-          await HapticFeedback.mediumImpact();
-        }
-        break;
-      case NovynHapticType.heavy:
-        if (intensity < 0.3) {
-          await HapticFeedback.lightImpact();
-        } else if (intensity < 0.6) {
-          await HapticFeedback.mediumImpact();
-        } else {
-          await SecurityService.vibrate(duration: 80);
-        }
-        break;
       case NovynHapticType.selection:
         await HapticFeedback.selectionClick();
         break;
-      case NovynHapticType.success:
-        if (intensity < 0.5) {
-          await HapticFeedback.selectionClick();
-        } else {
-          await SecurityService.vibrate(duration: 30);
-          await Future.delayed(const Duration(milliseconds: 80));
-          await HapticFeedback.lightImpact();
-        }
+      case NovynHapticType.medium:
+        await HapticFeedback.mediumImpact();
         break;
+      case NovynHapticType.heavy:
       case NovynHapticType.error:
-        if (intensity <= 0) return;
-        await SecurityService.vibrate(duration: 150);
+        await HapticFeedback.heavyImpact();
         break;
+      case NovynHapticType.success:
       case NovynHapticType.warning:
-        if (intensity <= 0) return;
-        await SecurityService.vibrate(duration: 50);
-        await Future.delayed(const Duration(milliseconds: 100));
-        await SecurityService.vibrate(duration: 50);
+        await HapticFeedback.lightImpact();
         break;
     }
-  }
-}
+  }}
