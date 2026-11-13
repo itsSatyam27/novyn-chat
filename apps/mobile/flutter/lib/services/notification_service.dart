@@ -16,6 +16,7 @@ import 'socket_service.dart';
 import 'friend_service.dart';
 import '../screens/chats/chat_detail_screen.dart';
 import '../screens/calls/calls_screen.dart';
+import '../screens/calls/call_screen.dart';
 
 // Top-level handler — must be a top-level function
 @pragma('vm:entry-point')
@@ -23,6 +24,33 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp(options: FirebaseConfiguration.options);
   ui.DartPluginRegistrant.ensureInitialized();
   final data = message.data;
+  if (data['type'] == 'call') {
+    final callStatus = data['callStatus']?.toString() ?? 'missed';
+    final isIncoming = callStatus == 'incoming';
+    final plugin = FlutterLocalNotificationsPlugin();
+    await plugin.initialize(const InitializationSettings(
+      android: AndroidInitializationSettings('@drawable/novyn_wings_icon'),
+      iOS: DarwinInitializationSettings(),
+    ));
+    const channel = AndroidNotificationChannel('novyn_incoming_calls', 'Incoming calls',
+      description: 'Incoming voice and video calls', importance: Importance.max,
+      playSound: true, enableVibration: true);
+    await plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()?.createNotificationChannel(channel);
+    final caller = data['chat']?.toString() ?? 'Novyn contact';
+    final callId = data['callId']?.toString() ?? '';
+    final isVideo = data['isVideo']?.toString() == '1';
+    final title = data['title']?.toString() ?? (isIncoming ? (isVideo ? 'Incoming video call' : 'Incoming voice call') : 'Missed call');
+    final body = data['body']?.toString() ?? (isIncoming ? caller + ' is calling you' : 'You missed a call from ' + caller);
+    await plugin.show(callId.hashCode, title, body, NotificationDetails(
+      android: AndroidNotificationDetails('novyn_incoming_calls', 'Incoming calls',
+        channelDescription: 'Incoming voice and video calls', importance: Importance.max,
+        priority: Priority.max, category: isIncoming ? AndroidNotificationCategory.call : AndroidNotificationCategory.missedCall,
+        fullScreenIntent: isIncoming, ongoing: isIncoming, autoCancel: !isIncoming,
+        playSound: true, enableVibration: true, icon: '@drawable/novyn_wings_icon'),
+      iOS: const DarwinNotificationDetails(presentAlert: true, presentBadge: true, presentSound: true),
+    ), payload: 'call:' + callId + '|' + caller + '|' + (isVideo ? '1' : '0'));
+    return;
+  }
   if (data['type'] != 'message' || data['kind'] == 'group') return;
 
   final prefs = await SharedPreferences.getInstance();
@@ -212,9 +240,12 @@ class NotificationService {
         final payload = response.payload?.trim() ?? '';
         if (!context.mounted || payload.isEmpty) return;
         if (payload.startsWith('call:')) {
-          Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => const CallsScreen()),
-          );
+          final parts = payload.substring(5).split('|');
+          if (parts.length >= 3 && parts[0].isNotEmpty) {
+            unawaited(_openIncomingCall(parts[1], parts[0], parts[2] == '1', context));
+          } else {
+            Navigator.of(context).push(MaterialPageRoute(builder: (_) => const CallsScreen()));
+          }
         } else {
           unawaited(_openChatFromNotification(payload, context));
         }
@@ -539,9 +570,14 @@ class NotificationService {
     _syncPresentation();
     await _initializeLocalNotifications(context);
     _socket!.onIncomingMessage = (username, body) {
-      if (context.mounted) {
-        unawaited(showInAppMessage(username, body, context));
-      }
+      if (context.mounted) unawaited(showInAppMessage(username, body, context));
+    };
+    _socket!.onCallInviteCallback = (data) {
+      if (!context.mounted) return;
+      final caller = data['from']?.toString().trim() ?? '';
+      final callId = data['callId']?.toString().trim() ?? '';
+      if (caller.isEmpty || callId.isEmpty) return;
+      unawaited(_openIncomingCall(caller, callId, data['isVideo'] == true, context));
     };
     _socket!.onAuthenticated = () {
       unawaited(_syncUserPreferences());
@@ -660,30 +696,29 @@ class NotificationService {
     final type = message.data['type'];
     if (type == 'call') {
       if (!(_settings?.notificationsOn ?? false)) return;
-      final title = message.notification?.title ?? 'Missed call';
-      final body = message.notification?.body ?? 'You have a missed call';
+      if (_socket?.isConnected == true && message.data['callStatus'] == 'incoming') return;
+      final callStatus = message.data['callStatus']?.toString() ?? 'missed';
+      final isIncoming = callStatus == 'incoming';
+      final caller = message.data['chat']?.toString() ?? 'Novyn contact';
+      final callId = message.data['callId']?.toString() ?? '';
+      final isVideo = message.data['isVideo']?.toString() == '1';
       unawaited(_localNotifications.show(
-        DateTime.now().millisecondsSinceEpoch ~/ 1000,
-        title,
-        body,
-        const NotificationDetails(
+        callId.hashCode,
+        message.data['title']?.toString() ?? (isIncoming ? (isVideo ? 'Incoming video call' : 'Incoming voice call') : 'Missed call'),
+        message.data['body']?.toString() ?? (isIncoming ? caller + ' is calling you' : 'You missed a call from ' + caller),
+        NotificationDetails(
           android: AndroidNotificationDetails(
-            'novyn_calls',
-            'Missed calls',
-            channelDescription: 'Missed voice and video calls',
-            importance: Importance.max,
-            priority: Priority.high,
-            category: AndroidNotificationCategory.missedCall,
-            playSound: true,
-            enableVibration: true,
+            isIncoming ? 'novyn_incoming_calls' : 'novyn_calls',
+            isIncoming ? 'Incoming calls' : 'Missed calls',
+            channelDescription: 'Voice and video call alerts',
+            importance: Importance.max, priority: Priority.max,
+            category: isIncoming ? AndroidNotificationCategory.call : AndroidNotificationCategory.missedCall,
+            fullScreenIntent: isIncoming, ongoing: isIncoming, autoCancel: !isIncoming,
+            playSound: true, enableVibration: true,
           ),
-          iOS: DarwinNotificationDetails(
-            presentAlert: true,
-            presentBadge: true,
-            presentSound: true,
-          ),
+          iOS: const DarwinNotificationDetails(presentAlert: true, presentBadge: true, presentSound: true),
         ),
-        payload: 'call:' + (message.data['callId']?.toString() ?? ''),
+        payload: 'call:' + callId + '|' + caller + '|' + (isVideo ? '1' : '0'),
       ));
       return;
     }
@@ -709,9 +744,13 @@ class NotificationService {
 
     if (type == 'call') {
       if (!context.mounted) return;
-      Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => const CallsScreen()),
-      );
+      final caller = message.data['chat']?.toString().trim() ?? '';
+      final callId = message.data['callId']?.toString().trim() ?? '';
+      if (message.data['callStatus'] == 'incoming' && caller.isNotEmpty && callId.isNotEmpty) {
+        await _openIncomingCall(caller, callId, message.data['isVideo'] == '1', context);
+        return;
+      }
+      Navigator.of(context).push(MaterialPageRoute(builder: (_) => const CallsScreen()));
       return;
     }
 
@@ -722,6 +761,18 @@ class NotificationService {
     await _openChatFromNotification(username, context);
   }
 
+  static Future<void> _openIncomingCall(String caller, String callId, bool isVideo, BuildContext context) async {
+    try {
+      final peer = await context.read<FriendService>().getUser(caller);
+      if (peer == null || !context.mounted) return;
+      Navigator.of(context).push(MaterialPageRoute(builder: (_) => CallScreen(
+        peer: peer, callType: isVideo ? 'video' : 'voice', isIncoming: true,
+        callerId: caller, callId: callId,
+      )));
+    } catch (error) {
+      debugPrint('[NovynCalls] Could not open incoming call: $error');
+    }
+  }
   static Future<void> _openChatFromNotification(
       String username, BuildContext context) async {
     try {
