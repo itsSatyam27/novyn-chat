@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
@@ -44,6 +45,7 @@ class _ChatsScreenState extends State<ChatsScreen> {
   final FocusNode _searchFocusNode = FocusNode();
   final TextEditingController _searchController = TextEditingController();
   bool _isSearching = false;
+  bool _filtersVisible = true;
   String _selectedTab = 'all';
   AuthService? _authService;
   String? _observedUsername;
@@ -332,8 +334,6 @@ class _ChatsScreenState extends State<ChatsScreen> {
     }).toList();
     final pinnedChats = activeChats.where((chat) => chat.isPinned).toList();
     final recentChats = activeChats.where((chat) => !chat.isPinned).toList();
-    final unreadCount =
-        activeChats.fold<int>(0, (total, chat) => total + chat.unreadCount);
 
     return Scaffold(
       backgroundColor: NovynTheme.pageBg(context),
@@ -346,17 +346,25 @@ class _ChatsScreenState extends State<ChatsScreen> {
               padding: const EdgeInsets.only(top: 18),
               child: NovynHeader(
                 title: 'Messages',
-                subtitle: '${activeChats.length} conversations · $unreadCount unread',
                 titleSize: 28,
                 titleColor: Theme.of(context).colorScheme.onSurface,
-                subtitleColor: Theme.of(context).colorScheme.onSurfaceVariant,
                 actions: [
-                  NovynIconButton(
-                    icon: _isSearching ? Icons.close_rounded : Icons.search_rounded,
-                    size: 46,
-                    radius: 16,
-                    iconSize: 21,
-                    onTap: () {
+                  IconButton(
+                    tooltip: _isSearching ? 'Close search' : 'Search chats',
+                    visualDensity: VisualDensity.compact,
+                    icon: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 180),
+                      transitionBuilder: (child, animation) => RotationTransition(
+                        turns: Tween<double>(begin: 0.88, end: 1).animate(animation),
+                        child: FadeTransition(opacity: animation, child: child),
+                      ),
+                      child: Icon(
+                        _isSearching ? Icons.close_rounded : Icons.search_rounded,
+                        key: ValueKey(_isSearching),
+                        size: 23,
+                      ),
+                    ),
+                    onPressed: () {
                       HapticService.vibrate(NovynHapticType.selection, category: HapticCategory.chat);
                       setState(() {
                         _isSearching = !_isSearching;
@@ -368,7 +376,7 @@ class _ChatsScreenState extends State<ChatsScreen> {
                       _applyFilters();
                       if (_isSearching) {
                         WidgetsBinding.instance.addPostFrameCallback((_) {
-                          if (mounted) _searchFocusNode.requestFocus();
+                          if (mounted && _isSearching) _searchFocusNode.requestFocus();
                         });
                       } else {
                         _searchFocusNode.unfocus();
@@ -378,27 +386,38 @@ class _ChatsScreenState extends State<ChatsScreen> {
                 ],
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 14, 20, 8),
-              child: SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: [
-                    _ChatFilterChip(label: 'All', value: 'all', selected: _selectedTab, count: allChats.length, onTap: _selectTab),
-                    const SizedBox(width: 8),
-                    _ChatFilterChip(label: 'Unread', value: 'unread', selected: _selectedTab, count: allChats.where((c) => c.unreadCount > 0).length, onTap: _selectTab),
-                    const SizedBox(width: 8),
-                    _ChatFilterChip(label: 'Favorites', value: 'favorites', selected: _selectedTab, count: allChats.where((c) => favorites.contains(c.chatId)).length, onTap: _selectTab),
-                    const SizedBox(width: 8),
-                    _ChatFilterChip(label: 'Groups', value: 'groups', selected: _selectedTab, count: allChats.where((c) => c.isGroup).length, onTap: _selectTab),
-                  ],
-                ),
-              ),
+            AnimatedSize(
+              duration: const Duration(milliseconds: 280),
+              curve: Curves.easeInOutCubic,
+              alignment: Alignment.topCenter,
+              child: _isSearching
+                  ? Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Focus(
+                        onKeyEvent: (_, event) {
+                          if (event is KeyDownEvent && event.logicalKey == LogicalKeyboardKey.escape) {
+                            setState(() {
+                              _isSearching = false;
+                              _search = '';
+                              _searchController.clear();
+                            });
+                            _searchFocusNode.unfocus();
+                            _applyFilters();
+                            return KeyEventResult.handled;
+                          }
+                          return KeyEventResult.ignored;
+                        },
+                        child: _buildSearch(),
+                      ),
+                    )
+                  : const SizedBox(width: double.infinity),
             ),
-            if (_isSearching) ...[
-              _buildSearch(),
-              const SizedBox(height: 8),
-            ],
+            AnimatedSize(
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeInOutCubic,
+              alignment: Alignment.topCenter,
+              child: _filtersVisible ? _buildFilterCards(allChats, favorites) : const SizedBox(width: double.infinity),
+            ),
 
             Expanded(
               child: _loading
@@ -408,7 +427,16 @@ class _ChatsScreenState extends State<ChatsScreen> {
                   : RefreshIndicator(
                       color: Theme.of(context).colorScheme.primary,
                       onRefresh: _loadChats,
-                      child: CustomScrollView(
+                      child: NotificationListener<UserScrollNotification>(
+                        onNotification: (notification) {
+                          if (_isSearching) return false;
+                          final nextVisible = notification.direction != ScrollDirection.reverse;
+                          if (nextVisible != _filtersVisible && notification.direction != ScrollDirection.idle) {
+                            setState(() => _filtersVisible = nextVisible);
+                          }
+                          return false;
+                        },
+                        child: CustomScrollView(
                         slivers: [
                           // ── Pinned Section ─────────────────────────────────
                           if (pinnedChats.isNotEmpty) ...[
@@ -440,6 +468,7 @@ class _ChatsScreenState extends State<ChatsScreen> {
                               child: SizedBox(height: 100)),
                         ],
                       ),
+                      ),
                     ),
             ),
           ],
@@ -461,6 +490,52 @@ class _ChatsScreenState extends State<ChatsScreen> {
         ),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
+    );
+  }
+
+  Widget _buildFilterCards(List<ChatPreview> chats, Set<String> favorites) {
+    int countFor(String filter) {
+      switch (filter) {
+        case 'unread': return chats.where((chat) => chat.unreadCount > 0).length;
+        case 'favorites': return chats.where((chat) => favorites.contains(chat.chatId)).length;
+        case 'groups': return chats.where((chat) => chat.isGroup).length;
+        default: return chats.length;
+      }
+    }
+
+    const filters = [
+      ('all', 'All chats', Icons.forum_outlined),
+      ('unread', 'Unread', Icons.mark_email_unread_outlined),
+      ('favorites', 'Favorites', Icons.star_outline_rounded),
+      ('groups', 'Groups', Icons.groups_outlined),
+    ];
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
+      child: GridView.count(
+        crossAxisCount: 2,
+        mainAxisSpacing: 10,
+        crossAxisSpacing: 10,
+        childAspectRatio: 2.65,
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        children: [
+          for (final item in filters)
+            _ChatSummaryTile(
+              icon: item.$3,
+              label: item.$2,
+              value: countFor(item.$1).toString(),
+              selected: _selectedTab == item.$1,
+              tint: item.$1 == 'unread'
+                  ? NovynColors.mint
+                  : item.$1 == 'favorites'
+                      ? const Color(0xFFFFC857)
+                      : item.$1 == 'groups'
+                          ? const Color(0xFF79B8FF)
+                          : Theme.of(context).colorScheme.primary,
+              onTap: () => _selectTab(item.$1),
+            ),
+        ],
+      ),
     );
   }
 
@@ -710,62 +785,65 @@ class _ChatsScreenState extends State<ChatsScreen> {
 
 }
 
-class _ChatFilterChip extends StatelessWidget {
+class _ChatSummaryTile extends StatelessWidget {
+  final IconData icon;
   final String label;
   final String value;
-  final String selected;
-  final int count;
-  final ValueChanged<String> onTap;
-  const _ChatFilterChip({required this.label, required this.value, required this.selected, required this.count, required this.onTap});
+  final Color tint;
+  final bool selected;
+  final VoidCallback onTap;
 
-  IconData get _icon {
-    switch (value) {
-      case 'unread': return Icons.mark_email_unread_outlined;
-      case 'favorites': return Icons.star_outline_rounded;
-      case 'groups': return Icons.groups_outlined;
-      default: return Icons.forum_outlined;
-    }
-  }
+  const _ChatSummaryTile({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.selected,
+    required this.tint,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final active = selected == value;
     final colors = Theme.of(context).colorScheme;
-    final foreground = active ? colors.onPrimaryContainer : colors.onSurfaceVariant;
+    final outline = selected ? tint.withValues(alpha: 0.75) : colors.outlineVariant;
     return Material(
-      color: active ? colors.primaryContainer : colors.surface,
-      borderRadius: BorderRadius.circular(18),
+      color: Colors.transparent,
       child: InkWell(
-        borderRadius: BorderRadius.circular(18),
-        onTap: () => onTap(value),
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(17),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 180),
-          curve: Curves.easeOut,
-          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
+          curve: Curves.easeOutCubic,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(
-              color: active
-                  ? colors.primary.withValues(alpha: .55)
-                  : colors.outlineVariant.withValues(alpha: .65),
-              width: active ? 1.2 : 1,
-            ),
+            color: selected ? tint.withValues(alpha: 0.10) : NovynTheme.cardBg(context),
+            borderRadius: BorderRadius.circular(17),
+            border: Border.all(color: outline, width: selected ? 1.4 : 1),
           ),
-          child: Row(mainAxisSize: MainAxisSize.min, children: [
-            Icon(_icon, size: 15, color: foreground),
-            const SizedBox(width: 6),
-            Text(label, style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: active ? colors.onPrimaryContainer : colors.onSurface)),
-            const SizedBox(width: 7),
+          child: Row(children: [
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              width: 32,
+              height: 32,
               decoration: BoxDecoration(
-                color: active
-                    ? colors.primary.withValues(alpha: .12)
-                    : colors.surfaceContainerHighest.withValues(alpha: .8),
+                color: tint.withValues(alpha: 0.13),
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: Text('$count', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: foreground)),
+              child: Icon(icon, color: tint, size: 17),
             ),
+            const SizedBox(width: 9),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(value, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800, height: 1.05)),
+                  const SizedBox(height: 3),
+                  Text(label, maxLines: 1, overflow: TextOverflow.ellipsis,
+                    style: NovynText.body(10, color: NovynColors.textMuted)),
+                ],
+              ),
+            ),
+            if (selected) Icon(Icons.check_circle_rounded, color: tint, size: 15),
           ]),
         ),
       ),
@@ -773,7 +851,7 @@ class _ChatFilterChip extends StatelessWidget {
   }
 }
 
-// ── Redesigned Chat Card ───────────────────────────────────────────────────
+
 class _ChatCard extends StatelessWidget {
   final ChatPreview preview;
   final VoidCallback onTap;
