@@ -48,46 +48,53 @@ function registerCallHandlers(socket, deps) {
         socket.emit("call_ended", { callId, reason: "User is busy" });
         return;
       }
-      setCallPair(userKey, friendKey, "ringing", callId);
+      setCallPair(userKey, friendKey, "ringing", callId, { type: isVideo ? "video" : "voice" });
+      const callerName = me?.username || userKey;
+      const callerDisplayName = me?.displayName || callerName;
       io.to(friendSocketId).emit("call_incoming", {
-        from: me?.username || userKey,
-        fromDisplayName: me?.displayName || me?.username || userKey,
+        from: callerName,
+        fromDisplayName: callerDisplayName,
         isVideo,
         callId,
       });
-    } else {
-      const callerName = me?.username || userKey;
-      const createdAt = new Date().toISOString();
-      const callType = isVideo ? "video" : "voice";
-      const callEntry = {
-        callId,
-        callerId: callerName,
-        receiverId: target.username || friendKey,
-        type: callType,
-        status: "outgoing",
-        duration: 0,
-        createdAt,
-      };
-      const missedEntry = {
-        ...callEntry,
-        status: "missed",
-      };
-      // Persist both sides so the missed call is visible when the recipient returns.
-      recordCallLog?.(userKey, callEntry);
-      recordCallLog?.(friendKey, missedEntry);
-      // The existing push pipeline delivers this while the recipient is offline.
+      // Also wake a backgrounded mobile client through high-priority FCM.
+      // The foreground app ignores this duplicate when its live socket is active.
       Promise.resolve(sendPushToUser?.(friendKey, {
         type: "call",
-        title: "Missed call",
-        body: (me?.displayName || callerName) + " tried to call you",
+        callStatus: "incoming",
+        title: isVideo ? "Incoming video call" : "Incoming voice call",
+        body: callerDisplayName + " is calling you",
         chat: callerName,
         kind: "friend",
         callId,
-        tag: "missed-call-" + callId,
+        isVideo,
+        tag: "incoming-call-" + callId,
       })).catch((error) => {
-        console.warn("[Call] Missed-call notification failed:", error?.message || error);
+        console.warn("[Call] Incoming-call notification failed:", error?.message || error);
       });
-      socket.emit("call_ended", { callId, reason: "User is offline", status: "offline" });
+    } else {
+      // Keep the ringing session alive while the recipient app is backgrounded,
+      // terminated, or temporarily disconnected. FCM will wake the device.
+      if (activeCalls.has(userKey) || activeCalls.has(friendKey)) {
+        socket.emit("call_ended", { callId, reason: "User is busy" });
+        return;
+      }
+      setCallPair(userKey, friendKey, "ringing", callId, { type: isVideo ? "video" : "voice" });
+      const callerName = me?.username || userKey;
+      const callerDisplayName = me?.displayName || callerName;
+      Promise.resolve(sendPushToUser?.(friendKey, {
+        type: "call",
+        callStatus: "incoming",
+        title: isVideo ? "Incoming video call" : "Incoming voice call",
+        body: callerDisplayName + " is calling you",
+        chat: callerName,
+        kind: "friend",
+        callId,
+        isVideo,
+        tag: "incoming-call-" + callId,
+      })).catch((error) => {
+        console.warn("[Call] Incoming-call notification failed:", error?.message || error);
+      });
     }
   });
 
@@ -120,6 +127,22 @@ function registerCallHandlers(socket, deps) {
       const friendKey = normalizeName(to);
       const active = activeCalls.get(userKey);
       if (!active || active.peerKey !== friendKey || active.callId !== callId) return;
+      if (active.status === "ringing") {
+        const callerKey = reason === "Call declined" ? friendKey : userKey;
+        const missedKey = reason === "Call declined" ? userKey : friendKey;
+        const caller = users.get(callerKey);
+        const receiver = users.get(missedKey);
+        const entry = {
+          callId,
+          callerId: caller?.username || callerKey,
+          receiverId: receiver?.username || missedKey,
+          type: active.type || "voice",
+          status: "missed",
+          duration: 0,
+          createdAt: new Date().toISOString(),
+        };
+        recordCallLog?.(missedKey, entry);
+      }
       clearCallPair(userKey);
       const friendSocketId = onlineUsers.get(friendKey);
       if (friendSocketId) {
