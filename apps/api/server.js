@@ -2049,6 +2049,18 @@ function detachSubscriptionFromAll(endpoint, exceptKey) {
   return changed;
 }
 
+function normalizePushPublicKey(value) {
+  const raw = typeof value === "string" ? value.trim() : "";
+  if (!raw || raw.length > 2048) return "";
+  try {
+    const key = JSON.parse(raw);
+    if (key?.kty === "EC" && key?.crv === "P-256" &&
+        typeof key.x === "string" && typeof key.y === "string" &&
+        key.x.length >= 40 && key.y.length >= 40) return raw;
+  } catch (_) {}
+  return "";
+}
+
 function formatPushBody(text, fallback = "New message") {
   const cleaned = String(text || "").replace(/\s+/g, " ").trim();
   if (!cleaned) return fallback;
@@ -3236,7 +3248,10 @@ function deliverFriendMessage(params = {}) {
       ...(params.isEncrypted === true ? {
         ciphertext: params.ciphertext,
         iv: params.iv,
-        senderPublicKey: me.publicKey || "",
+        // Multi-device accounts can have different private ECDH identities.
+        // Use the sender device's key for this message, not the last account
+        // key registered on the server.
+        senderPublicKey: normalizePushPublicKey(params.senderPublicKey) || normalizePushPublicKey(me.publicKey),
         messageId: message.id || message.messageId || "",
       } : {}),
       tag: `msg-${fromKey}`,
