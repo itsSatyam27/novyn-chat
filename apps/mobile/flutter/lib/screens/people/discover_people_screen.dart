@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import '../../services/friend_service.dart';
 import '../../models/user_model.dart';
 import '../../widgets/novyn_ui.dart';
@@ -17,11 +18,75 @@ class DiscoverPeopleScreen extends StatefulWidget {
 
 class _DiscoverPeopleScreenState extends State<DiscoverPeopleScreen> {
   late int _activeTab;
+  final TextEditingController _usernameController = TextEditingController();
+  bool _sendingRequest = false;
 
   @override
   void initState() {
     super.initState();
-    _activeTab = widget.initialTab.clamp(0, 1).toInt();
+    _activeTab = widget.initialTab.clamp(0, 2).toInt();
+  }
+
+  @override
+  void dispose() {
+    _usernameController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _sendFriendRequest(FriendService service) async {
+    final username = _usernameController.text.trim().replaceFirst(RegExp(r'^@'), '');
+    if (username.isEmpty || _sendingRequest) return;
+    setState(() => _sendingRequest = true);
+    try {
+      final user = await service.getUser(username);
+      if (!mounted) return;
+      if (user == null) {
+        _message('No Novyn user found. Check the username and try again.');
+        return;
+      }
+      if (user.username.toLowerCase() == widget.myUid.toLowerCase()) {
+        _message('You cannot add yourself.');
+        return;
+      }
+      await service.sendRequest(widget.myUid, user.uid);
+      if (!mounted) return;
+      _usernameController.clear();
+      _message('Friend request sent to @${user.username}.');
+      setState(() => _activeTab = 1);
+    } catch (_) {
+      _message('Could not send request. Please try again.');
+    } finally {
+      if (mounted) setState(() => _sendingRequest = false);
+    }
+  }
+
+  void _showMyQrCode() {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Your Novyn QR code'),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)),
+            child: QrImageView(
+              data: 'https://novyn.app/user/${widget.myUid}',
+              size: 210,
+              backgroundColor: Colors.white,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text('@${widget.myUid}', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+          const SizedBox(height: 4),
+          Text(
+            'Let a friend scan this code to find your profile.',
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
+          ),
+        ]),
+        actions: [TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Close'))],
+      ),
+    );
   }
 
   @override
@@ -62,6 +127,7 @@ class _DiscoverPeopleScreenState extends State<DiscoverPeopleScreen> {
               child: Row(children: [
                 _tab('Received', 0, service),
                 _tab('Sent', 1, service),
+                _tab('Add friend', 2, service),
               ]),
             ),
           ),
@@ -69,9 +135,11 @@ class _DiscoverPeopleScreenState extends State<DiscoverPeopleScreen> {
           Expanded(
             child: AnimatedSwitcher(
               duration: const Duration(milliseconds: 220),
-              child: _activeTab == 0
-                  ? _received(service)
-                  : _sent(service),
+              child: switch (_activeTab) {
+                0 => _received(service),
+                1 => _sent(service),
+                _ => _addFriend(service),
+              },
             ),
           ),
         ],
@@ -124,6 +192,101 @@ class _DiscoverPeopleScreenState extends State<DiscoverPeopleScreen> {
           )),
         ),
       ),
+    );
+  }
+
+  Widget _addFriend(FriendService service) {
+    final theme = Theme.of(context);
+    return ListView(
+      key: const ValueKey('add-friend'),
+      padding: const EdgeInsets.fromLTRB(20, 4, 20, 110),
+      children: [
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: theme.brightness == Brightness.dark ? const Color(0xFF171622) : Colors.white,
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(color: theme.colorScheme.outlineVariant.withValues(alpha: .5)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.primary.withValues(alpha: .12),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Icon(Icons.person_add_alt_1_rounded, color: theme.colorScheme.primary),
+                ),
+                const SizedBox(width: 12),
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('Add a friend', style: NovynText.display(17, color: theme.colorScheme.onSurface)),
+                  const SizedBox(height: 3),
+                  Text('Connect using their Novyn username.', style: NovynText.body(12, color: theme.colorScheme.onSurfaceVariant)),
+                ])),
+              ]),
+              const SizedBox(height: 20),
+              TextField(
+                controller: _usernameController,
+                textInputAction: TextInputAction.send,
+                onSubmitted: (_) => _sendFriendRequest(service),
+                decoration: InputDecoration(
+                  hintText: 'Enter username',
+                  prefixIcon: const Icon(Icons.alternate_email_rounded),
+                  filled: true,
+                  fillColor: theme.colorScheme.surfaceContainerHighest.withValues(alpha: .45),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide.none),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(15),
+                    borderSide: BorderSide(color: theme.colorScheme.outlineVariant.withValues(alpha: .55)),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: _sendingRequest ? null : () => _sendFriendRequest(service),
+                  icon: _sendingRequest
+                      ? const SizedBox(width: 17, height: 17, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      : const Icon(Icons.send_rounded, size: 17),
+                  label: Text(_sendingRequest ? 'Sending request...' : 'Send friend request'),
+                  style: FilledButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 14),
+        Container(
+          padding: const EdgeInsets.all(17),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.primary.withValues(alpha: .07),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: theme.colorScheme.primary.withValues(alpha: .15)),
+          ),
+          child: Row(children: [
+            Icon(Icons.qr_code_2_rounded, size: 34, color: theme.colorScheme.primary),
+            const SizedBox(width: 12),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('Share your QR code', style: NovynText.body(13, weight: FontWeight.w800, color: theme.colorScheme.onSurface)),
+              const SizedBox(height: 3),
+              Text('Let friends scan your profile to find you.', style: NovynText.body(11, color: theme.colorScheme.onSurfaceVariant)),
+            ])),
+            IconButton(
+              tooltip: 'Show my QR code',
+              onPressed: _showMyQrCode,
+              icon: Icon(Icons.open_in_new_rounded, color: theme.colorScheme.primary),
+            ),
+          ]),
+        ),
+      ],
     );
   }
 

@@ -4,7 +4,6 @@ import 'package:flutter/services.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
-import 'package:qr_flutter/qr_flutter.dart';
 import '../../services/auth_service.dart';
 import '../../services/friend_service.dart';
 import '../../services/socket_service.dart';
@@ -27,63 +26,7 @@ class DiscoverScreen extends StatefulWidget {
 class _DiscoverScreenState extends State<DiscoverScreen> {
   String _search = '';
   bool _isResolvingQr = false;
-  bool _sendingFriend = false;
   final Set<String> _sendingRequests = <String>{};
-  final TextEditingController _friendController = TextEditingController();
-
-  @override
-  void dispose() {
-    _friendController.dispose();
-    super.dispose();
-  }
-
-  void _showMyQrCode(String myUid) {
-    showDialog<void>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Your Novyn QR code'),
-        content: Column(mainAxisSize: MainAxisSize.min, children: [
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)),
-            child: QrImageView(data: 'https://novyn.app/user/$myUid', size: 210, backgroundColor: Colors.white),
-          ),
-          const SizedBox(height: 12),
-          Text('@$myUid', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
-          const SizedBox(height: 4),
-          Text('Let a friend scan this code to find your profile.', textAlign: TextAlign.center, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant)),
-        ]),
-        actions: [TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Close'))],
-      ),
-    );
-  }
-
-  Future<void> _sendFriendRequest(String myUid) async {
-    final value = _friendController.text.trim().replaceFirst(RegExp(r'^@'), '');
-    if (value.isEmpty || _sendingFriend) return;
-    setState(() => _sendingFriend = true);
-    try {
-      final service = context.read<FriendService>();
-      final user = await service.getUser(value);
-      if (!mounted) return;
-      if (user == null) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No Novyn user found. Check the username and try again.')));
-        return;
-      }
-      if (user.username.toLowerCase() == myUid.toLowerCase()) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('You cannot add yourself.')));
-        return;
-      }
-      await service.sendRequest(myUid, user.uid);
-      if (!mounted) return;
-      _friendController.clear();
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Friend request sent to @${user.username}.')));
-    } catch (_) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not send request. Please try again.')));
-    } finally {
-      if (mounted) setState(() => _sendingFriend = false);
-    }
-  }
 
   Future<void> _sendDiscoveredRequest(String myUid, UserModel user) async {
     if (_sendingRequests.contains(user.uid)) return;
@@ -124,47 +67,63 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                   titleSize: 34,
                   subtitle: 'Find people and grow your circle',
                   actions: [
-                    Stack(
-                      clipBehavior: Clip.none,
-                      children: [
-                        NovynIconButton(
-                          icon: Icons.mark_email_unread_outlined,
-                          onTap: () => Navigator.push(
+                    PopupMenuButton<String>(
+                      tooltip: 'Discover options',
+                      icon: const Icon(Icons.more_horiz_rounded, size: 25),
+                      offset: const Offset(0, 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                      elevation: 10,
+                      onSelected: (value) {
+                        if (value == 'requests') {
+                          Navigator.push(
                             context,
                             MaterialPageRoute(
                               builder: (_) => DiscoverPeopleScreen(myUid: myUid),
                             ),
+                          );
+                        } else if (value == 'refresh') {
+                          context.read<SocketService>().requestDiscover();
+                        } else if (value == 'scan') {
+                          _showScanPlaceholder(context);
+                        }
+                      },
+                      itemBuilder: (menuContext) => [
+                        PopupMenuItem(
+                          value: 'requests',
+                          height: 54,
+                          child: Row(children: [
+                            Icon(Icons.mark_email_unread_outlined, color: Theme.of(menuContext).colorScheme.primary),
+                            const SizedBox(width: 12),
+                            const Expanded(child: Text('Friend requests')),
+                            if (count > 0)
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                decoration: BoxDecoration(color: NovynColors.danger, borderRadius: BorderRadius.circular(20)),
+                                child: Text('$count', style: NovynText.body(10, weight: FontWeight.w800, color: Colors.white)),
+                              ),
+                          ]),
+                        ),
+                        const PopupMenuItem(
+                          value: 'refresh',
+                          height: 52,
+                          child: ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            leading: Icon(Icons.refresh_rounded),
+                            title: Text('Refresh people'),
+                            dense: true,
                           ),
                         ),
-                        if (count > 0)
-                          Positioned(
-                            top: -4,
-                            right: -4,
-                            child: Container(
-                              constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
-                              padding: const EdgeInsets.all(4),
-                              decoration: BoxDecoration(
-                                color: NovynColors.danger,
-                                shape: BoxShape.circle,
-                                border: Border.all(color: NovynColors.bg, width: 2),
-                              ),
-                              child: Center(
-                                child: Text(
-                                  '$count',
-                                  style: NovynText.body(10, weight: FontWeight.w800, color: Colors.white),
-                                ),
-                              ),
-                            ),
+                        const PopupMenuItem(
+                          value: 'scan',
+                          height: 52,
+                          child: ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            leading: Icon(Icons.qr_code_scanner_rounded),
+                            title: Text('Scan QR code'),
+                            dense: true,
                           ),
+                        ),
                       ],
-                    ),
-                    NovynIconButton(
-                      icon: Icons.refresh_rounded,
-                      onTap: () => context.read<SocketService>().requestDiscover(),
-                    ),
-                    NovynIconButton(
-                      icon: Icons.qr_code_scanner_rounded,
-                      onTap: () => _showScanPlaceholder(context),
                     ),
                   ],
                 );
@@ -180,15 +139,6 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                   Padding(
                     padding: const EdgeInsets.fromLTRB(20, 10, 20, 0),
                     child: _DiscoverRadarCard(),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 2),
-                    child: _DiscoverAddFriendCard(
-                      controller: _friendController,
-                      sending: _sendingFriend,
-                      onSend: () => _sendFriendRequest(myUid),
-                      onShare: () => _showMyQrCode(myUid),
-                    ),
                   ),
                   Padding(
                     padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
@@ -586,53 +536,6 @@ class _DiscoverCountCard extends StatelessWidget {
   ));
 }
 
-class _DiscoverAddFriendCard extends StatelessWidget {
-  const _DiscoverAddFriendCard({required this.controller, required this.sending, required this.onSend, required this.onShare});
-  final TextEditingController controller;
-  final bool sending;
-  final VoidCallback onSend;
-  final VoidCallback onShare;
-  @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(16),
-    decoration: BoxDecoration(
-      color: Theme.of(context).colorScheme.surface,
-      borderRadius: BorderRadius.circular(26),
-      border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
-    ),
-    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text('ADD A FRIEND', style: Theme.of(context).textTheme.labelLarge?.copyWith(
-        color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.w800, letterSpacing: 1.2)),
-      const SizedBox(height: 14),
-      Row(children: [
-        Expanded(child: TextField(
-          controller: controller,
-          textInputAction: TextInputAction.send,
-          onSubmitted: (_) => onSend(),
-          decoration: const InputDecoration(hintText: 'Username or @username', isDense: true),
-        )),
-        const SizedBox(width: 10),
-        SizedBox(height: 52, child: FilledButton.icon(
-          onPressed: sending ? null : onSend,
-          icon: sending
-            ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-            : const Icon(Icons.person_add_alt_1_rounded, size: 18),
-          label: const Text('Send'),
-        )),
-      ]),
-      const SizedBox(height: 8),
-      TextButton.icon(
-        onPressed: onShare,
-        icon: const Icon(Icons.qr_code_2_rounded, size: 18),
-        label: const Text('Share my QR code'),
-      ),
-    ]),
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-//  Discover card
-// ═══════════════════════════════════════════════════════════════════════════
 class _DiscoverCard extends StatelessWidget {
   final UserModel user;
   final bool isPending;
