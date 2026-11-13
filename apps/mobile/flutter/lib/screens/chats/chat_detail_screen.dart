@@ -26,6 +26,7 @@ import '../../services/draft_service.dart';
 import '../../services/settings_service.dart';
 import '../../services/media_storage_service.dart';
 import '../../widgets/user_avatar.dart';
+import '../../widgets/novyn_toast.dart';
 import 'profile_info_screen.dart';
 import '../../widgets/connection_banner.dart';
 import '../../screens/calls/call_screen.dart';
@@ -2169,11 +2170,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
             socket.setMute(widget.peer.username, muted: nextMuted);
             await prefs.setBool(key, nextMuted);
             if (!mounted) return;
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(nextMuted
+            NovynToast.show(context, nextMuted
                 ? 'Notifications muted for this contact'
-                : 'Notifications unmuted for this contact')),
-            );
+                : 'Notifications unmuted for this contact');
           },
           onBlock: () async {
             final socket = context.read<SocketService>();
