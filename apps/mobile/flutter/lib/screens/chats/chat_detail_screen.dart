@@ -1150,7 +1150,31 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              // ── Pill-shaped input with spark inside ────────────────────
+              // Attachment action is intentionally separate from the text field.
+              Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  color: isDark
+                      ? const Color(0xFF191A27)
+                      : theme.colorScheme.surface,
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: theme.colorScheme.outlineVariant,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: isDark ? 0.10 : 0.04),
+                      blurRadius: 10,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
+                ),
+                child: _AttachmentButton(onSelected: _handleAttachment),
+              ),
+              const SizedBox(width: 8),
+
+              // Standalone message field.
               Expanded(
                 child: Container(
                   constraints: const BoxConstraints(minHeight: 48),
@@ -1172,12 +1196,6 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      // Spark icon inside pill
-                      Padding(
-                        padding: const EdgeInsets.only(left: 4, bottom: 4),
-                        child: _AttachmentButton(onSelected: _handleAttachment),
-                      ),
-
                       // Text field
                       Expanded(
                         child: TextField(
