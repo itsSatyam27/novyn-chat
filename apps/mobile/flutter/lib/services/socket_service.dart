@@ -211,6 +211,8 @@ class SocketService extends ChangeNotifier {
     _socket!.onDisconnect((_) {
       _isConnected = false;
       _isAuthenticated = false;
+      // A completed future from an old socket must never authenticate a new one.
+      _authenticationReady = null;
       _registeredIdentityAccount = null;
       notifyListeners();
       if (!_manualDisconnect) _scheduleReconnect(3);
@@ -219,6 +221,7 @@ class SocketService extends ChangeNotifier {
     _socket!.onConnectError((_) {
       _isConnected = false;
       _isAuthenticated = false;
+      _authenticationReady = null;
       _registeredIdentityAccount = null;
       notifyListeners();
       if (!_manualDisconnect) _scheduleReconnect(5);
@@ -834,14 +837,39 @@ class SocketService extends ChangeNotifier {
   }
 
   Future<void> _waitForSocketAuthentication() async {
+    if (_isConnected && _isAuthenticated) return;
+
+    // Wait for transport recovery first; then wait for this socket's own
+    // register_success/init event. Never trust an old completed future.
+    final deadline = DateTime.now().add(const Duration(seconds: 20));
+    while (!_isConnected) {
+      if (_manualDisconnect) {
+        throw StateError('Reconnect to Novyn before changing account settings.');
+      }
+      if (DateTime.now().isAfter(deadline)) {
+        throw StateError('Novyn could not reconnect. Check your connection and try again.');
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+    }
+
     if (_isAuthenticated) return;
     final ready = _authenticationReady ??= Completer<void>();
     await ready.future.timeout(
       const Duration(seconds: 15),
       onTimeout: () => throw StateError(
-        'Novyn is still connecting securely. Please wait a moment and try again.',
+        'Novyn is still verifying your session. Please wait a moment and try again.',
       ),
     );
+    if (!_isConnected || !_isAuthenticated) {
+      throw StateError('Novyn is reconnecting securely. Please try your change again.');
+    }
+  }
+
+  Future<void> _requireAuthenticatedConnection() async {
+    await _waitForSocketAuthentication();
+    if (_socket == null || !_isConnected || !_isAuthenticated) {
+      throw StateError('Novyn is reconnecting securely. Please try again in a moment.');
+    }
   }
 
   Future<void> _registerEncryptionIdentity() async {
@@ -2023,7 +2051,7 @@ class SocketService extends ChangeNotifier {
   }
 
   Future<Map<String, dynamic>> fetchAccountSettings() async {
-    _requireConnection();
+    await _requireAuthenticatedConnection();
     final completer = Completer<Map<String, dynamic>>();
     _socket!.emitWithAck('get_account_settings', <String, dynamic>{}, ack: (dynamic result) {
       completer.complete(result is Map
@@ -2037,7 +2065,7 @@ class SocketService extends ChangeNotifier {
   }
 
   Future<Map<String, dynamic>> updateAccountSettings(Map<String, dynamic> changes) async {
-    _requireConnection();
+    await _requireAuthenticatedConnection();
     final completer = Completer<Map<String, dynamic>>();
     _socket!.emitWithAck('update_profile', changes, ack: (dynamic result) {
       completer.complete(result is Map
@@ -2051,7 +2079,7 @@ class SocketService extends ChangeNotifier {
   }
 
   Future<void> updatePresence(String mode) async {
-    _requireConnection();
+    await _requireAuthenticatedConnection();
     final confirmed = Completer<void>();
     _socket!.emitWithAck(
       'update_profile',
