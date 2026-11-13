@@ -237,13 +237,16 @@ class NovynDock extends StatelessWidget {
                                   AnimatedScale(
                                     scale: active || isPrimary ? 1.08 : 1,
                                     duration: duration,
-                                    child: index == 4 && profilePhotoUrl.isNotEmpty
+                                    child: index == 4
                                         ? UserAvatar(
                                             name: profileName,
                                             photoUrl: profilePhotoUrl,
                                             radius: 12,
-                                            borderWidth: 1.5,
-                                            borderColor: isPrimary ? Colors.white : (active ? activeColor : inactiveColor),
+                                            fallbackColor: active ? Colors.white : accent,
+                                            borderWidth: 1.6,
+                                            borderColor: active
+                                                ? Colors.white.withValues(alpha: .92)
+                                                : inactiveColor.withValues(alpha: .45),
                                           )
                                         : Icon(
                                             icons[index],
