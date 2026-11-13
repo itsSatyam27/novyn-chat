@@ -1554,6 +1554,12 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
   }
 
   Future<void> _showCreateRiddleDialog() async {
+    if (widget.isGroup) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Riddle Lock is currently available in direct chats only.')),
+      );
+      return;
+    }
     final secret = TextEditingController();
     final question = TextEditingController();
     final answer = TextEditingController();
@@ -1706,6 +1712,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                   cleanQuestion,
                   cleanOptions,
                   widget.peer.uid.isNotEmpty ? widget.peer.uid : widget.peer.username,
+                  isGroup: widget.isGroup,
                 );
                 Navigator.pop(dialogContext);
               },
@@ -3147,6 +3154,7 @@ class _MessageBubble extends StatelessWidget {
                   message.id.toString(),
                   option['id']?.toString() ?? '',
                   peer.uid.isNotEmpty ? peer.uid : peer.username,
+                  isGroup: isGroup,
                 ),
                 borderRadius: BorderRadius.circular(9),
                 child: Container(
