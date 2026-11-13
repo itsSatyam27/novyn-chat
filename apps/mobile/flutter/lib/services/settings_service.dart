@@ -896,6 +896,8 @@ class SettingsService extends ChangeNotifier {
   }
 
   Future<void> clearAll() async {
+    _focusModeExpiryTimer?.cancel();
+    _focusModeUntilMs = null;
     await _prefs.clear();
     await _secureStorage.delete(key: _secureAppLockPin);
     await _secureStorage.delete(key: _securePanicPin);
@@ -935,4 +937,10 @@ class SettingsService extends ChangeNotifier {
     
     notifyListeners();
   }
+  @override
+  void dispose() {
+    _focusModeExpiryTimer?.cancel();
+    super.dispose();
+  }
+
 }
