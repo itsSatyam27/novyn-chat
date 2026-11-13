@@ -150,6 +150,16 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                   StreamBuilder<List<String>>(
                     stream: friends.friendUidsStream(myUid),
                     builder: (context, friendSnap) {
+                      if (friendSnap.hasError) {
+                        return Padding(
+                          padding: const EdgeInsets.fromLTRB(20, 22, 20, 32),
+                          child: _buildLoadError(
+                            'Could not load your connections',
+                            'Try refreshing Discover.',
+                            () => context.read<SocketService>().requestDiscover(),
+                          ),
+                        );
+                      }
                       final friendUids = friendSnap.data ?? [];
                       return StreamBuilder<List<UserModel>>(
                         stream: friends.discoverUsersStream(myUid, friendUids),
@@ -193,6 +203,16 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                           return StreamBuilder<Set<String>>(
                             stream: friends.sentPendingUidsStream(myUid),
                             builder: (context, pendingSnap) {
+                              if (pendingSnap.hasError) {
+                                return Padding(
+                                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+                                  child: _buildLoadError(
+                                    'Could not load request status',
+                                    'Refresh Discover to try again.',
+                                    () => context.read<SocketService>().requestDiscover(),
+                                  ),
+                                );
+                              }
                               final pendingUids = pendingSnap.data ?? <String>{};
                               return ListView.separated(
                                 shrinkWrap: true,
@@ -399,7 +419,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                   Expanded(
                     child: LayoutBuilder(
                       builder: (context, constraints) {
-                        final side = math.min(constraints.maxWidth - 28, constraints.maxHeight - 8).clamp(150.0, 280.0);
+                        final side = math.min(constraints.maxWidth - 28, constraints.maxHeight - 8).clamp(150.0, 280.0).toDouble();
                         return Center(
                           child: AspectRatio(
                             aspectRatio: 1,
