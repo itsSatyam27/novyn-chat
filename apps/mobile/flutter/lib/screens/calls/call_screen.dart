@@ -16,6 +16,8 @@ import 'package:novyn/services/haptic_service.dart';
 
 enum CallState { calling, connected, ended }
 
+const MethodChannel _callPlatformChannel = MethodChannel('com.example.novyn/call');
+
 class CallScreen extends StatefulWidget {
   final UserModel peer;
   final String callType;
@@ -169,22 +171,64 @@ class _CallScreenState extends State<CallScreen>
   }
 
   // ── Speaker toggle — works during ringing AND active call ────────────
-  void _toggleSpeaker() async {
+  Future<void> _toggleSpeaker() async {
     HapticService.vibrate(NovynHapticType.selection, category: HapticCategory.calls);
     final newVal = !_speakerOn;
-    setState(() => _speakerOn = newVal);
-    await AudioManagerService.setSpeakerphoneOn(newVal);
+    try {
+      // Finish initial audio-mode setup first so it cannot overwrite this route.
+      await _webrtcInit;
+      // Keep WebRTC's audio helper and Android AudioManager in agreement.
+      try {
+        await _webrtc.toggleSpeaker(newVal);
+      } catch (_) {
+        // The native AudioManager route below remains the fallback.
+      }
+      await AudioManagerService.setSpeakerphoneOn(newVal);
+      if (mounted) setState(() => _speakerOn = newVal);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Unable to change call audio output.')),
+        );
+      }
+    }
   }
 
   // ── Mute toggle — works during ringing AND active call ───────────────
   void _toggleMute() {
     HapticService.vibrate(NovynHapticType.selection, category: HapticCategory.calls);
     final newVal = !_muted;
-    setState(() => _muted = newVal);
-    // Disable WebRTC audio track (works when connected)
+    // Muting the WebRTC track is app-scoped. If media has not started yet,
+    // _ensureLocalMedia applies this saved state as soon as the mic is created.
     _webrtc.toggleMute(newVal);
-    // Also mute the mic at AudioManager level (works during ringing too)
-    AudioManagerService.setMicMute(newVal);
+    setState(() => _muted = newVal);
+  }
+
+  Future<void> _minimizeCall() async {
+    if (_state == CallState.ended) return;
+    HapticService.vibrate(NovynHapticType.selection, category: HapticCategory.calls);
+    try {
+      final entered = await _callPlatformChannel.invokeMethod<bool>(
+        'enterPictureInPicture',
+      );
+      if (entered != true && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Picture-in-picture is not available on this device. Your call is still active.')),
+        );
+      }
+    } on PlatformException {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Unable to minimize call. Your call is still active.')),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Unable to minimize call. Your call is still active.')),
+        );
+      }
+    }
   }
 
   void _listenToCallEvents() {
@@ -407,7 +451,9 @@ class _CallScreenState extends State<CallScreen>
     return PopScope<void>(
       canPop: _state == CallState.ended,
       onPopInvokedWithResult: (didPop, result) {
-        if (!didPop && _state != CallState.ended) _endCall();
+        // Back means minimize, never hang up. Only the red End Call control
+        // (or the remote peer) is allowed to terminate an active call.
+        if (!didPop && _state != CallState.ended) _minimizeCall();
       },
       child: Scaffold(
         backgroundColor: Colors.black,
@@ -597,6 +643,12 @@ class _CallScreenState extends State<CallScreen>
                       ],
                     ),
                   ),
+                  IconButton(
+                    tooltip: 'Minimize call',
+                    icon: const Icon(Icons.picture_in_picture_alt_rounded,
+                        color: Colors.white70, size: 22),
+                    onPressed: _minimizeCall,
+                  ),
                 ],
               ),
             ),
@@ -741,7 +793,12 @@ class _CallScreenState extends State<CallScreen>
                       ),
                     ),
                   ),
-                  const SizedBox(width: 48), // balance the back button
+                  IconButton(
+                    tooltip: 'Minimize call',
+                    icon: const Icon(Icons.picture_in_picture_alt_rounded,
+                        color: Colors.white70, size: 22),
+                    onPressed: _minimizeCall,
+                  ),
                 ],
               ),
             ),
