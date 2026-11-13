@@ -1,4 +1,11 @@
 // Socket.IO WebRTC signaling handlers. Call state and authorization are injected from the server.
+const RING_TIMEOUT_MS = 45_000;
+const ringingTimers = new Map();
+function clearRingingTimer(callId) {
+  const timer = ringingTimers.get(callId);
+  if (timer) clearTimeout(timer);
+  ringingTimers.delete(callId);
+}
 function registerCallHandlers(socket, deps) {
   const {
     resolveChatTargetForUser,
@@ -14,6 +21,38 @@ function registerCallHandlers(socket, deps) {
     sendPushToUser,
     recordCallLog
   } = deps;
+
+  function expireRingingCall(callerKey, receiverKey, callId, isVideo) {
+    const active = activeCalls.get(callerKey);
+    if (!active || active.callId !== callId || active.status !== "ringing" || active.peerKey !== receiverKey) return;
+    clearRingingTimer(callId);
+    clearCallPair(callerKey);
+    const caller = users.get(callerKey);
+    const receiver = users.get(receiverKey);
+    const callerName = caller?.username || callerKey;
+    const callerDisplayName = caller?.displayName || callerName;
+    recordCallLog?.(receiverKey, {
+      callId, callerId: callerName, receiverId: receiver?.username || receiverKey,
+      type: isVideo ? "video" : "voice", status: "missed", duration: 0,
+      createdAt: new Date().toISOString(),
+    });
+    Promise.resolve(sendPushToUser?.(receiverKey, {
+      type: "call", callStatus: "missed", title: "Missed call",
+      body: "You missed a call from " + callerDisplayName,
+      chat: callerName, kind: "friend", callId, isVideo, tag: "call-" + callId,
+    })).catch((error) => console.warn("[Call] Missed-call notification failed:", error?.message || error));
+    for (const peerKey of [callerKey, receiverKey]) {
+      const socketId = onlineUsers.get(peerKey);
+      if (socketId) io.to(socketId).emit("call_ended", { from: callerName, callId, reason: "No answer" });
+    }
+  }
+
+  function scheduleRingingTimeout(callerKey, receiverKey, callId, isVideo) {
+    clearRingingTimer(callId);
+    const timer = setTimeout(() => expireRingingCall(callerKey, receiverKey, callId, isVideo), RING_TIMEOUT_MS);
+    timer.unref?.();
+    ringingTimers.set(callId, timer);
+  }
 
   socket.on("call_start", (payload) => {
     const userKey = socket.data.userKey;
@@ -48,7 +87,8 @@ function registerCallHandlers(socket, deps) {
         socket.emit("call_ended", { callId, reason: "User is busy" });
         return;
       }
-      setCallPair(userKey, friendKey, "ringing", callId, { type: isVideo ? "video" : "voice" });
+      setCallPair(userKey, friendKey, "ringing", callId, { type: isVideo ? "video" : "voice", callerKey: userKey });
+      scheduleRingingTimeout(userKey, friendKey, callId, isVideo);
       const callerName = me?.username || userKey;
       const callerDisplayName = me?.displayName || callerName;
       io.to(friendSocketId).emit("call_incoming", {
@@ -79,7 +119,8 @@ function registerCallHandlers(socket, deps) {
         socket.emit("call_ended", { callId, reason: "User is busy" });
         return;
       }
-      setCallPair(userKey, friendKey, "ringing", callId, { type: isVideo ? "video" : "voice" });
+      setCallPair(userKey, friendKey, "ringing", callId, { type: isVideo ? "video" : "voice", callerKey: userKey });
+      scheduleRingingTimeout(userKey, friendKey, callId, isVideo);
       const callerName = me?.username || userKey;
       const callerDisplayName = me?.displayName || callerName;
       Promise.resolve(sendPushToUser?.(friendKey, {
@@ -109,6 +150,7 @@ function registerCallHandlers(socket, deps) {
     const friendSocketId = onlineUsers.get(friendKey);
     const active = activeCalls.get(userKey);
     if (!active || active.peerKey !== friendKey || active.callId !== callId) return;
+    clearRingingTimer(callId);
     setCallPair(userKey, friendKey, "connected", callId);
     console.log(`[Call] Call accepted by ${userKey} for ${friendKey} (socket: ${friendSocketId})`);
     if (friendSocketId) {
@@ -127,6 +169,7 @@ function registerCallHandlers(socket, deps) {
       const friendKey = normalizeName(to);
       const active = activeCalls.get(userKey);
       if (!active || active.peerKey !== friendKey || active.callId !== callId) return;
+      clearRingingTimer(callId);
       if (active.status === "ringing") {
         const callerKey = reason === "Call declined" ? friendKey : userKey;
         const missedKey = reason === "Call declined" ? userKey : friendKey;
@@ -142,6 +185,19 @@ function registerCallHandlers(socket, deps) {
           createdAt: new Date().toISOString(),
         };
         recordCallLog?.(missedKey, entry);
+        const missedCaller = users.get(callerKey);
+        const missedName = missedCaller?.username || callerKey;
+        if (reason === "Call declined") {
+          Promise.resolve(sendPushToUser?.(userKey, {
+            type: "call", callStatus: "ended", callId, chat: missedName, isVideo: active.type === "video",
+          })).catch(() => {});
+        } else {
+          Promise.resolve(sendPushToUser?.(missedKey, {
+            type: "call", callStatus: "missed", title: "Missed call",
+            body: "You missed a call from " + (missedCaller?.displayName || missedName),
+            chat: missedName, kind: "friend", callId, isVideo: active.type === "video", tag: "call-" + callId,
+          })).catch((error) => console.warn("[Call] Missed-call notification failed:", error?.message || error));
+        }
       }
       clearCallPair(userKey);
       const friendSocketId = onlineUsers.get(friendKey);
