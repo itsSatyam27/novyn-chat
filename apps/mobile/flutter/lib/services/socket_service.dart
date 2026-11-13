@@ -916,14 +916,19 @@ class SocketService extends ChangeNotifier {
         ));
       }
 
-      // Persist both previews and peer profiles. Without the profiles, a
-      // later logout/login can find chat rows but cannot rebuild chat cards.
+      // Publish the authenticated server snapshot immediately. UI rendering
+      // must not wait for Hive/Drift writes; slow local storage previously made
+      // conversations appear empty or load unpredictably.
       _conversations = previews;
       _hasLoadedConversations = true;
-      await HybridDbService.saveUsers(peers);
-      await HybridDbService.saveChats(previews);
-      if (_myUsername != account) return;
       notifyListeners();
+
+      // Persist in the background so the next app launch can hydrate instantly.
+      await Future.wait([
+        HybridDbService.saveUsers(peers),
+        HybridDbService.saveChats(previews),
+      ]);
+      if (_myUsername != account) return;
 
       for (final item in list) {
         try {
