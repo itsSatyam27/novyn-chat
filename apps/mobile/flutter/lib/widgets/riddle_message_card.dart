@@ -25,6 +25,7 @@ class RiddleMessageCard extends StatefulWidget {
 class _RiddleMessageCardState extends State<RiddleMessageCard> {
   final TextEditingController _answer = TextEditingController();
   bool _busy = false;
+  int? _triesLeftOverride;
   String? _feedback;
 
   @override
@@ -47,6 +48,8 @@ class _RiddleMessageCardState extends State<RiddleMessageCard> {
       setState(() {
         _busy = false;
         if (result['ok'] != true) {
+          final remaining = result['triesLeft'];
+          if (remaining is num) _triesLeftOverride = remaining.toInt();
           _feedback = result['message']?.toString() ?? 'That answer is not right.';
         } else {
           _answer.clear();
@@ -60,7 +63,7 @@ class _RiddleMessageCardState extends State<RiddleMessageCard> {
   @override
   Widget build(BuildContext context) {
     final unlocked = widget.riddle['unlocked'] == true;
-    final triesLeft = (widget.riddle['triesLeft'] as num?)?.toInt() ?? 0;
+    final triesLeft = _triesLeftOverride ?? (widget.riddle['triesLeft'] as num?)?.toInt() ?? 0;
     final maxTries = (widget.riddle['maxTries'] as num?)?.toInt() ?? 3;
     final exhausted = !unlocked && triesLeft <= 0;
     return Container(
