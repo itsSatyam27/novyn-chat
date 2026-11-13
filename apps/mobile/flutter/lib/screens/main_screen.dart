@@ -17,10 +17,17 @@ import '../services/friend_service.dart';
 import '../models/user_model.dart';
 import '../widgets/novyn_dock.dart';
 import '../services/settings_service.dart';
+import '../services/call_platform_service.dart';
 import 'package:novyn/services/haptic_service.dart';
 
 class MainScreen extends StatefulWidget {
-  const MainScreen({super.key});
+  const MainScreen({
+    super.key,
+    this.managePresence = true,
+    this.onCallHostExit,
+  });
+  final bool managePresence;
+  final VoidCallback? onCallHostExit;
 
   @override
   State<MainScreen> createState() => _MainScreenState();
@@ -50,7 +57,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     // Auth can change without MainScreen being recreated (logout -> login).
     // Reconnect the socket whenever a signed-in identity becomes available.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
+      if (!mounted || !widget.managePresence) return;
       _authService = context.read<AuthService>();
       _authService!.addListener(_handleAuthChanged);
       _handleAuthChanged();
@@ -121,17 +128,22 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _authService?.removeListener(_handleAuthChanged);
-    if (_authService?.user != null) _authService!.setOnline(false);
+    if (widget.managePresence && _authService?.user != null) {
+      _authService!.setOnline(false);
+    }
+    widget.onCallHostExit?.call();
     super.dispose();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (!widget.managePresence) return;
     final auth = context.read<AuthService>();
     if (state == AppLifecycleState.resumed) {
       auth.setOnline(true);
-    } else if (state == AppLifecycleState.paused ||
-        state == AppLifecycleState.detached) {
+    } else if ((state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) &&
+        !CallPlatformService.isCallActive) {
       auth.setOnline(false);
     }
   }

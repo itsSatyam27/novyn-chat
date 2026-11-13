@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/settings_service.dart';
+import '../services/call_platform_service.dart';
 import '../screens/security/app_lock_screen.dart';
 
 class AppLockWrapper extends StatefulWidget {
@@ -45,7 +46,8 @@ class _AppLockWrapperState extends State<AppLockWrapper> with WidgetsBindingObse
         // "Immediately" means every actual background/resume cycle, even
         // when the user returns in under five seconds.
         final timeoutSeconds = settings.appLockTimeout * 60;
-        if (settings.appLockTimeout == 0 || diffSeconds >= timeoutSeconds) {
+        if (!CallPlatformService.isCallActive &&
+            (settings.appLockTimeout == 0 || diffSeconds >= timeoutSeconds)) {
           settings.setLocked(true);
         }
       }

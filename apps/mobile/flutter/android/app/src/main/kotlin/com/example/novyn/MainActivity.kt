@@ -14,6 +14,7 @@ import android.content.ComponentName
 import android.os.Vibrator
 import android.os.VibrationEffect
 import android.os.Build
+import android.content.res.Configuration
 import android.app.PictureInPictureParams
 import android.util.Rational
 import io.flutter.embedding.android.FlutterFragmentActivity
@@ -26,6 +27,9 @@ class MainActivity : FlutterFragmentActivity() {
 
     private val CHANNEL = "com.example.novyn/audio"
     private val SECURITY_CHANNEL = "com.example.novyn/security"
+    private val CALL_PIP_CHANNEL = "com.example.novyn/call_pip"
+    private var callPipChannel: MethodChannel? = null
+    @Volatile private var callActive = false
     private val CALL_CHANNEL = "com.example.novyn/call"
     private val AUDIO_ROUTE_EVENTS = "com.example.novyn/audio_routes"
     private var audioRouteSink: EventChannel.EventSink? = null
@@ -35,6 +39,16 @@ class MainActivity : FlutterFragmentActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+
+        callPipChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CALL_PIP_CHANNEL)
+        callPipChannel?.setMethodCallHandler { call, result ->
+            if (call.method == "setCallActive") {
+                callActive = call.argument<Boolean>("active") ?: false
+                result.success(null)
+            } else {
+                result.notImplemented()
+            }
+        }
 
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL)
             .setMethodCallHandler { call, result ->
@@ -314,5 +328,29 @@ class MainActivity : FlutterFragmentActivity() {
         }
     }
 
+    }
+
+    override fun onUserLeaveHint() {
+        super.onUserLeaveHint()
+        if (!callActive || Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+        try {
+            val params = PictureInPictureParams.Builder()
+                .setAspectRatio(Rational(9, 16))
+                .build()
+            enterPictureInPictureMode(params)
+        } catch (_: IllegalStateException) {
+            // PiP can be unavailable while the activity is transitioning.
+        }
+    }
+
+    override fun onPictureInPictureModeChanged(
+        isInPictureInPictureMode: Boolean,
+        newConfig: Configuration
+    ) {
+        super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
+        callPipChannel?.invokeMethod(
+            "onPipModeChanged",
+            mapOf("isInPip" to isInPictureInPictureMode)
+        )
     }
 }
