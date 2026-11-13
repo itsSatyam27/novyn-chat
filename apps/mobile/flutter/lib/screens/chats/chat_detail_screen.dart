@@ -2100,6 +2100,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                           context.read<SocketService>().setChatWallpaper(
                             value,
                             widget.peer.uid.isNotEmpty ? widget.peer.uid : widget.peer.username,
+                            isGroup: widget.isGroup,
                           );
                           Navigator.pop(sheetContext);
                         },
