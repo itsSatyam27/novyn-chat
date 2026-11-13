@@ -580,8 +580,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                       name: widget.peer.name,
                       photoUrl: widget.peer.photoUrl,
                       radius: 21,
-                      showOnlineIndicator: true,
-                      isOnline: _peerIsOnline,
+                      showOnlineIndicator: !widget.isGroup,
+                      isOnline: widget.isGroup ? false : _peerIsOnline,
                       presence: _peerPresence,
                     ),
                   ),
@@ -603,7 +603,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                           ),
                         ),
                         Text(
-                          switch (_peerPresence) {
+                          widget.isGroup
+                              ? (widget.peer.bio.isNotEmpty ? widget.peer.bio : 'Group conversation')
+                              : switch (_peerPresence) {
                                   'away' => 'Away',
                                   'busy' || 'dnd' => 'Busy',
                                   'offline' || 'invisible' => 'Offline',
@@ -613,11 +615,12 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                             fontFamily: 'PlusJakartaSans',
                             fontSize: 13,
                             fontWeight: FontWeight.w500,
-                            color: switch (_peerPresence) {
+                            color: widget.isGroup
+                                ? scheme.onSurfaceVariant
+                                : switch (_peerPresence) {
                                     'away' => const Color(0xFFF59E0B),
                                     'busy' || 'dnd' => const Color(0xFFEC4899),
-                                    'offline' || 'invisible' =>
-                                      scheme.onSurfaceVariant,
+                                    'offline' || 'invisible' => scheme.onSurfaceVariant,
                                     _ => _peerIsOnline
                                         ? const Color(0xFF10B981)
                                         : scheme.onSurfaceVariant,
@@ -632,26 +635,28 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
             ),
           ),
           const SizedBox(width: 8),
-          _ChatHeaderButton(
-            icon: Icons.call_rounded,
-            color: accent,
-            filled: true,
-            tooltip: 'Voice call',
-            onTap: () => _startCall('voice'),
-          ),
-          const SizedBox(width: 6),
-          _ChatHeaderButton(
-            icon: Icons.videocam_rounded,
-            color: accent,
-            filled: true,
-            tooltip: 'Video call',
-            onTap: () => _startCall('video'),
-          ),
-          const SizedBox(width: 6),
+          if (!widget.isGroup) ...[
+            _ChatHeaderButton(
+              icon: Icons.call_rounded,
+              color: accent,
+              filled: true,
+              tooltip: 'Voice call',
+              onTap: () => _startCall('voice'),
+            ),
+            const SizedBox(width: 6),
+            _ChatHeaderButton(
+              icon: Icons.videocam_rounded,
+              color: accent,
+              filled: true,
+              tooltip: 'Video call',
+              onTap: () => _startCall('video'),
+            ),
+            const SizedBox(width: 6),
+          ],
           _ChatHeaderButton(
             icon: Icons.info_rounded,
             filled: true,
-            tooltip: 'Contact info',
+            tooltip: widget.isGroup ? 'Group info' : 'Contact info',
             onTap: () => _showContactInfo(),
           ),
         ],
@@ -725,7 +730,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
               child: Row(mainAxisSize: MainAxisSize.min, children: [
                 Icon(Icons.lock_outline_rounded, size: 13, color: scheme.primary),
                 const SizedBox(width: 6),
-                Text('End-to-end encrypted', style: TextStyle(
+                Text(widget.isGroup ? 'Group conversation' : 'End-to-end encrypted', style: TextStyle(
                   fontFamily: 'PlusJakartaSans', fontSize: 11,
                   fontWeight: FontWeight.w700, color: scheme.primary)),
               ]),
@@ -739,7 +744,10 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
             Wrap(alignment: WrapAlignment.center, spacing: 9, runSpacing: 9, children: [
               quickAction(Icons.waving_hand_rounded, 'Wave hello', () {
                 context.read<SocketService>().sendMessage(
-                  '👋', widget.peer.uid.isNotEmpty ? widget.peer.uid : widget.peer.username);
+                  '👋',
+                  widget.peer.uid.isNotEmpty ? widget.peer.uid : widget.peer.username,
+                  isGroup: widget.isGroup,
+                );
               }),
               quickAction(Icons.gif_box_rounded, 'Send a GIF', () => _showGifPicker()),
             ]),
@@ -2207,7 +2215,106 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
     );
   }
 
+  Future<void> _showGroupInfo() async {
+    HapticService.vibrate(NovynHapticType.light, category: HapticCategory.chat);
+    try {
+      final group = await context.read<SocketService>().getGroupInfo(widget.peer.uid);
+      if (!mounted) return;
+      final members = (group['members'] as List? ?? const [])
+          .whereType<Map>()
+          .map((member) => Map<String, dynamic>.from(member))
+          .toList();
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (sheetContext) {
+          final scheme = Theme.of(sheetContext).colorScheme;
+          return SafeArea(
+            child: Container(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(sheetContext).size.height * 0.72,
+              ),
+              padding: const EdgeInsets.fromLTRB(20, 18, 20, 24),
+              decoration: BoxDecoration(
+                color: scheme.surface,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(26)),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 38,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: scheme.onSurfaceVariant.withValues(alpha: .3),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  UserAvatar(name: group['name']?.toString() ?? widget.peer.name, radius: 32),
+                  const SizedBox(height: 10),
+                  Text(
+                    group['name']?.toString() ?? widget.peer.name,
+                    style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800, color: scheme.onSurface),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${members.length} members',
+                    style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
+                  ),
+                  const SizedBox(height: 14),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text('Members', style: TextStyle(fontWeight: FontWeight.w800, color: scheme.onSurface)),
+                  ),
+                  const SizedBox(height: 8),
+                  Flexible(
+                    child: ListView.separated(
+                      shrinkWrap: true,
+                      itemCount: members.length,
+                      separatorBuilder: (_, __) => Divider(height: 1, color: scheme.outlineVariant.withValues(alpha: .45)),
+                      itemBuilder: (_, index) {
+                        final member = members[index];
+                        final name = member['displayName']?.toString().trim().isNotEmpty == true
+                            ? member['displayName'].toString()
+                            : member['username']?.toString() ?? 'Member';
+                        final role = member['role']?.toString() ?? 'member';
+                        return ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          leading: UserAvatar(
+                            name: name,
+                            photoUrl: member['avatarId']?.toString() ?? '',
+                            radius: 20,
+                          ),
+                          title: Text(name, style: const TextStyle(fontWeight: FontWeight.w700)),
+                          subtitle: Text('@${member['username'] ?? ''}'),
+                          trailing: role == 'member'
+                              ? null
+                              : Text(role.toUpperCase(), style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: scheme.primary)),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error is StateError ? error.message.toString() : 'Could not load group information.')),
+      );
+    }
+  }
+
   Future<void> _showContactInfo() async {
+    if (widget.isGroup) {
+      await _showGroupInfo();
+      return;
+    }
     HapticService.vibrate(NovynHapticType.light, category: HapticCategory.chat);
     final mutePrefs = await SharedPreferences.getInstance();
     if (!mounted) return;
