@@ -8075,15 +8075,25 @@ io.on("connection", (socket) => {
     socket.emit("group_info", { group: groupInfo });
   });
 
-  socket.on("create_group", (payload) => {
+  socket.on("create_group", (payload, callback) => {
+    const respond = (result) => {
+      if (typeof callback === "function") callback(result);
+      else if (result?.ok === false) socket.emit("error_message", { message: result.message });
+    };
     const userKey = socket.data.userKey;
-    if (!userKey) return;
+    if (!userKey) {
+      respond({ ok: false, message: "Please sign in again." });
+      return;
+    }
     if (!allowSocketAction(socket, "create_group", 20, 60 * 60 * 1000)) {
-      socket.emit("error_message", { message: "Group creation rate limit reached. Try again later." });
+      respond({ ok: false, message: "Group creation rate limit reached. Try again later." });
       return;
     }
     const me = users.get(userKey);
-    if (!me) return;
+    if (!me) {
+      respond({ ok: false, message: "Account not found. Please sign in again." });
+      return;
+    }
 
     const requestedName = toDisplayName(payload?.name || payload?.title || "").slice(0, MAX_GROUP_NAME_LENGTH);
     const name = requestedName || `${me.username}'s group`;
@@ -8102,7 +8112,7 @@ io.on("connection", (socket) => {
     }
 
     if (memberKeys.size < 2) {
-      socket.emit("error_message", { message: "Add at least one friend to create a group." });
+      respond({ ok: false, message: "Add at least one eligible friend to create a group." });
       return;
     }
 
@@ -8138,6 +8148,8 @@ io.on("connection", (socket) => {
     }
 
     schedulePersist();
+    const groupInfo = buildGroupInfoForViewer(group, userKey);
+    respond({ ok: true, group: groupInfo, groupId: group.id });
   });
 
   socket.on("add_group_members", (payload) => {
