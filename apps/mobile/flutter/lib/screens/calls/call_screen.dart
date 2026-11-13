@@ -799,8 +799,8 @@ class _CallScreenState extends State<CallScreen>
                     },
                     onPanUpdate: (details) => setState(() {
                       _pipPosition = Offset(
-                        (_pipPosition.dx + details.delta.dx).clamp(8, MediaQuery.sizeOf(context).width - _pipWidth - 8),
-                        (_pipPosition.dy + details.delta.dy).clamp(MediaQuery.paddingOf(context).top + 70, MediaQuery.sizeOf(context).height - _pipHeight - 180),
+                        (_pipPosition.dx + details.delta.dx).clamp(8.0, MediaQuery.sizeOf(context).width - _pipWidth - 8).toDouble(),
+                        (_pipPosition.dy + details.delta.dy).clamp(MediaQuery.paddingOf(context).top + 70, MediaQuery.sizeOf(context).height - _pipHeight - 180).toDouble(),
                       );
                     }),
                     child: Container(
@@ -828,7 +828,7 @@ class _CallScreenState extends State<CallScreen>
                 _buildIncomingControls()
               else if (_state == CallState.calling)
                 _buildCallingControls()
-              else
+              else if (connected)
                 Container(
                   margin: const EdgeInsets.fromLTRB(18, 0, 18, 18),
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 13),
@@ -847,6 +847,11 @@ class _CallScreenState extends State<CallScreen>
                       _CallDockButton(icon: Icons.call_end_rounded, onTap: _endCall, danger: true),
                     ],
                   ),
+                ),
+              else
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 28),
+                  child: Text(_endReason ?? 'Call ended', style: const TextStyle(color: Colors.white70)),
                 ),
             ],
           ),
