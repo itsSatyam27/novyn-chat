@@ -654,6 +654,11 @@ class NotificationService {
       final caller = data['from']?.toString().trim() ?? '';
       final callId = data['callId']?.toString().trim() ?? '';
       if (caller.isEmpty || callId.isEmpty) return;
+      final preferences = _settings;
+      if (preferences?.doNotDisturbEnabled == true &&
+          !preferences!.favoriteChatIds.contains(caller.toLowerCase())) {
+        return;
+      }
       unawaited(_openIncomingCall(caller, callId, data['isVideo'] == true, context));
     };
     _socket!.onAuthenticated = () {
