@@ -1812,6 +1812,44 @@ class SocketService extends ChangeNotifier {
       onTimeout: () => {'ok': false, 'message': 'Verification timed out. Try again.'});
   }
 
+  Future<void> changeUsername({
+    required String newUsername,
+    String currentPassword = '',
+  }) async {
+    _requireConnection();
+    final connection = _socket!;
+    final completer = Completer<void>();
+    void succeeded(dynamic data) {
+      if (!completer.isCompleted) completer.complete();
+    }
+    void failed(dynamic data) {
+      if (!completer.isCompleted) {
+        final message = data is Map ? data['message']?.toString() : null;
+        completer.completeError(StateError(message ?? 'Could not change username.'));
+      }
+    }
+    void disconnected(dynamic _) {
+      if (!completer.isCompleted) {
+        completer.completeError(StateError('Connection lost before the username change was confirmed.'));
+      }
+    }
+    connection.on('username_changed', succeeded);
+    connection.on('username_change_failed', failed);
+    connection.on('disconnect', disconnected);
+    try {
+      connection.emit('change_username', {
+        'newUsername': newUsername.trim().toLowerCase(),
+        'currentPassword': currentPassword,
+      });
+      await completer.future.timeout(const Duration(seconds: 20),
+        onTimeout: () => throw StateError('Username change timed out. Check your connection and try again.'));
+    } finally {
+      connection.off('username_changed', succeeded);
+      connection.off('username_change_failed', failed);
+      connection.off('disconnect', disconnected);
+    }
+  }
+
   Future<void> changePassword(String currentPassword, String newPassword) async {
     _requireConnection();
     if (_changingPassword) {
