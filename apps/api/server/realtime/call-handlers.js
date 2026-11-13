@@ -10,7 +10,9 @@ function registerCallHandlers(socket, deps) {
     setCallPair,
     clearCallPair,
     io,
-    usersAreBlocked
+    usersAreBlocked,
+    sendPushToUser,
+    recordCallLog
   } = deps;
 
   socket.on("call_start", (payload) => {
@@ -54,7 +56,38 @@ function registerCallHandlers(socket, deps) {
         callId,
       });
     } else {
-      socket.emit("call_ended", { callId, reason: "User is offline" });
+      const callerName = me?.username || userKey;
+      const createdAt = new Date().toISOString();
+      const callType = isVideo ? "video" : "voice";
+      const callEntry = {
+        callId,
+        callerId: callerName,
+        receiverId: target.username || friendKey,
+        type: callType,
+        status: "outgoing",
+        duration: 0,
+        createdAt,
+      };
+      const missedEntry = {
+        ...callEntry,
+        status: "missed",
+      };
+      // Persist both sides so the missed call is visible when the recipient returns.
+      recordCallLog?.(userKey, callEntry);
+      recordCallLog?.(friendKey, missedEntry);
+      // The existing push pipeline delivers this while the recipient is offline.
+      Promise.resolve(sendPushToUser?.(friendKey, {
+        type: "call",
+        title: "Missed call",
+        body: (me?.displayName || callerName) + " tried to call you",
+        chat: callerName,
+        kind: "friend",
+        callId,
+        tag: "missed-call-" + callId,
+      })).catch((error) => {
+        console.warn("[Call] Missed-call notification failed:", error?.message || error);
+      });
+      socket.emit("call_ended", { callId, reason: "User is offline", status: "offline" });
     }
   });
 
