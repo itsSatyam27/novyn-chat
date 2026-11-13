@@ -2114,12 +2114,20 @@ async function sendPushToUser(userKey, payload) {
         // Encrypted direct messages use data-only delivery. The recipient app
         // decrypts locally and creates the visible notification; plaintext
         // never passes through FCM or this server.
+        const isCallPush = safePayload.type === "call";
         const data = {
           type: toDisplayName(safePayload.type) || "message",
           url: toDisplayName(safePayload.url),
           tag: toDisplayName(safePayload.tag),
           chat: toDisplayName(payload?.group === true ? payload?.groupId : payload?.chat) || "",
           kind: payload?.group === true ? "group" : "friend",
+          ...(isCallPush ? {
+            callStatus: toDisplayName(safePayload.callStatus) || "missed",
+            callId: toDisplayName(safePayload.callId),
+            isVideo: safePayload.isVideo ? "1" : "0",
+            title: toDisplayName(safePayload.title) || "Incoming call",
+            body: toDisplayName(safePayload.body) || "You have an incoming call",
+          } : {}),
         };
         if (isEncryptedDirectMessage) {
           data.title = toDisplayName(safePayload.title) || "Novyn";
@@ -2131,7 +2139,7 @@ async function sendPushToUser(userKey, payload) {
         }
         const message = {
           token,
-          ...(!isEncryptedDirectMessage ? {
+          ...(!isEncryptedDirectMessage && !isCallPush ? {
             notification: {
               title: toDisplayName(safePayload.title) || "Novyn",
               body: toDisplayName(safePayload.body) || "You have a new message",
@@ -2140,7 +2148,7 @@ async function sendPushToUser(userKey, payload) {
           data,
           android: {
             priority: safePayload.silent ? "normal" : "high",
-            ...(!isEncryptedDirectMessage ? {
+            ...(!isEncryptedDirectMessage && !isCallPush ? {
               notification: {
                 tag: toDisplayName(safePayload.tag) || undefined,
                 ...(safePayload.silent ? {} : { sound: "default" }),
@@ -2148,9 +2156,9 @@ async function sendPushToUser(userKey, payload) {
             } : {}),
           },
           apns: {
-            headers: isEncryptedDirectMessage ? { "apns-push-type": "background", "apns-priority": "5" } : undefined,
+            headers: (isEncryptedDirectMessage || isCallPush) ? { "apns-push-type": "background", "apns-priority": "5" } : undefined,
             payload: {
-              aps: isEncryptedDirectMessage
+              aps: (isEncryptedDirectMessage || isCallPush)
                 ? { "content-available": 1 }
                 : {
                     alert: {
