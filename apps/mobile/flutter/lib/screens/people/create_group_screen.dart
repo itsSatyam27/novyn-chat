@@ -248,7 +248,7 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
     return ValueListenableBuilder<String>(
       valueListenable: _nameNotifier,
       builder: (context, name, child) {
-        final canCreate = name.isNotEmpty && _selected.isNotEmpty;
+        final canCreate = name.trim().isNotEmpty && _selected.isNotEmpty;
         return Padding(
           padding: const EdgeInsets.all(24),
           child: GestureDetector(
@@ -299,14 +299,13 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
 
       if (mounted) {
         Navigator.pop(context); // Close loading
-        Navigator.pop(context, chatId); // Return the server-confirmed group ID
-        
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Group "${_nameController.text.trim()}" created successfully!'),
             backgroundColor: const Color(0xFF10B981),
           ),
         );
+        Navigator.pop(context, chatId); // Return the server-confirmed group ID
       }
     } catch (e) {
       if (mounted) {
