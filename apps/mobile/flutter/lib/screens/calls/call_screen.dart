@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../../models/user_model.dart';
 import '../../services/socket_service.dart';
 import '../../services/webrtc_service.dart';
@@ -43,6 +44,9 @@ class _CallScreenState extends State<CallScreen>
   CallState _state = CallState.calling;
   bool _muted = false;
   bool _speakerOn = false;
+  List<Map<String, dynamic>> _audioRoutes = const [];
+  String _activeAudioRoute = 'earpiece';
+  StreamSubscription<List<Map<String, dynamic>>>? _audioRouteSubscription;
   bool _cameraOff = false;
   bool _frontCamera = true;
   // Use ValueNotifier so only the timer text widget rebuilds each second
@@ -87,6 +91,7 @@ class _CallScreenState extends State<CallScreen>
     _webrtc = WebRTCService();
     _callId = widget.callId ?? '';
     _webrtcInit = _initWebRTC();
+    _listenToAudioRoutes();
     _playRingtone();
     _listenToCallEvents();
 
@@ -170,28 +175,60 @@ class _CallScreenState extends State<CallScreen>
     await _audioPlayer.stop();
   }
 
+  Future<void> _listenToAudioRoutes() async {
+    _audioRouteSubscription = AudioManagerService.routeChanges.listen(
+      (routes) {
+        if (!mounted) return;
+        setState(() {
+          _audioRoutes = routes;
+          final active = routes.where((route) => route['selected'] == true);
+          if (active.isNotEmpty) {
+            _activeAudioRoute = active.first['id']?.toString() ?? 'earpiece';
+          }
+          _speakerOn = _activeAudioRoute == 'speaker';
+        });
+      },
+      onError: (_) {},
+    );
+
+    // Android 12+ requires runtime BLUETOOTH_CONNECT permission to enumerate
+    // communication devices. Keep calls usable if permission is declined.
+    try {
+      await Permission.bluetoothConnect.request();
+    } catch (_) {}
+    await _refreshAudioRoutes();
+  }
+
+  Future<void> _refreshAudioRoutes() async {
+    final routes = await AudioManagerService.getAvailableRoutes();
+    if (!mounted) return;
+    setState(() {
+      _audioRoutes = routes;
+      final active = routes.where((route) => route['selected'] == true);
+      if (active.isNotEmpty) {
+        _activeAudioRoute = active.first['id']?.toString() ?? 'earpiece';
+      }
+      _speakerOn = _activeAudioRoute == 'speaker';
+    });
+  }
+
+  Future<void> _selectAudioRoute(String routeId) async {
+    HapticService.vibrate(NovynHapticType.selection, category: HapticCategory.calls);
+    final changed = await AudioManagerService.setAudioRoute(routeId);
+    if (changed) {
+      await _refreshAudioRoutes();
+    } else if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not switch call audio device.')),
+      );
+    }
+  }
+
   // ── Speaker toggle — works during ringing AND active call ────────────
   Future<void> _toggleSpeaker() async {
     HapticService.vibrate(NovynHapticType.selection, category: HapticCategory.calls);
-    final newVal = !_speakerOn;
-    try {
-      // Finish initial audio-mode setup first so it cannot overwrite this route.
-      await _webrtcInit;
-      // Keep WebRTC's audio helper and Android AudioManager in agreement.
-      try {
-        await _webrtc.toggleSpeaker(newVal);
-      } catch (_) {
-        // The native AudioManager route below remains the fallback.
-      }
-      await AudioManagerService.setSpeakerphoneOn(newVal);
-      if (mounted) setState(() => _speakerOn = newVal);
-    } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Unable to change call audio output.')),
-        );
-      }
-    }
+    final target = _speakerOn ? 'earpiece' : 'speaker';
+    await _selectAudioRoute(target);
   }
 
   // ── Mute toggle — works during ringing AND active call ───────────────
@@ -292,6 +329,7 @@ class _CallScreenState extends State<CallScreen>
 
   void _startTimer() {
     _timer?.cancel();
+    _audioRouteSubscription?.cancel();
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
       _seconds.value++;
     });
@@ -1024,6 +1062,10 @@ class _CallScreenState extends State<CallScreen>
       padding: const EdgeInsets.symmetric(horizontal: 32),
       child: Column(
         children: [
+          if (_audioRoutes.length > 1) ...[
+            _buildAudioRouteSelector(),
+            const SizedBox(height: 20),
+          ],
           // ── Toggle buttons row ──────────────────────────────────
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -1079,6 +1121,61 @@ class _CallScreenState extends State<CallScreen>
             onTap: _endCall,
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildAudioRouteSelector() {
+    final routes = _audioRoutes;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: routes.map((route) {
+          final id = route['id']?.toString() ?? '';
+          final name = route['name']?.toString() ?? 'Audio';
+          final selected = route['selected'] == true || id == _activeAudioRoute;
+          final bluetooth = route['kind'] == 'bluetooth';
+          final icon = bluetooth
+              ? Icons.bluetooth_audio_rounded
+              : id == 'speaker'
+                  ? Icons.volume_up_rounded
+                  : Icons.phone_in_talk_rounded;
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 3),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(14),
+              onTap: selected ? null : () => _selectAudioRoute(id),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                decoration: BoxDecoration(
+                  color: selected
+                      ? Colors.white.withValues(alpha: 0.18)
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(icon, color: Colors.white, size: 17),
+                    const SizedBox(width: 6),
+                    Text(name, style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                    )),
+                  ],
+                ),
+              ),
+            ),
+          );
+        }).toList(),
       ),
     );
   }
