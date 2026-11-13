@@ -59,9 +59,14 @@ String _mimeForFile(String filename) {
 }
 
 class ChatDetailScreen extends StatefulWidget {
-  final UserModel peer; // the person we're chatting with
+  final UserModel peer;
+  final bool isGroup;
 
-  const ChatDetailScreen({super.key, required this.peer});
+  const ChatDetailScreen({
+    super.key,
+    required this.peer,
+    this.isGroup = false,
+  });
 
   @override
   State<ChatDetailScreen> createState() => _ChatDetailScreenState();
@@ -204,6 +209,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
       final hasMore = await socket.loadOlderHistory(
         _chatId!,
         messages.first.id,
+        isGroup: widget.isGroup,
       );
       if (!mounted) return;
       _hasMore = hasMore;
@@ -251,17 +257,24 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
     }
     if (!mounted) return;
 
-    socket.openChat(_chatId!, cachedMessages);
+    socket.openChat(_chatId!, cachedMessages, isGroup: widget.isGroup);
     setState(() {
       _loading = false;
       _fetchingFromServer = cachedMessages.isEmpty;
     });
 
     try {
-      final history = await ApiService.getHistory(
-        _chatId!,
-        myUsername: _myUid,
-      ).timeout(const Duration(seconds: 12), onTimeout: () => <Message>[]);
+      // Group history is delivered by the authenticated Socket.IO group
+      // channel. The legacy REST history endpoint is for direct conversations.
+      final history = widget.isGroup
+          ? await Future<List<Message>>.delayed(
+              const Duration(milliseconds: 900),
+              () => socket.messages,
+            )
+          : await ApiService.getHistory(
+              _chatId!,
+              myUsername: _myUid,
+            ).timeout(const Duration(seconds: 12), onTimeout: () => <Message>[]);
 
       if (!mounted) return;
       if (history.isNotEmpty) {
@@ -286,7 +299,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
       }
 
       final settings = context.read<SettingsService>();
-      if (settings.readReceipts) {
+      if (settings.readReceipts && !widget.isGroup) {
         unawaited(ApiService.markRead(_chatId!, _myUid!));
       }
     } catch (error) {
@@ -348,7 +361,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
     HapticService.vibrate(NovynHapticType.light, category: HapticCategory.chat);
 
     final socket = context.read<SocketService>();
-    socket.stopTyping(widget.peer.uid);
+    socket.stopTyping(widget.peer.uid, isGroup: widget.isGroup);
     _sending = true;
     try {
       await socket.sendMessage(
@@ -357,6 +370,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
         replyToId: _replyingTo?.id?.toString(),
         replyToText: _replyingTo?.text?.toString(),
         replyToSender: _replyingTo?.isFromMe == true ? 'You' : widget.peer.name,
+        isGroup: widget.isGroup,
       );
       if (!mounted) return;
       if (_ctrl.text.trim() == text) _ctrl.clear();
