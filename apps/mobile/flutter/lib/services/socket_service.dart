@@ -2111,6 +2111,29 @@ class SocketService extends ChangeNotifier {
   }
 
   // createGroup — emits create_group socket event
+  Future<Map<String, dynamic>> getGroupInfo(String groupId) async {
+    await _waitForSocketAuthentication();
+    final connection = _socket;
+    if (connection == null || !_isConnected || !_isAuthenticated) {
+      throw StateError('Connect to Novyn to load group information.');
+    }
+    final acknowledgement = Completer<Map<String, dynamic>>();
+    connection.emitWithAck('get_group_info', {'groupId': groupId}, ack: (dynamic result) {
+      if (acknowledgement.isCompleted) return;
+      acknowledgement.complete(result is Map
+          ? Map<String, dynamic>.from(result)
+          : <String, dynamic>{'ok': false, 'message': 'Unexpected server response.'});
+    });
+    final result = await acknowledgement.future.timeout(
+      const Duration(seconds: 12),
+      onTimeout: () => <String, dynamic>{'ok': false, 'message': 'Loading group information timed out.'},
+    );
+    if (result['ok'] != true || result['group'] is! Map) {
+      throw StateError(result['message']?.toString() ?? 'Could not load group information.');
+    }
+    return Map<String, dynamic>.from(result['group'] as Map);
+  }
+
   Future<String> createGroup({
     required String name,
     required List<String> memberIds,
