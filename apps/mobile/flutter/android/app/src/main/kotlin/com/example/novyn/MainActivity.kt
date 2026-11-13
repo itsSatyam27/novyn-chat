@@ -27,6 +27,7 @@ class MainActivity : FlutterFragmentActivity() {
     private val AUDIO_ROUTE_EVENTS = "com.example.novyn/audio_routes"
     private var audioRouteSink: EventChannel.EventSink? = null
     private var audioDeviceCallback: AudioDeviceCallback? = null
+    private var communicationDeviceListener: AudioManager.OnCommunicationDeviceChangedListener? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -93,6 +94,12 @@ class MainActivity : FlutterFragmentActivity() {
                 override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
                     audioRouteSink = events
                     val manager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                        communicationDeviceListener = AudioManager.OnCommunicationDeviceChangedListener {
+                            publishCallAudioRoutes(manager)
+                        }
+                        manager.addOnCommunicationDeviceChangedListener(mainExecutor, communicationDeviceListener!!)
+                    }
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                         audioDeviceCallback = object : AudioDeviceCallback() {
                             override fun onAudioDevicesAdded(addedDevices: Array<out AudioDeviceInfo>) {
@@ -109,6 +116,10 @@ class MainActivity : FlutterFragmentActivity() {
 
                 override fun onCancel(arguments: Any?) {
                     val manager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                        communicationDeviceListener?.let { manager.removeOnCommunicationDeviceChangedListener(it) }
+                    }
+                    communicationDeviceListener = null
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                         audioDeviceCallback?.let { manager.unregisterAudioDeviceCallback(it) }
                     }
@@ -219,8 +230,11 @@ class MainActivity : FlutterFragmentActivity() {
             routes.add(mapOf("id" to "earpiece", "name" to "Phone", "kind" to "earpiece", "selected" to !audioManager.isSpeakerphoneOn && !audioManager.isBluetoothScoOn))
             routes.add(mapOf("id" to "speaker", "name" to "Speaker", "kind" to "speaker", "selected" to audioManager.isSpeakerphoneOn))
             @Suppress("DEPRECATION")
+            @Suppress("DEPRECATION")
             val sco = audioManager.isBluetoothScoOn
-            if (sco) routes.add(mapOf("id" to "bluetooth:legacy", "name" to "Bluetooth", "kind" to "bluetooth", "selected" to true))
+            val bluetoothAvailable = audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
+                .any { it.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO }
+            if (bluetoothAvailable || sco) routes.add(mapOf("id" to "bluetooth:legacy", "name" to "Bluetooth headset", "kind" to "bluetooth", "selected" to sco))
         }
         return routes
     }
