@@ -241,10 +241,13 @@ class SocketService extends ChangeNotifier {
     final connection = _socket;
     if (peer == null || peer.isEmpty || connection == null ||
         !_isConnected || !_isAuthenticated) return;
-    connection.emit('set_active_chat', {'to': peer, 'kind': 'friend'});
-    connection.emit('get_chat_protection', {'to': peer});
-    connection.emit('get_history', {'to': peer, 'kind': 'friend', 'limit': 100});
-    connection.emit('get_chat_wallpaper', {'to': peer, 'toType': 'friend'});
+    final kind = _currentChatIsGroup ? 'group' : 'friend';
+    connection.emit('set_active_chat', {'to': peer, 'kind': kind});
+    if (!_currentChatIsGroup) {
+      connection.emit('get_chat_protection', {'to': peer});
+    }
+    connection.emit('get_history', {'to': peer, 'kind': kind, 'limit': 100});
+    connection.emit('get_chat_wallpaper', {'to': peer, 'toType': kind});
   }
 
   void _scheduleReconnect(int seconds) {
