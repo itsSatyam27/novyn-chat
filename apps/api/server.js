@@ -7460,42 +7460,47 @@ io.on("connection", (socket) => {
     }
   });
 
-  socket.on("game_move", (payload) => {
+  socket.on("game_move", (payload, callback) => {
+    const respond = typeof callback === "function" ? callback : () => {};
     const userKey = socket.data.userKey;
-    if (!userKey) return;
+    if (!userKey) return respond({ ok: false, message: "Please sign in again." });
 
     const messageId = String(payload?.messageId || "");
     const to = toDisplayName(payload?.to);
     const moveData = payload?.moveData;
-    if (!messageId || !to) return;
+    if (!messageId || !to) return respond({ ok: false, message: "Game or chat not found." });
 
-    const resolvedTarget = resolveChatTargetForUser(userKey, to, "friend", { inferGroup: true });
+    const requestedType = normalizeChatKind(payload?.toType || "friend");
+    const resolvedTarget = resolveChatTargetForUser(userKey, to, requestedType, { inferGroup: true });
     if (!resolvedTarget.ok) {
-      socket.emit("error_message", { message: "You are not authorized to modify this game." });
-      return;
+      const message = "You are not authorized to modify this game.";
+      socket.emit("error_message", { message });
+      return respond({ ok: false, message });
     }
     if (resolvedTarget.type === "friend" && usersAreBlocked(userKey, resolvedTarget.targetKey)) {
-      socket.emit("error_message", { message: "Game interaction is unavailable because this contact is blocked." });
-      return;
+      const message = "Game interaction is unavailable because this contact is blocked.";
+      socket.emit("error_message", { message });
+      return respond({ ok: false, message });
     }
 
     const isGroup = resolvedTarget.type === "group";
-    const convKey = isGroup ? getGroupConversationKey(to) : getConversationKey(userKey, to);
-    const list = conversations.get(convKey);
-    if (!list) return;
+    const list = conversations.get(resolvedTarget.conversationKey);
+    if (!list) return respond({ ok: false, message: "Game conversation not found." });
 
     const item = list.find((m) => String(m.id) === messageId || String(m.clientTempId) === messageId);
-    if (!item?.game) return;
+    if (!item?.game) return respond({ ok: false, message: "This game is no longer available." });
 
     const result = applyGameMove(item.game, userKey, moveData);
     if (!result.ok) {
-      socket.emit("error_message", { message: result.reason || "Invalid game move." });
-      return;
+      const message = result.reason || "Invalid game move.";
+      socket.emit("error_message", { message });
+      return respond({ ok: false, message });
     }
 
     item.game = result.game;
     const updatedGame = item.game;
     schedulePersist();
+    respond({ ok: true, game: updatedGame });
 
     const packet = {
       messageId,
@@ -7507,27 +7512,22 @@ io.on("connection", (socket) => {
         winner: updatedGame.winner,
       },
       updatedBy: userKey,
-      to,
+      to: resolvedTarget.targetKey,
       from: userKey,
     };
 
     socket.emit("game_move_updated", packet);
 
     if (isGroup) {
-      const group = groups.get(normalizeGroupId(to));
-      if (group) {
-        for (const memberKey of group.members || []) {
-          const memberSocketId = onlineUsers.get(normalizeName(memberKey));
-          if (memberSocketId && normalizeName(memberKey) !== userKey) {
-            io.to(memberSocketId).emit("game_move_updated", packet);
-          }
+      for (const memberKey of resolvedTarget.group.members || []) {
+        const memberSocketId = onlineUsers.get(normalizeName(memberKey));
+        if (memberSocketId && normalizeName(memberKey) !== userKey) {
+          io.to(memberSocketId).emit("game_move_updated", packet);
         }
       }
     } else {
-      const friendSocket = onlineUsers.get(normalizeName(to));
-      if (friendSocket) {
-        io.to(friendSocket).emit("game_move_updated", packet);
-      }
+      const friendSocket = onlineUsers.get(resolvedTarget.targetKey);
+      if (friendSocket) io.to(friendSocket).emit("game_move_updated", packet);
     }
   });
 
