@@ -152,12 +152,14 @@ class _ChatsScreenState extends State<ChatsScreen> {
     }
   }
 
-  List<ChatPreview> _withPinnedPreferences(List<ChatPreview> chats) {
+  List<ChatPreview> _withPinnedPreferences(
+    List<ChatPreview> chats, {
+    Set<String>? pinnedUsernames,
+  }) {
+    final pins = pinnedUsernames ?? _pinnedChatUsernames;
     final previews = chats
         .map((chat) => chat.copyWith(
-              isPinned: _pinnedChatUsernames.contains(
-                chat.peer.username.trim().toLowerCase(),
-              ),
+              isPinned: pins.contains(chat.peer.username.trim().toLowerCase()),
             ))
         .toList();
     previews.sort((a, b) {
@@ -202,7 +204,10 @@ class _ChatsScreenState extends State<ChatsScreen> {
         return;
       }
 
-      final updated = _withPinnedPreferences(_chats);
+      final updated = _withPinnedPreferences(
+        _chats,
+        pinnedUsernames: next,
+      );
       setState(() {
         _pinnedChatUsernames = next;
         _chats = updated;
@@ -321,15 +326,16 @@ class _ChatsScreenState extends State<ChatsScreen> {
           ));
         }
         if (previews.isNotEmpty && mounted) {
+          final orderedPreviews = _withPinnedPreferences(previews);
           setState(() {
-            _chats = previews;
+            _chats = orderedPreviews;
             _loading = false;
           });
           _applyFilters();
-          ChatsScreen.cachedChats = previews;
+          ChatsScreen.cachedChats = orderedPreviews;
           ChatsScreen.cachedChatsOwner = myUsername.toLowerCase();
           ChatsScreen.totalUnread =
-              previews.fold(0, (s, c) => s + c.unreadCount);
+              orderedPreviews.fold(0, (s, c) => s + c.unreadCount);
         }
       }
     }
