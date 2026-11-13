@@ -132,120 +132,164 @@ class _SplashScreenV2State extends State<SplashScreenV2>
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final dark = theme.brightness == Brightness.dark;
+    final accent = scheme.primary;
+    final size = MediaQuery.sizeOf(context);
+    final compact = size.height < 700;
+
     return Scaffold(
-      body: Container(
-        width: double.infinity,
-        height: double.infinity,
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Color(0xFFF5E6FF), // Light lavender
-              Color(0xFFFFE8F0), // Light pink
-              Color(0xFFE8F6F8), // Light teal
-            ],
-            stops: [0.0, 0.5, 1.0],
+      backgroundColor: theme.scaffoldBackgroundColor,
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: RadialGradient(
+                  center: const Alignment(-.85, -1),
+                  radius: 1.25,
+                  colors: [
+                    accent.withValues(alpha: dark ? .22 : .13),
+                    theme.scaffoldBackgroundColor,
+                  ],
+                ),
+              ),
+            ),
           ),
-        ),
-        child: Stack(
-          children: [
-            // Floating decorative bubbles
-            Positioned(
-              top: 80,
-              left: 20,
-              child: Container(
-                width: 120,
-                height: 120,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: NovynTheme.pastelPurple.withValues(alpha: 0.15),
+          Positioned(
+            right: -95,
+            bottom: -110,
+            child: Container(
+              width: 280,
+              height: 280,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: const Color(0xFF19B99A).withValues(alpha: dark ? .09 : .08),
+              ),
+            ),
+          ),
+          SafeArea(
+            child: LayoutBuilder(
+              builder: (context, constraints) => SingleChildScrollView(
+                physics: const NeverScrollableScrollPhysics(),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: 28,
+                      vertical: compact ? 20 : 32,
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Spacer(),
+                        _buildLogoSection(),
+                        SizedBox(height: compact ? 22 : 30),
+                        _buildWordmark(),
+                        const SizedBox(height: 9),
+                        _buildTagline(),
+                        SizedBox(height: compact ? 42 : 58),
+                        _buildLoadingBar(),
+                        const Spacer(),
+                        Text(
+                          'A little more connected.',
+                          style: GoogleFonts.inter(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500,
+                            letterSpacing: .4,
+                            color: scheme.onSurfaceVariant.withValues(alpha: .58),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
             ),
-            Positioned(
-              bottom: 150,
-              right: 30,
-              child: Container(
-                width: 100,
-                height: 100,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: NovynTheme.pastelPink.withValues(alpha: 0.15),
-                ),
-              ),
-            ),
-            Positioned(
-              top: 200,
-              right: 50,
-              child: Container(
-                width: 80,
-                height: 80,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: NovynTheme.pastelTeal.withValues(alpha: 0.15),
-                ),
-              ),
-            ),
-
-            // Main content
-            Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  // Novyn wings brand mark
-                  _buildLogoSection(),
-                  const SizedBox(height: 32),
-
-                  // Wordmark
-                  _buildWordmark(),
-                  const SizedBox(height: 12),
-
-                  // Tagline
-                  _buildTagline(),
-                  const SizedBox(height: 60),
-
-                  // Loading bar
-                  _buildLoadingBar(),
-                ],
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 
-  // ── Logo section with animated cat ─────────────────────────────────────────
+  // ── Animated Novyn brand mark ─────────────────────────────────────────────
   Widget _buildLogoSection() {
+    final scheme = Theme.of(context).colorScheme;
+    final dark = Theme.of(context).brightness == Brightness.dark;
     return AnimatedBuilder(
-      animation: _mainController,
+      animation: Listenable.merge([_mainController, _loadController]),
       builder: (context, _) {
+        final pulse = 1 + (sin(_loadController.value * pi * 5) * .018);
         return Transform.scale(
-          scale: _logoScale.value,
+          scale: _logoScale.value * pulse,
           child: Opacity(
             opacity: _logoFade.value,
-            child: Container(
-              width: 140,
-              height: 140,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: const Color(0xFF6848ED),
-                boxShadow: [
-                  BoxShadow(
-                    color: NovynTheme.pastelPurple.withValues(alpha: 0.3),
-                    blurRadius: 20,
-                    spreadRadius: 2,
-                  ),
-                ],
-              ),
+            child: SizedBox(
+              width: 178,
+              height: 178,
               child: Stack(
                 alignment: Alignment.center,
                 children: [
-                  // Clean white wings mark, matching the new launcher icon.
-                  CustomPaint(
-                    size: const Size(100, 100),
-                    painter: _NovynWingsPainter(),
+                  Container(
+                    width: 174,
+                    height: 174,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: scheme.primary.withValues(alpha: dark ? .20 : .14),
+                        width: 1,
+                      ),
+                    ),
+                  ),
+                  Container(
+                    width: 146,
+                    height: 146,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          scheme.primary,
+                          Color.lerp(scheme.primary, const Color(0xFF19B99A), .30)!,
+                        ],
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: scheme.primary.withValues(alpha: .28),
+                          blurRadius: 38,
+                          spreadRadius: 2,
+                          offset: const Offset(0, 12),
+                        ),
+                      ],
+                    ),
+                    child: CustomPaint(
+                      size: const Size(100, 100),
+                      painter: _NovynWingsPainter(),
+                    ),
+                  ),
+                  Positioned(
+                    top: 12,
+                    right: 17,
+                    child: Container(
+                      width: 11,
+                      height: 11,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF25D6A2),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: Theme.of(context).scaffoldBackgroundColor,
+                          width: 2,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFF25D6A2).withValues(alpha: .55),
+                            blurRadius: 12,
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -296,60 +340,46 @@ class _SplashScreenV2State extends State<SplashScreenV2>
     );
   }
 
-  // ── Wordmark "Novyn" ───────────────────────────────────────────────────────
+  // ── Wordmark ──────────────────────────────────────────────────────────────
   Widget _buildWordmark() {
+    final scheme = Theme.of(context).colorScheme;
     return AnimatedBuilder(
       animation: _mainController,
-      builder: (context, _) {
-        return Transform.translate(
-          offset: Offset(0, _wordmarkSlide.value),
-          child: Opacity(
-            opacity: _wordmarkFade.value,
-            child: ShaderMask(
-              blendMode: BlendMode.srcIn,
-              shaderCallback: (bounds) {
-                return const LinearGradient(
-                  colors: [
-                    NovynTheme.pastelPurple,
-                    Color(0xFF6D5DFC),
-                    NovynTheme.pastelPurple,
-                  ],
-                  stops: [0.0, 0.5, 1.0],
-                ).createShader(bounds);
-              },
-              child: Text(
-                'Novyn',
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 56,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -1.5,
-                ),
-              ),
+      builder: (context, _) => Transform.translate(
+        offset: Offset(0, _wordmarkSlide.value),
+        child: Opacity(
+          opacity: _wordmarkFade.value,
+          child: Text(
+            'novyn',
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 48,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -2.2,
+              color: scheme.onSurface,
             ),
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 
   // ── Tagline ───────────────────────────────────────────────────────────────
   Widget _buildTagline() {
+    final scheme = Theme.of(context).colorScheme;
     return AnimatedBuilder(
       animation: _mainController,
-      builder: (context, _) {
-        return Opacity(
-          opacity: _taglineFade.value,
-          child: Text(
-            'Connect. Chat. Vibe.',
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 0.5,
-              color: const Color(0xFF6D5DFC),
-            ),
+      builder: (context, _) => Opacity(
+        opacity: _taglineFade.value,
+        child: Text(
+          'Connect. Chat. Vibe.',
+          style: GoogleFonts.inter(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            letterSpacing: .7,
+            color: scheme.onSurfaceVariant,
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 
