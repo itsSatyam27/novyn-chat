@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -91,6 +92,7 @@ class SettingsService extends ChangeNotifier {
   static const _kHighContrast = 'accessibility_high_contrast';
   static const _kReduceMotion = 'accessibility_reduce_motion';
   static const _kBusyPreviousPresence = 'busy_previous_presence_mode';
+  static const _kDoNotDisturb = 'do_not_disturb_enabled';
 
   late SharedPreferences _prefs;
   bool _loaded = false;
@@ -155,6 +157,7 @@ class SettingsService extends ChangeNotifier {
   bool _highContrast = false;
   bool _reduceMotion = false;
   String? _busyPreviousPresenceMode;
+  bool _doNotDisturbEnabled = false;
 
   // ── Getters ─────────────────────────────────────────────────────────────
   bool get notificationsOn => _notificationsOn;
@@ -233,6 +236,7 @@ class SettingsService extends ChangeNotifier {
   bool get highContrast => _highContrast;
   bool get reduceMotion => _reduceMotion;
   String? get busyPreviousPresenceMode => _busyPreviousPresenceMode;
+  bool get doNotDisturbEnabled => _doNotDisturbEnabled;
 
   // ── Load from disk ───────────────────────────────────────────────────────
   Future<void> load() async {
@@ -337,6 +341,7 @@ class SettingsService extends ChangeNotifier {
     _highContrast = _prefs.getBool(_kHighContrast) ?? false;
     _reduceMotion = _prefs.getBool(_kReduceMotion) ?? false;
     _busyPreviousPresenceMode = _prefs.getString(_kBusyPreviousPresence);
+    _doNotDisturbEnabled = _prefs.getBool(_kDoNotDisturb) ?? false;
     
     // Load saved sessions
     final raw = _prefs.getString(_kSavedSessions);
@@ -507,6 +512,12 @@ class SettingsService extends ChangeNotifier {
   Future<void> setHighContrast(bool v) async {
     _highContrast = v;
     await _prefs.setBool(_kHighContrast, v);
+    notifyListeners();
+  }
+
+  Future<void> setDoNotDisturbEnabled(bool enabled) async {
+    _doNotDisturbEnabled = enabled;
+    await _prefs.setBool(_kDoNotDisturb, enabled);
     notifyListeners();
   }
 
@@ -897,4 +908,9 @@ class SettingsService extends ChangeNotifier {
     
     notifyListeners();
   }
+  @override
+  void dispose() {
+    super.dispose();
+  }
+
 }

@@ -172,32 +172,6 @@ class SecurityPrivacyScreen extends StatelessWidget {
             ),
           ]),
           if (category == null || category == 'device') section('Chat privacy & account actions', [
-            _SecurityPrivacyToggleTile(
-              icon: Icons.visibility_off_outlined, accent: const Color(0xFFC2540F),
-              title: 'Stealth Mode',
-              subtitle: 'Prevent others from capturing your chats, even when their Stealth Mode is off',
-              value: settings.stealthModeEnabled,
-              onChanged: (v) => _setStealthMode(context, settings, v),
-            ),
-            if (settings.stealthModeEnabled)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                child: Container(
-                  padding: const EdgeInsets.all(13),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1F9D61).withValues(alpha: .09),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    const Icon(Icons.shield_rounded, color: Color(0xFF1F9D61), size: 18),
-                    const SizedBox(width: 9),
-                    Expanded(child: Text(
-                      'Your chats are protected on the other person’s Novyn Android app. Their own Stealth Mode can stay off; your setting controls protection of your conversations.',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(color: muted, height: 1.4),
-                    )),
-                  ]),
-                ),
-              ),
             _SecurityPrivacyTile(
               icon: Icons.delete_outline_rounded,
               accent: const Color(0xFFB3261E),
@@ -215,6 +189,48 @@ class SecurityPrivacyScreen extends StatelessWidget {
             ),
             const SizedBox(height: 12),
           ],
+          if (category == 'privacy') section('Chat protection', [
+            _SecurityPrivacyToggleTile(
+              icon: Icons.visibility_off_outlined,
+              accent: const Color(0xFFC2540F),
+              title: 'Stealth Mode',
+              subtitle: 'Prevent screenshots of your conversations on supported Novyn Android devices',
+              value: settings.stealthModeEnabled,
+              onChanged: (v) => _setStealthMode(context, settings, v),
+            ),
+            if (settings.stealthModeEnabled)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                child: Text(
+                  'Your Stealth Mode setting protects your conversations on the other person’s supported Novyn Android app.',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: muted,
+                    height: 1.4,
+                  ),
+                ),
+              ),
+          ], color: const Color(0xFFC2540F)),
+          if (category == 'privacy') section('Notification privacy', [
+            _SecurityPrivacyToggleTile(
+              icon: Icons.do_not_disturb_on_outlined,
+              accent: const Color(0xFF8B5CF6),
+              title: 'Do Not Disturb',
+              subtitle: 'Only messages and call alerts from your favourite contacts will notify you',
+              value: settings.doNotDisturbEnabled,
+              onChanged: settings.setDoNotDisturbEnabled,
+            ),
+            if (settings.doNotDisturbEnabled)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                child: Text(
+                  'Manage your favourites from the Chats screen. DND does not change your online presence or block incoming calls.',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: muted,
+                    height: 1.4,
+                  ),
+                ),
+              ),
+          ], color: const Color(0xFF8B5CF6)),
           if (category == 'privacy') _PrivacyDashboard(
             lastSeen: settings.lastSeenVisibility,
             profilePhoto: settings.profilePhotoVisibility,
@@ -1505,7 +1521,29 @@ class _PrivacyDashboardState extends State<_PrivacyDashboard> {
     }
   }
 
+  bool _requireStealthModeOff() {
+    if (!widget.settings.stealthModeEnabled) return false;
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        icon: const Icon(Icons.visibility_off_rounded),
+        title: const Text('Stealth Mode is on'),
+        content: const Text(
+          'Turn off Stealth Mode first to change your privacy settings.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+    return true;
+  }
+
   Future<void> _save(String key, String value) async {
+    if (_requireStealthModeOff()) return;
     if (_saving) return;
     final previous = _values[key] ?? 'everyone';
     setState(() {
@@ -1536,6 +1574,7 @@ class _PrivacyDashboardState extends State<_PrivacyDashboard> {
   }
 
   Future<void> _saveToggle(String key, bool value) async {
+    if (_requireStealthModeOff()) return;
     if (_saving) return;
     final previous = key == 'readReceiptsEnabled'
         ? widget.settings.readReceipts
@@ -1675,7 +1714,10 @@ class _PrivacyDashboardState extends State<_PrivacyDashboard> {
           subtitle: const Text('View and manage people you have blocked'),
           trailing: Icon(Icons.chevron_right_rounded,
             color: colors.onSurfaceVariant),
-          onTap: widget.onBlocked,
+          onTap: () {
+            if (_requireStealthModeOff()) return;
+            widget.onBlocked();
+          },
         ),
       ]),
       const SizedBox(height: 18),
@@ -1705,6 +1747,7 @@ class _PrivacyDashboardState extends State<_PrivacyDashboard> {
   }
 
   Future<void> _choose(String key, String current, List<String> options) async {
+    if (_requireStealthModeOff()) return;
     final selected = await showModalBottomSheet<String>(
       context: context,
       backgroundColor: Colors.transparent,

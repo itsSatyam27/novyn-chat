@@ -543,11 +543,11 @@ class SocketService extends ChangeNotifier {
           onIncomingMessage?.call(chatPartner, msg.text);
         }
         // Sound and vibration remain independent user preferences.
-        if (!(notificationsMuted?.call() ?? false)) {
+        if (!(notificationsMuted?.call(chatPartner) ?? false)) {
           unawaited(_playIncomingMessageSound());
         }
         final vibrate = notificationsVibrate;
-        if (vibrate != null) unawaited(vibrate());
+        if (vibrate != null) unawaited(vibrate(chatPartner));
       }
 
       // Resolve encrypted reply metadata against locally decrypted originals.
@@ -1813,8 +1813,8 @@ class SocketService extends ChangeNotifier {
 
   // ── Callback registrations ────────────────────────────────────────────────
   VoidCallback? onProfileUpdated;
-  bool Function()? notificationsMuted;
-  Future<void> Function()? notificationsVibrate;
+  bool Function([String? sender])? notificationsMuted;
+  Future<void> Function([String? sender])? notificationsVibrate;
   String Function()? notificationTone;
   double Function()? messageSoundVolume;
   void Function(Map<String, dynamic>)? onProfileData;
