@@ -1838,13 +1838,37 @@ class _NovynSettingsProfileCardState extends State<_NovynSettingsProfileCard> {
         border: Border.all(color: theme.colorScheme.outlineVariant),
       ),
       child: AnimatedSize(
-        duration: const Duration(milliseconds: 260),
-        curve: Curves.easeInOutCubic,
+        duration: const Duration(milliseconds: 360),
+        curve: Curves.easeInOutQuart,
         alignment: Alignment.topCenter,
         child: AnimatedSwitcher(
-          duration: const Duration(milliseconds: 220),
+          duration: const Duration(milliseconds: 300),
+          reverseDuration: const Duration(milliseconds: 240),
           switchInCurve: Curves.easeOutCubic,
           switchOutCurve: Curves.easeInCubic,
+          transitionBuilder: (child, animation) {
+            final slide = Tween<Offset>(
+              begin: const Offset(0, .035),
+              end: Offset.zero,
+            ).animate(CurvedAnimation(
+              parent: animation,
+              curve: Curves.easeOutCubic,
+            ));
+            final scale = Tween<double>(
+              begin: .985,
+              end: 1,
+            ).animate(CurvedAnimation(
+              parent: animation,
+              curve: Curves.easeOutCubic,
+            ));
+            return FadeTransition(
+              opacity: animation,
+              child: SlideTransition(
+                position: slide,
+                child: ScaleTransition(scale: scale, child: child),
+              ),
+            );
+          },
           child: _editing ? _buildEditor(theme) : _buildSummary(theme),
         ),
       ),
