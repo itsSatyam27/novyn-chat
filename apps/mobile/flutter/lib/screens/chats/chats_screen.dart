@@ -45,7 +45,10 @@ class _ChatsScreenState extends State<ChatsScreen> {
   final FocusNode _searchFocusNode = FocusNode();
   final TextEditingController _searchController = TextEditingController();
   bool _isSearching = false;
-  bool _filtersVisible = true;
+  bool _filtersVisible = false;
+  bool _sawDownwardScrollGesture = false;
+  int _downwardSwipeCount = 0;
+  DateTime? _lastDownwardSwipeAt;
   String _selectedTab = 'all';
   AuthService? _authService;
   String? _observedUsername;
@@ -456,23 +459,36 @@ class _ChatsScreenState extends State<ChatsScreen> {
                   : RefreshIndicator(
                       color: Theme.of(context).colorScheme.primary,
                       onRefresh: _loadChats,
-                      child: NotificationListener<UserScrollNotification>(
+                      child: NotificationListener<ScrollEndNotification>(
                         onNotification: (notification) {
-                          if (_isSearching ||
-                              notification.direction == ScrollDirection.idle) {
+                          if (_isSearching || !_sawDownwardScrollGesture) {
+                            _sawDownwardScrollGesture = false;
                             return false;
                           }
-
-                          // A downward finger swipe toggles the filter shelf.
-                          if (notification.direction == ScrollDirection.forward) {
+                          _sawDownwardScrollGesture = false;
+                          final now = DateTime.now();
+                          final previous = _lastDownwardSwipeAt;
+                          _downwardSwipeCount = previous != null &&
+                                  now.difference(previous).inMilliseconds <= 850
+                              ? _downwardSwipeCount + 1
+                              : 1;
+                          _lastDownwardSwipeAt = now;
+                          if (_downwardSwipeCount >= 2) {
+                            _downwardSwipeCount = 0;
+                            _lastDownwardSwipeAt = null;
                             setState(() => _filtersVisible = !_filtersVisible);
-                          } else if (notification.direction == ScrollDirection.reverse &&
-                              _filtersVisible) {
-                            setState(() => _filtersVisible = false);
                           }
                           return false;
                         },
-                        child: CustomScrollView(
+                        child: NotificationListener<UserScrollNotification>(
+                          onNotification: (notification) {
+                            if (_isSearching) return false;
+                            if (notification.direction == ScrollDirection.forward) {
+                              _sawDownwardScrollGesture = true;
+                            }
+                            return false;
+                          },
+                          child: CustomScrollView(
                         slivers: [
                           // ── Pinned Section ─────────────────────────────────
                           if (pinnedChats.isNotEmpty) ...[
@@ -503,7 +519,8 @@ class _ChatsScreenState extends State<ChatsScreen> {
                           const SliverToBoxAdapter(
                               child: SizedBox(height: 100)),
                         ],
-                      ),
+                          ),
+                        ),
                       ),
                     ),
             ),
