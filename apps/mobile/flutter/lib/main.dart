@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'dart:ui' show PlatformDispatcher;
+import 'package:flutter/foundation.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -25,6 +27,22 @@ import 'l10n/app_localizations.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Capture uncaught framework and asynchronous Dart errors from devices that
+  // may exercise different Android/plugin code paths. Keep diagnostics in the
+  // platform log instead of allowing an unhandled Dart exception to terminate
+  // the app process without context.
+  FlutterError.onError = (details) {
+    FlutterError.presentError(details);
+    debugPrint('[NovynFlutterError] ${details.exception}');
+    debugPrintStack(stackTrace: details.stack);
+  };
+  PlatformDispatcher.instance.onError = (error, stackTrace) {
+    debugPrint('[NovynAsyncError] $error');
+    debugPrintStack(stackTrace: stackTrace);
+    return true;
+  };
+
   await Firebase.initializeApp(
     options: FirebaseConfiguration.options,
   );
