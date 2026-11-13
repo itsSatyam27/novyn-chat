@@ -58,11 +58,28 @@ class _AuthScreenState extends State<AuthScreen>
           Padding(
             padding: const EdgeInsets.fromLTRB(28, 28, 28, 12),
             child: Row(children: [
-              Container(width: 58, height: 58,
-                decoration: BoxDecoration(shape: BoxShape.circle,
-                  color: Colors.white.withValues(alpha: .16),
-                  border: Border.all(color: Colors.white.withValues(alpha: .42))),
-                child: const Icon(Icons.pets_rounded, color: Colors.white, size: 28)),
+              Container(
+                width: 58,
+                height: 58,
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(17),
+                  gradient: const LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [Color(0xFF7C6CFF), Color(0xFF5141CD)],
+                  ),
+                  border: Border.all(color: Colors.white.withValues(alpha: .42)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF5141CD).withValues(alpha: .28),
+                      blurRadius: 16,
+                      offset: const Offset(0, 7),
+                    ),
+                  ],
+                ),
+                child: Image.asset('assets/icons/app_icon_foreground.png', fit: BoxFit.contain),
+              ),
               const SizedBox(width: 16),
               Text('Novyn', style: GoogleFonts.inter(color: Colors.white,
                 fontSize: 34, fontWeight: FontWeight.w800, letterSpacing: -1.2)),
