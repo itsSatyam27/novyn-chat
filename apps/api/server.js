@@ -3889,14 +3889,15 @@ function buildFriendList(forUser) {
     const blocked = usersAreBlocked(userKey, friendKey);
     const presenceAllowed = privacyAllows(friend, userKey, "presencePrivacy");
     const photoAllowed = privacyAllows(friend, userKey, "profilePhotoPrivacy");
-    const presence = blocked || !presenceAllowed ? "offline" : getEffectivePresence(friendKey);
+    const presence = blocked || !presenceAllowed ? "offline" : getDisplayPresence(friendKey);
+    const isOnline = !blocked && presenceAllowed && isSocketOnline(friendKey);
 
     return {
       username: friend?.username || friendKey,
       kind: "friend",
       isFriend: user.friends.has(friendKey),
       groupId: "",
-      online: presence !== "offline",
+      online: isOnline,
       presence,
       unreadCount: getUnreadCount(user, friendKey),
       lastMessage: summary.lastMessage,
@@ -3910,7 +3911,7 @@ function buildFriendList(forUser) {
       publicKey: friend?.publicKey || "",
       muted: isMutedBy(user, friendKey),
       memberCount: 2,
-      onlineCount: presence !== "offline" ? 1 : 0,
+      onlineCount: isOnline ? 1 : 0,
     };
   });
 
