@@ -103,7 +103,7 @@ class _DiscoverPeopleScreenState extends State<DiscoverPeopleScreen> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: Icon(Icons.arrow_back_rounded, color: theme.colorScheme.onSurface),
+          icon: Icon(Icons.arrow_back_rounded, color: foreground),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text('Friend Requests',
