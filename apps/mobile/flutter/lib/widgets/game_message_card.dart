@@ -263,7 +263,7 @@ class _GameMessageCardState extends State<GameMessageCard> {
       );
     }
     if (myMove != null) return const Center(child: Text('Your move is locked. Waiting…', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 11)));
-    final isP2 = _data['player2']?.toString().toLowerCase() == widget.currentUsername.toLowerCase();
+    final isP2 = _opponent.toLowerCase() == widget.currentUsername.toLowerCase();
     if (!isP1 && !isP2 && !_canJoinGroup) return const Text('This game already has two players.', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 11));
     return Wrap(
       alignment: WrapAlignment.center,
@@ -324,7 +324,7 @@ class _GameMessageCardState extends State<GameMessageCard> {
   Widget _doodle() {
     final player1 = _data['player1']?.toString() ?? _creator;
     final isDrawer = widget.currentUsername.toLowerCase() == player1.toLowerCase();
-    final player2 = _data['player2']?.toString() ?? (widget.isGroup ? '' : _opponent);
+    final player2 = _data['player2']?.toString() ?? _opponent;
     final isGuesser = player2.toLowerCase() == widget.currentUsername.toLowerCase();
     final canJoin = widget.isGroup && player2.isEmpty && !isDrawer;
     if (!isDrawer && !isGuesser && !canJoin) return const Text('Doodle Duel is already joined by two players.', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 11));
