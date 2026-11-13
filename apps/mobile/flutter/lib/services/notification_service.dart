@@ -51,6 +51,10 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
       return;
     }
     if (!(prefs.getBool('notifications_on') ?? true)) return;
+    final dndEnabled = prefs.getBool('do_not_disturb_enabled') ?? false;
+    final favoriteIds = (prefs.getStringList('favorite_chat_ids') ?? [])
+        .map((value) => value.toLowerCase()).toSet();
+    if (dndEnabled && !favoriteIds.contains(caller.trim().toLowerCase())) return;
     final isVideo = data['isVideo']?.toString() == '1';
     final title = data['title']?.toString() ?? (isIncoming ? (isVideo ? 'Incoming video call' : 'Incoming voice call') : 'Missed call');
     final body = data['body']?.toString() ?? (isIncoming ? caller + ' is calling you' : 'You missed a call from ' + caller);
@@ -79,6 +83,11 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   // also suppresses these pushes; this guard covers delayed/already queued FCM.
   final focusUntil = prefs.getInt('focus_mode_until_ms') ?? 0;
   final focusActive = focusUntil > DateTime.now().millisecondsSinceEpoch;
+  final sender = (data['chat'] ?? '').toString().trim();
+  final dndEnabled = prefs.getBool('do_not_disturb_enabled') ?? false;
+  final favoriteIds = (prefs.getStringList('favorite_chat_ids') ?? [])
+      .map((value) => value.toLowerCase()).toSet();
+  if (dndEnabled && !favoriteIds.contains(sender.toLowerCase())) return;
   if (focusActive || localPresence == 'busy' ||
       data['silent']?.toString().toLowerCase() == 'true' ||
       data['silent']?.toString() == '1') {
@@ -92,7 +101,6 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
       data['previewEnabled']?.toString() != '0';
   final hideContent = prefs.getBool('hide_notification_content') ?? false;
   final account = (prefs.getString('novyn_notification_account') ?? '').trim();
-  final sender = (data['chat'] ?? '').toString().trim();
   if (sender.isEmpty) {
     debugPrint('[NovynNotifications] Background message has no sender chat id.');
     return;
@@ -254,6 +262,8 @@ class NotificationService {
       await prefs.setBool('notifications_on', settings.notificationsOn);
       await prefs.setBool('message_preview', settings.messagePreview);
       await prefs.setBool('hide_notification_content', settings.hideNotificationContent);
+      await prefs.setBool('do_not_disturb_enabled', settings.doNotDisturbEnabled);
+      await prefs.setStringList('favorite_chat_ids', settings.favoriteChatIds);
     } catch (_) {
       // The foreground preference store remains the source of truth.
     }
@@ -348,6 +358,8 @@ class NotificationService {
         settings == null ||
         !settings.notificationsOn ||
         settings.focusModeEnabled ||
+        (settings.doNotDisturbEnabled &&
+            !settings.favoriteChatIds.contains(username.trim().toLowerCase())) ||
         _presenceAuth?.user?.presenceMode == 'busy') {
       return;
     }
@@ -772,9 +784,12 @@ class NotificationService {
         return;
       }
       if (!(_settings?.notificationsOn ?? false)) return;
+      final caller = message.data['chat']?.toString() ?? 'Novyn contact';
+      final activeSettings = _settings;
+      if (activeSettings?.doNotDisturbEnabled == true &&
+          !activeSettings!.favoriteChatIds.contains(caller.trim().toLowerCase())) return;
       if (_socket?.isConnected == true && callStatus == 'incoming') return;
       final isIncoming = callStatus == 'incoming';
-      final caller = message.data['chat']?.toString() ?? 'Novyn contact';
       final isVideo = message.data['isVideo']?.toString() == '1';
       unawaited(_localNotifications.show(
         callId.hashCode,
