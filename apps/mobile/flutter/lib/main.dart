@@ -74,7 +74,15 @@ void main() async {
   await UserAvatar.initCache();
 
   // Restore the encrypted mobile auth cookie before AuthService starts.
-  await ApiService.initializeSessionStorage();
+  try {
+    await ApiService.initializeSessionStorage().timeout(
+      const Duration(seconds: 4),
+      onTimeout: () => false,
+    );
+  } catch (error) {
+    // Do not block runApp on a temporarily unavailable Android Keystore.
+    debugPrint('[NovynStartup] Secure session storage is not ready yet: $error');
+  }
 
   // Wake up backend server (eliminates 30s cold start on Render.com)
   ApiService.ping();
