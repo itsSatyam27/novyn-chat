@@ -396,7 +396,13 @@ class AuthService extends ChangeNotifier {
     try {
       final session = await ApiService.getSession();
       if (session != null && session['authenticated'] == true) {
-        final refreshedUser = NovynUser.fromMap(session);
+        final sessionUser = NovynUser.fromMap(session);
+        // Some session snapshots briefly omit avatarId after a media upload.
+        // Preserve the confirmed local URL rather than clearing the photo on refresh.
+        final currentAvatar = _user?.avatarId.trim() ?? '';
+        final refreshedUser = sessionUser.avatarId.trim().isEmpty && currentAvatar.isNotEmpty
+            ? sessionUser.copyWith(avatarId: currentAvatar)
+            : sessionUser;
         if (_user?.username.toLowerCase() != refreshedUser.username.toLowerCase()) {
           await _prepareAccount(refreshedUser.username);
         }
@@ -792,6 +798,9 @@ class AuthService extends ChangeNotifier {
       if (bytes.isEmpty) return 'The selected photo is empty. Please choose another one.';
       final filename = 'avatar_\${DateTime.now().millisecondsSinceEpoch}\$extension';
       final url = await ApiService.uploadMedia(bytes, filename, mimeType);
+      if (url == null || url.trim().isEmpty) {
+        return 'The server did not return a valid photo URL. Please try again.';
+      }
 
       final saved = await ApiService.updateProfile(
         name: current.displayName,

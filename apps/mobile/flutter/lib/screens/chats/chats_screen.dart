@@ -46,7 +46,7 @@ class _ChatsScreenState extends State<ChatsScreen> {
   final FocusNode _searchFocusNode = FocusNode();
   final TextEditingController _searchController = TextEditingController();
   bool _isSearching = false;
-  bool _filtersVisible = false;
+  bool _filtersVisible = true;
   bool _sawDownwardScrollGesture = false;
   int _downwardSwipeCount = 0;
   DateTime? _lastDownwardSwipeAt;

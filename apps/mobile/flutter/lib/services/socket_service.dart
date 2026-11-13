@@ -905,9 +905,16 @@ class SocketService extends ChangeNotifier {
       final peers = <UserModel>[];
       final previews = <ChatPreview>[];
       for (final item in list) {
-        final username =
-            item['username']?.toString() ?? item['groupId']?.toString() ?? '';
-        if (username.trim().isEmpty) continue;
+        final directUsername = item['username']?.toString().trim() ?? '';
+        final groupId = item['groupId']?.toString().trim() ?? '';
+        // groupId can be present as auxiliary metadata on some direct-chat
+        // snapshots; only treat it as a group when the server explicitly marks
+        // the conversation kind or there is no direct username.
+        final isGroupConversation =
+            item['kind']?.toString().toLowerCase() == 'group' ||
+            (directUsername.isEmpty && groupId.isNotEmpty);
+        final username = directUsername.isNotEmpty ? directUsername : groupId;
+        if (username.isEmpty) continue;
 
         final displayName = item['displayName']?.toString() ??
             item['name']?.toString() ??
@@ -936,7 +943,7 @@ class SocketService extends ChangeNotifier {
           chatId: username.toLowerCase(),
           peerUid: username,
           peer: peerModel,
-          isGroup: item['kind'] == 'group' || item['groupId'] != null,
+          isGroup: isGroupConversation,
           lastMessage: lastMsg is Map
               ? (lastMsg['isEncrypted'] == true
                   ? '🔒 Encrypted message'

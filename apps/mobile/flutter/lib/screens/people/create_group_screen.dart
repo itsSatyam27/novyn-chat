@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import 'dart:ui';
 import '../../services/friend_service.dart';
 import '../../services/socket_service.dart';
 import '../../models/user_model.dart';
 import '../../widgets/user_avatar.dart';
+import '../../theme/novyn_theme.dart';
 import 'package:novyn/services/haptic_service.dart';
 
 class CreateGroupScreen extends StatefulWidget {
@@ -23,12 +23,19 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
   String _search = '';
 
   @override
+  void dispose() {
+    _nameController.dispose();
+    _nameNotifier.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final friends = context.read<FriendService>();
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF0F121F) : const Color(0xFFF8FAFC),
+      backgroundColor: NovynTheme.pageBg(context),
       resizeToAvoidBottomInset: true,
       body: Container(
         decoration: BoxDecoration( // Optimized background
@@ -93,18 +100,19 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
 
   Widget _buildGroupNameInput(bool isDark) {
     return Padding(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
         decoration: BoxDecoration(
-          color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.03),
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+          color: NovynTheme.cardBg(context),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: .7)),
+          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: isDark ? .12 : .035), blurRadius: 16, offset: const Offset(0, 5))],
         ),
         child: TextField(
           controller: _nameController,
           onChanged: (v) => _nameNotifier.value = v, // Non-rebuilding state update
-          style: const TextStyle(fontFamily: 'PlusJakartaSans', fontWeight: FontWeight.w700, fontSize: 18),
+          style: const TextStyle(fontFamily: 'PlusJakartaSans', fontWeight: FontWeight.w700, fontSize: 16),
           decoration: const InputDecoration(
             hintText: 'Enter Group Name...',
             border: InputBorder.none,
@@ -117,7 +125,7 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
 
   Widget _buildSelectedList() {
     return Container(
-      height: 90,
+      height: 82,
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: ListView.builder(
         padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -173,12 +181,13 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
 
   Widget _buildSearchInput(bool isDark) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
         decoration: BoxDecoration(
           color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.03),
           borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: .65)),
         ),
         child: TextField(
           onChanged: (v) => setState(() => _search = v.toLowerCase()),
@@ -202,6 +211,20 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
           u.username.toLowerCase().contains(_search)
         ).toList();
 
+        if (filtered.isEmpty) {
+          return SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(24, 28, 24, 20),
+              child: Column(children: [
+                Icon(Icons.group_outlined, size: 34, color: Theme.of(context).colorScheme.primary.withValues(alpha: .7)),
+                const SizedBox(height: 10),
+                Text(_search.isEmpty ? 'No friends yet' : 'No friends found', style: TextStyle(fontWeight: FontWeight.w800, color: Theme.of(context).colorScheme.onSurface)),
+                const SizedBox(height: 4),
+                Text(_search.isEmpty ? 'Add friends before starting a group.' : 'Try another name or username.', textAlign: TextAlign.center, style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant)),
+              ]),
+            ),
+          );
+        }
         return SliverList(
           delegate: SliverChildBuilderDelegate(
             (context, i) {
@@ -209,8 +232,13 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
               final isSelected = _selected.any((u) => u.uid == user.uid);
 
               return Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: ListTile(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 3),
+                child: Card(
+                  elevation: 0,
+                  color: NovynTheme.cardBg(context),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: .55))),
+                  child: ListTile(
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12),
                   leading: UserAvatar(name: user.name, photoUrl: user.photoUrl, radius: 22),
                   title: Text(user.name, style: const TextStyle(fontWeight: FontWeight.w600)),
                   subtitle: Text('@${user.username}', style: const TextStyle(fontSize: 12, color: Colors.grey)),
@@ -234,6 +262,7 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                       }
                     });
                   },
+                  ),
                 ),
               );
             },
@@ -250,27 +279,27 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
       builder: (context, name, child) {
         final canCreate = name.trim().isNotEmpty && _selected.isNotEmpty;
         return Padding(
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.fromLTRB(20, 10, 20, 16),
           child: GestureDetector(
             onTap: canCreate ? _handleCreate : null,
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 300),
               width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 18),
+              padding: const EdgeInsets.symmetric(vertical: 16),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(20),
                 gradient: canCreate ? LinearGradient(
                   colors: [accent, Color.lerp(accent, Colors.black, 0.14)!],
                 ) : null,
-                color: canCreate ? null : Colors.grey.withValues(alpha: 0.2),
+                color: canCreate ? null : Theme.of(context).colorScheme.surfaceContainerHighest,
                 boxShadow: canCreate ? [
                   BoxShadow(color: accent.withValues(alpha: 0.3), blurRadius: 20, offset: const Offset(0, 10))
                 ] : null,
               ),
-              child: const Center(
+              child: Center(
                 child: Text(
                   'Create Group',
-                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 16),
+                  style: TextStyle(color: canCreate ? Colors.white : Theme.of(context).colorScheme.onSurfaceVariant, fontWeight: FontWeight.w800, fontSize: 15),
                 ),
               ),
             ),

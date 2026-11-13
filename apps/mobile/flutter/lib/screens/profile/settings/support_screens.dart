@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import '../../../widgets/novyn_brand_mark.dart';
 import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
 
@@ -121,7 +122,7 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
                     ),
                   ],
                 ),
-                child: Image.asset('assets/icons/app_icon_foreground.png', fit: BoxFit.contain),
+                child: const NovynBrandMark(size: 76),
               ),
               const SizedBox(height: 16),
               Text('Novyn', style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w900)),
