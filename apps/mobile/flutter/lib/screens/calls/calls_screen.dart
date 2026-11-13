@@ -821,26 +821,30 @@ class _CallCard extends StatelessWidget {
   final VoidCallback onDismiss;
   final bool isFavorite;
   final VoidCallback onToggleFavorite;
-  const _CallCard({required this.entry, required this.onDismiss, required this.isFavorite, required this.onToggleFavorite});
+
+  const _CallCard({
+    required this.entry,
+    required this.onDismiss,
+    required this.isFavorite,
+    required this.onToggleFavorite,
+  });
 
   @override
   Widget build(BuildContext context) {
     final isMissed = entry.status == 'missed';
-    final isIncoming = entry.status == 'incoming';
     final isVideo = entry.type == 'video';
     final statusColor = isMissed
-        ? NovynColors.danger
-        : isIncoming
-            ? NovynColors.mint
-            : const Color(0xFF79B8FF);
+        ? const Color(0xFFD92D2D)
+        : Theme.of(context).colorScheme.onSurfaceVariant;
     final statusIcon = isMissed
         ? Icons.call_missed_rounded
-        : isIncoming
+        : entry.status == 'incoming'
             ? Icons.call_received_rounded
             : Icons.call_made_rounded;
+    final callColor = Theme.of(context).colorScheme.primary;
 
     return Slidable(
-      key: ValueKey(entry.createdAt.millisecondsSinceEpoch),
+      key: ValueKey('${entry.peer.username}_${entry.createdAt.millisecondsSinceEpoch}'),
       endActionPane: ActionPane(
         motion: const StretchMotion(),
         children: [
@@ -850,133 +854,115 @@ class _CallCard extends StatelessWidget {
             foregroundColor: Colors.white,
             icon: Icons.delete_rounded,
             label: 'Dismiss',
+            borderRadius: BorderRadius.circular(14),
           ),
         ],
       ),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 10),
-        decoration: BoxDecoration(
-          color: NovynTheme.cardBg(context),
-          borderRadius: BorderRadius.circular(22),
-          border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
-        ),
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: () => _showHistory(context),
-            borderRadius: BorderRadius.circular(22),
-            child: Padding(
-              padding: const EdgeInsets.all(13),
-              child: Row(
-                children: [
-                  UserAvatar(
-                    name: entry.peer.name,
-                    photoUrl: entry.peer.photoUrl,
-                    radius: 27,
-                    showOnlineIndicator: true,
-                    isOnline: entry.peer.isOnline,
-                    presence: entry.peer.status,
-                  ),
-                  const SizedBox(width: 13),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                entry.peer.name,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context).textTheme.titleMedium?.copyWith(fontSize: 15, fontWeight: FontWeight.w700),
-                              ),
-                            ),
-                            if (entry.count > 1) ...[
-                              const SizedBox(width: 5),
-                              Text('(${entry.count})',
-                                  style: NovynText.body(11, color: NovynColors.textMuted)),
-                            ],
-                          ],
+      child: InkWell(
+        onTap: () => _showHistory(context),
+        borderRadius: BorderRadius.circular(22),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+          child: Row(
+            children: [
+              GestureDetector(
+                onLongPress: onToggleFavorite,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    UserAvatar(
+                      name: entry.peer.name,
+                      photoUrl: entry.peer.photoUrl,
+                      radius: 32,
+                      showOnlineIndicator: true,
+                      isOnline: entry.peer.isOnline,
+                      presence: entry.peer.status,
+                    ),
+                    if (isFavorite)
+                      Positioned(
+                        right: -2,
+                        bottom: -2,
+                        child: Container(
+                          width: 20,
+                          height: 20,
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).colorScheme.surface,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.star_rounded, size: 15, color: Color(0xFFFFB84D)),
                         ),
-                        const SizedBox(height: 5),
-                        Row(
-                          children: [
-                            Icon(statusIcon, size: 14, color: statusColor),
-                            const SizedBox(width: 5),
-                            Flexible(
-                              child: Text(
-                                _statusLabel(entry.type, entry.status),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: NovynText.body(11.5, color: statusColor, weight: FontWeight.w500),
-                              ),
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      entry.peer.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontFamily: 'PlusJakartaSans',
+                        fontSize: 16.5,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -.3,
+                        color: isMissed ? statusColor : Theme.of(context).colorScheme.onSurface,
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    Row(
+                      children: [
+                        Icon(statusIcon, size: 17, color: statusColor),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            '${_formatTime(entry.createdAt)} · ${isVideo ? 'Video' : 'Voice'}${isMissed ? ' · Missed' : entry.duration > 0 ? ' · ${_formatDuration(entry.duration)}' : ''}',
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontFamily: 'PlusJakartaSans',
+                              fontSize: 13.5,
+                              height: 1.35,
+                              color: isMissed ? statusColor : Theme.of(context).colorScheme.onSurfaceVariant,
+                              fontWeight: FontWeight.w500,
                             ),
-                            if (entry.duration > 0) ...[
-                              Text(' · ', style: NovynText.body(11, color: NovynColors.textMuted)),
-                              Text(_formatDuration(entry.duration),
-                                  style: NovynText.body(11, color: NovynColors.textMuted)),
-                            ],
-                          ],
+                          ),
                         ),
                       ],
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text(_formatTime(entry.createdAt),
-                          style: NovynText.body(10.5, color: NovynColors.timeMuted)),
-                      const SizedBox(height: 8),
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          IconButton(
-                            tooltip: isFavorite ? 'Remove favorite' : 'Add to favorites',
-                            visualDensity: VisualDensity.compact,
-                            onPressed: onToggleFavorite,
-                            icon: Icon(isFavorite ? Icons.star_rounded : Icons.star_outline_rounded, color: isFavorite ? const Color(0xFFFFC857) : NovynColors.textMuted, size: 20),
-                          ),
-                          NovynIconButton(
-                            icon: Icons.call_rounded,
-                            primary: true,
-                            size: 36,
-                            radius: 12,
-                            iconSize: 17,
-                            onTap: () {
-                              HapticService.vibrate(NovynHapticType.light, category: HapticCategory.calls);
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => CallScreen(peer: entry.peer, callType: 'voice'),
-                                ),
-                              );
-                            },
-                          ),
-                          const SizedBox(width: 7),
-                          NovynIconButton(
-                            icon: Icons.videocam_rounded,
-                            size: 36,
-                            radius: 12,
-                            iconSize: 17,
-                            onTap: () {
-                              HapticService.vibrate(NovynHapticType.light, category: HapticCategory.calls);
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => CallScreen(peer: entry.peer, callType: 'video'),
-                                ),
-                              );
-                            },
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
+              const SizedBox(width: 10),
+              Material(
+                color: callColor.withValues(alpha: .12),
+                shape: const CircleBorder(),
+                child: InkWell(
+                  customBorder: const CircleBorder(),
+                  onTap: () {
+                    HapticService.vibrate(NovynHapticType.light, category: HapticCategory.calls);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => CallScreen(peer: entry.peer, callType: isVideo ? 'video' : 'voice'),
+                      ),
+                    );
+                  },
+                  child: SizedBox(
+                    width: 54,
+                    height: 54,
+                    child: Icon(
+                      isVideo ? Icons.videocam_rounded : Icons.call_rounded,
+                      color: callColor,
+                      size: 25,
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -992,41 +978,18 @@ class _CallCard extends StatelessWidget {
     );
   }
 
-  String _statusLabel(String type, String status) {
-    switch (status) {
-      case 'missed':   return 'Missed $type call';
-      case 'incoming': return 'Incoming $type call';
-      case 'outgoing': return 'Outgoing $type call';
-      default:         return status;
-    }
+  String _formatTime(DateTime dt) {
+    final h = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
+    final m = dt.minute.toString().padLeft(2, '0');
+    final p = dt.hour < 12 ? 'AM' : 'PM';
+    return '$h:$m $p';
   }
 
   String _formatDuration(int seconds) {
     if (seconds < 60) return '${seconds}s';
-    final m = seconds ~/ 60;
-    final s = seconds % 60;
-    return s > 0 ? '${m}m ${s}s' : '${m}m';
-  }
-
-  String _formatTime(DateTime dt) {
-    final now = DateTime.now();
-    final todayStart = DateTime(now.year, now.month, now.day);
-    final dtStart   = DateTime(dt.year,  dt.month,  dt.day);
-    final daysDiff  = todayStart.difference(dtStart).inDays;
-
-    if (daysDiff == 0) {
-      final h = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
-      final m = dt.minute.toString().padLeft(2, '0');
-      final p = dt.hour < 12 ? 'AM' : 'PM';
-      return '$h:$m $p';
-    } else if (daysDiff == 1) {
-      return 'Yesterday';
-    } else if (daysDiff < 7) {
-      const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-      return days[dt.weekday - 1];
-    } else {
-      return '${dt.day}/${dt.month}';
-    }
+    final minutes = seconds ~/ 60;
+    final remaining = seconds % 60;
+    return remaining > 0 ? '${minutes}m ${remaining}s' : '${minutes}m';
   }
 }
 
