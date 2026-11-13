@@ -2681,146 +2681,242 @@ class _MessageBubble extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final canCopy = message.text.toString().trim().isNotEmpty &&
         message.text.toString() != '🔒 Encrypted message';
+    final socket = context.read<SocketService>();
+    final messageId = message.id.toString();
+    final status = socket.messageStatusFor(messageId);
+    final deliveredAt = socket.messageDeliveredAtFor(messageId);
+    final seenAt = socket.messageSeenAtFor(messageId);
+    final timeFormat = context.read<SettingsService>().timeFormat;
+    final sentAt = message.createdAt as DateTime;
 
-    showDialog<void>(
+    Widget statusLine(IconData icon, String label, DateTime? timestamp, {bool active = true}) {
+      final color = active ? scheme.primary : scheme.onSurfaceVariant.withValues(alpha: .55);
+      return Padding(
+        padding: const EdgeInsets.only(top: 7),
+        child: Row(
+          children: [
+            Icon(icon, size: 15, color: color),
+            const SizedBox(width: 8),
+            Expanded(child: Text(label, style: TextStyle(
+              fontFamily: 'PlusJakartaSans', fontSize: 11,
+              fontWeight: FontWeight.w600, color: scheme.onSurfaceVariant,
+            ))),
+            Text(
+              timestamp == null ? (active ? 'Recorded' : '—') : _formatTime(timestamp, timeFormat),
+              style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 11,
+                fontWeight: FontWeight.w700, color: active ? scheme.onSurface : scheme.onSurfaceVariant.withValues(alpha: .55)),
+            ),
+          ],
+        ),
+      );
+    }
+
+    showModalBottomSheet<void>(
       context: context,
-      barrierColor: Colors.black.withValues(alpha: 0.42),
-      builder: (dialogContext) => Dialog(
-        backgroundColor: scheme.surface,
-        elevation: 18,
-        insetPadding: const EdgeInsets.symmetric(horizontal: 30, vertical: 24),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            maxWidth: 360,
-            maxHeight: MediaQuery.of(dialogContext).size.height * 0.72,
-          ),
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Center(
-                  child: Container(
-                    width: 34,
-                    height: 4,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (sheetContext) {
+        final sheetScheme = Theme.of(sheetContext).colorScheme;
+        final preview = message.text.toString().trim().isNotEmpty
+            ? message.text.toString().trim()
+            : (message.attachment != null ? 'Attachment' : 'Message');
+        return SafeArea(
+          child: Container(
+            margin: const EdgeInsets.fromLTRB(10, 0, 10, 10),
+            constraints: BoxConstraints(maxHeight: MediaQuery.of(sheetContext).size.height * .82),
+            decoration: BoxDecoration(
+              color: sheetScheme.surface,
+              borderRadius: BorderRadius.circular(28),
+              border: Border.all(color: sheetScheme.outlineVariant.withValues(alpha: .65)),
+              boxShadow: [BoxShadow(
+                color: Colors.black.withValues(alpha: .20),
+                blurRadius: 28, offset: const Offset(0, -6),
+              )],
+            ),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(18, 12, 18, 20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(child: Container(
+                    width: 38, height: 4,
                     decoration: BoxDecoration(
-                      color: scheme.onSurfaceVariant.withValues(alpha: .35),
+                      color: sheetScheme.onSurfaceVariant.withValues(alpha: .3),
                       borderRadius: BorderRadius.circular(4),
                     ),
-                  ),
-                ),
-                const SizedBox(height: 14),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: emojis.map((emoji) => InkWell(
-                    borderRadius: BorderRadius.circular(14),
-                    onTap: () {
-                      Navigator.pop(dialogContext);
-                      _toggleReaction(context, emoji);
-                    },
-                    child: Padding(
-                      padding: const EdgeInsets.all(7),
-                      child: Text(emoji, style: const TextStyle(fontSize: 25)),
+                  )),
+                  const SizedBox(height: 15),
+                  Row(children: [
+                    Expanded(child: Text('Message options', style: TextStyle(
+                      fontFamily: 'PlusJakartaSans', fontSize: 17,
+                      fontWeight: FontWeight.w800, color: sheetScheme.onSurface,
+                    ))),
+                    IconButton(
+                      visualDensity: VisualDensity.compact,
+                      onPressed: () => Navigator.pop(sheetContext),
+                      icon: Icon(Icons.close_rounded, color: sheetScheme.onSurfaceVariant),
                     ),
-                  )).toList(),
-                ),
-                const SizedBox(height: 12),
-                Divider(height: 1, color: scheme.outlineVariant.withValues(alpha: .7)),
-                if (canCopy)
-                  _ActionItem(
-                    icon: Icons.copy_rounded,
-                    label: 'Copy text',
-                    color: scheme.primary,
-                    onTap: () async {
-                      await Clipboard.setData(
-                        ClipboardData(text: message.text.toString()),
-                      );
-                      if (!dialogContext.mounted) return;
-                      Navigator.pop(dialogContext);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Message copied'),
-                          behavior: SnackBarBehavior.floating,
-                        ),
-                      );
-                    },
+                  ]),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: sheetScheme.surfaceContainerHighest.withValues(alpha: .55),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: sheetScheme.outlineVariant.withValues(alpha: .5)),
+                    ),
+                    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Container(
+                        width: 3, height: 38,
+                        decoration: BoxDecoration(color: sheetScheme.primary, borderRadius: BorderRadius.circular(3)),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(message.isFromMe ? 'You' : peer.name, style: TextStyle(
+                            fontFamily: 'PlusJakartaSans', fontSize: 11,
+                            fontWeight: FontWeight.w800, color: sheetScheme.primary,
+                          )),
+                          const SizedBox(height: 3),
+                          Text(preview, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(
+                            fontFamily: 'PlusJakartaSans', fontSize: 13, color: sheetScheme.onSurface,
+                          )),
+                        ],
+                      )),
+                    ]),
                   ),
-                _ActionItem(
-                  icon: Icons.reply_rounded,
-                  label: 'Reply',
-                  color: scheme.primary,
-                  onTap: () {
-                    Navigator.pop(dialogContext);
-                    onReply?.call(message);
-                  },
-                ),
-                _ActionItem(
-                  icon: Icons.forward_rounded,
-                  label: 'Forward',
-                  color: scheme.onSurfaceVariant,
-                  onTap: () {
-                    Navigator.pop(dialogContext);
-                    onForward?.call(message);
-                  },
-                ),
-                _ActionItem(
-                  icon: Icons.push_pin_outlined,
-                  label: (message.pinnedAt?.toString().isNotEmpty ?? false)
-                      ? 'Unpin message'
-                      : 'Pin message',
-                  color: scheme.onSurfaceVariant,
-                  onTap: () {
-                    Navigator.pop(dialogContext);
-                    final socket = context.read<SocketService>();
-                    if (message.pinnedAt?.toString().isNotEmpty ?? false) {
-                      socket.unpinMessage(
-                        message.id.toString(),
-                        peer.uid.isNotEmpty ? peer.uid : peer.username,
-                      );
-                    } else {
-                      socket.pinMessage(
-                        message.id.toString(),
-                        peer.uid.isNotEmpty ? peer.uid : peer.username,
-                      );
-                    }
-                  },
-                ),
-                if (message.isFromMe as bool) ...[
-                  if (!(message.id as String).startsWith('tmp_') && !message.isEncrypted)
+                  if (message.isFromMe as bool) ...[
+                    const SizedBox(height: 12),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.fromLTRB(13, 11, 13, 12),
+                      decoration: BoxDecoration(
+                        color: sheetScheme.primary.withValues(alpha: .055),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: sheetScheme.primary.withValues(alpha: .13)),
+                      ),
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text('MESSAGE INFO', style: TextStyle(
+                          fontFamily: 'PlusJakartaSans', fontSize: 9,
+                          letterSpacing: 1.1, fontWeight: FontWeight.w800,
+                          color: sheetScheme.onSurfaceVariant,
+                        )),
+                        statusLine(Icons.check_rounded, 'Sent', sentAt),
+                        statusLine(Icons.done_all_rounded, 'Delivered', deliveredAt,
+                          active: status == 'delivered' || status == 'seen'),
+                        statusLine(Icons.done_all_rounded, 'Seen', seenAt, active: status == 'seen'),
+                      ]),
+                    ),
+                  ],
+                  const SizedBox(height: 14),
+                  Text('QUICK REACTIONS', style: TextStyle(
+                    fontFamily: 'PlusJakartaSans', fontSize: 9,
+                    letterSpacing: 1.1, fontWeight: FontWeight.w800,
+                    color: sheetScheme.onSurfaceVariant,
+                  )),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: emojis.map((emoji) => Expanded(child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 3),
+                      child: Material(
+                        color: sheetScheme.surfaceContainerHighest.withValues(alpha: .7),
+                        borderRadius: BorderRadius.circular(14),
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(14),
+                          onTap: () {
+                            Navigator.pop(sheetContext);
+                            _toggleReaction(context, emoji);
+                          },
+                          child: SizedBox(height: 46, child: Center(
+                            child: Text(emoji, style: const TextStyle(fontSize: 23)),
+                          )),
+                        ),
+                      ),
+                    ))).toList(),
+                  ),
+                  const SizedBox(height: 12),
+                  Divider(height: 1, color: sheetScheme.outlineVariant.withValues(alpha: .7)),
+                  if (canCopy)
                     _ActionItem(
-                      icon: Icons.edit_rounded,
-                      label: 'Edit',
-                      color: const Color(0xFF0EA5E9),
-                      onTap: () {
-                        Navigator.pop(dialogContext);
-                        _showEditDialog(context);
+                      icon: Icons.copy_rounded,
+                      label: 'Copy text',
+                      color: sheetScheme.primary,
+                      onTap: () async {
+                        await Clipboard.setData(ClipboardData(text: message.text.toString()));
+                        if (!sheetContext.mounted) return;
+                        Navigator.pop(sheetContext);
+                        NovynToast.show(context, 'Message copied');
                       },
                     ),
                   _ActionItem(
-                    icon: Icons.delete_rounded,
-                    label: 'Delete for everyone',
-                    color: const Color(0xFFEF4444),
+                    icon: Icons.reply_rounded,
+                    label: 'Reply',
+                    color: sheetScheme.primary,
                     onTap: () {
-                      Navigator.pop(dialogContext);
-                      _deleteMessage(context, forEveryone: true);
+                      Navigator.pop(sheetContext);
+                      onReply?.call(message);
+                    },
+                  ),
+                  _ActionItem(
+                    icon: Icons.forward_rounded,
+                    label: 'Forward',
+                    color: sheetScheme.onSurfaceVariant,
+                    onTap: () {
+                      Navigator.pop(sheetContext);
+                      onForward?.call(message);
+                    },
+                  ),
+                  _ActionItem(
+                    icon: Icons.push_pin_outlined,
+                    label: (message.pinnedAt?.toString().isNotEmpty ?? false)
+                        ? 'Unpin message' : 'Pin message',
+                    color: sheetScheme.onSurfaceVariant,
+                    onTap: () {
+                      Navigator.pop(sheetContext);
+                      if (message.pinnedAt?.toString().isNotEmpty ?? false) {
+                        socket.unpinMessage(message.id.toString(), peer.uid.isNotEmpty ? peer.uid : peer.username);
+                      } else {
+                        socket.pinMessage(message.id.toString(), peer.uid.isNotEmpty ? peer.uid : peer.username);
+                      }
+                    },
+                  ),
+                  if (message.isFromMe as bool) ...[
+                    if (!(message.id as String).startsWith('tmp_') && !message.isEncrypted)
+                      _ActionItem(
+                        icon: Icons.edit_rounded, label: 'Edit',
+                        color: const Color(0xFF0EA5E9),
+                        onTap: () {
+                          Navigator.pop(sheetContext);
+                          _showEditDialog(context);
+                        },
+                      ),
+                    _ActionItem(
+                      icon: Icons.delete_rounded, label: 'Delete for everyone',
+                      color: const Color(0xFFEF4444),
+                      onTap: () {
+                        Navigator.pop(sheetContext);
+                        _deleteMessage(context, forEveryone: true);
+                      },
+                    ),
+                  ],
+                  _ActionItem(
+                    icon: Icons.delete_outline_rounded,
+                    label: 'Delete for me',
+                    color: sheetScheme.onSurfaceVariant,
+                    onTap: () {
+                      Navigator.pop(sheetContext);
+                      _deleteMessage(context, forEveryone: false);
                     },
                   ),
                 ],
-                _ActionItem(
-                  icon: Icons.delete_outline_rounded,
-                  label: 'Delete for me',
-                  color: scheme.onSurfaceVariant,
-                  onTap: () {
-                    Navigator.pop(dialogContext);
-                    _deleteMessage(context, forEveryone: false);
-                  },
-                ),
-              ],
+              ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 

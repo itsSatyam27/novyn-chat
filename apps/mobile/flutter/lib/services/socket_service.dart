@@ -81,7 +81,18 @@ class SocketService extends ChangeNotifier {
   String? _myUsername; // novyn-chat username (not Firebase UID)
   final AudioPlayer _audioPlayer = AudioPlayer();
   final Map<String, String> _messageStatuses = {};
+  final Map<String, DateTime> _messageDeliveredAt = {};
+  final Map<String, DateTime> _messageSeenAt = {};
   String messageStatusFor(String messageId) => _messageStatuses[messageId] ?? 'sent';
+  DateTime? messageDeliveredAtFor(String messageId) => _messageDeliveredAt[messageId];
+  DateTime? messageSeenAtFor(String messageId) => _messageSeenAt[messageId];
+
+  void _captureMessageStatusTimes(String id, Map data) {
+    final delivered = DateTime.tryParse(data['deliveredAt']?.toString() ?? '');
+    final seen = DateTime.tryParse(data['seenAt']?.toString() ?? '');
+    if (delivered != null) _messageDeliveredAt[id] = delivered.toLocal();
+    if (seen != null) _messageSeenAt[id] = seen.toLocal();
+  }
 
   // Reconnection state
   String? _serverUrl;
@@ -365,6 +376,7 @@ class SocketService extends ChangeNotifier {
           if (raw is! Map) continue;
           final id = raw['id']?.toString() ?? raw['messageId']?.toString() ?? '';
           if (id.isEmpty) continue;
+          _captureMessageStatusTimes(id, raw);
           final explicit = raw['status']?.toString().toLowerCase();
           _messageStatuses[id] = raw['seenAt'] != null || explicit == 'seen'
               ? 'seen'
@@ -445,6 +457,7 @@ class SocketService extends ChangeNotifier {
       if (account == null) return;
       msg = await encryption.decrypt(msg, account, _peerKeys[chatPartner.toLowerCase()]);
       if (isOwn) {
+        _captureMessageStatusTimes(msgId, data);
         final explicit = data['status']?.toString().toLowerCase();
         _messageStatuses[msgId] = data['seenAt'] != null || explicit == 'seen'
             ? 'seen'
@@ -596,6 +609,7 @@ class SocketService extends ChangeNotifier {
       if (data is! Map) return;
       final msgId = data['id']?.toString() ?? data['messageId']?.toString() ?? '';
       if (msgId.isEmpty) return;
+      _captureMessageStatusTimes(msgId, data);
       final explicit = data['status']?.toString().toLowerCase();
       final next = data['seenAt'] != null || explicit == 'seen' || explicit == 'read'
           ? 'seen'
