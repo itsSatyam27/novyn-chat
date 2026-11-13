@@ -1523,10 +1523,21 @@ class _PrivacyDashboardState extends State<_PrivacyDashboard> {
 
   bool _requireStealthModeOff() {
     if (!widget.settings.stealthModeEnabled) return false;
-    NovynAlert.show(
-      context,
-      'Turn off Stealth Mode first to change your privacy settings.',
-      isError: true,
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        icon: const Icon(Icons.visibility_off_rounded),
+        title: const Text('Stealth Mode is on'),
+        content: const Text(
+          'Turn off Stealth Mode first to change your privacy settings.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
     );
     return true;
   }
