@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'dart:ui' show PlatformDispatcher;
 import 'package:flutter/foundation.dart';
@@ -208,26 +209,70 @@ class SessionLifecycleGuard extends StatefulWidget {
 
 class _SessionLifecycleGuardState extends State<SessionLifecycleGuard>
     with WidgetsBindingObserver {
+  static const _autoAwayDelay = Duration(minutes: 5);
+  Timer? _autoAwayTimer;
+  bool _setAwayAutomatically = false;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
   }
 
+  void _scheduleAutoAway() {
+    _autoAwayTimer?.cancel();
+    final auth = context.read<AuthService>();
+    // Auto-Away must never overwrite a user-selected Busy, Invisible or Away mode.
+    if (auth.user?.presenceMode != 'online') return;
+
+    _autoAwayTimer = Timer(_autoAwayDelay, () async {
+      if (!mounted) return;
+      final currentAuth = context.read<AuthService>();
+      // Re-check before changing presence in case the user changed it elsewhere.
+      if (currentAuth.user?.presenceMode != 'online') return;
+      try {
+        await currentAuth.updateStatus('away');
+        _setAwayAutomatically = true;
+      } catch (error) {
+        debugPrint('[NovynPresence] Auto-Away update failed: $error');
+      }
+    });
+  }
+
+  Future<void> _restoreOnlineAfterAutoAway() async {
+    if (!_setAwayAutomatically) return;
+    _setAwayAutomatically = false;
+    final auth = context.read<AuthService>();
+    // Restore only if the status is still Away; never override a newer manual choice.
+    if (auth.user?.presenceMode != 'away') return;
+    try {
+      await auth.updateStatus('online');
+    } catch (error) {
+      debugPrint('[NovynPresence] Could not restore Online after Auto-Away: $error');
+    }
+  }
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
+      _autoAwayTimer?.cancel();
       context.read<SocketService>().setAppForeground(true);
       context.read<AuthService>().restoreSessionOnResume();
+      unawaited(_restoreOnlineAfterAutoAway());
     } else if (state == AppLifecycleState.inactive ||
         state == AppLifecycleState.paused ||
         state == AppLifecycleState.detached) {
       context.read<SocketService>().setAppForeground(false);
+      if (state == AppLifecycleState.paused ||
+          state == AppLifecycleState.detached) {
+        _scheduleAutoAway();
+      }
     }
   }
 
   @override
   void dispose() {
+    _autoAwayTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
