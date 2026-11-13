@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../../models/user_model.dart';
 import '../../services/socket_service.dart';
 import '../../services/webrtc_service.dart';
@@ -15,6 +16,8 @@ import '../../widgets/user_avatar.dart';
 import 'package:novyn/services/haptic_service.dart';
 
 enum CallState { calling, connected, ended }
+
+const MethodChannel _callPlatformChannel = MethodChannel('com.example.novyn/call');
 
 class CallScreen extends StatefulWidget {
   final UserModel peer;
@@ -41,6 +44,10 @@ class _CallScreenState extends State<CallScreen>
   CallState _state = CallState.calling;
   bool _muted = false;
   bool _speakerOn = false;
+  List<Map<String, dynamic>> _audioRoutes = const [];
+  String _activeAudioRoute = 'earpiece';
+  bool _autoBluetoothRouteAttempted = false;
+  StreamSubscription<List<Map<String, dynamic>>>? _audioRouteSubscription;
   bool _cameraOff = false;
   bool _frontCamera = true;
   // Use ValueNotifier so only the timer text widget rebuilds each second
@@ -85,6 +92,7 @@ class _CallScreenState extends State<CallScreen>
     _webrtc = WebRTCService();
     _callId = widget.callId ?? '';
     _webrtcInit = _initWebRTC();
+    _listenToAudioRoutes();
     _playRingtone();
     _listenToCallEvents();
 
@@ -168,23 +176,104 @@ class _CallScreenState extends State<CallScreen>
     await _audioPlayer.stop();
   }
 
-  // ── Speaker toggle — works during ringing AND active call ────────────
-  void _toggleSpeaker() async {
+  Future<void> _listenToAudioRoutes() async {
+    _audioRouteSubscription = AudioManagerService.routeChanges.listen(
+      (routes) {
+        if (!mounted) return;
+        _applyAudioRoutes(routes);
+      },
+      onError: (_) {},
+    );
+
+    // Android 12+ requires runtime BLUETOOTH_CONNECT permission to enumerate
+    // communication devices. Keep calls usable if permission is declined.
+    try {
+      await Permission.bluetoothConnect.request();
+    } catch (_) {}
+    await _refreshAudioRoutes();
+  }
+
+  Future<void> _refreshAudioRoutes() async {
+    final routes = await AudioManagerService.getAvailableRoutes();
+    if (!mounted) return;
+    _applyAudioRoutes(routes);
+  }
+
+  void _applyAudioRoutes(List<Map<String, dynamic>> routes) {
+    final bluetooth = routes.where((route) => route['kind'] == 'bluetooth').toList();
+    final active = routes.where((route) => route['selected'] == true);
+    setState(() {
+      _audioRoutes = routes;
+      if (active.isNotEmpty) {
+        _activeAudioRoute = active.first['id']?.toString() ?? 'earpiece';
+      }
+      _speakerOn = _activeAudioRoute == 'speaker';
+      if (bluetooth.isEmpty) _autoBluetoothRouteAttempted = false;
+    });
+
+    // Prefer a connected headset for calls, just like native dialers.
+    if (bluetooth.isNotEmpty &&
+        !_activeAudioRoute.startsWith('bluetooth:') &&
+        !_autoBluetoothRouteAttempted) {
+      _autoBluetoothRouteAttempted = true;
+      _selectAudioRoute(bluetooth.first['id'].toString());
+    }
+  }
+
+  Future<void> _selectAudioRoute(String routeId) async {
     HapticService.vibrate(NovynHapticType.selection, category: HapticCategory.calls);
-    final newVal = !_speakerOn;
-    setState(() => _speakerOn = newVal);
-    await AudioManagerService.setSpeakerphoneOn(newVal);
+    final changed = await AudioManagerService.setAudioRoute(routeId);
+    if (changed) {
+      await _refreshAudioRoutes();
+    } else if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not switch call audio device.')),
+      );
+    }
+  }
+
+  // ── Speaker toggle — works during ringing AND active call ────────────
+  Future<void> _toggleSpeaker() async {
+    HapticService.vibrate(NovynHapticType.selection, category: HapticCategory.calls);
+    final target = _speakerOn ? 'earpiece' : 'speaker';
+    await _selectAudioRoute(target);
   }
 
   // ── Mute toggle — works during ringing AND active call ───────────────
   void _toggleMute() {
     HapticService.vibrate(NovynHapticType.selection, category: HapticCategory.calls);
     final newVal = !_muted;
-    setState(() => _muted = newVal);
-    // Disable WebRTC audio track (works when connected)
+    // Muting the WebRTC track is app-scoped. If media has not started yet,
+    // _ensureLocalMedia applies this saved state as soon as the mic is created.
     _webrtc.toggleMute(newVal);
-    // Also mute the mic at AudioManager level (works during ringing too)
-    AudioManagerService.setMicMute(newVal);
+    setState(() => _muted = newVal);
+  }
+
+  Future<void> _minimizeCall() async {
+    if (_state == CallState.ended) return;
+    HapticService.vibrate(NovynHapticType.selection, category: HapticCategory.calls);
+    try {
+      final entered = await _callPlatformChannel.invokeMethod<bool>(
+        'enterPictureInPicture',
+      );
+      if (entered != true && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Picture-in-picture is not available on this device. Your call is still active.')),
+        );
+      }
+    } on PlatformException {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Unable to minimize call. Your call is still active.')),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Unable to minimize call. Your call is still active.')),
+        );
+      }
+    }
   }
 
   void _listenToCallEvents() {
@@ -248,6 +337,7 @@ class _CallScreenState extends State<CallScreen>
 
   void _startTimer() {
     _timer?.cancel();
+    _audioRouteSubscription?.cancel();
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
       _seconds.value++;
     });
@@ -407,7 +497,9 @@ class _CallScreenState extends State<CallScreen>
     return PopScope<void>(
       canPop: _state == CallState.ended,
       onPopInvokedWithResult: (didPop, result) {
-        if (!didPop && _state != CallState.ended) _endCall();
+        // Back means minimize, never hang up. Only the red End Call control
+        // (or the remote peer) is allowed to terminate an active call.
+        if (!didPop && _state != CallState.ended) _minimizeCall();
       },
       child: Scaffold(
         backgroundColor: Colors.black,
@@ -597,12 +689,25 @@ class _CallScreenState extends State<CallScreen>
                       ],
                     ),
                   ),
+                  IconButton(
+                    tooltip: 'Minimize call',
+                    icon: const Icon(Icons.picture_in_picture_alt_rounded,
+                        color: Colors.white70, size: 22),
+                    onPressed: _minimizeCall,
+                  ),
                 ],
               ),
             ),
           ),
         ),
 
+        if (_audioRoutes.length > 1)
+          Positioned(
+            bottom: 118,
+            left: 8,
+            right: 8,
+            child: Center(child: _buildAudioRouteSelector()),
+          ),
         // Bottom controls
         Positioned(
           bottom: 0,
@@ -741,7 +846,12 @@ class _CallScreenState extends State<CallScreen>
                       ),
                     ),
                   ),
-                  const SizedBox(width: 48), // balance the back button
+                  IconButton(
+                    tooltip: 'Minimize call',
+                    icon: const Icon(Icons.picture_in_picture_alt_rounded,
+                        color: Colors.white70, size: 22),
+                    onPressed: _minimizeCall,
+                  ),
                 ],
               ),
             ),
@@ -967,6 +1077,10 @@ class _CallScreenState extends State<CallScreen>
       padding: const EdgeInsets.symmetric(horizontal: 32),
       child: Column(
         children: [
+          if (_audioRoutes.length > 1) ...[
+            _buildAudioRouteSelector(),
+            const SizedBox(height: 20),
+          ],
           // ── Toggle buttons row ──────────────────────────────────
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -1022,6 +1136,61 @@ class _CallScreenState extends State<CallScreen>
             onTap: _endCall,
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildAudioRouteSelector() {
+    final routes = _audioRoutes;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: routes.map((route) {
+          final id = route['id']?.toString() ?? '';
+          final name = route['name']?.toString() ?? 'Audio';
+          final selected = route['selected'] == true || id == _activeAudioRoute;
+          final bluetooth = route['kind'] == 'bluetooth';
+          final icon = bluetooth
+              ? Icons.bluetooth_audio_rounded
+              : id == 'speaker'
+                  ? Icons.volume_up_rounded
+                  : Icons.phone_in_talk_rounded;
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 3),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(14),
+              onTap: selected ? null : () => _selectAudioRoute(id),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                decoration: BoxDecoration(
+                  color: selected
+                      ? Colors.white.withValues(alpha: 0.18)
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(icon, color: Colors.white, size: 17),
+                    const SizedBox(width: 6),
+                    Text(name, style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                    )),
+                  ],
+                ),
+              ),
+            ),
+          );
+        }).toList(),
       ),
     );
   }
