@@ -44,7 +44,8 @@ function applyTicTacToe(game, userKey, moveData) {
   const playerX = current.playerX || game.createdBy;
   let playerO = current.playerO || game.opponent || null;
 
-  if (game.state === "finished" || !sameUser(game.turn, userKey)) {
+  const waitingForGroupPlayer = !playerO && !sameUser(userKey, playerX) && board.some(Boolean);
+  if (game.state === "finished" || (!sameUser(game.turn, userKey) && !waitingForGroupPlayer)) {
     return { ok: false, reason: "It is not your turn." };
   }
 
@@ -195,11 +196,12 @@ function applyConnect4(game, userKey, moveData) {
   if (board.length !== 42 || !Array.isArray(requestedBoard) || requestedBoard.length !== 42) {
     return { ok: false, reason: "Invalid Connect 4 board." };
   }
-  if (game.state === "finished" || !sameUser(game.turn, userKey)) {
+  const player1 = current.player1 || game.createdBy;
+  let player2 = current.player2 || game.opponent || null;
+  const waitingForGroupPlayer = !player2 && !sameUser(userKey, player1) && board.some(Boolean);
+  if (game.state === "finished" || (!sameUser(game.turn, userKey) && !waitingForGroupPlayer)) {
     return { ok: false, reason: "It is not your turn." };
   }
-
-  const player1 = current.player1 || game.createdBy;
   let player2 = current.player2 || game.opponent || null;
   if (sameUser(userKey, player1)) {
     // creator is player 1
@@ -269,7 +271,8 @@ function applyGameMove(game, userKey, moveData) {
     case "doodle": {
       const current = cloneData(game.data);
       const player1 = current.player1 || game.createdBy;
-      const player2 = current.player2 || game.opponent;
+      let player2 = current.player2 || game.opponent || null;
+      if (!player2 && !sameUser(userKey, player1) && moveData.action === "guess") player2 = userKey;
       if (![player1, player2].some(player => sameUser(player, userKey))) return { ok: false, reason: "You are not a player in this game." };
       if (moveData.action === "draw" && sameUser(player1, userKey)) {
         const strokes = Array.isArray(moveData.strokes) ? moveData.strokes.slice(-800).filter(s => [s?.x1,s?.y1,s?.x2,s?.y2].every(Number.isFinite)) : null;
@@ -285,7 +288,8 @@ function applyGameMove(game, userKey, moveData) {
       return { ok: false, reason: "Invalid Doodle Duel move." };
     }
     case "numberclash": {
-      const current = cloneData(game.data); const player1 = current.player1 || game.createdBy; const player2 = current.player2 || game.opponent;
+      const current = cloneData(game.data); const player1 = current.player1 || game.createdBy; let player2 = current.player2 || game.opponent || null;
+      if (!player2 && !sameUser(userKey, player1)) player2 = userKey;
       if (![player1, player2].some(player => sameUser(player, userKey))) return { ok: false, reason: "You are not a player in this game." };
       const number = Number(moveData.number); if (!Number.isInteger(number) || number < 1 || number > 100) return { ok: false, reason: "Pick a number from 1 to 100." };
       if (sameUser(player1, userKey) && current.p1Number) return { ok: false, reason: "Your number is locked." };
@@ -295,7 +299,8 @@ function applyGameMove(game, userKey, moveData) {
       return { ok: true, game: { ...game, state: winner ? "finished" : "in_progress", turn: winner ? "" : (p1Number ? player2 : player1), winner, data: { ...current, player1, player2, p1Number, p2Number }, lastMoveBy:userKey, updatedAt:Date.now() } };
     }
     case "updown": {
-      const current=cloneData(game.data); const player1=current.player1||game.createdBy; const player2=current.player2||game.opponent;
+      const current=cloneData(game.data); const player1=current.player1||game.createdBy; let player2=current.player2||game.opponent||null;
+      if (!player2 && !sameUser(userKey,player1)) player2=userKey;
       if (![player1,player2].some(player=>sameUser(player,userKey))) return {ok:false,reason:"You are not a player in this game."};
       const prediction=moveData.prediction; if (!["higher","lower"].includes(prediction)) return {ok:false,reason:"Choose higher or lower."};
       if (sameUser(player1,userKey)&&current.p1Prediction) return {ok:false,reason:"Prediction already locked."}; if (sameUser(player2,userKey)&&current.p2Prediction) return {ok:false,reason:"Prediction already locked."};
@@ -332,16 +337,17 @@ function createGameChallenge(input = {}) {
   };
 
   const board = gameType === "tictactoe" ? Array(9).fill(null) : gameType === "connect4" ? Array(42).fill(null) : undefined;
+  const initialOpponent = toType === "friend" ? to : null;
   const data = gameType === "tictactoe"
     ? { board, playerX: userName }
     : gameType === "connect4"
     ? { board, player1: userName }
     : gameType === "doodle"
-    ? { player1: userName, player2: to, word: ["star","house","tree","rocket","cat"][Math.floor(Math.random()*5)], strokes: [], guesses: [] }
+    ? { player1: userName, player2: initialOpponent, word: ["star","house","tree","rocket","cat"][Math.floor(Math.random()*5)], strokes: [], guesses: [] }
     : gameType === "numberclash"
-    ? { player1: userName, player2: to, target: 1 + Math.floor(Math.random()*100) }
+    ? { player1: userName, player2: initialOpponent, target: 1 + Math.floor(Math.random()*100) }
     : gameType === "updown"
-    ? { player1: userName, player2: to, currentCard: 1 + Math.floor(Math.random()*13), nextCard: 1 + Math.floor(Math.random()*13) }
+    ? { player1: userName, player2: initialOpponent, currentCard: 1 + Math.floor(Math.random()*13), nextCard: 1 + Math.floor(Math.random()*13) }
     : { player1: userName };
 
   return {
