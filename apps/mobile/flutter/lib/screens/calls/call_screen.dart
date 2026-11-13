@@ -57,6 +57,7 @@ class _CallScreenState extends State<CallScreen>
   bool _mediaStarted = false;
   bool _mediaInitializing = false;
   String? _mediaError;
+  String? _endReason;
 
   String get _peerId => widget.peer.uid.isNotEmpty ? widget.peer.uid : widget.peer.username;
 
@@ -234,9 +235,13 @@ class _CallScreenState extends State<CallScreen>
       _handleCallEnded(logStatus: 'missed');
     });
 
-    socket.onCallEnded(() {
+    socket.onCallEnded((data) {
       _stopRingtone();
-      _handleCallEnded(logStatus: widget.isIncoming ? 'incoming' : 'outgoing');
+      final reason = data['reason']?.toString();
+      final status = _state == CallState.connected
+          ? (widget.isIncoming ? 'incoming' : 'outgoing')
+          : (widget.isIncoming ? 'missed' : 'outgoing');
+      _handleCallEnded(logStatus: status, reason: reason);
     });
   }
 
@@ -247,12 +252,20 @@ class _CallScreenState extends State<CallScreen>
     });
   }
 
-  void _handleCallEnded({required String logStatus}) {
+  void _handleCallEnded({required String logStatus, String? reason}) {
     _timer?.cancel();
     _callTimeoutTimer?.cancel();
     if (!mounted || _hasLoggedCall) return;
     _hasLoggedCall = true;
-    setState(() => _state = CallState.ended);
+    setState(() {
+      _state = CallState.ended;
+      _endReason = reason;
+    });
+    if (reason != null && reason.isNotEmpty && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(reason), duration: const Duration(seconds: 2)),
+      );
+    }
     // Reset audio mode back to normal
     AudioManagerService.resetMode();
 
@@ -264,10 +277,15 @@ class _CallScreenState extends State<CallScreen>
       type:       widget.callType,
       status:     logStatus,
       duration:   _seconds.value,
+      callId:     _callId,
     );
 
-    Future.delayed(const Duration(milliseconds: 1500), () {
-      if (mounted) Navigator.pop(context);
+    Future.delayed(const Duration(milliseconds: 1200), () {
+      if (!mounted) return;
+      final navigator = Navigator.of(context);
+      if (navigator.canPop()) {
+        navigator.pop();
+      }
     });
   }
 
@@ -834,7 +852,8 @@ class _CallScreenState extends State<CallScreen>
               Padding(
                 padding: const EdgeInsets.only(bottom: 32),
                 child: Text(
-                  'Call ended',
+                  _endReason ?? 'Call ended',
+                  textAlign: TextAlign.center,
                   style: TextStyle(
                     fontFamily: 'PlusJakartaSans',
                     fontSize: 16,
