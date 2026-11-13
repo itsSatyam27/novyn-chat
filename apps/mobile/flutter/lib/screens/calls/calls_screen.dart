@@ -228,7 +228,6 @@ class _CallsScreenState extends State<CallsScreen> {
           children: [
             NovynHeader(
               title: 'Calls',
-              subtitle: '${_calls.length} calls this week · $missedCount missed',
               actions: [
                 PopupMenuButton<String>(
                   tooltip: 'Call options',
