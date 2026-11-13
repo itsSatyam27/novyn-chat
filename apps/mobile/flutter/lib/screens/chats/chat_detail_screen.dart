@@ -302,6 +302,17 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
     super.dispose();
   }
 
+  void _startReply(dynamic message) {
+    setState(() => _replyingTo = message);
+    // Bring the composer into view and open the keyboard immediately after
+    // the reply preview has been laid out.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _messageFocusNode.requestFocus();
+      _scrollToBottom(force: true);
+    });
+  }
+
   void _send() async {
     final text = _ctrl.text.trim();
     if (_sending || text.isEmpty || _myUid == null || _chatId == null) return;
@@ -825,7 +836,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
         }
         final msgIndex = i - 1;
         return _SwipeToReply(
-          onSwipe: () => setState(() => _replyingTo = messages[msgIndex]),
+          onSwipe: () => _startReply(messages[msgIndex]),
           child: _MessageBubble(
             message: messages[msgIndex],
             showAvatar: !messages[msgIndex].isFromMe &&
@@ -833,7 +844,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
             peer: widget.peer,
             messageStatus: socket.messageStatusFor(messages[msgIndex].id),
             myUid: _myUid ?? '',
-            onReply: (msg) => setState(() => _replyingTo = msg),
+            onReply: _startReply,
           onForward: _showForwardDialog,
           ),
         );
@@ -1095,8 +1106,13 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
         // ── Reply preview bar ──────────────────────────────────────
         if (_replyingTo != null)
           Container(
-            color: theme.colorScheme.surface,
-            padding: const EdgeInsets.fromLTRB(16, 8, 8, 0),
+            margin: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+            padding: const EdgeInsets.fromLTRB(12, 9, 6, 9),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.primary.withValues(alpha: 0.07),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: theme.colorScheme.primary.withValues(alpha: 0.16)),
+            ),
             child: Row(
               children: [
                 Container(
@@ -1122,7 +1138,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                         ),
                       ),
                       Text(
-                        _replyingTo!.text ?? '',
+                        (_replyingTo!.text?.toString().trim().isNotEmpty == true)
+                            ? _replyingTo!.text.toString()
+                            : 'Attachment',
                         style: TextStyle(
                           fontFamily: 'PlusJakartaSans',
                           fontSize: 12,
@@ -1137,7 +1155,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                 IconButton(
                   icon: Icon(Icons.close_rounded,
                       size: 18, color: Color(0xFF94A3B8)),
-                  onPressed: () => setState(() => _replyingTo = null),
+                  tooltip: 'Cancel reply',
+                  onPressed: () {
+                    setState(() => _replyingTo = null);
+                    _messageFocusNode.requestFocus();
+                  },
                 ),
               ],
             ),
