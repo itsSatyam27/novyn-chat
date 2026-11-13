@@ -266,6 +266,16 @@ class NotificationService {
     await androidNotifications?.createNotificationChannel(channel);
     await androidNotifications?.createNotificationChannel(
       const AndroidNotificationChannel(
+        'novyn_incoming_calls',
+        'Incoming calls',
+        description: 'Incoming voice and video calls',
+        importance: Importance.max,
+        playSound: true,
+        enableVibration: true,
+      ),
+    );
+    await androidNotifications?.createNotificationChannel(
+      const AndroidNotificationChannel(
         'novyn_calls',
         'Missed calls',
         description: 'Missed voice and video calls',
@@ -608,12 +618,16 @@ class NotificationService {
       unawaited(_handleNotificationTap(initial, context));
     }
     final localLaunch = await _localNotifications.getNotificationAppLaunchDetails();
-    final localUsername =
-        localLaunch?.notificationResponse?.payload?.trim() ?? '';
-    if (localLaunch?.didNotificationLaunchApp == true &&
-        localUsername.isNotEmpty &&
-        context.mounted) {
-      unawaited(_openChatFromNotification(localUsername, context));
+    final localPayload = localLaunch?.notificationResponse?.payload?.trim() ?? '';
+    if (localLaunch?.didNotificationLaunchApp == true && localPayload.isNotEmpty && context.mounted) {
+      if (localPayload.startsWith('call:')) {
+        final parts = localPayload.substring(5).split('|');
+        if (parts.length >= 3 && parts[0].isNotEmpty) {
+          unawaited(_openIncomingCall(parts[1], parts[0], parts[2] == '1', context));
+        }
+      } else {
+        unawaited(_openChatFromNotification(localPayload, context));
+      }
     }
   }
 
@@ -662,6 +676,7 @@ class NotificationService {
     }
     if (_socket != null) {
       _socket!.onIncomingMessage = null;
+      _socket!.onCallInviteCallback = null;
       _socket!.onAuthenticated = null;
     }
     _inAppBannerTimer?.cancel();
