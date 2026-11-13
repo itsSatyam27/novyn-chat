@@ -229,10 +229,20 @@ class NotificationService {
       playSound: true,
       enableVibration: true,
     );
-    await _localNotifications
+    final androidNotifications = _localNotifications
         .resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>()
-        ?.createNotificationChannel(channel);
+            AndroidFlutterLocalNotificationsPlugin>();
+    await androidNotifications?.createNotificationChannel(channel);
+    await androidNotifications?.createNotificationChannel(
+      const AndroidNotificationChannel(
+        'novyn_calls',
+        'Missed calls',
+        description: 'Missed voice and video calls',
+        importance: Importance.max,
+        playSound: true,
+        enableVibration: true,
+      ),
+    );
     _localNotificationsReady = true;
   }
 
