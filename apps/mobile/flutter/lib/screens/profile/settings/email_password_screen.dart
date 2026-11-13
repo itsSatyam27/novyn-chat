@@ -5,14 +5,14 @@ import '../../../services/socket_service.dart';
 import '../../../widgets/novyn_alert.dart';
 import '../../../theme/novyn_theme.dart';
 
-class EmailPasswordScreen extends StatefulWidget {
-  const EmailPasswordScreen({super.key});
+class AccountInfoScreen extends StatefulWidget {
+  const AccountInfoScreen({super.key});
 
   @override
-  State<EmailPasswordScreen> createState() => _EmailPasswordScreenState();
+  State<AccountInfoScreen> createState() => _AccountInfoScreenState();
 }
 
-class _EmailPasswordScreenState extends State<EmailPasswordScreen> {
+class _AccountInfoScreenState extends State<AccountInfoScreen> {
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthService>();
@@ -23,7 +23,7 @@ class _EmailPasswordScreenState extends State<EmailPasswordScreen> {
     return Scaffold(
       backgroundColor: NovynTheme.pageBg(context),
       appBar: AppBar(
-        title: const Text('Email & Password',
+        title: const Text('Account Info',
           style: TextStyle(fontWeight: FontWeight.w800)),
         backgroundColor: Colors.transparent,
         surfaceTintColor: Colors.transparent,
@@ -31,6 +31,8 @@ class _EmailPasswordScreenState extends State<EmailPasswordScreen> {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(18, 8, 18, 28),
         children: [
+          _buildUsernameCard(context, auth),
+          const SizedBox(height: 16),
           Container(
             padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(
@@ -117,6 +119,134 @@ class _EmailPasswordScreenState extends State<EmailPasswordScreen> {
         ],
       ),
     );
+  }
+
+
+  Widget _buildUsernameCard(BuildContext context, AuthService auth) {
+    final colors = Theme.of(context).colorScheme;
+    return Card(
+      color: NovynTheme.cardBg(context),
+      child: ListTile(
+        leading: CircleAvatar(
+          backgroundColor: colors.primary.withValues(alpha: .12),
+          child: Icon(Icons.alternate_email_rounded, color: colors.primary),
+        ),
+        title: const Text('Username', style: TextStyle(fontWeight: FontWeight.w800)),
+        subtitle: Text('@${auth.user?.username ?? ''}'),
+        trailing: IconButton(
+          tooltip: 'Change username',
+          onPressed: () => _changeUsername(auth),
+          icon: Icon(Icons.edit_outlined, color: colors.primary),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _changeUsername(AuthService auth) async {
+    final username = TextEditingController(text: auth.user?.username ?? '');
+    final password = TextEditingController();
+    final hasPassword = auth.user?.hasPassword != false;
+    final candidate = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Change username'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: username,
+              autofocus: true,
+              textCapitalization: TextCapitalization.none,
+              decoration: const InputDecoration(
+                labelText: 'New username',
+                prefixText: '@',
+                helperText: '3–24 lowercase letters, numbers or underscores',
+              ),
+            ),
+            if (hasPassword) ...[
+              const SizedBox(height: 12),
+              TextField(
+                controller: password,
+                obscureText: true,
+                decoration: const InputDecoration(labelText: 'Current password'),
+              ),
+            ] else
+              const Padding(
+                padding: EdgeInsets.only(top: 10),
+                child: Text('Your signed-in session will be used to verify this change.'),
+              ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(
+              dialogContext,
+              username.text.trim().toLowerCase(),
+            ),
+            child: const Text('Continue'),
+          ),
+        ],
+      ),
+    );
+
+    if (candidate == null) {
+      username.dispose();
+      password.dispose();
+      return;
+    }
+
+    final valid = RegExp(r'^[a-z0-9_]{3,24}$').hasMatch(candidate);
+    if (!valid) {
+      username.dispose();
+      password.dispose();
+      if (mounted) {
+        NovynAlert.show(
+          context,
+          'Username must be 3–24 characters and use only lowercase letters, numbers or underscores.',
+          isError: true,
+        );
+      }
+      return;
+    }
+
+    if (candidate == (auth.user?.username ?? '').toLowerCase()) {
+      username.dispose();
+      password.dispose();
+      return;
+    }
+
+    try {
+      if (hasPassword && password.text.isEmpty) {
+        throw Exception('Enter your current password to continue.');
+      }
+      final available = await auth.isUsernameAvailable(candidate);
+      if (!available) {
+        throw Exception('That username is unavailable.');
+      }
+      await context.read<SocketService>().changeUsername(
+        newUsername: candidate,
+        currentPassword: password.text,
+      );
+      await auth.refreshProfile();
+      if (mounted) {
+        NovynAlert.show(context, 'Username updated successfully.');
+      }
+    } catch (error) {
+      if (mounted) {
+        NovynAlert.show(
+          context,
+          error.toString().replaceFirst('Exception: ', '').replaceFirst('Bad state: ', ''),
+          isError: true,
+        );
+      }
+    } finally {
+      username.dispose();
+      password.dispose();
+    }
   }
 
   Future<void> _changeEmail(SocketService socket, AuthService auth) async {

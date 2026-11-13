@@ -1,17 +1,21 @@
 import 'dart:convert';
 import 'dart:math' as math;
+import 'dart:io';
 import 'package:flutter/material.dart';
+import '../services/api_service.dart';
 
 class ProfileAvatarWithOrbit extends StatefulWidget {
   final String? photoUrl;
   final String displayName;
   final String status;
+  final File? localFile;
 
   const ProfileAvatarWithOrbit({
     super.key,
     required this.photoUrl,
     required this.displayName,
     required this.status,
+    this.localFile,
   });
 
   @override
@@ -37,11 +41,12 @@ class ProfileAvatarWithOrbitState extends State<ProfileAvatarWithOrbit>
   }
 
   ImageProvider? _avatarImageProvider() {
+    if (widget.localFile != null) return FileImage(widget.localFile!);
     final source = widget.photoUrl?.trim() ?? '';
     if (source.isEmpty) return null;
 
     if (source.startsWith('https://') || source.startsWith('http://')) {
-      return NetworkImage(source);
+      return NetworkImage(source, headers: ApiService.imageHeaders);
     }
 
     // Support both raw Base64 and data:image/...;base64,... values.

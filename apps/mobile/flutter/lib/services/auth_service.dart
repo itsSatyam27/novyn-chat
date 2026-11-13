@@ -680,6 +680,8 @@ class AuthService extends ChangeNotifier {
       if (saved == null || saved['error'] != null) {
         return saved?['error']?.toString() ?? 'Could not save your profile photo.';
       }
+      _user = _user?.copyWith(avatarId: url);
+      notifyListeners();
       await refreshProfile();
       return null;
     } catch (e) {

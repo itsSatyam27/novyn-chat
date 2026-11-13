@@ -127,8 +127,8 @@ class SecurityPrivacyScreen extends StatelessWidget {
           ],
           if (category == null || category == 'security') section('Sign-in & device protection', [
             nav(Icons.alternate_email_rounded, const Color(0xFF1F8A63),
-              'Email & Password', 'Manage email verification and sign-in password',
-              () => Navigator.push(context, MaterialPageRoute(builder: (_) => const EmailPasswordScreen()))),
+              'Account Info', 'Manage your username, email and password',
+              () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AccountInfoScreen()))),
             nav(Icons.devices_rounded, const Color(0xFF2A78B8),
               'Active Sessions', 'Sign out of other devices remotely',
               () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ActiveSessionsScreen()))),

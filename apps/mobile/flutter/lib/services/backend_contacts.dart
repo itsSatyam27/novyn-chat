@@ -65,6 +65,20 @@ class BackendContacts extends ChangeNotifier {
     notifyListeners();
   }
 
+  void updateProfile(Map<String, dynamic> data) {
+    final username = data['username']?.toString().trim() ?? '';
+    if (username.isEmpty) return;
+    final displayName = data['displayName']?.toString();
+    final bio = data['bio']?.toString();
+    final avatarId = data['avatarId']?.toString();
+    UserModel patch(UserModel user) => user.username.toLowerCase() == username.toLowerCase()
+        ? user.copyWith(name: displayName, bio: bio, photoUrl: avatarId)
+        : user;
+    friends = friends.map(patch).toList();
+    discovered = discovered.map(patch).toList();
+    notifyListeners();
+  }
+
   void updateStatus(String username, bool online, {String? presence}) {
     friends = friends
         .map((user) => user.username.toLowerCase() == username.toLowerCase()
