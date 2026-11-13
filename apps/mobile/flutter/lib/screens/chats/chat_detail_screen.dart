@@ -1290,9 +1290,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                           onChanged: (v) {
                             setState(() {});
                             if (v.isNotEmpty) {
-                              socket.startTyping(widget.peer.uid);
+                              socket.startTyping(widget.peer.uid, isGroup: widget.isGroup);
                             } else {
-                              socket.stopTyping(widget.peer.uid);
+                              socket.stopTyping(widget.peer.uid, isGroup: widget.isGroup);
                             }
                           },
                           onSubmitted: (_) {
@@ -1452,6 +1452,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
         replyToId: _replyingTo?.id?.toString(),
         replyToText: _replyingTo?.text?.toString(),
         replyToSender: _replyingTo?.isFromMe == true ? 'You' : widget.peer.name,
+        isGroup: widget.isGroup,
       );
       if (mounted) setState(() => _replyingTo = null);
     } catch (error) {
@@ -2450,7 +2451,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                 .toList();
             final title = 'Novyn chat with ${widget.peer.name}';
             final plainLines = messages.map((message) {
-              final sender = message.isFromMe ? 'You' : widget.peer.name;
+              final sender = message.isFromMe ? 'You' : (widget.isGroup ? message.senderId : widget.peer.name);
               final stamp = message.createdAt.toLocal().toString().substring(0, 16);
               final body = message.text.trim().isNotEmpty ? message.text : '[Attachment]';
               return '[$stamp] $sender: $body';
