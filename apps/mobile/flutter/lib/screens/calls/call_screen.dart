@@ -177,6 +177,7 @@ class _CallScreenState extends State<CallScreen>
     // otherwise it can race with the user's speaker selection.
     try { await _webrtcInit; } catch (_) {}
     await AudioManagerService.startCallMode();
+    await _setPlayerAudioRoute('earpiece');
     await AudioManagerService.setAudioRoute('earpiece');
     if (!mounted || context.read<AuthService>().user?.presenceMode == 'busy') return;
     final preferences = context.read<SettingsService>();
@@ -185,6 +186,23 @@ class _CallScreenState extends State<CallScreen>
     await _audioPlayer.setVolume(preferences.callVolume.clamp(0.0, 1.0).toDouble());
     final sound = widget.isIncoming ? 'audio/ringtone.mp3' : 'audio/call_ring.mp3';
     await _audioPlayer.play(AssetSource(sound));
+  }
+
+  Future<void> _setPlayerAudioRoute(String routeId) async {
+    // audioplayers defaults to a media stream, which can ignore Android's
+    // communication-device route. Use a voice-communication audio context so
+    // ringtone/ringback follows the same speaker/earpiece choice as WebRTC.
+    final route = routeId == 'speaker'
+        ? AudioContextConfigRoute.speaker
+        : routeId == 'earpiece'
+            ? AudioContextConfigRoute.earpiece
+            : AudioContextConfigRoute.system;
+    try {
+      await _audioPlayer.setAudioContext(AudioContextConfig(route: route).build());
+    } catch (_) {
+      // WebRTC/native route selection remains available if a platform rejects
+      // the optional player-specific audio context.
+    }
   }
 
   void _stopRingtone() async {
@@ -237,9 +255,9 @@ class _CallScreenState extends State<CallScreen>
 
   Future<void> _selectAudioRoute(String routeId) async {
     HapticService.vibrate(NovynHapticType.selection, category: HapticCategory.calls);
-    // flutter_webrtc and Android's communication-device API maintain separate
-    // routing state on some devices. Apply both for phone/speaker routes,
-    // then let Android confirm the final selected communication device.
+    // Route the ringtone player and WebRTC media together; Android's native
+    // communication device remains the final authority (including Bluetooth).
+    await _setPlayerAudioRoute(routeId);
     if (routeId == 'speaker' || routeId == 'earpiece') {
       try { await _webrtc.toggleSpeaker(routeId == 'speaker'); } catch (_) {}
     }
