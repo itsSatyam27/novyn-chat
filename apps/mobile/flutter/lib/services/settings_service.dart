@@ -92,7 +92,6 @@ class SettingsService extends ChangeNotifier {
   static const _kHighContrast = 'accessibility_high_contrast';
   static const _kReduceMotion = 'accessibility_reduce_motion';
   static const _kBusyPreviousPresence = 'busy_previous_presence_mode';
-  static const _kFocusModeUntil = 'focus_mode_until_ms';
   static const _kDoNotDisturb = 'do_not_disturb_enabled';
 
   late SharedPreferences _prefs;
@@ -158,8 +157,6 @@ class SettingsService extends ChangeNotifier {
   bool _highContrast = false;
   bool _reduceMotion = false;
   String? _busyPreviousPresenceMode;
-  int? _focusModeUntilMs;
-  Timer? _focusModeExpiryTimer;
   bool _doNotDisturbEnabled = false;
 
   // ── Getters ─────────────────────────────────────────────────────────────
@@ -239,9 +236,7 @@ class SettingsService extends ChangeNotifier {
   bool get highContrast => _highContrast;
   bool get reduceMotion => _reduceMotion;
   String? get busyPreviousPresenceMode => _busyPreviousPresenceMode;
-  bool get focusModeEnabled => _focusModeUntilMs != null && _focusModeUntilMs! > DateTime.now().millisecondsSinceEpoch;
   bool get doNotDisturbEnabled => _doNotDisturbEnabled;
-  DateTime? get focusModeEndsAt => focusModeEnabled ? DateTime.fromMillisecondsSinceEpoch(_focusModeUntilMs!) : null;
 
   // ── Load from disk ───────────────────────────────────────────────────────
   Future<void> load() async {
@@ -346,9 +341,7 @@ class SettingsService extends ChangeNotifier {
     _highContrast = _prefs.getBool(_kHighContrast) ?? false;
     _reduceMotion = _prefs.getBool(_kReduceMotion) ?? false;
     _busyPreviousPresenceMode = _prefs.getString(_kBusyPreviousPresence);
-    _focusModeUntilMs = _prefs.getInt(_kFocusModeUntil);
     _doNotDisturbEnabled = _prefs.getBool(_kDoNotDisturb) ?? false;
-    _scheduleFocusModeExpiry();
     
     // Load saved sessions
     final raw = _prefs.getString(_kSavedSessions);
@@ -526,36 +519,6 @@ class SettingsService extends ChangeNotifier {
     _doNotDisturbEnabled = enabled;
     await _prefs.setBool(_kDoNotDisturb, enabled);
     notifyListeners();
-  }
-
-  Future<void> setFocusMode(Duration? duration) async {
-    _focusModeExpiryTimer?.cancel();
-    if (duration == null) {
-      _focusModeUntilMs = null;
-      await _prefs.remove(_kFocusModeUntil);
-    } else {
-      _focusModeUntilMs = DateTime.now().add(duration).millisecondsSinceEpoch;
-      await _prefs.setInt(_kFocusModeUntil, _focusModeUntilMs!);
-      _scheduleFocusModeExpiry();
-    }
-    notifyListeners();
-  }
-
-  void _scheduleFocusModeExpiry() {
-    _focusModeExpiryTimer?.cancel();
-    final until = _focusModeUntilMs;
-    if (until == null) return;
-    final remaining = until - DateTime.now().millisecondsSinceEpoch;
-    if (remaining <= 0) {
-      _focusModeUntilMs = null;
-      unawaited(_prefs.remove(_kFocusModeUntil));
-      return;
-    }
-    _focusModeExpiryTimer = Timer(Duration(milliseconds: remaining), () {
-      _focusModeUntilMs = null;
-      unawaited(_prefs.remove(_kFocusModeUntil));
-      notifyListeners();
-    });
   }
 
   Future<void> setBusyPreviousPresenceMode(String? mode) async {
@@ -906,8 +869,6 @@ class SettingsService extends ChangeNotifier {
   }
 
   Future<void> clearAll() async {
-    _focusModeExpiryTimer?.cancel();
-    _focusModeUntilMs = null;
     await _prefs.clear();
     await _secureStorage.delete(key: _secureAppLockPin);
     await _secureStorage.delete(key: _securePanicPin);
@@ -949,7 +910,6 @@ class SettingsService extends ChangeNotifier {
   }
   @override
   void dispose() {
-    _focusModeExpiryTimer?.cancel();
     super.dispose();
   }
 
