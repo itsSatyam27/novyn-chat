@@ -8224,23 +8224,24 @@ io.on("connection", (socket) => {
     respond({ ok: true, group: groupInfo, groupId: group.id });
   });
 
-  socket.on("add_group_members", (payload) => {
+  socket.on("add_group_members", (payload, callback) => {
+    const respond = (result) => {
+      if (typeof callback === "function") callback(result);
+      else if (result?.ok === false) socket.emit("error_message", { message: result.message });
+    };
     const userKey = socket.data.userKey;
-    if (!userKey) return;
+    if (!userKey) return respond({ ok: false, message: "Please sign in again." });
     if (!allowSocketAction(socket, "add_group_members", 40, 60 * 60 * 1000)) {
-      socket.emit("error_message", { message: "Too many group updates. Try again later." });
-      return;
+      return respond({ ok: false, message: "Too many group updates. Try again later." });
     }
     const groupId = normalizeGroupId(payload?.groupId || payload?.to || payload?.group);
     const group = groups.get(groupId);
     const me = users.get(userKey);
     if (!group || !me || !isGroupMember(group, userKey)) {
-      socket.emit("error_message", { message: "Group not found." });
-      return;
+      return respond({ ok: false, message: "Group not found." });
     }
     if (!(group.admins instanceof Set) || !group.admins.has(userKey)) {
-      socket.emit("error_message", { message: "Only group admins can add members." });
-      return;
+      return respond({ ok: false, message: "Only group admins can add members." });
     }
 
     const requestedMembers = Array.isArray(payload?.members) ? payload.members : [];
@@ -8262,8 +8263,7 @@ io.on("connection", (socket) => {
     }
 
     if (!added.length) {
-      socket.emit("error_message", { message: "No members were added." });
-      return;
+      return respond({ ok: false, message: "No members were added." });
     }
 
     group.updatedAt = nowIso();
@@ -8283,46 +8283,44 @@ io.on("connection", (socket) => {
       }
     }
     schedulePersist();
+    respond({ ok: true, added, group: buildGroupInfoForViewer(group, userKey) });
   });
 
-  socket.on("remove_group_member", (payload) => {
+  socket.on("remove_group_member", (payload, callback) => {
+    const respond = (result) => {
+      if (typeof callback === "function") callback(result);
+      else if (result?.ok === false) socket.emit("error_message", { message: result.message });
+    };
     const userKey = socket.data.userKey;
-    if (!userKey) return;
+    if (!userKey) return respond({ ok: false, message: "Please sign in again." });
     if (!allowSocketAction(socket, "remove_group_member", 40, 60 * 60 * 1000)) {
-      socket.emit("error_message", { message: "Too many group updates. Try again later." });
-      return;
+      return respond({ ok: false, message: "Too many group updates. Try again later." });
     }
     const groupId = normalizeGroupId(payload?.groupId || payload?.to || payload?.group);
     const group = groups.get(groupId);
     const me = users.get(userKey);
     if (!group || !me || !isGroupMember(group, userKey)) {
-      socket.emit("error_message", { message: "Group not found." });
-      return;
+      return respond({ ok: false, message: "Group not found." });
     }
     if (!(group.admins instanceof Set) || !group.admins.has(userKey)) {
-      socket.emit("error_message", { message: "Only group admins can remove members." });
-      return;
+      return respond({ ok: false, message: "Only group admins can remove members." });
     }
 
     const targetName = toDisplayName(payload?.username || payload?.member || payload?.target).replace(/^@+/, "");
     const targetKey = normalizeName(targetName);
     const targetUser = users.get(targetKey);
     if (!targetKey || !targetUser || !group.members.has(targetKey)) {
-      socket.emit("error_message", { message: "Member not found in this group." });
-      return;
+      return respond({ ok: false, message: "Member not found in this group." });
     }
     if (targetKey === userKey) {
-      socket.emit("error_message", { message: "Use Leave to exit this group." });
-      return;
+      return respond({ ok: false, message: "Use Leave to exit this group." });
     }
     if (normalizeName(group.ownerKey) === targetKey) {
-      socket.emit("error_message", { message: "Group owner cannot be removed." });
-      return;
+      return respond({ ok: false, message: "Group owner cannot be removed." });
     }
     const targetIsAdmin = group.admins instanceof Set && group.admins.has(targetKey);
     if (targetIsAdmin && normalizeName(group.ownerKey) !== userKey) {
-      socket.emit("error_message", { message: "Only owner can remove another admin." });
-      return;
+      return respond({ ok: false, message: "Only owner can remove another admin." });
     }
 
     group.members.delete(targetKey);
@@ -8375,36 +8373,36 @@ io.on("connection", (socket) => {
     }
 
     schedulePersist();
+    respond({ ok: true, username: removedUsername });
   });
 
-  socket.on("set_group_member_role", (payload) => {
+  socket.on("set_group_member_role", (payload, callback) => {
+    const respond = (result) => {
+      if (typeof callback === "function") callback(result);
+      else if (result?.ok === false) socket.emit("error_message", { message: result.message });
+    };
     const userKey = socket.data.userKey;
-    if (!userKey) return;
+    if (!userKey) return respond({ ok: false, message: "Please sign in again." });
     if (!allowSocketAction(socket, "set_group_member_role", 50, 60 * 60 * 1000)) {
-      socket.emit("error_message", { message: "Too many role updates. Try again later." });
-      return;
+      return respond({ ok: false, message: "Too many role updates. Try again later." });
     }
     const groupId = normalizeGroupId(payload?.groupId || payload?.to || payload?.group);
     const group = groups.get(groupId);
     const me = users.get(userKey);
     if (!group || !me || !isGroupMember(group, userKey)) {
-      socket.emit("error_message", { message: "Group not found." });
-      return;
+      return respond({ ok: false, message: "Group not found." });
     }
     if (normalizeName(group.ownerKey) !== userKey) {
-      socket.emit("error_message", { message: "Only group owner can change roles." });
-      return;
+      return respond({ ok: false, message: "Only group owner can change roles." });
     }
 
     const targetName = toDisplayName(payload?.username || payload?.member || payload?.target).replace(/^@+/, "");
     const targetKey = normalizeName(targetName);
     if (!targetKey || !group.members.has(targetKey)) {
-      socket.emit("error_message", { message: "Member not found in this group." });
-      return;
+      return respond({ ok: false, message: "Member not found in this group." });
     }
     if (targetKey === normalizeName(group.ownerKey)) {
-      socket.emit("error_message", { message: "Owner role cannot be changed." });
-      return;
+      return respond({ ok: false, message: "Owner role cannot be changed." });
     }
 
     const requestedRole = normalizeName(payload?.role || "");
@@ -8412,10 +8410,7 @@ io.on("connection", (socket) => {
     if (!(group.admins instanceof Set)) group.admins = new Set();
     const alreadyAdmin = group.admins.has(targetKey);
     if (makeAdmin === alreadyAdmin) {
-      socket.emit("error_message", {
-        message: makeAdmin ? "Member is already an admin." : "Member is already not an admin.",
-      });
-      return;
+      return respond({ ok: false, message: makeAdmin ? "Member is already an admin." : "Member is already not an admin." });
     }
 
     if (makeAdmin) group.admins.add(targetKey);
@@ -8442,21 +8437,24 @@ io.on("connection", (socket) => {
     }
 
     schedulePersist();
+    respond({ ok: true, username: changedUsername, role });
   });
 
-  socket.on("leave_group", (payload) => {
+  socket.on("leave_group", (payload, callback) => {
+    const respond = (result) => {
+      if (typeof callback === "function") callback(result);
+      else if (result?.ok === false) socket.emit("error_message", { message: result.message });
+    };
     const userKey = socket.data.userKey;
-    if (!userKey) return;
+    if (!userKey) return respond({ ok: false, message: "Please sign in again." });
     if (!allowSocketAction(socket, "leave_group", 20, 60 * 60 * 1000)) {
-      socket.emit("error_message", { message: "Too many group updates. Try again later." });
-      return;
+      return respond({ ok: false, message: "Too many group updates. Try again later." });
     }
     const groupId = normalizeGroupId(payload?.groupId || payload?.to || payload);
     const group = groups.get(groupId);
     const me = users.get(userKey);
     if (!group || !me || !isGroupMember(group, userKey)) {
-      socket.emit("error_message", { message: "Group not found." });
-      return;
+      return respond({ ok: false, message: "Group not found." });
     }
 
     group.members.delete(userKey);
@@ -8517,6 +8515,7 @@ io.on("connection", (socket) => {
       }
     }
     schedulePersist();
+    respond({ ok: true, groupId, left: true });
   });
 
   socket.on("set_block", (payload, callback) => {
