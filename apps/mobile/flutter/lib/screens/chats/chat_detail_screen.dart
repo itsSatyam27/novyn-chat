@@ -883,8 +883,12 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
           child: _MessageBubble(
             message: messages[msgIndex],
             showAvatar: !messages[msgIndex].isFromMe &&
-                (msgIndex == 0 || messages[msgIndex - 1].isFromMe),
+                (msgIndex == 0 ||
+                    messages[msgIndex - 1].isFromMe ||
+                    (widget.isGroup &&
+                        messages[msgIndex - 1].senderId != messages[msgIndex].senderId)),
             peer: widget.peer,
+            isGroup: widget.isGroup,
             messageStatus: socket.messageStatusFor(messages[msgIndex].id),
             myUid: _myUid ?? '',
             onReply: _startReply,
@@ -2447,6 +2451,7 @@ class _MessageBubble extends StatelessWidget {
   final dynamic message;
   final bool showAvatar;
   final UserModel peer;
+  final bool isGroup;
   final String messageStatus;
   final String myUid;
   final ValueChanged<dynamic>? onReply;
@@ -2456,6 +2461,7 @@ class _MessageBubble extends StatelessWidget {
     required this.message,
     required this.showAvatar,
     required this.peer,
+    this.isGroup = false,
     this.messageStatus = 'sent',
     this.myUid = '',
     this.onReply,
@@ -2478,7 +2484,11 @@ class _MessageBubble extends StatelessWidget {
         children: [
           if (!isMe) ...[
             if (showAvatar)
-              UserAvatar(name: peer.name, photoUrl: peer.photoUrl, radius: 14)
+              UserAvatar(
+                name: isGroup ? message.senderId.toString() : peer.name,
+                photoUrl: isGroup ? '' : peer.photoUrl,
+                radius: 14,
+              )
             else
               const SizedBox(width: 28),
             const SizedBox(width: 8),
@@ -2488,6 +2498,21 @@ class _MessageBubble extends StatelessWidget {
               crossAxisAlignment:
                   isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
               children: [
+                if (isGroup && !isMe)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 4, bottom: 3),
+                    child: Text(
+                      message.senderId.toString(),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontFamily: 'PlusJakartaSans',
+                        fontSize: 10 * labelScale,
+                        fontWeight: FontWeight.w700,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                    ),
+                  ),
                 // ── Bubble with long-press ──────────────────────────────
                 GestureDetector(
                   onLongPress: () => _showReactionPicker(context),
