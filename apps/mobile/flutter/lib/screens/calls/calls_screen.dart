@@ -367,44 +367,70 @@ class _CallsScreenState extends State<CallsScreen> {
   }
 
   Widget _buildFilterCards() {
-    int countFor(String filter) {
-      return _calls.fold<int>(0, (total, call) {
-        if (filter == 'All') return total + call.history.length;
-        return total + call.history.where((log) => log['status'] == filter.toLowerCase()).length;
-      });
-    }
-
-    const filters = [
-      ('All', 'Call entries', Icons.history_rounded),
-      ('Missed', 'Missed calls', Icons.call_missed_rounded),
-      ('Incoming', 'Incoming calls', Icons.call_received_rounded),
-      ('Outgoing', 'Outgoing calls', Icons.call_made_rounded),
-    ];
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
-      child: GridView.count(
-        crossAxisCount: 2,
-        mainAxisSpacing: 10,
-        crossAxisSpacing: 10,
-        childAspectRatio: 2.65,
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(20, 10, 20, 8),
+      child: Row(
         children: [
-          for (final item in filters)
-            _CallSummaryTile(
-              icon: item.$3,
-              label: item.$2,
-              value: countFor(item.$1).toString(),
-              tint: item.$1 == 'Missed'
-                  ? NovynColors.danger
-                  : item.$1 == 'Incoming'
-                      ? NovynColors.mint
-                      : item.$1 == 'Outgoing'
-                          ? const Color(0xFF79B8FF)
-                          : Theme.of(context).colorScheme.primary,
-              selected: _filter == item.$1,
-              onTap: () => setState(() => _filter = item.$1),
+          Expanded(
+            child: Container(
+              padding: const EdgeInsets.all(5),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.primary.withValues(alpha: .09),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Row(
+                children: [
+                  for (final option in const ['All', 'Missed'])
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () => setState(() => _filter = option),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 180),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          decoration: BoxDecoration(
+                            color: _filter == option
+                                ? Theme.of(context).colorScheme.surface
+                                : Colors.transparent,
+                            borderRadius: BorderRadius.circular(15),
+                          ),
+                          child: Text(
+                            option,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontFamily: 'PlusJakartaSans',
+                              fontSize: 14,
+                              fontWeight: FontWeight.w800,
+                              color: _filter == option
+                                  ? Theme.of(context).colorScheme.primary
+                                  : Theme.of(context).colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
             ),
+          ),
+          const SizedBox(width: 8),
+          PopupMenuButton<String>(
+            tooltip: 'More call filters',
+            initialValue: ['Incoming', 'Outgoing'].contains(_filter) ? _filter : null,
+            onSelected: (value) => setState(() => _filter = value),
+            itemBuilder: (_) => const [
+              PopupMenuItem(value: 'Incoming', child: Text('Incoming calls')),
+              PopupMenuItem(value: 'Outgoing', child: Text('Outgoing calls')),
+            ],
+            child: Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surface,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Icon(Icons.tune_rounded, color: Theme.of(context).colorScheme.onSurfaceVariant),
+            ),
+          ),
         ],
       ),
     );
@@ -444,6 +470,72 @@ class _CallsScreenState extends State<CallsScreen> {
     return result;
   }
 
+  Future<void> _showQuickCallPicker() async {
+    final friends = List<UserModel>.from(context.read<SocketService>().contacts.friends)
+      ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+    if (!mounted) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: SizedBox(
+          height: MediaQuery.of(sheetContext).size.height * .72,
+          child: Column(
+            children: [
+              const SizedBox(height: 12),
+              Container(width: 38, height: 4, decoration: BoxDecoration(
+                color: Theme.of(sheetContext).colorScheme.outlineVariant,
+                borderRadius: BorderRadius.circular(5),
+              )),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 18, 20, 12),
+                child: Row(children: [
+                  Expanded(child: Text('Add quick call',
+                    style: Theme.of(sheetContext).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800))),
+                  Text('${friends.length} friends',
+                    style: TextStyle(color: Theme.of(sheetContext).colorScheme.onSurfaceVariant)),
+                ]),
+              ),
+              Expanded(
+                child: friends.isEmpty
+                    ? const Center(child: Text('Your friends will appear here'))
+                    : ListView.separated(
+                        itemCount: friends.length,
+                        separatorBuilder: (_, __) => const Divider(height: 1, indent: 76),
+                        itemBuilder: (context, index) {
+                          final peer = friends[index];
+                          final favorite = _favoriteUsernames.contains(peer.username.toLowerCase());
+                          return ListTile(
+                            leading: UserAvatar(name: peer.name, photoUrl: peer.photoUrl, radius: 23),
+                            title: Text(peer.name, style: const TextStyle(fontWeight: FontWeight.w700)),
+                            subtitle: Text('@${peer.username}'),
+                            trailing: IconButton(
+                              tooltip: favorite ? 'Remove from quick call' : 'Add to quick call',
+                              onPressed: () => _toggleFavorite(peer),
+                              icon: Icon(favorite ? Icons.star_rounded : Icons.star_outline_rounded,
+                                color: favorite ? const Color(0xFFFFB84D) : Theme.of(context).colorScheme.onSurfaceVariant),
+                            ),
+                            onTap: () {
+                              Navigator.pop(sheetContext);
+                              Navigator.push(context, MaterialPageRoute(
+                                builder: (_) => CallScreen(peer: peer, callType: 'voice'),
+                              ));
+                            },
+                          );
+                        },
+                      ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildList() {
     final calls = _filteredCalls();
     final favoriteCalls = <UserModel>[];
@@ -456,75 +548,121 @@ class _CallsScreenState extends State<CallsScreen> {
     }
     final seenFavorites = <String>{};
     final uniqueFavorites = favoriteCalls.where((peer) => seenFavorites.add(peer.username.toLowerCase())).toList();
+    final groups = _groupCallsByDay(calls);
+
     return RefreshIndicator(
       color: Theme.of(context).colorScheme.primary,
       onRefresh: _loadCalls,
       child: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 132),
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 120),
         children: [
-          if (_search.isEmpty && _filter == 'All' && uniqueFavorites.isNotEmpty) ...[
-            const NovynSectionLabel(
-              'FAVORITES',
-              icon: Icons.star_rounded,
-              padding: EdgeInsets.fromLTRB(4, 4, 4, 10),
-            ),
-            SizedBox(
-              height: 94,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                itemCount: uniqueFavorites.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 14),
-                itemBuilder: (context, index) {
-                  final peer = uniqueFavorites[index];
-                  return SizedBox(
-                    width: 70,
-                    child: Column(
+          if (_search.isEmpty && _filter == 'All') ...[
+            Container(
+              padding: const EdgeInsets.fromLTRB(17, 17, 17, 13),
+              margin: const EdgeInsets.only(bottom: 14),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surface,
+                borderRadius: BorderRadius.circular(26),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('QUICK CALL', style: TextStyle(
+                    fontFamily: 'PlusJakartaSans',
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 1.3,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  )),
+                  const SizedBox(height: 14),
+                  SizedBox(
+                    height: 94,
+                    child: ListView(
+                      scrollDirection: Axis.horizontal,
                       children: [
-                        Stack(
-                          clipBehavior: Clip.none,
-                          children: [
-                            GestureDetector(
-                              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => CallScreen(peer: peer, callType: 'voice'))),
-                              child: UserAvatar(name: peer.name, photoUrl: peer.photoUrl, radius: 27, showOnlineIndicator: true, isOnline: peer.isOnline, presence: peer.status),
-                            ),
-                            Positioned(
-                              right: -4, bottom: -4,
-                              child: Container(
-                                width: 23, height: 23,
-                                decoration: BoxDecoration(gradient: NovynGradients.selected(context), shape: BoxShape.circle, border: Border.all(color: NovynColors.bg, width: 2)),
-                                child: const Icon(Icons.call_rounded, size: 12, color: Colors.white),
+                        for (final peer in uniqueFavorites)
+                          SizedBox(
+                            width: 76,
+                            child: GestureDetector(
+                              onTap: () => Navigator.push(context, MaterialPageRoute(
+                                builder: (_) => CallScreen(peer: peer, callType: 'voice'),
+                              )),
+                              onLongPress: () => _toggleFavorite(peer),
+                              child: Column(
+                                children: [
+                                  UserAvatar(name: peer.name, photoUrl: peer.photoUrl, radius: 28,
+                                    showOnlineIndicator: true, isOnline: peer.isOnline, presence: peer.status),
+                                  const SizedBox(height: 7),
+                                  Text(peer.name.split(' ').first, maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600,
+                                      color: Theme.of(context).colorScheme.onSurface)),
+                                ],
                               ),
                             ),
-                          ],
+                          ),
+                        SizedBox(
+                          width: 76,
+                          child: GestureDetector(
+                            onTap: _showQuickCallPicker,
+                            child: Column(children: [
+                              Container(
+                                width: 56, height: 56,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  border: Border.all(color: Theme.of(context).colorScheme.primary.withValues(alpha: .5), width: 1.5),
+                                ),
+                                child: Icon(Icons.add_rounded, size: 27, color: Theme.of(context).colorScheme.primary),
+                              ),
+                              const SizedBox(height: 7),
+                              Text('Add', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600,
+                                color: Theme.of(context).colorScheme.onSurface)),
+                            ]),
+                          ),
                         ),
-                        const SizedBox(height: 7),
-                        Text(peer.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: NovynText.body(11, color: NovynColors.textChip)),
                       ],
                     ),
-                  );
-                },
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 12),
           ],
-          NovynSectionLabel(
-            _search.isNotEmpty || _filter != 'All' ? 'RESULTS' : 'RECENT CALLS',
-            padding: const EdgeInsets.fromLTRB(4, 4, 4, 10),
-          ),
-          for (final group in _groupCallsByDay(calls).entries) ...[
+          if (_search.isNotEmpty || _filter != 'All')
             Padding(
-              padding: const EdgeInsets.fromLTRB(4, 10, 4, 9),
-              child: Text(group.key.toUpperCase(), style: NovynText.body(10, color: NovynColors.textMuted, weight: FontWeight.w700).copyWith(letterSpacing: 1.1)),
+              padding: const EdgeInsets.fromLTRB(4, 4, 4, 10),
+              child: Text('RESULTS', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800,
+                letterSpacing: 1.2, color: Theme.of(context).colorScheme.onSurfaceVariant)),
             ),
-            for (final entry in group.value)
-              _CallCard(
-                entry: entry,
-                isFavorite: _favoriteUsernames.contains(entry.peer.username.toLowerCase()),
-                onToggleFavorite: () => _toggleFavorite(entry.peer),
-                onDismiss: () => setState(() => _calls.removeWhere((call) => call.peer.username == entry.peer.username)),
+          for (final group in groups.entries) ...[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(5, 12, 5, 10),
+              child: Text(group.key.toUpperCase(), style: TextStyle(
+                fontSize: 12, fontWeight: FontWeight.w800, letterSpacing: 1.25,
+                color: Theme.of(context).colorScheme.onSurfaceVariant)),
+            ),
+            Container(
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surface,
+                borderRadius: BorderRadius.circular(26),
               ),
+              child: Column(
+                children: [
+                  for (var index = 0; index < group.value.length; index++) ...[
+                    _CallCard(
+                      entry: group.value[index],
+                      isFavorite: _favoriteUsernames.contains(group.value[index].peer.username.toLowerCase()),
+                      onToggleFavorite: () => _toggleFavorite(group.value[index].peer),
+                      onDismiss: () => setState(() => _calls.removeWhere((call) =>
+                        call.peer.username == group.value[index].peer.username)),
+                    ),
+                    if (index != group.value.length - 1)
+                      Divider(height: 1, indent: 78, color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: .45)),
+                  ],
+                ],
+              ),
+            ),
           ],
-          const SizedBox(height: 80),
+          const SizedBox(height: 36),
         ],
       ),
     );
