@@ -1675,3 +1675,61 @@ class _CallMiniWindowState extends State<_CallMiniWindow> {
   }
 }
 
+
+
+class _CallGlassButton extends StatelessWidget {
+  const _CallGlassButton({required this.icon, required this.onTap});
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Material(
+    color: Colors.white.withValues(alpha: .12),
+    shape: const CircleBorder(),
+    child: InkWell(
+      customBorder: const CircleBorder(),
+      onTap: onTap,
+      child: SizedBox(width: 46, height: 46, child: Icon(icon, color: Colors.white, size: 27)),
+    ),
+  );
+}
+
+class _CallDockButton extends StatelessWidget {
+  const _CallDockButton({
+    required this.icon,
+    required this.onTap,
+    this.active = false,
+    this.danger = false,
+  });
+  final IconData icon;
+  final VoidCallback onTap;
+  final bool active;
+  final bool danger;
+
+  @override
+  Widget build(BuildContext context) {
+    final background = danger
+        ? const Color(0xFFE72F3D)
+        : active
+            ? Colors.white
+            : Colors.white.withValues(alpha: .13);
+    final foreground = danger
+        ? Colors.white
+        : active
+            ? const Color(0xFF24243A)
+            : Colors.white;
+    return Material(
+      color: background,
+      shape: const CircleBorder(),
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: onTap,
+        child: SizedBox(
+          width: 54,
+          height: 54,
+          child: Icon(icon, color: foreground, size: 24),
+        ),
+      ),
+    );
+  }
+}
