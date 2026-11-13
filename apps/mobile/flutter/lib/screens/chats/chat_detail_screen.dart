@@ -68,7 +68,6 @@ class ChatDetailScreen extends StatefulWidget {
 }
 
 class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBindingObserver, TickerProviderStateMixin {
-  int _lastTypingLength = 0;
   late final AnimationController _typingAnimation;
   final TextEditingController _ctrl = TextEditingController();
   final FocusNode _messageFocusNode = FocusNode();
