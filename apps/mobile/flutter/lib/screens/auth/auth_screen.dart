@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../../widgets/novyn_brand_mark.dart';
 import 'package:flutter/gestures.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -85,10 +86,7 @@ class _AuthScreenState extends State<AuthScreen>
                                 ),
                               ],
                             ),
-                            child: Image.asset(
-                              'assets/icons/app_icon_foreground.png',
-                              fit: BoxFit.contain,
-                            ),
+                            child: const NovynBrandMark(size: 48),
                           ),
                           const SizedBox(width: 13),
                           Text(
