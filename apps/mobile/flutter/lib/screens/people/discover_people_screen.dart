@@ -6,6 +6,7 @@ import '../../models/user_model.dart';
 import '../../widgets/novyn_ui.dart';
 import '../../widgets/novyn_empty_state.dart';
 import '../../widgets/user_avatar.dart';
+import '../../theme/novyn_theme.dart';
 
 class DiscoverPeopleScreen extends StatefulWidget {
   final String myUid;
@@ -93,8 +94,11 @@ class _DiscoverPeopleScreenState extends State<DiscoverPeopleScreen> {
   Widget build(BuildContext context) {
     final service = context.read<FriendService>();
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final foreground = isDark ? const Color(0xFFF4F1FF) : theme.colorScheme.onSurface;
+    final muted = isDark ? const Color(0xFFB7B2C9) : theme.colorScheme.onSurfaceVariant;
     return Scaffold(
-      backgroundColor: Colors.transparent,
+      backgroundColor: NovynTheme.pageBg(context),
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -103,7 +107,7 @@ class _DiscoverPeopleScreenState extends State<DiscoverPeopleScreen> {
           onPressed: () => Navigator.pop(context),
         ),
         title: Text('Friend Requests',
-          style: NovynText.display(20, color: theme.colorScheme.onSurface)),
+          style: NovynText.display(20, color: foreground)),
         centerTitle: false,
       ),
       body: Column(
@@ -112,7 +116,7 @@ class _DiscoverPeopleScreenState extends State<DiscoverPeopleScreen> {
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 8, 20, 18),
             child: Text('Manage your connections',
-              style: NovynText.body(13, color: theme.colorScheme.onSurfaceVariant)),
+              style: NovynText.body(13, color: muted)),
           ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -168,7 +172,7 @@ class _DiscoverPeopleScreenState extends State<DiscoverPeopleScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(label, style: NovynText.body(13, weight: FontWeight.w700,
-                color: selected ? Colors.white : theme.colorScheme.onSurfaceVariant)),
+                color: selected ? Colors.white : (theme.brightness == Brightness.dark ? const Color(0xFFB7B2C9) : theme.colorScheme.onSurfaceVariant))),
               if (index == 0) ...[
                 const SizedBox(width: 6),
                 StreamBuilder<int>(
@@ -223,9 +227,9 @@ class _DiscoverPeopleScreenState extends State<DiscoverPeopleScreen> {
                 ),
                 const SizedBox(width: 12),
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('Add a friend', style: NovynText.display(17, color: theme.colorScheme.onSurface)),
+                  Text('Add a friend', style: NovynText.display(17, color: theme.brightness == Brightness.dark ? const Color(0xFFF4F1FF) : theme.colorScheme.onSurface)),
                   const SizedBox(height: 3),
-                  Text('Connect using their Novyn username.', style: NovynText.body(12, color: theme.colorScheme.onSurfaceVariant)),
+                  Text('Connect using their Novyn username.', style: NovynText.body(12, color: theme.brightness == Brightness.dark ? const Color(0xFFB7B2C9) : theme.colorScheme.onSurfaceVariant)),
                 ])),
               ]),
               const SizedBox(height: 20),
@@ -275,9 +279,9 @@ class _DiscoverPeopleScreenState extends State<DiscoverPeopleScreen> {
             Icon(Icons.qr_code_2_rounded, size: 34, color: theme.colorScheme.primary),
             const SizedBox(width: 12),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Share your QR code', style: NovynText.body(13, weight: FontWeight.w800, color: theme.colorScheme.onSurface)),
+              Text('Share your QR code', style: NovynText.body(13, weight: FontWeight.w800, color: theme.brightness == Brightness.dark ? const Color(0xFFF4F1FF) : theme.colorScheme.onSurface)),
               const SizedBox(height: 3),
-              Text('Let friends scan your profile to find you.', style: NovynText.body(11, color: theme.colorScheme.onSurfaceVariant)),
+              Text('Let friends scan your profile to find you.', style: NovynText.body(11, color: theme.brightness == Brightness.dark ? const Color(0xFFB7B2C9) : theme.colorScheme.onSurfaceVariant)),
             ])),
             IconButton(
               tooltip: 'Show my QR code',
