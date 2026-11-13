@@ -149,7 +149,7 @@ class _ChatsScreenState extends State<ChatsScreen> {
   }
 
   Future<void> _loadChats({bool silent = false}) async {
-    final generation = ++_loadGeneration;
+    final generation = silent ? _loadGeneration : ++_loadGeneration;
     final auth = context.read<AuthService>();
     final myUsername = auth.user?.username;
     if (myUsername == null) {
