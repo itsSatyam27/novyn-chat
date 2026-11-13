@@ -1263,10 +1263,6 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                             color: theme.colorScheme.onSurface,
                           ),
                           onChanged: (v) {
-                            if (v.length > _lastTypingLength) {
-                              HapticService.vibrate(NovynHapticType.light, category: HapticCategory.typing);
-                            }
-                            _lastTypingLength = v.length;
                             setState(() {});
                             if (v.isNotEmpty) {
                               socket.startTyping(widget.peer.uid);
