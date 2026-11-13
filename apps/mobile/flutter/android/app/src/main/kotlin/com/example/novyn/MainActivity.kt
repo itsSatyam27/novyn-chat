@@ -119,7 +119,7 @@ class MainActivity : FlutterFragmentActivity() {
                     // connection is asynchronous, so wait for the system state
                     // broadcast before marking the route active.
                     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
-                        scoStateReceiver = object : BroadcastReceiver() {
+                        val receiver = object : BroadcastReceiver() {
                             override fun onReceive(context: Context?, intent: Intent?) {
                                 if (intent?.action != AudioManager.ACTION_SCO_AUDIO_STATE_UPDATED) return
                                 val state = intent.getIntExtra(
@@ -131,11 +131,12 @@ class MainActivity : FlutterFragmentActivity() {
                                 publishCallAudioRoutes(manager)
                             }
                         }
+                        scoStateReceiver = receiver
                         val filter = IntentFilter(AudioManager.ACTION_SCO_AUDIO_STATE_UPDATED)
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                            registerReceiver(scoStateReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+                            registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED)
                         } else {
-                            registerReceiver(scoStateReceiver, filter)
+                            registerReceiver(receiver, filter)
                         }
                     }
                     publishCallAudioRoutes(manager)
