@@ -16,6 +16,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:gal/gal.dart';
 import '../../services/auth_service.dart';
 import '../auth/onboarding_screen.dart';
+import '../security/setup_pin_screen.dart';
 import 'widgets/profile_widgets.dart';
 import 'settings/notification_settings_screen.dart';
 import 'settings/security_privacy_screen.dart';
@@ -79,12 +80,12 @@ class ProfileScreen extends StatelessWidget {
                   children: [
                     Expanded(
                       child: _SettingsQuickToggle(
-                        title: 'Stealth Mode',
-                        activeIcon: Icons.visibility_off_rounded,
-                        inactiveIcon: Icons.visibility_rounded,
-                        value: settings.stealthModeEnabled,
+                        title: 'App Lock',
+                        activeIcon: Icons.lock_rounded,
+                        inactiveIcon: Icons.lock_open_rounded,
+                        value: settings.appLockEnabled,
                         accent: const Color(0xFF64748B),
-                        onChanged: settings.setStealthMode,
+                        onChanged: (value) => _toggleAppLock(context, settings, value),
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -204,6 +205,43 @@ class ProfileScreen extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  Future<void> _toggleAppLock(
+    BuildContext context,
+    SettingsService settings,
+    bool enabled,
+  ) async {
+    if (enabled) {
+      if (settings.appLockPin == null) {
+        final configured = await Navigator.push<bool>(
+          context,
+          MaterialPageRoute(builder: (_) => const SetupPinScreen()),
+        );
+        if (configured != true || !context.mounted) return;
+      }
+      try {
+        await settings.setAppLockEnabled(true);
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('App Lock enabled.')),
+          );
+        }
+      } catch (error) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Could not enable App Lock: $error')),
+          );
+        }
+      }
+    } else {
+      await settings.setAppLockEnabled(false);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('App Lock disabled.')),
+        );
+      }
+    }
   }
 
   Future<void> _toggleBusyMode(
