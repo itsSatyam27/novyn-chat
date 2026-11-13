@@ -31,10 +31,13 @@ class _CallsScreenState extends State<CallsScreen> {
   Set<String> _favoriteUsernames = <String>{};
   String? _myUsername;
   final TextEditingController _searchController = TextEditingController();
+  final FocusNode _searchFocusNode = FocusNode();
+  bool _searchOpen = false;
 
   @override
   void dispose() {
     _searchController.dispose();
+    _searchFocusNode.dispose();
     super.dispose();
   }
 
@@ -219,7 +222,6 @@ class _CallsScreenState extends State<CallsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final missedCount = _calls.where((call) => call.status == 'missed').length;
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: SafeArea(
@@ -228,11 +230,45 @@ class _CallsScreenState extends State<CallsScreen> {
           children: [
             NovynHeader(
               title: 'Calls',
-              subtitle: '${_calls.length} calls this week · $missedCount missed',
               actions: [
+                IconButton(
+                  tooltip: _searchOpen ? 'Close search' : 'Search calls',
+                  visualDensity: VisualDensity.compact,
+                  icon: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 180),
+                    transitionBuilder: (child, animation) => RotationTransition(
+                      turns: Tween<double>(begin: 0.88, end: 1).animate(animation),
+                      child: FadeTransition(opacity: animation, child: child),
+                    ),
+                    child: Icon(
+                      _searchOpen ? Icons.close_rounded : Icons.search_rounded,
+                      key: ValueKey(_searchOpen),
+                      size: 23,
+                    ),
+                  ),
+                  onPressed: () {
+                    setState(() {
+                      _searchOpen = !_searchOpen;
+                      if (!_searchOpen) {
+                        _search = '';
+                        _searchController.clear();
+                      }
+                    });
+                    if (_searchOpen) {
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        if (mounted && _searchOpen) _searchFocusNode.requestFocus();
+                      });
+                    } else {
+                      _searchFocusNode.unfocus();
+                    }
+                  },
+                ),
                 PopupMenuButton<String>(
                   tooltip: 'Call options',
                   icon: const Icon(Icons.more_horiz_rounded, size: 25),
+                  offset: const Offset(0, 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                  elevation: 10,
                   onSelected: (value) {
                     if (value == 'privacy') _showCallPrivacy();
                     if (value == 'clear') _confirmClearHistory();
@@ -242,38 +278,71 @@ class _CallsScreenState extends State<CallsScreen> {
                     }
                   },
                   itemBuilder: (context) => [
-                    const PopupMenuItem(value: 'privacy', child: ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: Icon(Icons.shield_outlined),
-                      title: Text('Call privacy'),
-                    )),
+                    PopupMenuItem(
+                      value: 'privacy',
+                      height: 52,
+                      child: _CallMenuItem(
+                        icon: Icons.shield_outlined,
+                        title: 'Call privacy',
+                        subtitle: 'Manage who can call you',
+                      ),
+                    ),
                     if (_calls.isNotEmpty)
-                      const PopupMenuItem(value: 'clear', child: ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        leading: Icon(Icons.delete_outline_rounded),
-                        title: Text('Clear history'),
-                      )),
-                    const PopupMenuItem(value: 'refresh', child: ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: Icon(Icons.refresh_rounded),
-                      title: Text('Refresh'),
-                    )),
+                      PopupMenuItem(
+                        value: 'clear',
+                        height: 52,
+                        child: _CallMenuItem(
+                          icon: Icons.delete_outline_rounded,
+                          title: 'Clear history',
+                          subtitle: 'Remove calls from this device',
+                          danger: true,
+                        ),
+                      ),
+                    PopupMenuItem(
+                      value: 'refresh',
+                      height: 52,
+                      child: _CallMenuItem(
+                        icon: Icons.refresh_rounded,
+                        title: 'Refresh',
+                        subtitle: 'Sync recent calls',
+                      ),
+                    ),
                   ],
                 ),
               ],
             ),
-            NovynSearchField(
-              hint: 'Search call history…',
-              controller: _searchController,
-              onChanged: (value) => setState(() => _search = value.trim().toLowerCase()),
+            AnimatedSize(
+              duration: const Duration(milliseconds: 280),
+              curve: Curves.easeInOutCubic,
+              alignment: Alignment.topCenter,
+              child: _searchOpen
+                  ? Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Focus(
+                        onKeyEvent: (_, event) {
+                          if (event is KeyDownEvent && event.logicalKey == LogicalKeyboardKey.escape) {
+                            setState(() {
+                              _searchOpen = false;
+                              _search = '';
+                              _searchController.clear();
+                            });
+                            _searchFocusNode.unfocus();
+                            return KeyEventResult.handled;
+                          }
+                          return KeyEventResult.ignored;
+                        },
+                        child: NovynSearchField(
+                          hint: 'Search call history…',
+                          controller: _searchController,
+                          focusNode: _searchFocusNode,
+                          onChanged: (value) => setState(() => _search = value.trim().toLowerCase()),
+                        ),
+                      ),
+                    )
+                  : const SizedBox(width: double.infinity),
             ),
-            NovynChipRow(
-              labels: const ['All', 'Missed', 'Incoming', 'Outgoing'],
-              selected: const ['All', 'Missed', 'Incoming', 'Outgoing'].indexOf(_filter),
-              onSelected: (index) => setState(() {
-                _filter = const ['All', 'Missed', 'Incoming', 'Outgoing'][index];
-              }),
-            ),
+            _buildFilterCards(),
+            const SizedBox(height: 8),
             Expanded(
               child: _loading
                   ? ListView.builder(
@@ -291,18 +360,74 @@ class _CallsScreenState extends State<CallsScreen> {
     );
   }
 
+  Widget _buildFilterCards() {
+    int countFor(String filter) {
+      return _calls.fold<int>(0, (total, call) {
+        if (filter == 'All') return total + call.history.length;
+        return total + call.history.where((log) => log['status'] == filter.toLowerCase()).length;
+      });
+    }
+
+    const filters = [
+      ('All', 'Call entries', Icons.history_rounded),
+      ('Missed', 'Missed calls', Icons.call_missed_rounded),
+      ('Incoming', 'Incoming calls', Icons.call_received_rounded),
+      ('Outgoing', 'Outgoing calls', Icons.call_made_rounded),
+    ];
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
+      child: GridView.count(
+        crossAxisCount: 2,
+        mainAxisSpacing: 10,
+        crossAxisSpacing: 10,
+        childAspectRatio: 2.65,
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        children: [
+          for (final item in filters)
+            _CallSummaryTile(
+              icon: item.$3,
+              label: item.$2,
+              value: countFor(item.$1).toString(),
+              tint: item.$1 == 'Missed'
+                  ? NovynColors.danger
+                  : item.$1 == 'Incoming'
+                      ? NovynColors.mint
+                      : item.$1 == 'Outgoing'
+                          ? const Color(0xFF79B8FF)
+                          : Theme.of(context).colorScheme.primary,
+              selected: _filter == item.$1,
+              onTap: () => setState(() => _filter = item.$1),
+            ),
+        ],
+      ),
+    );
+  }
+
   List<_CallEntry> _filteredCalls() {
     var result = _calls;
-    switch (_filter) {
-      case 'Missed':
-        result = result.where((call) => call.status == 'missed').toList();
-        break;
-      case 'Incoming':
-        result = result.where((call) => call.status == 'incoming').toList();
-        break;
-      case 'Outgoing':
-        result = result.where((call) => call.status == 'outgoing').toList();
-        break;
+    if (_filter != 'All') {
+      result = result.map((call) {
+        final matching = call.history
+            .where((log) => log['status'] == _filter.toLowerCase())
+            .toList();
+        if (matching.isEmpty) return null;
+        matching.sort((a, b) {
+          final aDate = DateTime.tryParse(a['createdAt']?.toString() ?? '') ?? DateTime.fromMillisecondsSinceEpoch(0);
+          final bDate = DateTime.tryParse(b['createdAt']?.toString() ?? '') ?? DateTime.fromMillisecondsSinceEpoch(0);
+          return bDate.compareTo(aDate);
+        });
+        final latest = matching.first;
+        final rawDate = latest['createdAt']?.toString() ?? '';
+        final parsedDate = DateTime.tryParse(rawDate);
+        return call.copyWith(
+          type: latest['type']?.toString() ?? call.type,
+          status: latest['status']?.toString() ?? call.status,
+          duration: (latest['duration'] as num?)?.toInt() ?? 0,
+          createdAt: parsedDate == null ? call.createdAt : (parsedDate.isUtc ? parsedDate.toLocal() : parsedDate),
+          history: matching,
+        );
+      }).whereType<_CallEntry>().toList();
     }
     if (_search.isNotEmpty) {
       result = result.where((call) =>
@@ -331,14 +456,6 @@ class _CallsScreenState extends State<CallsScreen> {
       child: ListView(
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 132),
         children: [
-          Row(
-            children: [
-              Expanded(child: _CallSummaryTile(icon: Icons.history_rounded, label: 'Call entries', value: calls.fold<int>(0, (total, call) => total + call.count).toString(), tint: Theme.of(context).colorScheme.primary)),
-              const SizedBox(width: 10),
-              Expanded(child: _CallSummaryTile(icon: Icons.call_missed_rounded, label: 'Missed calls', value: calls.fold<int>(0, (total, call) => total + call.history.where((log) => log['status'] == 'missed').length).toString(), tint: NovynColors.danger)),
-            ],
-          ),
-          const SizedBox(height: 18),
           if (_search.isEmpty && _filter == 'All' && uniqueFavorites.isNotEmpty) ...[
             const NovynSectionLabel(
               'FAVORITES',
@@ -435,22 +552,83 @@ class _CallSummaryTile extends StatelessWidget {
   final String label;
   final String value;
   final Color tint;
-  const _CallSummaryTile({required this.icon, required this.label, required this.value, required this.tint});
+  final bool selected;
+  final VoidCallback onTap;
+  const _CallSummaryTile({required this.icon, required this.label, required this.value, required this.tint, required this.selected, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
-      decoration: BoxDecoration(color: NovynTheme.cardBg(context), borderRadius: BorderRadius.circular(18), border: Border.all(color: Theme.of(context).colorScheme.outlineVariant)),
-      child: Row(children: [
-        Container(width: 34, height: 34, decoration: BoxDecoration(color: tint.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(11)), child: Icon(icon, color: tint, size: 18)),
-        const SizedBox(width: 10),
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(value, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800, height: 1.1)),
-          const SizedBox(height: 3),
-          Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: NovynText.body(10, color: NovynColors.textMuted)),
-        ])),
-      ]),
+    final outline = selected ? tint.withValues(alpha: 0.75) : Theme.of(context).colorScheme.outlineVariant;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(17),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: selected ? tint.withValues(alpha: 0.10) : NovynTheme.cardBg(context),
+            borderRadius: BorderRadius.circular(17),
+            border: Border.all(color: outline, width: selected ? 1.4 : 1),
+          ),
+          child: Row(children: [
+            Container(width: 32, height: 32, decoration: BoxDecoration(color: tint.withValues(alpha: 0.13), borderRadius: BorderRadius.circular(10)), child: Icon(icon, color: tint, size: 17)),
+            const SizedBox(width: 9),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [
+              Text(value, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800, height: 1.05)),
+              const SizedBox(height: 3),
+              Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: NovynText.body(10, color: NovynColors.textMuted)),
+            ])),
+            if (selected) Icon(Icons.check_circle_rounded, color: tint, size: 15),
+          ]),
+        ),
+      ),
+    );
+  }
+}
+
+class _CallMenuItem extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final bool danger;
+
+  const _CallMenuItem({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    this.danger = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color = danger ? NovynColors.danger : Theme.of(context).colorScheme.onSurface;
+    return Row(
+      children: [
+        Container(
+          width: 34,
+          height: 34,
+          decoration: BoxDecoration(
+            color: (danger ? NovynColors.danger : Theme.of(context).colorScheme.primary).withValues(alpha: 0.10),
+            borderRadius: BorderRadius.circular(11),
+          ),
+          child: Icon(icon, size: 17, color: danger ? NovynColors.danger : Theme.of(context).colorScheme.primary),
+        ),
+        const SizedBox(width: 11),
+        Expanded(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title, style: NovynText.body(12.5, color: color, weight: FontWeight.w700)),
+              const SizedBox(height: 2),
+              Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis,
+                style: NovynText.body(10, color: NovynColors.textMuted)),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
