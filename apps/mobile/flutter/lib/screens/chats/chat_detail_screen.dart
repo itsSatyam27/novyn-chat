@@ -186,47 +186,44 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
   }
 
   Future<void> _loadOlderMessages() async {
+    if (_loadingOlder || !_hasMore || _chatId == null) return;
     final socket = context.read<SocketService>();
     final messages = socket.messages;
     if (messages.isEmpty) return;
 
     setState(() => _loadingOlder = true);
+    final previousExtent = _scroll.hasClients
+        ? _scroll.position.maxScrollExtent
+        : 0.0;
+    final previousPixels = _scroll.hasClients
+        ? _scroll.position.pixels
+        : 0.0;
 
-    // Use the oldest message's timestamp as cursor
-    final oldest = messages.first.createdAt.toIso8601String();
-    final older = await ApiService.getMessages(
-      _chatId!,
-      myUsername: _myUid,
-      before: oldest,
-      limit: 30,
-    );
+    try {
+      final hasMore = await socket.loadOlderHistory(
+        _chatId!,
+        messages.first.id,
+      );
+      if (!mounted) return;
+      _hasMore = hasMore;
+      _suppressNextCountScroll = true;
+      setState(() => _loadingOlder = false);
 
-    if (!mounted) return;
-
-    if (older.isEmpty) {
-      setState(() {
-        _loadingOlder = false;
-        _hasMore = false;
-      });
-      return;
-    }
-
-    // Preserve the visible message position when older history is prepended.
-    final prevExtent = _scroll.position.maxScrollExtent;
-    final prevPixels = _scroll.position.pixels;
-    _suppressNextCountScroll = true;
-    socket.prependMessages(older);
-
-    setState(() => _loadingOlder = false);
-
-    // Jump scroll to maintain position after prepend
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scroll.hasClients) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!_scroll.hasClients || !mounted) return;
         final newExtent = _scroll.position.maxScrollExtent;
-        final delta = newExtent - prevExtent;
-        _scroll.jumpTo((prevPixels + delta).clamp(0.0, _scroll.position.maxScrollExtent).toDouble());
-      }
-    });
+        final delta = newExtent - previousExtent;
+        if (delta > 0) {
+          _scroll.jumpTo(
+            (previousPixels + delta)
+                .clamp(0.0, _scroll.position.maxScrollExtent)
+                .toDouble(),
+          );
+        }
+      });
+    } catch (_) {
+      if (mounted) setState(() => _loadingOlder = false);
+    }
   }
 
   Future<void> _init() async {
@@ -258,7 +255,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
     if (history.isNotEmpty) {
       await HybridDbService.saveMessages(history);
       await HybridDbService.setLastSync(_chatId!, DateTime.now());
-      socket.openChat(_chatId!, history);
+      socket.mergeChatHistory(history);
       if (mounted) setState(() => _fetchingFromServer = false);
       _jumpToLatestImmediately();
     } else if (mounted) {
@@ -2637,128 +2634,148 @@ class _MessageBubble extends StatelessWidget {
   void _showReactionPicker(BuildContext context) {
     HapticService.vibrate(NovynHapticType.medium, category: HapticCategory.chat);
     const emojis = ['❤️', '😂', '😮', '😢', '👍', '🔥'];
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (_) => Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // ── Emoji row ──────────────────────────────────────────────
-          Container(
-            margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surface,
-              borderRadius: BorderRadius.circular(24),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: emojis
-                  .map((e) => GestureDetector(
-                        onTap: () {
-                          Navigator.pop(context);
-                          _toggleReaction(context, e);
-                        },
-                        child: Container(
-                          width: 44,
-                          height: 44,
-                          decoration: BoxDecoration(
-                            color:
-                                Theme.of(context).colorScheme.primary.withValues(alpha: 0.08),
-                            shape: BoxShape.circle,
-                          ),
-                          child: Center(
-                            child:
-                                Text(e, style: TextStyle(fontSize: 22)),
-                          ),
-                        ),
-                      ))
-                  .toList(),
-            ),
-          ),
+    final scheme = Theme.of(context).colorScheme;
+    final canCopy = message.text.toString().trim().isNotEmpty &&
+        message.text.toString() != '🔒 Encrypted message';
 
-          // ── Action options ─────────────────────────────────────────
-          Container(
-            margin: const EdgeInsets.fromLTRB(16, 0, 16, 32),
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surface,
-              borderRadius: BorderRadius.circular(20),
-            ),
+    showDialog<void>(
+      context: context,
+      barrierColor: Colors.black.withValues(alpha: 0.42),
+      builder: (dialogContext) => Dialog(
+        backgroundColor: scheme.surface,
+        elevation: 18,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 30, vertical: 24),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: 360,
+            maxHeight: MediaQuery.of(dialogContext).size.height * 0.72,
+          ),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
             child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                // Reply
+                Center(
+                  child: Container(
+                    width: 34,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: scheme.onSurfaceVariant.withValues(alpha: .35),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: emojis.map((emoji) => InkWell(
+                    borderRadius: BorderRadius.circular(14),
+                    onTap: () {
+                      Navigator.pop(dialogContext);
+                      _toggleReaction(context, emoji);
+                    },
+                    child: Padding(
+                      padding: const EdgeInsets.all(7),
+                      child: Text(emoji, style: const TextStyle(fontSize: 25)),
+                    ),
+                  )).toList(),
+                ),
+                const SizedBox(height: 12),
+                Divider(height: 1, color: scheme.outlineVariant.withValues(alpha: .7)),
+                if (canCopy)
+                  _ActionItem(
+                    icon: Icons.copy_rounded,
+                    label: 'Copy text',
+                    color: scheme.primary,
+                    onTap: () async {
+                      await Clipboard.setData(
+                        ClipboardData(text: message.text.toString()),
+                      );
+                      if (!dialogContext.mounted) return;
+                      Navigator.pop(dialogContext);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Message copied'),
+                          behavior: SnackBarBehavior.floating,
+                        ),
+                      );
+                    },
+                  ),
                 _ActionItem(
                   icon: Icons.reply_rounded,
                   label: 'Reply',
-                  color: Theme.of(context).colorScheme.primary,
+                  color: scheme.primary,
                   onTap: () {
-                    Navigator.pop(context);
+                    Navigator.pop(dialogContext);
                     onReply?.call(message);
                   },
                 ),
-                const Divider(height: 1),
                 _ActionItem(
                   icon: Icons.forward_rounded,
                   label: 'Forward',
-                  color: const Color(0xFF64748B),
+                  color: scheme.onSurfaceVariant,
                   onTap: () {
-                    Navigator.pop(context);
+                    Navigator.pop(dialogContext);
                     onForward?.call(message);
                   },
                 ),
-                const Divider(height: 1),
                 _ActionItem(
                   icon: Icons.push_pin_outlined,
-                  label: (message.pinnedAt?.toString().isNotEmpty ?? false) ? 'Unpin message' : 'Pin message',
-                  color: const Color(0xFF64748B),
+                  label: (message.pinnedAt?.toString().isNotEmpty ?? false)
+                      ? 'Unpin message'
+                      : 'Pin message',
+                  color: scheme.onSurfaceVariant,
                   onTap: () {
-                    Navigator.pop(context);
+                    Navigator.pop(dialogContext);
                     final socket = context.read<SocketService>();
                     if (message.pinnedAt?.toString().isNotEmpty ?? false) {
-                      socket.unpinMessage(message.id.toString(), peer.uid.isNotEmpty ? peer.uid : peer.username);
+                      socket.unpinMessage(
+                        message.id.toString(),
+                        peer.uid.isNotEmpty ? peer.uid : peer.username,
+                      );
                     } else {
-                      socket.pinMessage(message.id.toString(), peer.uid.isNotEmpty ? peer.uid : peer.username);
+                      socket.pinMessage(
+                        message.id.toString(),
+                        peer.uid.isNotEmpty ? peer.uid : peer.username,
+                      );
                     }
                   },
                 ),
-                if ((message.isFromMe as bool)) ...[
-                  const Divider(height: 1),
-                  // Edit (only own messages, not tmp)
+                if (message.isFromMe as bool) ...[
                   if (!(message.id as String).startsWith('tmp_') && !message.isEncrypted)
                     _ActionItem(
                       icon: Icons.edit_rounded,
                       label: 'Edit',
                       color: const Color(0xFF0EA5E9),
                       onTap: () {
-                        Navigator.pop(context);
+                        Navigator.pop(dialogContext);
                         _showEditDialog(context);
                       },
                     ),
-                  const Divider(height: 1),
                   _ActionItem(
                     icon: Icons.delete_rounded,
                     label: 'Delete for everyone',
                     color: const Color(0xFFEF4444),
                     onTap: () {
-                      Navigator.pop(context);
+                      Navigator.pop(dialogContext);
                       _deleteMessage(context, forEveryone: true);
                     },
                   ),
                 ],
-                const Divider(height: 1),
                 _ActionItem(
                   icon: Icons.delete_outline_rounded,
                   label: 'Delete for me',
-                  color: const Color(0xFF94A3B8),
+                  color: scheme.onSurfaceVariant,
                   onTap: () {
-                    Navigator.pop(context);
+                    Navigator.pop(dialogContext);
                     _deleteMessage(context, forEveryone: false);
                   },
                 ),
               ],
             ),
           ),
-        ],
+        ),
       ),
     );
   }

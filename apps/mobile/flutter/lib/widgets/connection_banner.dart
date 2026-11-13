@@ -1,45 +1,63 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/socket_service.dart';
 import '../services/sync_service.dart';
 
-/// Banner that shows connection status (offline/connecting/syncing)
-class ConnectionBanner extends StatelessWidget {
+/// Avoid flashing an orange banner during short Android background/resume
+/// socket interruptions. A real outage is still shown after a brief grace period.
+class ConnectionBanner extends StatefulWidget {
   const ConnectionBanner({super.key});
+
+  @override
+  State<ConnectionBanner> createState() => _ConnectionBannerState();
+}
+
+class _ConnectionBannerState extends State<ConnectionBanner> {
+  Timer? _connectDelay;
+  bool _showConnecting = false;
+
+  @override
+  void dispose() {
+    _connectDelay?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final socket = context.watch<SocketService>();
     final sync = context.watch<SyncService>();
 
-    // Don't show banner if connected and not syncing
-    if (socket.isConnected && !sync.isSyncing) {
-      return const SizedBox.shrink();
-    }
-
-    String message;
-    Color color;
-    IconData icon;
-
-    if (!socket.isConnected) {
-      message = 'Connecting...';
-      color = const Color(0xFFF59E0B); // Orange
-      icon = Icons.cloud_off_rounded;
-    } else if (sync.isSyncing) {
-      message = 'Syncing messages...';
-      color = const Color(0xFF3B82F6); // Blue
-      icon = Icons.sync_rounded;
+    if (socket.isConnected) {
+      _connectDelay?.cancel();
+      _connectDelay = null;
+      _showConnecting = false;
+      if (!sync.isSyncing) return const SizedBox.shrink();
     } else {
-      return const SizedBox.shrink();
+      if (!_showConnecting && _connectDelay == null) {
+        _connectDelay = Timer(const Duration(milliseconds: 1200), () {
+          _connectDelay = null;
+          if (mounted && !context.read<SocketService>().isConnected) {
+            setState(() => _showConnecting = true);
+          }
+        });
+      }
+      if (!_showConnecting) return const SizedBox.shrink();
     }
+
+    final message = socket.isConnected ? 'Syncing messages...' : 'Connecting...';
+    final color = socket.isConnected
+        ? const Color(0xFF3B82F6)
+        : const Color(0xFFF59E0B);
+    final icon = socket.isConnected
+        ? Icons.sync_rounded
+        : Icons.cloud_off_rounded;
 
     return AnimatedContainer(
-      duration: const Duration(milliseconds: 300),
+      duration: const Duration(milliseconds: 250),
       height: 32,
       width: double.infinity,
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.9),
-      ),
+      decoration: BoxDecoration(color: color.withValues(alpha: 0.9)),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
@@ -54,7 +72,7 @@ class ConnectionBanner extends StatelessWidget {
               color: Colors.white,
             ),
           ),
-          if (sync.isSyncing) ...[
+          if (sync.isSyncing && socket.isConnected) ...[
             const SizedBox(width: 8),
             const SizedBox(
               width: 12,

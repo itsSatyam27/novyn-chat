@@ -69,6 +69,7 @@ class SocketService extends ChangeNotifier {
   String? _registeredIdentityAccount;
   bool _isAuthenticated = false;
   Completer<void>? _authenticationReady;
+  Completer<bool>? _olderHistoryCompleter;
   VoidCallback? onAuthenticated;
   final Map<String, String> _peerKeys = {};
   final BackendContacts contacts = BackendContacts();
@@ -215,7 +216,21 @@ class SocketService extends ChangeNotifier {
     _appForeground = foreground;
     if (_isConnected) {
       _socket?.emit('app_visibility', {'foreground': foreground});
+      if (foreground && _isAuthenticated) {
+        _requestActiveChatRefresh();
+      }
     }
+  }
+
+  void _requestActiveChatRefresh() {
+    final peer = _currentChatWith;
+    final connection = _socket;
+    if (peer == null || peer.isEmpty || connection == null ||
+        !_isConnected || !_isAuthenticated) return;
+    connection.emit('set_active_chat', {'to': peer, 'kind': 'friend'});
+    connection.emit('get_chat_protection', {'to': peer});
+    connection.emit('get_history', {'to': peer, 'kind': 'friend', 'limit': 100});
+    connection.emit('get_chat_wallpaper', {'to': peer, 'toType': 'friend'});
   }
 
   void _scheduleReconnect(int seconds) {
@@ -361,17 +376,24 @@ class SocketService extends ChangeNotifier {
             _currentChatWith?.toLowerCase() != withUser.toLowerCase()) {
           return;
         }
-        // Keep messages received while asynchronous history decryption ran.
-        final ids = parsed.map((message) => message.id).toSet();
-        final newest = parsed.isEmpty
-            ? DateTime.fromMillisecondsSinceEpoch(0)
-            : parsed.last.createdAt;
-        _messages = _resolveReplyPreviews([
-          ...decrypted,
-          ..._messages.where((message) =>
-              !ids.contains(message.id) && message.createdAt.isAfter(newest))
-        ]);
+        // Merge by message ID instead of replacing the local timeline with
+        // only the server's latest page. This preserves older cached messages
+        // and messages received while history was being decrypted.
+        final merged = <String, Message>{
+          for (final message in _messages)
+            if (message.id.isNotEmpty) message.id: message,
+        };
+        for (final message in decrypted) {
+          if (message.id.isNotEmpty) merged[message.id] = message;
+        }
+        final timeline = merged.values.toList()
+          ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+        _messages = _resolveReplyPreviews(timeline);
         HybridDbService.saveMessages(_messages);
+        final olderRequest = _olderHistoryCompleter;
+        if (olderRequest != null && !olderRequest.isCompleted) {
+          olderRequest.complete(data['hasMore'] == true);
+        }
         notifyListeners();
       }
     });
@@ -745,6 +767,9 @@ class SocketService extends ChangeNotifier {
     // Discover requests made before authentication are intentionally not sent.
     // Fetch the online directory only after the server has accepted this session.
     requestDiscover();
+    // A chat can be opened while the app is resuming and the socket is still
+    // unauthenticated. Re-request its state only after session authentication.
+    _requestActiveChatRefresh();
     final ready = _authenticationReady;
     if (ready != null && !ready.isCompleted) ready.complete();
     onAuthenticated?.call();
@@ -968,8 +993,53 @@ class SocketService extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<bool> loadOlderHistory(String peerUsername, String beforeMessageId) async {
+    if (beforeMessageId.isEmpty || !_isConnected || !_isAuthenticated) return false;
+    _olderHistoryCompleter?.complete(false);
+    final completer = Completer<bool>();
+    _olderHistoryCompleter = completer;
+    _socket?.emit('get_history', {
+      'to': peerUsername,
+      'kind': 'friend',
+      'limit': 30,
+      'before': beforeMessageId,
+    });
+    try {
+      return await completer.future.timeout(
+        const Duration(seconds: 12),
+        onTimeout: () => false,
+      );
+    } finally {
+      if (identical(_olderHistoryCompleter, completer)) {
+        _olderHistoryCompleter = null;
+      }
+    }
+  }
+
+  /// Merge server history with the locally cached timeline without dropping
+  /// older cached messages that are outside the server's latest-page window.
+  void mergeChatHistory(List<Message> incoming) {
+    final merged = <String, Message>{};
+    for (final message in _messages) {
+      if (message.id.isNotEmpty) merged[message.id] = message;
+    }
+    for (final message in incoming) {
+      if (message.id.isNotEmpty) merged[message.id] = message;
+    }
+    final timeline = merged.values.toList()
+      ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+    _messages = _resolveReplyPreviews(timeline);
+    notifyListeners();
+  }
+
   void prependOlderMessages(List<Message> older) {
-    _messages = _resolveReplyPreviews([...older, ..._messages]);
+    final merged = <String, Message>{};
+    for (final message in [...older, ..._messages]) {
+      if (message.id.isNotEmpty) merged[message.id] = message;
+    }
+    final timeline = merged.values.toList()
+      ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+    _messages = _resolveReplyPreviews(timeline);
     notifyListeners();
   }
 
