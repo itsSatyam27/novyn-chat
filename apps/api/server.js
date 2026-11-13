@@ -3322,6 +3322,7 @@ function deliverGroupMessage(params = {}) {
     replyTo: params.replyTo,
     poll: params.poll,
     game: params.game,
+    riddle: params.riddle,
     clientTempId,
   });
 
@@ -3355,7 +3356,7 @@ function deliverGroupMessage(params = {}) {
     }
 
     if (memberSocketId) {
-      io.to(memberSocketId).emit("private_message", message);
+      io.to(memberSocketId).emit("private_message", riddleForViewer(message, memberKey));
     }
     if (memberKey !== fromKey && !viewingSameGroup) {
       const bodyText = formatPushBody(text);
@@ -7723,20 +7724,23 @@ io.on("connection", (socket) => {
     const userKey = normalizeName(socket.data.userKey || "");
     if (!userKey) return respond({ ok: false, message: "Please sign in again." });
     if (!allowSocketAction(socket, "riddle_message", 20, 60 * 1000)) return respond({ ok: false, message: "Too many riddles. Try again shortly." });
-    const to = normalizeName(payload?.to);
+    const to = toDisplayName(payload?.to);
+    const requestedType = normalizeChatKind(payload?.toType || "friend");
+    const resolved = resolveChatTargetForUser(userKey, to, requestedType, { inferGroup: true });
     const secret = toDisplayName(payload?.secret).slice(0, MAX_MESSAGE_LENGTH);
     const question = toDisplayName(payload?.question).slice(0, 160);
     const hint = toDisplayName(payload?.hint).slice(0, 160);
     const answer = toDisplayName(payload?.answer).trim().toLowerCase().replace(/\s+/g, " ").slice(0, 80);
     const maxTries = Number(payload?.maxTries) === 5 ? 5 : 3;
     if (!to || !secret || !question || !answer) return respond({ ok: false, message: "Recipient, secret message, question, and answer are required." });
+    if (!resolved.ok) return respond({ ok: false, message: resolved.message || "Could not send riddle to this chat." });
     const answerSalt = crypto.randomBytes(16).toString("hex");
     const answerHash = crypto.scryptSync(answer, answerSalt, 32).toString("hex");
-    const result = deliverFriendMessage({
-      fromKey: userKey, toKey: to, text: "[Riddle Lock]",
-      clientTempId: toDisplayName(payload?.clientTempId).slice(0, 64),
-      riddle: { question, hint, secret, answerSalt, answerHash, maxTries, attemptsBy: {}, unlockedBy: [] },
-    });
+    const riddle = { question, hint, secret, answerSalt, answerHash, maxTries, attemptsBy: {}, unlockedBy: [] };
+    const clientTempId = toDisplayName(payload?.clientTempId).slice(0, 64);
+    const result = resolved.type === "group"
+      ? deliverGroupMessage({ fromKey: userKey, groupId: resolved.targetKey, text: "[Riddle Lock]", clientTempId, riddle })
+      : deliverFriendMessage({ fromKey: userKey, toKey: resolved.targetKey, text: "[Riddle Lock]", clientTempId, riddle });
     if (!result.ok) return respond({ ok: false, message: result.message || "Could not send riddle." });
     respond({ ok: true, id: result.message.id });
   });
@@ -7746,11 +7750,21 @@ io.on("connection", (socket) => {
     const userKey = normalizeName(socket.data.userKey || "");
     if (!userKey) return respond({ ok: false, message: "Please sign in again." });
     if (!allowSocketAction(socket, "unlock_riddle", 20, 60 * 1000)) return respond({ ok: false, message: "Too many attempts. Try again later." });
-    const fromKey = normalizeName(payload?.from);
+    const chatTarget = toDisplayName(payload?.to || payload?.from);
+    const requestedType = normalizeChatKind(payload?.toType || "friend");
+    const resolved = resolveChatTargetForUser(userKey, chatTarget, requestedType, { inferGroup: true });
     const messageId = toDisplayName(payload?.messageId);
     const answer = toDisplayName(payload?.answer).trim().toLowerCase().replace(/\s+/g, " ").slice(0, 80);
-    const message = (conversations.get(getConversationKey(userKey, fromKey)) || []).find((entry) => entry.id === messageId);
-    if (!message?.riddle || normalizeName(message.toKey) !== userKey) return respond({ ok: false, message: "Riddle not found." });
+    if (!resolved.ok) return respond({ ok: false, message: "Riddle not found." });
+    const conversation = conversations.get(resolved.conversationKey) || [];
+    const message = conversation.find((entry) => entry.id === messageId);
+    const isGroup = resolved.type === "group";
+    const validRecipient = isGroup
+      ? Boolean(message?.groupId === resolved.targetKey && message.fromKey !== userKey && isGroupMember(resolved.group, userKey))
+      : Boolean(message?.fromKey === resolved.targetKey && message.toKey === userKey);
+    if (!message?.riddle || !validRecipient) return respond({ ok: false, message: "Riddle not found." });
+    if (!Array.isArray(message.riddle.unlockedBy)) message.riddle.unlockedBy = [];
+    if (!message.riddle.attemptsBy || typeof message.riddle.attemptsBy !== "object") message.riddle.attemptsBy = {};
     if (message.riddle.unlockedBy.includes(userKey)) return respond({ ok: true, riddle: riddleForViewer(message, userKey).riddle });
     const used = Math.max(0, Number(message.riddle.attemptsBy[userKey]) || 0);
     if (used >= message.riddle.maxTries) return respond({ ok: false, locked: true, triesLeft: 0, message: "No tries left." });
@@ -7764,9 +7778,16 @@ io.on("connection", (socket) => {
     message.riddle.unlockedBy.push(userKey);
     schedulePersist();
     const recipientView = riddleForViewer(message, userKey);
-    socket.emit("riddle_updated", recipientView);
-    const senderSocketId = onlineUsers.get(fromKey);
-    if (senderSocketId) io.to(senderSocketId).emit("riddle_updated", riddleForViewer(message, fromKey));
+    if (isGroup) {
+      for (const memberKey of resolved.group.members || []) {
+        const memberSocketId = onlineUsers.get(normalizeName(memberKey));
+        if (memberSocketId) io.to(memberSocketId).emit("riddle_updated", riddleForViewer(message, memberKey));
+      }
+    } else {
+      socket.emit("riddle_updated", recipientView);
+      const senderSocketId = onlineUsers.get(resolved.targetKey);
+      if (senderSocketId) io.to(senderSocketId).emit("riddle_updated", riddleForViewer(message, resolved.targetKey));
+    }
     respond({ ok: true, riddle: recipientView.riddle });
   });
 
