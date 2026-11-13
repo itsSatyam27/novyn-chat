@@ -219,7 +219,6 @@ class _CallsScreenState extends State<CallsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final missedCount = _calls.where((call) => call.status == 'missed').length;
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: SafeArea(
