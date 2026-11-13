@@ -59,7 +59,7 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
         channelDescription: 'Voice and video call alerts', importance: Importance.max,
         priority: Priority.max, category: isIncoming ? AndroidNotificationCategory.call : AndroidNotificationCategory.missedCall,
         fullScreenIntent: isIncoming, ongoing: isIncoming, autoCancel: !isIncoming,
-        timeoutAfter: isIncoming ? const Duration(seconds: 45) : null,
+        timeoutAfter: isIncoming ? 45000 : null,
         playSound: true, enableVibration: true, icon: '@drawable/novyn_wings_icon'),
       iOS: const DarwinNotificationDetails(presentAlert: true, presentBadge: true, presentSound: true),
     ), payload: 'call:' + callId + '|' + caller + '|' + (isVideo ? '1' : '0'));
@@ -303,8 +303,8 @@ class NotificationService {
     try {
       final active = await _localNotifications.getActiveNotifications();
       for (final notification in active) {
-        if (notification.channelId == 'novyn_incoming_calls') {
-          await _localNotifications.cancel(notification.id);
+        if (notification.channelId == 'novyn_incoming_calls' && notification.id != null) {
+          await _localNotifications.cancel(notification.id!);
         }
       }
     } catch (error) {
@@ -759,7 +759,7 @@ class NotificationService {
             importance: Importance.max, priority: Priority.max,
             category: isIncoming ? AndroidNotificationCategory.call : AndroidNotificationCategory.missedCall,
             fullScreenIntent: isIncoming, ongoing: isIncoming, autoCancel: !isIncoming,
-            timeoutAfter: isIncoming ? const Duration(seconds: 45) : null,
+            timeoutAfter: isIncoming ? 45000 : null,
             playSound: true, enableVibration: true,
           ),
           iOS: const DarwinNotificationDetails(presentAlert: true, presentBadge: true, presentSound: true),
