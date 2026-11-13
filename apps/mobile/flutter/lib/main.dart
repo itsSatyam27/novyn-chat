@@ -22,6 +22,7 @@ import 'widgets/user_avatar.dart' show UserAvatar;
 import 'theme/novyn_theme.dart';
 import 'screens/splash/splash_screen_v2.dart';
 import 'widgets/app_lock_wrapper.dart';
+import 'services/call_overlay_service.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'l10n/app_localizations.dart';
 
@@ -165,7 +166,19 @@ class NovynApp extends StatelessWidget {
             builder: (context, child) => MediaQuery(
               data: MediaQuery.of(context).copyWith(disableAnimations: s.reduceMotion),
               child: SessionLifecycleGuard(
-                child: AppLockWrapper(child: child!),
+                child: AppLockWrapper(
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      child!,
+                      ValueListenableBuilder<Widget?>(
+                        valueListenable: CallOverlayService.miniCall,
+                        builder: (context, miniCall, _) =>
+                            miniCall ?? const SizedBox.shrink(),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
             home: const SplashScreenV2(),
