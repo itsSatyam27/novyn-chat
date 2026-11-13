@@ -693,6 +693,13 @@ class _CallScreenState extends State<CallScreen>
           ),
         ),
 
+        if (_audioRoutes.length > 1)
+          Positioned(
+            bottom: 118,
+            left: 8,
+            right: 8,
+            child: Center(child: _buildAudioRouteSelector()),
+          ),
         // Bottom controls
         Positioned(
           bottom: 0,
