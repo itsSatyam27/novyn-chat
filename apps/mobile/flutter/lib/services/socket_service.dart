@@ -77,6 +77,7 @@ class SocketService extends ChangeNotifier {
   io.Socket? _socket;
   bool _isConnected = false;
   bool _manualDisconnect = false;
+  bool _refreshingSocketSession = false;
   bool _appForeground = true;
   String? _myUsername; // novyn-chat username (not Firebase UID)
   final AudioPlayer _audioPlayer = AudioPlayer();
@@ -161,6 +162,22 @@ class SocketService extends ChangeNotifier {
     connect(serverUrl, username);
   }
 
+  Future<void> _refreshAfterSocketAuthFailure() async {
+    if (_refreshingSocketSession) return;
+    _refreshingSocketSession = true;
+    try {
+      final status = await ApiService.refreshSessionStatus()
+          .timeout(const Duration(seconds: 12), onTimeout: () => null);
+      if (status == 200 && !_manualDisconnect) {
+        await reconnectWithCurrentSession();
+      }
+    } catch (error) {
+      debugPrint('[NovynSocket] Session refresh after auth failure failed: $error');
+    } finally {
+      _refreshingSocketSession = false;
+    }
+  }
+
   void connect(String serverUrl, String username) {
     _manualDisconnect = false;
     if (_socket != null && _myUsername != null &&
@@ -211,6 +228,8 @@ class SocketService extends ChangeNotifier {
     _socket!.onDisconnect((_) {
       _isConnected = false;
       _isAuthenticated = false;
+      // A completed future from an old socket must never authenticate a new one.
+      _authenticationReady = null;
       _registeredIdentityAccount = null;
       notifyListeners();
       if (!_manualDisconnect) _scheduleReconnect(3);
@@ -219,12 +238,23 @@ class SocketService extends ChangeNotifier {
     _socket!.onConnectError((_) {
       _isConnected = false;
       _isAuthenticated = false;
+      _authenticationReady = null;
       _registeredIdentityAccount = null;
       notifyListeners();
       if (!_manualDisconnect) _scheduleReconnect(5);
     });
 
     _registerEventHandlers();
+    _socket!.on('auth_failed', (data) {
+      _isAuthenticated = false;
+      notifyListeners();
+      // A stale access cookie can leave a newly connected socket without a
+      // userKey. Refresh the HTTP session once, then rebuild the socket
+      // handshake with the rotated cookie. Never clear the local account here.
+      if (!_refreshingSocketSession && !_manualDisconnect) {
+        unawaited(_refreshAfterSocketAuthFailure());
+      }
+    });
     _socket!.connect();
   }
 
@@ -834,14 +864,33 @@ class SocketService extends ChangeNotifier {
   }
 
   Future<void> _waitForSocketAuthentication() async {
-    if (_isAuthenticated) return;
-    final ready = _authenticationReady ??= Completer<void>();
-    await ready.future.timeout(
-      const Duration(seconds: 15),
-      onTimeout: () => throw StateError(
-        'Novyn is still connecting securely. Please wait a moment and try again.',
-      ),
-    );
+    if (_isConnected && _isAuthenticated) return;
+
+    // Poll the live transport/auth state rather than awaiting a completer that
+    // can become detached when a socket disconnects and is replaced.
+    final deadline = DateTime.now().add(const Duration(seconds: 30));
+    while (!_isConnected || !_isAuthenticated) {
+      if (_manualDisconnect) {
+        throw StateError('Reconnect to Novyn before changing account settings.');
+      }
+      if (DateTime.now().isAfter(deadline)) {
+        throw StateError(
+          _isConnected
+              ? 'Novyn is still verifying your session. Please wait and try again.'
+              : 'Novyn could not reconnect. Check your connection and try again.',
+        );
+      }
+      await Future<void>.delayed(
+        Duration(milliseconds: _isConnected ? 120 : 250),
+      );
+    }
+  }
+
+  Future<void> _requireAuthenticatedConnection() async {
+    await _waitForSocketAuthentication();
+    if (_socket == null || !_isConnected || !_isAuthenticated) {
+      throw StateError('Novyn is reconnecting securely. Please try again in a moment.');
+    }
   }
 
   Future<void> _registerEncryptionIdentity() async {
@@ -2023,7 +2072,7 @@ class SocketService extends ChangeNotifier {
   }
 
   Future<Map<String, dynamic>> fetchAccountSettings() async {
-    _requireConnection();
+    await _requireAuthenticatedConnection();
     final completer = Completer<Map<String, dynamic>>();
     _socket!.emitWithAck('get_account_settings', <String, dynamic>{}, ack: (dynamic result) {
       completer.complete(result is Map
@@ -2037,7 +2086,7 @@ class SocketService extends ChangeNotifier {
   }
 
   Future<Map<String, dynamic>> updateAccountSettings(Map<String, dynamic> changes) async {
-    _requireConnection();
+    await _requireAuthenticatedConnection();
     final completer = Completer<Map<String, dynamic>>();
     _socket!.emitWithAck('update_profile', changes, ack: (dynamic result) {
       completer.complete(result is Map
@@ -2051,7 +2100,7 @@ class SocketService extends ChangeNotifier {
   }
 
   Future<void> updatePresence(String mode) async {
-    _requireConnection();
+    await _requireAuthenticatedConnection();
     final confirmed = Completer<void>();
     _socket!.emitWithAck(
       'update_profile',
