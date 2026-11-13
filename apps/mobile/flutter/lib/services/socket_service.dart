@@ -100,7 +100,8 @@ class SocketService extends ChangeNotifier {
 
   // Messages for the currently open chat (immutable list — replaced on update)
   List<Message> _messages = [];
-  String? _currentChatWith; // the username of the other party
+  String? _currentChatWith; // username for DMs or group ID for group chats
+  bool _currentChatIsGroup = false;
   bool _activeChatCaptureProtected = false;
   String _chatWallpaper = '';
   String get chatWallpaper => _chatWallpaper;
@@ -428,7 +429,10 @@ class SocketService extends ChangeNotifier {
           DateTime.now().millisecondsSinceEpoch.toString();
 
       final isOwn = sender.toLowerCase() == _myUsername?.toLowerCase();
-      final chatPartner = isOwn ? receiver : sender;
+      final isGroupMessage = data['toType']?.toString() == 'group';
+      final chatPartner = isGroupMessage
+          ? (data['groupId']?.toString() ?? data['toKey']?.toString() ?? receiver)
+          : (isOwn ? receiver : sender);
 
       var msg = Message(
         id: msgId,
@@ -455,7 +459,9 @@ class SocketService extends ChangeNotifier {
 
       final account = _myUsername;
       if (account == null) return;
-      msg = await encryption.decrypt(msg, account, _peerKeys[chatPartner.toLowerCase()]);
+      if (!isGroupMessage) {
+        msg = await encryption.decrypt(msg, account, _peerKeys[chatPartner.toLowerCase()]);
+      }
       if (isOwn) {
         _captureMessageStatusTimes(msgId, data);
         final explicit = data['status']?.toString().toLowerCase();
@@ -492,7 +498,7 @@ class SocketService extends ChangeNotifier {
           }
         }
       } else if (!isOwn) {
-        if (data['toType'] != 'group') {
+        if (!isGroupMessage) {
           onIncomingMessage?.call(chatPartner, msg.text);
         }
         // Sound and vibration remain independent user preferences.
@@ -999,9 +1005,10 @@ class SocketService extends ChangeNotifier {
   }
 
   // ── Open a chat ────────────────────────────────────────────────────────────
-  void openChat(String peerUsername, List<Message> cachedHistory) {
+  void openChat(String peerUsername, List<Message> cachedHistory, {bool isGroup = false}) {
     if (_typingTargetKey != null) _stopActiveTyping();
     _currentChatWith = peerUsername;
+    _currentChatIsGroup = isGroup;
     _chatWallpaper = '';
     _messages = List<Message>.from(cachedHistory);
     _peerIsTyping = false;
@@ -1014,8 +1021,8 @@ class SocketService extends ChangeNotifier {
     _activeChatCaptureProtected = false;
     unawaited(SecurityService.setSafeMode(false));
     final connection = _socket;
-    connection?.emit('set_active_chat', {'to': peerUsername, 'kind': 'friend'});
-    if (connection != null) {
+    connection?.emit('set_active_chat', {'to': peerUsername, 'kind': isGroup ? 'group' : 'friend'});
+    if (connection != null && !isGroup) {
       connection.emitWithAck('get_chat_protection', {'to': peerUsername},
         ack: (dynamic result) {
           if (_socket != connection ||
@@ -1026,8 +1033,8 @@ class SocketService extends ChangeNotifier {
           unawaited(SecurityService.setSafeMode(protected));
         });
     }
-    connection?.emit('get_history', {'to': peerUsername, 'kind': 'friend'});
-    connection?.emit('get_chat_wallpaper', {'to': peerUsername, 'toType': 'friend'});
+    connection?.emit('get_history', {'to': peerUsername, 'kind': isGroup ? 'group' : 'friend'});
+    connection?.emit('get_chat_wallpaper', {'to': peerUsername, 'toType': isGroup ? 'group' : 'friend'});
   }
 
   Future<void> _syncStealthModePreference() async {
@@ -1068,6 +1075,7 @@ class SocketService extends ChangeNotifier {
   void closeChat() {
     if (_typingTargetKey != null) _stopActiveTyping();
     _currentChatWith = null;
+    _currentChatIsGroup = false;
     _activeChatCaptureProtected = false;
     unawaited(SecurityService.setSafeMode(false));
     _messages = [];
@@ -1075,14 +1083,14 @@ class SocketService extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<bool> loadOlderHistory(String peerUsername, String beforeMessageId) async {
+  Future<bool> loadOlderHistory(String peerUsername, String beforeMessageId, {bool isGroup = false}) async {
     if (beforeMessageId.isEmpty || !_isConnected || !_isAuthenticated) return false;
     _olderHistoryCompleter?.complete(false);
     final completer = Completer<bool>();
     _olderHistoryCompleter = completer;
     _socket?.emit('get_history', {
       'to': peerUsername,
-      'kind': 'friend',
+      'kind': isGroup ? 'group' : 'friend',
       'limit': 30,
       'before': beforeMessageId,
     });
@@ -2105,14 +2113,44 @@ class SocketService extends ChangeNotifier {
     required List<String> memberIds,
     bool isStealth = false,
   }) async {
-    final chatId = 'grp_${DateTime.now().millisecondsSinceEpoch}';
-    _socket?.emit('create_group', {
-      'chatId': chatId,
-      'name': name,
-      'memberIds': memberIds,
+    await _waitForSocketAuthentication();
+    final connection = _socket;
+    if (connection == null || !_isConnected || !_isAuthenticated) {
+      throw StateError('Connect to Novyn before creating a group.');
+    }
+    final members = memberIds
+        .map((value) => value.trim().replaceFirst(RegExp(r'^@+'), ''))
+        .where((value) => value.isNotEmpty)
+        .toSet()
+        .toList();
+    if (members.isEmpty) {
+      throw StateError('Select at least one friend.');
+    }
+    final acknowledgement = Completer<Map<String, dynamic>>();
+    connection.emitWithAck('create_group', {
+      'name': name.trim(),
+      // The API authorizes members by Novyn username, not Firebase UID.
+      'members': members,
       'isStealth': isStealth,
+    }, ack: (dynamic result) {
+      if (acknowledgement.isCompleted) return;
+      acknowledgement.complete(result is Map
+          ? Map<String, dynamic>.from(result)
+          : <String, dynamic>{'ok': false, 'message': 'Unexpected server response.'});
     });
-    return chatId;
+    final result = await acknowledgement.future.timeout(
+      const Duration(seconds: 15),
+      onTimeout: () => <String, dynamic>{'ok': false, 'message': 'Group creation timed out. Please try again.'},
+    );
+    if (result['ok'] != true) {
+      throw StateError(result['message']?.toString() ?? 'Could not create group.');
+    }
+    final group = result['group'];
+    final id = group is Map ? group['id']?.toString() : result['groupId']?.toString();
+    if (id == null || id.isEmpty) {
+      throw StateError('The server created no group ID. Refresh your chats and try again.');
+    }
+    return id;
   }
 
   // deleteMessage — alias for unsendMessage with forEveryone flag
