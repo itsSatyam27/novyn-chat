@@ -97,6 +97,16 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   }
 
   var body = 'You have a new message';
+  if (previewEnabled && !hideContent) {
+    // Plaintext Flutter messages carry a safe preview in the FCM data payload.
+    // Older encrypted messages still use the legacy local decryption path below.
+    final plaintextPreview = data['body']?.toString().trim() ?? '';
+    if (plaintextPreview.isNotEmpty &&
+        plaintextPreview != 'You have a new message' &&
+        plaintextPreview != 'New message') {
+      body = plaintextPreview;
+    }
+  }
   if (previewEnabled && !hideContent && account.isNotEmpty) {
     final ciphertext = data['ciphertext']?.toString() ?? '';
     final iv = data['iv']?.toString() ?? '';
@@ -792,7 +802,9 @@ class NotificationService {
       if (username.isNotEmpty) {
         unawaited(showInAppMessage(
           username,
-          message.notification?.body ?? 'You have a new message',
+          (message.data['body']?.toString().trim().isNotEmpty == true
+              ? message.data['body'].toString().trim()
+              : message.notification?.body ?? 'You have a new message'),
           context,
         ));
       }
