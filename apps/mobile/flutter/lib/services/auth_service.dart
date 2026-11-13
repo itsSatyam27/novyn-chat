@@ -7,6 +7,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'api_service.dart';
 import 'firebase_configuration.dart';
 import 'hybrid_db_service.dart';
@@ -691,9 +692,18 @@ class AuthService extends ChangeNotifier {
     _user = _user!.copyWith(presenceMode: mode);
     notifyListeners();
     try {
+      // Background FCM runs in a separate isolate and cannot read this
+      // ChangeNotifier. Persist the selected mode so Busy is respected even
+      // when the app is backgrounded or its socket temporarily disconnects.
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('novyn_notification_presence_mode', mode);
       await savePresence!(mode);
     } catch (_) {
       _user = _user?.copyWith(presenceMode: previous);
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('novyn_notification_presence_mode', previous);
+      } catch (_) {}
       rethrow;
     } finally {
       _updatingPresence = false;
