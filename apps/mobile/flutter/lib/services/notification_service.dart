@@ -15,6 +15,7 @@ import 'settings_service.dart';
 import 'socket_service.dart';
 import 'friend_service.dart';
 import '../screens/chats/chat_detail_screen.dart';
+import '../screens/calls/calls_screen.dart';
 
 // Top-level handler — must be a top-level function
 @pragma('vm:entry-point')
@@ -208,9 +209,14 @@ class NotificationService {
         iOS: DarwinInitializationSettings(),
       ),
       onDidReceiveNotificationResponse: (response) {
-        final username = response.payload?.trim() ?? '';
-        if (username.isNotEmpty && context.mounted) {
-          unawaited(_openChatFromNotification(username, context));
+        final payload = response.payload?.trim() ?? '';
+        if (!context.mounted || payload.isEmpty) return;
+        if (payload.startsWith('call:')) {
+          Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => const CallsScreen()),
+          );
+        } else {
+          unawaited(_openChatFromNotification(payload, context));
         }
       },
     );
@@ -642,7 +648,35 @@ class NotificationService {
   static void _handleForegroundMessage(
       RemoteMessage message, BuildContext context) {
     final type = message.data['type'];
-    if (type == 'call') return;
+    if (type == 'call') {
+      if (!(_settings?.notificationsOn ?? false)) return;
+      final title = message.notification?.title ?? 'Missed call';
+      final body = message.notification?.body ?? 'You have a missed call';
+      unawaited(_localNotifications.show(
+        DateTime.now().millisecondsSinceEpoch ~/ 1000,
+        title,
+        body,
+        const NotificationDetails(
+          android: AndroidNotificationDetails(
+            'novyn_calls',
+            'Missed calls',
+            channelDescription: 'Missed voice and video calls',
+            importance: Importance.max,
+            priority: Priority.high,
+            category: AndroidNotificationCategory.missedCall,
+            playSound: true,
+            enableVibration: true,
+          ),
+          iOS: DarwinNotificationDetails(
+            presentAlert: true,
+            presentBadge: true,
+            presentSound: true,
+          ),
+        ),
+        payload: 'call:' + (message.data['callId']?.toString() ?? ''),
+      ));
+      return;
+    }
     // The live socket handler already presents messages while connected.
     // This FCM path is for a foreground app whose socket is disconnected.
     if (_socket?.isConnected == true) return;
@@ -664,7 +698,10 @@ class NotificationService {
     final type = message.data['type'];
 
     if (type == 'call') {
-      // Socket.IO reconnects after launch; the call invite handler owns call routing.
+      if (!context.mounted) return;
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => const CallsScreen()),
+      );
       return;
     }
 
