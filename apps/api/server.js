@@ -2148,6 +2148,7 @@ async function sendPushToUser(userKey, payload) {
           data,
           android: {
             priority: safePayload.silent ? "normal" : "high",
+            ...(isCallPush ? { ttl: 45000 } : {}),
             ...(!isEncryptedDirectMessage && !isCallPush ? {
               notification: {
                 tag: toDisplayName(safePayload.tag) || undefined,
@@ -2156,7 +2157,11 @@ async function sendPushToUser(userKey, payload) {
             } : {}),
           },
           apns: {
-            headers: (isEncryptedDirectMessage || isCallPush) ? { "apns-push-type": "background", "apns-priority": "5" } : undefined,
+            headers: (isEncryptedDirectMessage || isCallPush) ? {
+              "apns-push-type": "background",
+              "apns-priority": "5",
+              ...(isCallPush ? { "apns-expiration": String(Math.floor(Date.now() / 1000) + 45) } : {}),
+            } : undefined,
             payload: {
               aps: (isEncryptedDirectMessage || isCallPush)
                 ? { "content-available": 1 }
