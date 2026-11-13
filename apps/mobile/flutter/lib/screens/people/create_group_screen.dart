@@ -296,7 +296,7 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                   BoxShadow(color: accent.withValues(alpha: 0.3), blurRadius: 20, offset: const Offset(0, 10))
                 ] : null,
               ),
-              child: const Center(
+              child: Center(
                 child: Text(
                   'Create Group',
                   style: TextStyle(color: canCreate ? Colors.white : Theme.of(context).colorScheme.onSurfaceVariant, fontWeight: FontWeight.w800, fontSize: 15),
