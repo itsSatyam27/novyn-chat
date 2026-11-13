@@ -278,7 +278,7 @@ class _GameMessageCardState extends State<GameMessageCard> {
   Widget _numberClash() {
     final player1 = _data['player1']?.toString() ?? _creator;
     final isP1 = widget.currentUsername.toLowerCase() == player1.toLowerCase();
-    final isP2 = _data['player2']?.toString().toLowerCase() == widget.currentUsername.toLowerCase();
+    final isP2 = _opponent.toLowerCase() == widget.currentUsername.toLowerCase();
     final myNumber = isP1 ? _data['p1Number'] : _data['p2Number'];
     final p1 = _data['p1Number'];
     final p2 = _data['p2Number'];
@@ -305,7 +305,7 @@ class _GameMessageCardState extends State<GameMessageCard> {
   Widget _upDown() {
     final player1 = _data['player1']?.toString() ?? _creator;
     final isP1 = widget.currentUsername.toLowerCase() == player1.toLowerCase();
-    final isP2 = _data['player2']?.toString().toLowerCase() == widget.currentUsername.toLowerCase();
+    final isP2 = _opponent.toLowerCase() == widget.currentUsername.toLowerCase();
     final myPrediction = isP1 ? _data['p1Prediction'] : _data['p2Prediction'];
     if (!isP1 && !isP2 && !_canJoinGroup) return const Text('This game already has two players.', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 11));
     if (myPrediction != null) {
