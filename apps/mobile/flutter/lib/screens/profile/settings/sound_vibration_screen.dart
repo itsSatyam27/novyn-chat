@@ -250,7 +250,6 @@ class _SoundVibrationScreenState extends State<SoundVibrationScreen> {
                 ),
                 const Divider(height: 1, indent: 16, endIndent: 16),
                 _HapticCategoryRow(title: 'Navigation haptics', subtitle: 'Dock, tabs and back navigation', value: settings.hapticNavigation, onChanged: (v) => settings.setHapticCategory('navigation', v)),
-                _HapticCategoryRow(title: 'Typing haptics', subtitle: 'Novyn-controlled typing interactions; keyboard vibration is managed by your keyboard app', value: settings.hapticTyping, onChanged: (v) => settings.setHapticCategory('typing', v)),
                 _HapticCategoryRow(title: 'Chat haptics', subtitle: 'Sending messages, reactions and chat actions', value: settings.hapticChat, onChanged: (v) => settings.setHapticCategory('chat', v)),
                 _HapticCategoryRow(title: 'Button haptics', subtitle: 'Buttons, switches and selections', value: settings.hapticButtons, onChanged: (v) => settings.setHapticCategory('buttons', v)),
                 _HapticCategoryRow(title: 'Notification haptics', subtitle: 'Incoming message and alert vibrations', value: settings.hapticNotifications, onChanged: (v) => settings.setHapticCategory('notifications', v)),
