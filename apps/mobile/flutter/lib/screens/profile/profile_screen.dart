@@ -310,32 +310,6 @@ class ProfileScreen extends StatelessWidget {
     }
   }
 
-  Future<void> _toggleBusyMode(
-    BuildContext context,
-    AuthService auth,
-    SettingsService settings,
-    bool enabled,
-  ) async {
-    final currentMode = auth.user?.presenceMode ?? 'online';
-    try {
-      if (enabled) {
-        if (currentMode != 'busy') {
-          await settings.setBusyPreviousPresenceMode(currentMode);
-          await auth.updateStatus('busy');
-        }
-      } else if (currentMode == 'busy') {
-        final restoreMode = settings.busyPreviousPresenceMode ?? 'online';
-        await auth.updateStatus(restoreMode);
-        await settings.setBusyPreviousPresenceMode(null);
-      }
-    } catch (error) {
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Busy Mode could not be updated: ${error.toString()}'),
-      ));
-    }
-  }
-
   Future<void> _updateStatus(BuildContext context, AuthService auth, String mode) async {
     try {
       await auth.updateStatus(mode);
