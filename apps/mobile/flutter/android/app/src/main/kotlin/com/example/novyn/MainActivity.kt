@@ -256,6 +256,8 @@ class MainActivity : FlutterFragmentActivity() {
                     result.notImplemented()
                 }
             }
+        }
+
     private fun getCallAudioRoutes(audioManager: AudioManager): List<Map<String, Any>> {
         val routes = mutableListOf<Map<String, Any>>()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -277,7 +279,7 @@ class MainActivity : FlutterFragmentActivity() {
                 ))
             }
         } else {
-            routes.add(mapOf("id" to "earpiece", "name" to "Phone", "kind" to "earpiece", "selected" to !audioManager.isSpeakerphoneOn && !audioManager.isBluetoothScoOn))
+            routes.add(mapOf("id" to "earpiece", "name" to "Phone", "kind" to "earpiece", "selected" to (!audioManager.isSpeakerphoneOn && !audioManager.isBluetoothScoOn)))
             routes.add(mapOf("id" to "speaker", "name" to "Speaker", "kind" to "speaker", "selected" to audioManager.isSpeakerphoneOn))
             @Suppress("DEPRECATION")
             val sco = audioManager.isBluetoothScoOn
@@ -328,7 +330,6 @@ class MainActivity : FlutterFragmentActivity() {
         }
     }
 
-    }
 
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
