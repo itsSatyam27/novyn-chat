@@ -170,4 +170,5 @@ class HapticService {
         await HapticFeedback.lightImpact();
         break;
     }
-  }}
+  }
+}
