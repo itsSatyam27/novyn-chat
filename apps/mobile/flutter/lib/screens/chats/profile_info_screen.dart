@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../../models/user_model.dart';
 import '../../widgets/user_avatar.dart';
+import '../../widgets/novyn_toast.dart';
 
 class ProfileInfoScreen extends StatelessWidget {
   final UserModel user;
@@ -44,6 +45,7 @@ class ProfileInfoScreen extends StatelessWidget {
     final scheme = theme.colorScheme;
     final online = user.isOnline;
     final mutedText = scheme.onSurfaceVariant;
+    var isMuted = initiallyMuted;
 
     return Scaffold(
       backgroundColor: scheme.surface,
@@ -170,9 +172,7 @@ class ProfileInfoScreen extends StatelessWidget {
                   onTap: () async {
                     await Clipboard.setData(ClipboardData(text: '@${user.username}'));
                     if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Username copied')),
-                      );
+                      NovynToast.show(context, 'Username copied');
                     }
                   },
                   child: Container(
@@ -230,7 +230,6 @@ class ProfileInfoScreen extends StatelessWidget {
                   Text('On Novyn since ${_date(user.createdAt)}',
                     style: TextStyle(fontSize: 13, color: scheme.onSurfaceVariant, fontWeight: FontWeight.w600)),
                 ]),
-                const SizedBox(height: 22),
                 if (onVoiceCall != null || onVideoCall != null) ...[
                   const SizedBox(height: 22),
                   Row(
@@ -276,12 +275,21 @@ class ProfileInfoScreen extends StatelessWidget {
           const _SectionHeading(title: 'CHAT SETTINGS', color: Color(0xFF6554D9)),
           _SettingsCard(children: [
             if (onMute != null)
-              _SettingsTile(
-                icon: Icons.notifications_off_outlined, title: 'Mute notifications',
-                subtitle: 'Silence alerts from this contact',
-                tint: const Color(0xFFFFF0D9), accent: const Color(0xFFB87512),
-                trailing: Switch.adaptive(value: initiallyMuted, onChanged: (_) => onMute!()),
-                onTap: onMute!,
+              StatefulBuilder(
+                builder: (context, refreshMute) {
+                  void toggleMute() {
+                    refreshMute(() => isMuted = !isMuted);
+                    onMute!();
+                  }
+                  return _SettingsTile(
+                    icon: isMuted ? Icons.notifications_off_rounded : Icons.notifications_active_outlined,
+                    title: 'Mute notifications',
+                    subtitle: isMuted ? 'Notifications are muted for this contact' : 'Silence alerts from this contact',
+                    tint: const Color(0xFFFFF0D9), accent: const Color(0xFFB87512),
+                    trailing: Switch.adaptive(value: isMuted, onChanged: (_) => toggleMute()),
+                    onTap: toggleMute,
+                  );
+                },
               ),
             if (onMute != null && onExportChat != null)
               const _SettingsDivider(),

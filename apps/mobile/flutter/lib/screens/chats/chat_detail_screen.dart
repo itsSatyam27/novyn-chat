@@ -26,6 +26,7 @@ import '../../services/draft_service.dart';
 import '../../services/settings_service.dart';
 import '../../services/media_storage_service.dart';
 import '../../widgets/user_avatar.dart';
+import '../../widgets/novyn_toast.dart';
 import 'profile_info_screen.dart';
 import '../../widgets/connection_banner.dart';
 import '../../screens/calls/call_screen.dart';
@@ -1149,7 +1150,31 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              // ── Pill-shaped input with spark inside ────────────────────
+              // Attachment action is intentionally separate from the text field.
+              Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  color: isDark
+                      ? const Color(0xFF191A27)
+                      : theme.colorScheme.surface,
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: theme.colorScheme.outlineVariant,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: isDark ? 0.10 : 0.04),
+                      blurRadius: 10,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
+                ),
+                child: _AttachmentButton(onSelected: _handleAttachment),
+              ),
+              const SizedBox(width: 8),
+
+              // Standalone message field.
               Expanded(
                 child: Container(
                   constraints: const BoxConstraints(minHeight: 48),
@@ -1171,12 +1196,6 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      // Spark icon inside pill
-                      Padding(
-                        padding: const EdgeInsets.only(left: 4, bottom: 4),
-                        child: _AttachmentButton(onSelected: _handleAttachment),
-                      ),
-
                       // Text field
                       Expanded(
                         child: TextField(
@@ -2123,13 +2142,18 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
     );
   }
 
-  void _showContactInfo() {
+  Future<void> _showContactInfo() async {
     HapticService.vibrate(NovynHapticType.light, category: HapticCategory.chat);
+    final mutePrefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    final muteKey = 'novyn_mute_${widget.peer.username.toLowerCase()}';
+    final initiallyMuted = mutePrefs.getBool(muteKey) ?? false;
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => ProfileInfoScreen(
           user: widget.peer,
+          initiallyMuted: initiallyMuted,
           // Only the other participant's protection blocks exporting this chat.
           // Your own Stealth Mode protects your privacy without locking you out.
           chatProtected: context.read<SocketService>().activeChatCaptureProtected,
@@ -2164,11 +2188,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
             socket.setMute(widget.peer.username, muted: nextMuted);
             await prefs.setBool(key, nextMuted);
             if (!mounted) return;
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(nextMuted
+            NovynToast.show(context, nextMuted
                 ? 'Notifications muted for this contact'
-                : 'Notifications unmuted for this contact')),
-            );
+                : 'Notifications unmuted for this contact');
           },
           onBlock: () async {
             final socket = context.read<SocketService>();
