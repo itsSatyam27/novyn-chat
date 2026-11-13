@@ -7,6 +7,7 @@ class GameMessageCard extends StatefulWidget {
   final Map<String, dynamic> game;
   final String currentUsername;
   final String peerUsername;
+  final bool isGroup;
 
   const GameMessageCard({
     super.key,
@@ -14,6 +15,7 @@ class GameMessageCard extends StatefulWidget {
     required this.game,
     required this.currentUsername,
     required this.peerUsername,
+    this.isGroup = false,
   });
 
   @override
@@ -24,6 +26,7 @@ class _GameMessageCardState extends State<GameMessageCard> {
   final TextEditingController _number = TextEditingController();
   final TextEditingController _guess = TextEditingController();
   List<Map<String, dynamic>> _strokes = [];
+  bool _sendingMove = false;
 
   @override
   void didUpdateWidget(covariant GameMessageCard oldWidget) {
@@ -45,7 +48,7 @@ class _GameMessageCardState extends State<GameMessageCard> {
   String get _type => widget.game['gameType']?.toString() ?? '';
   String get _title => widget.game['title']?.toString() ?? 'Game';
   String get _creator => widget.game['createdBy']?.toString() ?? '';
-  String get _opponent => widget.game['opponent']?.toString() ?? widget.peerUsername;
+  String get _opponent => _data['player2']?.toString() ?? widget.game['opponent']?.toString() ?? (widget.isGroup ? 'Waiting for player' : widget.peerUsername);
   String get _turn => widget.game['turn']?.toString() ?? '';
   String get _state => widget.game['state']?.toString() ?? 'in_progress';
   String get _winner => widget.game['winner']?.toString() ?? '';
@@ -54,24 +57,50 @@ class _GameMessageCardState extends State<GameMessageCard> {
       : <String, dynamic>{};
   bool get _myTurn => _turn.toLowerCase() == widget.currentUsername.toLowerCase();
   bool get _finished => _state == 'finished';
+  bool get _canJoinGroup => widget.isGroup &&
+      _opponent == 'Waiting for player' &&
+      widget.currentUsername.toLowerCase() != _creator.toLowerCase();
 
-  void _move(Map<String, dynamic> data) {
-    context.read<SocketService>().makeGameMove(
-      widget.messageId,
-      widget.peerUsername,
-      data,
-    );
+  Future<void> _move(Map<String, dynamic> data) async {
+    if (_sendingMove || _finished) return;
+    setState(() => _sendingMove = true);
+    try {
+      await context.read<SocketService>().makeGameMove(
+        widget.messageId,
+        widget.peerUsername,
+        data,
+        isGroup: widget.isGroup,
+      );
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(error is StateError
+              ? error.message.toString()
+              : 'Move could not be sent. Check your connection and try again.'),
+          behavior: SnackBarBehavior.floating,
+        ));
+      }
+    } finally {
+      if (mounted) setState(() => _sendingMove = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 258,
-      padding: const EdgeInsets.all(12),
+      width: 270,
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.055),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.13)),
+        color: Theme.of(context).colorScheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.18)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.045),
+            blurRadius: 14,
+            offset: const Offset(0, 5),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -83,15 +112,32 @@ class _GameMessageCardState extends State<GameMessageCard> {
               Expanded(
                 child: Text(_title, style: const TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 13, fontWeight: FontWeight.w800)),
               ),
-              Text(_finished ? 'FINISHED' : 'LIVE', style: const TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 9, fontWeight: FontWeight.w800, color: Color(0xFF94A3B8))),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: _finished
+                      ? Theme.of(context).colorScheme.surfaceContainerHighest
+                      : Theme.of(context).colorScheme.primary.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  _finished ? 'FINISHED' : 'LIVE',
+                  style: TextStyle(
+                    fontFamily: 'PlusJakartaSans',
+                    fontSize: 9,
+                    fontWeight: FontWeight.w800,
+                    color: _finished ? Theme.of(context).colorScheme.onSurfaceVariant : Theme.of(context).colorScheme.primary,
+                  ),
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 8),
           Text(
             _finished
                 ? (_winner == 'draw' ? 'It\'s a draw!' : _winner.toLowerCase() == widget.currentUsername.toLowerCase() ? 'You won!' : '$_winner won')
-                : _myTurn ? 'Your turn' : 'Waiting for opponent',
-            style: const TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 11, color: Color(0xFF94A3B8)),
+                : _myTurn ? 'Your turn' : _canJoinGroup ? 'Join the game' : 'Waiting for opponent',
+            style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 11, fontWeight: FontWeight.w600, color: Theme.of(context).colorScheme.onSurfaceVariant),
           ),
           const SizedBox(height: 10),
           if (_type == 'tictactoe') _ticTacToe(),
@@ -108,8 +154,8 @@ class _GameMessageCardState extends State<GameMessageCard> {
   Widget _ticTacToe() {
     final board = _data['board'] is List ? List<dynamic>.from(_data['board']) : List<dynamic>.filled(9, null);
     final playerX = _data['playerX']?.toString() ?? _creator;
-    final playerO = _data['playerO']?.toString() ?? _opponent;
-    final canJoin = (_data['playerO'] == null || _data['playerO'] == '') &&
+    final playerO = _data['playerO']?.toString() ?? (widget.isGroup ? 'Waiting for player' : _opponent);
+    final canJoin = widget.isGroup && playerO == 'Waiting for player' && board.any((cell) => cell != null) &&
         widget.currentUsername.toLowerCase() != playerX.toLowerCase();
     final symbol = widget.currentUsername.toLowerCase() == playerX.toLowerCase() ? 'X' : 'O';
     return Column(
@@ -124,7 +170,7 @@ class _GameMessageCardState extends State<GameMessageCard> {
             itemCount: 9,
             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 3, crossAxisSpacing: 5, mainAxisSpacing: 5),
             itemBuilder: (context, index) => InkWell(
-              onTap: !_finished && (_myTurn || canJoin) && board[index] == null
+              onTap: !_finished && !_sendingMove && (_myTurn || canJoin) && board[index] == null
                   ? () {
                       final next = List<dynamic>.from(board);
                       next[index] = symbol;
@@ -153,16 +199,17 @@ class _GameMessageCardState extends State<GameMessageCard> {
   Widget _connect4() {
     final board = _data['board'] is List ? List<dynamic>.from(_data['board']) : List<dynamic>.filled(42, null);
     final player1 = _data['player1']?.toString() ?? _creator;
-    final player2 = _data['player2']?.toString() ?? _opponent;
+    final player2 = _data['player2']?.toString() ?? (widget.isGroup ? 'Waiting for player' : _opponent);
+    final canJoin = widget.isGroup && player2 == 'Waiting for player' && board.any((cell) => cell != null) && widget.currentUsername.toLowerCase() != player1.toLowerCase();
     final chip = widget.currentUsername.toLowerCase() == player1.toLowerCase() ? 'R' : 'Y';
     return Column(
       children: [
-        Text('@$player1   VS   @$player2', style: const TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 10)),
+        Text('@$player1   VS   ${player2 == 'Waiting for player' ? player2 : '@$player2'}', style: const TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 10)),
         const SizedBox(height: 8),
         Row(
           children: List.generate(7, (column) => Expanded(
             child: TextButton(
-              onPressed: !_finished && _myTurn ? () {
+              onPressed: !_finished && !_sendingMove && (_myTurn || canJoin) ? () {
                 final next = List<dynamic>.from(board);
                 for (var row = 5; row >= 0; row--) {
                   final index = row * 7 + column;
@@ -216,11 +263,13 @@ class _GameMessageCardState extends State<GameMessageCard> {
       );
     }
     if (myMove != null) return const Center(child: Text('Your move is locked. Waiting…', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 11)));
+    final isP2 = _data['player2']?.toString().toLowerCase() == widget.currentUsername.toLowerCase();
+    if (!isP1 && !isP2 && !_canJoinGroup) return const Text('This game already has two players.', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 11));
     return Wrap(
       alignment: WrapAlignment.center,
       spacing: 8,
       children: choices.entries.map((entry) => OutlinedButton(
-        onPressed: () => _move({'move': entry.key}),
+        onPressed: _sendingMove ? null : () => _move({'move': entry.key}),
         child: Text(entry.value, style: const TextStyle(fontSize: 20)),
       )).toList(),
     );
@@ -229,19 +278,21 @@ class _GameMessageCardState extends State<GameMessageCard> {
   Widget _numberClash() {
     final player1 = _data['player1']?.toString() ?? _creator;
     final isP1 = widget.currentUsername.toLowerCase() == player1.toLowerCase();
+    final isP2 = _data['player2']?.toString().toLowerCase() == widget.currentUsername.toLowerCase();
     final myNumber = isP1 ? _data['p1Number'] : _data['p2Number'];
     final p1 = _data['p1Number'];
     final p2 = _data['p2Number'];
+    if (!isP1 && !isP2 && !_canJoinGroup) return const Text('This game already has two players.', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 11));
     if (myNumber != null) {
       return Text(p1 != null && p2 != null ? '$p1  VS  $p2  •  Target ${_data['target']}' : 'Your number is locked. Waiting…',
         style: const TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 12, fontWeight: FontWeight.w700));
     }
     return Row(
       children: [
-        Expanded(child: TextField(controller: _number, keyboardType: TextInputType.number, decoration: const InputDecoration(hintText: '1–100', isDense: true))),
+        Expanded(child: TextField(controller: _number, enabled: !_sendingMove, keyboardType: TextInputType.number, decoration: const InputDecoration(hintText: 'Pick 1–100', isDense: true))),
         const SizedBox(width: 7),
         IconButton(
-          onPressed: () {
+          onPressed: _sendingMove ? null : () {
             final number = int.tryParse(_number.text.trim());
             if (number != null && number >= 1 && number <= 100) _move({'number': number});
           },
@@ -254,16 +305,18 @@ class _GameMessageCardState extends State<GameMessageCard> {
   Widget _upDown() {
     final player1 = _data['player1']?.toString() ?? _creator;
     final isP1 = widget.currentUsername.toLowerCase() == player1.toLowerCase();
+    final isP2 = _data['player2']?.toString().toLowerCase() == widget.currentUsername.toLowerCase();
     final myPrediction = isP1 ? _data['p1Prediction'] : _data['p2Prediction'];
+    if (!isP1 && !isP2 && !_canJoinGroup) return const Text('This game already has two players.', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 11));
     if (myPrediction != null) {
       return Text('Prediction locked • ${_data['currentCard']} → ${_data['nextCard']}',
         style: const TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 12));
     }
     return Row(
       children: [
-        Expanded(child: OutlinedButton.icon(onPressed: () => _move({'prediction': 'higher'}), icon: const Icon(Icons.arrow_upward_rounded), label: const Text('Higher'))),
+        Expanded(child: OutlinedButton.icon(onPressed: _sendingMove ? null : () => _move({'prediction': 'higher'}), icon: const Icon(Icons.arrow_upward_rounded), label: const Text('Higher'))),
         const SizedBox(width: 7),
-        Expanded(child: OutlinedButton.icon(onPressed: () => _move({'prediction': 'lower'}), icon: const Icon(Icons.arrow_downward_rounded), label: const Text('Lower'))),
+        Expanded(child: OutlinedButton.icon(onPressed: _sendingMove ? null : () => _move({'prediction': 'lower'}), icon: const Icon(Icons.arrow_downward_rounded), label: const Text('Lower'))),
       ],
     );
   }
@@ -271,6 +324,10 @@ class _GameMessageCardState extends State<GameMessageCard> {
   Widget _doodle() {
     final player1 = _data['player1']?.toString() ?? _creator;
     final isDrawer = widget.currentUsername.toLowerCase() == player1.toLowerCase();
+    final player2 = _data['player2']?.toString() ?? (widget.isGroup ? '' : _opponent);
+    final isGuesser = player2.toLowerCase() == widget.currentUsername.toLowerCase();
+    final canJoin = widget.isGroup && player2.isEmpty && !isDrawer;
+    if (!isDrawer && !isGuesser && !canJoin) return const Text('Doodle Duel is already joined by two players.', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 11));
     if (!isDrawer) {
       return Column(
         children: [
