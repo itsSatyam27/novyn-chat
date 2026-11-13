@@ -172,7 +172,7 @@ class _SplashScreenV2State extends State<SplashScreenV2>
           SafeArea(
             child: LayoutBuilder(
               builder: (context, constraints) => SingleChildScrollView(
-                physics: const NeverScrollableScrollPhysics(),
+                physics: const ClampingScrollPhysics(),
                 child: ConstrainedBox(
                   constraints: BoxConstraints(minHeight: constraints.maxHeight),
                   child: Padding(
@@ -181,9 +181,10 @@ class _SplashScreenV2State extends State<SplashScreenV2>
                       vertical: compact ? 20 : 32,
                     ),
                     child: Column(
+                      mainAxisSize: MainAxisSize.min,
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Spacer(),
+                        SizedBox(height: compact ? 22 : 38),
                         _buildLogoSection(),
                         SizedBox(height: compact ? 22 : 30),
                         _buildWordmark(),
@@ -191,7 +192,7 @@ class _SplashScreenV2State extends State<SplashScreenV2>
                         _buildTagline(),
                         SizedBox(height: compact ? 42 : 58),
                         _buildLoadingBar(),
-                        const Spacer(),
+                        SizedBox(height: compact ? 22 : 38),
                         Text(
                           'A little more connected.',
                           style: GoogleFonts.inter(
