@@ -366,10 +366,6 @@ class _ChatsScreenState extends State<ChatsScreen> {
                             ),
                           ],
 
-                          // ── All chats ──────────────────────────────────────
-                          SliverToBoxAdapter(
-                            child: _buildSectionLabel('ALL MESSAGES', icon: Icons.forum_outlined),
-                          ),
                           activeChats.isEmpty && !_loading
                               ? SliverFillRemaining(child: _buildEmpty())
                               : SliverList(
