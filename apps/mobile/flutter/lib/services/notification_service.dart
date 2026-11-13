@@ -74,6 +74,15 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await prefs.reload();
   final notificationsEnabled = prefs.getBool('notifications_on') ?? true;
   if (!notificationsEnabled) return;
+  final localPresence = (prefs.getString('novyn_notification_presence_mode') ?? '').toLowerCase();
+  // Busy suppresses message alerts in every app lifecycle state. The server
+  // also suppresses these pushes; this guard covers delayed/already queued FCM.
+  if (localPresence == 'busy' ||
+      data['silent']?.toString().toLowerCase() == 'true' ||
+      data['silent']?.toString() == '1') {
+    debugPrint('[NovynNotifications] Message alert suppressed while Busy.');
+    return;
+  }
 
   // Respect both the locally persisted preference and the server-side value
   // carried with encrypted pushes; either can disable previews.
