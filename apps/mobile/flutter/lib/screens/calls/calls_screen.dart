@@ -309,7 +309,7 @@ class _CallsScreenState extends State<CallsScreen> {
                     ),
                   ],
                 ),
-              ],,
+              ],
             ),
             AnimatedSize(
               duration: const Duration(milliseconds: 280),
