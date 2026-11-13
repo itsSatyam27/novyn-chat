@@ -3350,9 +3350,11 @@ function deliverGroupMessage(params = {}) {
   return { ok: true, existing: false, message, me, group };
 }
 
-function setCallPair(userKey, peerKey, status, callId) {
-  activeCalls.set(userKey, { peerKey, status, callId });
-  activeCalls.set(peerKey, { peerKey: userKey, status, callId });
+function setCallPair(userKey, peerKey, status, callId, metadata = {}) {
+  const previous = activeCalls.get(userKey) || {};
+  const details = { ...previous, ...metadata };
+  activeCalls.set(userKey, { ...details, peerKey, status, callId });
+  activeCalls.set(peerKey, { ...details, peerKey: userKey, status, callId });
 }
 
 function clearCallPair(userKey) {
