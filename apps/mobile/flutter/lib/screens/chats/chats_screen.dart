@@ -336,14 +336,18 @@ class _ChatsScreenState extends State<ChatsScreen> {
     final pinnedChats = activeChats.where((chat) => chat.isPinned).toList();
     final recentChats = activeChats.where((chat) => !chat.isPinned).toList();
 
+    final pageBackground = Theme.of(context).brightness == Brightness.dark
+        ? NovynTheme.pageBg(context)
+        : const Color(0xFFF4F0FA);
+
     return Scaffold(
-      backgroundColor: NovynTheme.pageBg(context),
+      backgroundColor: pageBackground,
       body: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
+              padding: const EdgeInsets.fromLTRB(18, 12, 18, 4),
               child: NovynHeader(
                 title: 'Chats',
                 titleSize: 36,
@@ -351,9 +355,9 @@ class _ChatsScreenState extends State<ChatsScreen> {
                 actions: [
                   NovynIconButton(
                     icon: Icons.qr_code_scanner_rounded,
-                    size: 44,
-                    radius: 17,
-                    iconSize: 21,
+                    size: 52,
+                    radius: 20,
+                    iconSize: 23,
                     onTap: widget.onNavigateToPeople,
                   ),
                   PopupMenuButton<int>(
@@ -388,11 +392,11 @@ class _ChatsScreenState extends State<ChatsScreen> {
                       ),
                     ],
                     child: Container(
-                      width: 44,
-                      height: 44,
+                      width: 52,
+                      height: 52,
                       decoration: BoxDecoration(
                         color: Theme.of(context).colorScheme.surface,
-                        borderRadius: BorderRadius.circular(17),
+                        borderRadius: BorderRadius.circular(20),
                       ),
                       child: Icon(Icons.more_horiz_rounded,
                         color: Theme.of(context).colorScheme.onSurface, size: 23),
@@ -402,7 +406,7 @@ class _ChatsScreenState extends State<ChatsScreen> {
               ),
             ),
             _buildSearch(),
-            _buildFilterCards(allChats, favorites),
+            _buildFilterCards(),
             Expanded(
               child: _loading
                   ? Center(child: CircularProgressIndicator(
@@ -417,26 +421,20 @@ class _ChatsScreenState extends State<ChatsScreen> {
                             SliverToBoxAdapter(
                               child: _buildSectionLabel('PINNED'),
                             ),
-                            SliverList(
-                              delegate: SliverChildBuilderDelegate(
-                                (context, index) => _buildChatCard(pinnedChats[index]),
-                                childCount: pinnedChats.length,
-                              ),
+                            SliverToBoxAdapter(
+                              child: _buildChatGroup(pinnedChats),
                             ),
                           ],
-                          if (recentChats.isNotEmpty)
+                          if (recentChats.isNotEmpty) ...[
                             SliverToBoxAdapter(
                               child: _buildSectionLabel('ALL CHATS'),
                             ),
-                          if (activeChats.isEmpty)
-                            SliverFillRemaining(child: _buildEmpty())
-                          else if (recentChats.isNotEmpty)
-                            SliverList(
-                              delegate: SliverChildBuilderDelegate(
-                                (context, index) => _buildChatCard(recentChats[index]),
-                                childCount: recentChats.length,
-                              ),
+                            SliverToBoxAdapter(
+                              child: _buildChatGroup(recentChats),
                             ),
+                          ],
+                          if (activeChats.isEmpty)
+                            SliverFillRemaining(child: _buildEmpty()),
                           const SliverToBoxAdapter(child: SizedBox(height: 112)),
                         ],
                       ),
@@ -457,46 +455,56 @@ class _ChatsScreenState extends State<ChatsScreen> {
           backgroundColor: Theme.of(context).colorScheme.primary,
           foregroundColor: Colors.white,
           elevation: 8,
-          child: const Icon(Icons.edit_rounded, size: 25),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+          child: const Icon(Icons.edit_rounded, size: 27),
         ),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     );
   }
 
-  Widget _buildFilterCards(List<ChatPreview> chats, Set<String> favorites) {
-    final filters = [
+  Widget _buildFilterCards() {
+    const filters = [
       ('all', 'All'),
       ('unread', 'Unread'),
       ('groups', 'Groups'),
       ('favorites', 'Favourites'),
     ];
+    final colors = Theme.of(context).colorScheme;
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.fromLTRB(20, 5, 20, 13),
+      padding: const EdgeInsets.fromLTRB(16, 6, 16, 12),
       child: Row(
         children: [
           for (final item in filters)
             Padding(
-              padding: const EdgeInsets.only(right: 9),
-              child: ChoiceChip(
-                label: Text(item.$2),
-                selected: _selectedTab == item.$1,
-                onSelected: (_) => _selectTab(item.$1),
-                showCheckmark: false,
-                selectedColor: Theme.of(context).colorScheme.primary,
-                backgroundColor: Theme.of(context).colorScheme.surface,
-                side: BorderSide.none,
-                shape: const StadiumBorder(),
-                labelStyle: TextStyle(
-                  fontFamily: 'PlusJakartaSans',
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  color: _selectedTab == item.$1
-                      ? Colors.white
-                      : Theme.of(context).colorScheme.onSurface,
+              padding: const EdgeInsets.only(right: 8),
+              child: GestureDetector(
+                onTap: () => _selectTab(item.$1),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  curve: Curves.easeOutCubic,
+                  height: 40,
+                  padding: const EdgeInsets.symmetric(horizontal: 18),
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: _selectedTab == item.$1
+                        ? colors.primary
+                        : Colors.white,
+                    borderRadius: BorderRadius.circular(24),
+                  ),
+                  child: Text(
+                    item.$2,
+                    style: TextStyle(
+                      fontFamily: 'PlusJakartaSans',
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: _selectedTab == item.$1
+                          ? Colors.white
+                          : const Color(0xFF24213F),
+                    ),
+                  ),
                 ),
-                padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
               ),
             ),
         ],
@@ -505,11 +513,70 @@ class _ChatsScreenState extends State<ChatsScreen> {
   }
 
   Widget _buildSearch() {
-    return NovynSearchField(
-      hint: 'Search chats ya messages',
-      controller: _searchController,
-      focusNode: _searchFocusNode,
-      onChanged: _onSearch,
+    final theme = Theme.of(context);
+    final textColor = theme.colorScheme.onSurfaceVariant;
+    final accent = theme.colorScheme.primary;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+      child: Container(
+        height: 50,
+        padding: const EdgeInsets.symmetric(horizontal: 18),
+        decoration: BoxDecoration(
+          color: theme.brightness == Brightness.dark
+              ? theme.colorScheme.surface
+              : Colors.white,
+          borderRadius: BorderRadius.circular(25),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.search_rounded, size: 21, color: textColor),
+            const SizedBox(width: 12),
+            Expanded(
+              child: TextField(
+                controller: _searchController,
+                focusNode: _searchFocusNode,
+                onChanged: _onSearch,
+                maxLines: 1,
+                textAlignVertical: TextAlignVertical.center,
+                cursorColor: accent,
+                style: TextStyle(
+                  fontFamily: 'PlusJakartaSans',
+                  fontSize: 15,
+                  color: theme.colorScheme.onSurface,
+                ),
+                decoration: InputDecoration(
+                  filled: false,
+                  isDense: true,
+                  isCollapsed: true,
+                  contentPadding: EdgeInsets.zero,
+                  border: InputBorder.none,
+                  enabledBorder: InputBorder.none,
+                  focusedBorder: InputBorder.none,
+                  hintText: 'Search chats ya messages',
+                  hintStyle: TextStyle(
+                    fontFamily: 'PlusJakartaSans',
+                    fontSize: 15,
+                    color: textColor,
+                  ),
+                ),
+              ),
+            ),
+            ValueListenableBuilder<TextEditingValue>(
+              valueListenable: _searchController,
+              builder: (context, value, _) {
+                if (value.text.isEmpty) return const SizedBox.shrink();
+                return GestureDetector(
+                  onTap: () {
+                    _searchController.clear();
+                    _onSearch('');
+                  },
+                  child: Icon(Icons.close_rounded, size: 18, color: textColor),
+                );
+              },
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -536,10 +603,18 @@ class _ChatsScreenState extends State<ChatsScreen> {
   }
 
   Widget _buildSectionLabel(String label, {IconData? icon}) {
-    return NovynSectionLabel(
-      label,
-      icon: icon,
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(22, 14, 18, 10),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontFamily: 'PlusJakartaSans',
+          fontSize: 12,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 1.25,
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+        ),
+      ),
     );
   }
 
@@ -680,29 +755,60 @@ class _ChatsScreenState extends State<ChatsScreen> {
     }
   }
 
-  Widget _buildChatCard(ChatPreview preview) {
+  Widget _buildChatGroup(List<ChatPreview> chats) {
+    if (chats.isEmpty) return const SizedBox.shrink();
+    final theme = Theme.of(context);
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      child: _ChatCard(
-        preview: preview,
-        isFavorite: context.watch<SettingsService>().favoriteChatIds.contains(preview.chatId),
-        onOptions: () => _showChatOptions(preview),
-        onTap: () async {
-          await Navigator.push(
-            context,
-            PageRouteBuilder(
-              transitionDuration: const Duration(milliseconds: 300),
-              pageBuilder: (context, animation, secondaryAnimation) =>
-                  ChatDetailScreen(peer: preview.peer, isGroup: preview.isGroup),
-              transitionsBuilder:
-                  (context, animation, secondaryAnimation, child) {
-                return FadeTransition(opacity: animation, child: child);
-              },
-            ),
-          );
-          _loadChats();
-        },
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(34),
+        child: Material(
+          color: theme.brightness == Brightness.dark
+              ? theme.colorScheme.surface
+              : Colors.white,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (var index = 0; index < chats.length; index++) ...[
+                _buildChatCard(chats[index]),
+                if (index != chats.length - 1)
+                  Divider(
+                    height: 1,
+                    thickness: 1,
+                    indent: 0,
+                    endIndent: 0,
+                    color: theme.brightness == Brightness.dark
+                        ? Colors.white.withValues(alpha: .07)
+                        : const Color(0xFFF0ECF6),
+                  ),
+              ],
+            ],
+          ),
+        ),
       ),
+    );
+  }
+
+  Widget _buildChatCard(ChatPreview preview) {
+    return _ChatCard(
+      preview: preview,
+      isFavorite: context.watch<SettingsService>().favoriteChatIds.contains(preview.chatId),
+      onOptions: () => _showChatOptions(preview),
+      onTap: () async {
+        await Navigator.push(
+          context,
+          PageRouteBuilder(
+            transitionDuration: const Duration(milliseconds: 300),
+            pageBuilder: (context, animation, secondaryAnimation) =>
+                ChatDetailScreen(peer: preview.peer, isGroup: preview.isGroup),
+            transitionsBuilder:
+                (context, animation, secondaryAnimation, child) {
+              return FadeTransition(opacity: animation, child: child);
+            },
+          ),
+        );
+        _loadChats();
+      },
     );
   }
 
@@ -823,122 +929,223 @@ class _ChatCard extends StatelessWidget {
   final bool isFavorite;
   final VoidCallback? onOptions;
 
-  const _ChatCard({required this.preview, required this.onTap, this.isFavorite = false, this.onOptions});
+  const _ChatCard({
+    required this.preview,
+    required this.onTap,
+    this.isFavorite = false,
+    this.onOptions,
+  });
+
+  static const List<Color> _avatarPalette = [
+    Color(0xFF2F65E8),
+    Color(0xFF087F75),
+    Color(0xFFB65308),
+    Color(0xFFC23870),
+    Color(0xFF7652F6),
+  ];
+
+  Color _avatarColor() {
+    final value = preview.peer.username.isNotEmpty
+        ? preview.peer.username
+        : preview.peer.name;
+    final index = value.codeUnits.fold<int>(0, (sum, unit) => sum + unit) %
+        _avatarPalette.length;
+    return _avatarPalette[index];
+  }
+
+  Color _presenceColor() {
+    final status = preview.peer.status.trim().toLowerCase();
+    if (status == 'away') return const Color(0xFFF59E0B);
+    if (status == 'busy' || status == 'dnd') return const Color(0xFFEC4899);
+    return const Color(0xFF20C979);
+  }
+
+  Widget _buildAvatar(BuildContext context) {
+    final color = _avatarColor();
+    final initial = preview.peer.name.trim().isEmpty
+        ? '?'
+        : preview.peer.name.trim().substring(0, 1).toUpperCase();
+
+    if (preview.peer.photoUrl.isNotEmpty) {
+      return UserAvatar(
+        name: preview.peer.name,
+        photoUrl: preview.peer.photoUrl,
+        radius: 26,
+        fallbackColor: color,
+        showOnlineIndicator: preview.peer.isOnline,
+        isOnline: preview.peer.isOnline,
+        presence: preview.peer.status,
+      );
+    }
+
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Container(
+          width: 52,
+          height: 52,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: color,
+            shape: BoxShape.circle,
+          ),
+          child: preview.isGroup
+              ? const Icon(Icons.groups_rounded, color: Colors.white, size: 27)
+              : Text(
+                  initial,
+                  style: const TextStyle(
+                    fontFamily: 'PlusJakartaSans',
+                    color: Colors.white,
+                    fontSize: 21,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+        ),
+        if (!preview.isGroup && preview.peer.isOnline)
+          Positioned(
+            right: -1,
+            bottom: -1,
+            child: Container(
+              width: 14,
+              height: 14,
+              decoration: BoxDecoration(
+                color: _presenceColor(),
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 2),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final colors = theme.colorScheme;
     final hasUnread = preview.unreadCount > 0;
-    final dark = theme.brightness == Brightness.dark;
-    final titleColor = theme.colorScheme.onSurface;
-    final metaColor = theme.colorScheme.onSurfaceVariant;
+    final titleColor = colors.onSurface;
+    final metaColor = colors.onSurfaceVariant;
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 3),
-      child: Material(
-        color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(27),
-        child: InkWell(
-          onTap: () {
-            HapticService.vibrate(NovynHapticType.light, category: HapticCategory.chat);
-            onTap();
-          },
-          onLongPress: onOptions,
-          borderRadius: BorderRadius.circular(27),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 17),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(27),
-              border: Border.all(color: theme.colorScheme.outlineVariant.withValues(alpha: dark ? .26 : .42), width: 1.15),
-            ),
-            child: Row(
-              children: [
-                UserAvatar(
-                  name: preview.peer.name,
-                  photoUrl: preview.peer.photoUrl,
-                  radius: 36,
-                  showOnlineIndicator: true,
-                  isOnline: preview.peer.isOnline,
-                  presence: preview.peer.status,
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+    return InkWell(
+      onTap: () {
+        HapticService.vibrate(
+          NovynHapticType.light,
+          category: HapticCategory.chat,
+        );
+        onTap();
+      },
+      onLongPress: onOptions,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+        child: Row(
+          children: [
+            _buildAvatar(context),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Row(
                     children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              preview.peer.name,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontFamily: 'PlusJakartaSans',
-                                fontSize: 17.5,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: -.35,
-                                color: titleColor,
-                              ),
-                            ),
+                      Flexible(
+                        child: Text(
+                          preview.peer.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontFamily: 'PlusJakartaSans',
+                            fontSize: 16.5,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -.25,
+                            color: titleColor,
                           ),
-                          if (preview.isPinned) ...[
-                            const SizedBox(width: 5),
-                            Icon(Icons.push_pin_rounded, size: 15, color: metaColor),
-                          ],
-                          if (isFavorite) ...[
-                            const SizedBox(width: 5),
-                            const Icon(Icons.star_rounded, size: 15, color: Color(0xFFFFB300)),
-                          ],
-                        ],
-                      ),
-                      const SizedBox(height: 5),
-                      Text(
-                        preview.lastMessage.isEmpty ? 'Tap to chat' : preview.lastMessage,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontFamily: 'PlusJakartaSans',
-                          fontSize: 14.5,
-                          color: hasUnread ? titleColor : metaColor,
-                          fontWeight: hasUnread ? FontWeight.w600 : FontWeight.w400,
                         ),
                       ),
+                      if (preview.isPinned) ...[
+                        const SizedBox(width: 5),
+                        Icon(
+                          Icons.push_pin_rounded,
+                          size: 14,
+                          color: metaColor,
+                        ),
+                      ],
+                      if (isFavorite) ...[
+                        const SizedBox(width: 5),
+                        const Icon(
+                          Icons.star_rounded,
+                          size: 14,
+                          color: Color(0xFFFFB300),
+                        ),
+                      ],
                     ],
                   ),
-                ),
-                const SizedBox(width: 10),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      _formatTime(preview.lastTime, context.watch<SettingsService>().timeFormat),
-                      style: TextStyle(
-                        fontFamily: 'PlusJakartaSans',
-                        fontSize: 13,
-                        fontWeight: hasUnread ? FontWeight.w800 : FontWeight.w500,
-                        color: hasUnread ? theme.colorScheme.primary : metaColor,
-                      ),
+                  const SizedBox(height: 5),
+                  Text(
+                    preview.lastMessage.isEmpty
+                        ? 'Tap to chat'
+                        : preview.lastMessage,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontFamily: 'PlusJakartaSans',
+                      fontSize: 14.5,
+                      color: hasUnread ? titleColor : metaColor,
+                      fontWeight: hasUnread ? FontWeight.w500 : FontWeight.w400,
                     ),
-                    if (hasUnread) ...[
-                      const SizedBox(height: 7),
-                      Container(
-                        constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
-                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(color: theme.colorScheme.primary, shape: BoxShape.circle),
-                        child: Text(
-                          '${preview.unreadCount}',
-                          style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w800),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 10),
+            SizedBox(
+              width: 64,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    _formatTime(
+                      preview.lastTime,
+                      context.watch<SettingsService>().timeFormat,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontFamily: 'PlusJakartaSans',
+                      fontSize: 12.5,
+                      fontWeight: hasUnread ? FontWeight.w800 : FontWeight.w500,
+                      color: hasUnread ? colors.primary : metaColor,
+                    ),
+                  ),
+                  if (hasUnread) ...[
+                    const SizedBox(height: 7),
+                    Container(
+                      width: 23,
+                      height: 23,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: colors.primary,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Text(
+                        preview.unreadCount > 99
+                            ? '99+'
+                            : '${preview.unreadCount}',
+                        style: const TextStyle(
+                          fontFamily: 'PlusJakartaSans',
+                          color: Colors.white,
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w800,
                         ),
                       ),
-                    ],
+                    ),
                   ],
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
+          ],
         ),
       ),
     );
