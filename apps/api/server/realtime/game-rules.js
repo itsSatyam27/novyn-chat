@@ -202,7 +202,6 @@ function applyConnect4(game, userKey, moveData) {
   if (game.state === "finished" || (!sameUser(game.turn, userKey) && !waitingForGroupPlayer)) {
     return { ok: false, reason: "It is not your turn." };
   }
-  let player2 = current.player2 || game.opponent || null;
   if (sameUser(userKey, player1)) {
     // creator is player 1
   } else if (player2) {
