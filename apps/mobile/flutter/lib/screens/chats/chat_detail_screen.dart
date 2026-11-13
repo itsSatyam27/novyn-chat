@@ -18,6 +18,7 @@ import '../../widgets/game_message_card.dart';
 import '../../widgets/riddle_message_card.dart';
 import '../../widgets/voice_message_player.dart';
 import '../../models/user_model.dart';
+import '../../models/chat_models.dart';
 import '../../services/auth_service.dart';
 import '../../services/socket_service.dart';
 import '../../services/api_service.dart';
