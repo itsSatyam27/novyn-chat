@@ -48,7 +48,7 @@ function registerCallHandlers(socket, deps) {
         socket.emit("call_ended", { callId, reason: "User is busy" });
         return;
       }
-      setCallPair(userKey, friendKey, "ringing", callId);
+      setCallPair(userKey, friendKey, "ringing", callId, { type: isVideo ? "video" : "voice" });
       const callerName = me?.username || userKey;
       const callerDisplayName = me?.displayName || callerName;
       io.to(friendSocketId).emit("call_incoming", {
@@ -136,7 +136,7 @@ function registerCallHandlers(socket, deps) {
           callId,
           callerId: caller?.username || callerKey,
           receiverId: receiver?.username || missedKey,
-          type: "voice",
+          type: active.type || "voice",
           status: "missed",
           duration: 0,
           createdAt: new Date().toISOString(),
