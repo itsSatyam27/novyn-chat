@@ -41,6 +41,8 @@ class _ChatsScreenState extends State<ChatsScreen> {
   bool _loading = true;
   bool _isSearchVisible = false;
   Set<String> _pinnedChatUsernames = <String>{};
+  bool _pinPreferencesLoaded = false;
+  String? _pinPreferencesOwner;
   String _search = '';
   final FocusNode _searchFocusNode = FocusNode();
   final TextEditingController _searchController = TextEditingController();
@@ -101,9 +103,11 @@ class _ChatsScreenState extends State<ChatsScreen> {
     _loadGeneration++;
 
     if (username == null || username.isEmpty) {
-      _pinnedChatUsernames = <String>{};
       ChatsScreen.resetAccountCache();
       setState(() {
+        _pinnedChatUsernames = <String>{};
+        _pinPreferencesLoaded = false;
+        _pinPreferencesOwner = null;
         _chats = [];
         _filtered = [];
         _loading = false;
@@ -111,13 +115,15 @@ class _ChatsScreenState extends State<ChatsScreen> {
       return;
     }
 
-    _pinnedChatUsernames = <String>{};
-    _loadPinnedChatPreferences(username);
     setState(() {
+      _pinnedChatUsernames = <String>{};
+      _pinPreferencesLoaded = false;
+      _pinPreferencesOwner = null;
       _chats = [];
       _filtered = [];
       _loading = true;
     });
+    _loadPinnedChatPreferences(username);
     // Non-silent load first restores this account's username-scoped local DB.
     // The authenticated friend_list event will replace it with server state.
     _loadChats();
@@ -142,6 +148,8 @@ class _ChatsScreenState extends State<ChatsScreen> {
             .where((value) => value.isNotEmpty)
             .take(5)
             .toSet();
+        _pinPreferencesLoaded = true;
+        _pinPreferencesOwner = username.trim().toLowerCase();
         _chats = _withPinnedPreferences(_chats);
       });
       ChatsScreen.cachedChats = List<ChatPreview>.from(_chats);
@@ -175,6 +183,14 @@ class _ChatsScreenState extends State<ChatsScreen> {
     final peerUsername = chat.peer.username.trim().toLowerCase();
     if (username == null || username.isEmpty || peerUsername.isEmpty) {
       _showSnackBar('Could not update this chat pin.');
+      return;
+    }
+
+    if (!_pinPreferencesLoaded || _pinPreferencesOwner != username) {
+      await _loadPinnedChatPreferences(username);
+    }
+    if (!_pinPreferencesLoaded || _pinPreferencesOwner != username) {
+      _showSnackBar('Pinned chats are still loading. Please try again.');
       return;
     }
 
