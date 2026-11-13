@@ -820,18 +820,20 @@ class ApiService {
     required String type,
     required String status,
     int duration = 0,
+    String? callId,
   }) async {
     try {
       await http
           .post(
             Uri.parse('$baseUrl/api/calls'),
-            headers: _authHeaders,
+            headers: await _csrfHeaders(),
             body: jsonEncode({
               'callerId': callerId,
               'receiverId': receiverId,
               'type': type,
               'status': status,
               'duration': duration,
+              if (callId != null && callId.isNotEmpty) 'callId': callId,
             }),
           )
           .timeout(const Duration(seconds: 5));
