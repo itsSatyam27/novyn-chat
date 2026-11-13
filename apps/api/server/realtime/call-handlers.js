@@ -79,7 +79,7 @@ function registerCallHandlers(socket, deps) {
         socket.emit("call_ended", { callId, reason: "User is busy" });
         return;
       }
-      setCallPair(userKey, friendKey, "ringing", callId);
+      setCallPair(userKey, friendKey, "ringing", callId, { type: isVideo ? "video" : "voice" });
       const callerName = me?.username || userKey;
       const callerDisplayName = me?.displayName || callerName;
       Promise.resolve(sendPushToUser?.(friendKey, {
