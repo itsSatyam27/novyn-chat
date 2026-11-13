@@ -176,7 +176,7 @@ class _CallsScreenState extends State<CallsScreen> {
         var entry = entriesMap[peerUsername];
         if (entry == null) {
           // Build a minimal UserModel from the log data (no Firestore needed)
-          final peer = UserModel(
+          final peer = context.read<SocketService>().contacts.findUser(peerUsername) ?? UserModel(
             uid:       peerUsername,
             name:      peerUsername,
             username:  peerUsername,
