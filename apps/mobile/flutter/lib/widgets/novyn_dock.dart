@@ -38,9 +38,6 @@ class NovynDock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final profile = context.watch<AuthService?>()?.user;
-    final profilePhotoUrl = profile?.photoUrl ?? '';
-    final profileName = profile?.displayName ?? 'Profile';
     final reduceMotion = MediaQuery.disableAnimationsOf(context);
     final dark = Theme.of(context).brightness == Brightness.dark;
     final accent = Theme.of(context).colorScheme.primary;
@@ -143,6 +140,9 @@ class NovynDock extends StatelessWidget {
     bool compact,
     bool reduceMotion,
   ) {
+    final profile = context.watch<AuthService?>()?.user;
+    final profilePhotoUrl = profile?.photoUrl ?? '';
+    final profileName = profile?.displayName ?? 'Profile';
     final full = style == 'full_width';
     final elevated = style == 'elevated';
     final sliding = style == 'sliding';
