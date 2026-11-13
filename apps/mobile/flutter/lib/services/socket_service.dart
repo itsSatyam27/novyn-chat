@@ -114,7 +114,7 @@ class SocketService extends ChangeNotifier {
   Function(Map)? onCallInviteCallback;
   Function(Map)? onCallAcceptedCallback;
   Function()? onCallRejectedCallback;
-  Function()? onCallEndedCallback;
+  Function(Map)? onCallEndedCallback;
   Function(Map)? onWebRTCSignalCallback;
 
   // Status and foreground message callbacks
@@ -729,8 +729,8 @@ class SocketService extends ChangeNotifier {
       onCallRejectedCallback?.call();
     });
 
-    _socket!.on('call_ended', (_) {
-      onCallEndedCallback?.call();
+    _socket!.on('call_ended', (data) {
+      onCallEndedCallback?.call(data is Map ? Map<String, dynamic>.from(data) : {});
     });
 
     // ── WebRTC signaling ──────────────────────────────────────────────────
@@ -1941,7 +1941,7 @@ class SocketService extends ChangeNotifier {
   void onCallInvite(Function(Map) cb) => onCallInviteCallback = cb;
   void onCallAccepted(Function(Map) cb) => onCallAcceptedCallback = cb;
   void onCallRejected(VoidCallback cb) => onCallRejectedCallback = cb;
-  void onCallEnded(VoidCallback cb) => onCallEndedCallback = cb;
+  void onCallEnded(Function(Map) cb) => onCallEndedCallback = cb;
   void onWebRTCSignal(Function(Map) cb) => onWebRTCSignalCallback = cb;
 
   // WebRTC setters used by call_screen.dart (old API used separate offer/answer/ice)
