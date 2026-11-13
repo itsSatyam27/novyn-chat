@@ -236,6 +236,7 @@ class _CallsScreenState extends State<CallsScreen> {
           children: [
             NovynHeader(
               title: 'Calls',
+              titleSize: 36,
               actions: [
                 IconButton(
                   tooltip: _searchOpen ? 'Close search' : 'Search calls',
