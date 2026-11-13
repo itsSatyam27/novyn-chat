@@ -847,28 +847,31 @@ class SocketService extends ChangeNotifier {
     if (account == null || account.isEmpty) return;
 
     try {
-      final list = rawList
-          .whereType<Map>()
-          .map((item) => Map<String, dynamic>.from(item))
-          .toList();
+      final list = rawList.whereType<Map>().map((item) {
+        try {
+          return Map<String, dynamic>.from(item);
+        } catch (_) {
+          return null;
+        }
+      }).whereType<Map<String, dynamic>>().toList();
       final peers = <UserModel>[];
       final previews = list.map<ChatPreview?>((item) {
-      final username =
+        final username =
           item['username']?.toString() ?? item['groupId']?.toString() ?? '';
-      if (username.trim().isEmpty) return null;
-      final displayName = item['displayName']?.toString() ??
+        if (username.trim().isEmpty) return null;
+        final displayName = item['displayName']?.toString() ??
           item['name']?.toString() ??
           username;
-      // The relay keeps the encrypted envelope in lastMessageData. The
-      // legacy lastMessage field is only a placeholder and may not contain the
-      // ciphertext/IV needed for local decryption.
-      final lastMsg = item['lastMessageData'] ?? item['lastMessage'];
-      if (item['publicKey'] != null) {
-        _peerKeys[username.toLowerCase()] = item['publicKey'].toString();
-      }
+        // The relay keeps the encrypted envelope in lastMessageData. The
+        // legacy lastMessage field is only a placeholder and may not contain the
+        // ciphertext/IV needed for local decryption.
+        final lastMsg = item['lastMessageData'] ?? item['lastMessage'];
+        if (item['publicKey'] != null) {
+          _peerKeys[username.toLowerCase()] = item['publicKey'].toString();
+        }
 
-      // Build a minimal UserModel so ChatPreview's required field is satisfied
-      final peerModel = UserModel(
+        // Build a minimal UserModel so ChatPreview's required field is satisfied
+        final peerModel = UserModel(
         uid: username,
         name: displayName,
         username: username,
@@ -879,9 +882,9 @@ class SocketService extends ChangeNotifier {
         status: item['presence']?.toString() ?? 'Online',
         photoUrl: item['avatarId']?.toString() ?? '',
       );
-      peers.add(peerModel);
+        peers.add(peerModel);
 
-      return ChatPreview(
+        return ChatPreview(
         chatId: username.toLowerCase(),
         peerUid: username,
         peer: peerModel,
@@ -894,7 +897,7 @@ class SocketService extends ChangeNotifier {
         lastTime: DateTime.tryParse(item['lastTimestamp']?.toString() ?? '') ??
             DateTime.now(),
         unreadCount: (item['unreadCount'] as num?)?.toInt() ?? 0,
-      );
+        );
       }).whereType<ChatPreview>().toList();
 
       // Persist both previews and their peer profiles. Without the profiles,
@@ -907,10 +910,12 @@ class SocketService extends ChangeNotifier {
       notifyListeners();
 
       for (final item in list) {
-      final raw = item['lastMessageData'] ?? item['lastMessage'];
-      if (raw is! Map || raw['isEncrypted'] != true) continue;
-      final peer = item['username']?.toString() ?? '';
-      final decrypted = await encryption.decrypt(
+        try {
+          final raw = item['lastMessageData'] ?? item['lastMessage'];
+          if (raw is! Map || raw['isEncrypted'] != true) continue;
+          final peer = item['username']?.toString() ?? '';
+          if (peer.isEmpty) continue;
+          final decrypted = await encryption.decrypt(
           Message(
             id: raw['id']?.toString() ?? '',
             chatId: peer,
@@ -922,21 +927,24 @@ class SocketService extends ChangeNotifier {
           ),
           account,
           _peerKeys[peer.toLowerCase()]);
-      if (_myUsername != account) return;
-      if (_myUsername != account) return;
-      if (decrypted.needsMessageKey) continue;
+          if (_myUsername != account) return;
+          if (decrypted.needsMessageKey) continue;
       final index = _conversations.indexWhere(
           (chat) => chat.peerUid.toLowerCase() == peer.toLowerCase());
       // Avoid replacing a newer live preview with the older friend-list snapshot.
-      if (index >= 0 &&
-          (_conversations[index].lastMessage == '🔒 Encrypted message' ||
-              _conversations[index].lastMessage == raw['text'])) {
-        final updated = List<ChatPreview>.from(_conversations);
-        updated[index] = updated[index].copyWith(lastMessage: decrypted.text);
-        _conversations = updated;
-        HybridDbService.saveChat(updated[index]);
-        notifyListeners();
-      }
+          if (index >= 0 &&
+              (_conversations[index].lastMessage == '🔒 Encrypted message' ||
+                  _conversations[index].lastMessage == raw['text'])) {
+            final updated = List<ChatPreview>.from(_conversations);
+            updated[index] =
+                updated[index].copyWith(lastMessage: decrypted.text);
+            _conversations = updated;
+            unawaited(HybridDbService.saveChat(updated[index]));
+            notifyListeners();
+          }
+        } catch (error) {
+          debugPrint('[NovynSocket] Could not decrypt chat preview: $error');
+        }
       }
     } catch (error, stackTrace) {
       debugPrint('[NovynSocket] Friend list refresh failed: $error');
