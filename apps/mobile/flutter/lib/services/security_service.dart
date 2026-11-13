@@ -41,10 +41,10 @@ class SecurityService {
   }
 
   /// Trigger a hardware-level vibration (bypasses some system haptic blocks)
-  static Future<void> vibrate({int duration = 50}) async {
+  static Future<void> vibrate({int duration = 50, int amplitude = 255}) async {
     try {
       if (defaultTargetPlatform == TargetPlatform.android) {
-        await _channel.invokeMethod('vibrate', {'duration': duration});
+        await _channel.invokeMethod('vibrate', {\n          'duration': duration.clamp(1, 5000),\n          'amplitude': amplitude.clamp(1, 255),\n        });
       }
     } on PlatformException catch (e) {
       debugPrint('Failed to trigger native vibration: ${e.message}');
