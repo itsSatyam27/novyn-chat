@@ -121,6 +121,7 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
     );
   }
 
+
   Widget _buildUsernameCard(BuildContext context, AuthService auth) {
     final colors = Theme.of(context).colorScheme;
     final username = auth.user?.username ?? '';
@@ -142,7 +143,8 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
           const SizedBox(height: 4),
           Text('Your unique Novyn identity', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant)),
         ])),
-        IconButton(onPressed: () => _changeUsername(auth), icon: Icon(Icons.edit_outlined, color: colors.primary), tooltip: 'Change username'),
+        IconButton(onPressed: () => _changeUsername(auth),
+          icon: Icon(Icons.edit_outlined, color: colors.primary), tooltip: 'Change username'),
       ]),
     );
   }
@@ -372,7 +374,8 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
                   style: Theme.of(sheet).textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant))),
                 const SizedBox(height: 14),
                 Row(children: [
-                  Expanded(child: OutlinedButton(onPressed: saving ? null : () => Navigator.pop(sheet), child: const Text('Cancel'))),
+                  Expanded(child: OutlinedButton(onPressed: saving ? null : () => Navigator.pop(sheet),
+                    child: const Text('Cancel'))),
                   const SizedBox(width: 10),
                   Expanded(child: OutlinedButton(
                     onPressed: (!valid || isSame || checking || saving) ? null : () async {
@@ -380,9 +383,11 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
                       final result = await auth.isUsernameAvailable(candidate);
                       if (!sheet.mounted) return;
                       setSheet(() { checking = false; checkedValue = candidate; available = result; });
-                      if (!result) NovynAlert.show(sheet, 'That username is already taken or could not be verified.', isError: true);
+                      if (!result) NovynAlert.show(sheet,
+                        'That username is already taken or could not be verified.', isError: true);
                     },
-                    child: checking ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Text('Check availability'),
+                    child: checking ? const SizedBox(width: 16, height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2)) : const Text('Check availability'),
                   )),
                 ]),
                 const SizedBox(height: 8),
@@ -391,27 +396,31 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
                     setSheet(() => saving = true);
                     try {
                       await context.read<SocketService>().changeUsername(
-                        newUsername: candidate,
-                        currentPassword: password.text,
-                      );
+                        newUsername: candidate, currentPassword: password.text);
                       await auth.refreshProfile();
                       if (sheet.mounted) Navigator.pop(sheet, true);
                     } catch (error) {
                       if (sheet.mounted) {
                         setSheet(() => saving = false);
-                        NovynAlert.show(sheet, error.toString().replaceFirst('Bad state: ', ''), isError: true);
+                        NovynAlert.show(sheet,
+                          error.toString().replaceFirst('Bad state: ', ''), isError: true);
                       }
                     }
                   } : null,
-                  child: saving ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Text('Update username'),
+                  child: saving ? const SizedBox(width: 18, height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                    : const Text('Update username'),
                 )),
               ])),
           ),
         );
       }),
     );
-    username.dispose(); password.dispose();
-    if (result == true && mounted) NovynAlert.show(context, 'Username updated successfully.');
+    username.dispose();
+    password.dispose();
+    if (result == true && mounted) {
+      NovynAlert.show(context, 'Username updated successfully.');
+    }
   }
 
   Future<void> _changeEmail(SocketService socket, AuthService auth) async {
