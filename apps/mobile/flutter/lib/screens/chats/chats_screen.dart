@@ -38,6 +38,7 @@ class _ChatsScreenState extends State<ChatsScreen> {
   List<ChatPreview> _chats = [];
   List<ChatPreview> _filtered = [];
   bool _loading = true;
+  bool _isSearchVisible = false;
   String _search = '';
   final FocusNode _searchFocusNode = FocusNode();
   final TextEditingController _searchController = TextEditingController();
@@ -347,19 +348,63 @@ class _ChatsScreenState extends State<ChatsScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(18, 12, 18, 4),
-              child: NovynHeader(
-                title: 'Chats',
-                titleSize: 36,
-                titleColor: Theme.of(context).colorScheme.onSurface,
-                actions: [
+              padding: const EdgeInsets.fromLTRB(18, 12, 18, 8),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Chats',
+                      maxLines: 1,
+                      style: TextStyle(
+                        fontFamily: 'PlusJakartaSans',
+                        fontSize: 36,
+                        height: 1.12,
+                        letterSpacing: -1.25,
+                        fontWeight: FontWeight.w800,
+                        color: Theme.of(context).colorScheme.onSurface,
+                      ),
+                    ),
+                  ),
                   NovynIconButton(
                     icon: Icons.qr_code_scanner_rounded,
-                    size: 52,
-                    radius: 20,
-                    iconSize: 23,
+                    size: 46,
+                    radius: 18,
+                    iconSize: 22,
                     onTap: widget.onNavigateToPeople,
                   ),
+                  const SizedBox(width: 8),
+                  Material(
+                    color: Theme.of(context).colorScheme.surface,
+                    borderRadius: BorderRadius.circular(18),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(18),
+                      onTap: () {
+                        setState(() => _isSearchVisible = !_isSearchVisible);
+                        if (_isSearchVisible) {
+                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                            if (mounted) _searchFocusNode.requestFocus();
+                          });
+                        } else {
+                          _searchFocusNode.unfocus();
+                          _searchController.clear();
+                          _onSearch('');
+                        }
+                      },
+                      child: SizedBox(
+                        width: 46,
+                        height: 46,
+                        child: Icon(
+                          _isSearchVisible
+                              ? Icons.close_rounded
+                              : Icons.search_rounded,
+                          color: Theme.of(context).colorScheme.onSurface,
+                          size: 23,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
                   PopupMenuButton<int>(
                     tooltip: 'More actions',
                     position: PopupMenuPosition.under,
@@ -392,20 +437,35 @@ class _ChatsScreenState extends State<ChatsScreen> {
                       ),
                     ],
                     child: Container(
-                      width: 52,
-                      height: 52,
+                      width: 46,
+                      height: 46,
                       decoration: BoxDecoration(
                         color: Theme.of(context).colorScheme.surface,
-                        borderRadius: BorderRadius.circular(20),
+                        borderRadius: BorderRadius.circular(18),
                       ),
-                      child: Icon(Icons.more_horiz_rounded,
-                        color: Theme.of(context).colorScheme.onSurface, size: 23),
+                      child: Icon(
+                        Icons.more_horiz_rounded,
+                        color: Theme.of(context).colorScheme.onSurface,
+                        size: 23,
+                      ),
                     ),
                   ),
                 ],
               ),
             ),
-            _buildSearch(),
+            AnimatedSize(
+              duration: const Duration(milliseconds: 280),
+              curve: Curves.easeInOutCubic,
+              alignment: Alignment.topCenter,
+              child: _isSearchVisible
+                  ? AnimatedOpacity(
+                      duration: const Duration(milliseconds: 180),
+                      curve: Curves.easeOut,
+                      opacity: 1,
+                      child: _buildSearch(),
+                    )
+                  : const SizedBox(width: double.infinity, height: 0),
+            ),
             _buildFilterCards(),
             Expanded(
               child: _loading
@@ -490,7 +550,7 @@ class _ChatsScreenState extends State<ChatsScreen> {
                   decoration: BoxDecoration(
                     color: _selectedTab == item.$1
                         ? colors.primary
-                        : Colors.white,
+                        : colors.surface,
                     borderRadius: BorderRadius.circular(24),
                   ),
                   child: Text(
@@ -501,7 +561,7 @@ class _ChatsScreenState extends State<ChatsScreen> {
                       fontWeight: FontWeight.w700,
                       color: _selectedTab == item.$1
                           ? Colors.white
-                          : const Color(0xFF24213F),
+                          : colors.onSurface,
                     ),
                   ),
                 ),
@@ -517,7 +577,7 @@ class _ChatsScreenState extends State<ChatsScreen> {
     final textColor = theme.colorScheme.onSurfaceVariant;
     final accent = theme.colorScheme.primary;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
       child: Container(
         height: 50,
         padding: const EdgeInsets.symmetric(horizontal: 18),
