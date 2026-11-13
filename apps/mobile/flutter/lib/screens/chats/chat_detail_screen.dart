@@ -2266,7 +2266,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                     ),
                   ),
                   const SizedBox(height: 16),
-                  UserAvatar(name: group['name']?.toString() ?? widget.peer.name, radius: 32),
+                  UserAvatar(name: group['name']?.toString() ?? widget.peer.name, photoUrl: '', radius: 32),
                   const SizedBox(height: 10),
                   Text(
                     group['name']?.toString() ?? widget.peer.name,
