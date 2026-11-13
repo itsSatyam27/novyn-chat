@@ -51,59 +51,178 @@ class _AuthScreenState extends State<AuthScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF5B48DD),
-      body: Stack(children: [
-        _MeshBackground(),
-        SafeArea(child: Column(children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(28, 28, 28, 12),
-            child: Row(children: [
-              Container(width: 58, height: 58,
-                decoration: BoxDecoration(shape: BoxShape.circle,
-                  color: Colors.white.withValues(alpha: .16),
-                  border: Border.all(color: Colors.white.withValues(alpha: .42))),
-                child: const Icon(Icons.pets_rounded, color: Colors.white, size: 28)),
-              const SizedBox(width: 16),
-              Text('Novyn', style: GoogleFonts.inter(color: Colors.white,
-                fontSize: 34, fontWeight: FontWeight.w800, letterSpacing: -1.2)),
-            ]),
+      backgroundColor: const Color(0xFF5141CD),
+      body: Stack(
+        children: [
+          const _MeshBackground(),
+          SafeArea(
+            child: LayoutBuilder(
+              builder: (context, pageConstraints) {
+                final keyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 0;
+                return Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(22, 14, 22, 8),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 52,
+                            height: 52,
+                            padding: const EdgeInsets.all(9),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(16),
+                              gradient: const LinearGradient(
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                                colors: [Color(0xFF7C6CFF), Color(0xFF5141CD)],
+                              ),
+                              border: Border.all(color: Colors.white.withValues(alpha: .38)),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: const Color(0xFF241A80).withValues(alpha: .24),
+                                  blurRadius: 18,
+                                  offset: const Offset(0, 7),
+                                ),
+                              ],
+                            ),
+                            child: Image.asset(
+                              'assets/icons/app_icon_foreground.png',
+                              fit: BoxFit.contain,
+                            ),
+                          ),
+                          const SizedBox(width: 13),
+                          Text(
+                            'Novyn',
+                            style: GoogleFonts.inter(
+                              color: Colors.white,
+                              fontSize: 30,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: -1.1,
+                            ),
+                          ),
+                          const Spacer(),
+                          if (!keyboardOpen)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: .12),
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(color: Colors.white.withValues(alpha: .16)),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.lock_outline_rounded, size: 13, color: Colors.white.withValues(alpha: .9)),
+                                  const SizedBox(width: 5),
+                                  Text('SECURE CHAT', style: GoogleFonts.inter(
+                                    color: Colors.white.withValues(alpha: .9),
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: .8,
+                                  )),
+                                ],
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                    Expanded(
+                      child: LayoutBuilder(
+                        builder: (context, contentConstraints) {
+                          final cardHeight = keyboardOpen
+                              ? contentConstraints.maxHeight
+                              : contentConstraints.maxHeight * .76;
+                          return Stack(
+                            children: [
+                              if (!keyboardOpen)
+                                Positioned(
+                                  left: 26,
+                                  right: 26,
+                                  top: 24,
+                                  child: AnimatedSwitcher(
+                                    duration: const Duration(milliseconds: 220),
+                                    child: Column(
+                                      key: ValueKey(_tabController.index),
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          _tabController.index == 0 ? 'Welcome back' : 'Your circle starts here',
+                                          style: GoogleFonts.inter(
+                                            color: Colors.white,
+                                            fontSize: 31,
+                                            height: 1.08,
+                                            fontWeight: FontWeight.w800,
+                                            letterSpacing: -1.1,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Text(
+                                          _tabController.index == 0
+                                              ? 'Sign in and pick up right where you left off.'
+                                              : 'Create your account and connect with your people.',
+                                          style: GoogleFonts.inter(
+                                            color: Colors.white.withValues(alpha: .82),
+                                            fontSize: 13,
+                                            height: 1.4,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              Align(
+                                alignment: Alignment.bottomCenter,
+                                child: Container(
+                                  height: cardHeight,
+                                  width: double.infinity,
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFFFFFFF),
+                                    borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
+                                    border: Border.all(color: Colors.white.withValues(alpha: .75)),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: const Color(0xFF21145F).withValues(alpha: .16),
+                                        blurRadius: 28,
+                                        offset: const Offset(0, -8),
+                                      ),
+                                    ],
+                                  ),
+                                  child: Column(
+                                    children: [
+                                      const SizedBox(height: 17),
+                                      _buildTabBar(),
+                                      const SizedBox(height: 10),
+                                      Expanded(
+                                        child: TabBarView(
+                                          controller: _tabController,
+                                          children: [
+                                            _LoginTab(onSwitchToRegister: () => _tabController.animateTo(1)),
+                                            _RegisterTab(onSwitchToLogin: () => _tabController.animateTo(0)),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
           ),
-          Expanded(child: Stack(children: [
-            Positioned(left: 28, right: 28, top: 34,
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(_tabController.index == 0 ? 'Welcome\nback' : 'Join\nNovyn',
-                  style: GoogleFonts.inter(color: Colors.white, fontSize: 42,
-                    height: 1.02, fontWeight: FontWeight.w800, letterSpacing: -1.4)),
-                const SizedBox(height: 16),
-                Text(_tabController.index == 0
-                  ? 'Sign in to pick up your conversations.'
-                  : 'Create an account and start connecting.',
-                  style: GoogleFonts.inter(color: Colors.white.withValues(alpha: .82),
-                    fontSize: 16, height: 1.4)),
-              ])),
-            Align(alignment: Alignment.bottomCenter,
-              child: Container(
-                height: MediaQuery.of(context).size.height * .68,
-                width: double.infinity,
-                decoration: const BoxDecoration(color: Colors.white,
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(38))),
-                child: Column(children: [
-                  const SizedBox(height: 24),
-                  _buildTabBar(),
-                  Expanded(child: TabBarView(controller: _tabController, children: [
-                    _LoginTab(onSwitchToRegister: () => _tabController.animateTo(1)),
-                    _RegisterTab(onSwitchToLogin: () => _tabController.animateTo(0)),
-                  ])),
-                ]))),
-          ])),
-        ])),
-      ]),
+        ],
+      ),
     );
   }
 
   Widget _buildTabBar() {
     return Padding(padding: const EdgeInsets.symmetric(horizontal: 24),
-      child: Container(height: 64,
+      child: Container(height: 56,
         decoration: BoxDecoration(color: const Color(0xFFF1EEFC),
           borderRadius: BorderRadius.circular(28)),
         child: TabBar(controller: _tabController, onTap: (_) => setState(() {}),
@@ -1025,7 +1144,7 @@ class _RegisterTabState extends State<_RegisterTab> {
               Text(
                 'Welcome to Novyn,\n@${_usernameCtrl.text.trim().toLowerCase()}',
                 textAlign: TextAlign.center,
-                style: TextStyle(fontFamily: 'Inter', fontSize: 14, color: Colors.white.withValues(alpha: 0.45), height: 1.5),
+                style: TextStyle(fontFamily: 'Inter', fontSize: 14, color: const Color(0xFF827C99), height: 1.5),
               ),
               const SizedBox(height: 28),
               _PrimaryButton(
@@ -1433,7 +1552,7 @@ class _OrDivider extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Expanded(child: Container(height: 1, color: Colors.white.withValues(alpha: 0.07))),
+        Expanded(child: Container(height: 1, color: const Color(0xFFE8E4F1))),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 14),
           child: Text(
@@ -1442,7 +1561,7 @@ class _OrDivider extends StatelessWidget {
               fontSize:   10,
               fontWeight: FontWeight.w700,
               letterSpacing: 2,
-              color:      Colors.white.withValues(alpha: 0.2),
+              color:      const Color(0xFF9993AA),
             ),
           ),
         ),
@@ -1465,7 +1584,7 @@ class _GoogleButton extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 15),
           decoration: BoxDecoration(
-            color:        Colors.white.withValues(alpha: 0.04),
+            color:        const Color(0xFFFBFAFE),
             borderRadius: BorderRadius.circular(16),
             border:       Border.all(color: const Color(0xFFE4DFF6)),
           ),
