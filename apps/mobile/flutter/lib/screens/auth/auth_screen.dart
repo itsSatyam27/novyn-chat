@@ -17,7 +17,9 @@ const _kRed        = Color(0xFFEF4444);
 const _kPink       = Color(0xFFEC4899);
 
 class AuthScreen extends StatefulWidget {
-  const AuthScreen({super.key});
+  /// Opens directly on sign-in (0) or account creation (1).
+  final int initialTab;
+  const AuthScreen({super.key, this.initialTab = 0});
 
   @override
   State<AuthScreen> createState() => _AuthScreenState();
@@ -30,7 +32,11 @@ class _AuthScreenState extends State<AuthScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(
+      length: 2,
+      vsync: this,
+      initialIndex: widget.initialTab.clamp(0, 1),
+    );
     _tabController.addListener(() {
       if (mounted) setState(() {});
     });
