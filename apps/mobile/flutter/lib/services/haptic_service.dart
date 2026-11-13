@@ -31,7 +31,7 @@ class HapticService {
     if (pattern == 'none') return;
 
     final intensity = settings.hapticIntensity.clamp(0.0, 1.0);
-    final amplitude = (70 + intensity * 185).round().clamp(1, 255).toInt();
+    final amplitude = (70 + intensity * 185).round().clamp(1, 255).toInt().toInt();
 
     // Each entry is a duration in milliseconds. A zero amplitude is a pause.
     // The patterns are intentionally distinct in both pulse count and spacing.
@@ -99,53 +99,53 @@ class HapticService {
         case NovynHapticType.light:
           await SecurityService.vibrate(
             duration: 12,
-            amplitude: (65 * intensity).round().clamp(1, 255),
+            amplitude: (65 * intensity).round().clamp(1, 255).toInt(),
           );
           break;
         case NovynHapticType.medium:
           await SecurityService.vibrate(
             duration: 22,
-            amplitude: (135 * intensity).round().clamp(1, 255),
+            amplitude: (135 * intensity).round().clamp(1, 255).toInt(),
           );
           break;
         case NovynHapticType.heavy:
           await SecurityService.vibrate(
             duration: 36,
-            amplitude: (220 * intensity).round().clamp(1, 255),
+            amplitude: (220 * intensity).round().clamp(1, 255).toInt(),
           );
           break;
         case NovynHapticType.selection:
           await SecurityService.vibrate(
             duration: 8,
-            amplitude: (55 * intensity).round().clamp(1, 255),
+            amplitude: (55 * intensity).round().clamp(1, 255).toInt(),
           );
           break;
         case NovynHapticType.success:
           await SecurityService.vibrate(
             duration: 18,
-            amplitude: (110 * intensity).round().clamp(1, 255),
+            amplitude: (110 * intensity).round().clamp(1, 255).toInt(),
           );
           await Future.delayed(const Duration(milliseconds: 65));
           await SecurityService.vibrate(
             duration: 24,
-            amplitude: (155 * intensity).round().clamp(1, 255),
+            amplitude: (155 * intensity).round().clamp(1, 255).toInt(),
           );
           break;
         case NovynHapticType.error:
           await SecurityService.vibrate(
             duration: 90,
-            amplitude: (190 * intensity).round().clamp(1, 255),
+            amplitude: (190 * intensity).round().clamp(1, 255).toInt(),
           );
           break;
         case NovynHapticType.warning:
           await SecurityService.vibrate(
             duration: 28,
-            amplitude: (150 * intensity).round().clamp(1, 255),
+            amplitude: (150 * intensity).round().clamp(1, 255).toInt(),
           );
           await Future.delayed(const Duration(milliseconds: 75));
           await SecurityService.vibrate(
             duration: 28,
-            amplitude: (150 * intensity).round().clamp(1, 255),
+            amplitude: (150 * intensity).round().clamp(1, 255).toInt(),
           );
           break;
       }
