@@ -254,7 +254,6 @@ class AuthService extends ChangeNotifier {
               .timeout(const Duration(seconds: 8));
           _user = restoredUser;
           await _persistIdentity(restoredUser);
-          await _persistIdentity(restoredUser);
           _authReady = true;
           notifyListeners();
           return;
@@ -354,7 +353,7 @@ class AuthService extends ChangeNotifier {
           await _prepareAccount(refreshedUser.username);
         }
         _user = refreshedUser;
-          await _persistIdentity(refreshedUser);
+        await _persistIdentity(refreshedUser);
         notifyListeners();
 
         // A successful session lookup can rotate the access/refresh cookies.
@@ -456,7 +455,7 @@ class AuthService extends ChangeNotifier {
         final signedInUser = NovynUser.fromMap(session);
         await _prepareAccount(signedInUser.username);
         _user = signedInUser;
-          await _persistIdentity(signedInUser);
+        await _persistIdentity(signedInUser);
       } else {
         // Fallback from the google response itself
         final signedInUser = NovynUser(
