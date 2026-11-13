@@ -458,10 +458,12 @@ class _ChatsScreenState extends State<ChatsScreen> {
               curve: Curves.easeInOutCubic,
               alignment: Alignment.topCenter,
               child: _isSearchVisible
-                  ? AnimatedOpacity(
+                  ? TweenAnimationBuilder<double>(
+                      tween: Tween<double>(begin: 0, end: 1),
                       duration: const Duration(milliseconds: 180),
                       curve: Curves.easeOut,
-                      opacity: 1,
+                      builder: (context, opacity, child) =>
+                          Opacity(opacity: opacity, child: child),
                       child: _buildSearch(),
                     )
                   : const SizedBox(width: double.infinity, height: 0),
