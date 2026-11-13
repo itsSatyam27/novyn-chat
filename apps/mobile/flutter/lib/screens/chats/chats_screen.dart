@@ -488,7 +488,16 @@ class _ChatsScreenState extends State<ChatsScreen> {
                             }
                             return false;
                           },
-                          child: CustomScrollView(
+                          child: NotificationListener<OverscrollNotification>(
+                            onNotification: (notification) {
+                              // At the top of the list a downward swipe is an
+                              // overscroll, so count it as a deliberate gesture too.
+                              if (!_isSearching && notification.overscroll < 0) {
+                                _sawDownwardScrollGesture = true;
+                              }
+                              return false;
+                            },
+                            child: CustomScrollView(
                         slivers: [
                           // ── Pinned Section ─────────────────────────────────
                           if (pinnedChats.isNotEmpty) ...[
@@ -519,6 +528,7 @@ class _ChatsScreenState extends State<ChatsScreen> {
                           const SliverToBoxAdapter(
                               child: SizedBox(height: 100)),
                         ],
+                            ),
                           ),
                         ),
                       ),
