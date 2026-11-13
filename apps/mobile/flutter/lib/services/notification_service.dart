@@ -81,14 +81,12 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   final localPresence = (prefs.getString('novyn_notification_presence_mode') ?? '').toLowerCase();
   // Busy suppresses message alerts in every app lifecycle state. The server
   // also suppresses these pushes; this guard covers delayed/already queued FCM.
-  final focusUntil = prefs.getInt('focus_mode_until_ms') ?? 0;
-  final focusActive = focusUntil > DateTime.now().millisecondsSinceEpoch;
   final sender = (data['chat'] ?? '').toString().trim();
   final dndEnabled = prefs.getBool('do_not_disturb_enabled') ?? false;
   final favoriteIds = (prefs.getStringList('favorite_chat_ids') ?? [])
       .map((value) => value.toLowerCase()).toSet();
   if (dndEnabled && !favoriteIds.contains(sender.toLowerCase())) return;
-  if (focusActive || localPresence == 'busy' ||
+  if (localPresence == 'busy' ||
       data['silent']?.toString().toLowerCase() == 'true' ||
       data['silent']?.toString() == '1') {
     debugPrint('[NovynNotifications] Message alert suppressed while Busy.');
@@ -357,7 +355,6 @@ class NotificationService {
     if (!context.mounted ||
         settings == null ||
         !settings.notificationsOn ||
-        settings.focusModeEnabled ||
         (settings.doNotDisturbEnabled &&
             !settings.favoriteChatIds.contains(username.trim().toLowerCase())) ||
         _presenceAuth?.user?.presenceMode == 'busy') {
