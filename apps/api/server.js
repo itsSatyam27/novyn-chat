@@ -2133,6 +2133,13 @@ async function sendPushToUser(userKey, payload) {
           tag: toDisplayName(safePayload.tag),
           chat: toDisplayName(payload?.group === true ? payload?.groupId : payload?.chat) || "",
           kind: payload?.group === true ? "group" : "friend",
+          // Keep a data-payload copy so Flutter can honor local preview/privacy
+          // preferences and show plaintext previews when the app is backgrounded.
+          ...(!isCallPush ? {
+            title: toDisplayName(safePayload.title) || "Novyn",
+            body: toDisplayName(safePayload.body) || "You have a new message",
+            previewEnabled: previewEnabled ? "1" : "0",
+          } : {}),
           ...(isCallPush ? {
             callStatus: toDisplayName(safePayload.callStatus) || "missed",
             callId: toDisplayName(safePayload.callId),
