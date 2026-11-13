@@ -34,10 +34,15 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
       android: AndroidInitializationSettings('@drawable/novyn_wings_icon'),
       iOS: DarwinInitializationSettings(),
     ));
-    const channel = AndroidNotificationChannel('novyn_incoming_calls', 'Incoming calls',
+    const incomingChannel = AndroidNotificationChannel('novyn_incoming_calls', 'Incoming calls',
       description: 'Incoming voice and video calls', importance: Importance.max,
       playSound: true, enableVibration: true);
-    await plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()?.createNotificationChannel(channel);
+    const missedChannel = AndroidNotificationChannel('novyn_calls', 'Missed calls',
+      description: 'Missed voice and video calls', importance: Importance.max,
+      playSound: true, enableVibration: true);
+    final androidPlugin = plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+    await androidPlugin?.createNotificationChannel(incomingChannel);
+    await androidPlugin?.createNotificationChannel(missedChannel);
     final caller = data['chat']?.toString() ?? 'Novyn contact';
     final callId = data['callId']?.toString() ?? '';
     if (callStatus == 'ended') {
@@ -49,8 +54,9 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
     final title = data['title']?.toString() ?? (isIncoming ? (isVideo ? 'Incoming video call' : 'Incoming voice call') : 'Missed call');
     final body = data['body']?.toString() ?? (isIncoming ? caller + ' is calling you' : 'You missed a call from ' + caller);
     await plugin.show(callId.hashCode, title, body, NotificationDetails(
-      android: AndroidNotificationDetails('novyn_incoming_calls', 'Incoming calls',
-        channelDescription: 'Incoming voice and video calls', importance: Importance.max,
+      android: AndroidNotificationDetails(isIncoming ? 'novyn_incoming_calls' : 'novyn_calls',
+        isIncoming ? 'Incoming calls' : 'Missed calls',
+        channelDescription: 'Voice and video call alerts', importance: Importance.max,
         priority: Priority.max, category: isIncoming ? AndroidNotificationCategory.call : AndroidNotificationCategory.missedCall,
         fullScreenIntent: isIncoming, ongoing: isIncoming, autoCancel: !isIncoming,
         timeoutAfter: isIncoming ? const Duration(seconds: 45) : null,
@@ -292,6 +298,18 @@ class NotificationService {
         enableVibration: true,
       ),
     );
+    // Clear legacy incoming-call alerts created before the 45-second timeout
+    // existed. Keep missed-call and message notifications untouched.
+    try {
+      final active = await _localNotifications.getActiveNotifications();
+      for (final notification in active) {
+        if (notification.channelId == 'novyn_incoming_calls') {
+          await _localNotifications.cancel(notification.id);
+        }
+      }
+    } catch (error) {
+      debugPrint('[NovynCalls] Could not clean legacy call alerts: $error');
+    }
     _localNotificationsReady = true;
   }
 
