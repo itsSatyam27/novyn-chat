@@ -93,6 +93,7 @@ class SettingsService extends ChangeNotifier {
   static const _kReduceMotion = 'accessibility_reduce_motion';
   static const _kBusyPreviousPresence = 'busy_previous_presence_mode';
   static const _kFocusModeUntil = 'focus_mode_until_ms';
+  static const _kDoNotDisturb = 'do_not_disturb_enabled';
 
   late SharedPreferences _prefs;
   bool _loaded = false;
@@ -159,6 +160,7 @@ class SettingsService extends ChangeNotifier {
   String? _busyPreviousPresenceMode;
   int? _focusModeUntilMs;
   Timer? _focusModeExpiryTimer;
+  bool _doNotDisturbEnabled = false;
 
   // ── Getters ─────────────────────────────────────────────────────────────
   bool get notificationsOn => _notificationsOn;
@@ -238,6 +240,7 @@ class SettingsService extends ChangeNotifier {
   bool get reduceMotion => _reduceMotion;
   String? get busyPreviousPresenceMode => _busyPreviousPresenceMode;
   bool get focusModeEnabled => _focusModeUntilMs != null && _focusModeUntilMs! > DateTime.now().millisecondsSinceEpoch;
+  bool get doNotDisturbEnabled => _doNotDisturbEnabled;
   DateTime? get focusModeEndsAt => focusModeEnabled ? DateTime.fromMillisecondsSinceEpoch(_focusModeUntilMs!) : null;
 
   // ── Load from disk ───────────────────────────────────────────────────────
@@ -344,6 +347,7 @@ class SettingsService extends ChangeNotifier {
     _reduceMotion = _prefs.getBool(_kReduceMotion) ?? false;
     _busyPreviousPresenceMode = _prefs.getString(_kBusyPreviousPresence);
     _focusModeUntilMs = _prefs.getInt(_kFocusModeUntil);
+    _doNotDisturbEnabled = _prefs.getBool(_kDoNotDisturb) ?? false;
     _scheduleFocusModeExpiry();
     
     // Load saved sessions
@@ -515,6 +519,12 @@ class SettingsService extends ChangeNotifier {
   Future<void> setHighContrast(bool v) async {
     _highContrast = v;
     await _prefs.setBool(_kHighContrast, v);
+    notifyListeners();
+  }
+
+  Future<void> setDoNotDisturbEnabled(bool enabled) async {
+    _doNotDisturbEnabled = enabled;
+    await _prefs.setBool(_kDoNotDisturb, enabled);
     notifyListeners();
   }
 
