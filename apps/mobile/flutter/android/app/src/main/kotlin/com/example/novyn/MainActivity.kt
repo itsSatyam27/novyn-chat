@@ -1,6 +1,9 @@
 package com.example.novyn
 
 import android.content.Context
+import android.content.BroadcastReceiver
+import android.content.Intent
+import android.content.IntentFilter
 import android.media.AudioManager
 import android.media.AudioDeviceInfo
 import android.media.AudioDeviceCallback
@@ -28,6 +31,7 @@ class MainActivity : FlutterFragmentActivity() {
     private var audioRouteSink: EventChannel.EventSink? = null
     private var audioDeviceCallback: AudioDeviceCallback? = null
     private var communicationDeviceListener: AudioManager.OnCommunicationDeviceChangedListener? = null
+    private var scoStateReceiver: BroadcastReceiver? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -111,6 +115,29 @@ class MainActivity : FlutterFragmentActivity() {
                         }
                         manager.registerAudioDeviceCallback(audioDeviceCallback, Handler(Looper.getMainLooper()))
                     }
+                    // Android 7–11 use Bluetooth SCO for headset call audio. SCO
+                    // connection is asynchronous, so wait for the system state
+                    // broadcast before marking the route active.
+                    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
+                        scoStateReceiver = object : BroadcastReceiver() {
+                            override fun onReceive(context: Context?, intent: Intent?) {
+                                if (intent?.action != AudioManager.ACTION_SCO_AUDIO_STATE_UPDATED) return
+                                val state = intent.getIntExtra(
+                                    AudioManager.EXTRA_SCO_AUDIO_STATE,
+                                    AudioManager.SCO_AUDIO_STATE_ERROR
+                                )
+                                @Suppress("DEPRECATION")
+                                manager.isBluetoothScoOn = state == AudioManager.SCO_AUDIO_STATE_CONNECTED
+                                publishCallAudioRoutes(manager)
+                            }
+                        }
+                        val filter = IntentFilter(AudioManager.ACTION_SCO_AUDIO_STATE_UPDATED)
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                            registerReceiver(scoStateReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+                        } else {
+                            registerReceiver(scoStateReceiver, filter)
+                        }
+                    }
                     publishCallAudioRoutes(manager)
                 }
 
@@ -124,6 +151,13 @@ class MainActivity : FlutterFragmentActivity() {
                         audioDeviceCallback?.let { manager.unregisterAudioDeviceCallback(it) }
                     }
                     audioDeviceCallback = null
+                    scoStateReceiver?.let {
+                        try {
+                            unregisterReceiver(it)
+                        } catch (_: IllegalArgumentException) {
+                        }
+                    }
+                    scoStateReceiver = null
                     audioRouteSink = null
                 }
             })
@@ -230,7 +264,6 @@ class MainActivity : FlutterFragmentActivity() {
             routes.add(mapOf("id" to "earpiece", "name" to "Phone", "kind" to "earpiece", "selected" to !audioManager.isSpeakerphoneOn && !audioManager.isBluetoothScoOn))
             routes.add(mapOf("id" to "speaker", "name" to "Speaker", "kind" to "speaker", "selected" to audioManager.isSpeakerphoneOn))
             @Suppress("DEPRECATION")
-            @Suppress("DEPRECATION")
             val sco = audioManager.isBluetoothScoOn
             val bluetoothAvailable = audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
                 .any { it.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO }
@@ -255,9 +288,11 @@ class MainActivity : FlutterFragmentActivity() {
 
         @Suppress("DEPRECATION")
         if (routeId.startsWith("bluetooth:")) {
+            // SCO negotiation can take a moment; the receiver above marks it
+            // active only after Android reports SCO_AUDIO_STATE_CONNECTED.
             audioManager.isSpeakerphoneOn = false
+            audioManager.isBluetoothScoOn = false
             audioManager.startBluetoothSco()
-            audioManager.isBluetoothScoOn = true
         } else if (routeId == "speaker") {
             audioManager.stopBluetoothSco()
             audioManager.isBluetoothScoOn = false
