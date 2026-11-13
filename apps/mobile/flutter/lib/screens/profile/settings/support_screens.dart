@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../theme/novyn_theme.dart';
+import '../../../services/api_service.dart';
 
 const _appVersion = '1.0.0';
 const _buildNumber = '1';
@@ -291,4 +292,168 @@ class HelpSupportScreen extends StatelessWidget {
       ])),
     ]),
   );
+}
+
+
+class FeedbackScreen extends StatefulWidget {
+  const FeedbackScreen({super.key});
+  @override
+  State<FeedbackScreen> createState() => _FeedbackScreenState();
+}
+
+class _FeedbackScreenState extends State<FeedbackScreen> {
+  static const _types = <(String, String, IconData)>[
+    ('general', 'General', Icons.chat_bubble_outline_rounded),
+    ('bug', 'Bug report', Icons.bug_report_outlined),
+    ('feature', 'Feature request', Icons.lightbulb_outline_rounded),
+    ('praise', 'Praise', Icons.favorite_border_rounded),
+  ];
+  final _messageController = TextEditingController();
+  final _emailController = TextEditingController();
+  String _type = 'general';
+  int _rating = 0;
+  bool _sending = false;
+
+  @override
+  void dispose() {
+    _messageController.dispose();
+    _emailController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final message = _messageController.text.trim();
+    if (message.length < 5) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please write at least 5 characters.')));
+      return;
+    }
+    setState(() => _sending = true);
+    try {
+      await ApiService.submitFeedback(
+        type: _type,
+        message: message,
+        email: _emailController.text,
+        rating: _rating == 0 ? null : _rating,
+      );
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+          icon: Icon(Icons.check_circle_rounded, color: Theme.of(context).colorScheme.primary, size: 42),
+          title: const Text('Thanks for your feedback!'),
+          content: const Text('We read every submission and use it to make Novyn better.'),
+          actions: [FilledButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Done'))],
+        ),
+      );
+      if (mounted) {
+        _messageController.clear();
+        _emailController.clear();
+        setState(() => _rating = 0);
+      }
+    } catch (error) {
+      if (!mounted) return;
+      final errorMessage = error.toString().replaceFirst('Exception: ', '');
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(errorMessage), behavior: SnackBarBehavior.floating));
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Scaffold(
+      backgroundColor: NovynTheme.pageBg(context),
+      appBar: AppBar(
+        backgroundColor: NovynTheme.pageBg(context),
+        elevation: 0,
+        title: const Text('Send Feedback', style: TextStyle(fontWeight: FontWeight.w800)),
+      ),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 36),
+        children: [
+          Container(
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              color: colors.primaryContainer.withValues(alpha: .48),
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(color: colors.primary.withValues(alpha: .16)),
+            ),
+            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Icon(Icons.mark_chat_unread_rounded, color: colors.primary, size: 28),
+              const SizedBox(width: 13),
+              const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('Help us improve Novyn', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+                SizedBox(height: 5),
+                Text('Share an idea, report a bug, or tell us what you love.', style: TextStyle(height: 1.4)),
+              ])),
+            ]),
+          ),
+          const SizedBox(height: 24),
+          Text('What would you like to share?', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800)),
+          const SizedBox(height: 12),
+          Wrap(spacing: 9, runSpacing: 9, children: _types.map((item) {
+            final selected = _type == item.$1;
+            return ChoiceChip(
+              avatar: Icon(item.$3, size: 17, color: selected ? colors.onPrimary : colors.onSurfaceVariant),
+              label: Text(item.$2),
+              selected: selected,
+              onSelected: _sending ? null : (_) => setState(() => _type = item.$1),
+              showCheckmark: false,
+            );
+          }).toList()),
+          const SizedBox(height: 24),
+          Text('Rate your experience (optional)', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800)),
+          const SizedBox(height: 8),
+          Row(children: [
+            ...List.generate(5, (index) {
+              final value = index + 1;
+              return IconButton(
+                tooltip: '$value star${value == 1 ? '' : 's'}',
+                onPressed: _sending ? null : () => setState(() => _rating = _rating == value ? 0 : value),
+                icon: Icon(value <= _rating ? Icons.star_rounded : Icons.star_outline_rounded,
+                  color: value <= _rating ? const Color(0xFFF59E0B) : colors.onSurfaceVariant, size: 30),
+              );
+            }),
+            if (_rating > 0) Text(['', 'Poor', 'Fair', 'Good', 'Great', 'Excellent'][_rating],
+              style: TextStyle(color: colors.onSurfaceVariant, fontWeight: FontWeight.w700)),
+          ]),
+          const SizedBox(height: 18),
+          Text('Your feedback', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800)),
+          const SizedBox(height: 9),
+          TextField(
+            controller: _messageController, enabled: !_sending, minLines: 5, maxLines: 7, maxLength: 2000,
+            textCapitalization: TextCapitalization.sentences,
+            decoration: InputDecoration(
+              hintText: 'Tell us what is on your mind…', alignLabelWithHint: true, filled: true,
+              fillColor: NovynTheme.cardBg(context), border: OutlineInputBorder(borderRadius: BorderRadius.circular(17)),
+              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(17), borderSide: BorderSide(color: colors.outlineVariant)),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text('Email for a reply (optional)', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800)),
+          const SizedBox(height: 9),
+          TextField(
+            controller: _emailController, enabled: !_sending, keyboardType: TextInputType.emailAddress,
+            textInputAction: TextInputAction.done,
+            decoration: InputDecoration(
+              hintText: 'you@example.com', prefixIcon: const Icon(Icons.mail_outline_rounded), filled: true,
+              fillColor: NovynTheme.cardBg(context), border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
+              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: colors.outlineVariant)),
+            ),
+          ),
+          const SizedBox(height: 22),
+          SizedBox(height: 54, child: FilledButton.icon(
+            onPressed: _sending ? null : _submit,
+            icon: _sending ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.send_rounded),
+            label: Text(_sending ? 'Sending…' : 'Send feedback', style: const TextStyle(fontWeight: FontWeight.w800)),
+          )),
+          const SizedBox(height: 10),
+          Center(child: Text('Your feedback is sent securely to the Novyn team.',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant))),
+        ],
+      ),
+    );
+  }
 }

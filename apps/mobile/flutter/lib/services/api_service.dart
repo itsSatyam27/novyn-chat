@@ -178,6 +178,39 @@ class ApiService {
     } catch (_) {}
   }
 
+  // ── Feedback ──────────────────────────────────────────────────────────────
+  static Future<Map<String, dynamic>> submitFeedback({
+    required String type,
+    required String message,
+    String email = '',
+    int? rating,
+  }) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/api/feedback'),
+      headers: await _csrfHeaders(),
+      body: jsonEncode({
+        'type': type,
+        'message': message.trim(),
+        if (email.trim().isNotEmpty) 'email': email.trim(),
+        if (rating != null && rating > 0) 'rating': rating,
+      }),
+    ).timeout(const Duration(seconds: 20));
+
+    Map<String, dynamic> body = {};
+    try {
+      final decoded = jsonDecode(response.body);
+      if (decoded is Map) body = Map<String, dynamic>.from(decoded);
+    } catch (_) {}
+    if (response.statusCode < 200 || response.statusCode >= 300 || body['ok'] == false) {
+      throw Exception(
+        body['error']?.toString() ??
+        body['message']?.toString() ??
+        'Could not send feedback (${response.statusCode}).',
+      );
+    }
+    return body;
+  }
+
   // ── Auth: Google sign-in via Firebase ID token ────────────────────────────
   // Sends the Firebase idToken to novyn-chat's /api/auth/google endpoint.
   // On success the server creates/matches a username-based account and returns

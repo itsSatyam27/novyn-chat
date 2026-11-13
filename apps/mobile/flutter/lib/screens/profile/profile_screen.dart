@@ -174,6 +174,13 @@ class ProfileScreen extends StatelessWidget {
                     onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const HelpSupportScreen())),
                   ),
                   _NovynSettingsTile(
+                    icon: Icons.rate_review_outlined,
+                    title: 'Send Feedback',
+                    subtitle: 'Share ideas, report bugs or rate Novyn',
+                    accent: const Color(0xFF7C6CF2),
+                    onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const FeedbackScreen())),
+                  ),
+                  _NovynSettingsTile(
                     icon: Icons.info_outline_rounded,
                     title: 'About Novyn',
                     subtitle: 'App information and credits',
@@ -249,6 +256,7 @@ class ProfileScreen extends StatelessWidget {
       {'title': 'Security & Privacy', 'subtitle': 'Privacy and account protection', 'icon': Icons.shield_outlined, 'open': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SecurityPrivacyScreen()))},
       {'title': 'QR Code', 'subtitle': 'Share your Novyn profile', 'icon': Icons.qr_code_2_rounded, 'open': () => _showQRCode(context)},
       {'title': 'Help & Support', 'subtitle': 'FAQs and get help', 'icon': Icons.help_outline_rounded, 'open': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const HelpSupportScreen()))},
+      {'title': 'Send Feedback', 'subtitle': 'Share ideas, report bugs or rate Novyn', 'icon': Icons.rate_review_outlined, 'open': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const FeedbackScreen()))},
       {'title': 'About Novyn', 'subtitle': 'App information and credits', 'icon': Icons.info_outline_rounded, 'open': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AboutNovynScreen()))},
     ];
     showModalBottomSheet<void>(
