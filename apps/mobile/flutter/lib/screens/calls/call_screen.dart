@@ -59,7 +59,8 @@ class _CallScreenState extends State<CallScreen>
   String? _mediaError;
   String? _endReason;
 
-  String get _peerId => widget.peer.uid.isNotEmpty ? widget.peer.uid : widget.peer.username;
+  // Backend call routing is keyed by Novyn username, not a Firebase UID.
+  String get _peerId => widget.peer.username.isNotEmpty ? widget.peer.username : widget.peer.uid;
 
   // Draggable PiP position
   Offset _pipPosition = const Offset(0, 0); // Will be set in initState
@@ -89,7 +90,7 @@ class _CallScreenState extends State<CallScreen>
 
     if (!widget.isIncoming) {
       _callId = context.read<SocketService>().sendCallInvite(
-        widget.peer.uid.isNotEmpty ? widget.peer.uid : widget.peer.username,
+        _peerId,
         isVideo: _isVideo,
       );
     }
@@ -272,8 +273,8 @@ class _CallScreenState extends State<CallScreen>
     final auth = context.read<AuthService>();
     final myUsername = auth.user?.username ?? '';
     ApiService.logCall(
-      callerId:   widget.isIncoming ? (widget.peer.uid.isNotEmpty ? widget.peer.uid : widget.peer.username) : myUsername,
-      receiverId: widget.isIncoming ? myUsername : (widget.peer.uid.isNotEmpty ? widget.peer.uid : widget.peer.username),
+      callerId:   widget.isIncoming ? _peerId : myUsername,
+      receiverId: widget.isIncoming ? myUsername : _peerId,
       type:       widget.callType,
       status:     logStatus,
       duration:   _seconds.value,
