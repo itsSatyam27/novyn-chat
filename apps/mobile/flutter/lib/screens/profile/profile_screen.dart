@@ -7,6 +7,8 @@ import '../../widgets/presence_dock.dart';
 import '../../widgets/novyn_ui.dart';
 import '../../theme/novyn_theme.dart';
 import 'dart:math' as math;
+import 'dart:io';
+import 'package:image_picker/image_picker.dart';
 import 'dart:ui';
 import '../../services/settings_service.dart';
 import 'package:qr_flutter/qr_flutter.dart';
@@ -15,7 +17,6 @@ import 'package:gal/gal.dart';
 import '../../services/auth_service.dart';
 import '../auth/onboarding_screen.dart';
 import 'widgets/profile_widgets.dart';
-import 'edit_profile_screen.dart';
 import 'settings/notification_settings_screen.dart';
 import 'settings/security_privacy_screen.dart';
 import 'settings/data_storage_screen.dart';
@@ -67,9 +68,9 @@ class ProfileScreen extends StatelessWidget {
                   displayName: displayName,
                   username: username,
                   photoUrl: profile?.photoUrl,
+                  bio: profile?.bio ?? '',
                   status: profile?.presenceMode ?? 'online',
                   busy: auth.updatingPresence,
-                  onEdit: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const EditProfileScreen())),
                   onStatusSelected: (mode) => _updateStatus(context, auth, mode),
                   onQr: () => _showQRCode(context),
                 ),
@@ -1678,81 +1679,328 @@ class _NovynSettingsBackdrop extends StatelessWidget {
   );
 }
 
-class _NovynSettingsProfileCard extends StatelessWidget {
-  const _NovynSettingsProfileCard({required this.displayName, required this.username, required this.photoUrl, required this.status, required this.busy, required this.onEdit, required this.onStatusSelected, this.onQr});
-  final String displayName, username, status;
+class _NovynSettingsProfileCard extends StatefulWidget {
+  const _NovynSettingsProfileCard({
+    required this.displayName,
+    required this.username,
+    required this.photoUrl,
+    required this.bio,
+    required this.status,
+    required this.busy,
+    required this.onStatusSelected,
+    this.onQr,
+  });
+
+  final String displayName, username, status, bio;
   final String? photoUrl;
   final bool busy;
-  final VoidCallback onEdit;
   final ValueChanged<String> onStatusSelected;
   final VoidCallback? onQr;
+
+  @override
+  State<_NovynSettingsProfileCard> createState() => _NovynSettingsProfileCardState();
+}
+
+class _NovynSettingsProfileCardState extends State<_NovynSettingsProfileCard> {
+  late final TextEditingController _nameController;
+  late final TextEditingController _bioController;
+  bool _editing = false;
+  bool _saving = false;
+  File? _pendingPhoto;
+
+  bool get _hasChanges =>
+      _nameController.text.trim() != widget.displayName.trim() ||
+      _bioController.text.trim() != widget.bio.trim() ||
+      _pendingPhoto != null;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController = TextEditingController(text: widget.displayName);
+    _bioController = TextEditingController(text: widget.bio);
+  }
+
+  @override
+  void didUpdateWidget(covariant _NovynSettingsProfileCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!_editing && (oldWidget.displayName != widget.displayName || oldWidget.bio != widget.bio)) {
+      _nameController.text = widget.displayName;
+      _bioController.text = widget.bio;
+    }
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _bioController.dispose();
+    super.dispose();
+  }
+
+  void _beginEdit() {
+    _nameController.text = widget.displayName;
+    _bioController.text = widget.bio;
+    setState(() {
+      _pendingPhoto = null;
+      _editing = true;
+    });
+  }
+
+  void _cancelEdit() {
+    setState(() {
+      _pendingPhoto = null;
+      _editing = false;
+      _nameController.text = widget.displayName;
+      _bioController.text = widget.bio;
+    });
+  }
+
+  Future<void> _choosePhoto() async {
+    try {
+      final image = await ImagePicker().pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1200,
+        maxHeight: 1200,
+        imageQuality: 86,
+        requestFullMetadata: false,
+      );
+      if (image == null || !mounted) return;
+      final file = File(image.path);
+      if (!await file.exists() || await file.length() == 0) {
+        _showMessage('The selected photo could not be read.');
+        return;
+      }
+      if (await file.length() > 15 * 1024 * 1024) {
+        _showMessage('Please choose a photo smaller than 15 MB.');
+        return;
+      }
+      setState(() => _pendingPhoto = file);
+    } catch (_) {
+      _showMessage('Could not open your gallery. Please try again.');
+    }
+  }
+
+  Future<void> _save() async {
+    if (!_hasChanges || _saving) return;
+    final auth = context.read<AuthService>();
+    final settings = context.read<SettingsService>();
+    setState(() => _saving = true);
+    try {
+      if (_pendingPhoto != null) {
+        final photoError = await auth.uploadProfilePicture(_pendingPhoto!);
+        if (photoError != null) {
+          if (mounted) setState(() => _saving = false);
+          _showMessage(photoError);
+          return;
+        }
+      }
+      final error = await auth.updateProfile(
+        name: _nameController.text.trim(),
+        bio: _bioController.text.trim(),
+      );
+      if (error != null) {
+        if (mounted) setState(() => _saving = false);
+        _showMessage(error);
+        return;
+      }
+      await settings.setProfile(
+        name: _nameController.text.trim(),
+        bio: _bioController.text.trim(),
+      );
+      if (!mounted) return;
+      setState(() {
+        _saving = false;
+        _editing = false;
+        _pendingPhoto = null;
+      });
+      _showMessage('Profile updated successfully');
+    } catch (_) {
+      if (mounted) setState(() => _saving = false);
+      _showMessage('Could not save your profile. Please try again.');
+    }
+  }
+
+  void _showMessage(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final dark = Theme.of(context).brightness == Brightness.dark;
+    final theme = Theme.of(context);
     return Container(
-    clipBehavior: Clip.antiAlias,
-    padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
-    decoration: BoxDecoration(
-      borderRadius: BorderRadius.circular(26),
-      color: NovynTheme.cardBg(context),
-      border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
-    ),
-    child: Column(children: [
+      clipBehavior: Clip.antiAlias,
+      padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(26),
+        color: NovynTheme.cardBg(context),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
+      ),
+      child: AnimatedSize(
+        duration: const Duration(milliseconds: 260),
+        curve: Curves.easeInOutCubic,
+        alignment: Alignment.topCenter,
+        child: AnimatedSwitcher(
+          duration: const Duration(milliseconds: 220),
+          switchInCurve: Curves.easeOutCubic,
+          switchOutCurve: Curves.easeInCubic,
+          child: _editing ? _buildEditor(theme) : _buildSummary(theme),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSummary(ThemeData theme) => Column(
+    key: const ValueKey('profile-summary'),
+    children: [
       Row(children: [
         SizedBox(
-            width: 92,
-            height: 92,
-            child: ProfileAvatarWithOrbit(
-              photoUrl: photoUrl,
-              displayName: displayName,
-              status: status,
-            ),
+          width: 92,
+          height: 92,
+          child: ProfileAvatarWithOrbit(
+            photoUrl: widget.photoUrl,
+            displayName: widget.displayName,
+            status: widget.status,
           ),
+        ),
         const SizedBox(width: 14),
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(displayName, maxLines: 1, overflow: TextOverflow.ellipsis, style: NovynText.display(19, weight: FontWeight.w700).copyWith(color: Theme.of(context).colorScheme.onSurface)),
-          const SizedBox(height: 4),
-          Text('@$username', maxLines: 1, overflow: TextOverflow.ellipsis, style: NovynText.body(13, weight: FontWeight.w600, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: .72))),
-        ])),
-        NovynIconButton(icon: Icons.edit_outlined, onTap: onEdit),
+        Expanded(child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(widget.displayName, maxLines: 1, overflow: TextOverflow.ellipsis,
+              style: NovynText.display(19, weight: FontWeight.w700).copyWith(color: theme.colorScheme.onSurface)),
+            const SizedBox(height: 4),
+            Text('@${widget.username}', maxLines: 1, overflow: TextOverflow.ellipsis,
+              style: NovynText.body(13, weight: FontWeight.w600, color: theme.colorScheme.onSurface.withValues(alpha: .72))),
+            if (widget.bio.trim().isNotEmpty) ...[
+              const SizedBox(height: 5),
+              Text(widget.bio, maxLines: 2, overflow: TextOverflow.ellipsis,
+                style: NovynText.body(12, color: theme.colorScheme.onSurfaceVariant)),
+            ],
+          ],
+        )),
+        NovynIconButton(icon: Icons.edit_outlined, onTap: _beginEdit),
       ]),
       const SizedBox(height: 14),
-      Row(
-        children: [
-          Expanded(
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: PresenceDock(
-                status: status,
-                busy: busy,
-                onSelected: onStatusSelected,
-              ),
+      Row(children: [
+        Expanded(
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: PresenceDock(status: widget.status, busy: widget.busy, onSelected: widget.onStatusSelected),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Material(
+          color: theme.colorScheme.primary.withValues(alpha: .10),
+          borderRadius: BorderRadius.circular(22),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(22),
+            onTap: widget.onQr,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                Icon(Icons.qr_code_2_rounded, size: 19, color: theme.colorScheme.primary),
+                const SizedBox(width: 7),
+                Text('My QR code', style: NovynText.body(13, weight: FontWeight.w700, color: theme.colorScheme.primary)),
+              ]),
             ),
           ),
-          const SizedBox(width: 10),
-          Material(
-            color: Theme.of(context).colorScheme.primary.withValues(alpha: .10),
-            borderRadius: BorderRadius.circular(22),
-            child: InkWell(
-              borderRadius: BorderRadius.circular(22),
-              onTap: onQr,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.qr_code_2_rounded, size: 19, color: Theme.of(context).colorScheme.primary),
-                    const SizedBox(width: 7),
-                    Text('My QR code', style: NovynText.body(13, weight: FontWeight.w700, color: Theme.of(context).colorScheme.primary)),
-                  ],
+        ),
+      ]),
+    ],
+  );
+
+  Widget _buildEditor(ThemeData theme) => Column(
+    key: const ValueKey('profile-inline-editor'),
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      Row(children: [
+        Stack(children: [
+          ProfileAvatarWithOrbit(
+            photoUrl: widget.photoUrl,
+            localFile: _pendingPhoto,
+            displayName: _nameController.text.trim().isEmpty ? widget.displayName : _nameController.text.trim(),
+            status: widget.status,
+          ),
+          Positioned(
+            right: 0,
+            bottom: 0,
+            child: Material(
+              color: theme.colorScheme.primary,
+              shape: const CircleBorder(),
+              child: InkWell(
+                customBorder: const CircleBorder(),
+                onTap: _saving ? null : _choosePhoto,
+                child: const Padding(
+                  padding: EdgeInsets.all(8),
+                  child: Icon(Icons.camera_alt_rounded, color: Colors.white, size: 16),
                 ),
               ),
             ),
           ),
-        ],
-      ),
-    ]),
+        ]),
+        const SizedBox(width: 14),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('Edit profile', style: NovynText.display(18, weight: FontWeight.w800, color: theme.colorScheme.onSurface)),
+          const SizedBox(height: 4),
+          Text('Update your photo and details', style: NovynText.body(12, color: theme.colorScheme.onSurfaceVariant)),
+          const SizedBox(height: 5),
+          Text('@${widget.username}', style: NovynText.body(12, weight: FontWeight.w700, color: theme.colorScheme.primary)),
+        ])),
+      ]),
+      const SizedBox(height: 18),
+      _inlineField(theme, 'Full name', _nameController, maxLines: 1),
+      const SizedBox(height: 10),
+      _inlineField(theme, 'Bio', _bioController, maxLines: 3),
+      const SizedBox(height: 16),
+      Row(children: [
+        Expanded(
+          child: OutlinedButton(
+            onPressed: _saving ? null : _cancelEdit,
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size.fromHeight(46),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            ),
+            child: const Text('Cancel'),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: FilledButton(
+            onPressed: (!_hasChanges || _saving) ? null : _save,
+            style: FilledButton.styleFrom(
+              minimumSize: const Size.fromHeight(46),
+              disabledBackgroundColor: theme.colorScheme.primary.withValues(alpha: .22),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            ),
+            child: _saving
+              ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+              : const Text('Save changes', style: TextStyle(fontWeight: FontWeight.w800)),
+          ),
+        ),
+      ]),
+    ],
   );
+
+  Widget _inlineField(ThemeData theme, String label, TextEditingController controller, {required int maxLines}) {
+    return TextField(
+      controller: controller,
+      enabled: !_saving,
+      maxLines: maxLines,
+      maxLength: label == 'Bio' ? 160 : 50,
+      onChanged: (_) => setState(() {}),
+      decoration: InputDecoration(
+        labelText: label,
+        filled: true,
+        fillColor: theme.colorScheme.surfaceContainerHighest.withValues(alpha: .38),
+        counterText: '',
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: theme.colorScheme.outlineVariant.withValues(alpha: .65))),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: theme.colorScheme.primary, width: 1.4)),
+      ),
+    );
   }
 }
 
