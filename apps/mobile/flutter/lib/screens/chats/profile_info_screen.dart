@@ -276,12 +276,22 @@ class ProfileInfoScreen extends StatelessWidget {
           const _SectionHeading(title: 'CHAT SETTINGS', color: Color(0xFF6554D9)),
           _SettingsCard(children: [
             if (onMute != null)
-              _SettingsTile(
-                icon: Icons.notifications_off_outlined, title: 'Mute notifications',
-                subtitle: 'Silence alerts from this contact',
-                tint: const Color(0xFFFFF0D9), accent: const Color(0xFFB87512),
-                trailing: Switch.adaptive(value: initiallyMuted, onChanged: (_) => onMute!()),
-                onTap: onMute!,
+              StatefulBuilder(
+                builder: (context, refreshMute) {
+                  var muted = initiallyMuted;
+                  void toggleMute() {
+                    refreshMute(() => muted = !muted);
+                    onMute!();
+                  }
+                  return _SettingsTile(
+                    icon: muted ? Icons.notifications_off_rounded : Icons.notifications_active_outlined,
+                    title: 'Mute notifications',
+                    subtitle: muted ? 'Notifications are muted for this contact' : 'Silence alerts from this contact',
+                    tint: const Color(0xFFFFF0D9), accent: const Color(0xFFB87512),
+                    trailing: Switch.adaptive(value: muted, onChanged: (_) => toggleMute()),
+                    onTap: toggleMute,
+                  );
+                },
               ),
             if (onMute != null && onExportChat != null)
               const _SettingsDivider(),
