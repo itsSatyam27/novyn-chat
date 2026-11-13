@@ -227,7 +227,7 @@ class ProfileInfoScreen extends StatelessWidget {
                 Row(mainAxisSize: MainAxisSize.min, children: [
                   Icon(Icons.calendar_today_outlined, size: 17, color: scheme.onSurfaceVariant),
                   const SizedBox(width: 8),
-                  Text('On Novyn since ${_date(user.createdAt)}',
+                  Text('Joined Novyn ${_date(user.createdAt)}',
                     style: TextStyle(fontSize: 13, color: scheme.onSurfaceVariant, fontWeight: FontWeight.w600)),
                 ]),
                 if (onVoiceCall != null || onVideoCall != null) ...[
@@ -247,30 +247,49 @@ class ProfileInfoScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 22),
-          if (user.bio.trim().isNotEmpty) ...[
-            _SectionTitle(title: 'ABOUT'),
-            _InfoCard(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+          _SectionTitle(title: 'ABOUT'),
+          _InfoCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Icon(Icons.stars_rounded, color: scheme.primary, size: 19),
                   const SizedBox(width: 12),
-                  Expanded(child: Text(user.bio, style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 14, height: 1.55, color: scheme.onSurface))),
+                  Expanded(child: Text(
+                    user.bio.trim().isEmpty ? 'No bio added yet.' : user.bio,
+                    style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 14, height: 1.55, color: user.bio.trim().isEmpty ? scheme.onSurfaceVariant : scheme.onSurface),
+                  )),
+                ]),
+                if (!online && user.lastSeen != null) ...[
+                  const SizedBox(height: 14),
+                  Divider(height: 1, color: scheme.outlineVariant.withValues(alpha: .55)),
+                  const SizedBox(height: 12),
+                  Row(children: [
+                    Icon(Icons.schedule_rounded, size: 17, color: scheme.onSurfaceVariant),
+                    const SizedBox(width: 9),
+                    Text('Last seen ${_dateTime(user.lastSeen!)}', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: scheme.onSurfaceVariant)),
+                  ]),
                 ],
-              ),
+              ],
             ),
-            const SizedBox(height: 18),
-          ],
-          Row(children: [
-            if (onSharedMedia != null)
-              Expanded(child: _FeatureTile(icon: Icons.image_outlined, title: 'Shared media', subtitle: 'Photos, videos, files', tint: const Color(0xFFE4F1FC), accent: const Color(0xFF347DBB), onTap: onSharedMedia!)),
-            if (onSharedMedia != null && onWallpaper != null) const SizedBox(width: 10),
-            if (onWallpaper != null)
-              Expanded(child: _FeatureTile(icon: Icons.palette_outlined, title: 'Wallpaper', subtitle: 'Personalise chat', tint: const Color(0xFFFCE8F1), accent: const Color(0xFFC92B72), onTap: onWallpaper!)),
-            if ((onSharedMedia != null || onWallpaper != null) && onQuickEmojis != null) const SizedBox(width: 10),
-            if (onQuickEmojis != null)
-              Expanded(child: _FeatureTile(icon: Icons.qr_code_2_rounded, title: 'QR code', subtitle: 'Scannable profile', tint: const Color(0xFFEEE9FF), accent: const Color(0xFF6554D9), onTap: () => _showContactQr(context))),
-          ]),
+          ),
+          const SizedBox(height: 20),
+          LayoutBuilder(builder: (context, constraints) {
+            final tileWidth = (constraints.maxWidth - 10) / 2;
+            return Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                if (onSharedMedia != null)
+                  SizedBox(width: tileWidth, child: _FeatureTile(icon: Icons.image_outlined, title: 'Shared media', subtitle: 'Photos, videos and files', tint: const Color(0xFFE4F1FC), accent: const Color(0xFF347DBB), onTap: onSharedMedia!)),
+                if (onWallpaper != null)
+                  SizedBox(width: tileWidth, child: _FeatureTile(icon: Icons.palette_outlined, title: 'Chat wallpaper', subtitle: 'Personalise this chat', tint: const Color(0xFFFCE8F1), accent: const Color(0xFFC92B72), onTap: onWallpaper!)),
+                SizedBox(width: tileWidth, child: _FeatureTile(icon: Icons.qr_code_2_rounded, title: 'QR code', subtitle: 'Scannable profile', tint: const Color(0xFFEEE9FF), accent: const Color(0xFF6554D9), onTap: () => _showContactQr(context))),
+                if (onQuickEmojis != null)
+                  SizedBox(width: tileWidth, child: _FeatureTile(icon: Icons.emoji_emotions_outlined, title: 'Quick reactions', subtitle: 'Manage chat reactions', tint: const Color(0xFFE5F7F2), accent: const Color(0xFF168B75), onTap: onQuickEmojis!)),
+              ],
+            );
+          }),
           const SizedBox(height: 26),
           const _SectionHeading(title: 'CHAT SETTINGS', color: Color(0xFF6554D9)),
           _SettingsCard(children: [
