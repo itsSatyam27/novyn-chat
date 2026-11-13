@@ -166,6 +166,8 @@ class HybridDbService {
       final driftChats = await _fastDb!.getChats();
       final hiveChats = await LocalDbService.getChats();
       final merged = <String, Map<String, dynamic>>{
+        for (final chat in hiveChats)
+          chat['chatId']?.toString() ?? '': chat,
         for (final chat in driftChats)
           chat.chatId: {
             'chatId': chat.chatId,
@@ -176,8 +178,6 @@ class HybridDbService {
             'isPinned': chat.isPinned,
             'isArchived': chat.isArchived,
           },
-        for (final chat in hiveChats)
-          chat['chatId']?.toString() ?? '': chat,
       }..remove('');
       final result = merged.values.toList()
         ..sort((a, b) {
