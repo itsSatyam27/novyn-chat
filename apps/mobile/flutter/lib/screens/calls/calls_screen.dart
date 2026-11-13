@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../services/auth_service.dart';
 import '../../services/socket_service.dart';
+import '../../services/friend_service.dart';
 import '../../services/api_service.dart';
 import '../../models/user_model.dart';
 import '../../widgets/user_avatar.dart';
@@ -153,6 +154,7 @@ class _CallsScreenState extends State<CallsScreen> {
     if (!mounted) return;
 
     final entriesMap = <String, _CallEntry>{};
+    final resolvedPeers = <String, UserModel>{};
 
     for (final log in rawLogs) {
       final isOutgoing = log['callerId'] == myUsername;
@@ -176,14 +178,18 @@ class _CallsScreenState extends State<CallsScreen> {
         var entry = entriesMap[peerUsername];
         if (entry == null) {
           // Build a minimal UserModel from the log data (no Firestore needed)
-          final peer = context.read<SocketService>().contacts.findUser(peerUsername) ?? UserModel(
-            uid:       peerUsername,
-            name:      peerUsername,
-            username:  peerUsername,
-            email:     '',
-            bio:       '',
+          final peerKey = peerUsername.toLowerCase();
+          var peer = resolvedPeers[peerKey] ?? context.read<SocketService>().contacts.findUser(peerUsername);
+          peer ??= await context.read<FriendService>().getUser(peerUsername);
+          peer ??= UserModel(
+            uid: peerUsername,
+            name: peerUsername,
+            username: peerUsername,
+            email: '',
+            bio: '',
             createdAt: DateTime.now(),
           );
+          resolvedPeers[peerKey] = peer;
           entriesMap[peerUsername] = _CallEntry(
             peer:      peer,
             type:      type,
