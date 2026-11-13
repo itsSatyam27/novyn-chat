@@ -8199,12 +8199,12 @@ io.on("connection", (socket) => {
   socket.on("add_group_members", (payload, callback) => {
     const respond = (result) => {
       if (typeof callback === "function") callback(result);
-      else if (result?.ok === false) return respond({ ok: false, message: result.message });
+      else if (result?.ok === false) socket.emit("error_message", { message: result.message });
     };
     const userKey = socket.data.userKey;
     if (!userKey) return respond({ ok: false, message: "Please sign in again." });
     if (!allowSocketAction(socket, "add_group_members", 40, 60 * 60 * 1000)) {
-      socket.emit("error_message", { message: "Too many group updates. Try again later." });
+      return respond({ ok: false, message: "Too many group updates. Try again later." });
     }
     const groupId = normalizeGroupId(payload?.groupId || payload?.to || payload?.group);
     const group = groups.get(groupId);
@@ -8261,12 +8261,12 @@ io.on("connection", (socket) => {
   socket.on("remove_group_member", (payload, callback) => {
     const respond = (result) => {
       if (typeof callback === "function") callback(result);
-      else if (result?.ok === false) return respond({ ok: false, message: result.message });
+      else if (result?.ok === false) socket.emit("error_message", { message: result.message });
     };
     const userKey = socket.data.userKey;
     if (!userKey) return respond({ ok: false, message: "Please sign in again." });
     if (!allowSocketAction(socket, "remove_group_member", 40, 60 * 60 * 1000)) {
-      socket.emit("error_message", { message: "Too many group updates. Try again later." });
+      return respond({ ok: false, message: "Too many group updates. Try again later." });
     }
     const groupId = normalizeGroupId(payload?.groupId || payload?.to || payload?.group);
     const group = groups.get(groupId);
@@ -8351,12 +8351,12 @@ io.on("connection", (socket) => {
   socket.on("set_group_member_role", (payload, callback) => {
     const respond = (result) => {
       if (typeof callback === "function") callback(result);
-      else if (result?.ok === false) return respond({ ok: false, message: result.message });
+      else if (result?.ok === false) socket.emit("error_message", { message: result.message });
     };
     const userKey = socket.data.userKey;
     if (!userKey) return respond({ ok: false, message: "Please sign in again." });
     if (!allowSocketAction(socket, "set_group_member_role", 50, 60 * 60 * 1000)) {
-      socket.emit("error_message", { message: "Too many role updates. Try again later." });
+      return respond({ ok: false, message: "Too many role updates. Try again later." });
     }
     const groupId = normalizeGroupId(payload?.groupId || payload?.to || payload?.group);
     const group = groups.get(groupId);
@@ -8382,10 +8382,7 @@ io.on("connection", (socket) => {
     if (!(group.admins instanceof Set)) group.admins = new Set();
     const alreadyAdmin = group.admins.has(targetKey);
     if (makeAdmin === alreadyAdmin) {
-      socket.emit("error_message", {
-        message: makeAdmin ? "Member is already an admin." : "Member is already not an admin.",
-      });
-      return;
+      return respond({ ok: false, message: makeAdmin ? "Member is already an admin." : "Member is already not an admin." });
     }
 
     if (makeAdmin) group.admins.add(targetKey);
@@ -8418,12 +8415,12 @@ io.on("connection", (socket) => {
   socket.on("leave_group", (payload, callback) => {
     const respond = (result) => {
       if (typeof callback === "function") callback(result);
-      else if (result?.ok === false) return respond({ ok: false, message: result.message });
+      else if (result?.ok === false) socket.emit("error_message", { message: result.message });
     };
     const userKey = socket.data.userKey;
     if (!userKey) return respond({ ok: false, message: "Please sign in again." });
     if (!allowSocketAction(socket, "leave_group", 20, 60 * 60 * 1000)) {
-      socket.emit("error_message", { message: "Too many group updates. Try again later." });
+      return respond({ ok: false, message: "Too many group updates. Try again later." });
     }
     const groupId = normalizeGroupId(payload?.groupId || payload?.to || payload);
     const group = groups.get(groupId);
