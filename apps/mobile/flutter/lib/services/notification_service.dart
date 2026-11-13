@@ -25,6 +25,9 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   ui.DartPluginRegistrant.ensureInitialized();
   final data = message.data;
   if (data['type'] == 'call') {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.reload();
+    if (!(prefs.getBool('notifications_on') ?? true)) return;
     final callStatus = data['callStatus']?.toString() ?? 'missed';
     final isIncoming = callStatus == 'incoming';
     final plugin = FlutterLocalNotificationsPlugin();
