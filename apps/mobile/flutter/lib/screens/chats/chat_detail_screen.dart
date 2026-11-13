@@ -59,9 +59,14 @@ String _mimeForFile(String filename) {
 }
 
 class ChatDetailScreen extends StatefulWidget {
-  final UserModel peer; // the person we're chatting with
+  final UserModel peer;
+  final bool isGroup;
 
-  const ChatDetailScreen({super.key, required this.peer});
+  const ChatDetailScreen({
+    super.key,
+    required this.peer,
+    this.isGroup = false,
+  });
 
   @override
   State<ChatDetailScreen> createState() => _ChatDetailScreenState();
@@ -204,6 +209,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
       final hasMore = await socket.loadOlderHistory(
         _chatId!,
         messages.first.id,
+        isGroup: widget.isGroup,
       );
       if (!mounted) return;
       _hasMore = hasMore;
@@ -251,17 +257,24 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
     }
     if (!mounted) return;
 
-    socket.openChat(_chatId!, cachedMessages);
+    socket.openChat(_chatId!, cachedMessages, isGroup: widget.isGroup);
     setState(() {
       _loading = false;
       _fetchingFromServer = cachedMessages.isEmpty;
     });
 
     try {
-      final history = await ApiService.getHistory(
-        _chatId!,
-        myUsername: _myUid,
-      ).timeout(const Duration(seconds: 12), onTimeout: () => <Message>[]);
+      // Group history is delivered by the authenticated Socket.IO group
+      // channel. The legacy REST history endpoint is for direct conversations.
+      final history = widget.isGroup
+          ? await Future<List<Message>>.delayed(
+              const Duration(milliseconds: 900),
+              () => socket.messages,
+            )
+          : await ApiService.getHistory(
+              _chatId!,
+              myUsername: _myUid,
+            ).timeout(const Duration(seconds: 12), onTimeout: () => <Message>[]);
 
       if (!mounted) return;
       if (history.isNotEmpty) {
@@ -286,7 +299,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
       }
 
       final settings = context.read<SettingsService>();
-      if (settings.readReceipts) {
+      if (settings.readReceipts && !widget.isGroup) {
         unawaited(ApiService.markRead(_chatId!, _myUid!));
       }
     } catch (error) {
@@ -348,7 +361,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
     HapticService.vibrate(NovynHapticType.light, category: HapticCategory.chat);
 
     final socket = context.read<SocketService>();
-    socket.stopTyping(widget.peer.uid);
+    socket.stopTyping(widget.peer.uid, isGroup: widget.isGroup);
     _sending = true;
     try {
       await socket.sendMessage(
@@ -357,6 +370,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
         replyToId: _replyingTo?.id?.toString(),
         replyToText: _replyingTo?.text?.toString(),
         replyToSender: _replyingTo?.isFromMe == true ? 'You' : widget.peer.name,
+        isGroup: widget.isGroup,
       );
       if (!mounted) return;
       if (_ctrl.text.trim() == text) _ctrl.clear();
@@ -566,8 +580,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                       name: widget.peer.name,
                       photoUrl: widget.peer.photoUrl,
                       radius: 21,
-                      showOnlineIndicator: true,
-                      isOnline: _peerIsOnline,
+                      showOnlineIndicator: !widget.isGroup,
+                      isOnline: widget.isGroup ? false : _peerIsOnline,
                       presence: _peerPresence,
                     ),
                   ),
@@ -589,7 +603,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                           ),
                         ),
                         Text(
-                          switch (_peerPresence) {
+                          widget.isGroup
+                              ? (widget.peer.bio.isNotEmpty ? widget.peer.bio : 'Group conversation')
+                              : switch (_peerPresence) {
                                   'away' => 'Away',
                                   'busy' || 'dnd' => 'Busy',
                                   'offline' || 'invisible' => 'Offline',
@@ -599,11 +615,12 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                             fontFamily: 'PlusJakartaSans',
                             fontSize: 13,
                             fontWeight: FontWeight.w500,
-                            color: switch (_peerPresence) {
+                            color: widget.isGroup
+                                ? scheme.onSurfaceVariant
+                                : switch (_peerPresence) {
                                     'away' => const Color(0xFFF59E0B),
                                     'busy' || 'dnd' => const Color(0xFFEC4899),
-                                    'offline' || 'invisible' =>
-                                      scheme.onSurfaceVariant,
+                                    'offline' || 'invisible' => scheme.onSurfaceVariant,
                                     _ => _peerIsOnline
                                         ? const Color(0xFF10B981)
                                         : scheme.onSurfaceVariant,
@@ -618,26 +635,28 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
             ),
           ),
           const SizedBox(width: 8),
-          _ChatHeaderButton(
-            icon: Icons.call_rounded,
-            color: accent,
-            filled: true,
-            tooltip: 'Voice call',
-            onTap: () => _startCall('voice'),
-          ),
-          const SizedBox(width: 6),
-          _ChatHeaderButton(
-            icon: Icons.videocam_rounded,
-            color: accent,
-            filled: true,
-            tooltip: 'Video call',
-            onTap: () => _startCall('video'),
-          ),
-          const SizedBox(width: 6),
+          if (!widget.isGroup) ...[
+            _ChatHeaderButton(
+              icon: Icons.call_rounded,
+              color: accent,
+              filled: true,
+              tooltip: 'Voice call',
+              onTap: () => _startCall('voice'),
+            ),
+            const SizedBox(width: 6),
+            _ChatHeaderButton(
+              icon: Icons.videocam_rounded,
+              color: accent,
+              filled: true,
+              tooltip: 'Video call',
+              onTap: () => _startCall('video'),
+            ),
+            const SizedBox(width: 6),
+          ],
           _ChatHeaderButton(
             icon: Icons.info_rounded,
             filled: true,
-            tooltip: 'Contact info',
+            tooltip: widget.isGroup ? 'Group info' : 'Contact info',
             onTap: () => _showContactInfo(),
           ),
         ],
@@ -699,7 +718,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
               style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 18,
                 fontWeight: FontWeight.w800, color: scheme.onSurface)),
             const SizedBox(height: 3),
-            Text('@${widget.peer.username}', style: TextStyle(
+            Text(widget.isGroup ? 'Group chat' : '@${widget.peer.username}', style: TextStyle(
               fontFamily: 'PlusJakartaSans', fontSize: 12,
               fontWeight: FontWeight.w600, color: scheme.primary)),
             const SizedBox(height: 12),
@@ -709,9 +728,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                 color: scheme.primary.withValues(alpha: isDark ? 0.16 : 0.08),
                 borderRadius: BorderRadius.circular(20)),
               child: Row(mainAxisSize: MainAxisSize.min, children: [
-                Icon(Icons.lock_outline_rounded, size: 13, color: scheme.primary),
+                Icon(widget.isGroup ? Icons.groups_rounded : Icons.lock_outline_rounded, size: 13, color: scheme.primary),
                 const SizedBox(width: 6),
-                Text('End-to-end encrypted', style: TextStyle(
+                Text(widget.isGroup ? 'Group conversation' : 'End-to-end encrypted', style: TextStyle(
                   fontFamily: 'PlusJakartaSans', fontSize: 11,
                   fontWeight: FontWeight.w700, color: scheme.primary)),
               ]),
@@ -725,7 +744,10 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
             Wrap(alignment: WrapAlignment.center, spacing: 9, runSpacing: 9, children: [
               quickAction(Icons.waving_hand_rounded, 'Wave hello', () {
                 context.read<SocketService>().sendMessage(
-                  '👋', widget.peer.uid.isNotEmpty ? widget.peer.uid : widget.peer.username);
+                  '👋',
+                  widget.peer.uid.isNotEmpty ? widget.peer.uid : widget.peer.username,
+                  isGroup: widget.isGroup,
+                );
               }),
               quickAction(Icons.gif_box_rounded, 'Send a GIF', () => _showGifPicker()),
             ]),
@@ -869,8 +891,12 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
           child: _MessageBubble(
             message: messages[msgIndex],
             showAvatar: !messages[msgIndex].isFromMe &&
-                (msgIndex == 0 || messages[msgIndex - 1].isFromMe),
+                (msgIndex == 0 ||
+                    messages[msgIndex - 1].isFromMe ||
+                    (widget.isGroup &&
+                        messages[msgIndex - 1].senderId != messages[msgIndex].senderId)),
             peer: widget.peer,
+            isGroup: widget.isGroup,
             messageStatus: socket.messageStatusFor(messages[msgIndex].id),
             myUid: _myUid ?? '',
             onReply: _startReply,
@@ -1264,9 +1290,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                           onChanged: (v) {
                             setState(() {});
                             if (v.isNotEmpty) {
-                              socket.startTyping(widget.peer.uid);
+                              socket.startTyping(widget.peer.uid, isGroup: widget.isGroup);
                             } else {
-                              socket.stopTyping(widget.peer.uid);
+                              socket.stopTyping(widget.peer.uid, isGroup: widget.isGroup);
                             }
                           },
                           onSubmitted: (_) {
@@ -1426,6 +1452,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
         replyToId: _replyingTo?.id?.toString(),
         replyToText: _replyingTo?.text?.toString(),
         replyToSender: _replyingTo?.isFromMe == true ? 'You' : widget.peer.name,
+        isGroup: widget.isGroup,
       );
       if (mounted) setState(() => _replyingTo = null);
     } catch (error) {
@@ -1527,6 +1554,12 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
   }
 
   Future<void> _showCreateRiddleDialog() async {
+    if (widget.isGroup) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Riddle Lock is currently available in direct chats only.')),
+      );
+      return;
+    }
     final secret = TextEditingController();
     final question = TextEditingController();
     final answer = TextEditingController();
@@ -1592,7 +1625,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
           subtitle: Text(game['subtitle']!, style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 12)),
           trailing: Icon(Icons.arrow_forward_ios_rounded, size: 15),
           onTap: () {
-            context.read<SocketService>().sendGameChallenge(game['id']!, widget.peer.uid.isNotEmpty ? widget.peer.uid : widget.peer.username);
+            context.read<SocketService>().sendGameChallenge(
+              game['id']!,
+              widget.peer.uid.isNotEmpty ? widget.peer.uid : widget.peer.username,
+              isGroup: widget.isGroup,
+            );
             Navigator.pop(sheetContext);
           },
         )),
@@ -1675,6 +1712,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                   cleanQuestion,
                   cleanOptions,
                   widget.peer.uid.isNotEmpty ? widget.peer.uid : widget.peer.username,
+                  isGroup: widget.isGroup,
                 );
                 Navigator.pop(dialogContext);
               },
@@ -1715,6 +1753,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
             replyToId: _replyingTo?.id?.toString(),
             replyToText: _replyingTo?.text?.toString(),
             replyToSender: _replyingTo?.isFromMe == true ? 'You' : widget.peer.name,
+            isGroup: widget.isGroup,
           );
           if (mounted) setState(() => _replyingTo = null);
         },
@@ -1806,6 +1845,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
         replyToId: _replyingTo?.id?.toString(),
         replyToText: _replyingTo?.text?.toString(),
         replyToSender: _replyingTo?.isFromMe == true ? 'You' : widget.peer.name,
+        isGroup: widget.isGroup,
       );
       if (mounted) {
         setState(() => _replyingTo = null);
@@ -2189,7 +2229,106 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
     );
   }
 
+  Future<void> _showGroupInfo() async {
+    HapticService.vibrate(NovynHapticType.light, category: HapticCategory.chat);
+    try {
+      final group = await context.read<SocketService>().getGroupInfo(widget.peer.uid);
+      if (!mounted) return;
+      final members = (group['members'] as List? ?? const [])
+          .whereType<Map>()
+          .map((member) => Map<String, dynamic>.from(member))
+          .toList();
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (sheetContext) {
+          final scheme = Theme.of(sheetContext).colorScheme;
+          return SafeArea(
+            child: Container(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(sheetContext).size.height * 0.72,
+              ),
+              padding: const EdgeInsets.fromLTRB(20, 18, 20, 24),
+              decoration: BoxDecoration(
+                color: scheme.surface,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(26)),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 38,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: scheme.onSurfaceVariant.withValues(alpha: .3),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  UserAvatar(name: group['name']?.toString() ?? widget.peer.name, photoUrl: '', radius: 32),
+                  const SizedBox(height: 10),
+                  Text(
+                    group['name']?.toString() ?? widget.peer.name,
+                    style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800, color: scheme.onSurface),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${members.length} members',
+                    style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
+                  ),
+                  const SizedBox(height: 14),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text('Members', style: TextStyle(fontWeight: FontWeight.w800, color: scheme.onSurface)),
+                  ),
+                  const SizedBox(height: 8),
+                  Flexible(
+                    child: ListView.separated(
+                      shrinkWrap: true,
+                      itemCount: members.length,
+                      separatorBuilder: (_, __) => Divider(height: 1, color: scheme.outlineVariant.withValues(alpha: .45)),
+                      itemBuilder: (_, index) {
+                        final member = members[index];
+                        final name = member['displayName']?.toString().trim().isNotEmpty == true
+                            ? member['displayName'].toString()
+                            : member['username']?.toString() ?? 'Member';
+                        final role = member['role']?.toString() ?? 'member';
+                        return ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          leading: UserAvatar(
+                            name: name,
+                            photoUrl: member['avatarId']?.toString() ?? '',
+                            radius: 20,
+                          ),
+                          title: Text(name, style: const TextStyle(fontWeight: FontWeight.w700)),
+                          subtitle: Text('@${member['username'] ?? ''}'),
+                          trailing: role == 'member'
+                              ? null
+                              : Text(role.toUpperCase(), style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: scheme.primary)),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error is StateError ? error.message.toString() : 'Could not load group information.')),
+      );
+    }
+  }
+
   Future<void> _showContactInfo() async {
+    if (widget.isGroup) {
+      await _showGroupInfo();
+      return;
+    }
     HapticService.vibrate(NovynHapticType.light, category: HapticCategory.chat);
     final mutePrefs = await SharedPreferences.getInstance();
     if (!mounted) return;
@@ -2325,7 +2464,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                 .toList();
             final title = 'Novyn chat with ${widget.peer.name}';
             final plainLines = messages.map((message) {
-              final sender = message.isFromMe ? 'You' : widget.peer.name;
+              final sender = message.isFromMe ? 'You' : (widget.isGroup ? message.senderId : widget.peer.name);
               final stamp = message.createdAt.toLocal().toString().substring(0, 16);
               final body = message.text.trim().isNotEmpty ? message.text : '[Attachment]';
               return '[$stamp] $sender: $body';
@@ -2433,6 +2572,7 @@ class _MessageBubble extends StatelessWidget {
   final dynamic message;
   final bool showAvatar;
   final UserModel peer;
+  final bool isGroup;
   final String messageStatus;
   final String myUid;
   final ValueChanged<dynamic>? onReply;
@@ -2442,6 +2582,7 @@ class _MessageBubble extends StatelessWidget {
     required this.message,
     required this.showAvatar,
     required this.peer,
+    this.isGroup = false,
     this.messageStatus = 'sent',
     this.myUid = '',
     this.onReply,
@@ -2464,7 +2605,11 @@ class _MessageBubble extends StatelessWidget {
         children: [
           if (!isMe) ...[
             if (showAvatar)
-              UserAvatar(name: peer.name, photoUrl: peer.photoUrl, radius: 14)
+              UserAvatar(
+                name: isGroup ? message.senderId.toString() : peer.name,
+                photoUrl: isGroup ? '' : peer.photoUrl,
+                radius: 14,
+              )
             else
               const SizedBox(width: 28),
             const SizedBox(width: 8),
@@ -2474,6 +2619,21 @@ class _MessageBubble extends StatelessWidget {
               crossAxisAlignment:
                   isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
               children: [
+                if (isGroup && !isMe)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 4, bottom: 3),
+                    child: Text(
+                      message.senderId.toString(),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontFamily: 'PlusJakartaSans',
+                        fontSize: 10 * labelScale,
+                        fontWeight: FontWeight.w700,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                    ),
+                  ),
                 // ── Bubble with long-press ──────────────────────────────
                 GestureDetector(
                   onLongPress: () => _showReactionPicker(context),
@@ -2994,6 +3154,7 @@ class _MessageBubble extends StatelessWidget {
                   message.id.toString(),
                   option['id']?.toString() ?? '',
                   peer.uid.isNotEmpty ? peer.uid : peer.username,
+                  isGroup: isGroup,
                 ),
                 borderRadius: BorderRadius.circular(9),
                 child: Container(
