@@ -1170,8 +1170,6 @@ class SocketService extends ChangeNotifier {
     final rawText = trimmedText.isNotEmpty
         ? trimmedText
         : (attachment?['kind'] == 'image' ? '[Image]' : '[File]');
-    final peerKey = isGroup ? null : _peerKeys[toPeerUsername.toLowerCase()];
-
     // A resumed app may still be reconnecting after Android suspended its
     // process. Wait for an authenticated socket before rejecting the send.
     if (!_isConnected && !_manualDisconnect) {
@@ -1180,32 +1178,20 @@ class SocketService extends ChangeNotifier {
     await _waitForSocketAuthentication();
     _requireConnection();
 
+    // Outgoing Flutter messages are sent as ordinary plaintext. Keep the
+    // existing device identity available for decrypting legacy E2EE messages,
+    // but never block or encrypt a new message when identity setup is pending.
+    var senderPublicKey = '';
     if (!isGroup) {
-      // Authentication can complete just before the first send. Retry identity
-      // registration if the initial register_success/init callback is still running.
-      for (var attempt = 0; attempt < 3; attempt++) {
-        await _registerEncryptionIdentity();
-        if (_registeredIdentityAccount == account.toLowerCase()) break;
-        if (attempt < 2) {
-          await Future<void>.delayed(const Duration(milliseconds: 500));
-        }
+      try {
+        senderPublicKey = await encryption.initializeIdentity(account);
+      } catch (error) {
+        debugPrint('[NovynE2EE] Legacy identity unavailable while sending plaintext: $error');
       }
-      if (_registeredIdentityAccount != account.toLowerCase()) {
-        throw StateError(
-          'Secure identity setup is taking longer than expected. Please try sending again.',
-        );
-      }
-    }
-
-    final senderPublicKey = !isGroup
-        ? await encryption.initializeIdentity(account)
-        : '';
-    if (!isGroup && senderPublicKey.isEmpty) {
-      throw StateError('Secure notification identity is not ready. Reconnect and try again.');
     }
 
     final payload = <String, dynamic>{
-      'senderPublicKey': senderPublicKey,
+      if (senderPublicKey.isNotEmpty) 'senderPublicKey': senderPublicKey,
       'to': toPeerUsername,
       'toType': toType,
       'text': rawText,
@@ -1220,36 +1206,8 @@ class SocketService extends ChangeNotifier {
       'clientTempId': clientTempId,
     };
 
-    // Direct messages must always use E2EE. Never fall back to plaintext.
-    if (!isGroup) {
-      if (peerKey == null || peerKey.isEmpty) {
-        throw StateError(
-          'Secure connection is not ready yet. Reconnect to Novyn and try again.',
-        );
-      }
-      final encrypted = await encryption.encrypt(
-        rawText,
-        account,
-        toPeerUsername,
-        peerKey,
-      );
-      if (encrypted == null) {
-        throw StateError(
-          'Could not encrypt this message. Please reconnect and try again.',
-        );
-      }
-      payload
-        ..['text'] = '🔒 Encrypted message'
-        ..['ciphertext'] = encrypted['ciphertext']
-        ..['iv'] = encrypted['iv']
-        ..['isEncrypted'] = true;
-      if (payload['replyTo'] is Map) {
-        payload['replyTo'] = {
-          ...Map<String, dynamic>.from(payload['replyTo']),
-          'text': '🔒 Encrypted message',
-        };
-      }
-    }
+    // New messages intentionally remain plaintext. The incoming/history
+    // handlers still decrypt older encrypted messages for backward compatibility.
 
     _messageStatuses[clientTempId] = 'sending';
     final tempMsg = Message(
