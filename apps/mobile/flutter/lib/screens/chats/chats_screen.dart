@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import '../../models/user_model.dart';
@@ -9,9 +7,7 @@ import '../../services/settings_service.dart';
 import '../../services/socket_service.dart';
 import '../../services/hybrid_db_service.dart';
 import '../../widgets/user_avatar.dart';
-import '../../widgets/doodle_background.dart';
 import '../../widgets/novyn_empty_state.dart';
-import '../../widgets/neomorphic_widgets.dart';
 import '../../theme/novyn_theme.dart';
 import '../../widgets/novyn_ui.dart';
 import '../../models/chat_preview.dart';
@@ -45,11 +41,6 @@ class _ChatsScreenState extends State<ChatsScreen> {
   String _search = '';
   final FocusNode _searchFocusNode = FocusNode();
   final TextEditingController _searchController = TextEditingController();
-  bool _isSearching = false;
-  bool _filtersVisible = true;
-  bool _sawDownwardScrollGesture = false;
-  int _downwardSwipeCount = 0;
-  DateTime? _lastDownwardSwipeAt;
   String _selectedTab = 'all';
   AuthService? _authService;
   String? _observedUsername;
