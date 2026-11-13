@@ -1,6 +1,9 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
+import '../services/auth_service.dart';
+import 'user_avatar.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:novyn/services/haptic_service.dart';
 
@@ -35,6 +38,9 @@ class NovynDock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final profile = context.watch<AuthService?>()?.user;
+    final profilePhotoUrl = profile?.photoUrl ?? '';
+    final profileName = profile?.displayName ?? 'Profile';
     final reduceMotion = MediaQuery.disableAnimationsOf(context);
     final dark = Theme.of(context).brightness == Brightness.dark;
     final accent = Theme.of(context).colorScheme.primary;
@@ -231,13 +237,21 @@ class NovynDock extends StatelessWidget {
                                   AnimatedScale(
                                     scale: active || isPrimary ? 1.08 : 1,
                                     duration: duration,
-                                    child: Icon(
-                                      icons[index],
-                                      size: isPrimary ? 25 : 22,
-                                      color: isPrimary
-                                          ? Colors.white
-                                          : (active ? activeColor : inactiveColor),
-                                    ),
+                                    child: index == 4 && profilePhotoUrl.isNotEmpty
+                                        ? UserAvatar(
+                                            name: profileName,
+                                            photoUrl: profilePhotoUrl,
+                                            radius: 12,
+                                            borderWidth: 1.5,
+                                            borderColor: isPrimary ? Colors.white : (active ? activeColor : inactiveColor),
+                                          )
+                                        : Icon(
+                                            icons[index],
+                                            size: isPrimary ? 25 : 22,
+                                            color: isPrimary
+                                                ? Colors.white
+                                                : (active ? activeColor : inactiveColor),
+                                          ),
                                   ),
                                   if (index == 0 && unreadCount > 0)
                                     Positioned(
