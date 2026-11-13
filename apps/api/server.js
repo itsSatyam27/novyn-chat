@@ -2958,6 +2958,19 @@ function getEffectivePresence(userKey) {
   return mode === "invisible" ? "offline" : mode;
 }
 
+// Keep a user's explicitly selected Busy state visible while disconnected,
+// without falsely marking them online. This separates preference from socket
+// reachability so friends do not see Busy turn into Offline in the background.
+function getDisplayPresence(userKey) {
+  const key = normalizeName(userKey);
+  const user = users.get(key);
+  if (!user) return "offline";
+  const mode = normalizePresenceMode(user.presenceMode);
+  if (mode === "invisible") return "offline";
+  if (mode === "busy" && !isSocketOnline(key)) return "busy";
+  return getEffectivePresence(key);
+}
+
 function isUserAvailable(userKey) {
   return getEffectivePresence(userKey) !== "offline";
 }
@@ -2986,12 +2999,12 @@ function buildGroupInfoForViewer(group, viewerKey) {
     const role = getGroupMemberRole(group, memberKey);
     const presenceAllowed = privacyAllows(user, viewer, "presencePrivacy");
     const photoAllowed = privacyAllows(user, viewer, "profilePhotoPrivacy");
-    const presence = presenceAllowed ? getEffectivePresence(memberKey) : "offline";
+    const presence = presenceAllowed ? getDisplayPresence(memberKey) : "offline";
     members.push({
       username,
       displayName: user?.displayName || "",
       avatarId: photoAllowed ? (user?.avatarId || "") : "",
-      online: presence !== "offline",
+      online: isSocketOnline(memberKey) && presence !== "offline",
       presence,
       lastSeenAt: presenceAllowed ? getVisibleLastSeen(user) : "",
       role,
@@ -4055,7 +4068,7 @@ function emitStatusToFriends(username) {
     io.to(friendSocket).emit("user_status", {
       username: user.username,
       online: !blocked && presenceAllowed && online,
-      presence: blocked || !presenceAllowed ? "offline" : presence,
+      presence: blocked || !presenceAllowed ? "offline" : getDisplayPresence(userKey),
       lastSeenAt: blocked || !presenceAllowed ? null : getVisibleLastSeen(user) || null,
     });
   }
