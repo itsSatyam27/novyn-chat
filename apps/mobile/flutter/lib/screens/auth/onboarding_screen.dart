@@ -277,15 +277,6 @@ class _OnboardingScreenState extends State<OnboardingScreen>
           'novyn',
           style: _textStyle(22, FontWeight.w800, p.ink, spacing: -.8),
         ),
-        const Spacer(),
-        TextButton(
-          onPressed: _openAuth,
-          style: TextButton.styleFrom(foregroundColor: p.muted),
-          child: Text(
-            'Skip',
-            style: _textStyle(13, FontWeight.w600, p.muted),
-          ),
-        ),
       ],
     );
   }
@@ -810,23 +801,21 @@ class _OnboardingPalette {
   final bool isDark;
 
   factory _OnboardingPalette.of(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-    final dark = theme.brightness == Brightness.dark;
-    final accent = scheme.primary;
-    return _OnboardingPalette(
-      bg: theme.scaffoldBackgroundColor,
-      meshA: accent.withValues(alpha: dark ? .20 : .13),
-      meshB: const Color(0xFF18B99A).withValues(alpha: dark ? .13 : .10),
-      phone: scheme.surface,
-      input: dark ? scheme.surfaceContainerHighest : const Color(0xFFF0EFF8),
-      glass: scheme.surface.withValues(alpha: dark ? .76 : .82),
-      outline: scheme.outlineVariant.withValues(alpha: .55),
-      ink: scheme.onSurface,
-      muted: scheme.onSurfaceVariant,
+    // Onboarding intentionally stays light, independent of the app theme.
+    const accent = Color(0xFF6D5DFC);
+    return const _OnboardingPalette(
+      bg: Color(0xFFFAFAFF),
+      meshA: Color(0x226D5DFC),
+      meshB: Color(0x1918B99A),
+      phone: Colors.white,
+      input: Color(0xFFF0EFF8),
+      glass: Color(0xF2FFFFFF),
+      outline: Color(0x33716B91),
+      ink: Color(0xFF17152B),
+      muted: Color(0xFF77748B),
       accent: accent,
-      teal: const Color(0xFF17A98B),
-      isDark: dark,
+      teal: Color(0xFF17A98B),
+      isDark: false,
     );
   }
 }
