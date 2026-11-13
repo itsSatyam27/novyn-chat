@@ -67,9 +67,11 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     }
 
     final socket = context.read<SocketService>();
-    if (_activeUsername?.toLowerCase() == username.toLowerCase()) {
-      return;
-    }
+    final sameAccount =
+        _activeUsername?.toLowerCase() == username.toLowerCase();
+    if (sameAccount && socket.isConnected) return;
+    // A same-account login can happen while MainScreen remains mounted.
+    // Reconnect if its previous socket was disconnected during logout.
     _activeUsername = username;
     auth.setOnline(true);
     socket.connect(ApiService.baseUrl, username);

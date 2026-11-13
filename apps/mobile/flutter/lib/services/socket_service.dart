@@ -68,6 +68,7 @@ class SocketService extends ChangeNotifier {
   Future<void>? _identityRegistration;
   String? _registeredIdentityAccount;
   bool _isAuthenticated = false;
+  bool _hasLoadedConversations = false;
   Completer<void>? _authenticationReady;
   Completer<bool>? _olderHistoryCompleter;
   VoidCallback? onAuthenticated;
@@ -125,6 +126,7 @@ class SocketService extends ChangeNotifier {
   List<Message> get messages => List.unmodifiable(_messages);
   bool get isConnected => _isConnected;
   bool get isAuthenticated => _isAuthenticated;
+  bool get hasLoadedConversations => _hasLoadedConversations;
   bool get peerIsTyping => _peerIsTyping;
   String? get currentChatWith => _currentChatWith;
   bool get activeChatCaptureProtected => _activeChatCaptureProtected;
@@ -753,7 +755,8 @@ class SocketService extends ChangeNotifier {
 
     // ── Server error messages ─────────────────────────────────────────────
     _socket!.on('error_message', (data) {
-      debugPrint('[NovynSocket] Server error: ${data['message']}');
+      final message = data is Map ? data['message'] : data;
+      debugPrint('[NovynSocket] Server error: $message');
     });
   }
 
@@ -831,88 +834,129 @@ class SocketService extends ChangeNotifier {
   }
 
   // ── Parse friend_list payload into ChatPreview list ───────────────────────
-  void _handleFriendList(dynamic data) async {
-    final list = data is List ? data : (data is Map ? data['friends'] : null);
-    if (list is! List) return;
+  void _handleFriendList(dynamic data) {
+    // Socket.IO callbacks do not await async handlers. Keep failures contained
+    // so one malformed friend record cannot escape as an unhandled async error.
+    unawaited(_applyFriendList(data));
+  }
 
-    final previews = list.map<ChatPreview>((item) {
-      final username =
-          item['username']?.toString() ?? item['groupId']?.toString() ?? '';
-      final displayName = item['displayName']?.toString() ??
-          item['name']?.toString() ??
-          username;
-      // The relay keeps the encrypted envelope in lastMessageData. The
-      // legacy lastMessage field is only a placeholder and may not contain the
-      // ciphertext/IV needed for local decryption.
-      final lastMsg = item['lastMessageData'] ?? item['lastMessage'];
-      if (item['publicKey'] != null) {
-        _peerKeys[username.toLowerCase()] = item['publicKey'].toString();
-      }
-
-      // Build a minimal UserModel so ChatPreview's required field is satisfied
-      final peerModel = UserModel(
-        uid: username,
-        name: displayName,
-        username: username,
-        email: '',
-        bio: '',
-        createdAt: DateTime.now(),
-        isOnline: item['online'] == true,
-        status: item['presence']?.toString() ?? 'Online',
-        photoUrl: item['avatarId']?.toString() ?? '',
-      );
-
-      return ChatPreview(
-        chatId: username.toLowerCase(),
-        peerUid: username,
-        peer: peerModel,
-        isGroup: item['kind'] == 'group' || item['groupId'] != null,
-        lastMessage: lastMsg is Map
-            ? (lastMsg['isEncrypted'] == true
-                ? '🔒 Encrypted message'
-                : lastMsg['text']?.toString() ?? '')
-            : lastMsg?.toString() ?? '',
-        lastTime: DateTime.tryParse(item['lastTimestamp']?.toString() ?? '') ??
-            DateTime.now(),
-        unreadCount: (item['unreadCount'] as num?)?.toInt() ?? 0,
-      );
-    }).toList();
-
-    _conversations = previews;
-    HybridDbService.saveChats(previews);
-    notifyListeners();
+  Future<void> _applyFriendList(dynamic data) async {
+    final rawList = data is List ? data : (data is Map ? data['friends'] : null);
+    if (rawList is! List) return;
     final account = _myUsername;
-    if (account == null) return;
-    for (final item in list) {
-      final raw = item['lastMessageData'] ?? item['lastMessage'];
-      if (raw is! Map || raw['isEncrypted'] != true) continue;
-      final peer = item['username']?.toString() ?? '';
-      final decrypted = await encryption.decrypt(
-          Message(
-            id: raw['id']?.toString() ?? '',
-            chatId: peer,
-            text: raw['text']?.toString() ?? '🔒 Encrypted message',
-            isFromMe: false,
-            isEncrypted: true,
-            ciphertext: raw['ciphertext']?.toString(),
-            iv: raw['iv']?.toString(),
-          ),
-          account,
-          _peerKeys[peer.toLowerCase()]);
-      if (_myUsername != account) return;
-      if (decrypted.needsMessageKey) continue;
-      final index = _conversations.indexWhere(
-          (chat) => chat.peerUid.toLowerCase() == peer.toLowerCase());
-      // Avoid replacing a newer live preview with the older friend-list snapshot.
-      if (index >= 0 &&
-          (_conversations[index].lastMessage == '🔒 Encrypted message' ||
-              _conversations[index].lastMessage == raw['text'])) {
-        final updated = List<ChatPreview>.from(_conversations);
-        updated[index] = updated[index].copyWith(lastMessage: decrypted.text);
-        _conversations = updated;
-        HybridDbService.saveChat(updated[index]);
-        notifyListeners();
+    if (account == null || account.isEmpty) return;
+
+    try {
+      final list = rawList.whereType<Map>().map((item) {
+        try {
+          return Map<String, dynamic>.from(item);
+        } catch (_) {
+          return null;
+        }
+      }).whereType<Map<String, dynamic>>().toList();
+
+      final peers = <UserModel>[];
+      final previews = <ChatPreview>[];
+      for (final item in list) {
+        final username =
+            item['username']?.toString() ?? item['groupId']?.toString() ?? '';
+        if (username.trim().isEmpty) continue;
+
+        final displayName = item['displayName']?.toString() ??
+            item['name']?.toString() ??
+            username;
+        // The relay keeps the encrypted envelope in lastMessageData. The
+        // legacy lastMessage field may not contain the ciphertext/IV.
+        final lastMsg = item['lastMessageData'] ?? item['lastMessage'];
+        if (item['publicKey'] != null) {
+          _peerKeys[username.toLowerCase()] = item['publicKey'].toString();
+        }
+
+        final peerModel = UserModel(
+          uid: username,
+          name: displayName,
+          username: username,
+          email: '',
+          bio: '',
+          createdAt: DateTime.now(),
+          isOnline: item['online'] == true,
+          status: item['presence']?.toString() ?? 'Online',
+          photoUrl: item['avatarId']?.toString() ?? '',
+        );
+        peers.add(peerModel);
+
+        previews.add(ChatPreview(
+          chatId: username.toLowerCase(),
+          peerUid: username,
+          peer: peerModel,
+          isGroup: item['kind'] == 'group' || item['groupId'] != null,
+          lastMessage: lastMsg is Map
+              ? (lastMsg['isEncrypted'] == true
+                  ? '🔒 Encrypted message'
+                  : lastMsg['text']?.toString() ?? '')
+              : lastMsg?.toString() ?? '',
+          lastTime:
+              DateTime.tryParse(item['lastTimestamp']?.toString() ?? '') ??
+                  DateTime.now(),
+          unreadCount: (item['unreadCount'] as num?)?.toInt() ?? 0,
+        ));
       }
+
+      // Persist both previews and peer profiles. Without the profiles, a
+      // later logout/login can find chat rows but cannot rebuild chat cards.
+      _conversations = previews;
+      _hasLoadedConversations = true;
+      await HybridDbService.saveUsers(peers);
+      await HybridDbService.saveChats(previews);
+      if (_myUsername != account) return;
+      notifyListeners();
+
+      for (final item in list) {
+        try {
+          final raw = item['lastMessageData'] ?? item['lastMessage'];
+          if (raw is! Map || raw['isEncrypted'] != true) continue;
+          final peer = item['username']?.toString() ?? '';
+          if (peer.isEmpty) continue;
+
+          final decrypted = await encryption.decrypt(
+            Message(
+              id: raw['id']?.toString() ?? '',
+              chatId: peer,
+              text: raw['text']?.toString() ?? '🔒 Encrypted message',
+              isFromMe: false,
+              isEncrypted: true,
+              ciphertext: raw['ciphertext']?.toString(),
+              iv: raw['iv']?.toString(),
+            ),
+            account,
+            _peerKeys[peer.toLowerCase()],
+          );
+          if (_myUsername != account) return;
+          if (decrypted.needsMessageKey) continue;
+
+          final index = _conversations.indexWhere(
+            (chat) => chat.peerUid.toLowerCase() == peer.toLowerCase(),
+          );
+          // Do not replace a newer live preview with an older snapshot.
+          if (index >= 0 &&
+              (_conversations[index].lastMessage == '🔒 Encrypted message' ||
+                  _conversations[index].lastMessage == raw['text'])) {
+            final updated = List<ChatPreview>.from(_conversations);
+            updated[index] =
+                updated[index].copyWith(lastMessage: decrypted.text);
+            _conversations = updated;
+            unawaited(HybridDbService.saveChat(updated[index]));
+            notifyListeners();
+          }
+        } catch (error) {
+          debugPrint('[NovynSocket] Could not decrypt chat preview: $error');
+        }
+      }
+    } catch (error, stackTrace) {
+      debugPrint('[NovynSocket] Friend list refresh failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      // Keep the last good snapshot visible; a later server event can retry.
+      notifyListeners();
     }
   }
 
@@ -2041,6 +2085,7 @@ class SocketService extends ChangeNotifier {
     _manualDisconnect = true;
     _myUsername = null;
     _isAuthenticated = false;
+    _hasLoadedConversations = false;
     _registeredIdentityAccount = null;
     _identityRegistration = null;
     _authenticationReady = null;

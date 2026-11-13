@@ -45,14 +45,24 @@ class _ChatsScreenState extends State<ChatsScreen> {
   final TextEditingController _searchController = TextEditingController();
   bool _isSearching = false;
   String _selectedTab = 'all';
+  AuthService? _authService;
+  String? _observedUsername;
+  int _loadGeneration = 0;
 
   // Static cache moved to ChatsScreen widget class
 
   @override
   void initState() {
     super.initState();
+    // Observe auth transitions so a screen created before session restoration
+    // can hydrate the account's local chats immediately after login.
+    _authService = context.read<AuthService>();
+    _observedUsername =
+        _authService!.user?.username.trim().toLowerCase();
+    _authService!.addListener(_handleAuthChanged);
+
     // Never hydrate from a previous signed-in account's in-memory previews.
-    final owner = context.read<AuthService>().user?.username.toLowerCase();
+    final owner = _observedUsername;
     if (owner == null || ChatsScreen.cachedChatsOwner != owner) {
       ChatsScreen.resetAccountCache();
     }
@@ -82,13 +92,46 @@ class _ChatsScreenState extends State<ChatsScreen> {
     });
   }
 
+  void _handleAuthChanged() {
+    if (!mounted) return;
+    final username =
+        context.read<AuthService>().user?.username.trim().toLowerCase();
+    if (username == _observedUsername) return;
+    _observedUsername = username;
+    _loadGeneration++;
+
+    if (username == null || username.isEmpty) {
+      ChatsScreen.resetAccountCache();
+      setState(() {
+        _chats = [];
+        _filtered = [];
+        _loading = false;
+      });
+      return;
+    }
+
+    setState(() {
+      _chats = [];
+      _filtered = [];
+      _loading = true;
+    });
+    // Non-silent load first restores this account's username-scoped local DB.
+    // The authenticated friend_list event will replace it with server state.
+    _loadChats();
+  }
+
   void _handleSocketUpdate() {
     if (!mounted) return;
     final owner = context.read<AuthService>().user?.username.toLowerCase();
     if (owner == null) return;
+    final socket = context.read<SocketService>();
+    // Socket emits many unrelated notifications (typing, presence, connect).
+    // Do not let an empty, not-yet-authenticated socket snapshot erase cache.
+    if (!socket.isAuthenticated || !socket.hasLoadedConversations ||
+        socket.myUsername?.toLowerCase() != owner) return;
 
     final previews =
-        List<ChatPreview>.from(context.read<SocketService>().conversations);
+        List<ChatPreview>.from(socket.conversations);
     previews.sort((a, b) {
       if (a.isPinned != b.isPinned) return a.isPinned ? -1 : 1;
       return b.lastTime.compareTo(a.lastTime);
@@ -106,6 +149,7 @@ class _ChatsScreenState extends State<ChatsScreen> {
   }
 
   Future<void> _loadChats({bool silent = false}) async {
+    final generation = silent ? _loadGeneration : ++_loadGeneration;
     final auth = context.read<AuthService>();
     final myUsername = auth.user?.username;
     if (myUsername == null) {
@@ -116,7 +160,8 @@ class _ChatsScreenState extends State<ChatsScreen> {
     // 1. Load from local cache first (instant)
     if (!silent) {
       final cachedChats = await HybridDbService.getChats();
-      if (!mounted || context.read<AuthService>().user?.username != myUsername) return;
+      if (!mounted || generation != _loadGeneration ||
+          context.read<AuthService>().user?.username != myUsername) return;
       if (cachedChats.isNotEmpty && mounted) {
         final peerUids = cachedChats
             .map((c) => c['peerUid'] as String?)
@@ -124,16 +169,27 @@ class _ChatsScreenState extends State<ChatsScreen> {
             .cast<String>()
             .toList();
         final cachedUsers = await HybridDbService.getUsers(peerUids);
-        if (!mounted || context.read<AuthService>().user?.username != myUsername) return;
+        if (!mounted || generation != _loadGeneration ||
+            context.read<AuthService>().user?.username != myUsername) return;
 
         final previews = <ChatPreview>[];
         for (final chat in cachedChats) {
           final peerUid = chat['peerUid'] as String?;
           if (peerUid == null) continue;
-          final peer = cachedUsers[peerUid];
-          if (peer == null) continue;
           final lastTime =
               DateTime.tryParse(chat['lastTime'] ?? '') ?? DateTime.now();
+          // Older app versions stored chat rows without persisting peer
+          // profiles. Rebuild a usable row from the username until the server
+          // refresh supplies the full display name and avatar.
+          final peer = cachedUsers[peerUid] ??
+              UserModel(
+                uid: peerUid,
+                name: peerUid,
+                username: peerUid,
+                email: '',
+                bio: '',
+                createdAt: lastTime,
+              );
           previews.add(ChatPreview(
             chatId: chat['chatId'] ?? '',
             peerUid: peerUid,
@@ -190,6 +246,7 @@ class _ChatsScreenState extends State<ChatsScreen> {
 
   @override
   void dispose() {
+    _authService?.removeListener(_handleAuthChanged);
     try {
       context.read<SocketService>().removeListener(_handleSocketUpdate);
     } catch (_) {}
