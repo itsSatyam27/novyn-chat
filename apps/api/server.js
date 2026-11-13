@@ -8559,15 +8559,19 @@ io.on("connection", (socket) => {
       }
 
       const activeCall = activeCalls.get(userKey);
-      const callPeerKey = clearCallPair(userKey);
-      if (callPeerKey) {
-        const peerSocketId = onlineUsers.get(callPeerKey);
-        if (peerSocketId) {
-          io.to(peerSocketId).emit("call_ended", {
-            from: user?.username || userKey,
-            callId: activeCall?.callId,
-            reason: "Connection lost",
-          });
+      // Keep ringing pairs alive until their server-owned 45-second timeout.
+      // This lets the timeout replace a stale incoming-call alert with "Missed call".
+      if (activeCall?.status !== "ringing") {
+        const callPeerKey = clearCallPair(userKey);
+        if (callPeerKey) {
+          const peerSocketId = onlineUsers.get(callPeerKey);
+          if (peerSocketId) {
+            io.to(peerSocketId).emit("call_ended", {
+              from: user?.username || userKey,
+              callId: activeCall?.callId,
+              reason: "Connection lost",
+            });
+          }
         }
       }
 
