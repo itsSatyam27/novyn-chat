@@ -77,6 +77,7 @@ class SocketService extends ChangeNotifier {
   io.Socket? _socket;
   bool _isConnected = false;
   bool _manualDisconnect = false;
+  bool _refreshingSocketSession = false;
   bool _appForeground = true;
   String? _myUsername; // novyn-chat username (not Firebase UID)
   final AudioPlayer _audioPlayer = AudioPlayer();
@@ -161,6 +162,22 @@ class SocketService extends ChangeNotifier {
     connect(serverUrl, username);
   }
 
+  Future<void> _refreshAfterSocketAuthFailure() async {
+    if (_refreshingSocketSession) return;
+    _refreshingSocketSession = true;
+    try {
+      final status = await ApiService.refreshSessionStatus()
+          .timeout(const Duration(seconds: 12), onTimeout: () => null);
+      if (status == 200 && !_manualDisconnect) {
+        await reconnectWithCurrentSession();
+      }
+    } catch (error) {
+      debugPrint('[NovynSocket] Session refresh after auth failure failed: $error');
+    } finally {
+      _refreshingSocketSession = false;
+    }
+  }
+
   void connect(String serverUrl, String username) {
     _manualDisconnect = false;
     if (_socket != null && _myUsername != null &&
@@ -228,6 +245,16 @@ class SocketService extends ChangeNotifier {
     });
 
     _registerEventHandlers();
+    _socket!.on('auth_failed', (data) {
+      _isAuthenticated = false;
+      notifyListeners();
+      // A stale access cookie can leave a newly connected socket without a
+      // userKey. Refresh the HTTP session once, then rebuild the socket
+      // handshake with the rotated cookie. Never clear the local account here.
+      if (!_refreshingSocketSession && !_manualDisconnect) {
+        unawaited(_refreshAfterSocketAuthFailure());
+      }
+    });
     _socket!.connect();
   }
 
