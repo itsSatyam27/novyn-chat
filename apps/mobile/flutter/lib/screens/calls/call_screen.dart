@@ -173,14 +173,11 @@ class _CallScreenState extends State<CallScreen>
   }
 
   Future<void> _playRingtone() async {
+    // WebRTC's initial earpiece selection must finish before ringtone routing,
+    // otherwise it can race with the user's speaker selection.
+    try { await _webrtcInit; } catch (_) {}
     await AudioManagerService.startCallMode();
-    // Incoming/outgoing ringback must be audible even before a WebRTC track
-    // exists. Route the ringtone to the phone speaker by default; the user
-    // can still choose a connected headset from the in-call route selector.
-    if (widget.isIncoming) {
-      await AudioManagerService.setAudioRoute('speaker');
-      try { await _webrtc.toggleSpeaker(true); } catch (_) {}
-    }
+    await AudioManagerService.setAudioRoute('earpiece');
     if (!mounted || context.read<AuthService>().user?.presenceMode == 'busy') return;
     final preferences = context.read<SettingsService>();
     if (preferences.callRingtone == 'None') return;
