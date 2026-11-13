@@ -1537,6 +1537,9 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
             payload.ciphertext = encrypted.ciphertext;
             payload.iv = encrypted.iv;
             payload.isEncrypted = true;
+            // Bind the notification envelope to this exact browser identity;
+            // another signed-in device may have registered a different key.
+            payload.senderPublicKey = await getMyPublicKeyJwk();
           }
           if (!encrypted) { fail('Encryption failed. Please retry.'); return; }
           transmit();
