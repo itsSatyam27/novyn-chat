@@ -49,11 +49,28 @@ function registerCallHandlers(socket, deps) {
         return;
       }
       setCallPair(userKey, friendKey, "ringing", callId);
+      const callerName = me?.username || userKey;
+      const callerDisplayName = me?.displayName || callerName;
       io.to(friendSocketId).emit("call_incoming", {
-        from: me?.username || userKey,
-        fromDisplayName: me?.displayName || me?.username || userKey,
+        from: callerName,
+        fromDisplayName: callerDisplayName,
         isVideo,
         callId,
+      });
+      // Also wake a backgrounded mobile client through high-priority FCM.
+      // The foreground app ignores this duplicate when its live socket is active.
+      Promise.resolve(sendPushToUser?.(friendKey, {
+        type: "call",
+        callStatus: "incoming",
+        title: isVideo ? "Incoming video call" : "Incoming voice call",
+        body: callerDisplayName + " is calling you",
+        chat: callerName,
+        kind: "friend",
+        callId,
+        isVideo,
+        tag: "incoming-call-" + callId,
+      })).catch((error) => {
+        console.warn("[Call] Incoming-call notification failed:", error?.message || error);
       });
     } else {
       const callerName = me?.username || userKey;
@@ -78,6 +95,7 @@ function registerCallHandlers(socket, deps) {
       // The existing push pipeline delivers this while the recipient is offline.
       Promise.resolve(sendPushToUser?.(friendKey, {
         type: "call",
+        callStatus: "missed",
         title: "Missed call",
         body: (me?.displayName || callerName) + " tried to call you",
         chat: callerName,
