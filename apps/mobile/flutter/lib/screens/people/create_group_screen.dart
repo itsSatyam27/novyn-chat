@@ -21,7 +21,6 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
   final _nameNotifier = ValueNotifier<String>(''); // Optimized state tracking
   final List<UserModel> _selected = [];
   String _search = '';
-  bool _isStealth = false;
 
   @override
   Widget build(BuildContext context) {
@@ -51,7 +50,6 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                   physics: const BouncingScrollPhysics(),
                   slivers: [
                     SliverToBoxAdapter(child: _buildGroupNameInput(isDark)),
-                    SliverToBoxAdapter(child: _buildStealthToggle(isDark, Theme.of(context).colorScheme.primary)),
                     if (_selected.isNotEmpty) 
                       SliverToBoxAdapter(child: _buildSelectedList()),
                     SliverToBoxAdapter(child: _buildSearchInput(isDark)),
@@ -112,47 +110,6 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
             border: InputBorder.none,
             prefixIcon: Icon(Icons.groups_rounded, size: 24),
           ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildStealthToggle(bool isDark, Color accent) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: _isStealth 
-            ? accent.withValues(alpha: 0.1) 
-            : Colors.transparent,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: _isStealth ? accent.withValues(alpha: 0.3) : Colors.white.withValues(alpha: 0.1),
-          ),
-        ),
-        child: Row(
-          children: [
-            Icon(
-              _isStealth ? Icons.visibility_off_rounded : Icons.visibility_rounded,
-              color: _isStealth ? accent : Colors.grey,
-            ),
-            const SizedBox(width: 12),
-            const Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Stealth Group', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
-                  Text('Hidden from main chat list & encrypted notifications', style: TextStyle(fontSize: 11, color: Colors.grey)),
-                ],
-              ),
-            ),
-            Switch.adaptive(
-              value: _isStealth,
-              activeColor: const Color(0xFF6D5DFC),
-              onChanged: (v) => setState(() => _isStealth = v),
-            ),
-          ],
         ),
       ),
     );
@@ -312,7 +269,7 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
               ),
               child: const Center(
                 child: Text(
-                  'Create Node Group',
+                  'Create Group',
                   style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 16),
                 ),
               ),
@@ -337,17 +294,16 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
 
       final chatId = await socket.createGroup(
         name: _nameController.text,
-        memberIds: _selected.map((u) => u.uid).toList(),
-        isStealth: _isStealth,
+        memberIds: _selected.map((u) => u.username.trim().isNotEmpty ? u.username.trim() : u.uid).toList(),
       );
 
       if (mounted) {
         Navigator.pop(context); // Close loading
-        Navigator.pop(context); // Close CreateGroupScreen
+        Navigator.pop(context, chatId); // Return the server-confirmed group ID
         
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Node Group "${_nameController.text}" initialized!'),
+            content: Text('Group "${_nameController.text.trim()}" created successfully!'),
             backgroundColor: const Color(0xFF10B981),
           ),
         );
