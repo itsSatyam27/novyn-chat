@@ -46,6 +46,7 @@ class _CallScreenState extends State<CallScreen>
   bool _speakerOn = false;
   List<Map<String, dynamic>> _audioRoutes = const [];
   String _activeAudioRoute = 'earpiece';
+  bool _autoBluetoothRouteAttempted = false;
   StreamSubscription<List<Map<String, dynamic>>>? _audioRouteSubscription;
   bool _cameraOff = false;
   bool _frontCamera = true;
@@ -179,14 +180,7 @@ class _CallScreenState extends State<CallScreen>
     _audioRouteSubscription = AudioManagerService.routeChanges.listen(
       (routes) {
         if (!mounted) return;
-        setState(() {
-          _audioRoutes = routes;
-          final active = routes.where((route) => route['selected'] == true);
-          if (active.isNotEmpty) {
-            _activeAudioRoute = active.first['id']?.toString() ?? 'earpiece';
-          }
-          _speakerOn = _activeAudioRoute == 'speaker';
-        });
+        _applyAudioRoutes(routes);
       },
       onError: (_) {},
     );
@@ -202,14 +196,28 @@ class _CallScreenState extends State<CallScreen>
   Future<void> _refreshAudioRoutes() async {
     final routes = await AudioManagerService.getAvailableRoutes();
     if (!mounted) return;
+    _applyAudioRoutes(routes);
+  }
+
+  void _applyAudioRoutes(List<Map<String, dynamic>> routes) {
+    final bluetooth = routes.where((route) => route['kind'] == 'bluetooth').toList();
+    final active = routes.where((route) => route['selected'] == true);
     setState(() {
       _audioRoutes = routes;
-      final active = routes.where((route) => route['selected'] == true);
       if (active.isNotEmpty) {
         _activeAudioRoute = active.first['id']?.toString() ?? 'earpiece';
       }
       _speakerOn = _activeAudioRoute == 'speaker';
+      if (bluetooth.isEmpty) _autoBluetoothRouteAttempted = false;
     });
+
+    // Prefer a connected headset for calls, just like native dialers.
+    if (bluetooth.isNotEmpty &&
+        !_activeAudioRoute.startsWith('bluetooth:') &&
+        !_autoBluetoothRouteAttempted) {
+      _autoBluetoothRouteAttempted = true;
+      _selectAudioRoute(bluetooth.first['id'].toString());
+    }
   }
 
   Future<void> _selectAudioRoute(String routeId) async {
