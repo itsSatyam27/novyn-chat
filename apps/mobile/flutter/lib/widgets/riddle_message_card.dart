@@ -7,6 +7,7 @@ class RiddleMessageCard extends StatefulWidget {
   final String fromUsername;
   final Map<String, dynamic> riddle;
   final bool isMe;
+  final bool isGroup;
 
   const RiddleMessageCard({
     super.key,
@@ -14,6 +15,7 @@ class RiddleMessageCard extends StatefulWidget {
     required this.fromUsername,
     required this.riddle,
     required this.isMe,
+    this.isGroup = false,
   });
 
   @override
@@ -23,6 +25,7 @@ class RiddleMessageCard extends StatefulWidget {
 class _RiddleMessageCardState extends State<RiddleMessageCard> {
   final TextEditingController _answer = TextEditingController();
   bool _busy = false;
+  int? _triesLeftOverride;
   String? _feedback;
 
   @override
@@ -39,11 +42,14 @@ class _RiddleMessageCardState extends State<RiddleMessageCard> {
         messageId: widget.messageId,
         fromUsername: widget.fromUsername,
         answer: _answer.text.trim(),
+        isGroup: widget.isGroup,
       );
       if (!mounted) return;
       setState(() {
         _busy = false;
         if (result['ok'] != true) {
+          final remaining = result['triesLeft'];
+          if (remaining is num) _triesLeftOverride = remaining.toInt();
           _feedback = result['message']?.toString() ?? 'That answer is not right.';
         } else {
           _answer.clear();
@@ -57,16 +63,16 @@ class _RiddleMessageCardState extends State<RiddleMessageCard> {
   @override
   Widget build(BuildContext context) {
     final unlocked = widget.riddle['unlocked'] == true;
-    final triesLeft = (widget.riddle['triesLeft'] as num?)?.toInt() ?? 0;
+    final triesLeft = _triesLeftOverride ?? (widget.riddle['triesLeft'] as num?)?.toInt() ?? 0;
     final maxTries = (widget.riddle['maxTries'] as num?)?.toInt() ?? 3;
     final exhausted = !unlocked && triesLeft <= 0;
     return Container(
-      width: 250,
-      padding: const EdgeInsets.all(12),
+      width: 270,
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.06),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.12)),
+        color: Theme.of(context).colorScheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.18)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

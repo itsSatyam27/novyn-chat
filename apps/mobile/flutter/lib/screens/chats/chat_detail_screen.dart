@@ -1587,6 +1587,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                 peerUsername: widget.peer.uid.isNotEmpty ? widget.peer.uid : widget.peer.username,
                 secret: secret.text.trim(), question: question.text.trim(), answer: answer.text.trim(),
                 hint: hint.text.trim().isEmpty ? null : hint.text.trim(), maxTries: maxTries,
+                isGroup: widget.isGroup,
               );
               if (!mounted) return;
               if (result['ok'] == true) {
@@ -2754,15 +2755,19 @@ class _MessageBubble extends StatelessWidget {
                             game: Map<String, dynamic>.from(message.game as Map),
                             currentUsername: myUid,
                             peerUsername: peer.uid.isNotEmpty ? peer.uid : peer.username,
+                            isGroup: isGroup,
                           ),
                           const SizedBox(height: 6),
                         ],
                         if (message.riddle is Map) ...[
                           RiddleMessageCard(
                             messageId: message.id.toString(),
-                            fromUsername: message.senderId.toString(),
+                            fromUsername: isGroup
+                                ? (peer.uid.isNotEmpty ? peer.uid : peer.username)
+                                : message.senderId.toString(),
                             riddle: Map<String, dynamic>.from(message.riddle as Map),
                             isMe: isMe,
+                            isGroup: isGroup,
                           ),
                           const SizedBox(height: 6),
                         ],
