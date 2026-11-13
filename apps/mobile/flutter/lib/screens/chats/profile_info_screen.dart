@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../../models/user_model.dart';
 import '../../widgets/user_avatar.dart';
+import '../../widgets/novyn_toast.dart';
 
 class ProfileInfoScreen extends StatelessWidget {
   final UserModel user;
@@ -171,9 +172,7 @@ class ProfileInfoScreen extends StatelessWidget {
                   onTap: () async {
                     await Clipboard.setData(ClipboardData(text: '@${user.username}'));
                     if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Username copied')),
-                      );
+                      NovynToast.show(context, 'Username copied');
                     }
                   },
                   child: Container(
