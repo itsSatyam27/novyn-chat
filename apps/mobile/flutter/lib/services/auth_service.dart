@@ -184,7 +184,16 @@ class AuthService extends ChangeNotifier {
     }
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_cachedIdentityMirrorKey, encoded);
+      // Only the two fields needed to identify the account at startup are
+      // mirrored outside secure storage; email, avatar, profile and secrets
+      // remain in the secure cache/server.
+      await prefs.setString(
+        _cachedIdentityMirrorKey,
+        jsonEncode({
+          'username': user.username,
+          'displayName': user.displayName,
+        }),
+      );
     } catch (error) {
       debugPrint('[NovynAuth] Identity mirror write failed: $error');
     }
