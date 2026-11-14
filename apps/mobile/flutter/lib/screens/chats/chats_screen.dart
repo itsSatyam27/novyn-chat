@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
@@ -35,7 +36,11 @@ class ChatsScreen extends StatefulWidget {
   State<ChatsScreen> createState() => _ChatsScreenState();
 }
 
-class _ChatsScreenState extends State<ChatsScreen> {
+class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
+  static const _newChatFabIdleDelay = Duration(seconds: 5);
+  Timer? _newChatFabTimer;
+  bool _showNewChatFab = true;
+  bool? _homeTabIsActive;
   List<ChatPreview> _chats = [];
   List<ChatPreview> _filtered = [];
   bool _loading = true;
@@ -56,6 +61,7 @@ class _ChatsScreenState extends State<ChatsScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     // Observe auth transitions so a screen created before session restoration
     // can hydrate the account's local chats immediately after login.
     _authService = context.read<AuthService>();
@@ -394,7 +400,57 @@ class _ChatsScreenState extends State<ChatsScreen> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final isActive = TickerMode.of(context);
+    if (_homeTabIsActive == isActive) return;
+    _homeTabIsActive = isActive;
+    if (isActive && WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed) {
+      _showNewChatFab = true;
+      _scheduleNewChatFabHide();
+    } else {
+      _newChatFabTimer?.cancel();
+    }
+  }
+
+  void _scheduleNewChatFabHide() {
+    _newChatFabTimer?.cancel();
+    if (!_homeTabIsActive! ||
+        WidgetsBinding.instance.lifecycleState != AppLifecycleState.resumed) {
+      return;
+    }
+    _newChatFabTimer = Timer(_newChatFabIdleDelay, () {
+      if (!mounted || !_homeTabIsActive!) return;
+      if (_showNewChatFab) setState(() => _showNewChatFab = false);
+    });
+  }
+
+  void _revealNewChatFab() {
+    if (!_homeTabIsActive ||
+        WidgetsBinding.instance.lifecycleState != AppLifecycleState.resumed) {
+      return;
+    }
+    if (!_showNewChatFab && mounted) {
+      setState(() => _showNewChatFab = true);
+    }
+    _scheduleNewChatFabHide();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _revealNewChatFab();
+    } else if (state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
+      _newChatFabTimer?.cancel();
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _newChatFabTimer?.cancel();
     _authService?.removeListener(_handleAuthChanged);
     try {
       context.read<SocketService>().removeListener(_handleSocketUpdate);
@@ -488,7 +544,10 @@ class _ChatsScreenState extends State<ChatsScreen> {
 
     return Scaffold(
       backgroundColor: pageBackground,
-      body: SafeArea(
+      body: Listener(
+        behavior: HitTestBehavior.translucent,
+        onPointerDown: (_) => _revealNewChatFab(),
+        child: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -621,7 +680,16 @@ class _ChatsScreenState extends State<ChatsScreen> {
                   : RefreshIndicator(
                       color: Theme.of(context).colorScheme.primary,
                       onRefresh: _loadChats,
-                      child: CustomScrollView(
+                      child: NotificationListener<ScrollNotification>(
+                        onNotification: (notification) {
+                          if (notification is ScrollStartNotification ||
+                              notification is ScrollUpdateNotification ||
+                              notification is UserScrollNotification) {
+                            _revealNewChatFab();
+                          }
+                          return false;
+                        },
+                        child: CustomScrollView(
                         physics: const AlwaysScrollableScrollPhysics(),
                         slivers: [
                           if (pinnedChats.isNotEmpty) ...[
@@ -645,14 +713,25 @@ class _ChatsScreenState extends State<ChatsScreen> {
                           const SliverToBoxAdapter(child: SizedBox(height: 112)),
                         ],
                       ),
+                      ),
                     ),
             ),
           ],
         ),
+        ),
       ),
-      floatingActionButton: Padding(
-        padding: const EdgeInsets.only(bottom: 100),
-        child: FloatingActionButton(
+      floatingActionButton: AnimatedSlide(
+        offset: _showNewChatFab ? Offset.zero : const Offset(0, 1.35),
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOutCubic,
+        child: AnimatedOpacity(
+          opacity: _showNewChatFab ? 1 : 0,
+          duration: const Duration(milliseconds: 180),
+          child: IgnorePointer(
+            ignoring: !_showNewChatFab,
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 100),
+              child: FloatingActionButton(
           heroTag: 'novyn_new_chat_fab',
           tooltip: 'New chat',
           onPressed: () {
@@ -663,7 +742,10 @@ class _ChatsScreenState extends State<ChatsScreen> {
           foregroundColor: Colors.white,
           elevation: 8,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
-          child: const Icon(Icons.edit_rounded, size: 27),
+                child: const Icon(Icons.edit_rounded, size: 27),
+              ),
+            ),
+          ),
         ),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
