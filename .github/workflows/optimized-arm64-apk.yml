@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build-arm64:
@@ -88,6 +88,24 @@ jobs:
             echo "- Size: **${MIB} MiB**"
             echo "- Build: ${GITHUB_RUN_NUMBER}"
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Publish direct ARM64 APK release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          SOURCE_APK="apps/mobile/flutter/build/app/outputs/flutter-apk/app-arm64-v8a-release.apk"
+          RELEASE_DIR="release-assets"
+          RELEASE_APK="${RELEASE_DIR}/Novyn-Android-ARM64.apk"
+          mkdir -p "${RELEASE_DIR}"
+          cp "${SOURCE_APK}" "${RELEASE_APK}"
+          TAG="novyn-arm64-build-${GITHUB_RUN_NUMBER}-${GITHUB_RUN_ATTEMPT}"
+          MIB=$(awk -v bytes="$(stat -c%s "${RELEASE_APK}")" 'BEGIN { printf "%.1f", bytes / 1048576 }')
+          gh release create "${TAG}" "${RELEASE_APK}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --target "${GITHUB_SHA}" \
+            --title "Novyn Android ARM64 APK — ${MIB} MB" \
+            --notes "Signed ARM64-v8a Android release APK. Direct download; no ZIP extraction required."
 
       - name: Upload ARM64 APK
         uses: actions/upload-artifact@v4
