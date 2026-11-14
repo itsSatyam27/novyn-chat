@@ -76,6 +76,7 @@ class SocketService extends ChangeNotifier {
   final BackendContacts contacts = BackendContacts();
   io.Socket? _socket;
   bool _isConnected = false;
+  bool _isConnecting = false;
   bool _manualDisconnect = false;
   bool _refreshingSocketSession = false;
   bool _appForeground = true;
@@ -162,9 +163,11 @@ class SocketService extends ChangeNotifier {
     // active-conversation state intact while the session cookie is rotated.
     _reconnectTimer?.cancel();
     _isConnected = false;
+    _isConnecting = false;
     _isAuthenticated = false;
     _authenticationReady = null;
     _registeredIdentityAccount = null;
+    _isConnecting = false;
     notifyListeners();
     _doConnect();
   }
@@ -193,12 +196,14 @@ class SocketService extends ChangeNotifier {
     }
     _serverUrl = serverUrl;
     _myUsername = username;
-    if (_socket != null && _socket!.connected && _isConnected) return;
+    if ((_socket != null && _socket!.connected && _isConnected) ||
+        _isConnecting) return;
     _doConnect();
   }
 
   void _doConnect() {
     if (_manualDisconnect || _serverUrl == null || _myUsername == null) return;
+    if (_isConnecting && _socket != null) return;
 
     // Dispose the previous transport before creating another one. Socket.IO
     // can invoke disconnect callbacks during disposal, so suppress reconnect
@@ -234,6 +239,7 @@ class SocketService extends ChangeNotifier {
     });
 
     _socket!.onConnect((_) {
+      _isConnecting = false;
       _isConnected = true;
       _isAuthenticated = false;
       _stealthPreferenceSynced = false;
@@ -252,6 +258,7 @@ class SocketService extends ChangeNotifier {
     });
 
     _socket!.onDisconnect((_) {
+      _isConnecting = false;
       _isConnected = false;
       _isAuthenticated = false;
       // A completed future from an old socket must never authenticate a new one.
@@ -262,6 +269,7 @@ class SocketService extends ChangeNotifier {
     });
 
     _socket!.onConnectError((_) {
+      _isConnecting = false;
       _isConnected = false;
       _isAuthenticated = false;
       _authenticationReady = null;
@@ -281,6 +289,7 @@ class SocketService extends ChangeNotifier {
         unawaited(_refreshAfterSocketAuthFailure());
       }
     });
+    _isConnecting = true;
     _socket!.connect();
   }
 
@@ -300,7 +309,7 @@ class SocketService extends ChangeNotifier {
     // Android can suspend the app while the socket transport is being dropped.
     // Re-check the transport itself on every resume instead of trusting a
     // possibly stale local connection flag.
-    if (_socket == null || !_socket!.connected) {
+    if (_socket == null || (!_socket!.connected && !_isConnecting)) {
       _reconnectTimer?.cancel();
       _doConnect();
       return;
@@ -2413,6 +2422,7 @@ class SocketService extends ChangeNotifier {
     _reconnectTimer?.cancel();
     _socket = null;
     _isConnected = false;
+    _isConnecting = false;
     notifyListeners();
   }
 
