@@ -49,4 +49,7 @@ jobs:
               --title "Novyn Android ARM64 APK — ${MIB} MB" \
               --notes "Signed Android ARM64-v8a APK. Direct APK download; no ZIP extraction is required. Built by GitHub Actions from commit c594fe2."
           fi
-          echo "Published ${MIB} MiB APK as Novyn-Android-ARM64.apk"
+          MB=$(awk -v bytes="$(stat -c%s "${APK}")" 'BEGIN { printf "%.1f", bytes / 1000000 }')
+          gh release edit "${TAG}" --repo "${GITHUB_REPOSITORY}" \
+            --title "Novyn Android ARM64 APK — ${MB} MB"
+          echo "Published ${MB} MB APK as Novyn-Android-ARM64.apk"
