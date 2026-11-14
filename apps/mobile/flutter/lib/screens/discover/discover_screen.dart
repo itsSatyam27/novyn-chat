@@ -923,3 +923,117 @@ class _DiscoverPersonRow extends StatelessWidget {
     );
   }
 }
+
+class _DiscoverEmptyAction extends StatelessWidget {
+  const _DiscoverEmptyAction({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.tint,
+    required this.accent,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final Color tint;
+  final Color accent;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Material(
+      color: scheme.surface,
+      borderRadius: BorderRadius.circular(24),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(24),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 15, 10, 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 54,
+                height: 54,
+                decoration: BoxDecoration(
+                  color: tint,
+                  borderRadius: BorderRadius.circular(17),
+                ),
+                child: Icon(icon, color: accent, size: 25),
+              ),
+              const SizedBox(height: 17),
+              Text(
+                title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: NovynText.body(14, weight: FontWeight.w800, color: scheme.onSurface),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                subtitle,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: NovynText.body(11.5, color: scheme.onSurfaceVariant).copyWith(height: 1.25),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DiscoverEmptyPainter extends CustomPainter {
+  const _DiscoverEmptyPainter({required this.ring, required this.accent});
+
+  final Color ring;
+  final Color accent;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = math.min(size.width, size.height) * .47;
+    final ringPaint = Paint()
+      ..color = ring
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.6;
+    for (var index = 1; index <= 4; index++) {
+      canvas.drawCircle(center, radius * index / 4, ringPaint);
+    }
+
+    final dots = <Offset>[
+      Offset(size.width * .16, size.height * .22),
+      Offset(size.width * .84, size.height * .32),
+      Offset(size.width * .22, size.height * .73),
+      Offset(size.width * .72, size.height * .79),
+    ];
+    for (var index = 0; index < dots.length; index++) {
+      final dotPaint = Paint()
+        ..color = accent.withValues(alpha: .48)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.1;
+      const dash = 4.0;
+      const gap = 3.5;
+      final circleRadius = index.isEven ? 14.0 : 16.0;
+      final path = Path();
+      final circumference = 2 * math.pi * circleRadius;
+      for (double offset = 0; offset < circumference; offset += dash + gap) {
+        final start = offset / circleRadius;
+        final end = math.min(offset + dash, circumference) / circleRadius;
+        path.addArc(
+          Rect.fromCircle(center: dots[index], radius: circleRadius),
+          start,
+          end - start,
+        );
+      }
+      canvas.drawPath(path, dotPaint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _DiscoverEmptyPainter oldDelegate) =>
+      oldDelegate.ring != ring || oldDelegate.accent != accent;
+}
