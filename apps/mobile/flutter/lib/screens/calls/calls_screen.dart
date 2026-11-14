@@ -239,8 +239,8 @@ class _CallsScreenState extends State<CallsScreen> {
           children: [
             NovynHeader(
               title: 'Calls',
-              titleSize: 30,
-              titleWeight: FontWeight.w700,
+              titleSize: 36,
+              titleWeight: FontWeight.w500,
               actions: [
                 NovynIconButton(
                   icon: _searchOpen ? Icons.close_rounded : Icons.search_rounded,
@@ -406,7 +406,7 @@ class _CallsScreenState extends State<CallsScreen> {
             style: TextStyle(
               fontFamily: 'PlusJakartaSans',
               fontSize: 12,
-              fontWeight: FontWeight.w600,
+              fontWeight: FontWeight.w500,
               letterSpacing: 1.25,
               color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
@@ -439,7 +439,7 @@ class _CallsScreenState extends State<CallsScreen> {
                             style: TextStyle(
                               fontFamily: 'PlusJakartaSans',
                               fontSize: 11,
-                              fontWeight: FontWeight.w600,
+                              fontWeight: FontWeight.w500,
                               color: Theme.of(context).colorScheme.onSurface,
                             ),
                           ),
@@ -470,7 +470,7 @@ class _CallsScreenState extends State<CallsScreen> {
                         Text('Add', style: TextStyle(
                           fontFamily: 'PlusJakartaSans',
                           fontSize: 11,
-                          fontWeight: FontWeight.w600,
+                          fontWeight: FontWeight.w500,
                           color: Theme.of(context).colorScheme.onSurface,
                         )),
                       ],
@@ -518,7 +518,7 @@ class _CallsScreenState extends State<CallsScreen> {
                       style: TextStyle(
                         fontFamily: 'PlusJakartaSans',
                         fontSize: 14,
-                        fontWeight: FontWeight.w600,
+                        fontWeight: FontWeight.w500,
                         color: _filter == option
                             ? accent
                             : theme.colorScheme.onSurfaceVariant,
@@ -592,7 +592,7 @@ class _CallsScreenState extends State<CallsScreen> {
                 padding: const EdgeInsets.fromLTRB(20, 18, 20, 12),
                 child: Row(children: [
                   Expanded(child: Text('Add quick call',
-                    style: Theme.of(sheetContext).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700))),
+                    style: Theme.of(sheetContext).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600))),
                   Text('${friends.length} friends',
                     style: TextStyle(color: Theme.of(sheetContext).colorScheme.onSurfaceVariant)),
                 ]),
@@ -608,7 +608,7 @@ class _CallsScreenState extends State<CallsScreen> {
                           final favorite = _favoriteUsernames.contains(peer.username.toLowerCase());
                           return ListTile(
                             leading: UserAvatar(name: peer.name, photoUrl: peer.photoUrl, radius: 23),
-                            title: Text(peer.name, style: const TextStyle(fontWeight: FontWeight.w600)),
+                            title: Text(peer.name, style: const TextStyle(fontWeight: FontWeight.w500)),
                             subtitle: Text('@${peer.username}'),
                             trailing: IconButton(
                               tooltip: favorite ? 'Remove from quick call' : 'Add to quick call',
@@ -646,14 +646,14 @@ class _CallsScreenState extends State<CallsScreen> {
           if (_search.isNotEmpty || _filter != 'All')
             Padding(
               padding: const EdgeInsets.fromLTRB(4, 4, 4, 10),
-              child: Text('RESULTS', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600,
+              child: Text('RESULTS', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500,
                 letterSpacing: 1.2, color: Theme.of(context).colorScheme.onSurfaceVariant)),
             ),
           for (final group in groups.entries) ...[
             Padding(
               padding: const EdgeInsets.fromLTRB(5, 12, 5, 10),
               child: Text(group.key.toUpperCase(), style: TextStyle(
-                fontSize: 12, fontWeight: FontWeight.w600, letterSpacing: 1.25,
+                fontSize: 12, fontWeight: FontWeight.w500, letterSpacing: 1.25,
                 color: Theme.of(context).colorScheme.onSurfaceVariant)),
             ),
             Container(
@@ -736,7 +736,7 @@ class _CallSummaryTile extends StatelessWidget {
             Container(width: 32, height: 32, decoration: BoxDecoration(color: tint.withValues(alpha: 0.13), borderRadius: BorderRadius.circular(10)), child: Icon(icon, color: tint, size: 17)),
             const SizedBox(width: 9),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [
-              Text(value, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700, height: 1.05)),
+              Text(value, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600, height: 1.05)),
               const SizedBox(height: 3),
               Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: NovynText.body(10, color: NovynColors.textMuted)),
             ])),
@@ -781,7 +781,7 @@ class _CallMenuItem extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(title, style: NovynText.body(12.5, color: color, weight: FontWeight.w600)),
+              Text(title, style: NovynText.body(12.5, color: color, weight: FontWeight.w500)),
               const SizedBox(height: 2),
               Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis,
                 style: NovynText.body(10, color: NovynColors.textMuted)),
@@ -923,7 +923,7 @@ class _CallCard extends StatelessWidget {
                       style: TextStyle(
                         fontFamily: 'PlusJakartaSans',
                         fontSize: 15.5,
-                        fontWeight: FontWeight.w600,
+                        fontWeight: FontWeight.w500,
                         letterSpacing: -.3,
                         color: isMissed ? statusColor : Theme.of(context).colorScheme.onSurface,
                       ),
@@ -1050,7 +1050,7 @@ class _CallHistorySheet extends StatelessWidget {
                       style: TextStyle(
                         fontFamily: 'PlusJakartaSans',
                         fontSize: 18,
-                        fontWeight: FontWeight.w600,
+                        fontWeight: FontWeight.w500,
                         color: Theme.of(context).colorScheme.onSurface,
                       ),
                     ),
@@ -1106,7 +1106,7 @@ class _CallHistorySheet extends StatelessWidget {
                               style: TextStyle(
                                 fontFamily: 'PlusJakartaSans',
                                 fontSize: 14,
-                                fontWeight: FontWeight.w600,
+                                fontWeight: FontWeight.w500,
                                 color: Theme.of(context).colorScheme.onSurface,
                               ),
                             ),
