@@ -10,6 +10,12 @@ class WebRTCService extends ChangeNotifier {
 
   final RTCVideoRenderer localRenderer  = RTCVideoRenderer();
   final RTCVideoRenderer remoteRenderer = RTCVideoRenderer();
+  final RTCVideoRenderer remoteScreenRenderer = RTCVideoRenderer();
+  MediaStream? _screenStream;
+  RTCRtpSender? _screenSender;
+  String? _remoteScreenStreamId;
+  bool get isScreenSharing => _screenStream != null;
+  void Function(String? streamId)? onRemoteScreenShareChanged;
 
   bool _isInitialized = false;
   bool _remoteDescriptionSet = false;
@@ -64,6 +70,7 @@ class WebRTCService extends ChangeNotifier {
   Future<void> init() async {
     await localRenderer.initialize();
     await remoteRenderer.initialize();
+    await remoteScreenRenderer.initialize();
     _isInitialized = true;
     notifyListeners();
   }
@@ -124,8 +131,13 @@ class WebRTCService extends ChangeNotifier {
     // Handle remote stream
     _peerConnection!.onTrack = (event) {
       if (event.streams.isNotEmpty) {
-        _remoteStream = event.streams[0];
-        remoteRenderer.srcObject = _remoteStream;
+        final stream = event.streams[0];
+        if (stream.id == _remoteScreenStreamId) {
+          remoteScreenRenderer.srcObject = stream;
+        } else {
+          _remoteStream = stream;
+          remoteRenderer.srcObject = stream;
+        }
         notifyListeners();
       }
     };
@@ -227,6 +239,73 @@ class WebRTCService extends ChangeNotifier {
     await connection.setLocalDescription(offer);
     socket.sendOffer(peerId, callId, {'sdp': offer.sdp, 'type': offer.type});
     notifyListeners();
+  }
+
+  Future<void> startScreenShare(SocketService socket, String peerId, String callId) async {
+    final connection = _peerConnection;
+    if (connection == null) throw StateError('Call connection is not ready.');
+    if (_screenStream != null) return;
+    final screen = await navigator.mediaDevices.getDisplayMedia({
+      'audio': false,
+      'video': {
+        'frameRate': {'ideal': 12, 'max': 15},
+        'width': {'ideal': 1280, 'max': 1600},
+        'height': {'ideal': 720, 'max': 900},
+      },
+    });
+    final track = screen.getVideoTracks().firstOrNull;
+    if (track == null) {
+      await screen.dispose();
+      throw StateError('Screen capture did not return a video track.');
+    }
+    _screenStream = screen;
+    _screenSender = await connection.addTrack(track, screen);
+    _remoteScreenStreamId = screen.id;
+    socket.updateCallScreenShare(peerId, callId, screen.id);
+    track.onEnded = () {
+      stopScreenShare(socket, peerId, callId, renegotiate: true);
+    };
+    final offer = await connection.createOffer({
+      'offerToReceiveAudio': true,
+      'offerToReceiveVideo': true,
+    });
+    await connection.setLocalDescription(offer);
+    socket.sendOffer(peerId, callId, {'sdp': offer.sdp, 'type': offer.type});
+    notifyListeners();
+  }
+
+  Future<void> stopScreenShare(
+    SocketService socket, String peerId, String callId, {bool renegotiate = true}
+  ) async {
+    final screen = _screenStream;
+    final sender = _screenSender;
+    _screenStream = null;
+    _screenSender = null;
+    _remoteScreenStreamId = null;
+    socket.updateCallScreenShare(peerId, callId, null);
+    if (sender != null && _peerConnection != null) {
+      try { await _peerConnection!.removeTrack(sender); } catch (_) {}
+    }
+    for (final track in screen?.getTracks() ?? <MediaStreamTrack>[]) {
+      track.onEnded = null;
+      await track.stop();
+    }
+    await screen?.dispose();
+    if (renegotiate && _peerConnection != null) {
+      final offer = await _peerConnection!.createOffer({
+        'offerToReceiveAudio': true,
+        'offerToReceiveVideo': true,
+      });
+      await _peerConnection!.setLocalDescription(offer);
+      socket.sendOffer(peerId, callId, {'sdp': offer.sdp, 'type': offer.type});
+    }
+    notifyListeners();
+  }
+
+  void setRemoteScreenShare(String? streamId) {
+    _remoteScreenStreamId = streamId;
+    onRemoteScreenShareChanged?.call(streamId);
+    if (streamId == null) remoteScreenRenderer.srcObject = null;
   }
 
   // ── Create and send offer (caller) ───────────────────────────────────────
@@ -346,6 +425,8 @@ class WebRTCService extends ChangeNotifier {
     await _peerConnection?.close();
     await localRenderer.dispose();
     await remoteRenderer.dispose();
+    await remoteScreenRenderer.dispose();
+    await _screenStream?.dispose();
     _localStream = null;
     _remoteStream = null;
     _peerConnection = null;
