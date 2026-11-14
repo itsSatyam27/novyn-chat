@@ -178,6 +178,7 @@ class ApiService {
     } else {
       await _secureStorage.write(key: _sessionCookieKey, value: _sessionCookie!);
     }
+    _sessionStorageInitialized = true;
   }
 
   // ── Clear session (on logout) ─────────────────────────────────────────────
@@ -187,7 +188,13 @@ class ApiService {
     try {
       await _secureStorage.delete(key: _sessionCookieKey);
       await _secureStorage.delete(key: _csrfTokenKey);
-    } catch (_) {}
+    } catch (error) {
+      debugPrint('[NovynSession] Could not fully clear secure cookies: $error');
+    } finally {
+      // The current process already knows this account was explicitly logged
+      // out; do not reload an old value from disk during the same process.
+      _sessionStorageInitialized = true;
+    }
   }
 
   // ── Health check / wake-up ping ───────────────────────────────────────────
