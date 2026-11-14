@@ -79,7 +79,7 @@ class _CallScreenState extends State<CallScreen>
   final double _pipWidth = 120;
   final double _pipHeight = 160;
 
-  bool get _isVideo => widget.callType == 'video';
+  bool _isVideo = false;
 
   @override
   void didChangeDependencies() {
@@ -101,6 +101,15 @@ class _CallScreenState extends State<CallScreen>
     );
 
     _webrtc = WebRTCService();
+    _isVideo = widget.callType == 'video';
+    _webrtc.onNetworkRecovered = () {
+      if (mounted) {
+        SystemSound.play(SystemSoundType.alert);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Call reconnected'), duration: Duration(seconds: 2)),
+        );
+      }
+    };
     CallPlatformService.setPipListener((inPip) {
       if (!mounted) return;
       setState(() => _isSystemPip = inPip);
@@ -329,11 +338,15 @@ class _CallScreenState extends State<CallScreen>
     // Incoming WebRTC offer → create peer connection as receiver
     socket.onWebRTCOffer = (data) async {
       if (!mounted) return;
-      await _applyVideoSpeakerDefault();
-      if (!mounted) return;
-      await _webrtc.createPeerConnection(socket, _peerId, false, callId: _callId);
+      if (!_webrtc.hasPeerConnection) {
+        await _webrtc.createPeerConnection(socket, _peerId, false, callId: _callId);
+      }
       await _webrtc.handleOffer(Map<String, dynamic>.from(data), socket, _peerId, _callId);
-      if (mounted) setState(() {});
+      if (mounted) {
+        setState(() {
+          if (data['sdp']?.toString().contains('m=video') == true) _isVideo = true;
+        });
+      }
     };
 
     // Incoming answer → set remote description
@@ -351,6 +364,38 @@ class _CallScreenState extends State<CallScreen>
       _stopRingtone();
       _handleCallEnded(logStatus: 'missed');
     });
+
+    socket.onCallMediaUpgradeRequestCallback = (data) async {
+      if (!mounted || data['callId']?.toString() != _callId || _isVideo) return;
+      final accept = await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Switch to video?'),
+          content: Text('${widget.peer.name} wants to upgrade this voice call to video.'),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Not now')),
+            FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Accept')),
+          ],
+        ),
+      );
+      if (!mounted) return;
+      socket.respondCallMediaUpgrade(_peerId, _callId, accepted: accept == true);
+    };
+
+    socket.onCallMediaUpgradeResponseCallback = (data) async {
+      if (!mounted || data['callId']?.toString() != _callId || data['accepted'] != true || _isVideo) return;
+      try {
+        await _webrtc.addVideoTrackAndRenegotiate(socket, _peerId, _callId);
+        if (mounted) setState(() => _isVideo = true);
+      } catch (error) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Could not start video: $error')),
+          );
+        }
+      }
+    };
 
     socket.onCallEnded((data) {
       _stopRingtone();
@@ -555,6 +600,14 @@ class _CallScreenState extends State<CallScreen>
     });
   }
 
+  void _requestVideoUpgrade() {
+    if (_isVideo || _state != CallState.connected) return;
+    context.read<SocketService>().requestCallMediaUpgrade(_peerId, _callId);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Video request sent')),
+    );
+  }
+
   void _endCall() {
     HapticService.vibrate(NovynHapticType.medium, category: HapticCategory.calls);
     _stopRingtone();
@@ -605,6 +658,9 @@ class _CallScreenState extends State<CallScreen>
     socket.onWebRTCOffer = null;
     socket.onWebRTCAnswer = null;
     socket.onWebRTCIceCandidate = null;
+    socket.onCallMediaUpgradeRequestCallback = null;
+    socket.onCallMediaUpgradeResponseCallback = null;
+    _webrtc.onNetworkRecovered = null;
     // Clear call event callbacks so stale handlers don't fire next call
     socket.onCallAcceptedCallback = null;
     socket.onCallRejectedCallback = null;
@@ -1127,13 +1183,11 @@ class _CallScreenState extends State<CallScreen>
                   },
                 )
               else
-                // Placeholder for "Add call" — coming later
                 _ToggleButton(
-                  icon: Icons.person_add_rounded,
-                  label: 'Add call',
+                  icon: Icons.videocam_rounded,
+                  label: 'Video',
                   active: false,
-                  onTap: () {},
-                  disabled: true,
+                  onTap: _requestVideoUpgrade,
                 ),
             ],
           ),
