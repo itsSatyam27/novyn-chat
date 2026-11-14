@@ -119,6 +119,43 @@ class SettingsService extends ChangeNotifier {
 
   late SharedPreferences _prefs;
   bool _loaded = false;
+  bool _secureStorageReadFailed = false;
+
+  Future<String?> _readSecureValue(String key) async {
+    try {
+      return await _secureStorage
+          .read(key: key)
+          .timeout(const Duration(seconds: 2));
+    } catch (error) {
+      _secureStorageReadFailed = true;
+      debugPrint('[NovynSettings] Secure storage read failed: $error');
+      return null;
+    }
+  }
+
+  Future<bool> _writeSecureValue(String key, String value) async {
+    try {
+      await _secureStorage
+          .write(key: key, value: value)
+          .timeout(const Duration(seconds: 2));
+      return true;
+    } catch (error) {
+      _secureStorageReadFailed = true;
+      debugPrint('[NovynSettings] Secure storage write failed: $error');
+      return false;
+    }
+  }
+
+  Future<void> _deleteSecureValue(String key) async {
+    try {
+      await _secureStorage
+          .delete(key: key)
+          .timeout(const Duration(seconds: 2));
+    } catch (error) {
+      _secureStorageReadFailed = true;
+      debugPrint('[NovynSettings] Secure storage delete failed: $error');
+    }
+  }
 
   // ── Settings state ──────────────────────────────────────────────────────
   bool _notificationsOn = true;
@@ -299,6 +336,7 @@ class SettingsService extends ChangeNotifier {
   bool get appLockEnabled => _appLockEnabled;
   int get appLockTimeout => _appLockTimeout;
   String? get appLockPin => _appLockPin;
+  bool get secureStorageAvailable => !_secureStorageReadFailed;
   bool get isLocked => _isLocked;
   int get appLockFailedAttempts => _appLockFailedAttempts;
   Duration get appLockRemaining {
@@ -378,38 +416,44 @@ class SettingsService extends ChangeNotifier {
     _appLockEnabled = _prefs.getBool(_kAppLockEnabled) ?? false;
     _appLockTimeout = _prefs.getInt(_kAppLockTimeout) ?? 0;
     // Migrate legacy PINs from plain preferences into encrypted storage.
-    _appLockPin = await _secureStorage.read(key: _secureAppLockPin);
+    // Keystore errors are recoverable startup conditions, not a reason to
+    // abort runApp or silently disable an enabled App Lock.
+    _secureStorageReadFailed = false;
+    _appLockPin = await _readSecureValue(_secureAppLockPin);
     final legacyAppPin = _prefs.getString(_kAppLockPin);
     if (_appLockPin == null && legacyAppPin != null) {
       _appLockPin = legacyAppPin;
-      await _secureStorage.write(key: _secureAppLockPin, value: legacyAppPin);
+      final migrated = await _writeSecureValue(_secureAppLockPin, legacyAppPin);
+      if (migrated) await _prefs.remove(_kAppLockPin);
     }
-    if (legacyAppPin != null) await _prefs.remove(_kAppLockPin);
-    _isLocked = _appLockEnabled && _appLockPin != null; // Initial state
+    _isLocked = _appLockEnabled &&
+        (_appLockPin != null || _secureStorageReadFailed);
     _appLockFailedAttempts = int.tryParse(
-          await _secureStorage.read(key: _secureAppLockFailures) ?? '0',
+          await _readSecureValue(_secureAppLockFailures) ?? '0',
         ) ?? 0;
-    final lockUntilRaw = await _secureStorage.read(key: _secureAppLockUntil);
+    final lockUntilRaw = await _readSecureValue(_secureAppLockUntil);
     final lockUntilMillis = int.tryParse(lockUntilRaw ?? '');
     _appLockLockedUntil = lockUntilMillis == null
         ? null
         : DateTime.fromMillisecondsSinceEpoch(lockUntilMillis);
     if (_appLockLockedUntil != null && !_appLockLockedUntil!.isAfter(DateTime.now())) {
       _appLockLockedUntil = null;
-      await _secureStorage.delete(key: _secureAppLockUntil);
+      await _deleteSecureValue(_secureAppLockUntil);
     }
-    if (_appLockEnabled && _appLockPin == null) {
+    if (_appLockEnabled && _appLockPin == null && !_secureStorageReadFailed) {
+      // Only disable App Lock when secure storage responded successfully and
+      // confirmed the PIN is genuinely absent.
       _appLockEnabled = false;
       await _prefs.setBool(_kAppLockEnabled, false);
     }
     _stealthModeEnabled = _prefs.getBool(_kStealthMode) ?? false;
-    _panicPin = await _secureStorage.read(key: _securePanicPin);
+    _panicPin = await _readSecureValue(_securePanicPin);
     final legacyPanicPin = _prefs.getString(_kPanicPin);
     if (_panicPin == null && legacyPanicPin != null) {
       _panicPin = legacyPanicPin;
-      await _secureStorage.write(key: _securePanicPin, value: legacyPanicPin);
+      final migrated = await _writeSecureValue(_securePanicPin, legacyPanicPin);
+      if (migrated) await _prefs.remove(_kPanicPin);
     }
-    if (legacyPanicPin != null) await _prefs.remove(_kPanicPin);
     _hideNotificationContent = _prefs.getBool(_kHideNotificationContent) ?? false;
     // Keep older installations safe when Stealth Mode was already enabled.
     if (_stealthModeEnabled && !_hideNotificationContent) {
