@@ -24,11 +24,18 @@ class WebRTCService extends ChangeNotifier {
   Timer? _iceRestartTimer;
   Timer? _qualityTimer;
   bool _qualitySampleInFlight = false;
+  int _poorQualitySamples = 0;
+  int _healthyQualitySamples = 0;
+  bool _autoAudioOnly = false;
+  RTCRtpSender? _videoSender;
+  MediaStreamTrack? _videoTrack;
   int _iceRestartAttempts = 0;
   SocketService? _activeSocket;
   String? _activePeerId;
   String? _activeCallId;
   VoidCallback? onNetworkRecovered;
+  ValueChanged<bool>? onAutomaticVideoFallback;
+  bool get isAutoAudioOnly => _autoAudioOnly;
   bool get hasPeerConnection => _peerConnection != null;
   final List<RTCIceCandidate> _pendingIceCandidates = <RTCIceCandidate>[];
   bool get isInitialized => _isInitialized;
@@ -127,10 +134,14 @@ class WebRTCService extends ChangeNotifier {
       config,
     );
 
-    // Add local tracks to connection
-    _localStream?.getTracks().forEach((track) {
-      _peerConnection!.addTrack(track, _localStream!);
-    });
+    // Add local tracks to connection and retain the video sender for adaptive fallback.
+    for (final track in _localStream?.getTracks() ?? <MediaStreamTrack>[]) {
+      final sender = await _peerConnection!.addTrack(track, _localStream!);
+      if (track.kind == 'video') {
+        _videoSender = sender;
+        _videoTrack = track;
+      }
+    }
 
     // Handle remote stream
     _peerConnection!.onTrack = (event) {
@@ -190,7 +201,7 @@ class WebRTCService extends ChangeNotifier {
     _qualityTimer?.cancel();
     _sampleNetworkQuality();
     _qualityTimer = Timer.periodic(
-      const Duration(seconds: 3),
+      const Duration(seconds: 5),
       (_) => _sampleNetworkQuality(),
     );
   }
@@ -207,62 +218,118 @@ class WebRTCService extends ChangeNotifier {
     try {
       final reports = await connection.getStats();
       Map<dynamic, dynamic>? selectedPair;
-      double? roundTripSeconds;
-      double? availableBitrate;
-      var packetsLost = 0.0;
-      var packetsReceived = 0.0;
-      var hasPacketStats = false;
-
+      double? remotePacketLoss;
       for (final report in reports) {
         final values = report.values;
         if (report.type == 'candidate-pair' && values['state'] == 'succeeded') {
           final selected = values['selected'] == true || values['nominated'] == true;
           if (selected || selectedPair == null) selectedPair = values;
-        } else if (report.type == 'inbound-rtp') {
+        }
+        if (report.type == 'remote-inbound-rtp' && values['kind'] == 'video') {
           final lost = _statsNumber(values['packetsLost']);
           final received = _statsNumber(values['packetsReceived']);
-          if (lost != null || received != null) {
-            packetsLost += (lost ?? 0).clamp(0.0, double.infinity).toDouble();
-            packetsReceived += (received ?? 0).clamp(0.0, double.infinity).toDouble();
-            hasPacketStats = true;
+          if (lost != null && received != null && lost + received > 0) {
+            remotePacketLoss = (lost / (lost + received)).clamp(0.0, 1.0);
           }
         }
       }
 
-      if (selectedPair != null) {
-        roundTripSeconds = _statsNumber(selectedPair['currentRoundTripTime']);
-        availableBitrate = _statsNumber(selectedPair['availableOutgoingBitrate']);
-      }
+      final rtt = _statsNumber(selectedPair?['currentRoundTripTime']);
+      final bitrate = _statsNumber(selectedPair?['availableOutgoingBitrate']);
+      final hasMeasurements = rtt != null || remotePacketLoss != null || bitrate != null;
+      final severe = (rtt != null && rtt >= 0.65) ||
+          (remotePacketLoss != null && remotePacketLoss >= 0.12) ||
+          (bitrate != null && bitrate < 120000);
+      final poor = (rtt != null && rtt >= 0.40) ||
+          (remotePacketLoss != null && remotePacketLoss >= 0.06) ||
+          (bitrate != null && bitrate < 300000);
+      final healthy = hasMeasurements &&
+          (rtt == null || rtt < 0.22) &&
+          (remotePacketLoss == null || remotePacketLoss < 0.025) &&
+          (bitrate == null || bitrate >= 700000);
 
-      final totalPackets = packetsLost + packetsReceived;
-      final packetLoss = hasPacketStats && totalPackets > 0
-          ? packetsLost / totalPackets
-          : null;
-      final poor = (roundTripSeconds != null && roundTripSeconds >= 0.40) ||
-          (packetLoss != null && packetLoss >= 0.05) ||
-          (availableBitrate != null && availableBitrate < 250000);
-      final fair = (roundTripSeconds != null && roundTripSeconds >= 0.18) ||
-          (packetLoss != null && packetLoss >= 0.02) ||
-          (availableBitrate != null && availableBitrate < 900000);
-      final hasMeasurements = roundTripSeconds != null ||
-          packetLoss != null ||
-          availableBitrate != null;
-
-      // Be conservative when stats are missing: connected without a measurable
-      // sample is "good"; excellent requires measured low-latency, low-loss media.
-      final nextQuality = poor
-          ? 'poor'
-          : fair || !hasMeasurements
-              ? 'good'
-              : 'excellent';
-      if (_networkQuality != nextQuality) {
-        _networkQuality = nextQuality;
-        notifyListeners();
+      if (severe) {
+        _poorQualitySamples++;
+        _healthyQualitySamples = 0;
+        _networkQuality = 'poor';
+        await _applyAdaptiveVideoConstraints('poor');
+        if (_poorQualitySamples >= 2) await _setAutomaticAudioOnly(true);
+      } else if (poor) {
+        _poorQualitySamples++;
+        _healthyQualitySamples = 0;
+        _networkQuality = 'poor';
+        await _applyAdaptiveVideoConstraints('poor');
+      } else if (healthy) {
+        _healthyQualitySamples++;
+        _poorQualitySamples = 0;
+        _networkQuality = 'excellent';
+        await _applyAdaptiveVideoConstraints('excellent');
+        if (_autoAudioOnly && _healthyQualitySamples >= 3) {
+          await _setAutomaticAudioOnly(false);
+        }
+      } else {
+        _poorQualitySamples = 0;
+        _healthyQualitySamples = 0;
+        _networkQuality = 'good';
+        await _applyAdaptiveVideoConstraints('good');
       }
+      notifyListeners();
     } catch (error) {
-      debugPrint('[NovynWebRTC] Could not sample call network quality: $error');
+      debugPrint('[NovynWebRTC] Adaptive quality sample failed: $error');
     } finally {
       _qualitySampleInFlight = false;
+    }
+  }
+
+  Future<void> _applyAdaptiveVideoConstraints(String quality) async {
+    final track = _videoTrack;
+    if (track == null || _autoAudioOnly) return;
+    final constraints = quality == 'excellent'
+        ? <String, dynamic>{
+            'width': {'ideal': 960, 'max': 960},
+            'height': {'ideal': 540, 'max': 540},
+            'frameRate': {'ideal': 24, 'max': 24},
+          }
+        : quality == 'poor'
+            ? <String, dynamic>{
+                'width': {'ideal': 320, 'max': 320},
+                'height': {'ideal': 240, 'max': 240},
+                'frameRate': {'ideal': 12, 'max': 12},
+              }
+            : <String, dynamic>{
+                'width': {'ideal': 640, 'max': 640},
+                'height': {'ideal': 360, 'max': 360},
+                'frameRate': {'ideal': 20, 'max': 20},
+              };
+    try {
+      await track.applyConstraints(constraints);
+    } catch (error) {
+      debugPrint('[NovynWebRTC] Could not apply $quality video constraints: $error');
+    }
+  }
+
+  Future<void> _setAutomaticAudioOnly(bool enabled) async {
+    if (_autoAudioOnly == enabled) return;
+    final sender = _videoSender;
+    final track = _videoTrack;
+    if (sender == null || track == null) return;
+    try {
+      await sender.replaceTrack(enabled ? null : track);
+      _autoAudioOnly = enabled;
+      if (enabled) {
+        _healthyQualitySamples = 0;
+        await track.applyConstraints({
+          'width': {'ideal': 160, 'max': 160},
+          'height': {'ideal': 120, 'max': 120},
+          'frameRate': {'ideal': 5, 'max': 5},
+        });
+      } else {
+        await _applyAdaptiveVideoConstraints('good');
+      }
+      onAutomaticVideoFallback?.call(enabled);
+      notifyListeners();
+    } catch (error) {
+      debugPrint('[NovynWebRTC] Automatic audio-only transition failed: $error');
     }
   }
 
@@ -311,7 +378,8 @@ class WebRTCService extends ChangeNotifier {
     final tracks = cameraStream.getVideoTracks();
     if (tracks.isEmpty) throw StateError('Camera did not provide a video track.');
     await stream.addTrack(tracks.first);
-    await connection.addTrack(tracks.first, stream);
+    _videoTrack = tracks.first;
+    _videoSender = await connection.addTrack(tracks.first, stream);
     localRenderer.srcObject = stream;
     notifyListeners();
   }
@@ -337,7 +405,8 @@ class WebRTCService extends ChangeNotifier {
       final tracks = cameraStream.getVideoTracks();
       if (tracks.isEmpty) throw StateError('Camera did not provide a video track.');
       await stream.addTrack(tracks.first);
-      await connection.addTrack(tracks.first, stream);
+      _videoTrack = tracks.first;
+      _videoSender = await connection.addTrack(tracks.first, stream);
       localRenderer.srcObject = stream;
     }
     final offer = await connection.createOffer({
@@ -541,6 +610,9 @@ class WebRTCService extends ChangeNotifier {
     _localStream = null;
     _remoteStream = null;
     _peerConnection = null;
+    _videoSender = null;
+    _videoTrack = null;
+    _autoAudioOnly = false;
     _iceRestartTimer?.cancel();
     _qualityTimer?.cancel();
     _pendingIceCandidates.clear();
