@@ -421,9 +421,9 @@ class HybridDbService {
     await LocalDbService.init();
   }
 
-  static Future<void> _queueDriftWrite(
+  static void _queueDriftWrite(
     Future<void> Function(FastDatabase db) write,
-  ) async {
+  ) {
     _driftWriteQueue = _driftWriteQueue.then((_) async {
       await _ensureInit();
       final db = _fastDb;
