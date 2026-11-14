@@ -14,7 +14,7 @@ import '../main_screen.dart';
 class SplashScreenV2 extends StatefulWidget {
   const SplashScreenV2({
     super.key,
-    this.minDuration = const Duration(milliseconds: 2200),
+    this.minDuration = const Duration(milliseconds: 900),
   });
 
   final Duration minDuration;
@@ -63,7 +63,7 @@ class _SplashScreenV2State extends State<SplashScreenV2>
 
   late final AnimationController _intro = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 1600),
+    duration: const Duration(milliseconds: 1000),
   );
 
   late final AnimationController _loop = AnimationController(
