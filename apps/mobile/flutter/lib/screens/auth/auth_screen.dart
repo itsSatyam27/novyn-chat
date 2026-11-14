@@ -968,7 +968,7 @@ class _RegisterTabState extends State<_RegisterTab> {
 
     if (error == null && auth.isTwoFactorPending) {
       final verified = await Navigator.of(context).push<bool>(
-        MaterialPageRoute<void>(
+        MaterialPageRoute<bool>(
           builder: (_) => const TwoFactorVerificationScreen(),
         ),
       );
@@ -1562,6 +1562,8 @@ class _GoogleLogo extends StatelessWidget {
 }
 
 class _GooglePainter extends CustomPainter {
+  const _GooglePainter();
+
   static const _red = Color(0xFFEA4335);
   static const _yellow = Color(0xFFFBBC05);
   static const _green = Color(0xFF34A853);
