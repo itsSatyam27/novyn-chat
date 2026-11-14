@@ -212,8 +212,7 @@ function registerCallHandlers(socket, deps) {
     }
   });
 
-  // A voice-call participant may request a video upgrade. Only an active
-  // participant in the exact call session can send or receive this request.
+  // Only participants in the same connected call may negotiate a voice-to-video upgrade.
   socket.on("call_media_upgrade_request", (payload) => {
     const userKey = socket.data.userKey;
     if (!userKey) return;
@@ -224,11 +223,9 @@ function registerCallHandlers(socket, deps) {
     const active = activeCalls.get(userKey);
     if (!active || active.peerKey !== peerKey || active.callId !== callId || active.status !== "connected") return;
     const peerSocketId = onlineUsers.get(peerKey);
-    if (peerSocketId) {
-      io.to(peerSocketId).emit("call_media_upgrade_request", {
-        from: users.get(userKey)?.username || userKey, callId,
-      });
-    }
+    if (peerSocketId) io.to(peerSocketId).emit("call_media_upgrade_request", {
+      from: users.get(userKey)?.username || userKey, callId,
+    });
   });
 
   socket.on("call_media_upgrade_response", (payload) => {
@@ -241,12 +238,10 @@ function registerCallHandlers(socket, deps) {
     const active = activeCalls.get(userKey);
     if (!active || active.peerKey !== peerKey || active.callId !== callId || active.status !== "connected") return;
     const peerSocketId = onlineUsers.get(peerKey);
-    if (peerSocketId) {
-      io.to(peerSocketId).emit("call_media_upgrade_response", {
-        from: users.get(userKey)?.username || userKey,
-        callId, accepted: payload?.accepted === true,
-      });
-    }
+    if (peerSocketId) io.to(peerSocketId).emit("call_media_upgrade_response", {
+      from: users.get(userKey)?.username || userKey,
+      callId, accepted: payload?.accepted === true,
+    });
   });
 
   socket.on("webrtc_signal", (payload) => {
