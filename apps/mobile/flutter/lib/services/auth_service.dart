@@ -250,11 +250,11 @@ class AuthService extends ChangeNotifier {
   }
 
   // ── Restore session from novyn-chat JWT cookie on app start ───────────────
-  // The old restore loop could run forever on a Render cold start or a
-  // transient Keystore/network failure, leaving SplashScreen waiting forever.
-  // A bounded restore now falls back to the last locally cached identity only
-  // when a saved session cookie exists; it never resurrects a manually logged
-  // out account.
+  // A transient Keystore or backend failure must never be interpreted as a
+  // logout. The app keeps a non-secret local identity mirror for recovery,
+  // while the actual session cookie remains exclusively in secure storage.
+  // A confirmed missing cookie or repeated explicit refresh-token rejection
+  // still clears the cached identity and routes to sign-in.
   Future<void> _activateCachedIdentity(
     NovynUser? cachedIdentity, {
     required String reason,
