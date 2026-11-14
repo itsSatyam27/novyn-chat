@@ -37,7 +37,7 @@ jobs:
         run: flutter analyze --no-pub --no-fatal-infos --no-fatal-warnings
       - name: Run dock widget tests
         working-directory: apps/mobile/flutter
-        run: flutter test --no-pub test/novyn_dock_test.dart
+        run: flutter test --no-pub test/novyn_dock_test.dart test/quick_toggle_preferences_test.dart
 
   android-release-compile:
     name: Android release APK compile
