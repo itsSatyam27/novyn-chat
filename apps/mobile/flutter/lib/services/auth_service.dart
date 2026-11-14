@@ -334,15 +334,24 @@ class AuthService extends ChangeNotifier {
       }
 
       final cookieBeforeRestore = ApiService.sessionCookie;
-      var session = await ApiService.getSession();
+      var session = await ApiService.getSession().timeout(
+        const Duration(seconds: 8),
+        onTimeout: () => null,
+      );
       final status = session?['_httpStatus'];
       if (session == null || session['authenticated'] != true) {
         // Do not rotate tokens on ordinary network failures. Only attempt a
         // refresh after the server explicitly rejects the access cookie.
         if (status == 401 || status == 403) {
-          final refreshStatus = await ApiService.refreshSessionStatus();
+          final refreshStatus = await ApiService.refreshSessionStatus().timeout(
+            const Duration(seconds: 8),
+            onTimeout: () => null,
+          );
           if (refreshStatus == 200) {
-            session = await ApiService.getSession();
+            session = await ApiService.getSession().timeout(
+              const Duration(seconds: 8),
+              onTimeout: () => null,
+            );
           }
         }
       }
