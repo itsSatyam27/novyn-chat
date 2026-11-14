@@ -162,10 +162,19 @@ test('localhost discovery, requests, reconnect state, and private media', { time
   const ivBytes = webcrypto.getRandomValues(new Uint8Array(12));
   const ciphertext = Buffer.from(await webcrypto.subtle.encrypt({ name: 'AES-GCM', iv: ivBytes }, previewKey, Buffer.from(plaintext))).toString('base64');
   const iv = Buffer.from(ivBytes).toString('base64');
+  const senderIdentity = await webcrypto.subtle.generateKey(
+    { name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveKey']
+  );
+  const senderPublicKey = JSON.stringify(
+    await webcrypto.subtle.exportKey('jwk', senderIdentity.publicKey)
+  );
   const isEncryptedSummary = ({ friends }) => friends.some((friend) => friend.lastMessageData?.ciphertext === ciphertext);
   const senderSummary = event(alice.socket, 'friend_list_updated', isEncryptedSummary);
   const receiverSummary = event(bob.socket, 'friend_list_updated', isEncryptedSummary);
-  const encryptedPayload = { to: 'bob', text: plaintext, isEncrypted: true, ciphertext, iv, clientTempId: 'retry-test-1' };
+  const encryptedPayload = {
+    to: 'bob', text: plaintext, isEncrypted: true, ciphertext, iv,
+    senderPublicKey, clientTempId: 'retry-test-1'
+  };
   const sentAck = await alice.socket.timeout(3000).emitWithAck('private_message', encryptedPayload);
   assert.equal(sentAck.ok, true, 'sender receives an explicit successful delivery acknowledgement');
   const retryAck = await alice.socket.timeout(3000).emitWithAck('private_message', encryptedPayload);
@@ -178,6 +187,7 @@ test('localhost discovery, requests, reconnect state, and private media', { time
     assert.equal(friend.lastMessageData.isEncrypted, true);
     assert.ok(friend.lastMessageData.id);
     assert.equal(friend.lastMessageData.iv, iv);
+    assert.equal(friend.lastMessageData.senderPublicKey, senderPublicKey);
     assert.ok(!JSON.stringify(friend).includes(plaintext));
     const decoded = await webcrypto.subtle.decrypt({ name: 'AES-GCM', iv: Buffer.from(friend.lastMessageData.iv, 'base64') }, previewKey, Buffer.from(friend.lastMessageData.ciphertext, 'base64'));
     assert.equal(Buffer.from(decoded).toString(), plaintext);

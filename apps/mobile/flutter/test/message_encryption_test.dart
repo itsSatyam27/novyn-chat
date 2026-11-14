@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'dart:io';
-import 'package:cryptography/cryptography.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive/hive.dart';
 import 'package:novyn/models/chat_models.dart';
@@ -93,20 +92,41 @@ void main() {
         (await restarted.decrypt(encrypted(tampered), 'interop-alice'))
             .needsMessageKey,
         isTrue);
-    final outgoing = await restarted.encrypt('Android → web test',
-        'interop-alice', 'interop-bob', fixture['peerPublicKey']);
+    final aliceStorage = <String, String>{};
+    final bobStorage = <String, String>{};
+    final alice = MessageEncryptionService(
+      read: (key) async => aliceStorage[key],
+      write: (key, value) async { aliceStorage[key] = value; },
+    );
+    final bob = MessageEncryptionService(
+      read: (key) async => bobStorage[key],
+      write: (key, value) async { bobStorage[key] = value; },
+    );
+    final alicePublicKey = await alice.initializeIdentity('alice');
+    final bobPublicKey = await bob.initializeIdentity('bob');
+    final outgoing = await alice.encrypt(
+      'Android → web test', 'alice', 'bob', bobPublicKey,
+    );
     expect(outgoing, isNotNull);
-    final ciphertext = base64Decode(outgoing!['ciphertext']);
-    final plaintext = await AesGcm.with256bits().decrypt(
-        SecretBox(ciphertext.sublist(0, ciphertext.length - 16),
-            nonce: base64Decode(outgoing['iv']),
-            mac: Mac(ciphertext.sublist(ciphertext.length - 16))),
-        secretKey: SecretKey(base64Decode(fixture['sharedKey'])));
-    expect(utf8.decode(plaintext), 'Android → web test');
+    expect(outgoing!['isEncrypted'], isTrue);
+    expect(outgoing['senderPublicKey'], alicePublicKey);
+    expect(jsonDecode(outgoing['senderPublicKey'] as String)['crv'], 'P-256');
+    final incoming = Message(
+      id: 'round-trip',
+      text: '🔒 Encrypted message',
+      isFromMe: false,
+      isEncrypted: true,
+      ciphertext: outgoing['ciphertext'] as String,
+      iv: outgoing['iv'] as String,
+      senderPublicKey: alicePublicKey,
+    );
+    final roundTrip = await bob.decrypt(incoming, 'bob', alicePublicKey);
+    expect(roundTrip.text, 'Android → web test');
+    expect(roundTrip.needsMessageKey, isFalse);
     expect(
-        await restarted.encrypt(
-            'message', 'interop-alice', 'interop-bob', '{}'),
-        isNull);
+      await alice.encrypt('message', 'alice', 'bob', '{}'),
+      isNull,
+    );
     expect(
         (await restarted.decrypt(
                 Message(id: 'plain', text: 'hii', isFromMe: true),

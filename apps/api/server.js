@@ -2630,6 +2630,7 @@ function toSerializedMessageEntry(doc) {
     game: doc?.game || undefined,
     ciphertext: toDisplayName(doc?.ciphertext) || undefined,
     iv: toDisplayName(doc?.iv) || undefined,
+    senderPublicKey: normalizePushPublicKey(doc?.senderPublicKey) || undefined,
     isEncrypted: Boolean(doc?.isEncrypted),
     seenBy: Array.isArray(doc?.seenBy) ? doc.seenBy : undefined,
     riddle: doc?.riddle || undefined,
@@ -3201,6 +3202,7 @@ function createStoredMessage(params = {}) {
   if (params.ciphertext) message.ciphertext = toDisplayName(params.ciphertext);
   if (params.iv) message.iv = toDisplayName(params.iv);
   if (params.isEncrypted) message.isEncrypted = Boolean(params.isEncrypted);
+  if (params.senderPublicKey) message.senderPublicKey = normalizePushPublicKey(params.senderPublicKey);
   const temp = toDisplayName(params.clientTempId).slice(0, 64);
   if (temp) message.clientTempId = temp;
   return message;
@@ -3279,6 +3281,7 @@ function deliverFriendMessage(params = {}) {
     ciphertext: params.ciphertext,
     iv: params.iv,
     isEncrypted: params.isEncrypted,
+    senderPublicKey: params.senderPublicKey,
     clientTempId,
   });
 
@@ -3761,6 +3764,7 @@ function getConversationSummaryByKey(conversationKey) {
       isEncrypted: Boolean(message.isEncrypted && !message.deletedAt),
       ciphertext: !message.deletedAt ? message.ciphertext : undefined,
       iv: !message.deletedAt ? message.iv : undefined,
+      senderPublicKey: !message.deletedAt ? message.senderPublicKey : undefined,
       attachment: !message.deletedAt ? message.attachment : undefined,
       isVoice: !message.deletedAt && Boolean(message.isVoice || message.attachment?.kind === 'audio'),
     },
@@ -7675,7 +7679,8 @@ io.on("connection", (socket) => {
     const isEncrypted = Boolean(payload?.isEncrypted);
     const ciphertext = toDisplayName(payload?.ciphertext);
     const iv = toDisplayName(payload?.iv);
-    if (isEncrypted && (!ciphertext || !iv)) {
+    const senderPublicKey = normalizePushPublicKey(payload?.senderPublicKey);
+    if (isEncrypted && (!ciphertext || !iv || !senderPublicKey)) {
       rejectMessage("Invalid encrypted message payload.");
       return;
     }
@@ -7747,6 +7752,7 @@ io.on("connection", (socket) => {
       ciphertext,
       iv,
       isEncrypted,
+      senderPublicKey,
       clientTempId: safeClientTempId,
     });
     if (!result.ok) {
