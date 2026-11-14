@@ -137,8 +137,6 @@ class _CallScreenState extends State<CallScreen>
       setState(() => _isSystemPip = inPip);
       _refreshMiniOverlay();
     });
-    CallPlatformService.setPipActionListener(_handlePipAction);
-    unawaited(CallPlatformService.updatePipActions(muted: _muted));
     unawaited(CallPlatformService.setCallActive(true));
     _callId = widget.callId ?? '';
     _webrtcInit = _initWebRTC();
@@ -172,18 +170,6 @@ class _CallScreenState extends State<CallScreen>
         });
       }
     });
-  }
-
-  void _handlePipAction(String action) {
-    if (!mounted || _state == CallState.ended) return;
-    switch (action) {
-      case 'toggle_mute':
-        _toggleMute();
-        break;
-      case 'end_call':
-        _endCall();
-        break;
-    }
   }
 
   Future<void> _applyVideoSpeakerDefault() async {
@@ -340,7 +326,6 @@ class _CallScreenState extends State<CallScreen>
     final newVal = !_muted;
     _webrtc.toggleMute(newVal);
     setState(() => _muted = newVal);
-    unawaited(CallPlatformService.updatePipActions(muted: newVal));
     _refreshMiniOverlay();
   }
 
@@ -830,7 +815,6 @@ class _CallScreenState extends State<CallScreen>
   void dispose() {
     _removeMiniOverlay();
     CallPlatformService.setPipListener(null);
-    CallPlatformService.setPipActionListener(null);
     unawaited(CallPlatformService.setCallActive(false));
     _timer?.cancel();
     _callTimeoutTimer?.cancel();
