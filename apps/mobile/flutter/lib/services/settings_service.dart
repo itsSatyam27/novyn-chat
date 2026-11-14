@@ -94,6 +94,24 @@ class SettingsService extends ChangeNotifier {
   static const _kBusyPreviousPresence = 'busy_previous_presence_mode';
   static const _kDoNotDisturb = 'do_not_disturb_enabled';
 
+  // Settings-screen shortcuts are account-scoped and never change the setting
+  // values themselves. Keep the catalog limited to actions with real setters.
+  static const int maxQuickToggles = 4;
+  static const List<String> defaultQuickToggleIds = [
+    'app_lock',
+    'do_not_disturb',
+    'read_receipts',
+    'in_app_sounds',
+  ];
+  static const Set<String> supportedQuickToggleIds = {
+    'app_lock',
+    'do_not_disturb',
+    'read_receipts',
+    'in_app_sounds',
+    'in_app_vibration',
+    'group_notifications',
+  };
+
   late SharedPreferences _prefs;
   bool _loaded = false;
 
@@ -158,6 +176,63 @@ class SettingsService extends ChangeNotifier {
   bool _reduceMotion = false;
   String? _busyPreviousPresenceMode;
   bool _doNotDisturbEnabled = false;
+
+  static String _quickToggleStorageKey(String accountKey) {
+    final normalized = accountKey.trim().toLowerCase().replaceAll(
+      RegExp(r'[^a-z0-9_-]'),
+      '_',
+    );
+    final safeAccountKey = normalized.isEmpty ? 'guest' : normalized;
+    return 'quick_toggles_v1_$safeAccountKey';
+  }
+
+  /// Removes unsupported/duplicate shortcut IDs and enforces the visible cap.
+  static List<String> sanitizeQuickToggleIds(Iterable<String> ids) {
+    final result = <String>[];
+    for (final id in ids) {
+      if (!supportedQuickToggleIds.contains(id) || result.contains(id)) continue;
+      result.add(id);
+      if (result.length == maxQuickToggles) break;
+    }
+    return List<String>.unmodifiable(result);
+  }
+
+  /// Returns the saved shortcut order for one account, or the recommended
+  /// defaults when that account has not customized the Settings screen yet.
+  List<String> quickToggleIdsFor(String accountKey) {
+    if (!_loaded) {
+      return List<String>.unmodifiable(defaultQuickToggleIds);
+    }
+    final saved = _prefs.getStringList(_quickToggleStorageKey(accountKey));
+    if (saved == null) {
+      return List<String>.unmodifiable(defaultQuickToggleIds);
+    }
+    return sanitizeQuickToggleIds(saved);
+  }
+
+  /// Saves only shortcut visibility/order; it does not toggle any setting.
+  /// One shortcut must remain available so the Settings screen stays editable.
+  Future<void> setQuickToggleIdsFor(
+    String accountKey,
+    Iterable<String> ids,
+  ) async {
+    if (!_loaded) {
+      throw StateError('Settings must be loaded before saving quick toggles.');
+    }
+    final cleaned = <String>[];
+    for (final id in ids) {
+      if (!supportedQuickToggleIds.contains(id) || cleaned.contains(id)) continue;
+      cleaned.add(id);
+    }
+    if (cleaned.isEmpty) {
+      throw ArgumentError('At least one quick toggle must remain visible.');
+    }
+    if (cleaned.length > maxQuickToggles) {
+      throw ArgumentError('A maximum of $maxQuickToggles quick toggles is allowed.');
+    }
+    await _prefs.setStringList(_quickToggleStorageKey(accountKey), cleaned);
+    notifyListeners();
+  }
 
   // ── Getters ─────────────────────────────────────────────────────────────
   bool get notificationsOn => _notificationsOn;
