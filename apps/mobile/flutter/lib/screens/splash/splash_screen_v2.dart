@@ -345,7 +345,7 @@ class _SplashScreenV2State extends State<SplashScreenV2>
     final lift = -9 * bob * bobGate;
     final ringGate = const Interval(.5, .7).transform(introValue);
     final sheenX = -60 +
-        240 * Interval(.55, 1, curve: Curves.easeInOut).transform(introValue);
+        240 * const Interval(.55, 1, curve: Curves.easeInOut).transform(introValue);
 
     Widget ring(double offset) {
       final phase = (_loop.value * 2 + offset) % 1.0;
@@ -468,7 +468,7 @@ class _SplashScreenV2State extends State<SplashScreenV2>
           children: [
             Semantics(
               label: 'Loading',
-              value: (progress * 100).round().toString() + '%',
+              value: '${(progress * 100).round()}%',
               child: Container(
                 width: 176,
                 height: 6,
