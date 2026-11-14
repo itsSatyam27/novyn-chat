@@ -59,7 +59,6 @@ class ProfileScreen extends StatelessWidget {
                 NovynHeader(
                   title: 'Settings',
                   titleSize: 28,
-                  subtitle: 'Make Novyn feel like yours',
                   actions: [
                     NovynIconButton(
                       icon: Icons.search_rounded,
