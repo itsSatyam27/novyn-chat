@@ -338,9 +338,8 @@ class _CallScreenState extends State<CallScreen>
     // Incoming WebRTC offer → create peer connection as receiver
     socket.onWebRTCOffer = (data) async {
       if (!mounted) return;
-      await _applyVideoSpeakerDefault();
-      if (!mounted) return;
       if (_isVideo) await _applyVideoSpeakerDefault();
+      if (!mounted) return;
       if (!_webrtc.hasPeerConnection) {
         await _webrtc.createPeerConnection(socket, _peerId, false, callId: _callId);
       }
