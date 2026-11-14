@@ -26,6 +26,7 @@ import 'settings/accessibility_screen.dart';
 import 'settings/sound_vibration_screen.dart';
 import 'settings/appearance_screen.dart';
 import 'settings/quick_toggle_customization_screen.dart';
+import 'settings/quick_toggle_layout.dart';
 import 'settings/chat_settings_screen.dart';
 import 'settings/support_screens.dart';
 import 'package:novyn/services/haptic_service.dart';
@@ -103,22 +104,7 @@ class ProfileScreen extends StatelessWidget {
                     ),
                   ],
                 ),
-                GridView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: quickToggleIds.length,
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    crossAxisSpacing: 12,
-                    mainAxisSpacing: 10,
-                    childAspectRatio: 2.45,
-                  ),
-                  itemBuilder: (context, index) => _buildQuickToggle(
-                    context,
-                    settings,
-                    quickToggleIds[index],
-                  ),
-                ),
+                _buildQuickToggleLayout(context, settings, quickToggleIds),
                 NovynSectionLabel('ACCOUNT', padding: const EdgeInsets.fromLTRB(4, 18, 4, 8)),
                 _NovynSettingsGroup(children: [
                   _NovynSettingsTile(
@@ -225,14 +211,74 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
+  Widget _buildQuickToggleLayout(
+    BuildContext context,
+    SettingsService settings,
+    List<String> ids,
+  ) {
+    switch (quickToggleLayoutModeFor(ids.length)) {
+      case QuickToggleLayoutMode.empty:
+        return const SizedBox.shrink();
+      case QuickToggleLayoutMode.single:
+        return _buildQuickToggle(context, settings, ids.first, expanded: true);
+      case QuickToggleLayoutMode.split:
+        return _buildQuickTogglePair(context, settings, ids);
+      case QuickToggleLayoutMode.twoPlusOne:
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _buildQuickTogglePair(context, settings, ids.take(2).toList()),
+            const SizedBox(height: 10),
+            _buildQuickToggle(context, settings, ids[2], expanded: true),
+          ],
+        );
+      case QuickToggleLayoutMode.grid:
+        return GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: ids.length,
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2,
+            crossAxisSpacing: 12,
+            mainAxisSpacing: 10,
+            childAspectRatio: 2.45,
+          ),
+          itemBuilder: (context, index) =>
+              _buildQuickToggle(context, settings, ids[index]),
+        );
+    }
+  }
+
+  Widget _buildQuickTogglePair(
+    BuildContext context,
+    SettingsService settings,
+    List<String> ids,
+  ) {
+    return Row(
+      children: [
+        for (var index = 0; index < ids.length; index++) ...[
+          if (index > 0) const SizedBox(width: 12),
+          Expanded(
+            child: SizedBox(
+              height: 66,
+              child: _buildQuickToggle(context, settings, ids[index]),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
   Widget _buildQuickToggle(
     BuildContext context,
     SettingsService settings,
-    String id,
-  ) {
+    String id, {
+    bool expanded = false,
+  }) {
     switch (id) {
       case 'app_lock':
         return _SettingsQuickToggle(
+          expanded: expanded,
           title: 'App Lock',
           activeIcon: Icons.lock_rounded,
           inactiveIcon: Icons.lock_open_rounded,
@@ -242,6 +288,7 @@ class ProfileScreen extends StatelessWidget {
         );
       case 'do_not_disturb':
         return _SettingsQuickToggle(
+          expanded: expanded,
           title: 'Do Not Disturb',
           activeIcon: Icons.do_not_disturb_on_rounded,
           inactiveIcon: Icons.notifications_active_rounded,
@@ -251,6 +298,7 @@ class ProfileScreen extends StatelessWidget {
         );
       case 'read_receipts':
         return _SettingsQuickToggle(
+          expanded: expanded,
           title: 'Read Receipts',
           activeIcon: Icons.done_all_rounded,
           inactiveIcon: Icons.done_rounded,
@@ -260,6 +308,7 @@ class ProfileScreen extends StatelessWidget {
         );
       case 'in_app_sounds':
         return _SettingsQuickToggle(
+          expanded: expanded,
           title: 'In-App Sounds',
           activeIcon: Icons.volume_up_rounded,
           inactiveIcon: Icons.volume_off_rounded,
@@ -269,6 +318,7 @@ class ProfileScreen extends StatelessWidget {
         );
       case 'in_app_vibration':
         return _SettingsQuickToggle(
+          expanded: expanded,
           title: 'In-App Vibration',
           activeIcon: Icons.vibration_rounded,
           inactiveIcon: Icons.mobile_off_rounded,
@@ -278,6 +328,7 @@ class ProfileScreen extends StatelessWidget {
         );
       case 'group_notifications':
         return _SettingsQuickToggle(
+          expanded: expanded,
           title: 'Group Alerts',
           activeIcon: Icons.groups_rounded,
           inactiveIcon: Icons.notifications_off_rounded,
@@ -2205,6 +2256,7 @@ class _SettingsQuickToggle extends StatelessWidget {
     required this.value,
     required this.accent,
     required this.onChanged,
+    this.expanded = false,
   });
 
   final String title;
@@ -2213,11 +2265,47 @@ class _SettingsQuickToggle extends StatelessWidget {
   final bool value;
   final Color accent;
   final ValueChanged<bool> onChanged;
+  final bool expanded;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final dark = Theme.of(context).brightness == Brightness.dark;
+
+    final icon = AnimatedContainer(
+      duration: const Duration(milliseconds: 180),
+      width: expanded ? 38 : 34,
+      height: expanded ? 38 : 34,
+      decoration: BoxDecoration(
+        color: accent.withValues(alpha: value ? (dark ? .24 : .14) : .08),
+        borderRadius: BorderRadius.circular(expanded ? 12 : 11),
+      ),
+      child: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 170),
+        transitionBuilder: (child, animation) => ScaleTransition(
+          scale: animation,
+          child: FadeTransition(opacity: animation, child: child),
+        ),
+        child: Icon(
+          value ? activeIcon : inactiveIcon,
+          key: ValueKey(value),
+          size: expanded ? 20 : 18,
+          color: value ? accent : scheme.onSurfaceVariant,
+        ),
+      ),
+    );
+
+    final toggle = Transform.scale(
+      scale: expanded ? .84 : .76,
+      alignment: Alignment.center,
+      child: Switch.adaptive(
+        value: value,
+        onChanged: onChanged,
+        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        thumbColor: const WidgetStatePropertyAll(Colors.white),
+        activeTrackColor: accent,
+      ),
+    );
 
     return Material(
       color: NovynTheme.cardBg(context),
@@ -2226,8 +2314,11 @@ class _SettingsQuickToggle extends StatelessWidget {
         borderRadius: BorderRadius.circular(18),
         onTap: () => onChanged(!value),
         child: Container(
-          constraints: const BoxConstraints(minHeight: 54),
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+          constraints: BoxConstraints(minHeight: expanded ? 66 : 58),
+          padding: EdgeInsets.symmetric(
+            horizontal: expanded ? 14 : 10,
+            vertical: expanded ? 9 : 7,
+          ),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(18),
             border: Border.all(
@@ -2238,45 +2329,34 @@ class _SettingsQuickToggle extends StatelessWidget {
           ),
           child: Semantics(
             label: title,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 180),
-                  width: 34,
-                  height: 34,
-                  decoration: BoxDecoration(
-                    color: accent.withValues(alpha: value ? (dark ? .24 : .14) : .08),
-                    borderRadius: BorderRadius.circular(11),
+            button: true,
+            toggled: value,
+            child: expanded
+                ? Row(
+                    children: [
+                      icon,
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                                fontWeight: FontWeight.w800,
+                              ),
+                        ),
+                      ),
+                      toggle,
+                    ],
+                  )
+                : Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      icon,
+                      const SizedBox(width: 18),
+                      toggle,
+                    ],
                   ),
-                  child: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 170),
-                    transitionBuilder: (child, animation) => ScaleTransition(
-                      scale: animation,
-                      child: FadeTransition(opacity: animation, child: child),
-                    ),
-                    child: Icon(
-                      value ? activeIcon : inactiveIcon,
-                      key: ValueKey(value),
-                      size: 18,
-                      color: value ? accent : scheme.onSurfaceVariant,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 18),
-                Transform.scale(
-                  scale: .76,
-                  alignment: Alignment.center,
-                  child: Switch.adaptive(
-                    value: value,
-                    onChanged: onChanged,
-                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    thumbColor: const WidgetStatePropertyAll(Colors.white),
-                    activeTrackColor: accent,
-                  ),
-                ),
-              ],
-            ),
           ),
         ),
       ),
