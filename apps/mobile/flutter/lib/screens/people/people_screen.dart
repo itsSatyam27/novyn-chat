@@ -12,6 +12,7 @@ import '../../widgets/novyn_ui.dart';
 import '../../theme/novyn_theme.dart';
 import '../chats/chat_detail_screen.dart';
 import 'discover_people_screen.dart';
+import 'received_friend_requests_screen.dart';
 import 'package:novyn/services/haptic_service.dart';
 
 class PeopleScreen extends StatefulWidget {
@@ -154,160 +155,11 @@ class _PeopleScreenState extends State<PeopleScreen> {
     }
   }
 
-  Future<void> _showFriendRequests(
-    String myUid,
-    FriendService service,
-  ) async {
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Theme.of(context).colorScheme.surface,
-      showDragHandle: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-      ),
-      builder: (sheetContext) => SafeArea(
-        child: SizedBox(
-          height: MediaQuery.of(sheetContext).size.height * .72,
-          child: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 4, 20, 14),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        'Friend requests',
-                        style: Theme.of(sheetContext)
-                            .textTheme
-                            .titleLarge
-                            ?.copyWith(fontWeight: FontWeight.w700),
-                      ),
-                    ),
-                    IconButton(
-                      tooltip: 'Close',
-                      onPressed: () => Navigator.pop(sheetContext),
-                      icon: const Icon(Icons.close_rounded),
-                    ),
-                  ],
-                ),
-              ),
-              Expanded(
-                child: StreamBuilder<List<FriendRequest>>(
-                  stream: service.pendingRequestsStream(myUid),
-                  builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.waiting &&
-                        !snapshot.hasData) {
-                      return const Center(child: CircularProgressIndicator());
-                    }
-                    if (snapshot.hasError) {
-                      return const NovynEmptyState(
-                        icon: Icons.error_outline_rounded,
-                        title: 'Could not load requests',
-                        description: 'Check your connection and try again.',
-                      );
-                    }
-                    final requests = snapshot.data ?? <FriendRequest>[];
-                    if (requests.isEmpty) {
-                      return const NovynEmptyState(
-                        icon: Icons.mark_email_read_outlined,
-                        title: 'No friend requests',
-                        description: 'New requests will appear here.',
-                      );
-                    }
-                    return ListView.separated(
-                      padding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
-                      itemCount: requests.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 8),
-                      itemBuilder: (context, index) {
-                        final request = requests[index];
-                        final user = request.fromUser;
-                        if (user == null) return const SizedBox.shrink();
-                        return Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 10,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Theme.of(context).brightness == Brightness.dark
-                                ? Theme.of(context).colorScheme.surfaceContainerHighest
-                                : const Color(0xFFF7F4FC),
-                            borderRadius: BorderRadius.circular(18),
-                          ),
-                          child: Row(
-                            children: [
-                              UserAvatar(
-                                name: user.name,
-                                photoUrl: user.photoUrl,
-                                radius: 24,
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      user.name,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                    Text(
-                                      '@${user.username}',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: Theme.of(context)
-                                            .colorScheme
-                                            .onSurfaceVariant,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              IconButton(
-                                tooltip: 'Decline request',
-                                onPressed: () async {
-                                  try {
-                                    await service.declineRequest(request.id);
-                                  } catch (_) {
-                                    _showMessage('Could not decline request.');
-                                  }
-                                },
-                                icon: const Icon(Icons.close_rounded),
-                                color: Theme.of(context).colorScheme.error,
-                              ),
-                              IconButton(
-                                tooltip: 'Accept request',
-                                onPressed: () async {
-                                  try {
-                                    await service.acceptRequest(
-                                      request.id,
-                                      myUid,
-                                      request.fromUid,
-                                    );
-                                    _showMessage(
-                                      'You are now friends with @${user.username}.',
-                                    );
-                                  } catch (_) {
-                                    _showMessage('Could not accept request.');
-                                  }
-                                },
-                                icon: const Icon(Icons.check_rounded),
-                                color: const Color(0xFF159C68),
-                              ),
-                            ],
-                          ),
-                        );
-                      },
-                    );
-                  },
-                ),
-              ),
-            ],
-          ),
-        ),
+  void _showFriendRequests(String myUid) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ReceivedFriendRequestsScreen(myUid: myUid),
       ),
     );
   }
@@ -401,7 +253,7 @@ class _PeopleScreenState extends State<PeopleScreen> {
                     ),
                     onSelected: (value) {
                       if (value == 'requests') {
-                        _showFriendRequests(myUid, friends);
+                        _showFriendRequests(myUid);
                       } else if (value == 'invite') {
                         _shareInvite(myUid);
                       } else if (value == 'discover') {
@@ -523,7 +375,7 @@ class _PeopleScreenState extends State<PeopleScreen> {
                   color: theme.colorScheme.onSurface,
                 ),
                 decoration: InputDecoration(
-                  hintText: 'Contacts me dhundo',
+                  hintText: 'Search contacts',
                   hintStyle: TextStyle(
                     fontFamily: 'PlusJakartaSans',
                     fontSize: 14,
@@ -554,7 +406,7 @@ class _PeopleScreenState extends State<PeopleScreen> {
     ];
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
+      padding: const EdgeInsets.fromLTRB(8, 4, 16, 10),
       child: Row(
         children: [
           for (final item in labels)
@@ -571,7 +423,7 @@ class _PeopleScreenState extends State<PeopleScreen> {
                   duration: const Duration(milliseconds: 180),
                   curve: Curves.easeOutCubic,
                   height: 38,
-                  padding: const EdgeInsets.symmetric(horizontal: 17),
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
                     color: _filter == item.$1
@@ -760,9 +612,9 @@ class _PeopleScreenState extends State<PeopleScreen> {
                   return _ContactActionTile(
                     icon: Icons.person_add_alt_1_rounded,
                     title: 'Friend requests',
-                    subtitle: 'Naye logon ne connect kiya',
+                    subtitle: 'Review and respond to incoming requests.',
                     badge: count,
-                    onTap: () => _showFriendRequests(myUid, service),
+                    onTap: () => _showFriendRequests(myUid),
                   );
                 },
               ),
@@ -777,7 +629,7 @@ class _PeopleScreenState extends State<PeopleScreen> {
               _ContactActionTile(
                 icon: Icons.link_rounded,
                 title: 'Invite friends',
-                subtitle: 'Apna invite link share karo',
+                subtitle: 'Share your invite link with friends.',
                 onTap: () => _shareInvite(myUid),
               ),
             ],
