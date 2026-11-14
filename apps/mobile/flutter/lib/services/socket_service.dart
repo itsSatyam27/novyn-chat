@@ -1112,12 +1112,11 @@ class SocketService extends ChangeNotifier {
               id: raw['id']?.toString() ?? '',
               chatId: peer,
               text: raw['text']?.toString() ?? '🔒 Encrypted message',
-              isFromMe: false,
+              isFromMe: raw['from']?.toString().toLowerCase() == account.toLowerCase(),
               isEncrypted: true,
               ciphertext: raw['ciphertext']?.toString(),
               iv: raw['iv']?.toString(),
               senderPublicKey: raw['senderPublicKey']?.toString(),
-              isFromMe: raw['from']?.toString().toLowerCase() == account.toLowerCase(),
             ),
             account,
             raw['from']?.toString().toLowerCase() == account.toLowerCase()
