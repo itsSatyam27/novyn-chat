@@ -3764,6 +3764,7 @@ function getConversationSummaryByKey(conversationKey) {
       isEncrypted: Boolean(message.isEncrypted && !message.deletedAt),
       ciphertext: !message.deletedAt ? message.ciphertext : undefined,
       iv: !message.deletedAt ? message.iv : undefined,
+      senderPublicKey: !message.deletedAt ? message.senderPublicKey : undefined,
       attachment: !message.deletedAt ? message.attachment : undefined,
       isVoice: !message.deletedAt && Boolean(message.isVoice || message.attachment?.kind === 'audio'),
     },

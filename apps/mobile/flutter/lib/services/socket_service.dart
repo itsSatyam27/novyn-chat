@@ -1116,9 +1116,15 @@ class SocketService extends ChangeNotifier {
               isEncrypted: true,
               ciphertext: raw['ciphertext']?.toString(),
               iv: raw['iv']?.toString(),
+              senderPublicKey: raw['senderPublicKey']?.toString(),
+              isFromMe: raw['from']?.toString().toLowerCase() == account.toLowerCase(),
             ),
             account,
-            _peerKeys[peer.toLowerCase()],
+            raw['from']?.toString().toLowerCase() == account.toLowerCase()
+                ? _peerKeys[peer.toLowerCase()]
+                : (raw['senderPublicKey']?.toString().isNotEmpty == true
+                    ? raw['senderPublicKey']?.toString()
+                    : _peerKeys[peer.toLowerCase()]),
           );
           if (_myUsername != account) return;
           if (decrypted.needsMessageKey) continue;
