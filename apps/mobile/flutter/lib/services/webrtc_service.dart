@@ -194,6 +194,30 @@ class WebRTCService extends ChangeNotifier {
     });
   }
 
+  Future<void> addLocalVideoTrack() async {
+    final connection = _peerConnection;
+    final stream = _localStream;
+    if (connection == null || stream == null) {
+      throw StateError('The voice call is not ready for video upgrade.');
+    }
+    if (stream.getVideoTracks().isNotEmpty) return;
+    final cameraStream = await navigator.mediaDevices.getUserMedia({
+      'audio': false,
+      'video': {
+        'facingMode': 'user',
+        'width': {'ideal': 640, 'max': 960},
+        'height': {'ideal': 480, 'max': 540},
+        'frameRate': {'ideal': 20, 'max': 24},
+      },
+    });
+    final tracks = cameraStream.getVideoTracks();
+    if (tracks.isEmpty) throw StateError('Camera did not provide a video track.');
+    await stream.addTrack(tracks.first);
+    await connection.addTrack(tracks.first, stream);
+    localRenderer.srcObject = stream;
+    notifyListeners();
+  }
+
   Future<void> addVideoTrackAndRenegotiate(
     SocketService socket, String peerId, String callId,
   ) async {
