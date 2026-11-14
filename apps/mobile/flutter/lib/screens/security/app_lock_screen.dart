@@ -57,7 +57,11 @@ class _AppLockScreenState extends State<AppLockScreen> {
     );
     if (!mounted) return;
     if (success) {
-      await context.read<SettingsService>().resetAppLockFailures();
+      try {
+        await context.read<SettingsService>().resetAppLockFailures();
+      } catch (error) {
+        debugPrint('[NovynAppLock] Could not reset failed-attempt counter: $error');
+      }
       widget.onUnlocked();
     }
     if (mounted) setState(() => _isAuthenticating = false);
@@ -171,6 +175,7 @@ class _AppLockScreenState extends State<AppLockScreen> {
     final accent = theme.colorScheme.primary;
     final settings = context.watch<SettingsService>();
     final coolingDown = settings.isAppLockCoolingDown;
+    final pinUnavailable = settings.appLockEnabled && settings.appLockPin == null;
     final remaining = settings.appLockRemaining;
 
     return Scaffold(
@@ -227,7 +232,20 @@ class _AppLockScreenState extends State<AppLockScreen> {
                   }),
                 ),
                 const SizedBox(height: 18),
-                if (coolingDown)
+                if (pinUnavailable)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 28),
+                    child: Text(
+                      'Secure storage is temporarily unavailable. Use biometrics or choose Forgot PIN to recover your account securely.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: theme.colorScheme.error,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  )
+                else if (coolingDown)
                   Text(
                     'Try again in ${_formatRemaining(remaining)}',
                     style: TextStyle(color: theme.colorScheme.error, fontWeight: FontWeight.w700),
@@ -246,7 +264,9 @@ class _AppLockScreenState extends State<AppLockScreen> {
                     ),
                   ),
                 const Spacer(),
-                _buildNumPad(disabled: coolingDown || _isAuthenticating || _recovering),
+                _buildNumPad(
+                  disabled: coolingDown || pinUnavailable || _isAuthenticating || _recovering,
+                ),
                 const SizedBox(height: 12),
                 TextButton(
                   onPressed: _recovering ? null : _forgotPin,
