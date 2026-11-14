@@ -55,6 +55,8 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
   AuthService? _authService;
   String? _observedUsername;
   int _loadGeneration = 0;
+  List<ChatPreview> _lastSocketConversations = const [];
+  bool _topChatsPreloadStarted = false;
 
   // Static cache moved to ChatsScreen widget class
 
@@ -107,6 +109,7 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
     if (username == _observedUsername) return;
     _observedUsername = username;
     _loadGeneration++;
+    _lastSocketConversations = const [];
 
     if (username == null || username.isEmpty) {
       ChatsScreen.resetAccountCache();
@@ -259,6 +262,18 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
     }
   }
 
+  bool _sameConversationReferences(
+    List<ChatPreview> previous,
+    List<ChatPreview> next,
+  ) {
+    if (identical(previous, next)) return true;
+    if (previous.length != next.length) return false;
+    for (var index = 0; index < previous.length; index++) {
+      if (!identical(previous[index], next[index])) return false;
+    }
+    return true;
+  }
+
   void _handleSocketUpdate() {
     if (!mounted) return;
     final owner = context.read<AuthService>().user?.username.toLowerCase();
@@ -269,11 +284,17 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
     if (!socket.isAuthenticated || !socket.hasLoadedConversations ||
         socket.myUsername?.toLowerCase() != owner) return;
 
+    final conversations = socket.conversations;
+    if (_sameConversationReferences(_lastSocketConversations, conversations)) {
+      return;
+    }
+    _lastSocketConversations = List<ChatPreview>.from(conversations);
+
     // A completed server snapshot supersedes any in-flight cache hydration.
     // This prevents an older local read from overwriting fresh conversations.
     _loadGeneration++;
     final previews = _withPinnedPreferences(
-      List<ChatPreview>.from(socket.conversations),
+      List<ChatPreview>.from(conversations),
     );
     previews.sort((a, b) {
       if (a.isPinned != b.isPinned) return a.isPinned ? -1 : 1;
@@ -472,7 +493,8 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
         },
       ),
     );
-    _loadChats();
+    // The socket listener keeps this screen's conversation snapshot current
+    // while the chat route is open; reopening both local databases is redundant.
   }
 
   void _showSnackBar(String message) {
@@ -1208,7 +1230,7 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
             },
           ),
         );
-        _loadChats();
+        // Live conversation updates are already applied by _handleSocketUpdate.
       },
     );
   }
@@ -1224,8 +1246,11 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
         itemExtent: 86,
         itemBuilder: (context, i) {
           // Pre-load top chats in background (WhatsApp-style optimization)
-          if (i == 0) {
-            Future.microtask(() => _preloadTopChats());
+          if (i == 0 && !_topChatsPreloadStarted) {
+            _topChatsPreloadStarted = true;
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) unawaited(_preloadTopChats());
+            });
           }
 
           return RepaintBoundary(
@@ -1241,8 +1266,10 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
 
   // Pre-load top 3 chats for instant opening (WhatsApp optimization)
   Future<void> _preloadTopChats() async {
-    for (int i = 0; i < 3 && i < _filtered.length; i++) {
-      HybridDbService.getMessages(_filtered[i].chatId, limit: 20);
+    final chatIds = _filtered.take(3).map((chat) => chat.chatId).toList();
+    for (final chatId in chatIds) {
+      if (!mounted) return;
+      await HybridDbService.getMessages(chatId, limit: 20);
     }
   }
 
