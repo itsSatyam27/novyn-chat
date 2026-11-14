@@ -237,6 +237,84 @@ class NotificationService {
   static StreamSubscription<RemoteMessage>? _openedSubscription;
   static bool? _lastAlertsEnabled;
   static bool? _lastSoundEnabled;
+  static ValueChanged<String>? _activeCallActionHandler;
+  static const int _activeCallNotificationId = 781204;
+
+  /// Registers the currently visible call screen as the owner of notification
+  /// actions. The notification itself stays ongoing while the call is active.
+  static void setActiveCallActionHandler(ValueChanged<String>? handler) {
+    _activeCallActionHandler = handler;
+  }
+
+  static Future<void> showActiveCallNotification({
+    required String callId,
+    required String caller,
+    required bool isVideo,
+    required bool muted,
+    required bool speakerOn,
+  }) async {
+    final android = _localNotifications.resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin>();
+    await android?.createNotificationChannel(const AndroidNotificationChannel(
+      'novyn_active_call',
+      'Active calls',
+      description: 'Controls for ongoing Novyn calls',
+      importance: Importance.low,
+      playSound: false,
+      enableVibration: false,
+    ));
+    await _localNotifications.show(
+      _activeCallNotificationId,
+      isVideo ? 'Video call with $caller' : 'Voice call with $caller',
+      'Tap an action to manage your call',
+      NotificationDetails(
+        android: AndroidNotificationDetails(
+          'novyn_active_call',
+          'Active calls',
+          channelDescription: 'Controls for ongoing Novyn calls',
+          importance: Importance.low,
+          priority: Priority.low,
+          category: AndroidNotificationCategory.call,
+          ongoing: true,
+          autoCancel: false,
+          onlyAlertOnce: true,
+          playSound: false,
+          enableVibration: false,
+          actions: <AndroidNotificationAction>[
+            AndroidNotificationAction(
+              'call_toggle_mute',
+              muted ? 'Unmute' : 'Mute',
+              showsUserInterface: true,
+              cancelNotification: false,
+            ),
+            AndroidNotificationAction(
+              'call_toggle_speaker',
+              speakerOn ? 'Earpiece' : 'Speaker',
+              showsUserInterface: true,
+              cancelNotification: false,
+            ),
+            const AndroidNotificationAction(
+              'call_end',
+              'End call',
+              showsUserInterface: true,
+              cancelNotification: false,
+            ),
+          ],
+        ),
+        iOS: const DarwinNotificationDetails(
+          presentAlert: false,
+          presentBadge: false,
+          presentSound: false,
+        ),
+      ),
+      payload: 'active_call:$callId',
+    );
+  }
+
+  static Future<void> clearActiveCallNotification() async {
+    await _localNotifications.cancel(_activeCallNotificationId);
+    _activeCallActionHandler = null;
+  }
 
   static void _onSettingsChanged() {
     final enabled = _settings?.notificationsOn ?? false;
@@ -288,6 +366,11 @@ class NotificationService {
         iOS: DarwinInitializationSettings(),
       ),
       onDidReceiveNotificationResponse: (response) {
+        final actionId = response.actionId ?? '';
+        if (actionId.startsWith('call_')) {
+          _activeCallActionHandler?.call(actionId);
+          return;
+        }
         final payload = response.payload?.trim() ?? '';
         if (!context.mounted || payload.isEmpty) return;
         if (payload.startsWith('call:')) {
