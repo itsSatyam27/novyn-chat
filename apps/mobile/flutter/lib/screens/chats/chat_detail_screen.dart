@@ -425,6 +425,24 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
     });
   }
 
+  void _playSentSound() {
+    // Audio plugin setup must never hold the composer or the next send.
+    unawaited(() async {
+      try {
+        await _audioPlayer.setAudioContext(AudioContext(
+          android: AudioContextAndroid(
+            audioFocus: AndroidAudioFocus.none,
+            usageType: AndroidUsageType.notification,
+            contentType: AndroidContentType.sonification,
+          ),
+        ));
+        await _audioPlayer.play(AssetSource('audio/message_sent.mp3'));
+      } catch (error) {
+        debugPrint('[NovynChat] Sent sound playback failed: $error');
+      }
+    }());
+  }
+
   void _send() async {
     final text = _ctrl.text.trim();
     if (_sending || text.isEmpty || _myUid == null || _chatId == null) return;
@@ -446,15 +464,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
       if (_ctrl.text.trim() == text) _ctrl.clear();
       DraftService.deleteDraft(_chatId!);
       setState(() => _replyingTo = null);
-      await _audioPlayer.setAudioContext(AudioContext(
-        android: AudioContextAndroid(
-          audioFocus: AndroidAudioFocus.none,
-          usageType: AndroidUsageType.notification,
-          contentType: AndroidContentType.sonification,
-        ),
-      ));
-      await _audioPlayer.play(AssetSource('audio/message_sent.mp3'));
       _scrollToBottom();
+      _playSentSound();
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
