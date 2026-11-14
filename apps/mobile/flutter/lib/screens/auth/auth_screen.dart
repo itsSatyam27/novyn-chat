@@ -118,33 +118,6 @@ class _AuthScreenState extends State<AuthScreen>
                   ],
                 ),
               ),
-              if (!keyboardOpen)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(26, 12, 26, 18),
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 440),
-                    child: AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 220),
-                      child: Column(
-                        key: ValueKey(_tabController.index),
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            _tabController.index == 0 ? 'Welcome back' : 'Create your account',
-                            style: const TextStyle(color: _kText, fontSize: 29, height: 1.08, fontWeight: FontWeight.w800, letterSpacing: -.8),
-                          ),
-                          const SizedBox(height: 7),
-                          Text(
-                            _tabController.index == 0
-                                ? 'Sign in to pick up your chats where you left off.'
-                                : 'Join Novyn and start chatting with your people.',
-                            style: const TextStyle(color: _kSub, fontSize: 13.5, height: 1.45),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
               Expanded(
                 child: Center(
                   child: ConstrainedBox(
@@ -332,6 +305,21 @@ class _LoginTabState extends State<_LoginTab> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          const Text(
+            'Welcome back',
+            style: TextStyle(
+              fontSize: 25,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -.5,
+              color: _kText,
+            ),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Sign in to pick up your chats where you left off.',
+            style: TextStyle(fontSize: 14.5, height: 1.4, color: _kSub),
+          ),
+          const SizedBox(height: 18),
           _GoogleButton(label: 'Continue with Google', loading: _loading, onTap: _googleSignIn),
           const SizedBox(height: 17),
           const _OrDivider(label: 'or sign in with email'),
@@ -1039,6 +1027,21 @@ class _RegisterTabState extends State<_RegisterTab> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          const Text(
+            'Create your account',
+            style: TextStyle(
+              fontSize: 25,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -.5,
+              color: _kText,
+            ),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Join Novyn and start chatting with your people.',
+            style: TextStyle(fontSize: 14.5, height: 1.4, color: _kSub),
+          ),
+          const SizedBox(height: 18),
           _GoogleButton(label: 'Sign up with Google', loading: _loading, onTap: _googleSignIn),
           const SizedBox(height: 17),
           const _OrDivider(label: 'or create an account with email'),
