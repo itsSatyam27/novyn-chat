@@ -26,6 +26,7 @@ import 'settings/accessibility_screen.dart';
 import 'settings/sound_vibration_screen.dart';
 import 'settings/appearance_screen.dart';
 import 'settings/quick_toggle_customization_screen.dart';
+import 'settings/quick_toggle_layout.dart';
 import 'settings/chat_settings_screen.dart';
 import 'settings/support_screens.dart';
 import 'package:novyn/services/haptic_service.dart';
@@ -103,20 +104,33 @@ class ProfileScreen extends StatelessWidget {
                     ),
                   ],
                 ),
-                GridView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: quickToggleIds.length,
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    crossAxisSpacing: 12,
-                    mainAxisSpacing: 10,
-                    childAspectRatio: 2.45,
-                  ),
-                  itemBuilder: (context, index) => _buildQuickToggle(
-                    context,
-                    settings,
-                    quickToggleIds[index],
+                AnimatedSize(
+                  duration: const Duration(milliseconds: 240),
+                  curve: Curves.easeInOutCubic,
+                  alignment: Alignment.topCenter,
+                  child: Column(
+                    key: ValueKey(quickToggleIds.join('|')),
+                    children: [
+                      for (final row in arrangeQuickToggleRows(quickToggleIds))
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: Row(
+                            children: [
+                              for (var index = 0; index < row.length; index++) ...[
+                                if (index > 0) const SizedBox(width: 12),
+                                Expanded(
+                                  child: _buildQuickToggle(
+                                    context,
+                                    settings,
+                                    row[index],
+                                    expanded: row.length == 1,
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                    ],
                   ),
                 ),
                 NovynSectionLabel('ACCOUNT', padding: const EdgeInsets.fromLTRB(4, 18, 4, 8)),
@@ -228,8 +242,9 @@ class ProfileScreen extends StatelessWidget {
   Widget _buildQuickToggle(
     BuildContext context,
     SettingsService settings,
-    String id,
-  ) {
+    String id, {
+    bool expanded = false,
+  }) {
     switch (id) {
       case 'app_lock':
         return _SettingsQuickToggle(
@@ -239,6 +254,7 @@ class ProfileScreen extends StatelessWidget {
           value: settings.appLockEnabled,
           accent: const Color(0xFF64748B),
           onChanged: (value) => _toggleAppLock(context, settings, value),
+          expanded: expanded,
         );
       case 'do_not_disturb':
         return _SettingsQuickToggle(
@@ -248,6 +264,7 @@ class ProfileScreen extends StatelessWidget {
           value: settings.doNotDisturbEnabled,
           accent: const Color(0xFF159C91),
           onChanged: settings.setDoNotDisturbEnabled,
+          expanded: expanded,
         );
       case 'read_receipts':
         return _SettingsQuickToggle(
@@ -257,6 +274,7 @@ class ProfileScreen extends StatelessWidget {
           value: settings.readReceipts,
           accent: const Color(0xFF2563EB),
           onChanged: settings.setReadReceipts,
+          expanded: expanded,
         );
       case 'in_app_sounds':
         return _SettingsQuickToggle(
@@ -266,6 +284,7 @@ class ProfileScreen extends StatelessWidget {
           value: settings.inAppSounds,
           accent: const Color(0xFF8B5CF6),
           onChanged: settings.setInAppSounds,
+          expanded: expanded,
         );
       case 'in_app_vibration':
         return _SettingsQuickToggle(
@@ -275,6 +294,7 @@ class ProfileScreen extends StatelessWidget {
           value: settings.inAppVibration,
           accent: const Color(0xFFDB2777),
           onChanged: settings.setInAppVibration,
+          expanded: expanded,
         );
       case 'group_notifications':
         return _SettingsQuickToggle(
@@ -284,6 +304,7 @@ class ProfileScreen extends StatelessWidget {
           value: settings.groupNotifications,
           accent: const Color(0xFF0D9488),
           onChanged: settings.setGroupNotifications,
+          expanded: expanded,
         );
       default:
         return const SizedBox.shrink();
@@ -2205,6 +2226,7 @@ class _SettingsQuickToggle extends StatelessWidget {
     required this.value,
     required this.accent,
     required this.onChanged,
+    this.expanded = false,
   });
 
   final String title;
@@ -2213,6 +2235,7 @@ class _SettingsQuickToggle extends StatelessWidget {
   final bool value;
   final Color accent;
   final ValueChanged<bool> onChanged;
+  final bool expanded;
 
   @override
   Widget build(BuildContext context) {
@@ -2226,8 +2249,11 @@ class _SettingsQuickToggle extends StatelessWidget {
         borderRadius: BorderRadius.circular(18),
         onTap: () => onChanged(!value),
         child: Container(
-          constraints: const BoxConstraints(minHeight: 54),
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+          constraints: BoxConstraints(minHeight: expanded ? 62 : 54),
+          padding: EdgeInsets.symmetric(
+            horizontal: expanded ? 14 : 10,
+            vertical: expanded ? 10 : 7,
+          ),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(18),
             border: Border.all(
@@ -2239,7 +2265,9 @@ class _SettingsQuickToggle extends StatelessWidget {
           child: Semantics(
             label: title,
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisAlignment: expanded
+                  ? MainAxisAlignment.start
+                  : MainAxisAlignment.center,
               children: [
                 AnimatedContainer(
                   duration: const Duration(milliseconds: 180),
@@ -2263,7 +2291,22 @@ class _SettingsQuickToggle extends StatelessWidget {
                     ),
                   ),
                 ),
-                const SizedBox(width: 18),
+                if (expanded) ...[
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: scheme.onSurface,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                ] else
+                  const SizedBox(width: 18),
                 Transform.scale(
                   scale: .76,
                   alignment: Alignment.center,
