@@ -22,7 +22,7 @@ class AppearanceScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final settings = context.watch<SettingsService>();
-    final username = context.watch<AuthService>().user?.username ?? 'guest';
+    final username = context.watch<AuthService>().user?.username ?? 'user';
     final quickToggleCount = settings.quickToggleIdsFor(username).length;
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
