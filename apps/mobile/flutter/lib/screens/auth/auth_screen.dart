@@ -666,7 +666,7 @@ class _TwoFactorVerificationScreenState
 }
 
 class _ForgotPasswordDialog extends StatefulWidget {
-  const _ForgotPasswordDialog({super.key});
+  const _ForgotPasswordDialog();
 
   @override
   State<_ForgotPasswordDialog> createState() => _ForgotPasswordDialogState();
@@ -944,6 +944,65 @@ class _RegisterTabState extends State<_RegisterTab> {
       setState(() { _error = err; _loading = false; });
     } else {
       _showSuccess();
+    }
+  }
+
+  Future<void> _googleSignIn() async {
+    if (_loading) return;
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+
+    final auth = context.read<AuthService>();
+    final error = await auth.signInWithGoogle();
+    if (!mounted) return;
+
+    if (error != null && error != 'Sign-in cancelled.') {
+      setState(() {
+        _error = error;
+        _loading = false;
+      });
+      return;
+    }
+
+    if (error == null && auth.isTwoFactorPending) {
+      final verified = await Navigator.of(context).push<bool>(
+        MaterialPageRoute<void>(
+          builder: (_) => const TwoFactorVerificationScreen(),
+        ),
+      );
+      if (!mounted) return;
+
+      if (verified == true) {
+        Navigator.of(context).pushAndRemoveUntil(
+          PageRouteBuilder<void>(
+            pageBuilder: (_, __, ___) => const MainScreen(),
+            transitionsBuilder: (_, animation, __, child) =>
+                FadeTransition(opacity: animation, child: child),
+            transitionDuration: const Duration(milliseconds: 400),
+          ),
+          (_) => false,
+        );
+      } else {
+        auth.cancelTwoFactorChallenge();
+        setState(() => _loading = false);
+      }
+      return;
+    }
+
+    if (error == null) {
+      Navigator.of(context).pushAndRemoveUntil(
+        PageRouteBuilder<void>(
+          pageBuilder: (_, __, ___) => const MainScreen(),
+          transitionsBuilder: (_, animation, __, child) =>
+              FadeTransition(opacity: animation, child: child),
+          transitionDuration: const Duration(milliseconds: 400),
+        ),
+        (_) => false,
+      );
+    } else {
+      setState(() => _loading = false);
     }
   }
 
@@ -1270,7 +1329,7 @@ class _FieldState extends State<_Field> {
           style: const TextStyle(
             fontFamily: 'Inter',
             fontSize:   15,
-            color:      const Color(0xFF211D42),
+            color:      Color(0xFF211D42),
             height:     1.4,
           ),
           decoration: InputDecoration(
@@ -1288,9 +1347,9 @@ class _FieldState extends State<_Field> {
                 ? Padding(padding: const EdgeInsets.only(right: 4), child: widget.suffix)
                 : null,
             hintText:  widget.hint,
-            hintStyle: TextStyle(
+            hintStyle: const TextStyle(
               fontFamily: 'Inter',
-              color:      const Color(0xFF9691B4),
+              color:      Color(0xFF9691B4),
               fontSize:   15,
             ),
             border:         InputBorder.none,
@@ -1495,12 +1554,11 @@ class _GoogleButton extends StatelessWidget {
 }
 
 class _GoogleLogo extends StatelessWidget {
-  const _GoogleLogo({this.size = 22});
-  final double size;
+  const _GoogleLogo();
 
   @override
   Widget build(BuildContext context) =>
-      SizedBox(width: size, height: size, child: CustomPaint(painter: _GooglePainter()));
+      const SizedBox(width: 22, height: 22, child: CustomPaint(painter: _GooglePainter()));
 }
 
 class _GooglePainter extends CustomPainter {
