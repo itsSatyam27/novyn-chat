@@ -614,6 +614,7 @@ class ApiService {
             isEncrypted: m['isEncrypted'] == true,
             ciphertext: m['ciphertext']?.toString(),
             iv: m['iv']?.toString(),
+            senderPublicKey: m['senderPublicKey']?.toString(),
             senderId: sender,
             isFromMe: myUsername != null && sender == myUsername,
             createdAt: DateTime.tryParse(m['timestamp']?.toString() ?? '') ??
