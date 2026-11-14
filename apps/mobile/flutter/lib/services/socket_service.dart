@@ -483,6 +483,7 @@ class SocketService extends ChangeNotifier {
     _registerEventHandlers();
     _socket!.on('auth_failed', (data) {
       _isAuthenticated = false;
+      SyncService().setOnlineStatus(false);
       notifyListeners();
       // A stale access cookie can leave a newly connected socket without a
       // userKey. Refresh the HTTP session once, then rebuild the socket
