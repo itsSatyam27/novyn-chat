@@ -37,6 +37,7 @@ class _PeopleScreenState extends State<PeopleScreen> {
   Set<String> _favouriteUsernames = <String>{};
   String? _favouriteOwner;
   bool _favouritesLoaded = false;
+  bool _favouriteLoading = false;
   final ScrollController _scrollController = ScrollController();
   final Map<String, GlobalKey> _letterKeys = <String, GlobalKey>{};
 
@@ -53,6 +54,7 @@ class _PeopleScreenState extends State<PeopleScreen> {
       'novyn_contact_favorites_${username.trim().toLowerCase()}';
 
   Future<void> _loadFavourites(String username) async {
+    _favouriteLoading = true;
     try {
       final prefs = await SharedPreferences.getInstance();
       final values = prefs.getStringList(_favouritesKey(username)) ?? <String>[];
@@ -69,6 +71,8 @@ class _PeopleScreenState extends State<PeopleScreen> {
       });
     } catch (error) {
       debugPrint('Could not load contact favourites: $error');
+    } finally {
+      _favouriteLoading = false;
     }
   }
 
@@ -327,6 +331,19 @@ class _PeopleScreenState extends State<PeopleScreen> {
     final friends = context.read<FriendService>();
     final myUid = auth.user?.username;
     final cachedFriends = friends.cachedFriends ?? <UserModel>[];
+
+    if (myUid != null &&
+        myUid.isNotEmpty &&
+        _favouriteOwner != null &&
+        _favouriteOwner != myUid.trim().toLowerCase() &&
+        !_favouriteLoading) {
+      _favouritesLoaded = false;
+      _favouriteOwner = null;
+      _favouriteUsernames = <String>{};
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _loadFavourites(myUid);
+      });
+    }
 
     if (myUid == null || myUid.isEmpty) {
       return const Center(child: Text('Not logged in'));
