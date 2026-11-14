@@ -228,32 +228,25 @@ class _CallsScreenState extends State<CallsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final pageBackground = isDark ? NovynTheme.pageBg(context) : const Color(0xFFF3EFFA);
+
     return Scaffold(
-      backgroundColor: Colors.transparent,
+      backgroundColor: pageBackground,
       body: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             NovynHeader(
               title: 'Calls',
-              titleSize: 36,
+              titleSize: 30,
               actions: [
-                IconButton(
-                  tooltip: _searchOpen ? 'Close search' : 'Search calls',
-                  visualDensity: VisualDensity.compact,
-                  icon: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 180),
-                    transitionBuilder: (child, animation) => RotationTransition(
-                      turns: Tween<double>(begin: 0.88, end: 1).animate(animation),
-                      child: FadeTransition(opacity: animation, child: child),
-                    ),
-                    child: Icon(
-                      _searchOpen ? Icons.close_rounded : Icons.search_rounded,
-                      key: ValueKey(_searchOpen),
-                      size: 23,
-                    ),
-                  ),
-                  onPressed: () {
+                NovynIconButton(
+                  icon: _searchOpen ? Icons.close_rounded : Icons.search_rounded,
+                  size: 48,
+                  radius: 16,
+                  iconSize: 22,
+                  onTap: () {
                     setState(() {
                       _searchOpen = !_searchOpen;
                       if (!_searchOpen) {
@@ -272,19 +265,34 @@ class _CallsScreenState extends State<CallsScreen> {
                 ),
                 PopupMenuButton<String>(
                   tooltip: 'Call options',
-                  icon: const Icon(Icons.more_horiz_rounded, size: 25),
+                  child: Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.surface,
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Icon(Icons.grid_view_rounded,
+                      size: 21, color: Theme.of(context).colorScheme.onSurface),
+                  ),
                   offset: const Offset(0, 12),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
                   elevation: 10,
                   onSelected: (value) {
                     if (value == 'privacy') _showCallPrivacy();
                     if (value == 'clear') _confirmClearHistory();
+                    if (value == 'incoming' || value == 'outgoing') {
+                      setState(() => _filter = value == 'incoming' ? 'Incoming' : 'Outgoing');
+                    }
                     if (value == 'refresh') {
                       setState(() => _loading = true);
                       _loadCalls();
                     }
                   },
                   itemBuilder: (context) => [
+                    const PopupMenuItem(value: 'incoming', child: Text('Incoming calls')),
+                    const PopupMenuItem(value: 'outgoing', child: Text('Outgoing calls')),
+                    const PopupMenuDivider(),
                     PopupMenuItem(
                       value: 'privacy',
                       height: 52,
@@ -348,6 +356,7 @@ class _CallsScreenState extends State<CallsScreen> {
                     )
                   : const SizedBox(width: double.infinity),
             ),
+            if (!_searchOpen && _search.isEmpty && _filter == 'All') _buildQuickCall(),
             _buildFilterCards(),
             const SizedBox(height: 8),
             Expanded(
@@ -367,69 +376,107 @@ class _CallsScreenState extends State<CallsScreen> {
     );
   }
 
-  Widget _buildFilterCards() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 10, 20, 8),
-      child: Row(
+  Widget _buildQuickCall() {
+    final socketFriends = context.watch<SocketService>().contacts.friends;
+    final byUsername = <String, UserModel>{};
+    for (final entry in _calls) {
+      byUsername.putIfAbsent(entry.peer.username.toLowerCase(), () => entry.peer);
+    }
+    for (final friend in socketFriends) {
+      byUsername[friend.username.toLowerCase()] = friend;
+    }
+    final quickFriends = byUsername.values
+        .where((peer) => _favoriteUsernames.contains(peer.username.toLowerCase()))
+        .toList()
+      ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(20, 8, 20, 10),
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: Container(
-              padding: const EdgeInsets.all(5),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.primary.withValues(alpha: .09),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Row(
-                children: [
-                  for (final option in const ['All', 'Missed'])
-                    Expanded(
-                      child: GestureDetector(
-                        onTap: () => setState(() => _filter = option),
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 180),
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          decoration: BoxDecoration(
-                            color: _filter == option
-                                ? Theme.of(context).colorScheme.surface
-                                : Colors.transparent,
-                            borderRadius: BorderRadius.circular(15),
-                          ),
-                          child: Text(
-                            option,
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontFamily: 'PlusJakartaSans',
-                              fontSize: 14,
-                              fontWeight: FontWeight.w800,
-                              color: _filter == option
-                                  ? Theme.of(context).colorScheme.primary
-                                  : Theme.of(context).colorScheme.onSurfaceVariant,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                ],
-              ),
+          Text(
+            'QUICK CALL',
+            style: TextStyle(
+              fontFamily: 'PlusJakartaSans',
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 1.25,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
           ),
-          const SizedBox(width: 8),
-          PopupMenuButton<String>(
-            tooltip: 'More call filters',
-            initialValue: ['Incoming', 'Outgoing'].contains(_filter) ? _filter : null,
-            onSelected: (value) => setState(() => _filter = value),
-            itemBuilder: (_) => const [
-              PopupMenuItem(value: 'Incoming', child: Text('Incoming calls')),
-              PopupMenuItem(value: 'Outgoing', child: Text('Outgoing calls')),
-            ],
-            child: Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surface,
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Icon(Icons.tune_rounded, color: Theme.of(context).colorScheme.onSurfaceVariant),
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 82,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              children: [
+                for (final peer in quickFriends)
+                  SizedBox(
+                    width: 68,
+                    child: GestureDetector(
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => CallScreen(peer: peer, callType: 'voice'),
+                        ),
+                      ),
+                      onLongPress: () => _toggleFavorite(peer),
+                      child: Column(
+                        children: [
+                          UserAvatar(name: peer.name, photoUrl: peer.photoUrl, radius: 24),
+                          const SizedBox(height: 6),
+                          Text(
+                            peer.name.split(' ').first,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontFamily: 'PlusJakartaSans',
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: Theme.of(context).colorScheme.onSurface,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                SizedBox(
+                  width: 68,
+                  child: GestureDetector(
+                    onTap: _showQuickCallPicker,
+                    child: Column(
+                      children: [
+                        Container(
+                          width: 48,
+                          height: 48,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: Theme.of(context).colorScheme.primary.withValues(alpha: .48),
+                              width: 1.5,
+                            ),
+                          ),
+                          child: Icon(Icons.add_rounded, size: 25,
+                            color: Theme.of(context).colorScheme.primary),
+                        ),
+                        const SizedBox(height: 6),
+                        Text('Add', style: TextStyle(
+                          fontFamily: 'PlusJakartaSans',
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: Theme.of(context).colorScheme.onSurface,
+                        )),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -437,38 +484,52 @@ class _CallsScreenState extends State<CallsScreen> {
     );
   }
 
-  List<_CallEntry> _filteredCalls() {
-    var result = _calls;
-    if (_filter != 'All') {
-      result = result.map((call) {
-        final matching = call.history
-            .where((log) => log['status'] == _filter.toLowerCase())
-            .toList();
-        if (matching.isEmpty) return null;
-        matching.sort((a, b) {
-          final aDate = DateTime.tryParse(a['createdAt']?.toString() ?? '') ?? DateTime.fromMillisecondsSinceEpoch(0);
-          final bDate = DateTime.tryParse(b['createdAt']?.toString() ?? '') ?? DateTime.fromMillisecondsSinceEpoch(0);
-          return bDate.compareTo(aDate);
-        });
-        final latest = matching.first;
-        final rawDate = latest['createdAt']?.toString() ?? '';
-        final parsedDate = DateTime.tryParse(rawDate);
-        return call.copyWith(
-          type: latest['type']?.toString() ?? call.type,
-          status: latest['status']?.toString() ?? call.status,
-          duration: (latest['duration'] as num?)?.toInt() ?? 0,
-          createdAt: parsedDate == null ? call.createdAt : (parsedDate.isUtc ? parsedDate.toLocal() : parsedDate),
-          history: matching,
-        );
-      }).whereType<_CallEntry>().toList();
-    }
-    if (_search.isNotEmpty) {
-      result = result.where((call) =>
-        call.peer.name.toLowerCase().contains(_search) ||
-        call.peer.username.toLowerCase().contains(_search)
-      ).toList();
-    }
-    return result;
+  Widget _buildFilterCards() {
+    final theme = Theme.of(context);
+    final accent = theme.colorScheme.primary;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
+      child: Container(
+        padding: const EdgeInsets.all(4),
+        decoration: BoxDecoration(
+          color: accent.withValues(alpha: .09),
+          borderRadius: BorderRadius.circular(22),
+        ),
+        child: Row(
+          children: [
+            for (final option in const ['All', 'Missed'])
+              Expanded(
+                child: GestureDetector(
+                  onTap: () => setState(() => _filter = option),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    curve: Curves.easeOutCubic,
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    decoration: BoxDecoration(
+                      color: _filter == option
+                          ? theme.colorScheme.surface
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                    child: Text(
+                      option,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontFamily: 'PlusJakartaSans',
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                        color: _filter == option
+                            ? accent
+                            : theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _showQuickCallPicker() async {
@@ -557,77 +618,6 @@ class _CallsScreenState extends State<CallsScreen> {
       child: ListView(
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 120),
         children: [
-          if (_search.isEmpty && _filter == 'All') ...[
-            Container(
-              padding: const EdgeInsets.fromLTRB(17, 17, 17, 13),
-              margin: const EdgeInsets.only(bottom: 14),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surface,
-                borderRadius: BorderRadius.circular(26),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('QUICK CALL', style: TextStyle(
-                    fontFamily: 'PlusJakartaSans',
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 1.3,
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  )),
-                  const SizedBox(height: 14),
-                  SizedBox(
-                    height: 94,
-                    child: ListView(
-                      scrollDirection: Axis.horizontal,
-                      children: [
-                        for (final peer in uniqueFavorites)
-                          SizedBox(
-                            width: 76,
-                            child: GestureDetector(
-                              onTap: () => Navigator.push(context, MaterialPageRoute(
-                                builder: (_) => CallScreen(peer: peer, callType: 'voice'),
-                              )),
-                              onLongPress: () => _toggleFavorite(peer),
-                              child: Column(
-                                children: [
-                                  UserAvatar(name: peer.name, photoUrl: peer.photoUrl, radius: 28,
-                                    showOnlineIndicator: true, isOnline: peer.isOnline, presence: peer.status),
-                                  const SizedBox(height: 7),
-                                  Text(peer.name.split(' ').first, maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600,
-                                      color: Theme.of(context).colorScheme.onSurface)),
-                                ],
-                              ),
-                            ),
-                          ),
-                        SizedBox(
-                          width: 76,
-                          child: GestureDetector(
-                            onTap: _showQuickCallPicker,
-                            child: Column(children: [
-                              Container(
-                                width: 56, height: 56,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  border: Border.all(color: Theme.of(context).colorScheme.primary.withValues(alpha: .5), width: 1.5),
-                                ),
-                                child: Icon(Icons.add_rounded, size: 27, color: Theme.of(context).colorScheme.primary),
-                              ),
-                              const SizedBox(height: 7),
-                              Text('Add', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600,
-                                color: Theme.of(context).colorScheme.onSurface)),
-                            ]),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
           if (_search.isNotEmpty || _filter != 'All')
             Padding(
               padding: const EdgeInsets.fromLTRB(4, 4, 4, 10),
@@ -863,7 +853,7 @@ class _CallCard extends StatelessWidget {
         onTap: () => _showHistory(context),
         borderRadius: BorderRadius.circular(22),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
           child: Row(
             children: [
               GestureDetector(
@@ -874,7 +864,7 @@ class _CallCard extends StatelessWidget {
                     UserAvatar(
                       name: entry.peer.name,
                       photoUrl: entry.peer.photoUrl,
-                      radius: 32,
+                      radius: 24,
                       showOnlineIndicator: true,
                       isOnline: entry.peer.isOnline,
                       presence: entry.peer.status,
@@ -907,7 +897,7 @@ class _CallCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         fontFamily: 'PlusJakartaSans',
-                        fontSize: 16.5,
+                        fontSize: 15.5,
                         fontWeight: FontWeight.w800,
                         letterSpacing: -.3,
                         color: isMissed ? statusColor : Theme.of(context).colorScheme.onSurface,
@@ -953,12 +943,12 @@ class _CallCard extends StatelessWidget {
                     );
                   },
                   child: SizedBox(
-                    width: 54,
-                    height: 54,
+                    width: 44,
+                    height: 44,
                     child: Icon(
                       isVideo ? Icons.videocam_rounded : Icons.call_rounded,
                       color: callColor,
-                      size: 25,
+                      size: 21,
                     ),
                   ),
                 ),
