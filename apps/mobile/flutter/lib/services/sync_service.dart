@@ -21,6 +21,18 @@ class PendingMessageRejectedException implements Exception {
   String toString() => message;
 }
 
+/// A recipient-specific precondition is missing (for example, their public
+/// key has not been registered yet). Defer this conversation without blocking
+/// messages queued for other contacts.
+class PendingMessageDeferredException implements Exception {
+  const PendingMessageDeferredException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => message;
+}
+
 /// Background sync and account-scoped durable outbox for offline messages.
 class SyncService extends ChangeNotifier {
   static final SyncService _instance = SyncService._internal();
@@ -243,6 +255,7 @@ class SyncService extends ChangeNotifier {
 
     final snapshot = List<PendingMessage>.from(_pendingMessages)
       ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+    final deferredConversations = <String>{};
 
     for (final pending in snapshot) {
       if (!_isOnline || _activeAccount != account) break;
@@ -250,6 +263,10 @@ class SyncService extends ChangeNotifier {
           !_pendingMessages.any((item) => item.tempId == pending.tempId)) {
         continue;
       }
+      final conversationKey =
+          '${pending.isGroup ? 'group' : 'friend'}:${pending.chatId.trim().toLowerCase()}';
+      if (deferredConversations.contains(conversationKey)) continue;
+
       try {
         await sender(pending);
         if (_activeAccount != account) break;
@@ -258,6 +275,18 @@ class SyncService extends ChangeNotifier {
         if (_activeAccount != account) break;
         await removePendingMessage(pending.tempId);
         onRejected?.call(pending, error.message);
+      } on PendingMessageDeferredException catch (error) {
+        if (_activeAccount != account) break;
+        await _replacePendingMessage(
+          pending.copyWith(
+            attemptCount: pending.attemptCount + 1,
+            lastError: error.message,
+          ),
+        );
+        deferredConversations.add(conversationKey);
+        debugPrint(
+          '[NovynOutbox] Deferred ${pending.tempId}: ${error.message}',
+        );
       } catch (error) {
         if (_activeAccount != account) break;
         await _replacePendingMessage(
@@ -266,8 +295,10 @@ class SyncService extends ChangeNotifier {
             lastError: error.toString(),
           ),
         );
-        debugPrint('[NovynOutbox] Will retry ' + pending.tempId + ': ' + error.toString());
-break;
+        debugPrint(
+          '[NovynOutbox] Will retry ${pending.tempId}: ${error.toString()}',
+        );
+        break;
       }
     }
   }
