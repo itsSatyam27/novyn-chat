@@ -700,95 +700,254 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
   Widget _buildEmptyChat() {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final isDark = theme.brightness == Brightness.dark;
-    Widget quickAction(IconData icon, String label, VoidCallback onTap) {
+    final dark = theme.brightness == Brightness.dark;
+
+    Widget quickAction({
+      required IconData icon,
+      required String title,
+      required String subtitle,
+      required Color tint,
+      required Color accent,
+      required VoidCallback onTap,
+    }) {
       return Material(
         color: scheme.surface,
-        borderRadius: BorderRadius.circular(24),
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(24),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: scheme.primary.withValues(alpha: 0.16)),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 15),
+            child: Row(
+              children: [
+                Container(
+                  width: 54,
+                  height: 54,
+                  decoration: BoxDecoration(
+                    color: tint,
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  child: Icon(icon, color: accent, size: 25),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: TextStyle(
+                          fontFamily: 'PlusJakartaSans',
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                          color: scheme.onSurface,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        subtitle,
+                        style: TextStyle(
+                          fontFamily: 'PlusJakartaSans',
+                          fontSize: 13,
+                          color: scheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(Icons.chevron_right_rounded, color: scheme.onSurfaceVariant, size: 24),
+              ],
             ),
-            child: Row(mainAxisSize: MainAxisSize.min, children: [
-              Icon(icon, size: 16, color: scheme.primary),
-              const SizedBox(width: 7),
-              Text(label, style: TextStyle(
-                fontFamily: 'PlusJakartaSans', fontSize: 12,
-                fontWeight: FontWeight.w700, color: scheme.onSurface)),
-            ]),
           ),
         ),
       );
     }
-    return Center(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(5),
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: LinearGradient(colors: [
-                  scheme.primary.withValues(alpha: 0.18),
-                  scheme.primary.withValues(alpha: 0.04),
-                ]),
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxHeight < 610;
+        final illustrationSize = compact ? 184.0 : 218.0;
+        return SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(parent: ClampingScrollPhysics()),
+          padding: EdgeInsets.fromLTRB(20, compact ? 10 : 22, 20, 24),
+          child: Column(
+            children: [
+              SizedBox(
+                width: illustrationSize,
+                height: illustrationSize,
+                child: CustomPaint(
+                  painter: _ChatEmptyRingsPainter(
+                    ring: scheme.primary.withValues(alpha: dark ? .18 : .12),
+                  ),
+                  child: Center(
+                    child: Container(
+                      padding: const EdgeInsets.all(7),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: scheme.surface,
+                        boxShadow: [
+                          BoxShadow(
+                            color: scheme.primary.withValues(alpha: .13),
+                            blurRadius: 26,
+                            spreadRadius: 5,
+                          ),
+                        ],
+                      ),
+                      child: Container(
+                        padding: const EdgeInsets.all(5),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: scheme.primary.withValues(alpha: .16),
+                            width: 2,
+                          ),
+                        ),
+                        child: UserAvatar(
+                          name: widget.peer.name,
+                          photoUrl: widget.peer.photoUrl,
+                          radius: compact ? 53 : 67,
+                          showOnlineIndicator: !widget.isGroup,
+                          isOnline: widget.peer.isOnline,
+                          presence: widget.peer.status,
+                          fallbackColor: widget.peer.avatarColor,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
               ),
-              child: UserAvatar(
-                name: widget.peer.name,
-                photoUrl: widget.peer.photoUrl,
-                radius: 39,
+              const SizedBox(height: 4),
+              Text(
+                widget.peer.name,
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontFamily: 'PlusJakartaSans',
+                  fontSize: compact ? 23 : 26,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -.55,
+                  color: scheme.onSurface,
+                ),
               ),
-            ),
-            const SizedBox(height: 15),
-            Text(widget.peer.name, textAlign: TextAlign.center,
-              style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 18,
-                fontWeight: FontWeight.w800, color: scheme.onSurface)),
-            const SizedBox(height: 3),
-            Text(widget.isGroup ? 'Group chat' : '@${widget.peer.username}', style: TextStyle(
-              fontFamily: 'PlusJakartaSans', fontSize: 12,
-              fontWeight: FontWeight.w600, color: scheme.primary)),
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-              decoration: BoxDecoration(
-                color: scheme.primary.withValues(alpha: isDark ? 0.16 : 0.08),
-                borderRadius: BorderRadius.circular(20)),
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                Icon(widget.isGroup ? Icons.groups_rounded : Icons.lock_outline_rounded, size: 13, color: scheme.primary),
-                const SizedBox(width: 6),
-                Text(widget.isGroup ? 'Group conversation' : 'End-to-end encrypted', style: TextStyle(
-                  fontFamily: 'PlusJakartaSans', fontSize: 11,
-                  fontWeight: FontWeight.w700, color: scheme.primary)),
-              ]),
-            ),
-            const SizedBox(height: 22),
-            Text('No messages yet. Start with something quick',
-              textAlign: TextAlign.center, style: TextStyle(
-                fontFamily: 'PlusJakartaSans', fontSize: 12,
-                color: scheme.onSurfaceVariant)),
-            const SizedBox(height: 15),
-            Wrap(alignment: WrapAlignment.center, spacing: 9, runSpacing: 9, children: [
-              quickAction(Icons.waving_hand_rounded, 'Wave hello', () {
-                context.read<SocketService>().sendMessage(
-                  '👋',
-                  widget.peer.uid.isNotEmpty ? widget.peer.uid : widget.peer.username,
-                  isGroup: widget.isGroup,
-                );
-              }),
-              quickAction(Icons.gif_box_rounded, 'Send a GIF', () => _showGifPicker()),
-            ]),
-            const SizedBox(height: 9),
-            quickAction(Icons.sports_esports_rounded, 'Play Up or Down', _showGameLauncher),
-          ],
-        ),
-      ),
+              const SizedBox(height: 3),
+              Text(
+                widget.isGroup ? 'Group conversation' : '@${widget.peer.username}',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontFamily: 'PlusJakartaSans',
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  color: scheme.primary,
+                ),
+              ),
+              const SizedBox(height: 17),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                decoration: BoxDecoration(
+                  color: scheme.primary.withValues(alpha: dark ? .18 : .10),
+                  borderRadius: BorderRadius.circular(24),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      widget.isGroup ? Icons.groups_rounded : Icons.lock_outline_rounded,
+                      color: scheme.primary,
+                      size: 17,
+                    ),
+                    const SizedBox(width: 9),
+                    Text(
+                      widget.isGroup ? 'Group conversation' : 'End-to-end encrypted',
+                      style: TextStyle(
+                        fontFamily: 'PlusJakartaSans',
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                        color: scheme.primary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              SizedBox(height: compact ? 24 : 30),
+              Text(
+                'No messages yet. Start with something quick',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontFamily: 'PlusJakartaSans',
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: scheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 17),
+              Container(
+                clipBehavior: Clip.antiAlias,
+                decoration: BoxDecoration(
+                  color: scheme.surface,
+                  borderRadius: BorderRadius.circular(27),
+                  border: Border.all(
+                    color: scheme.outlineVariant.withValues(alpha: .44),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: scheme.primary.withValues(alpha: dark ? .02 : .045),
+                      blurRadius: 22,
+                      offset: const Offset(0, 7),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  children: [
+                    quickAction(
+                      icon: Icons.waving_hand_rounded,
+                      title: 'Wave hello',
+                      subtitle: 'Break the ice with a wave',
+                      tint: const Color(0xFFFFEED8),
+                      accent: const Color(0xFFB96819),
+                      onTap: () {
+                        unawaited(context.read<SocketService>().sendMessage(
+                          '👋',
+                          widget.peer.uid.isNotEmpty ? widget.peer.uid : widget.peer.username,
+                          isGroup: widget.isGroup,
+                        ));
+                      },
+                    ),
+                    Divider(
+                      height: 1,
+                      thickness: 1,
+                      indent: 18,
+                      endIndent: 18,
+                      color: scheme.outlineVariant.withValues(alpha: .42),
+                    ),
+                    quickAction(
+                      icon: Icons.gif_box_rounded,
+                      title: 'Send a GIF',
+                      subtitle: 'Pick something fun',
+                      tint: const Color(0xFFE4F0FC),
+                      accent: const Color(0xFF347DBB),
+                      onTap: _showGifPicker,
+                    ),
+                    Divider(
+                      height: 1,
+                      thickness: 1,
+                      indent: 18,
+                      endIndent: 18,
+                      color: scheme.outlineVariant.withValues(alpha: .42),
+                    ),
+                    quickAction(
+                      icon: Icons.sports_esports_rounded,
+                      title: 'Play Up or Down',
+                      subtitle: 'Challenge them to a quick game',
+                      tint: const Color(0xFFE1F4E9),
+                      accent: const Color(0xFF368A53),
+                      onTap: _showGameLauncher,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -4530,3 +4689,26 @@ class _ChatHeaderButton extends StatelessWidget {
     );
   }
 }
+
+class _ChatEmptyRingsPainter extends CustomPainter {
+  const _ChatEmptyRingsPainter({required this.ring});
+  final Color ring;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = math.min(size.width, size.height) * .47;
+    final paint = Paint()
+      ..color = ring
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5;
+    for (var index = 1; index <= 4; index++) {
+      canvas.drawCircle(center, radius * index / 4, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _ChatEmptyRingsPainter oldDelegate) =>
+      oldDelegate.ring != ring;
+}
+
