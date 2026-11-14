@@ -91,7 +91,12 @@ class NovynUser {
 }
 
 class AuthService extends ChangeNotifier {
-  static const FlutterSecureStorage _identityStorage = FlutterSecureStorage();
+  static const FlutterSecureStorage _identityStorage = FlutterSecureStorage(
+    aOptions: AndroidOptions(
+      resetOnError: false,
+      migrateWithBackup: true,
+    ),
+  );
   static const String _cachedIdentityKey = 'novyn_last_signed_in_identity_v1';
 
   final Future<void> Function(String)? savePresence;
