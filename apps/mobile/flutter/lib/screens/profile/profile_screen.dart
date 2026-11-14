@@ -18,6 +18,7 @@ import '../../services/auth_service.dart';
 import '../auth/onboarding_screen.dart';
 import '../security/setup_pin_screen.dart';
 import 'widgets/profile_widgets.dart';
+import 'widgets/quick_toggle_layout.dart';
 import 'settings/notification_settings_screen.dart';
 import 'settings/security_privacy_screen.dart';
 import 'settings/data_storage_screen.dart';
@@ -103,21 +104,17 @@ class ProfileScreen extends StatelessWidget {
                     ),
                   ],
                 ),
-                GridView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: quickToggleIds.length,
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    crossAxisSpacing: 12,
-                    mainAxisSpacing: 10,
-                    childAspectRatio: 2.45,
-                  ),
-                  itemBuilder: (context, index) => _buildQuickToggle(
-                    context,
-                    settings,
-                    quickToggleIds[index],
-                  ),
+                QuickToggleAdaptiveLayout(
+                  children: quickToggleIds
+                      .map(
+                        (id) => _buildQuickToggle(
+                          context,
+                          settings,
+                          id,
+                          compact: quickToggleIds.length > 1,
+                        ),
+                      )
+                      .toList(growable: false),
                 ),
                 NovynSectionLabel('ACCOUNT', padding: const EdgeInsets.fromLTRB(4, 18, 4, 8)),
                 _NovynSettingsGroup(children: [
@@ -228,12 +225,14 @@ class ProfileScreen extends StatelessWidget {
   Widget _buildQuickToggle(
     BuildContext context,
     SettingsService settings,
-    String id,
-  ) {
+    String id, {
+    required bool compact,
+  }) {
     switch (id) {
       case 'app_lock':
         return _SettingsQuickToggle(
           title: 'App Lock',
+          compact: compact,
           activeIcon: Icons.lock_rounded,
           inactiveIcon: Icons.lock_open_rounded,
           value: settings.appLockEnabled,
@@ -243,6 +242,7 @@ class ProfileScreen extends StatelessWidget {
       case 'do_not_disturb':
         return _SettingsQuickToggle(
           title: 'Do Not Disturb',
+          compact: compact,
           activeIcon: Icons.do_not_disturb_on_rounded,
           inactiveIcon: Icons.notifications_active_rounded,
           value: settings.doNotDisturbEnabled,
@@ -252,6 +252,7 @@ class ProfileScreen extends StatelessWidget {
       case 'read_receipts':
         return _SettingsQuickToggle(
           title: 'Read Receipts',
+          compact: compact,
           activeIcon: Icons.done_all_rounded,
           inactiveIcon: Icons.done_rounded,
           value: settings.readReceipts,
@@ -261,6 +262,7 @@ class ProfileScreen extends StatelessWidget {
       case 'in_app_sounds':
         return _SettingsQuickToggle(
           title: 'In-App Sounds',
+          compact: compact,
           activeIcon: Icons.volume_up_rounded,
           inactiveIcon: Icons.volume_off_rounded,
           value: settings.inAppSounds,
@@ -270,6 +272,7 @@ class ProfileScreen extends StatelessWidget {
       case 'in_app_vibration':
         return _SettingsQuickToggle(
           title: 'In-App Vibration',
+          compact: compact,
           activeIcon: Icons.vibration_rounded,
           inactiveIcon: Icons.mobile_off_rounded,
           value: settings.inAppVibration,
@@ -279,6 +282,7 @@ class ProfileScreen extends StatelessWidget {
       case 'group_notifications':
         return _SettingsQuickToggle(
           title: 'Group Alerts',
+          compact: compact,
           activeIcon: Icons.groups_rounded,
           inactiveIcon: Icons.notifications_off_rounded,
           value: settings.groupNotifications,
@@ -2205,6 +2209,7 @@ class _SettingsQuickToggle extends StatelessWidget {
     required this.value,
     required this.accent,
     required this.onChanged,
+    this.compact = false,
   });
 
   final String title;
@@ -2213,11 +2218,14 @@ class _SettingsQuickToggle extends StatelessWidget {
   final bool value;
   final Color accent;
   final ValueChanged<bool> onChanged;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final dark = Theme.of(context).brightness == Brightness.dark;
+    final iconSize = compact ? 30.0 : 38.0;
+    final iconRadius = compact ? 10.0 : 12.0;
 
     return Material(
       color: NovynTheme.cardBg(context),
@@ -2226,8 +2234,11 @@ class _SettingsQuickToggle extends StatelessWidget {
         borderRadius: BorderRadius.circular(18),
         onTap: () => onChanged(!value),
         child: Container(
-          constraints: const BoxConstraints(minHeight: 54),
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+          constraints: BoxConstraints(minHeight: compact ? 64 : 68),
+          padding: EdgeInsets.symmetric(
+            horizontal: compact ? 9 : 14,
+            vertical: 8,
+          ),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(18),
             border: Border.all(
@@ -2238,16 +2249,18 @@ class _SettingsQuickToggle extends StatelessWidget {
           ),
           child: Semantics(
             label: title,
+            toggled: value,
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 AnimatedContainer(
                   duration: const Duration(milliseconds: 180),
-                  width: 34,
-                  height: 34,
+                  width: iconSize,
+                  height: iconSize,
                   decoration: BoxDecoration(
-                    color: accent.withValues(alpha: value ? (dark ? .24 : .14) : .08),
-                    borderRadius: BorderRadius.circular(11),
+                    color: accent.withValues(
+                      alpha: value ? (dark ? .24 : .14) : .08,
+                    ),
+                    borderRadius: BorderRadius.circular(iconRadius),
                   ),
                   child: AnimatedSwitcher(
                     duration: const Duration(milliseconds: 170),
@@ -2258,15 +2271,29 @@ class _SettingsQuickToggle extends StatelessWidget {
                     child: Icon(
                       value ? activeIcon : inactiveIcon,
                       key: ValueKey(value),
-                      size: 18,
+                      size: compact ? 17 : 20,
                       color: value ? accent : scheme.onSurfaceVariant,
                     ),
                   ),
                 ),
-                const SizedBox(width: 18),
+                SizedBox(width: compact ? 8 : 13),
+                Expanded(
+                  child: Text(
+                    title,
+                    maxLines: compact ? 2 : 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: compact ? 11.5 : 14,
+                      fontWeight: FontWeight.w700,
+                      color: scheme.onSurface,
+                      height: 1.15,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 3),
                 Transform.scale(
-                  scale: .76,
-                  alignment: Alignment.center,
+                  scale: compact ? .68 : .82,
+                  alignment: Alignment.centerRight,
                   child: Switch.adaptive(
                     value: value,
                     onChanged: onChanged,
@@ -2283,7 +2310,6 @@ class _SettingsQuickToggle extends StatelessWidget {
     );
   }
 }
-
 class _NovynSettingsGroup extends StatelessWidget {
   const _NovynSettingsGroup({required this.children});
   final List<Widget> children;
