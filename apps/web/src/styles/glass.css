@@ -1299,20 +1299,20 @@ button:disabled { cursor: not-allowed; }
 @media (max-width: 760px) { :root .landing-navbar { padding: 0 16px; height: 64px; } :root .landing-platform-menu { display: none !important; } :root .landing-navbar .btn-secondary { display: none; } :root .landing-hero { min-height: calc(100vh - 64px); padding: 64px 18px 36px !important; } :root .hero-title { font-size: clamp(2.7rem, 13vw, 4.3rem) !important; } :root .hero-cta-group { flex-direction: column; width: min(100%, 340px); } :root .hero-cta-group .btn { width: 100%; justify-content: center; } :root .hero-pills { flex-direction: column; align-items: center; } :root .mockup-container { margin-top: 38px !important; } }
 
 /* Onboarding lower journey: remove washed-out legacy surfaces and continue the indigo system. */
-:root .landing-intro { background: #0c0b19 !important; }
-:root .landing-intro-glow { background: radial-gradient(circle, rgba(109, 93, 252, .48) 0%, rgba(85, 64, 205, .2) 43%, transparent 72%) !important; animation: landing-intro-aura 3.4s ease-in-out infinite; }
-:root .landing-intro-mark { background: linear-gradient(145deg, #7c6cff 0%, #6250ed 48%, #4939bc 100%) !important; border-color: rgba(220, 216, 255, .4) !important; box-shadow: 0 0 0 9px rgba(109,93,252,.08), 0 0 62px rgba(101, 81, 243, .55), 0 20px 38px rgba(0,0,0,.34) !important; animation: landing-intro-mark 2.8s ease-in-out infinite; }
-:root .landing-intro-name { color: #f8f7ff !important; text-shadow: 0 4px 20px rgba(0,0,0,.3); }
-:root .landing-intro-tagline { color: #a89dff !important; }
-:root .landing-intro-skip { color: #a9a3c5 !important; }
+:root .landing-intro { background: #f8faff !important; }
+:root .landing-intro-glow { background: radial-gradient(circle, rgba(16, 185, 129, .2) 0%, rgba(109, 93, 252, .1) 43%, transparent 72%) !important; animation: landing-intro-aura 3.4s ease-in-out infinite; }
+:root .landing-intro-mark { background: linear-gradient(145deg, #10b981 0%, #059669 100%) !important; border-color: rgba(16, 185, 129, .24) !important; box-shadow: 0 0 0 9px rgba(16,185,129,.06), 0 0 42px rgba(16, 185, 129, .18), 0 14px 28px rgba(20,50,43,.1) !important; animation: landing-intro-mark 2.8s ease-in-out infinite; }
+:root .landing-intro-name { color: #173b35 !important; text-shadow: none; }
+:root .landing-intro-tagline { color: #078779 !important; }
+:root .landing-intro-skip { color: #617c75 !important; }
 @keyframes landing-intro-aura { 50% { transform: scale(1.13); opacity: .88; } }
 @keyframes landing-intro-mark { 50% { transform: translateY(-4px); box-shadow: 0 0 0 13px rgba(109,93,252,.06), 0 0 76px rgba(101,81,243,.62), 0 24px 42px rgba(0,0,0,.34); } }
 
-:root .mockup-container { background: linear-gradient(145deg, #1d1b3a, #121126 70%) !important; border-color: rgba(151, 139, 255, .36) !important; }
-:root .mockup-container .mockup-header { border-bottom-color: rgba(174, 164, 255, .15) !important; }
-:root .mockup-container .mockup-msg-in { background: #29264d !important; border: 1px solid rgba(174,164,255,.2) !important; color: #f1efff !important; box-shadow: 0 8px 17px rgba(0,0,0,.15); }
-:root .mockup-container .mockup-msg-in span { color: #c2bcff !important; }
-:root .mockup-container .mockup-msg-in span:first-child { color: #a89dff !important; }
+:root .mockup-container { background: linear-gradient(145deg, #ffffff, #f2f5ff 70%) !important; border-color: rgba(109, 93, 252, .18) !important; box-shadow: 0 24px 56px rgba(47, 54, 105, .12), 0 0 0 7px rgba(109,93,252,.025) !important; }
+:root .mockup-container .mockup-header { border-bottom-color: rgba(70, 83, 120, .14) !important; }
+:root .mockup-container .mockup-msg-in { background: #f3f5fb !important; border: 1px solid rgba(109,93,252,.12) !important; color: #25334b !important; box-shadow: 0 8px 17px rgba(40,55,90,.06); }
+:root .mockup-container .mockup-msg-in span { color: #64748b !important; }
+:root .mockup-container .mockup-msg-in span:first-child { color: #4d5b9c !important; }
 :root .mockup-container .mockup-msg-out { background: var(--primary-gradient, linear-gradient(135deg, var(--primary), var(--primary-hover))) !important; color: #fff !important; box-shadow: 0 10px 22px var(--primary-glow); }
 :root .mockup-container .mockup-msg-out span { color: rgba(255,255,255,.72) !important; }
 
