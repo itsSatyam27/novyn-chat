@@ -696,17 +696,13 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
                             SliverToBoxAdapter(
                               child: _buildSectionLabel('PINNED'),
                             ),
-                            SliverToBoxAdapter(
-                              child: _buildChatGroup(pinnedChats),
-                            ),
+                            _buildChatGroupSliver(pinnedChats),
                           ],
                           if (recentChats.isNotEmpty) ...[
                             SliverToBoxAdapter(
                               child: _buildSectionLabel('ALL CHATS'),
                             ),
-                            SliverToBoxAdapter(
-                              child: _buildChatGroup(recentChats),
-                            ),
+                            _buildChatGroupSliver(recentChats),
                           ],
                           if (activeChats.isEmpty)
                             SliverFillRemaining(child: _buildEmpty()),
@@ -1050,35 +1046,52 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
     }
   }
 
-  Widget _buildChatGroup(List<ChatPreview> chats) {
-    if (chats.isEmpty) return const SizedBox.shrink();
+  Widget _buildChatGroupSliver(List<ChatPreview> chats) {
+    if (chats.isEmpty) return const SliverToBoxAdapter(child: SizedBox.shrink());
     final theme = Theme.of(context);
-    return Padding(
+    final isDark = theme.brightness == Brightness.dark;
+    final cardColor = isDark ? theme.colorScheme.surface : Colors.white;
+    final dividerColor = isDark
+        ? Colors.white.withValues(alpha: .07)
+        : const Color(0xFFF0ECF6);
+
+    // Build chat rows lazily. The previous Column eagerly created every row
+    // inside one SliverToBoxAdapter, which made large inboxes expensive to lay
+    // out and paint before the user had even scrolled to them.
+    return SliverPadding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(34),
-        child: Material(
-          color: theme.brightness == Brightness.dark
-              ? theme.colorScheme.surface
-              : Colors.white,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              for (var index = 0; index < chats.length; index++) ...[
-                _buildChatCard(chats[index]),
-                if (index != chats.length - 1)
-                  Divider(
-                    height: 1,
-                    thickness: 1,
-                    indent: 0,
-                    endIndent: 0,
-                    color: theme.brightness == Brightness.dark
-                        ? Colors.white.withValues(alpha: .07)
-                        : const Color(0xFFF0ECF6),
-                  ),
-              ],
-            ],
-          ),
+      sliver: SliverList(
+        delegate: SliverChildBuilderDelegate(
+          (context, index) {
+            final isFirst = index == 0;
+            final isLast = index == chats.length - 1;
+            return ClipRRect(
+              borderRadius: BorderRadius.vertical(
+                top: isFirst ? const Radius.circular(34) : Radius.zero,
+                bottom: isLast ? const Radius.circular(34) : Radius.zero,
+              ),
+              child: Material(
+                color: cardColor,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _buildChatCard(chats[index]),
+                    if (!isLast)
+                      Divider(
+                        height: 1,
+                        thickness: 1,
+                        indent: 0,
+                        endIndent: 0,
+                        color: dividerColor,
+                      ),
+                  ],
+                ),
+              ),
+            );
+          },
+          childCount: chats.length,
+          addAutomaticKeepAlives: false,
+          addRepaintBoundaries: true,
         ),
       ),
     );
