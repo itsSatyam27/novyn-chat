@@ -13,13 +13,10 @@ import 'services/friend_service.dart';
 import 'services/socket_service.dart';
 import 'services/notification_service.dart';
 import 'services/api_service.dart';
-import 'services/hybrid_db_service.dart';
 import 'services/sync_service.dart';
-import 'services/draft_service.dart';
 import 'services/haptic_service.dart';
 import 'models/chat_models.dart';
 import 'models/user_model.dart';
-import 'widgets/user_avatar.dart' show UserAvatar;
 import 'theme/novyn_theme.dart';
 import 'screens/splash/splash_screen_v2.dart';
 import 'widgets/app_lock_wrapper.dart';
@@ -65,30 +62,14 @@ void main() async {
   Hive.registerAdapter(MessageAdapter());
   Hive.registerAdapter(UserModelAdapter());
 
-  // Initialize hybrid database (Drift + Hive) for 3-5x faster queries
-  await HybridDbService.init();
-
-  // Initialize draft service for saving unsent messages
-  await DraftService.init();
-
-  // Initialize avatar cache for instant profile picture loads
-  await UserAvatar.initCache();
-
-  // Restore the encrypted mobile auth cookie before AuthService starts.
-  try {
-    await ApiService.initializeSessionStorage().timeout(
-      const Duration(seconds: 4),
-      onTimeout: () => false,
-    );
-  } catch (error) {
-    // Do not block runApp on a temporarily unavailable Android Keystore.
-    debugPrint('[NovynStartup] Secure session storage is not ready yet: $error');
-  }
-
-  // Wake up backend server (eliminates 30s cold start on Render.com)
-  ApiService.ping();
-
+  // Keep first-frame startup lean. Hybrid DB, drafts and avatar cache all
+  // initialize lazily when their first screen/service actually needs them.
+  // AuthService restores the secure session after runApp, while the splash
+  // remains visible; this avoids hiding the splash behind disk I/O.
   runApp(NovynApp(settings: settings));
+
+  // Warm the backend without blocking the first frame or session restoration.
+  unawaited(ApiService.ping());
 }
 
 class NovynApp extends StatelessWidget {
