@@ -287,16 +287,26 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
       return;
     }
 
-    _chatId = widget.peer.uid.isNotEmpty
-        ? widget.peer.uid
+    // Direct-message APIs and Socket.IO identify peers by username, not the
+    // Firestore document UID. Using uid here makes notification deep-links
+    // request history for the wrong conversation and show an empty state.
+    _chatId = widget.isGroup
+        ? (widget.peer.uid.isNotEmpty ? widget.peer.uid : widget.peer.username)
         : widget.peer.username;
 
     List<Message> cachedMessages = [];
     try {
-      // Never let a slow local database keep the whole conversation screen
-      // on its first-load spinner indefinitely.
+      // Prefer the canonical username cache key. Read the old UID-keyed cache
+      // as a compatibility fallback for messages stored by older app builds.
       cachedMessages = await HybridDbService.getMessages(_chatId!)
           .timeout(const Duration(seconds: 6), onTimeout: () => <Message>[]);
+      if (cachedMessages.isEmpty &&
+          !widget.isGroup &&
+          widget.peer.uid.isNotEmpty &&
+          widget.peer.uid != _chatId) {
+        cachedMessages = await HybridDbService.getMessages(widget.peer.uid)
+            .timeout(const Duration(seconds: 4), onTimeout: () => <Message>[]);
+      }
     } catch (error) {
       debugPrint('[NovynChat] Local message cache read failed: $error');
     }
