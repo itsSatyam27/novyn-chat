@@ -110,6 +110,7 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
     _observedUsername = username;
     _loadGeneration++;
     _lastSocketConversations = const [];
+    _topChatsPreloadStarted = false;
 
     if (username == null || username.isEmpty) {
       ChatsScreen.resetAccountCache();
@@ -392,6 +393,7 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
     final conversations = socket.conversations;
 
     if (hasCurrentServerSnapshot && mounted) {
+      _lastSocketConversations = List<ChatPreview>.from(conversations);
       final previews = _withPinnedPreferences(
         List<ChatPreview>.from(conversations),
       );
