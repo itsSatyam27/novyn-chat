@@ -644,7 +644,8 @@ class NotificationService {
     _syncPresentation();
     await _initializeLocalNotifications(context);
     _socket!.onIncomingMessage = (username, body) {
-      if (context.mounted) {
+      if (context.mounted &&
+          WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed) {
         unawaited(_showForegroundMessageNotification(username, body));
       }
     };
@@ -818,7 +819,8 @@ class NotificationService {
     }
     // When the socket is connected its message callback creates the local
     // system notification. Use FCM as a fallback only while disconnected.
-    if (_socket?.isConnected == true) return;
+    if (_socket?.isConnected == true &&
+        WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed) return;
     if (type == 'message' && message.data['kind'] != 'group') {
       final username = message.data['chat']?.toString().trim() ?? '';
       if (username.isNotEmpty) {
