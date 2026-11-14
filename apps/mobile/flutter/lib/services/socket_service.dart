@@ -994,6 +994,7 @@ class SocketService extends ChangeNotifier {
         );
         if (result['ok'] == true && _myUsername == account && _socket == connection) {
           _registeredIdentityAccount = account.toLowerCase();
+          unawaited(decryptCurrentMessages());
         } else {
           debugPrint('[NovynE2EE] Device identity registration was not confirmed.');
         }
@@ -1621,8 +1622,14 @@ class SocketService extends ChangeNotifier {
     final peer = _currentChatWith;
     if (account == null || peer == null) return;
     final snapshot = _messages;
-    final decrypted = await Future.wait(
-        snapshot.map((message) => encryption.decrypt(message, account, _peerKeys[peer.toLowerCase()])));
+    final decrypted = await Future.wait(snapshot.map((message) {
+      final peerKey = message.isFromMe
+          ? _peerKeys[peer.toLowerCase()]
+          : (message.senderPublicKey?.isNotEmpty == true
+              ? message.senderPublicKey
+              : _peerKeys[peer.toLowerCase()]);
+      return encryption.decrypt(message, account, peerKey);
+    }));
     if (_myUsername != account || _currentChatWith != peer) return;
     final byId = {for (final message in decrypted) message.id: message};
     _messages = _messages
