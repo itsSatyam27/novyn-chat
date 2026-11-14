@@ -522,6 +522,7 @@ class SocketService extends ChangeNotifier {
     }
     if (_isConnected && _isAuthenticated) {
       _requestActiveChatRefresh();
+      unawaited(_flushPendingMessageOutbox());
     }
   }
 
