@@ -167,7 +167,6 @@ class SocketService extends ChangeNotifier {
     _isAuthenticated = false;
     _authenticationReady = null;
     _registeredIdentityAccount = null;
-    _isConnecting = false;
     notifyListeners();
     _doConnect();
   }
