@@ -1295,20 +1295,10 @@ class SocketService extends ChangeNotifier {
     await _waitForSocketAuthentication();
     _requireConnection();
 
-    // Outgoing Flutter messages are sent as ordinary plaintext. Keep the
-    // existing device identity available for decrypting legacy E2EE messages,
-    // but never block or encrypt a new message when identity setup is pending.
-    var senderPublicKey = '';
-    if (!isGroup) {
-      try {
-        senderPublicKey = await encryption.initializeIdentity(account);
-      } catch (error) {
-        debugPrint('[NovynE2EE] Legacy identity unavailable while sending plaintext: $error');
-      }
-    }
-
+    // New Flutter messages are plaintext. Device identity registration is
+    // already started in the background after socket authentication, so never
+    // wait for secure storage or P-256 key setup before sending a message.
     final payload = <String, dynamic>{
-      if (senderPublicKey.isNotEmpty) 'senderPublicKey': senderPublicKey,
       'to': toPeerUsername,
       'toType': toType,
       'text': rawText,
