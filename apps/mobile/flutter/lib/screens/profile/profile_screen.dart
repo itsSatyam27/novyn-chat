@@ -1986,8 +1986,8 @@ class _NovynSettingsProfileCardState extends State<_NovynSettingsProfileCard> {
     children: [
       Row(children: [
         SizedBox(
-          width: 68,
-          height: 68,
+          width: 92,
+          height: 92,
           child: ProfileAvatarWithOrbit(
             photoUrl: widget.photoUrl,
             displayName: widget.displayName,

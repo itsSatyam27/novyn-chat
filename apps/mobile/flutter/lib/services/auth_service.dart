@@ -329,20 +329,32 @@ class AuthService extends ChangeNotifier {
       // Rehydrate encrypted cookies if the in-memory client was recreated.
       if (ApiService.sessionCookie == null ||
           ApiService.sessionCookie!.isEmpty) {
-        final storageReady = await ApiService.initializeSessionStorage();
+        final storageReady = await ApiService.initializeSessionStorage().timeout(
+          const Duration(seconds: 4),
+          onTimeout: () => false,
+        );
         if (!storageReady) return;
       }
 
       final cookieBeforeRestore = ApiService.sessionCookie;
-      var session = await ApiService.getSession();
+      var session = await ApiService.getSession().timeout(
+        const Duration(seconds: 8),
+        onTimeout: () => null,
+      );
       final status = session?['_httpStatus'];
       if (session == null || session['authenticated'] != true) {
         // Do not rotate tokens on ordinary network failures. Only attempt a
         // refresh after the server explicitly rejects the access cookie.
         if (status == 401 || status == 403) {
-          final refreshStatus = await ApiService.refreshSessionStatus();
+          final refreshStatus = await ApiService.refreshSessionStatus().timeout(
+            const Duration(seconds: 8),
+            onTimeout: () => null,
+          );
           if (refreshStatus == 200) {
-            session = await ApiService.getSession();
+            session = await ApiService.getSession().timeout(
+              const Duration(seconds: 8),
+              onTimeout: () => null,
+            );
           }
         }
       }
@@ -353,9 +365,19 @@ class AuthService extends ChangeNotifier {
             refreshedUser.username.toLowerCase()) {
           await _prepareAccount(refreshedUser.username);
         }
+        final previousUser = _user;
+        final identityChanged = previousUser == null ||
+            jsonEncode(_identityToMap(previousUser)) !=
+                jsonEncode(_identityToMap(refreshedUser));
         _user = refreshedUser;
-        await _persistIdentity(refreshedUser);
-        notifyListeners();
+
+        // A healthy resume commonly returns the exact same profile. Avoid
+        // notifying every auth consumer (tabs, dock, profile) unless data really
+        // changed; this prevents a whole-app rebuild on every app switch.
+        if (identityChanged) {
+          await _persistIdentity(refreshedUser);
+          notifyListeners();
+        }
 
         // A successful session lookup can rotate the access/refresh cookies.
         // Existing Socket.IO connections keep the old session ID, so reconnect

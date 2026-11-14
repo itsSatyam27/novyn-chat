@@ -45,7 +45,7 @@ class NovynDock extends StatelessWidget {
     final full = style == 'full_width';
     final compact = style == 'minimal';
     final glass = style == 'glass';
-    final duration = Duration(milliseconds: reduceMotion ? 0 : 320);
+    final duration = Duration(milliseconds: reduceMotion ? 0 : 190);
     final radius = style == 'rounded_bar' ? 22.0 : (style == 'glow' ? 30.0 : 26.0);
     final scheme = Theme.of(context).colorScheme;
     final background = scheme.surface;
@@ -57,7 +57,7 @@ class NovynDock extends StatelessWidget {
         alignment: Alignment.bottomCenter,
         child: AnimatedPadding(
           duration: duration,
-          curve: Curves.easeInOutCubic,
+          curve: Curves.easeOutCubic,
           padding: EdgeInsets.fromLTRB(
             full ? 0 : 14,
             0,
@@ -97,7 +97,7 @@ class NovynDock extends StatelessWidget {
                                 : (dark
                                     ? Colors.black.withValues(alpha: .28)
                                     : accent.withValues(alpha: .09)),
-                            blurRadius: style == 'glow' ? 30 : (glass ? 26 : 20),
+                            blurRadius: style == 'glow' ? 22 : (glass ? 18 : 16),
                             offset: const Offset(0, 8),
                             spreadRadius: style == 'glow' ? 3 : 0,
                           ),
@@ -107,7 +107,7 @@ class NovynDock extends StatelessWidget {
                   borderRadius: BorderRadius.circular(full ? 0 : radius),
                   child: glass
                       ? BackdropFilter(
-                          filter: ImageFilter.blur(sigmaX: 22, sigmaY: 22),
+                          filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
                           child: _items(
                             context, selected, accent, dark, compact, reduceMotion,
                           ),
@@ -146,7 +146,7 @@ class NovynDock extends StatelessWidget {
     final full = style == 'full_width';
     final elevated = style == 'elevated';
     final sliding = style == 'sliding';
-    final duration = Duration(milliseconds: reduceMotion ? 0 : 300);
+    final duration = Duration(milliseconds: reduceMotion ? 0 : 190);
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -222,8 +222,8 @@ class NovynDock extends StatelessWidget {
                             borderRadius: BorderRadius.circular(style == 'rounded_bar' ? 16 : 22),
                             boxShadow: active && style == 'glow'
                                 ? [
-                                    BoxShadow(color: accent.withValues(alpha: dark ? .68 : .58), blurRadius: 30, spreadRadius: 4),
-                                    BoxShadow(color: accent.withValues(alpha: dark ? .34 : .28), blurRadius: 12, spreadRadius: 1),
+                                    BoxShadow(color: accent.withValues(alpha: dark ? .68 : .58), blurRadius: 22, spreadRadius: 2),
+                                    BoxShadow(color: accent.withValues(alpha: dark ? .34 : .28), blurRadius: 10, spreadRadius: 1),
                                   ]
                                 : null,
                           ),

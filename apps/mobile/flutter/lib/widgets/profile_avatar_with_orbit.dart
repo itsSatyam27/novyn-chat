@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:math' as math;
 import 'dart:io';
 import 'package:flutter/material.dart';
-import '../services/api_service.dart';
+import 'user_avatar.dart';
 
 class ProfileAvatarWithOrbit extends StatefulWidget {
   final String? photoUrl;
@@ -40,28 +40,24 @@ class ProfileAvatarWithOrbitState extends State<ProfileAvatarWithOrbit>
     super.dispose();
   }
 
-  ImageProvider? _avatarImageProvider() {
-    if (widget.localFile != null) return FileImage(widget.localFile!);
+  String _resolvedPhotoSource() {
     final source = widget.photoUrl?.trim() ?? '';
-    if (source.isEmpty) return null;
-
-    if (source.startsWith('https://') || source.startsWith('http://')) {
-      return NetworkImage(source, headers: ApiService.imageHeaders);
+    if (source.isEmpty ||
+        source.startsWith('https://') ||
+        source.startsWith('http://')) {
+      return source;
     }
 
-    // Support both raw Base64 and data:image/...;base64,... values.
+    // UserAvatar handles legacy Base64 values; strip a data-URI prefix and
+    // normalize padding so both avatar widgets decode the same source.
     final comma = source.indexOf(',');
     final payload = source.startsWith('data:image/') && comma >= 0
         ? source.substring(comma + 1)
         : source;
-
     try {
-      final bytes = base64Decode(base64.normalize(payload));
-      return bytes.isEmpty ? null : MemoryImage(bytes);
+      return base64.normalize(payload);
     } catch (_) {
-      // A malformed/unsupported avatar must never replace the whole
-      // Settings screen with Flutter's large error widget.
-      return null;
+      return payload;
     }
   }
 
@@ -69,7 +65,6 @@ class ProfileAvatarWithOrbitState extends State<ProfileAvatarWithOrbit>
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final orbitColor = _getStatusColor(widget.status);
-    final avatarImage = _avatarImageProvider();
     final initial = widget.displayName.isNotEmpty
         ? widget.displayName.substring(0, 1).toUpperCase()
         : '?';
@@ -123,12 +118,17 @@ class ProfileAvatarWithOrbitState extends State<ProfileAvatarWithOrbit>
                 ),
               ],
             ),
-            child: avatarImage == null
-                ? fallback()
-                : Image(
-                    image: avatarImage,
+            child: widget.localFile != null
+                ? Image.file(
+                    widget.localFile!,
                     fit: BoxFit.cover,
                     errorBuilder: (context, error, stackTrace) => fallback(),
+                  )
+                : UserAvatar(
+                    name: widget.displayName,
+                    photoUrl: _resolvedPhotoSource(),
+                    radius: 35,
+                    fallbackColor: theme.colorScheme.primary,
                   ),
           ),
         ],

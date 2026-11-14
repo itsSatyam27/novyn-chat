@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
@@ -35,7 +36,11 @@ class ChatsScreen extends StatefulWidget {
   State<ChatsScreen> createState() => _ChatsScreenState();
 }
 
-class _ChatsScreenState extends State<ChatsScreen> {
+class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
+  static const _newChatFabIdleDelay = Duration(seconds: 5);
+  Timer? _newChatFabTimer;
+  bool _showNewChatFab = true;
+  bool? _homeTabIsActive;
   List<ChatPreview> _chats = [];
   List<ChatPreview> _filtered = [];
   bool _loading = true;
@@ -56,6 +61,7 @@ class _ChatsScreenState extends State<ChatsScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     // Observe auth transitions so a screen created before session restoration
     // can hydrate the account's local chats immediately after login.
     _authService = context.read<AuthService>();
@@ -394,7 +400,57 @@ class _ChatsScreenState extends State<ChatsScreen> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final isActive = TickerMode.of(context);
+    if (_homeTabIsActive == isActive) return;
+    _homeTabIsActive = isActive;
+    if (isActive && WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed) {
+      _showNewChatFab = true;
+      _scheduleNewChatFabHide();
+    } else {
+      _newChatFabTimer?.cancel();
+    }
+  }
+
+  void _scheduleNewChatFabHide() {
+    _newChatFabTimer?.cancel();
+    if (_homeTabIsActive != true ||
+        WidgetsBinding.instance.lifecycleState != AppLifecycleState.resumed) {
+      return;
+    }
+    _newChatFabTimer = Timer(_newChatFabIdleDelay, () {
+      if (!mounted || _homeTabIsActive != true) return;
+      if (_showNewChatFab) setState(() => _showNewChatFab = false);
+    });
+  }
+
+  void _revealNewChatFab() {
+    if (_homeTabIsActive != true ||
+        WidgetsBinding.instance.lifecycleState != AppLifecycleState.resumed) {
+      return;
+    }
+    if (!_showNewChatFab && mounted) {
+      setState(() => _showNewChatFab = true);
+    }
+    _scheduleNewChatFabHide();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _revealNewChatFab();
+    } else if (state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
+      _newChatFabTimer?.cancel();
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _newChatFabTimer?.cancel();
     _authService?.removeListener(_handleAuthChanged);
     try {
       context.read<SocketService>().removeListener(_handleSocketUpdate);
@@ -488,7 +544,10 @@ class _ChatsScreenState extends State<ChatsScreen> {
 
     return Scaffold(
       backgroundColor: pageBackground,
-      body: SafeArea(
+      body: Listener(
+        behavior: HitTestBehavior.translucent,
+        onPointerDown: (_) => _revealNewChatFab(),
+        child: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -621,38 +680,54 @@ class _ChatsScreenState extends State<ChatsScreen> {
                   : RefreshIndicator(
                       color: Theme.of(context).colorScheme.primary,
                       onRefresh: _loadChats,
-                      child: CustomScrollView(
+                      child: NotificationListener<ScrollNotification>(
+                        onNotification: (notification) {
+                          if (notification is ScrollStartNotification ||
+                              notification is ScrollUpdateNotification ||
+                              notification is UserScrollNotification) {
+                            _revealNewChatFab();
+                          }
+                          return false;
+                        },
+                        child: CustomScrollView(
                         physics: const AlwaysScrollableScrollPhysics(),
                         slivers: [
                           if (pinnedChats.isNotEmpty) ...[
                             SliverToBoxAdapter(
                               child: _buildSectionLabel('PINNED'),
                             ),
-                            SliverToBoxAdapter(
-                              child: _buildChatGroup(pinnedChats),
-                            ),
+                            _buildChatGroupSliver(pinnedChats),
                           ],
                           if (recentChats.isNotEmpty) ...[
                             SliverToBoxAdapter(
                               child: _buildSectionLabel('ALL CHATS'),
                             ),
-                            SliverToBoxAdapter(
-                              child: _buildChatGroup(recentChats),
-                            ),
+                            _buildChatGroupSliver(recentChats),
                           ],
                           if (activeChats.isEmpty)
                             SliverFillRemaining(child: _buildEmpty()),
                           const SliverToBoxAdapter(child: SizedBox(height: 112)),
                         ],
                       ),
+                      ),
                     ),
             ),
           ],
         ),
+        ),
       ),
-      floatingActionButton: Padding(
-        padding: const EdgeInsets.only(bottom: 100),
-        child: FloatingActionButton(
+      floatingActionButton: AnimatedSlide(
+        offset: _showNewChatFab ? Offset.zero : const Offset(0, 1.35),
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOutCubic,
+        child: AnimatedOpacity(
+          opacity: _showNewChatFab ? 1 : 0,
+          duration: const Duration(milliseconds: 180),
+          child: IgnorePointer(
+            ignoring: !_showNewChatFab,
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 100),
+              child: FloatingActionButton(
           heroTag: 'novyn_new_chat_fab',
           tooltip: 'New chat',
           onPressed: () {
@@ -663,7 +738,10 @@ class _ChatsScreenState extends State<ChatsScreen> {
           foregroundColor: Colors.white,
           elevation: 8,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
-          child: const Icon(Icons.edit_rounded, size: 27),
+                child: const Icon(Icons.edit_rounded, size: 27),
+              ),
+            ),
+          ),
         ),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
@@ -968,35 +1046,52 @@ class _ChatsScreenState extends State<ChatsScreen> {
     }
   }
 
-  Widget _buildChatGroup(List<ChatPreview> chats) {
-    if (chats.isEmpty) return const SizedBox.shrink();
+  Widget _buildChatGroupSliver(List<ChatPreview> chats) {
+    if (chats.isEmpty) return const SliverToBoxAdapter(child: SizedBox.shrink());
     final theme = Theme.of(context);
-    return Padding(
+    final isDark = theme.brightness == Brightness.dark;
+    final cardColor = isDark ? theme.colorScheme.surface : Colors.white;
+    final dividerColor = isDark
+        ? Colors.white.withValues(alpha: .07)
+        : const Color(0xFFF0ECF6);
+
+    // Build chat rows lazily. The previous Column eagerly created every row
+    // inside one SliverToBoxAdapter, which made large inboxes expensive to lay
+    // out and paint before the user had even scrolled to them.
+    return SliverPadding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(34),
-        child: Material(
-          color: theme.brightness == Brightness.dark
-              ? theme.colorScheme.surface
-              : Colors.white,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              for (var index = 0; index < chats.length; index++) ...[
-                _buildChatCard(chats[index]),
-                if (index != chats.length - 1)
-                  Divider(
-                    height: 1,
-                    thickness: 1,
-                    indent: 0,
-                    endIndent: 0,
-                    color: theme.brightness == Brightness.dark
-                        ? Colors.white.withValues(alpha: .07)
-                        : const Color(0xFFF0ECF6),
-                  ),
-              ],
-            ],
-          ),
+      sliver: SliverList(
+        delegate: SliverChildBuilderDelegate(
+          (context, index) {
+            final isFirst = index == 0;
+            final isLast = index == chats.length - 1;
+            return ClipRRect(
+              borderRadius: BorderRadius.vertical(
+                top: isFirst ? const Radius.circular(34) : Radius.zero,
+                bottom: isLast ? const Radius.circular(34) : Radius.zero,
+              ),
+              child: Material(
+                color: cardColor,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _buildChatCard(chats[index]),
+                    if (!isLast)
+                      Divider(
+                        height: 1,
+                        thickness: 1,
+                        indent: 0,
+                        endIndent: 0,
+                        color: dividerColor,
+                      ),
+                  ],
+                ),
+              ),
+            );
+          },
+          childCount: chats.length,
+          addAutomaticKeepAlives: false,
+          addRepaintBoundaries: true,
         ),
       ),
     );

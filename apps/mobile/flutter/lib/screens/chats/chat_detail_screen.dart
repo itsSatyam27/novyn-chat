@@ -75,6 +75,8 @@ class ChatDetailScreen extends StatefulWidget {
 
 class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBindingObserver, TickerProviderStateMixin {
   late final AnimationController _typingAnimation;
+  late final SocketService _socketService;
+  bool _appIsForeground = true;
   final TextEditingController _ctrl = TextEditingController();
   final FocusNode _messageFocusNode = FocusNode();
   final ScrollController _scroll = ScrollController();
@@ -114,7 +116,13 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _typingAnimation = AnimationController(vsync: this, duration: const Duration(milliseconds: 900))..repeat();
+    _typingAnimation = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    );
+    _socketService = context.read<SocketService>();
+    _socketService.addListener(_syncTypingAnimation);
+    _syncTypingAnimation();
     _peerIsOnline = widget.peer.isOnline;
     _peerPresence = widget.peer.status.trim().toLowerCase();
     _loadQuickEmojis();
@@ -317,6 +325,29 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
     }
   }
 
+  void _syncTypingAnimation() {
+    if (!mounted) return;
+    final shouldAnimate = _appIsForeground && _socketService.peerIsTyping;
+    if (shouldAnimate) {
+      if (!_typingAnimation.isAnimating) _typingAnimation.repeat();
+    } else if (_typingAnimation.isAnimating) {
+      _typingAnimation.stop();
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _appIsForeground = true;
+      _syncTypingAnimation();
+    } else if (state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
+      _appIsForeground = false;
+      _typingAnimation.stop();
+    }
+  }
+
   @override
   void didChangeMetrics() {
     if (!_messageFocusNode.hasFocus) return;
@@ -335,7 +366,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
     _voiceTimer?.cancel();
     if (_isRecordingVoice) unawaited(_voiceRecorder.stop());
     unawaited(_voiceRecorder.dispose());
-    context.read<SocketService>().closeChat();
+    _socketService.removeListener(_syncTypingAnimation);
+    _socketService.closeChat();
     _scroll.removeListener(_onScroll);
     _ctrl.removeListener(_saveDraft);
     _ctrl.dispose();
