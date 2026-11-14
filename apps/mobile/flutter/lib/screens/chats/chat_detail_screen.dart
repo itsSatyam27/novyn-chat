@@ -287,8 +287,10 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
       return;
     }
 
-    _chatId = widget.peer.uid.isNotEmpty
-        ? widget.peer.uid
+    // Direct-message history and notification deep-links use the peer
+    // username as the canonical conversation key. Groups retain their UID key.
+    _chatId = widget.isGroup
+        ? (widget.peer.uid.isNotEmpty ? widget.peer.uid : widget.peer.username)
         : widget.peer.username;
 
     final cacheWatch = Stopwatch()..start();
