@@ -337,10 +337,12 @@ class MessageEncryptionService {
     try {
       final key = await _sharedKey(account, publicKey);
       final box = await _aes.encrypt(utf8.encode(text), secretKey: key);
+      final senderPublicKey = accountPublicKey ?? await initializeIdentity(account);
       return {
         'isEncrypted': true,
         'ciphertext': base64Encode([...box.cipherText, ...box.mac.bytes]),
         'iv': base64Encode(box.nonce),
+        'senderPublicKey': senderPublicKey,
       };
     } catch (error) {
       debugPrint('[NovynE2EE] Encryption failed: $error');

@@ -96,7 +96,9 @@ void main() {
     final outgoing = await restarted.encrypt('Android → web test',
         'interop-alice', 'interop-bob', fixture['peerPublicKey']);
     expect(outgoing, isNotNull);
-    final ciphertext = base64Decode(outgoing!['ciphertext']);
+    expect(outgoing!['isEncrypted'], isTrue);
+    expect(jsonDecode(outgoing['senderPublicKey'] as String)['crv'], 'P-256');
+    final ciphertext = base64Decode(outgoing['ciphertext']);
     final plaintext = await AesGcm.with256bits().decrypt(
         SecretBox(ciphertext.sublist(0, ciphertext.length - 16),
             nonce: base64Decode(outgoing['iv']),

@@ -82,6 +82,8 @@ class Message extends HiveObject {
   final Map<String, dynamic>? riddle;
   @HiveField(20)
   final Map<String, dynamic>? game;
+  @HiveField(21)
+  final String? senderPublicKey;
 
   bool get needsMessageKey => isEncrypted && text == '🔒 Encrypted message';
 
@@ -124,6 +126,7 @@ class Message extends HiveObject {
     this.pinnedBy,
     this.riddle,
     this.game,
+    this.senderPublicKey,
   })  : createdAt = createdAt ?? DateTime.now(),
         reactions = reactions ?? {};
 
@@ -141,6 +144,7 @@ class Message extends HiveObject {
     String? pinnedBy,
     Map<String, dynamic>? riddle,
     Map<String, dynamic>? game,
+    String? senderPublicKey,
   }) {
     return Message(
       id: id ?? this.id,
@@ -164,6 +168,7 @@ class Message extends HiveObject {
       pinnedBy: pinnedBy ?? this.pinnedBy,
       riddle: riddle ?? this.riddle,
       game: game ?? this.game,
+      senderPublicKey: senderPublicKey ?? this.senderPublicKey,
     );
   }
 }

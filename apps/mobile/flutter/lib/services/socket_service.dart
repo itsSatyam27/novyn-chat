@@ -451,6 +451,7 @@ class SocketService extends ChangeNotifier {
             isEncrypted: m['isEncrypted'] == true,
             ciphertext: m['ciphertext']?.toString(),
             iv: m['iv']?.toString(),
+            senderPublicKey: m['senderPublicKey']?.toString(),
             senderId: sender,
             isFromMe: sender.toLowerCase() == _myUsername?.toLowerCase(),
             createdAt: DateTime.tryParse(m['timestamp']?.toString() ?? '') ??
@@ -484,8 +485,14 @@ class SocketService extends ChangeNotifier {
                   : 'sent';
         }
         _messageStatusRevision++;
-        final decrypted = await Future.wait(
-            parsed.map((message) => encryption.decrypt(message, account, _peerKeys[withUser.toLowerCase()])));
+        final decrypted = await Future.wait(parsed.map((message) {
+          final peerKey = message.isFromMe
+              ? _peerKeys[withUser.toLowerCase()]
+              : (message.senderPublicKey?.isNotEmpty == true
+                  ? message.senderPublicKey
+                  : _peerKeys[withUser.toLowerCase()]);
+          return encryption.decrypt(message, account, peerKey);
+        }));
         if (_myUsername != account ||
             _currentChatWith?.toLowerCase() != withUser.toLowerCase()) {
           return;
@@ -540,6 +547,7 @@ class SocketService extends ChangeNotifier {
         isEncrypted: data['isEncrypted'] == true,
         ciphertext: data['ciphertext']?.toString(),
         iv: data['iv']?.toString(),
+        senderPublicKey: data['senderPublicKey']?.toString(),
         senderId: sender,
         isFromMe: isOwn,
         createdAt: DateTime.tryParse(data['timestamp']?.toString() ?? '') ??
@@ -559,7 +567,12 @@ class SocketService extends ChangeNotifier {
       final account = _myUsername;
       if (account == null) return;
       if (!isGroupMessage) {
-        msg = await encryption.decrypt(msg, account, _peerKeys[chatPartner.toLowerCase()]);
+        final peerKey = isOwn
+            ? _peerKeys[chatPartner.toLowerCase()]
+            : (msg.senderPublicKey?.isNotEmpty == true
+                ? msg.senderPublicKey
+                : _peerKeys[chatPartner.toLowerCase()]);
+        msg = await encryption.decrypt(msg, account, peerKey);
       }
       if (isOwn) {
         _captureMessageStatusTimes(msgId, data);
@@ -1316,9 +1329,6 @@ class SocketService extends ChangeNotifier {
       await _waitForSocketAuthentication();
       _requireConnection();
 
-      // New Flutter messages are plaintext. Device identity registration is
-      // already started in the background after socket authentication, so
-      // secure storage/P-256 setup must never delay message delivery.
       final payload = <String, dynamic>{
         'to': toPeerUsername,
         'toType': toType,
@@ -1333,6 +1343,53 @@ class SocketService extends ChangeNotifier {
               },
         'clientTempId': clientTempId,
       };
+
+      // Phase 1 secures direct text messages. Group key distribution and
+      // encrypted media are deliberately handled as separate protocol work.
+      if (!isGroup) {
+        if (attachment != null) {
+          throw StateError('Secure media sharing is being prepared. Please send text-only messages for now.');
+        }
+        await _registerEncryptionIdentity();
+        var peerPublicKey = _peerKeys[toPeerUsername.toLowerCase()] ?? '';
+        if (peerPublicKey.isEmpty) {
+          final keyReply = Completer<Map<String, dynamic>>();
+          _socket!.emitWithAck('get_public_key', {'username': toPeerUsername},
+              ack: (dynamic result) {
+            if (!keyReply.isCompleted) {
+              keyReply.complete(result is Map
+                  ? Map<String, dynamic>.from(result)
+                  : <String, dynamic>{});
+            }
+          });
+          final keyResult = await keyReply.future.timeout(
+            const Duration(seconds: 8),
+            onTimeout: () => <String, dynamic>{},
+          );
+          peerPublicKey = keyResult['publicKey']?.toString() ?? '';
+          if (peerPublicKey.isNotEmpty) {
+            _peerKeys[toPeerUsername.toLowerCase()] = peerPublicKey;
+          }
+        }
+        if (peerPublicKey.isEmpty) {
+          throw StateError('Secure messaging is not set up for this contact yet. Ask them to open Novyn and try again.');
+        }
+        final encrypted = await encryption.encrypt(
+          rawText, account, toPeerUsername, peerPublicKey,
+        );
+        if (encrypted == null || encrypted['isEncrypted'] != true) {
+          throw StateError('Message encryption failed. Your message was not sent.');
+        }
+        payload
+          ..['text'] = '🔒 Encrypted message'
+          ..['isEncrypted'] = true
+          ..['ciphertext'] = encrypted['ciphertext']
+          ..['iv'] = encrypted['iv']
+          ..['senderPublicKey'] = encrypted['senderPublicKey'];
+        if (payload['replyTo'] is Map) {
+          (payload['replyTo'] as Map)['text'] = '🔒 Encrypted message';
+        }
+      }
 
       final connection = _socket!;
       final acknowledgement = Completer<Map<String, dynamic>>();
