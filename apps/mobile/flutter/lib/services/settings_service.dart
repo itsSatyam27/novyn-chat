@@ -80,7 +80,12 @@ class SettingsService extends ChangeNotifier {
   static const _securePanicPin = 'panic_pin';
   static const _secureAppLockFailures = 'app_lock_failed_attempts';
   static const _secureAppLockUntil = 'app_lock_locked_until';
-  static const FlutterSecureStorage _secureStorage = FlutterSecureStorage();
+  static const FlutterSecureStorage _secureStorage = FlutterSecureStorage(
+    aOptions: AndroidOptions(
+      resetOnError: false,
+      migrateWithBackup: true,
+    ),
+  );
   static const _kStealthMode = 'stealth_mode_enabled';
   static const _kStealthPreviousNotificationPrivacy = 'stealth_previous_notification_privacy';
   static const _kPanicPin = 'panic_pin';
