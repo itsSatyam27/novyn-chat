@@ -240,6 +240,7 @@ class _CallsScreenState extends State<CallsScreen> {
             NovynHeader(
               title: 'Calls',
               titleSize: 30,
+              titleWeight: FontWeight.w700,
               actions: [
                 NovynIconButton(
                   icon: _searchOpen ? Icons.close_rounded : Icons.search_rounded,
