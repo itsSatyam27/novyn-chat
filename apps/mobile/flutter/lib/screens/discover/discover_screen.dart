@@ -135,7 +135,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
             // fixed-height column squeezed the people list on normal phone screens.
             Expanded(
               child: ListView(
-                padding: EdgeInsets.zero,
+                padding: const EdgeInsets.only(bottom: 112),
                 children: [
                   Padding(
                     padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
@@ -255,41 +255,45 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                                           ],
                                         ),
                                         child: Column(
-                                          children: [
-                                            for (var index = 0; index < users.length; index++) ...[
-                                              if (index > 0)
-                                                Divider(
-                                                  height: 1,
-                                                  thickness: 1,
-                                                  indent: 16,
-                                                  endIndent: 16,
-                                                  color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: .48),
+                                          children: List.generate(users.length, (index) {
+                                            final user = users[index];
+                                            return Column(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                if (index > 0)
+                                                  Divider(
+                                                    height: 1,
+                                                    thickness: 1,
+                                                    indent: 16,
+                                                    endIndent: 16,
+                                                    color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: .48),
+                                                  ),
+                                                _DiscoverPersonRow(
+                                                  user: user,
+                                                  isOnline: isOnline(user),
+                                                  isPending: pendingUids.contains(user.uid) ||
+                                                      pendingUids.contains(user.username),
+                                                  isSending: _sendingRequests.contains(user.uid),
+                                                  onAddFriend: () => _sendDiscoveredRequest(myUid, user),
+                                                  onOpenProfile: () {
+                                                    HapticService.vibrate(
+                                                      NovynHapticType.light,
+                                                      category: HapticCategory.navigation,
+                                                    );
+                                                    showModalBottomSheet(
+                                                      context: context,
+                                                      isScrollControlled: true,
+                                                      backgroundColor: Colors.transparent,
+                                                      builder: (_) => ProfilePreviewSheet(
+                                                        user: user,
+                                                        showActions: false,
+                                                      ),
+                                                    );
+                                                  },
                                                 ),
-                                              _DiscoverPersonRow(
-                                                user: users[index],
-                                                isOnline: isOnline(users[index]),
-                                                isPending: pendingUids.contains(users[index].uid) ||
-                                                    pendingUids.contains(users[index].username),
-                                                isSending: _sendingRequests.contains(users[index].uid),
-                                                onAddFriend: () => _sendDiscoveredRequest(myUid, users[index]),
-                                                onOpenProfile: () {
-                                                  HapticService.vibrate(
-                                                    NovynHapticType.light,
-                                                    category: HapticCategory.navigation,
-                                                  );
-                                                  showModalBottomSheet(
-                                                    context: context,
-                                                    isScrollControlled: true,
-                                                    backgroundColor: Colors.transparent,
-                                                    builder: (_) => ProfilePreviewSheet(
-                                                      user: users[index],
-                                                      showActions: false,
-                                                    ),
-                                                  );
-                                                },
-                                              ),
-                                            ],
-                                          ],
+                                              ],
+                                            );
+                                          }),
                                         ),
                                       ),
                                     ],
