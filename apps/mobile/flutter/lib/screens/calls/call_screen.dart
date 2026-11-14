@@ -80,6 +80,9 @@ class _CallScreenState extends State<CallScreen>
   final double _pipHeight = 160;
 
   bool _isVideo = false;
+  bool _isScreenSharingLocal = false;
+  bool _showSharedScreenFirst = true;
+  String? _remoteScreenStreamId;
 
   @override
   void didChangeDependencies() {
@@ -102,6 +105,10 @@ class _CallScreenState extends State<CallScreen>
 
     _webrtc = WebRTCService();
     _isVideo = widget.callType == 'video';
+    _webrtc.onRemoteScreenShareChanged = (streamId) {
+      if (!mounted) return;
+      setState(() => _remoteScreenStreamId = streamId);
+    };
     _webrtc.onNetworkRecovered = () {
       if (mounted) {
         SystemSound.play(SystemSoundType.alert);
@@ -384,6 +391,13 @@ class _CallScreenState extends State<CallScreen>
       socket.respondCallMediaUpgrade(_peerId, _callId, accepted: accept == true);
     };
 
+    socket.onCallScreenShareChangedCallback = (data) {
+      if (!mounted || data['callId']?.toString() != _callId) return;
+      final streamId = data['streamId']?.toString();
+      _webrtc.setRemoteScreenShare(streamId == null || streamId.isEmpty ? null : streamId);
+      setState(() => _remoteScreenStreamId = streamId);
+    };
+
     socket.onCallMediaUpgradeResponseCallback = (data) async {
       if (!mounted || data['callId']?.toString() != _callId || data['accepted'] != true || _isVideo) return;
       try {
@@ -609,6 +623,129 @@ class _CallScreenState extends State<CallScreen>
     );
   }
 
+  Future<void> _toggleScreenShare() async {
+    if (_state != CallState.connected) return;
+    final socket = context.read<SocketService>();
+    try {
+      if (_isScreenSharingLocal) {
+        await _webrtc.stopScreenShare(socket, _peerId, _callId);
+        if (mounted) setState(() => _isScreenSharingLocal = false);
+      } else {
+        await _webrtc.startScreenShare(socket, _peerId, _callId);
+        if (mounted) {
+          setState(() {
+            _isScreenSharingLocal = true;
+            _showSharedScreenFirst = true;
+          });
+        }
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not share screen: $error')),
+        );
+      }
+    }
+  }
+
+  bool get _hasAnyScreenShare =>
+      _isScreenSharingLocal || (_remoteScreenStreamId?.isNotEmpty == true);
+
+  Widget _buildScreenShareCall() {
+    final screenRenderer = _isScreenSharingLocal
+        ? _webrtc.localScreenRenderer
+        : _webrtc.remoteScreenRenderer;
+    final cameraRenderer = _isScreenSharingLocal
+        ? _webrtc.localRenderer
+        : _webrtc.remoteRenderer;
+    final screenView = RTCVideoView(
+      screenRenderer,
+      objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitContain,
+    );
+    final cameraView = RTCVideoView(
+      cameraRenderer,
+      mirror: _isScreenSharingLocal && _frontCamera,
+      objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
+    );
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        Container(color: const Color(0xFF090B14)),
+        Positioned.fill(
+          child: _showSharedScreenFirst ? screenView : cameraView,
+        ),
+        Positioned(
+          top: 54, right: 16,
+          child: GestureDetector(
+            onTap: () => setState(() => _showSharedScreenFirst = !_showSharedScreenFirst),
+            child: Container(
+              width: 116, height: 164,
+              decoration: BoxDecoration(
+                color: const Color(0xFF17192B),
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: Colors.white70, width: 1.4),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: _showSharedScreenFirst ? cameraView : screenView,
+            ),
+          ),
+        ),
+        Positioned(
+          top: 12, left: 16, right: 16,
+          child: SafeArea(
+            child: Row(
+              children: [
+                _CallGlassButton(icon: Icons.keyboard_arrow_down_rounded, onTap: _minimizeCall),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    _isScreenSharingLocal ? 'You are sharing your screen' : '${widget.peer.name} is sharing a screen',
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                    maxLines: 1, overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        Positioned(
+          left: 20, right: 20, bottom: 30,
+          child: SafeArea(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                color: const Color(0xDD151525),
+                borderRadius: BorderRadius.circular(36),
+                border: Border.all(color: Colors.white24),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  _CallDockButton(
+                    icon: Icons.swap_horiz_rounded,
+                    onTap: () => setState(() => _showSharedScreenFirst = !_showSharedScreenFirst),
+                    active: true,
+                  ),
+                  _CallDockButton(
+                    icon: _isScreenSharingLocal ? Icons.stop_screen_share_rounded : Icons.screen_share_rounded,
+                    onTap: _toggleScreenShare,
+                    active: _isScreenSharingLocal,
+                  ),
+                  _CallDockButton(
+                    icon: _muted ? Icons.mic_off_rounded : Icons.mic_rounded,
+                    onTap: _toggleMute,
+                    active: _muted,
+                  ),
+                  _CallDockButton(icon: Icons.call_end_rounded, onTap: _endCall, danger: true),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   void _endCall() {
     HapticService.vibrate(NovynHapticType.medium, category: HapticCategory.calls);
     _stopRingtone();
@@ -661,6 +798,8 @@ class _CallScreenState extends State<CallScreen>
     socket.onWebRTCIceCandidate = null;
     socket.onCallMediaUpgradeRequestCallback = null;
     socket.onCallMediaUpgradeResponseCallback = null;
+    socket.onCallScreenShareChangedCallback = null;
+    _webrtc.onRemoteScreenShareChanged = null;
     _webrtc.onNetworkRecovered = null;
     // Clear call event callbacks so stale handlers don't fire next call
     socket.onCallAcceptedCallback = null;
@@ -682,9 +821,11 @@ class _CallScreenState extends State<CallScreen>
         backgroundColor: Colors.black,
         body: _isSystemPip
             ? _buildSystemPipContent()
-            : (_isVideo && _state == CallState.connected
-                ? _buildVideoCall()
-                : _buildVoiceCall()),
+            : (_hasAnyScreenShare && _state == CallState.connected
+                ? _buildScreenShareCall()
+                : (_isVideo && _state == CallState.connected
+                    ? _buildVideoCall()
+                    : _buildVoiceCall())),
       ),
     );
   }
@@ -937,6 +1078,7 @@ class _CallScreenState extends State<CallScreen>
                       _CallDockButton(icon: _cameraOff ? Icons.videocam_off_rounded : Icons.videocam_rounded, onTap: () { setState(() => _cameraOff = !_cameraOff); _webrtc.toggleCamera(_cameraOff); }),
                       _CallDockButton(icon: _muted ? Icons.mic_off_rounded : Icons.mic_rounded, onTap: _toggleMute, active: _muted),
                       _CallDockButton(icon: _speakerOn ? Icons.volume_up_rounded : Icons.volume_down_rounded, onTap: _toggleSpeaker, active: _speakerOn),
+                      _CallDockButton(icon: _isScreenSharingLocal ? Icons.stop_screen_share_rounded : Icons.screen_share_rounded, onTap: _toggleScreenShare, active: _isScreenSharingLocal),
                       _CallDockButton(icon: Icons.call_end_rounded, onTap: _endCall, danger: true),
                     ],
                   ),
@@ -1169,6 +1311,12 @@ class _CallScreenState extends State<CallScreen>
                 label: 'Speaker',
                 active: _speakerOn,
                 onTap: _toggleSpeaker,
+              ),
+              _ToggleButton(
+                icon: _isScreenSharingLocal ? Icons.stop_screen_share_rounded : Icons.screen_share_rounded,
+                label: _isScreenSharingLocal ? 'Stop share' : 'Share screen',
+                active: _isScreenSharingLocal,
+                onTap: _toggleScreenShare,
               ),
               if (_isVideo)
                 _ToggleButton(
