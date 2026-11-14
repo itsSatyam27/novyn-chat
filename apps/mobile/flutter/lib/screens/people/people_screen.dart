@@ -11,7 +11,6 @@ import '../../widgets/user_avatar.dart';
 import '../../widgets/novyn_ui.dart';
 import '../../theme/novyn_theme.dart';
 import '../chats/chat_detail_screen.dart';
-import 'discover_people_screen.dart';
 import 'received_friend_requests_screen.dart';
 import 'package:novyn/services/haptic_service.dart';
 
@@ -137,15 +136,6 @@ class _PeopleScreenState extends State<PeopleScreen> {
       ));
   }
 
-  void _openDiscoverPeople(String myUid) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => DiscoverPeopleScreen(myUid: myUid),
-      ),
-    );
-  }
-
   Future<void> _shareInvite(String myUid) async {
     final profileUrl = 'https://novyn.app/user/$myUid';
     try {
@@ -156,15 +146,6 @@ class _PeopleScreenState extends State<PeopleScreen> {
     } catch (_) {
       _showMessage('Could not open the share sheet.');
     }
-  }
-
-  void _showFriendRequests(String myUid) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => DiscoverPeopleScreen(myUid: myUid),
-      ),
-    );
   }
 
   void _showReceivedRequests(String myUid) {
@@ -268,60 +249,6 @@ class _PeopleScreenState extends State<PeopleScreen> {
                         _searchFocusNode.unfocus();
                       }
                     },
-                  ),
-                  const SizedBox(width: 8),
-                  PopupMenuButton<String>(
-                    tooltip: 'Contact options',
-                    position: PopupMenuPosition.under,
-                    offset: const Offset(0, 10),
-                    elevation: 12,
-                    color: Theme.of(context).colorScheme.surface,
-                    surfaceTintColor: Colors.transparent,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(18),
-                    ),
-                    onSelected: (value) {
-                      if (value == 'requests') {
-                        _showFriendRequests(myUid);
-                      } else if (value == 'received') {
-                        _showReceivedRequests(myUid);
-                      } else if (value == 'invite') {
-                        _shareInvite(myUid);
-                      } else if (value == 'discover') {
-                        _openDiscoverPeople(myUid);
-                      }
-                    },
-                    itemBuilder: (_) => const [
-                      PopupMenuItem(
-                        value: 'requests',
-                        child: Text('Friend requests'),
-                      ),
-                      PopupMenuItem(
-                        value: 'received',
-                        child: Text('Received requests'),
-                      ),
-                      PopupMenuItem(
-                        value: 'invite',
-                        child: Text('Invite friends'),
-                      ),
-                      PopupMenuItem(
-                        value: 'discover',
-                        child: Text('Find people'),
-                      ),
-                    ],
-                    child: Container(
-                      width: 46,
-                      height: 46,
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.surface,
-                        borderRadius: BorderRadius.circular(17),
-                      ),
-                      child: Icon(
-                        Icons.more_horiz_rounded,
-                        size: 23,
-                        color: Theme.of(context).colorScheme.onSurface,
-                      ),
-                    ),
                   ),
                 ],
               ),
@@ -475,54 +402,49 @@ class _PeopleScreenState extends State<PeopleScreen> {
       ('Online', 'Online'),
       ('Favourites', 'Favourites'),
     ];
-    return LayoutBuilder(
-      builder: (context, constraints) => SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(vertical: 4).copyWith(bottom: 10),
-        child: ConstrainedBox(
-          constraints: BoxConstraints(minWidth: constraints.maxWidth),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.start,
-            children: [
-              for (final item in labels)
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                  child: GestureDetector(
-                    onTap: () {
-                      setState(() => _filter = item.$1);
-                      if (_scrollController.hasClients) {
-                        _scrollController.jumpTo(0);
-                      }
-                    },
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 180),
-                      curve: Curves.easeOutCubic,
-                      height: 38,
-                      padding: const EdgeInsets.symmetric(horizontal: 14),
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: _filter == item.$1
-                            ? theme.colorScheme.primary
-                            : theme.colorScheme.surface,
-                        borderRadius: BorderRadius.circular(22),
-                      ),
-                      child: Text(
-                        item.$2,
-                        style: TextStyle(
-                          fontFamily: 'PlusJakartaSans',
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
-                          color: _filter == item.$1
-                              ? Colors.white
-                              : theme.colorScheme.onSurface,
-                        ),
-                      ),
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.fromLTRB(16, 6, 16, 12),
+      child: Row(
+        children: [
+          for (final item in labels)
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: GestureDetector(
+                onTap: () {
+                  setState(() => _filter = item.$1);
+                  if (_scrollController.hasClients) {
+                    _scrollController.jumpTo(0);
+                  }
+                },
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  curve: Curves.easeOutCubic,
+                  height: 40,
+                  padding: const EdgeInsets.symmetric(horizontal: 18),
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: _filter == item.$1
+                        ? theme.colorScheme.primary
+                        : theme.colorScheme.surface,
+                    borderRadius: BorderRadius.circular(24),
+                  ),
+                  child: Text(
+                    item.$2,
+                    style: TextStyle(
+                      fontFamily: 'PlusJakartaSans',
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: _filter == item.$1
+                          ? Colors.white
+                          : theme.colorScheme.onSurface,
                     ),
                   ),
                 ),
-            ],
-          ),
-        ),
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -691,7 +613,7 @@ class _PeopleScreenState extends State<PeopleScreen> {
                     title: 'Friend requests',
                     subtitle: 'Review and respond to incoming requests.',
                     badge: count,
-                    onTap: () => _showFriendRequests(myUid),
+                    onTap: () => _showReceivedRequests(myUid),
                   );
                 },
               ),
