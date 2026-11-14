@@ -35,7 +35,12 @@ class ApiService {
   static bool _sessionStorageInitialized = false;
   static Future<bool>? _sessionStorageLoad;
   static bool get sessionStorageInitialized => _sessionStorageInitialized;
-  static const FlutterSecureStorage _secureStorage = FlutterSecureStorage();
+  static const FlutterSecureStorage _secureStorage = FlutterSecureStorage(
+    aOptions: AndroidOptions(
+      resetOnError: false,
+      migrateWithBackup: true,
+    ),
+  );
   static const String _sessionCookieKey = 'novyn_auth_cookie_v1';
   static const String _csrfTokenKey = 'novyn_csrf_token_v1';
 
