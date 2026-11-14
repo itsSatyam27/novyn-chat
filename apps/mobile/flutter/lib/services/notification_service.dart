@@ -17,6 +17,7 @@ import 'friend_service.dart';
 import '../screens/chats/chat_detail_screen.dart';
 import '../screens/calls/calls_screen.dart';
 import '../screens/calls/call_screen.dart';
+import '../widgets/user_avatar.dart';
 
 // Top-level handler — must be a top-level function
 @pragma('vm:entry-point')
@@ -361,10 +362,13 @@ class NotificationService {
       return;
     }
 
-    final preview = settings.messagePreview
+    final preview = settings.messagePreview && !settings.hideNotificationContent
         ? messageBody.trim()
         : 'You have a new message';
-    final title = username;
+    final senderProfile = _socket?.contacts.findUser(username);
+    final title = senderProfile?.name.trim().isNotEmpty == true
+        ? senderProfile!.name.trim()
+        : username;
     // Foreground messages use only this branded in-app banner. The operating
     // system notification is reserved for background/terminated delivery.
     _inAppBannerTimer?.cancel();
@@ -427,17 +431,20 @@ class NotificationService {
                     child: Row(
                       children: [
                         Container(
-                          width: 42,
-                          height: 42,
+                          padding: const EdgeInsets.all(2),
                           decoration: BoxDecoration(
-                            color: Theme.of(context).colorScheme.primary
-                                .withValues(alpha: .12),
-                            borderRadius: BorderRadius.circular(14),
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: Theme.of(context).colorScheme.primary
+                                  .withValues(alpha: .55),
+                              width: 1.5,
+                            ),
                           ),
-                          child: Icon(
-                            Icons.forum_rounded,
-                            color: Theme.of(context).colorScheme.primary,
-                            size: 21,
+                          child: UserAvatar(
+                            name: title,
+                            photoUrl: senderProfile?.photoUrl ?? '',
+                            radius: 24,
+                            fallbackColor: Theme.of(context).colorScheme.primary,
                           ),
                         ),
                         const SizedBox(width: 12),
@@ -644,8 +651,12 @@ class NotificationService {
     _syncPresentation();
     await _initializeLocalNotifications(context);
     _socket!.onIncomingMessage = (username, body) {
-      if (context.mounted &&
-          WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed) {
+      if (!context.mounted) return;
+      if (WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed) {
+        // Keep the branded PR #95 banner for active use; system alerts are
+        // used when the app is not currently visible.
+        unawaited(showInAppMessage(username, body, context));
+      } else {
         unawaited(_showForegroundMessageNotification(username, body));
       }
     };
@@ -817,11 +828,11 @@ class NotificationService {
       ));
       return;
     }
-    // When the socket is connected its message callback creates the local
-    // system notification. Use FCM as a fallback only while disconnected.
-    if (_socket?.isConnected == true &&
-        WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed) return;
+    // Prefer the live socket callback; FCM is a fallback for disconnected
+    // sockets or app lifecycle states where the socket callback was missed.
     if (type == 'message' && message.data['kind'] != 'group') {
+      if (_socket?.isConnected == true &&
+          WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed) return;
       final username = message.data['chat']?.toString().trim() ?? '';
       if (username.isNotEmpty) {
         final body = message.data['body']?.toString().trim();
