@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'dart:io';
-import 'package:cryptography/cryptography.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive/hive.dart';
 import 'package:novyn/models/chat_models.dart';
@@ -97,11 +96,11 @@ void main() {
     final bobStorage = <String, String>{};
     final alice = MessageEncryptionService(
       read: (key) async => aliceStorage[key],
-      write: (key, value) async => aliceStorage[key] = value,
+      write: (key, value) async { aliceStorage[key] = value; },
     );
     final bob = MessageEncryptionService(
       read: (key) async => bobStorage[key],
-      write: (key, value) async => bobStorage[key] = value,
+      write: (key, value) async { bobStorage[key] = value; },
     );
     final alicePublicKey = await alice.initializeIdentity('alice');
     final bobPublicKey = await bob.initializeIdentity('bob');
