@@ -126,7 +126,10 @@ class AuthService extends ChangeNotifier {
       this.onAccountReset,
       this.onSessionRefreshed,
       Future<Map<String, dynamic>?> Function()? restoreSession}) {
-    _restoreSession(restoreSession ?? ApiService.getSession);
+    _restoreSession(
+      restoreSession ??
+          (() => ApiService.getSession(timeout: const Duration(seconds: 7))),
+    );
     // Keep the refresh-cookie chain warm while the app remains open. Android
     // may suspend this timer in the background; resume handling below performs
     // an immediate check when the app becomes active again.
@@ -158,29 +161,62 @@ class AuthService extends ChangeNotifier {
         'isGoogleUser': user.isGoogleUser,
       };
 
+  static const String _cachedIdentityMirrorKey =
+      'novyn_last_signed_in_identity_mirror_v1';
+
   Future<void> _persistIdentity(NovynUser user) async {
+    final encoded = jsonEncode(_identityToMap(user));
+    // The secure copy remains the primary cache. A second copy contains only
+    // non-secret profile identity (never a password, access token or cookie),
+    // so a temporary Android Keystore read failure cannot look like logout.
     try {
       await _identityStorage.write(
         key: _cachedIdentityKey,
-        value: jsonEncode(_identityToMap(user)),
+        value: encoded,
       ).timeout(const Duration(seconds: 3));
     } catch (error) {
-      debugPrint('[NovynAuth] Could not cache signed-in identity: $error');
+      debugPrint('[NovynAuth] Secure identity cache write failed: $error');
+    }
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_cachedIdentityMirrorKey, encoded);
+    } catch (error) {
+      debugPrint('[NovynAuth] Identity mirror write failed: $error');
     }
   }
 
   Future<NovynUser?> _readCachedIdentity() async {
+    String? raw;
     try {
-      final raw = await _identityStorage
+      raw = await _identityStorage
           .read(key: _cachedIdentityKey)
           .timeout(const Duration(seconds: 3));
-      if (raw == null || raw.isEmpty) return null;
-      final decoded = jsonDecode(raw);
-      if (decoded is! Map) return null;
-      final user = NovynUser.fromMap(Map<String, dynamic>.from(decoded));
-      return user.username.trim().isEmpty ? null : user;
     } catch (error) {
-      debugPrint('[NovynAuth] Cached identity is temporarily unavailable: $error');
+      debugPrint('[NovynAuth] Secure identity cache is unavailable: $error');
+    }
+
+    NovynUser? decodeIdentity(String? value) {
+      if (value == null || value.isEmpty) return null;
+      try {
+        final decoded = jsonDecode(value);
+        if (decoded is! Map) return null;
+        final user = NovynUser.fromMap(Map<String, dynamic>.from(decoded));
+        return user.username.trim().isEmpty ? null : user;
+      } catch (_) {
+        return null;
+      }
+    }
+
+    final secureIdentity = decodeIdentity(raw);
+    if (secureIdentity != null) return secureIdentity;
+
+    // SharedPreferences is only a recovery copy of non-secret display identity.
+    // The session cookie is always read from FlutterSecureStorage.
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return decodeIdentity(prefs.getString(_cachedIdentityMirrorKey));
+    } catch (error) {
+      debugPrint('[NovynAuth] Identity mirror is unavailable: $error');
       return null;
     }
   }
@@ -191,7 +227,13 @@ class AuthService extends ChangeNotifier {
           .delete(key: _cachedIdentityKey)
           .timeout(const Duration(seconds: 3));
     } catch (error) {
-      debugPrint('[NovynAuth] Could not clear cached identity: $error');
+      debugPrint('[NovynAuth] Could not clear secure identity cache: $error');
+    }
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_cachedIdentityMirrorKey);
+    } catch (error) {
+      debugPrint('[NovynAuth] Could not clear identity mirror: $error');
     }
   }
 
@@ -213,6 +255,23 @@ class AuthService extends ChangeNotifier {
   // A bounded restore now falls back to the last locally cached identity only
   // when a saved session cookie exists; it never resurrects a manually logged
   // out account.
+  Future<void> _activateCachedIdentity(
+    NovynUser? cachedIdentity, {
+    required String reason,
+  }) async {
+    if (cachedIdentity == null) return;
+    try {
+      await HybridDbService.activateAccount(cachedIdentity.username)
+          .timeout(const Duration(seconds: 8));
+    } catch (error) {
+      debugPrint('[NovynAuth] Local account cache is not ready yet: $error');
+    }
+    _user = cachedIdentity;
+    _authReady = true;
+    notifyListeners();
+    debugPrint('[NovynAuth] Restored local account identity ($reason).');
+  }
+
   Future<void> _restoreSession(
       Future<Map<String, dynamic>?> Function() loadSession) async {
     final cachedIdentity = await _readCachedIdentity();
@@ -232,6 +291,24 @@ class AuthService extends ChangeNotifier {
         }
         hadSavedCookie = hadSavedCookie || ApiService.sessionCookie != null;
         if (!storageReady) {
+          // A failed Keystore read is not evidence of logout. Recover the
+          // non-secret cached identity and let resume retry secure storage.
+          if (cachedIdentity != null) {
+            await _activateCachedIdentity(
+              cachedIdentity,
+              reason: 'secure storage temporarily unavailable',
+            );
+            unawaited(Future<void>.delayed(const Duration(seconds: 2), () async {
+              try {
+                final ready = await ApiService.initializeSessionStorage()
+                    .timeout(const Duration(seconds: 4), onTimeout: () => false);
+                if (ready && _user != null) await restoreSessionOnResume();
+              } catch (error) {
+                debugPrint('[NovynAuth] Background session-storage retry failed: $error');
+              }
+            }));
+            return;
+          }
           await Future<void>.delayed(const Duration(milliseconds: 700));
           continue;
         }
@@ -239,6 +316,8 @@ class AuthService extends ChangeNotifier {
 
       hadSavedCookie = hadSavedCookie || ApiService.sessionCookie != null;
       if (!hadSavedCookie) {
+        // Secure storage was read successfully and confirmed there is no saved
+        // session. This is a real signed-out state (including after user logout).
         _user = null;
         await _clearCachedIdentity();
         _authReady = true;
@@ -248,7 +327,7 @@ class AuthService extends ChangeNotifier {
 
       try {
         final session = await loadSession()
-            .timeout(const Duration(seconds: 8), onTimeout: () => null);
+            .timeout(const Duration(seconds: 7), onTimeout: () => null);
         if (session?['authenticated'] == true) {
           final restoredUser = NovynUser.fromMap(session!);
           await HybridDbService.activateAccount(restoredUser.username)
@@ -267,7 +346,7 @@ class AuthService extends ChangeNotifier {
           if (refreshStatus == 200) {
             definitiveRejections = 0;
             attempt++;
-            await Future<void>.delayed(const Duration(milliseconds: 500));
+            await Future<void>.delayed(const Duration(milliseconds: 400));
             continue;
           }
           if (refreshStatus == 401 || refreshStatus == 403) {
@@ -280,10 +359,32 @@ class AuthService extends ChangeNotifier {
               notifyListeners();
               return;
             }
+          } else if (cachedIdentity != null) {
+            // An unavailable refresh endpoint is not an expired session.
+            await _activateCachedIdentity(
+              cachedIdentity,
+              reason: 'session server temporarily unavailable',
+            );
+            return;
           }
+        } else if (cachedIdentity != null) {
+          // Network errors and 5xx responses must not turn a valid local
+          // account into a logout while Render/connection is recovering.
+          await _activateCachedIdentity(
+            cachedIdentity,
+            reason: 'session verification temporarily unavailable',
+          );
+          return;
         }
       } catch (error) {
         debugPrint('[NovynAuth] Session restore attempt failed: $error');
+        if (cachedIdentity != null) {
+          await _activateCachedIdentity(
+            cachedIdentity,
+            reason: 'session verification failed temporarily',
+          );
+          return;
+        }
       }
 
       attempt++;
@@ -292,30 +393,35 @@ class AuthService extends ChangeNotifier {
       );
     }
 
-    // Do not mistake a backend outage for a logout. The cookie must still be
-    // present and the server must not have definitively rejected refresh.
-    if (hadSavedCookie) {
-      var fallback = cachedIdentity;
-      if (fallback == null && storageReady) {
-        try {
-          final owner = await LocalDbService.getAccountScope()
-              .timeout(const Duration(seconds: 3));
-          if (owner != null && owner.trim().isNotEmpty) {
-            fallback = NovynUser(
+    // Keep a previously signed-in account available when the secure store or
+    // backend could not be checked. Never use this fallback after a confirmed
+    // missing session or repeated explicit refresh-token rejection.
+    if (cachedIdentity != null &&
+        (hadSavedCookie || !storageReady) &&
+        definitiveRejections < 3) {
+      await _activateCachedIdentity(
+        cachedIdentity,
+        reason: 'bounded session restore fallback',
+      );
+      return;
+    }
+
+    if (hadSavedCookie && cachedIdentity == null && storageReady) {
+      try {
+        final owner = await LocalDbService.getAccountScope()
+            .timeout(const Duration(seconds: 3));
+        if (owner != null && owner.trim().isNotEmpty) {
+          await _activateCachedIdentity(
+            NovynUser(
               username: owner.trim(),
               displayName: owner.trim(),
               email: '',
-            );
-          }
-        } catch (_) {}
-      }
-      if (fallback != null) {
-        _user = fallback;
-        try {
-          await HybridDbService.activateAccount(fallback.username)
-              .timeout(const Duration(seconds: 5));
-        } catch (_) {}
-      }
+            ),
+            reason: 'local account database fallback',
+          );
+          return;
+        }
+      } catch (_) {}
     }
 
     _authReady = true;
