@@ -574,7 +574,9 @@ class SocketService extends ChangeNotifier {
         _handleFriendList(data['friends']);
       }
       _markSocketAuthenticated();
-      unawaited(_registerEncryptionIdentity());
+      unawaited(
+        _registerEncryptionIdentity().then((_) => _flushPendingMessageOutbox()),
+      );
     });
 
     _socket!.on('friend_list', (data) => _handleFriendList(data));
