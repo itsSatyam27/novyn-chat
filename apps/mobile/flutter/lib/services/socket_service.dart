@@ -104,6 +104,7 @@ class SocketService extends ChangeNotifier {
   // Reconnection state
   String? _serverUrl;
   Timer? _reconnectTimer;
+  Timer? _pendingOutboxRetryTimer;
 
   // Messages for the currently open chat (immutable list — replaced on update)
   List<Message> _messages = [];
@@ -239,6 +240,26 @@ class SocketService extends ChangeNotifier {
     } catch (error) {
       debugPrint('[NovynOutbox] Flush deferred: $error');
     }
+  }
+
+  void _startPendingOutboxRetry() {
+    _pendingOutboxRetryTimer?.cancel();
+    _pendingOutboxRetryTimer = Timer.periodic(
+      const Duration(seconds: 20),
+      (_) {
+        if (!_isConnected ||
+            !_isAuthenticated ||
+            SyncService().pendingMessages.isEmpty) {
+          return;
+        }
+        unawaited(_flushPendingMessageOutbox());
+      },
+    );
+  }
+
+  void _stopPendingOutboxRetry() {
+    _pendingOutboxRetryTimer?.cancel();
+    _pendingOutboxRetryTimer = null;
   }
 
   Future<void> _sendPendingMessage(PendingMessage pending) async {
@@ -458,6 +479,7 @@ class SocketService extends ChangeNotifier {
     });
 
     _socket!.onDisconnect((_) {
+      _stopPendingOutboxRetry();
       _isConnecting = false;
       _isConnected = false;
       SyncService().setOnlineStatus(false);
@@ -470,6 +492,7 @@ class SocketService extends ChangeNotifier {
     });
 
     _socket!.onConnectError((_) {
+      _stopPendingOutboxRetry();
       _isConnecting = false;
       _isConnected = false;
       SyncService().setOnlineStatus(false);
@@ -482,6 +505,7 @@ class SocketService extends ChangeNotifier {
 
     _registerEventHandlers();
     _socket!.on('auth_failed', (data) {
+      _stopPendingOutboxRetry();
       _isAuthenticated = false;
       SyncService().setOnlineStatus(false);
       notifyListeners();
@@ -1148,6 +1172,7 @@ class SocketService extends ChangeNotifier {
     if (!_isConnected) return;
     _isAuthenticated = true;
     SyncService().setOnlineStatus(true);
+    _startPendingOutboxRetry();
     if (!_stealthPreferenceSynced) {
       _stealthPreferenceSynced = true;
       unawaited(_syncStealthModePreference());
@@ -2632,6 +2657,7 @@ class SocketService extends ChangeNotifier {
 
   // ── Disconnect ────────────────────────────────────────────────────────────
   void disconnect() {
+    _stopPendingOutboxRetry();
     _manualDisconnect = true;
     SyncService().setOnlineStatus(false);
     unawaited(SyncService().deactivateAccount());
