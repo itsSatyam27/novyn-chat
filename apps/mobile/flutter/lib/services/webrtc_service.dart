@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'socket_service.dart';
@@ -12,6 +13,14 @@ class WebRTCService extends ChangeNotifier {
 
   bool _isInitialized = false;
   bool _remoteDescriptionSet = false;
+  bool _isOfferer = false;
+  Timer? _iceRestartTimer;
+  int _iceRestartAttempts = 0;
+  SocketService? _activeSocket;
+  String? _activePeerId;
+  String? _activeCallId;
+  VoidCallback? onNetworkRecovered;
+  bool get hasPeerConnection => _peerConnection != null;
   final List<RTCIceCandidate> _pendingIceCandidates = <RTCIceCandidate>[];
   bool get isInitialized => _isInitialized;
 
@@ -98,6 +107,10 @@ class WebRTCService extends ChangeNotifier {
     };
 
     _remoteDescriptionSet = false;
+    _isOfferer = isOffer;
+    _activeSocket = socket;
+    _activePeerId = peerId;
+    _activeCallId = callId;
     _peerConnection = await createPeerConnectionWithConfig(
       _iceServers,
       config,
@@ -135,12 +148,17 @@ class WebRTCService extends ChangeNotifier {
       // Monitor connection quality
       if (state == RTCIceConnectionState.RTCIceConnectionStateConnected ||
           state == RTCIceConnectionState.RTCIceConnectionStateCompleted) {
+        final wasRecovering = _networkQuality == 'poor' || _iceRestartAttempts > 0;
         _networkQuality = 'good';
+        _iceRestartAttempts = 0;
+        _iceRestartTimer?.cancel();
+        if (wasRecovering) onNetworkRecovered?.call();
       } else if (state == RTCIceConnectionState.RTCIceConnectionStateChecking) {
         _networkQuality = 'fair';
       } else if (state == RTCIceConnectionState.RTCIceConnectionStateDisconnected ||
                  state == RTCIceConnectionState.RTCIceConnectionStateFailed) {
         _networkQuality = 'poor';
+        _scheduleIceRestart();
       }
       notifyListeners();
     };
@@ -148,6 +166,65 @@ class WebRTCService extends ChangeNotifier {
     if (isOffer) {
       await _createAndSendOffer(socket, peerId, callId);
     }
+  }
+
+  void _scheduleIceRestart() {
+    if (!_isOfferer || _iceRestartAttempts >= 3 || _iceRestartTimer?.isActive == true) return;
+    final delaySeconds = 2 << _iceRestartAttempts;
+    _iceRestartTimer = Timer(Duration(seconds: delaySeconds), () async {
+      final connection = _peerConnection;
+      final socket = _activeSocket;
+      final peerId = _activePeerId;
+      final callId = _activeCallId;
+      if (connection == null || socket == null || peerId == null || callId == null) return;
+      _iceRestartAttempts++;
+      try {
+        final offer = await connection.createOffer({
+          'offerToReceiveAudio': true,
+          'offerToReceiveVideo': true,
+          'iceRestart': true,
+        });
+        await connection.setLocalDescription(offer);
+        socket.sendOffer(peerId, callId, {'sdp': offer.sdp, 'type': offer.type});
+        if (_networkQuality == 'poor') _scheduleIceRestart();
+      } catch (error) {
+        debugPrint('[NovynWebRTC] ICE restart attempt $_iceRestartAttempts failed: $error');
+        _scheduleIceRestart();
+      }
+    });
+  }
+
+  Future<void> addVideoTrackAndRenegotiate(
+    SocketService socket, String peerId, String callId,
+  ) async {
+    final connection = _peerConnection;
+    final stream = _localStream;
+    if (connection == null || stream == null) {
+      throw StateError('The voice call is not ready for video upgrade.');
+    }
+    if (stream.getVideoTracks().isEmpty) {
+      final cameraStream = await navigator.mediaDevices.getUserMedia({
+        'audio': false,
+        'video': {
+          'facingMode': 'user',
+          'width': {'ideal': 640, 'max': 960},
+          'height': {'ideal': 480, 'max': 540},
+          'frameRate': {'ideal': 20, 'max': 24},
+        },
+      });
+      final tracks = cameraStream.getVideoTracks();
+      if (tracks.isEmpty) throw StateError('Camera did not provide a video track.');
+      await stream.addTrack(tracks.first);
+      await connection.addTrack(tracks.first, stream);
+      localRenderer.srcObject = stream;
+    }
+    final offer = await connection.createOffer({
+      'offerToReceiveAudio': true,
+      'offerToReceiveVideo': true,
+    });
+    await connection.setLocalDescription(offer);
+    socket.sendOffer(peerId, callId, {'sdp': offer.sdp, 'type': offer.type});
+    notifyListeners();
   }
 
   // ── Create and send offer (caller) ───────────────────────────────────────
@@ -270,7 +347,12 @@ class WebRTCService extends ChangeNotifier {
     _localStream = null;
     _remoteStream = null;
     _peerConnection = null;
+    _iceRestartTimer?.cancel();
     _pendingIceCandidates.clear();
+    _remoteDescriptionSet = false;
+    _activeSocket = null;
+    _activePeerId = null;
+    _activeCallId = null;
     _remoteDescriptionSet = false;
     _isInitialized = false;
     super.dispose();
