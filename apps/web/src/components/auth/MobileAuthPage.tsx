@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../../context/AuthContext';
-import { ShieldCheck, Mail, Lock, User, ArrowRight, Monitor, Sparkles } from 'lucide-react';
+import { ShieldCheck, Mail, Lock, User, ArrowRight, Monitor, Sparkles, Download } from 'lucide-react';
 import { triggerHaptic } from '../../services/capacitor';
 import { NovynLogo } from '../ui/NovynLogo';
 import { PasswordRecovery } from './PasswordRecovery';
 import './mobileAuthPage.css';
+
+const APK_DOWNLOAD_URL = 'https://github.com/itsSatyam27/novyn-chat/releases/latest/download/Novyn-Android-ARM64.apk';
 
 interface MobileAuthPageProps {
   initialMode?: 'signin' | 'signup';
@@ -273,6 +275,17 @@ export const MobileAuthPage: React.FC<MobileAuthPageProps> = ({
 
         {/* Footer Actions */}
         <footer className="mobile-auth-footer">
+          {!recovering && (
+            <a
+              className="mobile-auth-download-btn"
+              href={APK_DOWNLOAD_URL}
+              onClick={() => triggerHaptic('medium')}
+              aria-label="Download Novyn Android APK, 49.6 megabytes"
+            >
+              <Download size={14} />
+              <span>Download Android App · 49.6 MB</span>
+            </a>
+          )}
           {onSwitchToDesktopLanding && !recovering && (
             <button
               type="button"
