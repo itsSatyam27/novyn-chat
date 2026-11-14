@@ -53,6 +53,28 @@ void main() {
     expect(sync.pendingMessages, hasLength(1));
     expect(sync.pendingMessages.single.attemptCount, 1);
 
+    // A missing recipient key defers only that conversation. Other chats keep
+    // syncing instead of being blocked behind the first queued message.
+    await sync.addPendingMessage(PendingMessage(
+      accountId: 'alice',
+      tempId: 'tmp-alice-2',
+      text: 'Another chat should still send',
+      receiverId: 'carol',
+      chatId: 'carol',
+      createdAt: queuedAt.add(const Duration(seconds: 1)),
+    ));
+    final sentTo = <String>[];
+    await sync.flushPendingMessages((message) async {
+      if (message.receiverId == 'bob') {
+        throw const PendingMessageDeferredException('recipient key unavailable');
+      }
+      sentTo.add(message.receiverId);
+    });
+    expect(sentTo, ['carol']);
+    expect(sync.pendingMessages, hasLength(1));
+    expect(sync.pendingMessages.single.receiverId, 'bob');
+    expect(sync.pendingMessages.single.attemptCount, 2);
+
     // Switching the active Hive namespace must not expose Alice's outbox to Bob.
     await LocalDbService.activateAccount('bob');
     await sync.activateAccount('bob');
