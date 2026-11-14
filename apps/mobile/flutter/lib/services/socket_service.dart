@@ -137,6 +137,7 @@ class SocketService extends ChangeNotifier {
   Function(Map)? onCallEndedCallback;
   Function(Map)? onCallMediaUpgradeRequestCallback;
   Function(Map)? onCallMediaUpgradeResponseCallback;
+  Function(Map)? onCallScreenShareChangedCallback;
   Function(Map)? onWebRTCSignalCallback;
 
   // Status and foreground message callbacks
@@ -900,6 +901,10 @@ class SocketService extends ChangeNotifier {
     });
     _socket!.on('call_media_upgrade_response', (data) {
       onCallMediaUpgradeResponseCallback?.call(data is Map ? Map<String, dynamic>.from(data) : {});
+    });
+
+    _socket!.on('call_screen_share_changed', (data) {
+      onCallScreenShareChangedCallback?.call(data is Map ? Map<String, dynamic>.from(data) : {});
     });
 
     // ── WebRTC signaling ──────────────────────────────────────────────────
