@@ -178,7 +178,9 @@ class SyncService extends ChangeNotifier {
   }
 
   Future<void> removePendingMessage(String tempId) async {
-    await _ensureOutboxLoaded();
+    // A server echo can also belong to a game/poll or another legacy sender.
+    // It must not fail the message handler before this account's outbox loads.
+    if (_activeAccount == null || !_outboxLoaded) return;
     final before = _pendingMessages.length;
     _pendingMessages.removeWhere((item) => item.tempId == tempId);
     if (_pendingMessages.length == before) return;
