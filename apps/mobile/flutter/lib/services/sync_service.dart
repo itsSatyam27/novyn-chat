@@ -56,7 +56,7 @@ class SyncService extends ChangeNotifier {
     _pendingMessages.clear();
     notifyListeners();
 
-    final raw = await LocalDbService.getPendingMessages();
+    final raw = await LocalDbService.getPendingMessages(account);
     if (_activeAccount != account) return;
 
     for (final entry in raw) {
@@ -189,9 +189,8 @@ class SyncService extends ChangeNotifier {
     final write = _storageWriteQueue
         .catchError((Object _) {})
         .then((_) async {
-          final scope = await LocalDbService.getAccountScope();
-          if (_activeAccount != account || scope != account) return;
-          await LocalDbService.savePendingMessages(snapshot);
+          if (_activeAccount != account) return;
+          await LocalDbService.savePendingMessages(account, snapshot);
         });
     _storageWriteQueue = write;
     return write;

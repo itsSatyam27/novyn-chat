@@ -88,6 +88,7 @@ class SocketService extends ChangeNotifier {
   int _messageStatusRevision = 0;
   final Map<String, DateTime> _messageDeliveredAt = {};
   final Map<String, DateTime> _messageSeenAt = {};
+  final Set<String> _recentOwnMessageEchoIds = <String>{};
   int get messageStatusRevision => _messageStatusRevision;
   String messageStatusFor(String messageId) => _messageStatuses[messageId] ?? 'sent';
   DateTime? messageDeliveredAtFor(String messageId) => _messageDeliveredAt[messageId];
@@ -380,19 +381,22 @@ class SocketService extends ChangeNotifier {
       iv: payload['iv']?.toString(),
       senderPublicKey: payload['senderPublicKey']?.toString(),
     );
-    final optimisticIndex = _messages.indexWhere(
-      (message) => message.id == pending.tempId,
-    );
-    if (optimisticIndex >= 0) {
-      final updated = List<Message>.from(_messages);
-      updated[optimisticIndex] = acknowledged;
-      _messages = updated;
+    final echoAlreadyReceived = _recentOwnMessageEchoIds.remove(messageId);
+    if (!echoAlreadyReceived) {
+      final optimisticIndex = _messages.indexWhere(
+        (message) => message.id == pending.tempId,
+      );
+      if (optimisticIndex >= 0) {
+        final updated = List<Message>.from(_messages);
+        updated[optimisticIndex] = acknowledged;
+        _messages = updated;
+      }
+      await HybridDbService.deleteMessage(pending.tempId);
+      await HybridDbService.saveMessage(acknowledged);
     }
     _messageStatuses.remove(pending.tempId);
-    _messageStatuses[messageId] = 'sent';
+    _messageStatuses.putIfAbsent(messageId, () => 'sent');
     _messageStatusRevision++;
-    await HybridDbService.deleteMessage(pending.tempId);
-    await HybridDbService.saveMessage(acknowledged);
     notifyListeners();
   }
 
@@ -773,6 +777,10 @@ class SocketService extends ChangeNotifier {
         msg = await encryption.decrypt(msg, account, peerKey);
       }
       if (isOwn) {
+        _recentOwnMessageEchoIds.add(msgId);
+        if (_recentOwnMessageEchoIds.length > 200) {
+          _recentOwnMessageEchoIds.remove(_recentOwnMessageEchoIds.first);
+        }
         _captureMessageStatusTimes(msgId, data);
         final explicit = data['status']?.toString().toLowerCase();
         _messageStatuses[msgId] = data['seenAt'] != null || explicit == 'seen'
