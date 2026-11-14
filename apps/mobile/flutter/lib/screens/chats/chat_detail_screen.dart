@@ -59,6 +59,44 @@ String _mimeForFile(String filename) {
   return 'application/octet-stream';
 }
 
+class _ChatContentSnapshot {
+  const _ChatContentSnapshot({
+    required this.messages,
+    required this.peerIsTyping,
+    required this.chatWallpaper,
+    required this.messageStatusRevision,
+  });
+
+  final List<Message> messages;
+  final bool peerIsTyping;
+  final String chatWallpaper;
+  final int messageStatusRevision;
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    if (other is! _ChatContentSnapshot ||
+        peerIsTyping != other.peerIsTyping ||
+        chatWallpaper != other.chatWallpaper ||
+        messageStatusRevision != other.messageStatusRevision ||
+        messages.length != other.messages.length) {
+      return false;
+    }
+    for (var index = 0; index < messages.length; index++) {
+      if (!identical(messages[index], other.messages[index])) return false;
+    }
+    return true;
+  }
+
+  @override
+  int get hashCode => Object.hash(
+        Object.hashAll(messages.map(identityHashCode)),
+        peerIsTyping,
+        chatWallpaper,
+        messageStatusRevision,
+      );
+}
+
 class ChatDetailScreen extends StatefulWidget {
   final UserModel peer;
   final bool isGroup;
@@ -135,29 +173,27 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
     // Auto-save draft on text change
     _ctrl.addListener(_saveDraft);
 
-    // Listen for real-time presence changes on this peer
+    // Listen only to the shared contacts store. Do not wrap the global socket
+    // callback here: doing so retained every opened chat in a growing chain.
+    _socketService.contacts.addListener(_handlePeerPresenceChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final socket = context.read<SocketService>();
-      final currentPeer = socket.contacts.findUser(widget.peer.username);
-      if (currentPeer != null && mounted) {
-        setState(() {
-          _peerIsOnline = currentPeer.isOnline;
-          _peerPresence = currentPeer.status.trim().toLowerCase();
-        });
-      }
-      final prev = socket.onUserStatusChanged;
-      socket.onUserStatusChanged = (uid, isOnline) {
-        prev?.call(uid, isOnline);
-        if (uid.toLowerCase() == widget.peer.username.toLowerCase() && mounted) {
-          final latest = socket.contacts.findUser(uid);
-          setState(() {
-            _peerIsOnline = isOnline;
-            _peerPresence = (latest?.status ?? (isOnline ? 'online' : 'offline'))
-                .trim()
-                .toLowerCase();
-          });
-        }
-      };
+      if (mounted) _handlePeerPresenceChanged();
+    });
+  }
+
+  void _handlePeerPresenceChanged() {
+    if (!mounted || widget.isGroup) return;
+    final currentPeer =
+        _socketService.contacts.findUser(widget.peer.username);
+    if (currentPeer == null) return;
+
+    final nextOnline = currentPeer.isOnline;
+    final nextPresence = currentPeer.status.trim().toLowerCase();
+    if (_peerIsOnline == nextOnline && _peerPresence == nextPresence) return;
+
+    setState(() {
+      _peerIsOnline = nextOnline;
+      _peerPresence = nextPresence;
     });
   }
 
@@ -367,6 +403,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
     if (_isRecordingVoice) unawaited(_voiceRecorder.stop());
     unawaited(_voiceRecorder.dispose());
     _socketService.removeListener(_syncTypingAnimation);
+    _socketService.contacts.removeListener(_handlePeerPresenceChanged);
     _socketService.closeChat();
     _scroll.removeListener(_onScroll);
     _ctrl.removeListener(_saveDraft);
@@ -512,8 +549,16 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
 
   @override
   Widget build(BuildContext context) {
-    final socket = context.watch<SocketService>();
-    final messages = socket.messages;
+    final socket = context.read<SocketService>();
+    final snapshot = context.select<SocketService, _ChatContentSnapshot>(
+      (service) => _ChatContentSnapshot(
+        messages: service.messages,
+        peerIsTyping: service.peerIsTyping,
+        chatWallpaper: service.chatWallpaper,
+        messageStatusRevision: service.messageStatusRevision,
+      ),
+    );
+    final messages = snapshot.messages;
 
     return Scaffold(
       backgroundColor: Theme.of(context).colorScheme.surface,
@@ -523,7 +568,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
           const ConnectionBanner(),
           Expanded(
             child: Container(
-              decoration: _wallpaperDecoration(socket.chatWallpaper),
+              decoration: _wallpaperDecoration(snapshot.chatWallpaper),
               child: Stack(
                 children: [
                   Positioned.fill(
@@ -531,7 +576,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                         ? Center(child: CircularProgressIndicator(color: Theme.of(context).colorScheme.primary))
                         : messages.isEmpty
                             ? _fetchingFromServer ? _buildLoadingShimmer() : _buildEmptyChat()
-                            : _buildMessageList(messages),
+                            : _buildMessageList(messages, snapshot.peerIsTyping),
                   ),
                   if (!_initialPositionReady && messages.isNotEmpty)
                     Positioned.fill(
@@ -1003,7 +1048,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
 
   int _lastMessageCount = 0;
 
-  Widget _buildMessageList(List messages) {
+  Widget _buildMessageList(List<Message> messages, bool peerIsTyping) {
     if (messages.length > _lastMessageCount) {
       final addedMessages = messages.length - _lastMessageCount;
       _lastMessageCount = messages.length;
@@ -1018,13 +1063,13 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
       }
     }
     final socket = context.read<SocketService>();
-    if (socket.peerIsTyping && _isNearLatest) {
+    if (peerIsTyping && _isNearLatest) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom(force: true));
     }
     return ListView.builder(
       controller: _scroll,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      itemCount: messages.length + 1 + (socket.peerIsTyping ? 1 : 0), // loader + live typing row
+      itemCount: messages.length + 1 + (peerIsTyping ? 1 : 0), // loader + live typing row
       // Performance optimizations
       addAutomaticKeepAlives: false,
       addRepaintBoundaries: true,
@@ -1074,7 +1119,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
           return const SizedBox(height: 8);
         }
 
-        if (socket.peerIsTyping && i == messages.length + 1) {
+        if (peerIsTyping && i == messages.length + 1) {
           return _buildTypingIndicator();
         }
         final msgIndex = i - 1;
