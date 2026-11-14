@@ -291,18 +291,20 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
         ? widget.peer.uid
         : widget.peer.username;
 
+    final cacheWatch = Stopwatch()..start();
     List<Message> cachedMessages = [];
     try {
-      // Never let a slow local database keep the whole conversation screen
-      // on its first-load spinner indefinitely.
-      cachedMessages = await HybridDbService.getMessages(_chatId!)
-          .timeout(const Duration(seconds: 6), onTimeout: () => <Message>[]);
+      // Render the complete Hive cache first; Drift is warmed and merged later.
+      cachedMessages = await HybridDbService.getCachedMessages(_chatId!)
+          .timeout(const Duration(seconds: 4), onTimeout: () => <Message>[]);
     } catch (error) {
       debugPrint('[NovynChat] Local message cache read failed: $error');
     }
+    debugPrint('[NovynPerf] chat_cache_ms=${cacheWatch.elapsedMilliseconds} count=${cachedMessages.length}');
     if (!mounted) return;
 
     socket.openChat(_chatId!, cachedMessages, isGroup: widget.isGroup);
+    unawaited(_hydrateIndexedCache(_chatId!, socket));
     setState(() {
       _loading = false;
       _fetchingFromServer = cachedMessages.isEmpty;
@@ -358,6 +360,18 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
       }
     } finally {
       if (mounted) setState(() => _fetchingFromServer = false);
+    }
+  }
+
+  Future<void> _hydrateIndexedCache(String chatId, SocketService socket) async {
+    final watch = Stopwatch()..start();
+    try {
+      final merged = await HybridDbService.getMessages(chatId);
+      if (!mounted || _chatId != chatId || merged.isEmpty) return;
+      socket.mergeChatHistory(merged);
+      debugPrint('[NovynPerf] chat_secondary_cache_ms=${watch.elapsedMilliseconds} count=${merged.length}');
+    } catch (error) {
+      debugPrint('[NovynChat] Secondary cache hydration failed: $error');
     }
   }
 
