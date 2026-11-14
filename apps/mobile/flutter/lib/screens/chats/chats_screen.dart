@@ -717,7 +717,7 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
         ),
       ),
       floatingActionButton: AnimatedSlide(
-        offset: _showNewChatFab ? Offset.zero : const Offset(0, 1.35),
+        offset: _showNewChatFab ? Offset.zero : const Offset(1.35, 0),
         duration: const Duration(milliseconds: 220),
         curve: Curves.easeOutCubic,
         child: AnimatedOpacity(
