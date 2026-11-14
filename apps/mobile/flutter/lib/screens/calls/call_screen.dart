@@ -1126,7 +1126,7 @@ class _CallScreenState extends State<CallScreen>
                       ),
                     ]),
                     const Spacer(),
-                    const Icon(Icons.signal_cellular_alt_rounded, color: Colors.white70, size: 22),
+                    _CallNetworkIndicator(webrtc: _webrtc),
                   ]),
                 ),
                 const Spacer(flex: 2),
