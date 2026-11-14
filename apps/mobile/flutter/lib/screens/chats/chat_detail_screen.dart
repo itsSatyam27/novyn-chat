@@ -287,32 +287,26 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
       return;
     }
 
-    // Direct-message APIs and Socket.IO identify peers by username, not the
-    // Firestore document UID. Using uid here makes notification deep-links
-    // request history for the wrong conversation and show an empty state.
+    // Direct-message history and notification deep-links use the peer
+    // username as the canonical conversation key. Groups retain their UID key.
     _chatId = widget.isGroup
         ? (widget.peer.uid.isNotEmpty ? widget.peer.uid : widget.peer.username)
         : widget.peer.username;
 
+    final cacheWatch = Stopwatch()..start();
     List<Message> cachedMessages = [];
     try {
-      // Prefer the canonical username cache key. Read the old UID-keyed cache
-      // as a compatibility fallback for messages stored by older app builds.
-      cachedMessages = await HybridDbService.getMessages(_chatId!)
-          .timeout(const Duration(seconds: 6), onTimeout: () => <Message>[]);
-      if (cachedMessages.isEmpty &&
-          !widget.isGroup &&
-          widget.peer.uid.isNotEmpty &&
-          widget.peer.uid != _chatId) {
-        cachedMessages = await HybridDbService.getMessages(widget.peer.uid)
-            .timeout(const Duration(seconds: 4), onTimeout: () => <Message>[]);
-      }
+      // Render the complete Hive cache first; Drift is warmed and merged later.
+      cachedMessages = await HybridDbService.getCachedMessages(_chatId!)
+          .timeout(const Duration(seconds: 4), onTimeout: () => <Message>[]);
     } catch (error) {
       debugPrint('[NovynChat] Local message cache read failed: $error');
     }
+    debugPrint('[NovynPerf] chat_cache_ms=${cacheWatch.elapsedMilliseconds} count=${cachedMessages.length}');
     if (!mounted) return;
 
     socket.openChat(_chatId!, cachedMessages, isGroup: widget.isGroup);
+    unawaited(_hydrateIndexedCache(_chatId!, socket));
     setState(() {
       _loading = false;
       _fetchingFromServer = cachedMessages.isEmpty;
@@ -368,6 +362,24 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
       }
     } finally {
       if (mounted) setState(() => _fetchingFromServer = false);
+    }
+  }
+
+  Future<void> _hydrateIndexedCache(String chatId, SocketService socket) async {
+    final watch = Stopwatch()..start();
+    try {
+      final merged = await HybridDbService.getMessages(chatId);
+      if (!mounted || _chatId != chatId || merged.isEmpty) return;
+      // Do not let a late, potentially stale disk mirror overwrite newer
+      // socket/server message state; only backfill IDs missing from memory.
+      final existingIds = socket.messages.map((message) => message.id).toSet();
+      final missing = merged
+          .where((message) => !existingIds.contains(message.id))
+          .toList();
+      if (missing.isNotEmpty) socket.mergeChatHistory(missing);
+      debugPrint('[NovynPerf] chat_secondary_cache_ms=${watch.elapsedMilliseconds} backfilled=${missing.length}');
+    } catch (error) {
+      debugPrint('[NovynChat] Secondary cache hydration failed: $error');
     }
   }
 
