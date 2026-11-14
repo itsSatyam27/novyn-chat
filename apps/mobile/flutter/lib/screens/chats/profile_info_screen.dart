@@ -109,9 +109,17 @@ class ProfileInfoScreen extends StatelessWidget {
                             gradient: LinearGradient(
                               begin: Alignment.topLeft,
                               end: Alignment.bottomRight,
-                              colors: [scheme.primaryContainer, scheme.secondaryContainer],
+                              colors: [
+                                const Color(0xFFE9E3FA),
+                                Color.lerp(scheme.primaryContainer, const Color(0xFFF2EEFC), .35)!,
+                              ],
                             ),
                             borderRadius: const BorderRadius.vertical(top: Radius.circular(27)),
+                          ),
+                          child: CustomPaint(
+                            painter: _ProfileCoverRingsPainter(
+                              color: scheme.primary.withValues(alpha: .12),
+                            ),
                           ),
                         ),
                       ),
@@ -260,16 +268,6 @@ class ProfileInfoScreen extends StatelessWidget {
                     style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 14, height: 1.55, color: user.bio.trim().isEmpty ? scheme.onSurfaceVariant : scheme.onSurface),
                   )),
                 ]),
-                if (!online && user.lastSeen != null) ...[
-                  const SizedBox(height: 14),
-                  Divider(height: 1, color: scheme.outlineVariant.withValues(alpha: .55)),
-                  const SizedBox(height: 12),
-                  Row(children: [
-                    Icon(Icons.schedule_rounded, size: 17, color: scheme.onSurfaceVariant),
-                    const SizedBox(width: 9),
-                    Text('Last seen ${_dateTime(user.lastSeen!)}', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: scheme.onSurfaceVariant)),
-                  ]),
-                ],
               ],
             ),
           ),
@@ -574,4 +572,26 @@ class _SettingsTile extends StatelessWidget {
       ]),
     ),
   );
+}
+
+class _ProfileCoverRingsPainter extends CustomPainter {
+  const _ProfileCoverRingsPainter({required this.color});
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height * .2);
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5;
+    final maxRadius = size.width * .56;
+    for (var index = 1; index <= 5; index++) {
+      canvas.drawCircle(center, maxRadius * index / 5, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _ProfileCoverRingsPainter oldDelegate) =>
+      oldDelegate.color != color;
 }
