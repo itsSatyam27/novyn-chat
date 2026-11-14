@@ -33,6 +33,7 @@ class SyncService extends ChangeNotifier {
   bool _outboxLoaded = false;
   DateTime? _lastSyncTime;
   String? _activeAccount;
+  int _accountActivationRevision = 0;
   Future<void> _storageWriteQueue = Future<void>.value();
   Future<void>? _flushFuture;
 
@@ -50,14 +51,19 @@ class SyncService extends ChangeNotifier {
     if (account.isEmpty) return;
     if (_activeAccount == account && _outboxLoaded) return;
 
+    final activationRevision = ++_accountActivationRevision;
     await _storageWriteQueue.catchError((Object _) {});
+    if (activationRevision != _accountActivationRevision) return;
     _activeAccount = account;
     _outboxLoaded = false;
     _pendingMessages.clear();
     notifyListeners();
 
     final raw = await LocalDbService.getPendingMessages(account);
-    if (_activeAccount != account) return;
+    if (activationRevision != _accountActivationRevision ||
+        _activeAccount != account) {
+      return;
+    }
 
     for (final entry in raw) {
       try {
