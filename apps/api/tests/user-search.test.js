@@ -46,7 +46,7 @@ test('username search is case-insensitive and ranks exact and prefix matches fir
   );
 });
 
-test('username search excludes self, unregistered users, blocked users and friends', () => {
+test('username search excludes self, unregistered and blocked users while marking existing friends', () => {
   const me = makeUser('me');
   me.friends.add('alicia');
   const results = searchFixture([
@@ -56,7 +56,9 @@ test('username search excludes self, unregistered users, blocked users and frien
     makeUser('alison'),
   ], { blocked: new Set(['me:alison']) });
 
-  assert.deepEqual(results, []);
+  assert.deepEqual(results.map((user) => user.username), ['alicia']);
+  assert.equal(results[0].requestStatus, 'friend');
+  assert.equal(results[0].canRequest, false);
 });
 
 test('username search reports request state and respects friend-request privacy', () => {
