@@ -38,6 +38,9 @@ class _PeopleScreenState extends State<PeopleScreen> {
   ];
 
   String _search = '';
+  bool _isSearchVisible = false;
+  final TextEditingController _searchController = TextEditingController();
+  final FocusNode _searchFocusNode = FocusNode();
   String _filter = 'All';
   Set<String> _favouriteUsernames = <String>{};
   String? _favouriteOwner;
@@ -217,7 +220,7 @@ class _PeopleScreenState extends State<PeopleScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(18, 10, 18, 6),
+              padding: const EdgeInsets.fromLTRB(18, 12, 18, 8),
               child: Row(
                 children: [
                   Expanded(
@@ -225,9 +228,9 @@ class _PeopleScreenState extends State<PeopleScreen> {
                       'Contacts',
                       style: TextStyle(
                         fontFamily: 'PlusJakartaSans',
-                        fontSize: 30,
+                        fontSize: 36,
                         height: 1.12,
-                        letterSpacing: -1,
+                        letterSpacing: -1.25,
                         fontWeight: FontWeight.w600,
                         color: Theme.of(context).colorScheme.onSurface,
                       ),
@@ -239,6 +242,31 @@ class _PeopleScreenState extends State<PeopleScreen> {
                     radius: 17,
                     iconSize: 21,
                     onTap: () => _openDiscoverPeople(myUid),
+                  ),
+                  const SizedBox(width: 8),
+                  NovynIconButton(
+                    icon: _isSearchVisible ? Icons.close_rounded : Icons.search_rounded,
+                    size: 46,
+                    radius: 18,
+                    iconSize: 22,
+                    onTap: () {
+                      setState(() {
+                        _isSearchVisible = !_isSearchVisible;
+                        if (!_isSearchVisible) {
+                          _search = '';
+                          _searchController.clear();
+                        }
+                      });
+                      if (_isSearchVisible) {
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          if (mounted && _isSearchVisible) {
+                            _searchFocusNode.requestFocus();
+                          }
+                        });
+                      } else {
+                        _searchFocusNode.unfocus();
+                      }
+                    },
                   ),
                   const SizedBox(width: 8),
                   PopupMenuButton<String>(
@@ -291,7 +319,21 @@ class _PeopleScreenState extends State<PeopleScreen> {
                 ],
               ),
             ),
-            _buildSearch(),
+            AnimatedSize(
+              duration: const Duration(milliseconds: 280),
+              curve: Curves.easeInOutCubic,
+              alignment: Alignment.topCenter,
+              child: _isSearchVisible
+                  ? TweenAnimationBuilder<double>(
+                      tween: Tween<double>(begin: 0, end: 1),
+                      duration: const Duration(milliseconds: 180),
+                      curve: Curves.easeOut,
+                      builder: (context, opacity, child) =>
+                          Opacity(opacity: opacity, child: child),
+                      child: _buildSearch(),
+                    )
+                  : const SizedBox(width: double.infinity, height: 0),
+            ),
             Expanded(
               child: StreamBuilder<List<UserModel>>(
                 stream: friends.friendsStream(myUid),
@@ -344,43 +386,42 @@ class _PeopleScreenState extends State<PeopleScreen> {
 
   Widget _buildSearch() {
     final theme = Theme.of(context);
+    final textColor = theme.colorScheme.onSurfaceVariant;
+    final accent = theme.colorScheme.primary;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
       child: Container(
-        height: 48,
-        padding: const EdgeInsets.symmetric(horizontal: 17),
+        height: 50,
+        padding: const EdgeInsets.symmetric(horizontal: 18),
         decoration: BoxDecoration(
-          color: theme.colorScheme.surface,
-          borderRadius: BorderRadius.circular(24),
+          color: theme.brightness == Brightness.dark
+              ? theme.colorScheme.surface
+              : Colors.white,
+          borderRadius: BorderRadius.circular(25),
         ),
         child: Row(
           children: [
-            Icon(
-              Icons.search_rounded,
-              size: 21,
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-            const SizedBox(width: 11),
+            Icon(Icons.search_rounded, size: 21, color: textColor),
+            const SizedBox(width: 12),
             Expanded(
               child: TextField(
+                controller: _searchController,
+                focusNode: _searchFocusNode,
                 onChanged: (value) {
                   setState(() => _search = value.trim().toLowerCase());
                   if (_scrollController.hasClients) {
                     _scrollController.jumpTo(0);
                   }
                 },
+                maxLines: 1,
+                textAlignVertical: TextAlignVertical.center,
+                cursorColor: accent,
                 style: TextStyle(
                   fontFamily: 'PlusJakartaSans',
-                  fontSize: 14,
+                  fontSize: 15,
                   color: theme.colorScheme.onSurface,
                 ),
                 decoration: InputDecoration(
-                  hintText: 'Search contacts',
-                  hintStyle: TextStyle(
-                    fontFamily: 'PlusJakartaSans',
-                    fontSize: 14,
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
                   filled: false,
                   isDense: true,
                   isCollapsed: true,
@@ -388,8 +429,31 @@ class _PeopleScreenState extends State<PeopleScreen> {
                   border: InputBorder.none,
                   enabledBorder: InputBorder.none,
                   focusedBorder: InputBorder.none,
+                  hintText: 'Search contacts',
+                  hintStyle: TextStyle(
+                    fontFamily: 'PlusJakartaSans',
+                    fontSize: 15,
+                    color: textColor,
+                  ),
                 ),
               ),
+            ),
+            ValueListenableBuilder<TextEditingValue>(
+              valueListenable: _searchController,
+              builder: (context, value, _) {
+                if (value.text.isEmpty) return const SizedBox.shrink();
+                return GestureDetector(
+                  onTap: () {
+                    _searchController.clear();
+                    setState(() => _search = '');
+                    if (_scrollController.hasClients) {
+                      _scrollController.jumpTo(0);
+                    }
+                    _searchFocusNode.requestFocus();
+                  },
+                  child: Icon(Icons.close_rounded, size: 18, color: textColor),
+                );
+              },
             ),
           ],
         ),
@@ -647,6 +711,8 @@ class _PeopleScreenState extends State<PeopleScreen> {
 
   @override
   void dispose() {
+    _searchController.dispose();
+    _searchFocusNode.dispose();
     _scrollController.dispose();
     super.dispose();
   }
