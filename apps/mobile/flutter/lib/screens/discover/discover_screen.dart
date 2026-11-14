@@ -413,7 +413,6 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
           ),
           const SizedBox(height: 22),
           Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Expanded(
                 child: _DiscoverEmptyAction(
@@ -866,7 +865,7 @@ class _DiscoverPersonRow extends StatelessWidget {
             UserAvatar(
               name: user.name,
               photoUrl: user.photoUrl,
-              radius: 35,
+              radius: 38,
               showOnlineIndicator: true,
               isOnline: isOnline,
               presence: user.status,
