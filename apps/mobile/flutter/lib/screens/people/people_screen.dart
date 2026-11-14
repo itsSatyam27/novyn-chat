@@ -162,6 +162,15 @@ class _PeopleScreenState extends State<PeopleScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(
+        builder: (_) => DiscoverPeopleScreen(myUid: myUid),
+      ),
+    );
+  }
+
+  void _showReceivedRequests(String myUid) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
         builder: (_) => ReceivedFriendRequestsScreen(myUid: myUid),
       ),
     );
@@ -274,6 +283,8 @@ class _PeopleScreenState extends State<PeopleScreen> {
                     onSelected: (value) {
                       if (value == 'requests') {
                         _showFriendRequests(myUid);
+                      } else if (value == 'received') {
+                        _showReceivedRequests(myUid);
                       } else if (value == 'invite') {
                         _shareInvite(myUid);
                       } else if (value == 'discover') {
@@ -284,6 +295,10 @@ class _PeopleScreenState extends State<PeopleScreen> {
                       PopupMenuItem(
                         value: 'requests',
                         child: Text('Friend requests'),
+                      ),
+                      PopupMenuItem(
+                        value: 'received',
+                        child: Text('Received requests'),
                       ),
                       PopupMenuItem(
                         value: 'invite',
