@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../services/settings_service.dart';
+import '../../../services/auth_service.dart';
 import '../../../theme/novyn_theme.dart';
 import 'dock_customization_screen.dart';
+import 'quick_toggle_customization_screen.dart';
 
 class AppearanceScreen extends StatelessWidget {
   const AppearanceScreen({super.key});
@@ -20,6 +22,8 @@ class AppearanceScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final settings = context.watch<SettingsService>();
+    final username = context.watch<AuthService>().user?.username ?? 'guest';
+    final quickToggleCount = settings.quickToggleIdsFor(username).length;
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
     final accent = Color(settings.accentColorValue);
@@ -188,6 +192,41 @@ class AppearanceScreen extends StatelessWidget {
           ),
           const SizedBox(height: 25),
           _SectionHeading(
+            title: 'Quick Toggles',
+            subtitle: 'Choose up to four shortcuts for your Settings screen',
+            trailing: _ValuePill('$quickToggleCount/4'),
+          ),
+          const SizedBox(height: 12),
+          _SurfaceCard(
+            child: ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: colors.primary.withValues(alpha: .11),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(Icons.dashboard_customize_rounded, color: colors.primary),
+              ),
+              title: const Text(
+                'Customize quick toggles',
+                style: TextStyle(fontWeight: FontWeight.w800),
+              ),
+              subtitle: const Text('Select, remove and reorder your shortcuts'),
+              trailing: Icon(Icons.chevron_right_rounded, color: colors.onSurfaceVariant),
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => QuickToggleCustomizationScreen(
+                    accountKey: username,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 25),
+          _SectionHeading(
             title: 'Navigation',
             subtitle: 'Personalise your bottom dock',
           ),
@@ -212,7 +251,7 @@ class AppearanceScreen extends StatelessWidget {
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    'Your appearance preferences are saved automatically on this device.',
+                    'Appearance preferences are saved on this device. Quick Toggle selections are saved separately for each account.',
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: colors.onSurfaceVariant,
                       height: 1.45,
