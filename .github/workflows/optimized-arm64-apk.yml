@@ -100,11 +100,11 @@ jobs:
           mkdir -p "${RELEASE_DIR}"
           cp "${SOURCE_APK}" "${RELEASE_APK}"
           TAG="novyn-arm64-build-${GITHUB_RUN_NUMBER}-${GITHUB_RUN_ATTEMPT}"
-          MIB=$(awk -v bytes="$(stat -c%s "${RELEASE_APK}")" 'BEGIN { printf "%.1f", bytes / 1048576 }')
+          MB=$(awk -v bytes="$(stat -c%s "${RELEASE_APK}")" 'BEGIN { printf "%.1f", bytes / 1000000 }')
           gh release create "${TAG}" "${RELEASE_APK}" \
             --repo "${GITHUB_REPOSITORY}" \
             --target "${GITHUB_SHA}" \
-            --title "Novyn Android ARM64 APK — ${MIB} MB" \
+            --title "Novyn Android ARM64 APK — ${MB} MB" \
             --notes "Signed ARM64-v8a Android release APK. Direct download; no ZIP extraction required."
 
       - name: Upload ARM64 APK
