@@ -365,9 +365,19 @@ class AuthService extends ChangeNotifier {
             refreshedUser.username.toLowerCase()) {
           await _prepareAccount(refreshedUser.username);
         }
+        final previousUser = _user;
+        final identityChanged = previousUser == null ||
+            jsonEncode(_identityToMap(previousUser)) !=
+                jsonEncode(_identityToMap(refreshedUser));
         _user = refreshedUser;
-        await _persistIdentity(refreshedUser);
-        notifyListeners();
+
+        // A healthy resume commonly returns the exact same profile. Avoid
+        // notifying every auth consumer (tabs, dock, profile) unless data really
+        // changed; this prevents a whole-app rebuild on every app switch.
+        if (identityChanged) {
+          await _persistIdentity(refreshedUser);
+          notifyListeners();
+        }
 
         // A successful session lookup can rotate the access/refresh cookies.
         // Existing Socket.IO connections keep the old session ID, so reconnect
