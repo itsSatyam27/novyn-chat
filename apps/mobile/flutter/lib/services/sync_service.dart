@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import '../models/chat_models.dart';
 import 'api_service.dart';
 import 'hybrid_db_service.dart';
 import 'local_db_service.dart';
@@ -359,6 +360,19 @@ class PendingMessage {
         attemptCount: attemptCount ?? this.attemptCount,
         lastError: lastError ?? this.lastError,
       );
+
+  Message toLocalMessage() => Message(
+    id: tempId,
+    text: text,
+    isFromMe: true,
+    chatId: chatId,
+    senderId: accountId,
+    createdAt: createdAt,
+    replyToId: replyToId,
+    replyToText: replyToText,
+    replyToSender: replyToSender,
+    attachment: attachment,
+  );
 
   Map<String, dynamic> toJson() => {
     'accountId': accountId,

@@ -133,6 +133,12 @@ void main() {
     expect(decoded.attachment?['kind'], 'image');
     expect(decoded.attemptCount, 2);
     expect(decoded.lastError, 'temporary network failure');
+    final bubble = decoded.toLocalMessage();
+    expect(bubble.id, decoded.tempId);
+    expect(bubble.text, decoded.text);
+    expect(bubble.chatId, decoded.chatId);
+    expect(bubble.isFromMe, isTrue);
+    expect(bubble.attachment?['kind'], 'image');
     expect(
       () => PendingMessage.fromJson({'tempId': 'missing-owner'}),
       throwsFormatException,

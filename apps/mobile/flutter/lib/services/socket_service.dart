@@ -219,6 +219,31 @@ class SocketService extends ChangeNotifier {
     for (final pending in SyncService().pendingMessages) {
       _messageStatuses[pending.tempId] = 'sending';
     }
+    _restorePendingMessagesForOpenChat();
+    notifyListeners();
+  }
+
+  /// Rebuild optimistic bubbles from the durable queue after process restart.
+  void _restorePendingMessagesForOpenChat() {
+    final peer = _currentChatWith;
+    if (peer == null) return;
+
+    final existingIds = _messages.map((message) => message.id).toSet();
+    final restored = SyncService().pendingMessages
+        .where((pending) =>
+            pending.isGroup == _currentChatIsGroup &&
+            pending.chatId.toLowerCase() == peer.toLowerCase() &&
+            !existingIds.contains(pending.tempId))
+        .map((pending) {
+          _messageStatuses[pending.tempId] = 'sending';
+          return pending.toLocalMessage();
+        })
+        .toList(growable: false);
+    if (restored.isEmpty) return;
+
+    _messages = [..._messages, ...restored]
+      ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+    unawaited(HybridDbService.saveMessages(restored));
     notifyListeners();
   }
 
@@ -1423,6 +1448,7 @@ class SocketService extends ChangeNotifier {
     _chatWallpaper = '';
     _messages = List<Message>.from(cachedHistory);
     _peerIsTyping = false;
+    _restorePendingMessagesForOpenChat();
     notifyListeners();
 
     unawaited(decryptCurrentMessages());
@@ -1591,11 +1617,12 @@ class SocketService extends ChangeNotifier {
     notifyListeners();
 
     try {
-      await HybridDbService.saveMessage(tempMsg);
       await (_outboxActivation ?? SyncService().activateAccount(account));
       if (_myUsername != account) {
         throw StateError('Your account changed before this message was queued.');
       }
+      // Persist the retry record before mirroring the optimistic bubble. If the
+      // process stops immediately after queueing, openChat rebuilds the bubble.
       await SyncService().addPendingMessage(PendingMessage(
         accountId: account.trim().toLowerCase(),
         tempId: clientTempId,
@@ -1609,6 +1636,7 @@ class SocketService extends ChangeNotifier {
         isGroup: isGroup,
         attachment: attachment,
       ));
+      await HybridDbService.saveMessage(tempMsg);
 
       // Offline sends are accepted into the durable outbox immediately.
       // Authenticated reconnect and key registration trigger the actual send.
