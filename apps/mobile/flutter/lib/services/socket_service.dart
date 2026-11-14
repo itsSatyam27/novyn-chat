@@ -158,8 +158,15 @@ class SocketService extends ChangeNotifier {
         serverUrl == null || serverUrl.isEmpty) {
       return;
     }
-    disconnect();
-    connect(serverUrl, username);
+    // Refresh only the transport. Keep the in-memory chat, contacts and
+    // active-conversation state intact while the session cookie is rotated.
+    _reconnectTimer?.cancel();
+    _isConnected = false;
+    _isAuthenticated = false;
+    _authenticationReady = null;
+    _registeredIdentityAccount = null;
+    notifyListeners();
+    _doConnect();
   }
 
   Future<void> _refreshAfterSocketAuthFailure() async {
@@ -186,12 +193,29 @@ class SocketService extends ChangeNotifier {
     }
     _serverUrl = serverUrl;
     _myUsername = username;
-    if (_socket != null && _isConnected) return;
+    if (_socket != null && _socket!.connected && _isConnected) return;
     _doConnect();
   }
 
   void _doConnect() {
-    if (_serverUrl == null || _myUsername == null) return;
+    if (_manualDisconnect || _serverUrl == null || _myUsername == null) return;
+
+    // Dispose the previous transport before creating another one. Socket.IO
+    // can invoke disconnect callbacks during disposal, so suppress reconnect
+    // scheduling until the old listeners have been removed.
+    final previousSocket = _socket;
+    _socket = null;
+    if (previousSocket != null) {
+      final wasManualDisconnect = _manualDisconnect;
+      _manualDisconnect = true;
+      previousSocket.dispose();
+      _manualDisconnect = wasManualDisconnect;
+    }
+    _isConnected = false;
+    _isAuthenticated = false;
+    _authenticationReady = null;
+    _registeredIdentityAccount = null;
+    _reconnectTimer?.cancel();
 
     // novyn-chat authenticates via cookie on the HTTP handshake,
     // not via a query param. We pass the cookie in extraHeaders.
@@ -259,13 +283,32 @@ class SocketService extends ChangeNotifier {
   }
 
   void setAppForeground(bool foreground) {
-    if (_appForeground == foreground) return;
+    final changed = _appForeground != foreground;
     _appForeground = foreground;
-    if (_isConnected) {
-      _socket?.emit('app_visibility', {'foreground': foreground});
-      if (foreground && _isAuthenticated) {
-        _requestActiveChatRefresh();
+
+    if (!foreground) {
+      if (changed && _isConnected) {
+        _socket?.emit('app_visibility', {'foreground': false});
       }
+      return;
+    }
+
+    if (_manualDisconnect) return;
+
+    // Android can suspend the app while the socket transport is being dropped.
+    // Re-check the transport itself on every resume instead of trusting a
+    // possibly stale local connection flag.
+    if (_socket == null || !_socket!.connected) {
+      _reconnectTimer?.cancel();
+      _doConnect();
+      return;
+    }
+
+    if (changed && _isConnected) {
+      _socket?.emit('app_visibility', {'foreground': true});
+    }
+    if (_isConnected && _isAuthenticated) {
+      _requestActiveChatRefresh();
     }
   }
 
@@ -286,7 +329,9 @@ class SocketService extends ChangeNotifier {
   void _scheduleReconnect(int seconds) {
     _reconnectTimer?.cancel();
     _reconnectTimer = Timer(Duration(seconds: seconds), () {
-      if (!_isConnected) _doConnect();
+      if (!_manualDisconnect && (_socket == null || !_socket!.connected)) {
+        _doConnect();
+      }
     });
   }
 
@@ -2362,7 +2407,7 @@ class SocketService extends ChangeNotifier {
     contacts.clear();
     _reconnectTimer?.cancel();
     _stopActiveTyping();
-    _socket?.disconnect();
+    _socket?.dispose();
     _reconnectTimer?.cancel();
     _socket = null;
     _isConnected = false;
