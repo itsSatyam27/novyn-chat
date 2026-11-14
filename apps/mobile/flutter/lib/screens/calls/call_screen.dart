@@ -80,6 +80,8 @@ class _CallScreenState extends State<CallScreen>
   final double _pipHeight = 160;
 
   bool _isVideo = false;
+  bool _networkAudioOnly = false;
+  bool get _showVideo => _isVideo && !_networkAudioOnly;
 
   @override
   void didChangeDependencies() {
@@ -109,6 +111,19 @@ class _CallScreenState extends State<CallScreen>
           const SnackBar(content: Text('Call reconnected'), duration: Duration(seconds: 2)),
         );
       }
+    };
+    _webrtc.onAutomaticVideoFallback = (audioOnly) {
+      if (!mounted) return;
+      setState(() => _networkAudioOnly = audioOnly);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(audioOnly
+              ? 'Weak network: switched to audio-only to keep your call connected'
+              : 'Network recovered: video restored'),
+          duration: const Duration(seconds: 3),
+        ),
+      );
+      _refreshMiniOverlay();
     };
     CallPlatformService.setPipListener((inPip) {
       if (!mounted) return;
@@ -682,7 +697,7 @@ class _CallScreenState extends State<CallScreen>
         backgroundColor: Colors.black,
         body: _isSystemPip
             ? _buildSystemPipContent()
-            : (_isVideo && _state == CallState.connected
+            : (_showVideo && _state == CallState.connected
                 ? _buildVideoCall()
                 : _buildVoiceCall()),
       ),
@@ -695,7 +710,7 @@ class _CallScreenState extends State<CallScreen>
       child: Stack(
         fit: StackFit.expand,
         children: [
-          if (_isVideo && _webrtc.remoteStream != null)
+          if (_showVideo && _webrtc.remoteStream != null)
             RTCVideoView(
               _webrtc.remoteRenderer,
               objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
@@ -772,7 +787,7 @@ class _CallScreenState extends State<CallScreen>
                   color: const Color(0xFFEF4444),
                   onTap: _endCall,
                 ),
-                if (_isVideo)
+                if (_showVideo)
                   _PipAction(
                     icon: _cameraOff
                         ? Icons.videocam_off_rounded
@@ -1170,7 +1185,7 @@ class _CallScreenState extends State<CallScreen>
                 active: _speakerOn,
                 onTap: _toggleSpeaker,
               ),
-              if (_isVideo)
+              if (_showVideo)
                 _ToggleButton(
                   icon: _cameraOff
                       ? Icons.videocam_off_rounded
