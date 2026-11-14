@@ -317,16 +317,29 @@ class _DiscoverPeopleScreenState extends State<DiscoverPeopleScreen> {
                       ? () => _cancelSentFriendRequest(context.read<FriendService>(), user)
                       : null,
               borderRadius: BorderRadius.circular(12),
-              child: SizedBox(width: 40, height: 40, child: Icon(actionIcon, size: 19, color: actionColor)),
+              child: SizedBox(
+                width: canCancel ? 74 : 40,
+                height: 40,
+                child: canCancel
+                    ? Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(actionIcon, size: 16, color: actionColor),
+                          const SizedBox(width: 4),
+                          Text(
+                            'Cancel',
+                            style: NovynText.body(11, weight: FontWeight.w600, color: actionColor),
+                          ),
+                        ],
+                      )
+                    : Icon(actionIcon, size: 19, color: actionColor),
+              ),
             ),
           ),
         ],
       ),
     );
   }
-
-  Color themeOrPrimary(BuildContext context) =>
-      Theme.of(context).colorScheme.primary;
 
   Future<void> _sendFriendRequestTo(FriendService service, UserModel user) async {
     if (_sendingRequest) return;

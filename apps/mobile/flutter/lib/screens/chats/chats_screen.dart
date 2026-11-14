@@ -589,7 +589,7 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
                         fontSize: 36,
                         height: 1.12,
                         letterSpacing: -1.25,
-                        fontWeight: FontWeight.w700,
+                        fontWeight: FontWeight.w600,
                         color: Theme.of(context).colorScheme.onSurface,
                       ),
                     ),
@@ -807,7 +807,7 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
                     style: TextStyle(
                       fontFamily: 'PlusJakartaSans',
                       fontSize: 14,
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.w500,
                       color: _selectedTab == item.$1
                           ? Colors.white
                           : colors.onSurface,
@@ -919,7 +919,7 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
         style: TextStyle(
           fontFamily: 'PlusJakartaSans',
           fontSize: 12,
-          fontWeight: FontWeight.w600,
+          fontWeight: FontWeight.w500,
           letterSpacing: 1.25,
           color: Theme.of(context).colorScheme.onSurfaceVariant,
         ),
@@ -990,7 +990,7 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
                 style: TextStyle(
                   color: foreground,
                   fontSize: 13.5,
-                  fontWeight: FontWeight.w600,
+                  fontWeight: FontWeight.w500,
                 ),
               ),
             ),
@@ -1031,7 +1031,7 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
                   style: TextStyle(
                     color: colors.onSurface,
                     fontSize: 14,
-                    fontWeight: FontWeight.w700,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ),
@@ -1505,7 +1505,7 @@ class _ChatCard extends StatelessWidget {
                           style: TextStyle(
                             fontFamily: 'PlusJakartaSans',
                             fontSize: 16.5,
-                            fontWeight: FontWeight.w600,
+                            fontWeight: FontWeight.w500,
                             letterSpacing: -.25,
                             color: titleColor,
                           ),
@@ -1563,7 +1563,7 @@ class _ChatCard extends StatelessWidget {
                     style: TextStyle(
                       fontFamily: 'PlusJakartaSans',
                       fontSize: 12.5,
-                      fontWeight: hasUnread ? FontWeight.w600 : FontWeight.w500,
+                      fontWeight: hasUnread ? FontWeight.w500 : FontWeight.w400,
                       color: hasUnread ? colors.primary : metaColor,
                     ),
                   ),
@@ -1682,7 +1682,7 @@ class _StoryCard extends StatelessWidget {
               style: TextStyle(
                 fontFamily: 'PlusJakartaSans',
                 fontSize: 11.5,
-                fontWeight: FontWeight.w600,
+                fontWeight: FontWeight.w500,
                 color: labelColor.withValues(alpha: .88),
               ),
             ),

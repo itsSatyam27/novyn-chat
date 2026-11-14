@@ -382,11 +382,30 @@ class _CallScreenState extends State<CallScreen>
     setState(() => _isMinimized = true);
     _refreshMiniOverlay();
     Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => MainScreen(
+      PageRouteBuilder<void>(
+        transitionDuration: const Duration(milliseconds: 220),
+        reverseTransitionDuration: const Duration(milliseconds: 170),
+        pageBuilder: (_, animation, secondaryAnimation) => MainScreen(
           managePresence: false,
           onCallHostExit: _onMinimizedHostDisposed,
         ),
+        transitionsBuilder: (_, animation, secondaryAnimation, child) {
+          final curved = CurvedAnimation(
+            parent: animation,
+            curve: Curves.easeOutCubic,
+            reverseCurve: Curves.easeInCubic,
+          );
+          return FadeTransition(
+            opacity: curved,
+            child: SlideTransition(
+              position: Tween<Offset>(
+                begin: const Offset(0, .025),
+                end: Offset.zero,
+              ).animate(curved),
+              child: child,
+            ),
+          );
+        },
       ),
     );
   }
@@ -644,7 +663,7 @@ class _CallScreenState extends State<CallScreen>
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
                           color: Colors.white,
-                          fontWeight: FontWeight.w700,
+                          fontWeight: FontWeight.w600,
                           fontSize: 12,
                         ),
                       ),
@@ -777,7 +796,7 @@ class _CallScreenState extends State<CallScreen>
                           valueListenable: _seconds,
                           builder: (_, secs, __) => Text(
                             connected ? '${_formatDuration(secs)} · HD' : _statusText(secs),
-                            style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w600),
+                            style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w500),
                           ),
                         ),
                       ],
@@ -889,7 +908,7 @@ class _CallScreenState extends State<CallScreen>
                         valueListenable: _seconds,
                         builder: (_, secs, __) => Text(
                           connected ? '${_formatDuration(secs)} · HD' : _statusText(secs),
-                          style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w600),
+                          style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w500),
                         ),
                       ),
                     ]),
@@ -921,7 +940,7 @@ class _CallScreenState extends State<CallScreen>
                   valueListenable: _seconds,
                   builder: (_, secs, __) => Text(
                     connected ? _formatDuration(secs) : _statusText(secs),
-                    style: TextStyle(color: connected ? const Color(0xFF9BE8C5) : Colors.white70, fontSize: 14, fontWeight: FontWeight.w600),
+                    style: TextStyle(color: connected ? const Color(0xFF9BE8C5) : Colors.white70, fontSize: 14, fontWeight: FontWeight.w500),
                   ),
                 ),
                 if (connected) ...[const SizedBox(height: 12), _NetworkQualityBadge(webrtc: _webrtc)],
