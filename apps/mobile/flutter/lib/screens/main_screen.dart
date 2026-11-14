@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../theme/novyn_theme.dart';
 import 'chats/chats_screen.dart';
@@ -17,8 +16,6 @@ import '../services/friend_service.dart';
 import '../models/user_model.dart';
 import '../widgets/novyn_dock.dart';
 import '../services/settings_service.dart';
-import '../services/call_platform_service.dart';
-import 'package:novyn/services/haptic_service.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({
@@ -33,7 +30,7 @@ class MainScreen extends StatefulWidget {
   State<MainScreen> createState() => _MainScreenState();
 }
 
-class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
+class _MainScreenState extends State<MainScreen> {
   int _selectedIndex = 0;
   AuthService? _authService;
   String? _activeUsername;
@@ -43,8 +40,6 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addObserver(this);
-
     // Build screens — ChatsScreen gets a callback to switch to People tab (index 2)
     _screens = [
       ChatsScreen(onNavigateToPeople: () => _onTabTap(3)), // index 3 now
@@ -126,7 +121,6 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
 
   @override
   void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
     _authService?.removeListener(_handleAuthChanged);
     if (widget.managePresence && _authService?.user != null) {
       _authService!.setOnline(false);
@@ -135,22 +129,8 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     super.dispose();
   }
 
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (!widget.managePresence) return;
-    final auth = context.read<AuthService>();
-    if (state == AppLifecycleState.resumed) {
-      auth.setOnline(true);
-    } else if ((state == AppLifecycleState.paused ||
-        state == AppLifecycleState.detached) &&
-        !CallPlatformService.isCallActive) {
-      auth.setOnline(false);
-    }
-  }
-
   void _onTabTap(int index) {
     if (index == _selectedIndex) return;
-    HapticService.vibrate(NovynHapticType.selection, category: HapticCategory.navigation);
     setState(() {
       _selectedIndex = index;
     });
