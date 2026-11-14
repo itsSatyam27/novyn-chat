@@ -105,16 +105,18 @@ class ProfileScreen extends StatelessWidget {
                   ],
                 ),
                 QuickToggleAdaptiveLayout(
-                  children: quickToggleIds
-                      .map(
-                        (id) => _buildQuickToggle(
-                          context,
-                          settings,
-                          id,
-                          compact: quickToggleIds.length > 1,
-                        ),
-                      )
-                      .toList(growable: false),
+                  children: quickToggleIds.asMap().entries.map((entry) {
+                    final count = quickToggleIds.length;
+                    final compact = count == 2 ||
+                        count == 4 ||
+                        (count == 3 && entry.key < 2);
+                    return _buildQuickToggle(
+                      context,
+                      settings,
+                      entry.value,
+                      compact: compact,
+                    );
+                  }).toList(growable: false),
                 ),
                 NovynSectionLabel('ACCOUNT', padding: const EdgeInsets.fromLTRB(4, 18, 4, 8)),
                 _NovynSettingsGroup(children: [
