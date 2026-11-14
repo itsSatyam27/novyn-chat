@@ -415,18 +415,18 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
 
   void _scheduleNewChatFabHide() {
     _newChatFabTimer?.cancel();
-    if (!_homeTabIsActive! ||
+    if (_homeTabIsActive != true ||
         WidgetsBinding.instance.lifecycleState != AppLifecycleState.resumed) {
       return;
     }
     _newChatFabTimer = Timer(_newChatFabIdleDelay, () {
-      if (!mounted || !_homeTabIsActive!) return;
+      if (!mounted || _homeTabIsActive != true) return;
       if (_showNewChatFab) setState(() => _showNewChatFab = false);
     });
   }
 
   void _revealNewChatFab() {
-    if (!_homeTabIsActive ||
+    if (_homeTabIsActive != true ||
         WidgetsBinding.instance.lifecycleState != AppLifecycleState.resumed) {
       return;
     }
