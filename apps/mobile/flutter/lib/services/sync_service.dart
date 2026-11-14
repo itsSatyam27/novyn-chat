@@ -89,6 +89,18 @@ class SyncService extends ChangeNotifier {
     await activateAccount(account);
   }
 
+  /// Clear only the in-memory account context on logout. Durable records stay
+  /// in that account's isolated Hive namespace and are restored on next login.
+  Future<void> deactivateAccount() async {
+    final activationRevision = ++_accountActivationRevision;
+    await _storageWriteQueue.catchError((Object _) {});
+    if (activationRevision != _accountActivationRevision) return;
+    _activeAccount = null;
+    _outboxLoaded = false;
+    _pendingMessages.clear();
+    notifyListeners();
+  }
+
   Future<void> _ensureOutboxLoaded() async {
     final account = _activeAccount;
     if (account == null) {
