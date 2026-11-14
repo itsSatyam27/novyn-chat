@@ -49,6 +49,7 @@ class _DiscoverPeopleScreenState extends State<DiscoverPeopleScreen> {
   }
 
   Future<void> _sendFriendRequest(FriendService service) async {
+    _hideUsernameSuggestions();
     final username = _usernameController.text.trim().replaceFirst(RegExp(r'^@'), '');
     if (username.isEmpty || _sendingRequest) return;
     setState(() => _sendingRequest = true);
@@ -135,13 +136,6 @@ class _DiscoverPeopleScreenState extends State<DiscoverPeopleScreen> {
         final width = MediaQuery.sizeOf(overlayContext).width - 40;
         return Stack(
           children: [
-            Positioned.fill(
-              child: GestureDetector(
-                behavior: HitTestBehavior.translucent,
-                onTap: _hideUsernameSuggestions,
-                child: const SizedBox.expand(),
-              ),
-            ),
             CompositedTransformFollower(
               link: _usernameFieldLink,
               showWhenUnlinked: false,
