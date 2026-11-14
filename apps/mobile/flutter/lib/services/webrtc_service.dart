@@ -186,6 +186,7 @@ class WebRTCService extends ChangeNotifier {
         });
         await connection.setLocalDescription(offer);
         socket.sendOffer(peerId, callId, {'sdp': offer.sdp, 'type': offer.type});
+        if (_networkQuality == 'poor') _scheduleIceRestart();
       } catch (error) {
         debugPrint('[NovynWebRTC] ICE restart attempt $_iceRestartAttempts failed: $error');
         _scheduleIceRestart();
