@@ -207,31 +207,6 @@ class ProfileInfoScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: (online ? const Color(0xFF10B981) : mutedText).withValues(alpha: .11),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        width: 7,
-                        height: 7,
-                        decoration: BoxDecoration(
-                          color: online ? const Color(0xFF10B981) : mutedText,
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                      const SizedBox(width: 7),
-                      Text(
-                        online ? 'Online now' : (user.status.isNotEmpty ? user.status : 'Offline'),
-                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: online ? const Color(0xFF059669) : mutedText),
-                      ),
-                    ],
-                  ),
-                ),
                 Wrap(
                   alignment: WrapAlignment.center,
                   crossAxisAlignment: WrapCrossAlignment.center,
