@@ -368,8 +368,14 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
     try {
       final merged = await HybridDbService.getMessages(chatId);
       if (!mounted || _chatId != chatId || merged.isEmpty) return;
-      socket.mergeChatHistory(merged);
-      debugPrint('[NovynPerf] chat_secondary_cache_ms=${watch.elapsedMilliseconds} count=${merged.length}');
+      // Do not let a late, potentially stale disk mirror overwrite newer
+      // socket/server message state; only backfill IDs missing from memory.
+      final existingIds = socket.messages.map((message) => message.id).toSet();
+      final missing = merged
+          .where((message) => !existingIds.contains(message.id))
+          .toList();
+      if (missing.isNotEmpty) socket.mergeChatHistory(missing);
+      debugPrint('[NovynPerf] chat_secondary_cache_ms=${watch.elapsedMilliseconds} backfilled=${missing.length}');
     } catch (error) {
       debugPrint('[NovynChat] Secondary cache hydration failed: $error');
     }
