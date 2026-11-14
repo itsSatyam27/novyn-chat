@@ -1,10 +1,38 @@
 {
   "hosting": {
-    "public": "landing",
+    "public": ".",
     "ignore": [
       "firebase.json",
+      ".firebaserc",
       "**/.*",
-      "**/node_modules/**"
+      "**/node_modules/**",
+      "apps/**",
+      "backend/**",
+      "android/**",
+      "ios/**",
+      "linux/**",
+      "macos/**",
+      "windows/**",
+      "test/**",
+      "tests/**",
+      "docs/**",
+      "packages/**",
+      "functions/**",
+      "landing/**",
+      "*.md",
+      "*.json",
+      "*.yml",
+      "*.yaml",
+      "*.dart",
+      "*.gradle",
+      "*.properties",
+      "*.xml",
+      "*.kt",
+      "*.java",
+      "*.sh",
+      "*.txt",
+      "*.lock",
+      "*.toml"
     ],
     "headers": [
       {
