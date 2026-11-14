@@ -36,7 +36,6 @@ class QuickToggleAdaptiveLayout extends StatelessWidget {
           padding: EdgeInsets.only(top: rowIndex == 0 ? 0 : spacing),
           child: Row(
             key: ValueKey('quick-toggle-row-$rowIndex'),
-            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: rowChildren,
           ),
         );
