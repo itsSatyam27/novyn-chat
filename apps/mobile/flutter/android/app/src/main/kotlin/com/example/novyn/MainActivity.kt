@@ -16,6 +16,9 @@ import android.os.VibrationEffect
 import android.os.Build
 import android.content.res.Configuration
 import android.app.PictureInPictureParams
+import android.app.PendingIntent
+import android.app.RemoteAction
+import android.graphics.drawable.Icon
 import android.util.Rational
 import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -30,6 +33,19 @@ class MainActivity : FlutterFragmentActivity() {
     private val CALL_PIP_CHANNEL = "com.example.novyn/call_pip"
     private var callPipChannel: MethodChannel? = null
     @Volatile private var callActive = false
+    @Volatile private var callMuted = false
+    private var callPipActionReceiverRegistered = false
+
+    private val callPipActionReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            val action = when (intent?.action) {
+                ACTION_PIP_TOGGLE_MUTE -> "toggle_mute"
+                ACTION_PIP_END_CALL -> "end_call"
+                else -> return
+            }
+            callPipChannel?.invokeMethod("onPipAction", mapOf("action" to action))
+        }
+    }
     private val CALL_CHANNEL = "com.example.novyn/call"
     private val AUDIO_ROUTE_EVENTS = "com.example.novyn/audio_routes"
     private var audioRouteSink: EventChannel.EventSink? = null
@@ -42,13 +58,26 @@ class MainActivity : FlutterFragmentActivity() {
 
         callPipChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CALL_PIP_CHANNEL)
         callPipChannel?.setMethodCallHandler { call, result ->
-            if (call.method == "setCallActive") {
-                callActive = call.argument<Boolean>("active") ?: false
-                result.success(null)
-            } else {
-                result.notImplemented()
+            when (call.method) {
+                "setCallActive" -> {
+                    callActive = call.argument<Boolean>("active") ?: false
+                    if (!callActive) callMuted = false
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && isInPictureInPictureMode) {
+                        setPictureInPictureParams(buildCallPipParams())
+                    }
+                    result.success(null)
+                }
+                "updatePipActions" -> {
+                    callMuted = call.argument<Boolean>("muted") ?: false
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && isInPictureInPictureMode) {
+                        setPictureInPictureParams(buildCallPipParams())
+                    }
+                    result.success(null)
+                }
+                else -> result.notImplemented()
             }
         }
+        registerCallPipActionReceiver()
 
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL)
             .setMethodCallHandler { call, result ->
@@ -183,10 +212,7 @@ class MainActivity : FlutterFragmentActivity() {
                     "enterPictureInPicture" -> {
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                             try {
-                                val params = PictureInPictureParams.Builder()
-                                    .setAspectRatio(Rational(9, 16))
-                                    .build()
-                                result.success(enterPictureInPictureMode(params))
+                                result.success(enterPictureInPictureMode(buildCallPipParams()))
                             } catch (error: IllegalArgumentException) {
                                 result.success(false)
                             }
@@ -331,14 +357,63 @@ class MainActivity : FlutterFragmentActivity() {
     }
 
 
+    private fun registerCallPipActionReceiver() {
+        if (callPipActionReceiverRegistered) return
+        val filter = IntentFilter().apply {
+            addAction(ACTION_PIP_TOGGLE_MUTE)
+            addAction(ACTION_PIP_END_CALL)
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(callPipActionReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            registerReceiver(callPipActionReceiver, filter)
+        }
+        callPipActionReceiverRegistered = true
+    }
+
+    private fun pipActionIntent(action: String, requestCode: Int): PendingIntent {
+        val intent = Intent(action).setPackage(packageName)
+        val flags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        return PendingIntent.getBroadcast(this, requestCode, intent, flags)
+    }
+
+    private fun buildCallPipParams(): PictureInPictureParams {
+        val actions = listOf(
+            RemoteAction(
+                Icon.createWithResource(this, R.drawable.ic_pip_mic),
+                if (callMuted) "Unmute" else "Mute",
+                if (callMuted) "Turn microphone on" else "Mute microphone",
+                pipActionIntent(ACTION_PIP_TOGGLE_MUTE, 7101)
+            ),
+            RemoteAction(
+                Icon.createWithResource(this, R.drawable.ic_pip_call_end),
+                "End call",
+                "End the active Novyn call",
+                pipActionIntent(ACTION_PIP_END_CALL, 7102)
+            )
+        )
+        return PictureInPictureParams.Builder()
+            .setAspectRatio(Rational(16, 9))
+            .setActions(actions)
+            .build()
+    }
+
+    override fun onDestroy() {
+        if (callPipActionReceiverRegistered) {
+            try {
+                unregisterReceiver(callPipActionReceiver)
+            } catch (_: IllegalArgumentException) {
+            }
+            callPipActionReceiverRegistered = false
+        }
+        super.onDestroy()
+    }
+
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
         if (!callActive || Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         try {
-            val params = PictureInPictureParams.Builder()
-                .setAspectRatio(Rational(9, 16))
-                .build()
-            enterPictureInPictureMode(params)
+            enterPictureInPictureMode(buildCallPipParams())
         } catch (_: IllegalStateException) {
             // PiP can be unavailable while the activity is transitioning.
         }
@@ -353,5 +428,11 @@ class MainActivity : FlutterFragmentActivity() {
             "onPipModeChanged",
             mapOf("isInPip" to isInPictureInPictureMode)
         )
+    }
+
+    
+    companion object {
+        private const val ACTION_PIP_TOGGLE_MUTE = "com.example.novyn.PIP_TOGGLE_MUTE"
+        private const val ACTION_PIP_END_CALL = "com.example.novyn.PIP_END_CALL"
     }
 }
