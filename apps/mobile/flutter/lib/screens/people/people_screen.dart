@@ -403,12 +403,14 @@ class _PeopleScreenState extends State<PeopleScreen> {
       ('Favourites', 'Favourites'),
     ];
 
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.fromLTRB(16, 6, 16, 12),
-      child: Row(
-        children: [
-          for (final item in labels)
+    return SizedBox(
+      width: double.infinity,
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.fromLTRB(16, 6, 16, 12),
+        child: Row(
+          children: [
+            for (final item in labels)
             Padding(
               padding: const EdgeInsets.only(right: 8),
               child: GestureDetector(
@@ -443,8 +445,9 @@ class _PeopleScreenState extends State<PeopleScreen> {
                   ),
                 ),
               ),
-            ),
-        ],
+              ),
+          ],
+        ),
       ),
     );
   }
