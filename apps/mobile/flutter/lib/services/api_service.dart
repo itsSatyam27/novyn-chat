@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
@@ -32,24 +33,44 @@ class ApiService {
   static String? _sessionCookie;
   static String? _csrfToken;
   static bool _sessionStorageInitialized = false;
+  static Future<bool>? _sessionStorageLoad;
   static bool get sessionStorageInitialized => _sessionStorageInitialized;
   static const FlutterSecureStorage _secureStorage = FlutterSecureStorage();
   static const String _sessionCookieKey = 'novyn_auth_cookie_v1';
   static const String _csrfTokenKey = 'novyn_csrf_token_v1';
 
   static Future<bool> initializeSessionStorage() async {
+    if (_sessionStorageInitialized) return true;
+    final pending = _sessionStorageLoad;
+    if (pending != null) return pending;
+
+    final loading = _readSessionStorage();
+    _sessionStorageLoad = loading;
     try {
-      _sessionCookie = await _secureStorage.read(key: _sessionCookieKey);
-      _csrfToken = await _secureStorage.read(key: _csrfTokenKey);
+      return await loading;
+    } finally {
+      if (identical(_sessionStorageLoad, loading)) {
+        _sessionStorageLoad = null;
+      }
+    }
+  }
+
+  static Future<bool> _readSessionStorage() async {
+    try {
+      // Read both values before mutating memory. A partial Keystore failure
+      // must never replace a previously valid in-memory session with nulls.
+      final cookie = await _secureStorage.read(key: _sessionCookieKey);
+      final csrf = await _secureStorage.read(key: _csrfTokenKey);
+      _sessionCookie = cookie;
+      _csrfToken = csrf;
       _sessionStorageInitialized = true;
       return true;
-    } catch (_) {
-      // A transient Android Keystore/secure-storage read failure is not proof
-      // that the user has signed out. Let AuthService retry before routing to
-      // onboarding, instead of treating an unreadable cookie as a missing one.
-      _sessionCookie = null;
-      _csrfToken = null;
+    } catch (error) {
+      // A transient Android Keystore failure is not a logout. Preserve any
+      // already-loaded values and let AuthService use its non-secret identity
+      // cache while a later resume retries secure storage.
       _sessionStorageInitialized = false;
+      debugPrint('[NovynSession] Secure session storage read failed: $error');
       return false;
     }
   }
@@ -443,14 +464,16 @@ class ApiService {
 
   // ── Auth: Get current session ─────────────────────────────────────────────
   // Returns { authenticated, username, displayName, email, avatarId, bio, presenceMode }
-  static Future<Map<String, dynamic>?> getSession() async {
+  static Future<Map<String, dynamic>?> getSession({
+    Duration timeout = const Duration(seconds: 10),
+  }) async {
     try {
       final res = await http
           .get(
             Uri.parse('$baseUrl/api/auth/session'),
             headers: _authHeaders,
           )
-          .timeout(const Duration(seconds: 10));
+          .timeout(timeout);
       await _storeSessionCookie(res);
       if (res.statusCode == 200) {
         return Map<String, dynamic>.from(jsonDecode(res.body));
