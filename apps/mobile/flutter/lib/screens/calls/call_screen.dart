@@ -825,8 +825,8 @@ class _CallScreenState extends State<CallScreen>
       _stopRingtone();
       await _applyVideoSpeakerDefault();
       context.read<SocketService>().acceptCall(widget.callerId ?? _peerId, _callId);
-      setSt
-      _publishActiveCallNotification();ate(() => _state = CallState.connected);
+      setState(() => _state = CallState.connected);
+      _publishActiveCallNotification();
       _refreshMiniOverlay();
       _pulseCtrl.stop();
       _startTimer();
