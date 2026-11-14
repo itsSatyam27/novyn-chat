@@ -11,7 +11,6 @@ import '../../services/socket_service.dart';
 import '../../models/user_model.dart';
 import '../../widgets/novyn_shimmer.dart';
 import '../../widgets/novyn_ui.dart';
-import '../../widgets/novyn_empty_state.dart';
 import '../../widgets/profile_preview_sheet.dart';
 import '../../widgets/user_avatar.dart';
 import '../people/discover_people_screen.dart';
@@ -846,7 +845,6 @@ class _DiscoverPersonRow extends StatelessWidget {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final statusText = isOnline ? 'Online' : _recentLabel();
-    final statusColor = isOnline ? const Color(0xFF25864C) : scheme.onSurfaceVariant;
 
     return InkWell(
       onTap: onOpenProfile,
