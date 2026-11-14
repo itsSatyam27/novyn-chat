@@ -16,6 +16,7 @@ import '../../services/api_service.dart';
 import '../../services/auth_service.dart';
 import '../../services/audio_manager_service.dart';
 import '../../services/settings_service.dart';
+import '../../services/notification_service.dart';
 import '../../widgets/user_avatar.dart';
 import 'package:novyn/services/haptic_service.dart';
 
@@ -80,6 +81,8 @@ class _CallScreenState extends State<CallScreen>
   final double _pipHeight = 160;
 
   bool _isVideo = false;
+  bool _networkAudioOnly = false;
+  bool get _showVideo => _isVideo && !_networkAudioOnly;
   bool _isScreenSharingLocal = false;
   bool _showSharedScreenFirst = true;
   String? _remoteScreenStreamId;
@@ -104,6 +107,7 @@ class _CallScreenState extends State<CallScreen>
     );
 
     _webrtc = WebRTCService();
+    NotificationService.setActiveCallActionHandler(_handleNotificationCallAction);
     _isVideo = widget.callType == 'video';
     _webrtc.onRemoteScreenShareChanged = (streamId) {
       if (!mounted) return;
@@ -117,13 +121,24 @@ class _CallScreenState extends State<CallScreen>
         );
       }
     };
+    _webrtc.onAutomaticVideoFallback = (audioOnly) {
+      if (!mounted) return;
+      setState(() => _networkAudioOnly = audioOnly);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(audioOnly
+              ? 'Weak network: switched to audio-only to keep your call connected'
+              : 'Network recovered: video restored'),
+          duration: const Duration(seconds: 3),
+        ),
+      );
+      _refreshMiniOverlay();
+    };
     CallPlatformService.setPipListener((inPip) {
       if (!mounted) return;
       setState(() => _isSystemPip = inPip);
       _refreshMiniOverlay();
     });
-    CallPlatformService.setPipActionListener(_handlePipAction);
-    unawaited(CallPlatformService.updatePipActions(muted: _muted));
     unawaited(CallPlatformService.setCallActive(true));
     _callId = widget.callId ?? '';
     _webrtcInit = _initWebRTC();
@@ -134,7 +149,7 @@ class _CallScreenState extends State<CallScreen>
     if (!widget.isIncoming) {
       _callId = context.read<SocketService>().sendCallInvite(
         _peerId,
-        isVideo: _isVideo,
+        isVideo: _showVideo,
       );
     }
 
@@ -157,18 +172,6 @@ class _CallScreenState extends State<CallScreen>
         });
       }
     });
-  }
-
-  void _handlePipAction(String action) {
-    if (!mounted || _state == CallState.ended) return;
-    switch (action) {
-      case 'toggle_mute':
-        _toggleMute();
-        break;
-      case 'end_call':
-        _endCall();
-        break;
-    }
   }
 
   Future<void> _applyVideoSpeakerDefault() async {
@@ -318,6 +321,33 @@ class _CallScreenState extends State<CallScreen>
     final target = _speakerOn ? 'earpiece' : 'speaker';
     await _selectAudioRoute(target);
     _refreshMiniOverlay();
+    _publishActiveCallNotification();
+  }
+
+  void _handleNotificationCallAction(String actionId) {
+    if (!mounted || _state != CallState.connected) return;
+    switch (actionId) {
+      case 'call_toggle_mute':
+        _toggleMute();
+        break;
+      case 'call_toggle_speaker':
+        unawaited(_toggleSpeaker());
+        break;
+      case 'call_end':
+        _endCall();
+        break;
+    }
+  }
+
+  void _publishActiveCallNotification() {
+    if (!mounted || _state != CallState.connected) return;
+    unawaited(NotificationService.showActiveCallNotification(
+      callId: _callId,
+      caller: widget.peer.username,
+      isVideo: _isVideo,
+      muted: _muted,
+      speakerOn: _speakerOn,
+    ));
   }
 
   void _toggleMute() {
@@ -325,8 +355,8 @@ class _CallScreenState extends State<CallScreen>
     final newVal = !_muted;
     _webrtc.toggleMute(newVal);
     setState(() => _muted = newVal);
-    unawaited(CallPlatformService.updatePipActions(muted: newVal));
     _refreshMiniOverlay();
+    _publishActiveCallNotification();
   }
 
   void _listenToCallEvents() {
@@ -340,6 +370,7 @@ class _CallScreenState extends State<CallScreen>
       await _applyVideoSpeakerDefault();
       if (!mounted) return;
       setState(() => _state = CallState.connected);
+      _publishActiveCallNotification();
       _refreshMiniOverlay();
       _pulseCtrl.stop();
       _startTimer();
@@ -547,6 +578,7 @@ class _CallScreenState extends State<CallScreen>
     _callTimeoutTimer?.cancel();
     if (!mounted || _hasLoggedCall) return;
     _hasLoggedCall = true;
+    unawaited(NotificationService.clearActiveCallNotification());
     setState(() {
       _state = CallState.ended;
       _endReason = reason;
@@ -794,6 +826,7 @@ class _CallScreenState extends State<CallScreen>
       await _applyVideoSpeakerDefault();
       context.read<SocketService>().acceptCall(widget.callerId ?? _peerId, _callId);
       setState(() => _state = CallState.connected);
+      _publishActiveCallNotification();
       _refreshMiniOverlay();
       _pulseCtrl.stop();
       _startTimer();
@@ -814,8 +847,9 @@ class _CallScreenState extends State<CallScreen>
   @override
   void dispose() {
     _removeMiniOverlay();
+    NotificationService.setActiveCallActionHandler(null);
+    unawaited(NotificationService.clearActiveCallNotification());
     CallPlatformService.setPipListener(null);
-    CallPlatformService.setPipActionListener(null);
     unawaited(CallPlatformService.setCallActive(false));
     _timer?.cancel();
     _callTimeoutTimer?.cancel();
@@ -855,7 +889,7 @@ class _CallScreenState extends State<CallScreen>
             ? _buildSystemPipContent()
             : (_hasAnyScreenShare && _state == CallState.connected
                 ? _buildScreenShareCall()
-                : (_isVideo && _state == CallState.connected
+                : (_showVideo && _state == CallState.connected
                     ? _buildVideoCall()
                     : _buildVoiceCall())),
       ),
@@ -864,7 +898,7 @@ class _CallScreenState extends State<CallScreen>
 
   Widget _buildSystemPipContent() {
     final hasScreen = _hasAnyScreenShare;
-    final hasRemoteVideo = _isVideo && _webrtc.remoteStream != null;
+    final hasRemoteVideo = _showVideo && _webrtc.remoteStream != null;
     return ClipRRect(
       borderRadius: BorderRadius.circular(14),
       child: Stack(
