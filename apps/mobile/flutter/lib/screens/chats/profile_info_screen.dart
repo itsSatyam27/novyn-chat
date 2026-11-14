@@ -45,12 +45,14 @@ class ProfileInfoScreen extends StatelessWidget {
     final scheme = theme.colorScheme;
     final online = user.isOnline;
     final mutedText = scheme.onSurfaceVariant;
+    final isDark = theme.brightness == Brightness.dark;
+    final pageBackground = isDark ? scheme.surface : const Color(0xFFF7F4FD);
     var isMuted = initiallyMuted;
 
     return Scaffold(
-      backgroundColor: scheme.surface,
+      backgroundColor: pageBackground,
       appBar: AppBar(
-        backgroundColor: scheme.surface,
+        backgroundColor: pageBackground,
         foregroundColor: scheme.onSurface,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
@@ -66,7 +68,7 @@ class ProfileInfoScreen extends StatelessWidget {
           children: [
             const Text(
               'Profile info',
-              style: TextStyle(fontFamily: 'PlusJakartaSans', fontWeight: FontWeight.w800, fontSize: 18),
+              style: TextStyle(fontFamily: 'PlusJakartaSans', fontWeight: FontWeight.w700, fontSize: 18),
             ),
             Text(
               '@${user.username}',
@@ -77,15 +79,14 @@ class ProfileInfoScreen extends StatelessWidget {
         centerTitle: false,
       ),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+        padding: const EdgeInsets.fromLTRB(16, 10, 16, 24),
         children: [
           Container(
             clipBehavior: Clip.antiAlias,
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 18),
+            padding: const EdgeInsets.fromLTRB(14, 0, 14, 16),
             decoration: BoxDecoration(
-              color: scheme.surfaceContainerLow,
-              borderRadius: BorderRadius.circular(28),
-              border: Border.all(color: scheme.outlineVariant.withValues(alpha: .65)),
+              color: isDark ? scheme.surfaceContainerLow : Colors.white,
+              borderRadius: BorderRadius.circular(26),
               boxShadow: [
                 BoxShadow(
                   color: scheme.primary.withValues(alpha: .08),
@@ -97,14 +98,14 @@ class ProfileInfoScreen extends StatelessWidget {
             child: Column(
               children: [
                 SizedBox(
-                  height: 150,
+                  height: 140,
                   child: Stack(
                     clipBehavior: Clip.none,
                     children: [
                       Positioned(
                         top: 0, left: 0, right: 0,
                         child: Container(
-                          height: 94,
+                          height: 100,
                           decoration: BoxDecoration(
                             gradient: LinearGradient(
                               begin: Alignment.topLeft,
@@ -133,8 +134,8 @@ class ProfileInfoScreen extends StatelessWidget {
                                 padding: const EdgeInsets.all(5),
                                 decoration: BoxDecoration(
                                   shape: BoxShape.circle,
-                                  color: scheme.surfaceContainerLow,
-                                  border: Border.all(color: scheme.outlineVariant, width: 2),
+                                  color: isDark ? scheme.surfaceContainerLow : Colors.white,
+                                  border: Border.all(color: scheme.surface.withValues(alpha: .95), width: 2),
                                   boxShadow: [
                                     BoxShadow(color: scheme.shadow.withValues(alpha: .16), blurRadius: 18, offset: const Offset(0, 7)),
                                   ],
@@ -142,7 +143,7 @@ class ProfileInfoScreen extends StatelessWidget {
                                 child: Hero(
                                   tag: 'avatar_${user.uid}',
                                   child: UserAvatar(
-                                    name: user.name, photoUrl: user.photoUrl, radius: 48,
+                                    name: user.name, photoUrl: user.photoUrl, radius: 44,
                                     showOnlineIndicator: false, isOnline: online, presence: user.status,
                                   ),
                                 ),
@@ -152,7 +153,7 @@ class ProfileInfoScreen extends StatelessWidget {
                                 decoration: BoxDecoration(
                                   color: online ? const Color(0xFF10B981) : mutedText,
                                   shape: BoxShape.circle,
-                                  border: Border.all(color: scheme.surfaceContainerLow, width: 3),
+                                  border: Border.all(color: isDark ? scheme.surfaceContainerLow : Colors.white, width: 3),
                                 ),
                               ),
                             ],
@@ -174,7 +175,7 @@ class ProfileInfoScreen extends StatelessWidget {
                     color: scheme.onSurface,
                   ),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 8),
                 InkWell(
                   borderRadius: BorderRadius.circular(24),
                   onTap: () async {
@@ -205,9 +206,9 @@ class ProfileInfoScreen extends StatelessWidget {
                     ),
                   ),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 8),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                   decoration: BoxDecoration(
                     color: (online ? const Color(0xFF10B981) : mutedText).withValues(alpha: .11),
                     borderRadius: BorderRadius.circular(20),
@@ -231,15 +232,35 @@ class ProfileInfoScreen extends StatelessWidget {
                     ],
                   ),
                 ),
-                const SizedBox(height: 12),
-                Row(mainAxisSize: MainAxisSize.min, children: [
-                  Icon(Icons.calendar_today_outlined, size: 17, color: scheme.onSurfaceVariant),
-                  const SizedBox(width: 8),
-                  Text('Joined Novyn ${_date(user.createdAt)}',
-                    style: TextStyle(fontSize: 13, color: scheme.onSurfaceVariant, fontWeight: FontWeight.w600)),
-                ]),
+                Wrap(
+                  alignment: WrapAlignment.center,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: 10,
+                  runSpacing: 6,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: (online ? const Color(0xFF10B981) : mutedText).withValues(alpha: .10),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                        Container(width: 7, height: 7, decoration: BoxDecoration(color: online ? const Color(0xFF10B981) : mutedText, shape: BoxShape.circle)),
+                        const SizedBox(width: 6),
+                        Text(online ? 'Online now' : (user.status.isNotEmpty ? user.status : 'Offline'),
+                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: online ? const Color(0xFF059669) : mutedText)),
+                      ]),
+                    ),
+                    Row(mainAxisSize: MainAxisSize.min, children: [
+                      Icon(Icons.calendar_today_outlined, size: 15, color: scheme.onSurfaceVariant),
+                      const SizedBox(width: 6),
+                      Text('Joined Novyn ${_date(user.createdAt)}',
+                        style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant, fontWeight: FontWeight.w500)),
+                    ]),
+                  ],
+                ),
                 if (onVoiceCall != null || onVideoCall != null) ...[
-                  const SizedBox(height: 22),
+                  const SizedBox(height: 16),
                   Row(
                     children: [
                       if (onVoiceCall != null)
@@ -415,9 +436,8 @@ class _InfoCard extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.all(16),
     decoration: BoxDecoration(
-      color: Theme.of(context).colorScheme.surfaceContainerLow,
-      borderRadius: BorderRadius.circular(20),
-      border: Border.all(color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: .7)),
+      color: Theme.of(context).brightness == Brightness.dark ? Theme.of(context).colorScheme.surfaceContainerLow : Colors.white,
+      borderRadius: BorderRadius.circular(22),
     ),
     child: child,
   );
@@ -435,9 +455,10 @@ class _ActionButton extends StatelessWidget {
     return FilledButton.tonalIcon(
       onPressed: onTap,
       style: FilledButton.styleFrom(
-        backgroundColor: primary ? scheme.primary : scheme.secondaryContainer,
-        foregroundColor: primary ? scheme.onPrimary : scheme.onSecondaryContainer,
-        padding: const EdgeInsets.symmetric(vertical: 13),
+        backgroundColor: primary ? scheme.primary : scheme.primary.withValues(alpha: .12),
+        foregroundColor: primary ? scheme.onPrimary : scheme.primary,
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        minimumSize: const Size.fromHeight(48),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       ),
       icon: Icon(icon, size: 18),
@@ -504,21 +525,31 @@ class _FeatureTile extends StatelessWidget {
   final IconData icon; final String title; final String subtitle;
   final Color tint; final Color accent; final VoidCallback onTap;
   const _FeatureTile({required this.icon, required this.title, required this.subtitle, required this.tint, required this.accent, required this.onTap});
-  @override Widget build(BuildContext context) => InkWell(
-    onTap: onTap, borderRadius: BorderRadius.circular(22),
-    child: Container(
-      constraints: const BoxConstraints(minHeight: 126),
-      padding: const EdgeInsets.fromLTRB(7, 14, 7, 12),
-      decoration: BoxDecoration(color: Theme.of(context).colorScheme.surfaceContainerLow, borderRadius: BorderRadius.circular(22), border: Border.all(color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: .7))),
-      child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-        Container(width: 52, height: 52, decoration: BoxDecoration(color: tint, borderRadius: BorderRadius.circular(17)), child: Icon(icon, color: accent, size: 27)),
-        const SizedBox(height: 10),
-        Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Theme.of(context).colorScheme.onSurface)),
-        const SizedBox(height: 4),
-        Text(subtitle, maxLines: 2, textAlign: TextAlign.center, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 10, height: 1.25, color: Theme.of(context).colorScheme.onSurfaceVariant)),
-      ]),
-    ),
-  );
+  @override Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return InkWell(
+      onTap: onTap, borderRadius: BorderRadius.circular(22),
+      child: Container(
+        constraints: const BoxConstraints(minHeight: 126),
+        padding: const EdgeInsets.fromLTRB(14, 13, 12, 12),
+        decoration: BoxDecoration(
+          color: theme.brightness == Brightness.dark ? theme.colorScheme.surfaceContainerLow : Colors.white,
+          borderRadius: BorderRadius.circular(22),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(width: 44, height: 44, decoration: BoxDecoration(color: tint, borderRadius: BorderRadius.circular(15)), child: Icon(icon, color: accent, size: 23)),
+            const SizedBox(height: 9),
+            Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: theme.colorScheme.onSurface)),
+            const SizedBox(height: 3),
+            Text(subtitle, maxLines: 2, textAlign: TextAlign.left, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 10, height: 1.25, color: theme.colorScheme.onSurfaceVariant)),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _SectionHeading extends StatelessWidget {
@@ -526,7 +557,7 @@ class _SectionHeading extends StatelessWidget {
   const _SectionHeading({required this.title, required this.color});
   @override Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.fromLTRB(4, 0, 4, 10),
-    child: Text(title, style: TextStyle(fontSize: 12, letterSpacing: 1.15, fontWeight: FontWeight.w900, color: color)),
+    child: Text(title, style: TextStyle(fontSize: 12, letterSpacing: 1.15, fontWeight: FontWeight.w700, color: color)),
   );
 }
 
@@ -537,9 +568,9 @@ class _SettingsCard extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     return Container(
       decoration: BoxDecoration(
-        color: scheme.surfaceContainerLow,
+        color: Theme.of(context).brightness == Brightness.dark ? scheme.surfaceContainerLow : Colors.white,
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: danger ? scheme.error.withValues(alpha: .28) : scheme.outlineVariant.withValues(alpha: .7)),
+        border: danger ? Border.all(color: scheme.error.withValues(alpha: .16)) : null,
       ),
       child: Column(mainAxisSize: MainAxisSize.min, children: children),
     );
