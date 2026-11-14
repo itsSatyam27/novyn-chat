@@ -22,7 +22,11 @@ class PeopleScreen extends StatefulWidget {
 }
 
 class _PeopleScreenState extends State<PeopleScreen> {
-  static const _alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+  static const _alphabet = <String>[
+    'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K',
+    'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W',
+    'X', 'Y', 'Z',
+  ];
   static const _avatarPalette = <Color>[
     Color(0xFF6D4CF5),
     Color(0xFFC03F72),
