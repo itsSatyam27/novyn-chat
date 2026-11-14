@@ -133,7 +133,7 @@ void main() {
                 'interop-alice'))
             .text,
         'hii');
-  }, timeout: const Timeout(Duration(minutes: 2)));
+  });
   test('wrong password, wrong account and unsupported format never store keys',
       () async {
     var writes = 0;
@@ -153,10 +153,9 @@ void main() {
         service.importKeys('{}', fixture['password'], 'interop-alice'),
         throwsFormatException);
     expect(writes, 0);
-  }, timeout: const Timeout(Duration(minutes: 2)));
-}
+  });
 
-  test('ECDH identities survive restart and reject another account or tampered payloads', () async {
+  test('P-256 identity survives service recreation and rejects another account or tampered payloads', () async {
     final aliceStorage = <String, String>{};
     final bobStorage = <String, String>{};
     final malloryStorage = <String, String>{};
@@ -220,5 +219,5 @@ void main() {
       senderPublicKey: alicePublicKey,
     );
     expect((await bob.decrypt(tampered, 'bob', alicePublicKey)).needsMessageKey, isTrue);
-  }, timeout: const Timeout(Duration(minutes: 2)));
-
+  });
+}
