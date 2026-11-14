@@ -1114,18 +1114,6 @@ class _CallScreenState extends State<CallScreen>
                   child: Row(children: [
                     _CallGlassButton(icon: Icons.keyboard_arrow_down_rounded, onTap: _minimizeCall),
                     const Spacer(),
-                    Column(children: [
-                      Text(widget.peer.name, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600)),
-                      const SizedBox(height: 4),
-                      ValueListenableBuilder<int>(
-                        valueListenable: _seconds,
-                        builder: (_, secs, __) => Text(
-                          connected ? _formatDuration(secs) : _statusText(secs),
-                          style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w500),
-                        ),
-                      ),
-                    ]),
-                    const Spacer(),
                     _CallNetworkIndicator(webrtc: _webrtc),
                   ]),
                 ),
