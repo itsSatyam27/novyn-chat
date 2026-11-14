@@ -452,7 +452,10 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
     socket.stopTyping(widget.peer.uid, isGroup: widget.isGroup);
     _sending = true;
     try {
-      await socket.sendMessage(
+      // sendMessage adds its optimistic bubble synchronously before its first
+      // network wait. Clear the composer now so the UI reacts to the tap
+      // immediately, even when Android is still resuming the socket.
+      final pendingSend = socket.sendMessage(
         text,
         widget.peer.uid.isNotEmpty ? widget.peer.uid : widget.peer.username,
         replyToId: _replyingTo?.id?.toString(),
@@ -460,14 +463,22 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
         replyToSender: _replyingTo?.isFromMe == true ? 'You' : widget.peer.name,
         isGroup: widget.isGroup,
       );
+
+      if (mounted) {
+        if (_ctrl.text.trim() == text) _ctrl.clear();
+        DraftService.deleteDraft(_chatId!);
+        setState(() => _replyingTo = null);
+        _scrollToBottom();
+      }
+
+      await pendingSend;
       if (!mounted) return;
-      if (_ctrl.text.trim() == text) _ctrl.clear();
-      DraftService.deleteDraft(_chatId!);
-      setState(() => _replyingTo = null);
-      _scrollToBottom();
       _playSentSound();
     } catch (error) {
       if (mounted) {
+        // Restore the failed text only when the user has not started another
+        // draft; never overwrite newer text typed during reconnection.
+        if (_ctrl.text.trim().isEmpty) _ctrl.text = text;
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(error is StateError
               ? error.message.toString()
