@@ -329,7 +329,10 @@ class AuthService extends ChangeNotifier {
       // Rehydrate encrypted cookies if the in-memory client was recreated.
       if (ApiService.sessionCookie == null ||
           ApiService.sessionCookie!.isEmpty) {
-        final storageReady = await ApiService.initializeSessionStorage();
+        final storageReady = await ApiService.initializeSessionStorage().timeout(
+          const Duration(seconds: 4),
+          onTimeout: () => false,
+        );
         if (!storageReady) return;
       }
 
