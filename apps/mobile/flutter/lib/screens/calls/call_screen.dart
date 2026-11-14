@@ -82,6 +82,9 @@ class _CallScreenState extends State<CallScreen>
   bool _isVideo = false;
   bool _networkAudioOnly = false;
   bool get _showVideo => _isVideo && !_networkAudioOnly;
+  bool _isScreenSharingLocal = false;
+  bool _showSharedScreenFirst = true;
+  String? _remoteScreenStreamId;
 
   @override
   void didChangeDependencies() {
@@ -104,6 +107,10 @@ class _CallScreenState extends State<CallScreen>
 
     _webrtc = WebRTCService();
     _isVideo = widget.callType == 'video';
+    _webrtc.onRemoteScreenShareChanged = (streamId) {
+      if (!mounted) return;
+      setState(() => _remoteScreenStreamId = streamId);
+    };
     _webrtc.onNetworkRecovered = () {
       if (mounted) {
         SystemSound.play(SystemSoundType.alert);
@@ -130,6 +137,8 @@ class _CallScreenState extends State<CallScreen>
       setState(() => _isSystemPip = inPip);
       _refreshMiniOverlay();
     });
+    CallPlatformService.setPipActionListener(_handlePipAction);
+    unawaited(CallPlatformService.updatePipActions(muted: _muted));
     unawaited(CallPlatformService.setCallActive(true));
     _callId = widget.callId ?? '';
     _webrtcInit = _initWebRTC();
@@ -140,7 +149,7 @@ class _CallScreenState extends State<CallScreen>
     if (!widget.isIncoming) {
       _callId = context.read<SocketService>().sendCallInvite(
         _peerId,
-        isVideo: _isVideo,
+        isVideo: _showVideo,
       );
     }
 
@@ -163,6 +172,18 @@ class _CallScreenState extends State<CallScreen>
         });
       }
     });
+  }
+
+  void _handlePipAction(String action) {
+    if (!mounted || _state == CallState.ended) return;
+    switch (action) {
+      case 'toggle_mute':
+        _toggleMute();
+        break;
+      case 'end_call':
+        _endCall();
+        break;
+    }
   }
 
   Future<void> _applyVideoSpeakerDefault() async {
@@ -319,6 +340,7 @@ class _CallScreenState extends State<CallScreen>
     final newVal = !_muted;
     _webrtc.toggleMute(newVal);
     setState(() => _muted = newVal);
+    unawaited(CallPlatformService.updatePipActions(muted: newVal));
     _refreshMiniOverlay();
   }
 
@@ -354,6 +376,7 @@ class _CallScreenState extends State<CallScreen>
     socket.onWebRTCOffer = (data) async {
       if (!mounted) return;
       if (_isVideo) await _applyVideoSpeakerDefault();
+      if (!mounted) return;
       if (!_webrtc.hasPeerConnection) {
         await _webrtc.createPeerConnection(socket, _peerId, false, callId: _callId);
       }
@@ -383,7 +406,7 @@ class _CallScreenState extends State<CallScreen>
 
     socket.onCallMediaUpgradeRequestCallback = (data) async {
       if (!mounted || data['callId']?.toString() != _callId || _isVideo) return;
-      final accept = await showDialog<bool>(
+      final accepted = await showDialog<bool>(
         context: context,
         barrierDismissible: false,
         builder: (dialogContext) => AlertDialog(
@@ -396,7 +419,28 @@ class _CallScreenState extends State<CallScreen>
         ),
       );
       if (!mounted) return;
-      socket.respondCallMediaUpgrade(_peerId, _callId, accepted: accept == true);
+      var consentGranted = accepted == true;
+      if (consentGranted) {
+        try {
+          await _webrtc.addLocalVideoTrack();
+        } catch (error) {
+          consentGranted = false;
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Camera could not start: $error')),
+            );
+          }
+        }
+      }
+      if (!mounted) return;
+      socket.respondCallMediaUpgrade(_peerId, _callId, accepted: consentGranted);
+    };
+
+    socket.onCallScreenShareChangedCallback = (data) {
+      if (!mounted || data['callId']?.toString() != _callId) return;
+      final streamId = data['streamId']?.toString();
+      _webrtc.setRemoteScreenShare(streamId == null || streamId.isEmpty ? null : streamId);
+      setState(() => _remoteScreenStreamId = streamId);
     };
 
     socket.onCallMediaUpgradeResponseCallback = (data) async {
@@ -624,6 +668,129 @@ class _CallScreenState extends State<CallScreen>
     );
   }
 
+  Future<void> _toggleScreenShare() async {
+    if (_state != CallState.connected) return;
+    final socket = context.read<SocketService>();
+    try {
+      if (_isScreenSharingLocal) {
+        await _webrtc.stopScreenShare(socket, _peerId, _callId);
+        if (mounted) setState(() => _isScreenSharingLocal = false);
+      } else {
+        await _webrtc.startScreenShare(socket, _peerId, _callId);
+        if (mounted) {
+          setState(() {
+            _isScreenSharingLocal = true;
+            _showSharedScreenFirst = true;
+          });
+        }
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not share screen: $error')),
+        );
+      }
+    }
+  }
+
+  bool get _hasAnyScreenShare =>
+      _isScreenSharingLocal || (_remoteScreenStreamId?.isNotEmpty == true);
+
+  Widget _buildScreenShareCall() {
+    final screenRenderer = _isScreenSharingLocal
+        ? _webrtc.localScreenRenderer
+        : _webrtc.remoteScreenRenderer;
+    final cameraRenderer = _isScreenSharingLocal
+        ? _webrtc.localRenderer
+        : _webrtc.remoteRenderer;
+    final screenView = RTCVideoView(
+      screenRenderer,
+      objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitContain,
+    );
+    final cameraView = RTCVideoView(
+      cameraRenderer,
+      mirror: _isScreenSharingLocal && _frontCamera,
+      objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
+    );
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        Container(color: const Color(0xFF090B14)),
+        Positioned.fill(
+          child: _showSharedScreenFirst ? screenView : cameraView,
+        ),
+        Positioned(
+          top: 54, right: 16,
+          child: GestureDetector(
+            onTap: () => setState(() => _showSharedScreenFirst = !_showSharedScreenFirst),
+            child: Container(
+              width: 116, height: 164,
+              decoration: BoxDecoration(
+                color: const Color(0xFF17192B),
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: Colors.white70, width: 1.4),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: _showSharedScreenFirst ? cameraView : screenView,
+            ),
+          ),
+        ),
+        Positioned(
+          top: 12, left: 16, right: 16,
+          child: SafeArea(
+            child: Row(
+              children: [
+                _CallGlassButton(icon: Icons.keyboard_arrow_down_rounded, onTap: _minimizeCall),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    _isScreenSharingLocal ? 'You are sharing your screen' : '${widget.peer.name} is sharing a screen',
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                    maxLines: 1, overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        Positioned(
+          left: 20, right: 20, bottom: 30,
+          child: SafeArea(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                color: const Color(0xDD151525),
+                borderRadius: BorderRadius.circular(36),
+                border: Border.all(color: Colors.white24),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  _CallDockButton(
+                    icon: Icons.swap_horiz_rounded,
+                    onTap: () => setState(() => _showSharedScreenFirst = !_showSharedScreenFirst),
+                    active: true,
+                  ),
+                  _CallDockButton(
+                    icon: _isScreenSharingLocal ? Icons.stop_screen_share_rounded : Icons.screen_share_rounded,
+                    onTap: _toggleScreenShare,
+                    active: _isScreenSharingLocal,
+                  ),
+                  _CallDockButton(
+                    icon: _muted ? Icons.mic_off_rounded : Icons.mic_rounded,
+                    onTap: _toggleMute,
+                    active: _muted,
+                  ),
+                  _CallDockButton(icon: Icons.call_end_rounded, onTap: _endCall, danger: true),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   void _endCall() {
     HapticService.vibrate(NovynHapticType.medium, category: HapticCategory.calls);
     _stopRingtone();
@@ -639,6 +806,7 @@ class _CallScreenState extends State<CallScreen>
       await _ensureLocalMedia();
       if (!mounted) return;
       _stopRingtone();
+      await _applyVideoSpeakerDefault();
       context.read<SocketService>().acceptCall(widget.callerId ?? _peerId, _callId);
       setState(() => _state = CallState.connected);
       _refreshMiniOverlay();
@@ -662,6 +830,7 @@ class _CallScreenState extends State<CallScreen>
   void dispose() {
     _removeMiniOverlay();
     CallPlatformService.setPipListener(null);
+    CallPlatformService.setPipActionListener(null);
     unawaited(CallPlatformService.setCallActive(false));
     _timer?.cancel();
     _callTimeoutTimer?.cancel();
@@ -676,6 +845,8 @@ class _CallScreenState extends State<CallScreen>
     socket.onWebRTCIceCandidate = null;
     socket.onCallMediaUpgradeRequestCallback = null;
     socket.onCallMediaUpgradeResponseCallback = null;
+    socket.onCallScreenShareChangedCallback = null;
+    _webrtc.onRemoteScreenShareChanged = null;
     _webrtc.onNetworkRecovered = null;
     // Clear call event callbacks so stale handlers don't fire next call
     socket.onCallAcceptedCallback = null;
@@ -697,107 +868,90 @@ class _CallScreenState extends State<CallScreen>
         backgroundColor: Colors.black,
         body: _isSystemPip
             ? _buildSystemPipContent()
-            : (_showVideo && _state == CallState.connected
-                ? _buildVideoCall()
-                : _buildVoiceCall()),
+            : (_hasAnyScreenShare && _state == CallState.connected
+                ? _buildScreenShareCall()
+                : (_showVideo && _state == CallState.connected
+                    ? _buildVideoCall()
+                    : _buildVoiceCall())),
       ),
     );
   }
 
   Widget _buildSystemPipContent() {
+    final hasScreen = _hasAnyScreenShare;
+    final hasRemoteVideo = _showVideo && _webrtc.remoteStream != null;
     return ClipRRect(
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(14),
       child: Stack(
         fit: StackFit.expand,
         children: [
-          if (_showVideo && _webrtc.remoteStream != null)
+          const DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFF272B4B), Color(0xFF101225)],
+              ),
+            ),
+          ),
+          if (hasScreen)
+            RTCVideoView(
+              _isScreenSharingLocal ? _webrtc.localScreenRenderer : _webrtc.remoteScreenRenderer,
+              objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitContain,
+            )
+          else if (hasRemoteVideo)
             RTCVideoView(
               _webrtc.remoteRenderer,
               objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
             )
           else
-            Container(
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [Color(0xFF272B4B), Color(0xFF101225)],
-                ),
-              ),
+            Positioned(
+              left: 14,
+              top: 0,
+              bottom: 0,
               child: Center(
                 child: UserAvatar(
                   name: widget.peer.name,
                   photoUrl: widget.peer.photoUrl,
-                  radius: 42,
+                  radius: 38,
                 ),
               ),
             ),
           Positioned(
-            left: 8,
+            left: hasScreen || hasRemoteVideo ? 10 : 104,
             right: 8,
-            top: 6,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.58),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
+            top: 0,
+            bottom: 0,
+            child: Center(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.58),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
                         widget.peer.name,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 12,
+                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13),
+                      ),
+                      const SizedBox(height: 3),
+                      ValueListenableBuilder<int>(
+                        valueListenable: _seconds,
+                        builder: (_, value, __) => Text(
+                          _state == CallState.connected ? _formatDuration(value) : _statusText(value),
+                          style: const TextStyle(color: Colors.white70, fontSize: 11),
                         ),
                       ),
-                    ),
-                    ValueListenableBuilder<int>(
-                      valueListenable: _seconds,
-                      builder: (_, value, __) => Text(
-                        _state == CallState.connected
-                            ? _formatDuration(value)
-                            : _statusText(value),
-                        style: const TextStyle(color: Colors.white70, fontSize: 10),
-                      ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
-            ),
-          ),
-          Positioned(
-            bottom: 8,
-            left: 8,
-            right: 8,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                _PipAction(
-                  icon: _muted ? Icons.mic_off_rounded : Icons.mic_rounded,
-                  onTap: _toggleMute,
-                ),
-                _PipAction(
-                  icon: Icons.call_end_rounded,
-                  color: const Color(0xFFEF4444),
-                  onTap: _endCall,
-                ),
-                if (_showVideo)
-                  _PipAction(
-                    icon: _cameraOff
-                        ? Icons.videocam_off_rounded
-                        : Icons.videocam_rounded,
-                    onTap: () {
-                      setState(() => _cameraOff = !_cameraOff);
-                      _webrtc.toggleCamera(_cameraOff);
-                    },
-                  ),
-              ],
             ),
           ),
         ],
@@ -884,14 +1038,14 @@ class _CallScreenState extends State<CallScreen>
                         ValueListenableBuilder<int>(
                           valueListenable: _seconds,
                           builder: (_, secs, __) => Text(
-                            connected ? '${_formatDuration(secs)} · HD' : _statusText(secs),
+                            connected ? _formatDuration(secs) : _statusText(secs),
                             style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w500),
                           ),
                         ),
                       ],
                     ),
                     const Spacer(),
-                    const Icon(Icons.signal_cellular_alt_rounded, color: Colors.white70, size: 22),
+                    _CallNetworkIndicator(webrtc: _webrtc),
                   ],
                 ),
               ),
@@ -952,6 +1106,7 @@ class _CallScreenState extends State<CallScreen>
                       _CallDockButton(icon: _cameraOff ? Icons.videocam_off_rounded : Icons.videocam_rounded, onTap: () { setState(() => _cameraOff = !_cameraOff); _webrtc.toggleCamera(_cameraOff); }),
                       _CallDockButton(icon: _muted ? Icons.mic_off_rounded : Icons.mic_rounded, onTap: _toggleMute, active: _muted),
                       _CallDockButton(icon: _speakerOn ? Icons.volume_up_rounded : Icons.volume_down_rounded, onTap: _toggleSpeaker, active: _speakerOn),
+                      _CallDockButton(icon: _isScreenSharingLocal ? Icons.stop_screen_share_rounded : Icons.screen_share_rounded, onTap: _toggleScreenShare, active: _isScreenSharingLocal),
                       _CallDockButton(icon: Icons.call_end_rounded, onTap: _endCall, danger: true),
                     ],
                   ),
@@ -990,19 +1145,7 @@ class _CallScreenState extends State<CallScreen>
                   child: Row(children: [
                     _CallGlassButton(icon: Icons.keyboard_arrow_down_rounded, onTap: _minimizeCall),
                     const Spacer(),
-                    Column(children: [
-                      Text(widget.peer.name, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600)),
-                      const SizedBox(height: 4),
-                      ValueListenableBuilder<int>(
-                        valueListenable: _seconds,
-                        builder: (_, secs, __) => Text(
-                          connected ? '${_formatDuration(secs)} · HD' : _statusText(secs),
-                          style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w500),
-                        ),
-                      ),
-                    ]),
-                    const Spacer(),
-                    const Icon(Icons.signal_cellular_alt_rounded, color: Colors.white70, size: 22),
+                    _CallNetworkIndicator(webrtc: _webrtc),
                   ]),
                 ),
                 const Spacer(flex: 2),
@@ -1032,7 +1175,6 @@ class _CallScreenState extends State<CallScreen>
                     style: TextStyle(color: connected ? const Color(0xFF9BE8C5) : Colors.white70, fontSize: 14, fontWeight: FontWeight.w500),
                   ),
                 ),
-                if (connected) ...[const SizedBox(height: 12), _NetworkQualityBadge(webrtc: _webrtc)],
                 const Spacer(flex: 3),
                 if (_audioRoutes.any((route) => route['kind'] == 'bluetooth')) Padding(padding: const EdgeInsets.only(bottom: 14), child: _buildAudioRouteSelector()),
                 if (_state == CallState.calling && widget.isIncoming)
@@ -1066,52 +1208,49 @@ class _CallScreenState extends State<CallScreen>
 
   Widget _buildIncomingControls() {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 48),
+      padding: const EdgeInsets.fromLTRB(44, 0, 44, 24),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
           Text(
             'Incoming ${widget.callType} call',
+            textAlign: TextAlign.center,
             style: const TextStyle(
               fontFamily: 'PlusJakartaSans',
               fontSize: 13,
-              color: Colors.white38,
+              color: Colors.white70,
+              fontWeight: FontWeight.w500,
             ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 26),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
-              _ToggleButton(
-                icon: _muted ? Icons.mic_off_rounded : Icons.mic_rounded,
-                label: _muted ? 'Unmute' : 'Mute',
-                active: _muted,
-                onTap: _toggleMute,
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _CallButton(
+                    icon: Icons.call_end_rounded,
+                    label: 'Decline',
+                    color: const Color(0xFFEF4444),
+                    onTap: _rejectCall,
+                  ),
+                  const SizedBox(height: 10),
+                  const Text('Decline', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                ],
               ),
-              _ToggleButton(
-                icon: _speakerOn
-                    ? Icons.volume_up_rounded
-                    : Icons.volume_off_rounded,
-                label: 'Speaker',
-                active: _speakerOn,
-                onTap: _toggleSpeaker,
-              ),
-            ],
-          ),
-          const SizedBox(height: 36),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              _CallButton(
-                icon: Icons.call_end_rounded,
-                label: 'Decline',
-                color: const Color(0xFFEF4444),
-                onTap: _rejectCall,
-              ),
-              _CallButton(
-                icon: Icons.call_rounded,
-                label: 'Accept',
-                color: const Color(0xFF10B981),
-                onTap: _acceptCall,
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _CallButton(
+                    icon: Icons.call_rounded,
+                    label: 'Accept',
+                    color: const Color(0xFF10B981),
+                    onTap: _acceptCall,
+                  ),
+                  const SizedBox(height: 10),
+                  const Text('Accept', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                ],
               ),
             ],
           ),
@@ -1185,7 +1324,13 @@ class _CallScreenState extends State<CallScreen>
                 active: _speakerOn,
                 onTap: _toggleSpeaker,
               ),
-              if (_showVideo)
+              _ToggleButton(
+                icon: _isScreenSharingLocal ? Icons.stop_screen_share_rounded : Icons.screen_share_rounded,
+                label: _isScreenSharingLocal ? 'Stop share' : 'Share screen',
+                active: _isScreenSharingLocal,
+                onTap: _toggleScreenShare,
+              ),
+              if (_isVideo)
                 _ToggleButton(
                   icon: _cameraOff
                       ? Icons.videocam_off_rounded
@@ -1433,11 +1578,11 @@ class _ToggleButton extends StatelessWidget {
   }
 }
 
-// ── Network quality indicator ──────────────────────────────────────────────
-class _NetworkQualityBadge extends StatelessWidget {
+// ── Live call network indicator ─────────────────────────────────────────────
+class _CallNetworkIndicator extends StatelessWidget {
   final WebRTCService webrtc;
 
-  const _NetworkQualityBadge({required this.webrtc});
+  const _CallNetworkIndicator({required this.webrtc});
 
   @override
   Widget build(BuildContext context) {
@@ -1445,40 +1590,38 @@ class _NetworkQualityBadge extends StatelessWidget {
       listenable: webrtc,
       builder: (context, _) {
         final quality = webrtc.networkQuality;
-        final color = quality == 'good'
-            ? const Color(0xFF10B981)
-            : quality == 'fair'
-                ? const Color(0xFFF59E0B)
+        final level = quality == 'excellent' ? 3 : quality == 'good' ? 2 : 1;
+        final color = quality == 'excellent'
+            ? const Color(0xFF22C55E)
+            : quality == 'good'
+                ? const Color(0xFFFBBF24)
                 : const Color(0xFFEF4444);
-        
-        final icon = quality == 'good'
-            ? Icons.signal_cellular_alt_rounded
-            : quality == 'fair'
-                ? Icons.signal_cellular_alt_2_bar_rounded
-                : Icons.signal_cellular_alt_1_bar_rounded;
+        final label = quality == 'excellent'
+            ? 'Excellent connection'
+            : quality == 'good'
+                ? 'Good connection'
+                : 'Poor connection';
 
-        return Container(
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.2),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: color.withValues(alpha: 0.4), width: 1),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, color: color, size: 12),
-              const SizedBox(width: 3),
-              Text(
-                quality == 'good' ? 'HD' : quality == 'fair' ? 'SD' : 'Low',
-                style: TextStyle(
-                  fontFamily: 'PlusJakartaSans',
-                  fontSize: 10,
-                  fontWeight: FontWeight.w600,
-                  color: color,
-                ),
-              ),
-            ],
+        return Tooltip(
+          message: label,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 5),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: List<Widget>.generate(3, (index) {
+                final active = index < level;
+                return Container(
+                  width: 4,
+                  height: 8 + (index * 4),
+                  margin: EdgeInsets.only(left: index == 0 ? 0 : 3),
+                  decoration: BoxDecoration(
+                    color: active ? color : Colors.white.withValues(alpha: 0.22),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                );
+              }),
+            ),
           ),
         );
       },
@@ -1556,12 +1699,8 @@ class _CallMiniWindowState extends State<_CallMiniWindow> {
       builder: (context, constraints) {
         final availableWidth =
             (constraints.maxWidth - 16).clamp(1.0, double.infinity).toDouble();
-        final width = (widget.isVideo ? 204.0 : 300.0)
-            .clamp(1.0, availableWidth)
-            .toDouble();
-        final height = widget.isVideo
-            ? (width * 1.36).clamp(150.0, 278.0).toDouble()
-            : 112.0;
+        final width = 320.0.clamp(1.0, availableWidth).toDouble();
+        final height = widget.isVideo ? 148.0 : 112.0;
         final maxX = (constraints.maxWidth - width - 10)
             .clamp(0.0, double.infinity)
             .toDouble();
@@ -1581,7 +1720,8 @@ class _CallMiniWindowState extends State<_CallMiniWindow> {
               left: position.dx,
               top: position.dy,
               child: GestureDetector(
-                onTap: widget.onExpand,
+                // Dragging moves the card, but there is intentionally no
+                // parent onTap recognizer: child action buttons must receive taps.
                 onPanUpdate: (details) {
                   setState(() {
                     _position = Offset(
@@ -1627,105 +1767,69 @@ class _CallMiniWindowState extends State<_CallMiniWindow> {
   }
 
   Widget _buildVideoMini() {
-    final actionSize = MediaQuery.of(context).size.width < 260 ? 24.0 : 34.0;
-    return Stack(
-      fit: StackFit.expand,
+    const actionSize = 30.0;
+    return Row(
       children: [
-        if (widget.webrtc.remoteStream != null)
-          RTCVideoView(
-            widget.webrtc.remoteRenderer,
-            objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
-          )
-        else
-          Container(
-            color: const Color(0xFF20243D),
-            child: Center(
-              child: UserAvatar(
-                name: widget.peer.name,
-                photoUrl: widget.peer.photoUrl,
-                radius: 38,
-              ),
-            ),
-          ),
-        Positioned(
-          top: 8,
-          left: 8,
-          right: 8,
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  widget.peer.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
-                ),
-              ),
-              ValueListenableBuilder<int>(
-                valueListenable: widget.seconds,
-                builder: (_, secs, __) => Text(
-                  widget.state == CallState.connected ? _format(secs) : 'Calling',
-                  style: const TextStyle(color: Colors.white70, fontSize: 10),
-                ),
-              ),
-            ],
-          ),
-        ),
-        Positioned(
-          top: 40,
-          right: 8,
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(10),
-            child: SizedBox(
-              width: 62,
-              height: 84,
-              child: widget.cameraOff
-                  ? const ColoredBox(
-                      color: Colors.black87,
-                      child: Icon(Icons.videocam_off_rounded, color: Colors.white70),
-                    )
-                  : RTCVideoView(
-                      widget.webrtc.localRenderer,
-                      mirror: true,
-                      objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
+        ClipRRect(
+          borderRadius: const BorderRadius.horizontal(left: Radius.circular(18)),
+          child: SizedBox(
+            width: 92,
+            height: double.infinity,
+            child: widget.webrtc.remoteStream != null
+                ? RTCVideoView(
+                    widget.webrtc.remoteRenderer,
+                    objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
+                  )
+                : ColoredBox(
+                    color: const Color(0xFF20243D),
+                    child: Center(
+                      child: UserAvatar(
+                        name: widget.peer.name,
+                        photoUrl: widget.peer.photoUrl,
+                        radius: 36,
+                      ),
                     ),
-            ),
+                  ),
           ),
         ),
-        Positioned(
-          bottom: 8,
-          left: 8,
-          right: 8,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              _PipAction(
-                icon: widget.muted ? Icons.mic_off_rounded : Icons.mic_rounded,
-                onTap: widget.onToggleMute,
-                size: actionSize,
-              ),
-              _PipAction(
-                icon: widget.speakerOn ? Icons.volume_up_rounded : Icons.volume_off_rounded,
-                onTap: widget.onToggleSpeaker,
-                size: actionSize,
-              ),
-              _PipAction(
-                icon: Icons.call_end_rounded,
-                color: const Color(0xFFEF4444),
-                onTap: widget.onEnd,
-                size: actionSize,
-              ),
-              _PipAction(
-                icon: widget.cameraOff ? Icons.videocam_off_rounded : Icons.videocam_rounded,
-                onTap: widget.onToggleCamera,
-                size: actionSize,
-              ),
-              _PipAction(
-                icon: Icons.open_in_full_rounded,
-                onTap: widget.onExpand,
-                size: actionSize,
-              ),
-            ],
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(10, 8, 8, 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        widget.peer.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                    _PipAction(icon: Icons.open_in_full_rounded, onTap: widget.onExpand, size: 28),
+                  ],
+                ),
+                ValueListenableBuilder<int>(
+                  valueListenable: widget.seconds,
+                  builder: (_, secs, __) => Text(
+                    widget.state == CallState.connected ? _format(secs) : 'Calling…',
+                    style: const TextStyle(color: Colors.white60, fontSize: 10.5),
+                  ),
+                ),
+                const Spacer(),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    _PipAction(icon: widget.muted ? Icons.mic_off_rounded : Icons.mic_rounded, onTap: widget.onToggleMute, size: actionSize),
+                    _PipAction(icon: widget.speakerOn ? Icons.volume_up_rounded : Icons.volume_off_rounded, onTap: widget.onToggleSpeaker, size: actionSize),
+                    _PipAction(icon: Icons.call_end_rounded, color: const Color(0xFFEF4444), onTap: widget.onEnd, size: actionSize),
+                    _PipAction(icon: widget.cameraOff ? Icons.videocam_off_rounded : Icons.videocam_rounded, onTap: widget.onToggleCamera, size: actionSize),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ],
@@ -1776,6 +1880,8 @@ class _CallMiniWindowState extends State<_CallMiniWindow> {
           _PipAction(icon: widget.speakerOn ? Icons.volume_up_rounded : Icons.volume_off_rounded, onTap: widget.onToggleSpeaker, size: actionSize),
           const SizedBox(width: 3),
           _PipAction(icon: Icons.call_end_rounded, color: const Color(0xFFEF4444), onTap: widget.onEnd, size: actionSize),
+          const SizedBox(width: 3),
+          _PipAction(icon: Icons.open_in_full_rounded, onTap: widget.onExpand, size: actionSize),
         ],
       ),
     );
