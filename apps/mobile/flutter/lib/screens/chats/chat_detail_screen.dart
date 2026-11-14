@@ -634,9 +634,6 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
       toolbarHeight: 68,
       automaticallyImplyLeading: false,
       titleSpacing: 12,
-      shape: Border(
-        bottom: BorderSide(color: scheme.outlineVariant.withValues(alpha: 0.5)),
-      ),
       title: Row(
         children: [
           _ChatHeaderButton(
@@ -760,19 +757,19 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
         child: InkWell(
           onTap: onTap,
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 15),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
             child: Row(
               children: [
                 Container(
-                  width: 54,
-                  height: 54,
+                  width: 48,
+                  height: 48,
                   decoration: BoxDecoration(
                     color: tint,
-                    borderRadius: BorderRadius.circular(18),
+                    borderRadius: BorderRadius.circular(16),
                   ),
                   child: Icon(icon, color: accent, size: 25),
                 ),
-                const SizedBox(width: 16),
+                const SizedBox(width: 13),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -781,8 +778,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                         title,
                         style: TextStyle(
                           fontFamily: 'PlusJakartaSans',
-                          fontSize: 16,
-                          fontWeight: FontWeight.w800,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
                           color: scheme.onSurface,
                         ),
                       ),
@@ -791,7 +788,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                         subtitle,
                         style: TextStyle(
                           fontFamily: 'PlusJakartaSans',
-                          fontSize: 13,
+                          fontSize: 12,
                           color: scheme.onSurfaceVariant,
                         ),
                       ),
@@ -808,11 +805,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final compact = constraints.maxHeight < 610;
-        final illustrationSize = compact ? 184.0 : 218.0;
+        final compact = constraints.maxHeight < 650;
+        final illustrationSize = compact ? 160.0 : 188.0;
         return SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(parent: ClampingScrollPhysics()),
-          padding: EdgeInsets.fromLTRB(20, compact ? 10 : 22, 20, 24),
+          padding: EdgeInsets.fromLTRB(16, compact ? 6 : 12, 16, 12),
           child: Column(
             children: [
               SizedBox(
@@ -831,8 +828,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                         boxShadow: [
                           BoxShadow(
                             color: scheme.primary.withValues(alpha: .13),
-                            blurRadius: 26,
-                            spreadRadius: 5,
+                            blurRadius: 22,
+                            spreadRadius: 4,
                           ),
                         ],
                       ),
@@ -848,7 +845,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                         child: UserAvatar(
                           name: widget.peer.name,
                           photoUrl: widget.peer.photoUrl,
-                          radius: compact ? 53 : 67,
+                          radius: compact ? 45 : 56,
                           showOnlineIndicator: !widget.isGroup,
                           isOnline: widget.peer.isOnline,
                           presence: widget.peer.status,
@@ -867,8 +864,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   fontFamily: 'PlusJakartaSans',
-                  fontSize: compact ? 23 : 26,
-                  fontWeight: FontWeight.w800,
+                  fontSize: compact ? 21 : 23,
+                  fontWeight: FontWeight.w700,
                   letterSpacing: -.55,
                   color: scheme.onSurface,
                 ),
@@ -879,14 +876,14 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontFamily: 'PlusJakartaSans',
-                  fontSize: 15,
+                  fontSize: 14,
                   fontWeight: FontWeight.w600,
                   color: scheme.primary,
                 ),
               ),
-              const SizedBox(height: 17),
+              const SizedBox(height: 12),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                 decoration: BoxDecoration(
                   color: scheme.primary.withValues(alpha: dark ? .18 : .10),
                   borderRadius: BorderRadius.circular(24),
@@ -904,33 +901,33 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                       widget.isGroup ? 'Group conversation' : 'End-to-end encrypted',
                       style: TextStyle(
                         fontFamily: 'PlusJakartaSans',
-                        fontSize: 13,
-                        fontWeight: FontWeight.w800,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
                         color: scheme.primary,
                       ),
                     ),
                   ],
                 ),
               ),
-              SizedBox(height: compact ? 24 : 30),
+              SizedBox(height: compact ? 18 : 22),
               Text(
                 'No messages yet. Start with something quick',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontFamily: 'PlusJakartaSans',
-                  fontSize: 14,
+                  fontSize: 13,
                   fontWeight: FontWeight.w500,
                   color: scheme.onSurfaceVariant,
                 ),
               ),
-              const SizedBox(height: 17),
+              const SizedBox(height: 12),
               Container(
                 clipBehavior: Clip.antiAlias,
                 decoration: BoxDecoration(
                   color: scheme.surface,
                   borderRadius: BorderRadius.circular(27),
                   border: Border.all(
-                    color: scheme.outlineVariant.withValues(alpha: .44),
+                    color: scheme.outlineVariant.withValues(alpha: .22),
                   ),
                   boxShadow: [
                     BoxShadow(
@@ -1520,26 +1517,23 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
         // ── Main input row ─────────────────────────────────────────
         Container(
           decoration: const BoxDecoration(color: Colors.transparent),
-          padding: EdgeInsets.fromLTRB(12, 9, 12, MediaQuery.of(context).viewInsets.bottom > 0 ? 10 : 14),
+          padding: EdgeInsets.fromLTRB(14, 10, 14, MediaQuery.of(context).viewInsets.bottom > 0 ? 10 : 14),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               // Attachment action is intentionally separate from the text field.
               Container(
-                width: 46,
-                height: 46,
+                width: 54,
+                height: 54,
                 decoration: BoxDecoration(
                   color: isDark
                       ? const Color(0xFF191A27)
-                      : theme.colorScheme.surface,
+                      : theme.colorScheme.primary.withValues(alpha: .09),
                   shape: BoxShape.circle,
-                  border: Border.all(
-                    color: theme.colorScheme.outlineVariant,
-                  ),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: isDark ? 0.10 : 0.04),
-                      blurRadius: 10,
+                      color: theme.colorScheme.primary.withValues(alpha: isDark ? 0.04 : 0.06),
+                      blurRadius: 12,
                       offset: const Offset(0, 3),
                     ),
                   ],
@@ -1551,19 +1545,19 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
               // Standalone message field.
               Expanded(
                 child: Container(
-                  constraints: const BoxConstraints(minHeight: 48),
+                  constraints: const BoxConstraints(minHeight: 54),
                   decoration: BoxDecoration(
                     color: isDark
                         ? const Color(0xFF11121D)
-                        : const Color(0xFFF8F6FF),
+                        : Colors.white,
                     borderRadius: BorderRadius.circular(30),
-                    border: Border.all(color: theme.colorScheme.outlineVariant),
+                    border: Border.all(color: theme.colorScheme.primary.withValues(alpha: .16)),
                     boxShadow: [
                       BoxShadow(
                         color: const Color(0xFF3F358B)
                             .withValues(alpha: isDark ? 0.0 : 0.06),
-                        blurRadius: 16,
-                        offset: const Offset(0, 5),
+                        blurRadius: 14,
+                        offset: const Offset(0, 4),
                       ),
                     ],
                   ),
@@ -1606,7 +1600,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                             enabledBorder: InputBorder.none,
                             focusedBorder: InputBorder.none,
                             contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 8, vertical: 13),
+                                horizontal: 10, vertical: 14),
                             suffixIcon: IconButton(
                               tooltip: 'Add emoji',
                               visualDensity: VisualDensity.compact,
@@ -1630,8 +1624,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 200),
                   curve: Curves.easeInOut,
-                  width: 46,
-                  height: 46,
+                  width: 54,
+                  height: 54,
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       colors: hasText
@@ -1664,7 +1658,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                       hasText ? Icons.send_rounded : (_isRecordingVoice ? Icons.stop_rounded : Icons.mic_rounded),
                       key: ValueKey('$hasText-$_isRecordingVoice'),
                       color: Colors.white,
-                      size: 20,
+                      size: 21,
                     ),
                   ),
                 ),
@@ -2280,7 +2274,18 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
     final defaultBg = Theme.of(context).brightness == Brightness.dark
         ? const Color(0xFF0B0B17)
         : const Color(0xFFF7F6FF);
-    if (value.isEmpty) return BoxDecoration(color: defaultBg);
+    if (value.isEmpty) {
+      if (Theme.of(context).brightness == Brightness.dark) {
+        return BoxDecoration(color: defaultBg);
+      }
+      return const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0xFFF9F7FF), Color(0xFFF2EDFC)],
+        ),
+      );
+    }
     if (value.startsWith('http://') || value.startsWith('https://')) {
       return BoxDecoration(image: DecorationImage(image: NetworkImage(value), fit: BoxFit.cover, opacity: 0.13));
     }
