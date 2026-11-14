@@ -181,7 +181,7 @@ class _PeopleScreenState extends State<PeopleScreen> {
                         style: Theme.of(sheetContext)
                             .textTheme
                             .titleLarge
-                            ?.copyWith(fontWeight: FontWeight.w800),
+                            ?.copyWith(fontWeight: FontWeight.w700),
                       ),
                     ),
                     IconButton(
@@ -251,7 +251,7 @@ class _PeopleScreenState extends State<PeopleScreen> {
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                       style: const TextStyle(
-                                        fontWeight: FontWeight.w800,
+                                        fontWeight: FontWeight.w600,
                                       ),
                                     ),
                                     Text(
@@ -376,7 +376,7 @@ class _PeopleScreenState extends State<PeopleScreen> {
                         fontSize: 30,
                         height: 1.12,
                         letterSpacing: -1,
-                        fontWeight: FontWeight.w800,
+                        fontWeight: FontWeight.w700,
                         color: Theme.of(context).colorScheme.onSurface,
                       ),
                     ),
@@ -584,7 +584,7 @@ class _PeopleScreenState extends State<PeopleScreen> {
                     style: TextStyle(
                       fontFamily: 'PlusJakartaSans',
                       fontSize: 13,
-                      fontWeight: FontWeight.w700,
+                      fontWeight: FontWeight.w600,
                       color: _filter == item.$1
                           ? Colors.white
                           : theme.colorScheme.onSurface,
@@ -640,7 +640,7 @@ class _PeopleScreenState extends State<PeopleScreen> {
                 style: TextStyle(
                   fontFamily: 'PlusJakartaSans',
                   fontSize: 12,
-                  fontWeight: FontWeight.w800,
+                  fontWeight: FontWeight.w600,
                   letterSpacing: 1.15,
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
@@ -651,7 +651,7 @@ class _PeopleScreenState extends State<PeopleScreen> {
               style: TextStyle(
                 fontFamily: 'PlusJakartaSans',
                 fontSize: 11,
-                fontWeight: FontWeight.w700,
+                fontWeight: FontWeight.w600,
                 color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ),
@@ -672,7 +672,7 @@ class _PeopleScreenState extends State<PeopleScreen> {
             style: TextStyle(
               fontFamily: 'PlusJakartaSans',
               fontSize: 12,
-              fontWeight: FontWeight.w800,
+              fontWeight: FontWeight.w600,
               color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
           ),
@@ -840,7 +840,7 @@ class _ContactActionTile extends StatelessWidget {
                       style: TextStyle(
                         fontFamily: 'PlusJakartaSans',
                         fontSize: 14,
-                        fontWeight: FontWeight.w800,
+                        fontWeight: FontWeight.w600,
                         color: theme.colorScheme.onSurface,
                       ),
                     ),
@@ -1012,7 +1012,7 @@ class _ContactRow extends StatelessWidget {
                           style: TextStyle(
                             fontFamily: 'PlusJakartaSans',
                             fontSize: 15,
-                            fontWeight: FontWeight.w800,
+                            fontWeight: FontWeight.w600,
                             color: theme.colorScheme.onSurface,
                           ),
                         ),
@@ -1038,7 +1038,7 @@ class _ContactRow extends StatelessWidget {
                     style: TextStyle(
                       fontFamily: 'PlusJakartaSans',
                       fontSize: 12,
-                      fontWeight: user.isOnline ? FontWeight.w700 : FontWeight.w500,
+                      fontWeight: user.isOnline ? FontWeight.w600 : FontWeight.w500,
                       color: statusColor,
                     ),
                   ),
@@ -1097,7 +1097,7 @@ class _AlphabetRail extends StatelessWidget {
                     fontFamily: 'PlusJakartaSans',
                     fontSize: 8.5,
                     height: 1,
-                    fontWeight: FontWeight.w800,
+                    fontWeight: FontWeight.w700,
                     color: available.contains(letter)
                         ? Theme.of(context).colorScheme.primary
                         : Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: .42),

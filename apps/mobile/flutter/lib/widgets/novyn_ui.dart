@@ -261,6 +261,7 @@ class NovynHeader extends StatelessWidget {
     this.subtitleColor,
     this.titleColor,
     this.titleSize = 28,
+    this.titleWeight = FontWeight.w800,
     this.actions = const [],
   });
 
@@ -269,6 +270,7 @@ class NovynHeader extends StatelessWidget {
   final Color? subtitleColor;
   final Color? titleColor;
   final double titleSize;
+  final FontWeight titleWeight;
   final List<Widget> actions;
 
   @override
@@ -284,6 +286,7 @@ class NovynHeader extends StatelessWidget {
                 Text(
                   title,
                   style: NovynText.display(titleSize,
+                      weight: titleWeight,
                       color: titleColor ?? Theme.of(context).colorScheme.onSurface,
                       letterSpacing: -0.5),
                 ),

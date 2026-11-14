@@ -65,6 +65,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                 return NovynHeader(
                   title: 'Discover',
                   titleSize: 34,
+                  titleWeight: FontWeight.w700,
                   subtitle: 'Find people and grow your circle',
                   actions: [
                     PopupMenuButton<String>(
@@ -99,7 +100,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                                 decoration: BoxDecoration(color: NovynColors.danger, borderRadius: BorderRadius.circular(20)),
-                                child: Text('$count', style: NovynText.body(10, weight: FontWeight.w800, color: Colors.white)),
+                                child: Text('$count', style: NovynText.body(10, weight: FontWeight.w700, color: Colors.white)),
                               ),
                           ]),
                         ),
@@ -274,7 +275,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
         children: [
           Icon(Icons.cloud_off_rounded, size: 34, color: theme.colorScheme.onSurfaceVariant),
           const SizedBox(height: 10),
-          Text(title, style: NovynText.body(14, weight: FontWeight.w800, color: theme.colorScheme.onSurface)),
+          Text(title, style: NovynText.body(14, weight: FontWeight.w700, color: theme.colorScheme.onSurface)),
           const SizedBox(height: 5),
           Text(message, textAlign: TextAlign.center, style: NovynText.body(12, color: theme.colorScheme.onSurfaceVariant)),
           const SizedBox(height: 14),
@@ -550,13 +551,13 @@ class _DiscoverRadarCard extends StatelessWidget {
               children: [
                 Text('LIVE DISCOVER', style: TextStyle(
                   fontFamily: 'PlusJakartaSans', fontSize: 10,
-                  fontWeight: FontWeight.w800, letterSpacing: 1.1,
+                  fontWeight: FontWeight.w600, letterSpacing: 1.1,
                   color: theme.colorScheme.primary,
                 )),
                 const SizedBox(height: 4),
                 Text('People around you', style: TextStyle(
                   fontFamily: 'PlusJakartaSans', fontSize: 16,
-                  fontWeight: FontWeight.w800, color: theme.colorScheme.onSurface,
+                  fontWeight: FontWeight.w600, color: theme.colorScheme.onSurface,
                 )),
                 const SizedBox(height: 3),
                 Text('Online people appear first', style: TextStyle(
@@ -621,7 +622,7 @@ class _DiscoverCountCard extends StatelessWidget {
           Row(children: [
             Icon(icon, size: 20, color: Theme.of(context).colorScheme.primary),
             const Spacer(),
-            Text('${snapshot.data ?? 0}', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
+            Text('${snapshot.data ?? 0}', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
           ]),
           const SizedBox(height: 8),
           Text(label, style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant)),
@@ -692,7 +693,7 @@ class _DiscoverCard extends StatelessWidget {
                         user.name,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: NovynText.body(14, weight: FontWeight.w800, color: theme.colorScheme.onSurface),
+                        style: NovynText.body(14, weight: FontWeight.w600, color: theme.colorScheme.onSurface),
                       ),
                     ),
                     if (online) ...[
@@ -715,7 +716,7 @@ class _DiscoverCard extends StatelessWidget {
                   presenceLabel,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: NovynText.body(10.5, weight: FontWeight.w700, color: presenceColor),
+                  style: NovynText.body(10.5, weight: FontWeight.w600, color: presenceColor),
                 ),
                 if (user.bio.isNotEmpty) ...[
                   const SizedBox(height: 3),
@@ -754,7 +755,7 @@ class _DiscoverCard extends StatelessWidget {
                     isSending ? 'Sending' : (isPending ? 'Pending' : 'Add'),
                     style: NovynText.body(
                       12,
-                      weight: FontWeight.w700,
+                      weight: FontWeight.w600,
                       color: isPending ? theme.colorScheme.onSurfaceVariant : Colors.white,
                     ),
                   ),
