@@ -141,6 +141,19 @@ class _CallScreenState extends State<CallScreen>
     });
   }
 
+  Future<void> _applyVideoSpeakerDefault() async {
+    if (!_isVideo) return;
+    try {
+      // Video calls start on loudspeaker; voice calls keep the earpiece default.
+      await _setPlayerAudioRoute('speaker');
+      await _webrtc.toggleSpeaker(true);
+      await AudioManagerService.setAudioRoute('speaker');
+      if (mounted) await _refreshAudioRoutes();
+    } catch (error) {
+      debugPrint('[NovynCalls] Could not apply default video speaker route: $error');
+    }
+  }
+
   Future<void> _initWebRTC() async {
     try {
       await _webrtc.init();
@@ -293,6 +306,8 @@ class _CallScreenState extends State<CallScreen>
       if (!mounted) return;
       _callTimeoutTimer?.cancel();
       _stopRingtone();
+      await _applyVideoSpeakerDefault();
+      if (!mounted) return;
       setState(() => _state = CallState.connected);
       _refreshMiniOverlay();
       _pulseCtrl.stop();
@@ -313,6 +328,8 @@ class _CallScreenState extends State<CallScreen>
 
     // Incoming WebRTC offer → create peer connection as receiver
     socket.onWebRTCOffer = (data) async {
+      if (!mounted) return;
+      await _applyVideoSpeakerDefault();
       if (!mounted) return;
       await _webrtc.createPeerConnection(socket, _peerId, false, callId: _callId);
       await _webrtc.handleOffer(Map<String, dynamic>.from(data), socket, _peerId, _callId);
