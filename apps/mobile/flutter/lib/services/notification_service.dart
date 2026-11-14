@@ -17,6 +17,7 @@ import 'friend_service.dart';
 import '../screens/chats/chat_detail_screen.dart';
 import '../screens/calls/calls_screen.dart';
 import '../screens/calls/call_screen.dart';
+import '../widgets/user_avatar.dart';
 
 // Top-level handler — must be a top-level function
 @pragma('vm:entry-point')
@@ -361,10 +362,13 @@ class NotificationService {
       return;
     }
 
-    final preview = settings.messagePreview
+    final preview = settings.messagePreview && !settings.hideNotificationContent
         ? messageBody.trim()
         : 'You have a new message';
-    final title = username;
+    final senderProfile = _socket?.contacts.findUser(username);
+    final title = senderProfile?.name.trim().isNotEmpty == true
+        ? senderProfile!.name.trim()
+        : username;
     // Foreground messages use only this branded in-app banner. The operating
     // system notification is reserved for background/terminated delivery.
     _inAppBannerTimer?.cancel();
@@ -427,17 +431,20 @@ class NotificationService {
                     child: Row(
                       children: [
                         Container(
-                          width: 42,
-                          height: 42,
+                          padding: const EdgeInsets.all(2),
                           decoration: BoxDecoration(
-                            color: Theme.of(context).colorScheme.primary
-                                .withValues(alpha: .12),
-                            borderRadius: BorderRadius.circular(14),
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: Theme.of(context).colorScheme.primary
+                                  .withValues(alpha: .55),
+                              width: 1.5,
+                            ),
                           ),
-                          child: Icon(
-                            Icons.forum_rounded,
-                            color: Theme.of(context).colorScheme.primary,
-                            size: 21,
+                          child: UserAvatar(
+                            name: title,
+                            photoUrl: senderProfile?.photoUrl ?? '',
+                            radius: 24,
+                            fallbackColor: Theme.of(context).colorScheme.primary,
                           ),
                         ),
                         const SizedBox(width: 12),
