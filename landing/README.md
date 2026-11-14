@@ -12,11 +12,11 @@ From the repository root:
 4. Link your Firebase project: `firebase use --add` (select your project and choose a local alias).
 5. Deploy only this landing site: `firebase deploy --only hosting`.
 
-The root `firebase.json` publishes only the `landing/` directory. The existing web app remains at `https://novyn-chat.onrender.com`.
+The root `firebase.json` publishes only the `landing/` directory. The existing web app remains at `https://novyn-live.onrender.com`.
 
 ## Website links
 
-- Try web app: `https://novyn-chat.onrender.com`
+- Try web app: `https://novyn-live.onrender.com`
 - Android releases: `https://github.com/itsSatyam27/novyn-chat/releases/latest`
 
 Upload the signed APK as an asset to a GitHub Release; the Android button opens the latest release so visitors can download its APK asset.
