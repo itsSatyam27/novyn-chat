@@ -24,6 +24,18 @@ class FriendRequest {
   });
 }
 
+class FriendSearchResult {
+  final UserModel user;
+  final String requestStatus;
+  final bool canRequest;
+
+  const FriendSearchResult({
+    required this.user,
+    required this.requestStatus,
+    required this.canRequest,
+  });
+}
+
 /// Contact operations backed by the same authenticated Novyn account as web.
 class FriendService {
   final SocketService _socket;
@@ -128,15 +140,30 @@ class FriendService {
     }
   }
 
+  Future<List<FriendSearchResult>> searchUsers(String query) async {
+    final normalized = query.trim().replaceFirst(RegExp(r'^@'), '');
+    if (normalized.isEmpty) return [];
+
+    final matches = await ApiService.searchUsers(normalized);
+    return matches
+        .map((result) => FriendSearchResult(
+              user: BackendContacts.userFromMap(result),
+              requestStatus: result['requestStatus']?.toString() ?? 'none',
+              canRequest: result['canRequest'] == true,
+            ))
+        .where((result) => result.user.username.isNotEmpty)
+        .toList();
+  }
+
   Future<UserModel?> getUser(String username) async {
-    final cached = _socket.contacts.findUser(username);
+    final normalized = username.trim().replaceFirst(RegExp(r'^@'), '');
+    final cached = _socket.contacts.findUser(normalized);
     if (cached != null) return cached;
 
-    final matches = await ApiService.searchUsers(username);
+    final matches = await searchUsers(normalized);
     for (final result in matches) {
-      if (result['username']?.toString().toLowerCase() ==
-          username.toLowerCase()) {
-        return BackendContacts.userFromMap(result);
+      if (result.user.username.toLowerCase() == normalized.toLowerCase()) {
+        return result.user;
       }
     }
     return null;

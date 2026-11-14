@@ -638,19 +638,37 @@ class ApiService {
 
   // ── Friend search ─────────────────────────────────────────────────────────
   static Future<List<Map<String, dynamic>>> searchUsers(String query) async {
-    try {
-      final res = await http
-          .get(
-            Uri.parse(
-                '$baseUrl/api/users/search?q=${Uri.encodeComponent(query)}'),
-            headers: _authHeaders,
-          )
-          .timeout(const Duration(seconds: 10));
-      if (res.statusCode == 200) {
-        return List<Map<String, dynamic>>.from(jsonDecode(res.body));
-      }
-    } catch (_) {}
-    return [];
+    final normalized = query.trim().replaceFirst(RegExp(r'^@'), '');
+    if (normalized.isEmpty) return [];
+
+    Future<http.Response> request() => http
+        .get(
+          Uri.parse(
+            '$baseUrl/api/users/search?q=${Uri.encodeComponent(normalized)}',
+          ),
+          headers: _authHeaders,
+        )
+        .timeout(const Duration(seconds: 10));
+
+    var response = await request();
+    if (response.statusCode == 401) {
+      // A stale access cookie should not be mistaken for an empty directory.
+      final refreshed = await refreshSessionStatus();
+      if (refreshed == 200) response = await request();
+    }
+
+    if (response.statusCode != 200) {
+      throw StateError('User search failed (${response.statusCode}).');
+    }
+
+    final decoded = jsonDecode(response.body);
+    if (decoded is! List) {
+      throw const FormatException('Unexpected user search response.');
+    }
+    return decoded
+        .whereType<Map>()
+        .map((item) => Map<String, dynamic>.from(item))
+        .toList();
   }
 
   static Future<Map<String, dynamic>?> getLinkPreview(String url) async {
