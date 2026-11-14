@@ -41,9 +41,10 @@ class ProfileScreen extends StatelessWidget {
     final displayName = profile?.displayName.isNotEmpty == true ? profile!.displayName : 'You';
     final username = profile?.username ?? 'user';
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final pageBackground = isDark ? NovynTheme.pageBg(context) : const Color(0xFFF3EFFA);
 
     return Scaffold(
-      backgroundColor: NovynTheme.pageBg(context),
+      backgroundColor: pageBackground,
       body: Stack(
         children: [
           const Positioned.fill(child: _NovynSettingsBackdrop()),
@@ -51,20 +52,23 @@ class ProfileScreen extends StatelessWidget {
             bottom: false,
             child: ListView(
               physics: const BouncingScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(20, 14, 20, 132),
+              padding: const EdgeInsets.fromLTRB(18, 10, 18, 132),
               children: [
                 NovynHeader(
                   title: 'Settings',
-                  titleSize: 30,
+                  titleSize: 28,
                   subtitle: 'Make Novyn feel like yours',
                   actions: [
                     NovynIconButton(
                       icon: Icons.search_rounded,
+                      size: 48,
+                      radius: 16,
+                      iconSize: 21,
                       onTap: () => _showSettingsSearch(context, settings),
                     ),
                   ],
                 ),
-                const SizedBox(height: 18),
+                const SizedBox(height: 12),
                 _NovynSettingsProfileCard(
                   displayName: displayName,
                   username: username,
@@ -75,7 +79,7 @@ class ProfileScreen extends StatelessWidget {
                   onStatusSelected: (mode) => _updateStatus(context, auth, mode),
                   onQr: () => _showQRCode(context),
                 ),
-                const SizedBox(height: 14),
+                const SizedBox(height: 10),
                 Row(
                   children: [
                     Expanded(
@@ -101,7 +105,7 @@ class ProfileScreen extends StatelessWidget {
                     ),
                   ],
                 ),
-                NovynSectionLabel('ACCOUNT', padding: const EdgeInsets.fromLTRB(4, 24, 4, 10)),
+                NovynSectionLabel('ACCOUNT', padding: const EdgeInsets.fromLTRB(4, 18, 4, 8)),
                 _NovynSettingsGroup(children: [
                   _NovynSettingsTile(
                     icon: Icons.shield_outlined,
@@ -1694,7 +1698,9 @@ class _NovynSettingsBackdrop extends StatelessWidget {
   const _NovynSettingsBackdrop();
   @override
   Widget build(BuildContext context) => ColoredBox(
-    color: NovynTheme.pageBg(context),
+    color: Theme.of(context).brightness == Brightness.dark
+        ? NovynTheme.pageBg(context)
+        : const Color(0xFFF3EFFA),
     child: const SizedBox.expand(),
   );
 }
@@ -1851,7 +1857,7 @@ class _NovynSettingsProfileCardState extends State<_NovynSettingsProfileCard> {
     final theme = Theme.of(context);
     return Container(
       clipBehavior: Clip.antiAlias,
-      padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(26),
         color: NovynTheme.cardBg(context),
@@ -1900,8 +1906,8 @@ class _NovynSettingsProfileCardState extends State<_NovynSettingsProfileCard> {
     children: [
       Row(children: [
         SizedBox(
-          width: 92,
-          height: 92,
+          width: 68,
+          height: 68,
           child: ProfileAvatarWithOrbit(
             photoUrl: widget.photoUrl,
             displayName: widget.displayName,
@@ -1913,14 +1919,14 @@ class _NovynSettingsProfileCardState extends State<_NovynSettingsProfileCard> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(widget.displayName, maxLines: 1, overflow: TextOverflow.ellipsis,
-              style: NovynText.display(19, weight: FontWeight.w700).copyWith(color: theme.colorScheme.onSurface)),
+              style: NovynText.display(17, weight: FontWeight.w700).copyWith(color: theme.colorScheme.onSurface)),
             const SizedBox(height: 4),
             Text('@${widget.username}', maxLines: 1, overflow: TextOverflow.ellipsis,
-              style: NovynText.body(13, weight: FontWeight.w600, color: theme.colorScheme.onSurface.withValues(alpha: .72))),
+              style: NovynText.body(11.5, weight: FontWeight.w600, color: theme.colorScheme.onSurface.withValues(alpha: .72))),
             if (widget.bio.trim().isNotEmpty) ...[
               const SizedBox(height: 5),
               Text(widget.bio, maxLines: 2, overflow: TextOverflow.ellipsis,
-                style: NovynText.body(12, color: theme.colorScheme.onSurfaceVariant)),
+                style: NovynText.body(10.5, color: theme.colorScheme.onSurfaceVariant)),
             ],
           ],
         )),
@@ -1937,8 +1943,8 @@ class _NovynSettingsProfileCardState extends State<_NovynSettingsProfileCard> {
                 splashColor: theme.colorScheme.primary.withValues(alpha: .16),
                 highlightColor: theme.colorScheme.primary.withValues(alpha: .07),
                 child: Container(
-                  width: 40,
-                  height: 40,
+                  width: 34,
+                  height: 34,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(14),
                     border: Border.all(
@@ -1954,7 +1960,7 @@ class _NovynSettingsProfileCardState extends State<_NovynSettingsProfileCard> {
                   ),
                   child: Icon(
                     Icons.edit_rounded,
-                    size: 18,
+                    size: 16,
                     color: theme.colorScheme.primary,
                   ),
                 ),
@@ -1963,7 +1969,7 @@ class _NovynSettingsProfileCardState extends State<_NovynSettingsProfileCard> {
           ),
         ),
       ]),
-      const SizedBox(height: 14),
+      const SizedBox(height: 9),
       Row(children: [
         Expanded(
           child: Align(
@@ -1979,11 +1985,11 @@ class _NovynSettingsProfileCardState extends State<_NovynSettingsProfileCard> {
             borderRadius: BorderRadius.circular(22),
             onTap: widget.onQr,
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
               child: Row(mainAxisSize: MainAxisSize.min, children: [
-                Icon(Icons.qr_code_2_rounded, size: 19, color: theme.colorScheme.primary),
+                Icon(Icons.qr_code_2_rounded, size: 16, color: theme.colorScheme.primary),
                 const SizedBox(width: 7),
-                Text('My QR code', style: NovynText.body(13, weight: FontWeight.w700, color: theme.colorScheme.primary)),
+                Text('My QR code', style: NovynText.body(11.5, weight: FontWeight.w700, color: theme.colorScheme.primary)),
               ]),
             ),
           ),
@@ -2114,8 +2120,8 @@ class _SettingsQuickToggle extends StatelessWidget {
         borderRadius: BorderRadius.circular(18),
         onTap: () => onChanged(!value),
         child: Container(
-          constraints: const BoxConstraints(minHeight: 72),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          constraints: const BoxConstraints(minHeight: 54),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(18),
             border: Border.all(
@@ -2129,11 +2135,11 @@ class _SettingsQuickToggle extends StatelessWidget {
             children: [
               AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
-                width: 44,
-                height: 44,
+                width: 34,
+                height: 34,
                 decoration: BoxDecoration(
                   color: accent.withValues(alpha: value ? (dark ? .24 : .14) : .08),
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(11),
                 ),
                 child: AnimatedSwitcher(
                   duration: const Duration(milliseconds: 200),
@@ -2144,7 +2150,7 @@ class _SettingsQuickToggle extends StatelessWidget {
                   child: Icon(
                     value ? activeIcon : inactiveIcon,
                     key: ValueKey(value),
-                    size: 22,
+                    size: 18,
                     color: value ? accent : scheme.onSurfaceVariant,
                   ),
                 ),
@@ -2157,13 +2163,13 @@ class _SettingsQuickToggle extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     color: scheme.onSurface,
-                    fontSize: 13,
+                    fontSize: 11.5,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
               ),
               Transform.scale(
-                scale: .88,
+                scale: .76,
                 alignment: Alignment.centerRight,
                 child: Switch.adaptive(
                   value: value,
@@ -2188,7 +2194,7 @@ class _NovynSettingsGroup extends StatelessWidget {
   Widget build(BuildContext context) {
     final dark = Theme.of(context).brightness == Brightness.dark;
     return Container(
-      decoration: BoxDecoration(color: NovynTheme.cardBg(context), borderRadius: BorderRadius.circular(22), border: Border.all(color: Theme.of(context).colorScheme.outlineVariant)),
+      decoration: BoxDecoration(color: NovynTheme.cardBg(context), borderRadius: BorderRadius.circular(20), border: Border.all(color: Theme.of(context).colorScheme.outlineVariant)),
       child: ClipRRect(borderRadius: BorderRadius.circular(22), child: Column(children: children)),
     );
   }
@@ -2208,19 +2214,19 @@ class _NovynSettingsTile extends StatelessWidget {
       onTap: onTap,
       child: Column(children: [
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
           child: Row(children: [
-            Container(width: 42, height: 42, decoration: BoxDecoration(color: accent.withValues(alpha: Theme.of(context).brightness == Brightness.dark ? .18 : .12), borderRadius: BorderRadius.circular(14)), child: Icon(icon, color: accent, size: 20)),
-            const SizedBox(width: 13),
+            Container(width: 36, height: 36, decoration: BoxDecoration(color: accent.withValues(alpha: Theme.of(context).brightness == Brightness.dark ? .18 : .12), borderRadius: BorderRadius.circular(12)), child: Icon(icon, color: accent, size: 18)),
+            const SizedBox(width: 10),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(title, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontSize: 14, fontWeight: FontWeight.w700)),
+              Text(title, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontSize: 13, fontWeight: FontWeight.w700)),
               const SizedBox(height: 3),
-              Text(subtitle, style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 11.5, color: Theme.of(context).colorScheme.onSurfaceVariant)),
+              Text(subtitle, style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 10.5, color: Theme.of(context).colorScheme.onSurfaceVariant)),
             ])),
             Icon(Icons.chevron_right_rounded, color: Theme.of(context).colorScheme.onSurfaceVariant, size: 21),
           ]),
         ),
-        if (showDivider) Padding(padding: const EdgeInsets.only(left: 69), child: Divider(height: 1, thickness: 1, color: Theme.of(context).dividerColor)),
+        if (showDivider) Padding(padding: const EdgeInsets.only(left: 59), child: Divider(height: 1, thickness: 1, color: Theme.of(context).dividerColor)),
       ]),
     ),
   );
