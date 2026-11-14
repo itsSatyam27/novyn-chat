@@ -222,8 +222,8 @@ class WebRTCService extends ChangeNotifier {
           final lost = _statsNumber(values['packetsLost']);
           final received = _statsNumber(values['packetsReceived']);
           if (lost != null || received != null) {
-            packetsLost += (lost ?? 0).clamp(0, double.infinity);
-            packetsReceived += (received ?? 0).clamp(0, double.infinity);
+            packetsLost += (lost ?? 0).clamp(0.0, double.infinity).toDouble();
+            packetsReceived += (received ?? 0).clamp(0.0, double.infinity).toDouble();
             hasPacketStats = true;
           }
         }
