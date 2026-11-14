@@ -831,8 +831,9 @@ class NotificationService {
     // Prefer the live socket callback; FCM is a fallback for disconnected
     // sockets or app lifecycle states where the socket callback was missed.
     if (type == 'message' && message.data['kind'] != 'group') {
-      if (_socket?.isConnected == true &&
-          WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed) return;
+      // A live socket callback handles both resumed banners and inactive-app
+      // system alerts. FCM is only a fallback when the socket is disconnected.
+      if (_socket?.isConnected == true) return;
       final username = message.data['chat']?.toString().trim() ?? '';
       if (username.isNotEmpty) {
         final body = message.data['body']?.toString().trim();
