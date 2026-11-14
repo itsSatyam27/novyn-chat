@@ -83,8 +83,10 @@ class SocketService extends ChangeNotifier {
   String? _myUsername; // novyn-chat username (not Firebase UID)
   final AudioPlayer _audioPlayer = AudioPlayer();
   final Map<String, String> _messageStatuses = {};
+  int _messageStatusRevision = 0;
   final Map<String, DateTime> _messageDeliveredAt = {};
   final Map<String, DateTime> _messageSeenAt = {};
+  int get messageStatusRevision => _messageStatusRevision;
   String messageStatusFor(String messageId) => _messageStatuses[messageId] ?? 'sent';
   DateTime? messageDeliveredAtFor(String messageId) => _messageDeliveredAt[messageId];
   DateTime? messageSeenAtFor(String messageId) => _messageSeenAt[messageId];
@@ -481,6 +483,7 @@ class SocketService extends ChangeNotifier {
                   ? 'delivered'
                   : 'sent';
         }
+        _messageStatusRevision++;
         final decrypted = await Future.wait(
             parsed.map((message) => encryption.decrypt(message, account, _peerKeys[withUser.toLowerCase()])));
         if (_myUsername != account ||
@@ -566,6 +569,7 @@ class SocketService extends ChangeNotifier {
             : data['deliveredAt'] != null || explicit == 'delivered'
                 ? 'delivered'
                 : 'sent';
+        _messageStatusRevision++;
       }
       if (_myUsername != account) return;
 
@@ -722,6 +726,7 @@ class SocketService extends ChangeNotifier {
       final current = _messageStatuses[msgId] ?? 'sent';
       if (current == 'seen' || (current == 'delivered' && next == 'delivered')) return;
       _messageStatuses[msgId] = next;
+      _messageStatusRevision++;
       notifyListeners();
     });
 
@@ -1322,6 +1327,7 @@ class SocketService extends ChangeNotifier {
     // handlers still decrypt older encrypted messages for backward compatibility.
 
     _messageStatuses[clientTempId] = 'sending';
+    _messageStatusRevision++;
     final tempMsg = Message(
       id: clientTempId,
       chatId: toPeerUsername,
@@ -1370,6 +1376,7 @@ class SocketService extends ChangeNotifier {
       final index = _messages.indexWhere((message) => message.id == clientTempId);
       if (index >= 0) {
         _messageStatuses[clientTempId] = 'failed';
+        _messageStatusRevision++;
         notifyListeners();
       }
       rethrow;
@@ -2405,6 +2412,7 @@ class SocketService extends ChangeNotifier {
     onAuthenticated = null;
     _peerKeys.clear();
     _messageStatuses.clear();
+    _messageStatusRevision++;
     _blockedUsers.clear();
     _conversations = [];
     _latestGroupInfo = null;
