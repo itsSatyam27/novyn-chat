@@ -66,6 +66,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                 return NovynHeader(
                   title: 'Discover',
                   titleSize: 34,
+                  titleWeight: FontWeight.w700,
                   subtitle: 'Find people and grow your circle',
                   actions: [
                     PopupMenuButton<String>(
