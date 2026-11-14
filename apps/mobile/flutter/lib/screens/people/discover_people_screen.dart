@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
@@ -20,6 +21,14 @@ class DiscoverPeopleScreen extends StatefulWidget {
 class _DiscoverPeopleScreenState extends State<DiscoverPeopleScreen> {
   late int _activeTab;
   final TextEditingController _usernameController = TextEditingController();
+  final LayerLink _usernameFieldLink = LayerLink();
+  OverlayEntry? _usernameSuggestionsOverlay;
+  Timer? _usernameSearchDebounce;
+  List<FriendSearchResult> _usernameSuggestions = [];
+  final Set<String> _requestedUsernameKeys = {};
+  int _usernameSearchGeneration = 0;
+  bool _searchingUsernames = false;
+  String? _usernameSearchError;
   bool _sendingRequest = false;
 
   @override
@@ -30,6 +39,11 @@ class _DiscoverPeopleScreenState extends State<DiscoverPeopleScreen> {
 
   @override
   void dispose() {
+    _usernameSearchDebounce?.cancel();
+    _usernameSearchGeneration++;
+    _usernameSuggestionsOverlay?.remove();
+    _usernameSuggestionsOverlay?.dispose();
+    _usernameSuggestionsOverlay = null;
     _usernameController.dispose();
     super.dispose();
   }
@@ -56,6 +70,311 @@ class _DiscoverPeopleScreenState extends State<DiscoverPeopleScreen> {
       setState(() => _activeTab = 1);
     } catch (_) {
       _message('Could not send request. Please try again.');
+    } finally {
+      if (mounted) setState(() => _sendingRequest = false);
+    }
+  }
+
+  void _onUsernameChanged(String value, FriendService service) {
+    final query = value.trim().replaceFirst(RegExp(r'^@'), '');
+    _usernameSearchDebounce?.cancel();
+    final generation = ++_usernameSearchGeneration;
+
+    if (query.length < 2) {
+      _hideUsernameSuggestions();
+      setState(() {
+        _usernameSuggestions = [];
+        _searchingUsernames = false;
+        _usernameSearchError = null;
+      });
+      return;
+    }
+
+    setState(() {
+      _usernameSuggestions = [];
+      _searchingUsernames = true;
+      _usernameSearchError = null;
+    });
+    _showUsernameSuggestions();
+
+    _usernameSearchDebounce = Timer(const Duration(milliseconds: 280), () async {
+      try {
+        final matches = await service.searchUsers(query);
+        if (!mounted || generation != _usernameSearchGeneration) return;
+        setState(() {
+          _usernameSuggestions = matches
+              .where((result) =>
+                  result.user.username.toLowerCase() != widget.myUid.toLowerCase())
+              .toList();
+          _searchingUsernames = false;
+          _usernameSearchError = null;
+        });
+        _showUsernameSuggestions();
+      } catch (_) {
+        if (!mounted || generation != _usernameSearchGeneration) return;
+        setState(() {
+          _usernameSuggestions = [];
+          _searchingUsernames = false;
+          _usernameSearchError = 'Could not search usernames. Check your connection.';
+        });
+        _showUsernameSuggestions();
+      }
+    });
+  }
+
+  void _showUsernameSuggestions() {
+    if (!mounted || _activeTab != 2) return;
+    if (_usernameSuggestionsOverlay != null) {
+      _usernameSuggestionsOverlay!.markNeedsBuild();
+      return;
+    }
+
+    _usernameSuggestionsOverlay = OverlayEntry(
+      builder: (overlayContext) {
+        final theme = Theme.of(context);
+        final width = MediaQuery.sizeOf(overlayContext).width - 40;
+        return Stack(
+          children: [
+            Positioned.fill(
+              child: GestureDetector(
+                behavior: HitTestBehavior.translucent,
+                onTap: _hideUsernameSuggestions,
+                child: const SizedBox.expand(),
+              ),
+            ),
+            CompositedTransformFollower(
+              link: _usernameFieldLink,
+              showWhenUnlinked: false,
+              targetAnchor: Alignment.bottomLeft,
+              followerAnchor: Alignment.topLeft,
+              offset: const Offset(0, 7),
+              child: Material(
+                color: theme.colorScheme.surface,
+                elevation: 16,
+                borderRadius: BorderRadius.circular(18),
+                clipBehavior: Clip.antiAlias,
+                child: SizedBox(
+                  width: width,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxHeight: 300),
+                    child: _usernameSuggestionsContent(theme),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+    Overlay.of(context).insert(_usernameSuggestionsOverlay!);
+  }
+
+  void _hideUsernameSuggestions() {
+    _usernameSearchDebounce?.cancel();
+    _usernameSearchGeneration++;
+    final entry = _usernameSuggestionsOverlay;
+    _usernameSuggestionsOverlay = null;
+    if (entry != null) {
+      entry.remove();
+      entry.dispose();
+    }
+  }
+
+  Widget _usernameSuggestionsContent(ThemeData theme) {
+    if (_searchingUsernames) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(horizontal: 18, vertical: 20),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 17,
+              height: 17,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+            SizedBox(width: 12),
+            Text('Searching usernames...'),
+          ],
+        ),
+      );
+    }
+
+    if (_usernameSearchError != null) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
+        child: Text(
+          _usernameSearchError!,
+          style: NovynText.body(12, color: theme.colorScheme.error),
+        ),
+      );
+    }
+
+    if (_usernameSuggestions.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
+        child: Row(
+          children: [
+            Icon(Icons.person_search_rounded, color: theme.colorScheme.onSurfaceVariant),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'No matching usernames. Check the spelling and try again.',
+                style: NovynText.body(12, color: theme.colorScheme.onSurfaceVariant),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return ListView.separated(
+      shrinkWrap: true,
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      itemCount: _usernameSuggestions.length,
+      separatorBuilder: (_, __) => Divider(
+        height: 1,
+        indent: 66,
+        endIndent: 14,
+        color: theme.colorScheme.outlineVariant.withValues(alpha: .45),
+      ),
+      itemBuilder: (context, index) =>
+          _usernameSuggestionTile(_usernameSuggestions[index]),
+    );
+  }
+
+  Widget _usernameSuggestionTile(FriendSearchResult result) {
+    final user = result.user;
+    final key = user.username.toLowerCase();
+    final status = _requestedUsernameKeys.contains(key)
+        ? 'sent'
+        : result.requestStatus;
+    final canAdd = result.canRequest &&
+        status == 'none' &&
+        !_sendingRequest;
+    final statusLabel = switch (status) {
+      'sent' => 'Requested',
+      'incoming' => 'Check requests',
+      'friend' => 'Friends',
+      _ => result.canRequest ? '' : 'Unavailable',
+    };
+    final actionIcon = canAdd
+        ? Icons.person_add_alt_1_rounded
+        : status == 'sent' || status == 'friend'
+            ? Icons.check_circle_rounded
+            : status == 'incoming'
+                ? Icons.mark_email_unread_rounded
+                : Icons.lock_outline_rounded;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+      child: Row(
+        children: [
+          UserAvatar(
+            name: user.name,
+            photoUrl: user.photoUrl,
+            radius: 21,
+            showOnlineIndicator: true,
+            isOnline: user.isOnline,
+            presence: user.status,
+          ),
+          const SizedBox(width: 11),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  user.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: NovynText.body(
+                    13,
+                    weight: FontWeight.w700,
+                    color: Theme.of(context).colorScheme.onSurface,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '@${user.username}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: NovynText.body(
+                    11,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (statusLabel.isNotEmpty && !canAdd)
+            Padding(
+              padding: const EdgeInsets.only(right: 4),
+              child: Text(
+                statusLabel,
+                style: NovynText.body(
+                  10.5,
+                  weight: FontWeight.w700,
+                  color: status == 'sent' || status == 'friend'
+                      ? themeOrPrimary(context)
+                      : Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+          Material(
+            color: canAdd
+                ? Theme.of(context).colorScheme.primary.withValues(alpha: .12)
+                : Theme.of(context).colorScheme.surfaceContainerHighest,
+            borderRadius: BorderRadius.circular(12),
+            child: InkWell(
+              onTap: canAdd
+                  ? () => _sendFriendRequestTo(context.read<FriendService>(), user)
+                  : null,
+              borderRadius: BorderRadius.circular(12),
+              child: SizedBox(
+                width: 40,
+                height: 40,
+                child: Icon(
+                  actionIcon,
+                  size: 19,
+                  color: canAdd
+                      ? Theme.of(context).colorScheme.primary
+                      : Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Color themeOrPrimary(BuildContext context) =>
+      Theme.of(context).colorScheme.primary;
+
+  Future<void> _sendFriendRequestTo(FriendService service, UserModel user) async {
+    if (_sendingRequest) return;
+    setState(() => _sendingRequest = true);
+    try {
+      await service.sendRequest(widget.myUid, user.uid);
+      if (!mounted) return;
+      final key = user.username.toLowerCase();
+      setState(() {
+        _requestedUsernameKeys.add(key);
+        _usernameSuggestions = _usernameSuggestions.map((result) {
+          if (result.user.username.toLowerCase() != key) return result;
+          return FriendSearchResult(
+            user: result.user,
+            requestStatus: 'sent',
+            canRequest: false,
+          );
+        }).toList();
+      });
+      _showUsernameSuggestions();
+      _message('Friend request sent to @${user.username}.');
+    } catch (error) {
+      if (!mounted) return;
+      final message = error is StateError
+          ? error.message?.toString() ?? 'Could not send friend request.'
+          : 'Could not send request to @${user.username}. Please try again.';
+      _message(message);
     } finally {
       if (mounted) setState(() => _sendingRequest = false);
     }
@@ -156,7 +475,10 @@ class _DiscoverPeopleScreenState extends State<DiscoverPeopleScreen> {
     final theme = Theme.of(context);
     return Expanded(
       child: GestureDetector(
-        onTap: () => setState(() => _activeTab = index),
+        onTap: () {
+          if (index != 2) _hideUsernameSuggestions();
+          setState(() => _activeTab = index);
+        },
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 180),
           padding: const EdgeInsets.symmetric(vertical: 12),
@@ -233,19 +555,36 @@ class _DiscoverPeopleScreenState extends State<DiscoverPeopleScreen> {
                 ])),
               ]),
               const SizedBox(height: 20),
-              TextField(
-                controller: _usernameController,
-                textInputAction: TextInputAction.send,
-                onSubmitted: (_) => _sendFriendRequest(service),
-                decoration: InputDecoration(
-                  hintText: 'Enter username',
-                  prefixIcon: const Icon(Icons.alternate_email_rounded),
-                  filled: true,
-                  fillColor: theme.colorScheme.surfaceContainerHighest.withValues(alpha: .45),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide.none),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(15),
-                    borderSide: BorderSide(color: theme.colorScheme.outlineVariant.withValues(alpha: .55)),
+              CompositedTransformTarget(
+                link: _usernameFieldLink,
+                child: TextField(
+                  controller: _usernameController,
+                  textInputAction: TextInputAction.send,
+                  onChanged: (value) => _onUsernameChanged(value, service),
+                  onSubmitted: (_) {
+                    _hideUsernameSuggestions();
+                    _sendFriendRequest(service);
+                  },
+                  decoration: InputDecoration(
+                    hintText: 'Enter username',
+                    prefixIcon: const Icon(Icons.alternate_email_rounded),
+                    suffixIcon: _searchingUsernames
+                        ? const Padding(
+                            padding: EdgeInsets.all(14),
+                            child: SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                          )
+                        : null,
+                    filled: true,
+                    fillColor: theme.colorScheme.surfaceContainerHighest.withValues(alpha: .45),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide.none),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(15),
+                      borderSide: BorderSide(color: theme.colorScheme.outlineVariant.withValues(alpha: .55)),
+                    ),
                   ),
                 ),
               ),
