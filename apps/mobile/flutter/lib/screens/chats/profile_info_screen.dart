@@ -106,6 +106,7 @@ class ProfileInfoScreen extends StatelessWidget {
                         top: 0, left: 0, right: 0,
                         child: Container(
                           height: 100,
+                          clipBehavior: Clip.hardEdge,
                           decoration: BoxDecoration(
                             gradient: LinearGradient(
                               begin: Alignment.topLeft,
