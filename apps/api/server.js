@@ -21,6 +21,7 @@ const { createAuthToken: signAuthToken, verifyAuthToken: verifySignedAuthToken }
 const { createAuthSessions } = require("./server/auth/sessions");
 const { parseCookies, safeTimingEqual: csrfSafeTimingEqual, createCsrf } = require("./server/auth/csrf");
 const runtimeState = require("./server/core/state");
+const { buildUserSearchResults } = require("./server/users/search");
 const {
   normalizeName,
   toDisplayName,
@@ -751,6 +752,46 @@ app.get("/api/stats", (req, res) => {
     newUsersToday,
   });
 });
+
+app.get(
+  "/api/users/search",
+  requireUser,
+  createIpRateLimiter({ getStore: () => httpRateLimits }, "user-search", 60, 60 * 1000),
+  (req, res) => {
+    const query = normalizeName(
+      toDisplayName(req.query?.q || "").replace(/^@/, ""),
+    );
+    if (!query) {
+      res.json([]);
+      return;
+    }
+    if (query.length > 40) {
+      res.status(400).json({ error: "Username search is too long." });
+      return;
+    }
+
+    const me = users.get(req.userKey);
+    if (!me?.isRegistered) {
+      res.status(401).json({ error: "Sign in required." });
+      return;
+    }
+
+    const results = buildUserSearchResults({
+      users,
+      userKey: req.userKey,
+      query,
+      usersAreBlocked,
+      privacyAllows,
+      getEffectivePresence,
+      getVisibleLastSeen,
+      limit: 8,
+    });
+
+    res.set("Cache-Control", "no-store, max-age=0");
+    res.json(results);
+  },
+);
+
 
 const conversationWallpapers = new Map();
 
