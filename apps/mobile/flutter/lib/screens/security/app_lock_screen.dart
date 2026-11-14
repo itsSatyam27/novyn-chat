@@ -175,7 +175,8 @@ class _AppLockScreenState extends State<AppLockScreen> {
     final accent = theme.colorScheme.primary;
     final settings = context.watch<SettingsService>();
     final coolingDown = settings.isAppLockCoolingDown;
-    final pinUnavailable = settings.appLockEnabled && settings.appLockPin == null;
+    final pinUnavailable = settings.appLockEnabled &&
+        (settings.appLockPin == null || !settings.secureStorageAvailable);
     final remaining = settings.appLockRemaining;
 
     return Scaffold(
