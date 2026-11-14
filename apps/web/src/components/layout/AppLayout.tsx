@@ -48,6 +48,31 @@ export const AppLayout: React.FC = () => {
   const [windowWidth, setWindowWidth] = useState(window.innerWidth);
   const isMobile = windowWidth <= 768;
 
+  // Keep the public website and sign-in experience consistently light.
+  // Restore the signed-in user's saved appearance preference after login.
+  useEffect(() => {
+    const root = document.documentElement;
+    if (!isAuthenticated) {
+      root.setAttribute('data-color-mode', 'light');
+      root.style.colorScheme = 'light';
+      return;
+    }
+
+    try {
+      const savedMode = window.localStorage.getItem('novyn_color_mode');
+      const resolvedMode =
+        savedMode === 'dark' ||
+        (savedMode === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
+          ? 'dark'
+          : 'light';
+      root.setAttribute('data-color-mode', resolvedMode);
+      root.style.colorScheme = resolvedMode;
+    } catch {
+      root.setAttribute('data-color-mode', 'light');
+      root.style.colorScheme = 'light';
+    }
+  }, [isAuthenticated]);
+
   const isInternalNavRef = useRef(false);
 
   // Restore initial chat if specified in deep link
