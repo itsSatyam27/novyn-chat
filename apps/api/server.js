@@ -2168,6 +2168,11 @@ async function sendPushToUser(userKey, payload) {
         // decrypts locally and creates the visible notification; plaintext
         // never passes through FCM or this server.
         const isCallPush = safePayload.type === "call";
+        // Direct-message notifications are rendered by the app's background
+        // handler. Sending an FCM notification payload as well makes Android
+        // auto-display a second, generic alert for the same message.
+        const isDirectMessagePush =
+          safePayload.type === "message" && safePayload.group !== true;
         const data = {
           type: toDisplayName(safePayload.type) || "message",
           url: toDisplayName(safePayload.url),
@@ -2199,7 +2204,7 @@ async function sendPushToUser(userKey, payload) {
         }
         const message = {
           token,
-          ...(!isEncryptedDirectMessage && !isCallPush ? {
+          ...(!isDirectMessagePush && !isCallPush ? {
             notification: {
               title: toDisplayName(safePayload.title) || "Novyn",
               body: toDisplayName(safePayload.body) || "You have a new message",
@@ -2209,7 +2214,7 @@ async function sendPushToUser(userKey, payload) {
           android: {
             priority: safePayload.silent ? "normal" : "high",
             ...(isCallPush ? { ttl: 45000 } : {}),
-            ...(!isEncryptedDirectMessage && !isCallPush ? {
+            ...(!isDirectMessagePush && !isCallPush ? {
               notification: {
                 tag: toDisplayName(safePayload.tag) || undefined,
                 ...(safePayload.silent ? {} : { sound: "default" }),
@@ -2217,13 +2222,13 @@ async function sendPushToUser(userKey, payload) {
             } : {}),
           },
           apns: {
-            headers: (isEncryptedDirectMessage || isCallPush) ? {
+            headers: (isDirectMessagePush || isCallPush) ? {
               "apns-push-type": "background",
               "apns-priority": "5",
               ...(isCallPush ? { "apns-expiration": String(Math.floor(Date.now() / 1000) + 45) } : {}),
             } : undefined,
             payload: {
-              aps: (isEncryptedDirectMessage || isCallPush)
+              aps: (isDirectMessagePush || isCallPush)
                 ? { "content-available": 1 }
                 : {
                     alert: {
