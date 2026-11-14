@@ -38,7 +38,12 @@ class MessageEncryptionService {
       : _read = read ?? ((key) => _storage.read(key: key)),
         _write = write ?? ((key, value) => _storage.write(key: key, value: value));
 
-  static const _storage = FlutterSecureStorage();
+  static const _storage = FlutterSecureStorage(
+    aOptions: AndroidOptions(
+      resetOnError: false,
+      migrateWithBackup: true,
+    ),
+  );
   final KeyReader _read;
   final KeyWriter _write;
   final _domain = pc.ECDomainParameters('secp256r1');
