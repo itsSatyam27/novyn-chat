@@ -329,8 +329,8 @@ class SocketService extends ChangeNotifier {
         }
       }
       if (peerPublicKey.isEmpty) {
-        throw StateError(
-          'The contact encryption key is not available yet. Message remains queued.',
+        throw const PendingMessageDeferredException(
+          'The contact encryption key is not available yet.',
         );
       }
 
@@ -341,7 +341,9 @@ class SocketService extends ChangeNotifier {
         peerPublicKey,
       );
       if (encrypted == null || encrypted['isEncrypted'] != true) {
-        throw StateError('Message encryption failed. Message remains queued.');
+        throw const PendingMessageDeferredException(
+          'Message encryption could not complete with the current contact key.',
+        );
       }
       payload
         ..['text'] = '🔒 Encrypted message'
