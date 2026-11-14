@@ -25,6 +25,7 @@ import 'settings/language_region_screen.dart';
 import 'settings/accessibility_screen.dart';
 import 'settings/sound_vibration_screen.dart';
 import 'settings/appearance_screen.dart';
+import 'settings/quick_toggle_customization_screen.dart';
 import 'settings/chat_settings_screen.dart';
 import 'settings/support_screens.dart';
 import 'package:novyn/services/haptic_service.dart';
@@ -40,6 +41,7 @@ class ProfileScreen extends StatelessWidget {
     final profile = auth.user;
     final displayName = profile?.displayName.isNotEmpty == true ? profile!.displayName : 'You';
     final username = profile?.username ?? 'user';
+    final quickToggleIds = settings.quickToggleIdsFor(username);
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final pageBackground = isDark ? NovynTheme.pageBg(context) : const Color(0xFFF3EFFA);
 
@@ -83,27 +85,40 @@ class ProfileScreen extends StatelessWidget {
                 Row(
                   children: [
                     Expanded(
-                      child: _SettingsQuickToggle(
-                        title: 'App Lock',
-                        activeIcon: Icons.lock_rounded,
-                        inactiveIcon: Icons.lock_open_rounded,
-                        value: settings.appLockEnabled,
-                        accent: const Color(0xFF64748B),
-                        onChanged: (value) => _toggleAppLock(context, settings, value),
+                      child: NovynSectionLabel(
+                        'QUICK TOGGLES',
+                        padding: const EdgeInsets.fromLTRB(4, 8, 4, 8),
                       ),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _SettingsQuickToggle(
-                        title: 'Do Not Disturb',
-                        activeIcon: Icons.do_not_disturb_on_rounded,
-                        inactiveIcon: Icons.notifications_active_rounded,
-                        value: settings.doNotDisturbEnabled,
-                        accent: const Color(0xFF159C91),
-                        onChanged: settings.setDoNotDisturbEnabled,
+                    TextButton.icon(
+                      onPressed: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => QuickToggleCustomizationScreen(
+                            accountKey: username,
+                          ),
+                        ),
                       ),
+                      icon: const Icon(Icons.tune_rounded, size: 16),
+                      label: const Text('Edit'),
                     ),
                   ],
+                ),
+                GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: quickToggleIds.length,
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    crossAxisSpacing: 12,
+                    mainAxisSpacing: 10,
+                    childAspectRatio: 2.45,
+                  ),
+                  itemBuilder: (context, index) => _buildQuickToggle(
+                    context,
+                    settings,
+                    quickToggleIds[index],
+                  ),
                 ),
                 NovynSectionLabel('ACCOUNT', padding: const EdgeInsets.fromLTRB(4, 18, 4, 8)),
                 _NovynSettingsGroup(children: [
@@ -209,6 +224,71 @@ class ProfileScreen extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  Widget _buildQuickToggle(
+    BuildContext context,
+    SettingsService settings,
+    String id,
+  ) {
+    switch (id) {
+      case 'app_lock':
+        return _SettingsQuickToggle(
+          title: 'App Lock',
+          activeIcon: Icons.lock_rounded,
+          inactiveIcon: Icons.lock_open_rounded,
+          value: settings.appLockEnabled,
+          accent: const Color(0xFF64748B),
+          onChanged: (value) => _toggleAppLock(context, settings, value),
+        );
+      case 'do_not_disturb':
+        return _SettingsQuickToggle(
+          title: 'Do Not Disturb',
+          activeIcon: Icons.do_not_disturb_on_rounded,
+          inactiveIcon: Icons.notifications_active_rounded,
+          value: settings.doNotDisturbEnabled,
+          accent: const Color(0xFF159C91),
+          onChanged: settings.setDoNotDisturbEnabled,
+        );
+      case 'read_receipts':
+        return _SettingsQuickToggle(
+          title: 'Read Receipts',
+          activeIcon: Icons.done_all_rounded,
+          inactiveIcon: Icons.done_rounded,
+          value: settings.readReceipts,
+          accent: const Color(0xFF2563EB),
+          onChanged: settings.setReadReceipts,
+        );
+      case 'in_app_sounds':
+        return _SettingsQuickToggle(
+          title: 'In-App Sounds',
+          activeIcon: Icons.volume_up_rounded,
+          inactiveIcon: Icons.volume_off_rounded,
+          value: settings.inAppSounds,
+          accent: const Color(0xFF8B5CF6),
+          onChanged: settings.setInAppSounds,
+        );
+      case 'in_app_vibration':
+        return _SettingsQuickToggle(
+          title: 'In-App Vibration',
+          activeIcon: Icons.vibration_rounded,
+          inactiveIcon: Icons.mobile_off_rounded,
+          value: settings.inAppVibration,
+          accent: const Color(0xFFDB2777),
+          onChanged: settings.setInAppVibration,
+        );
+      case 'group_notifications':
+        return _SettingsQuickToggle(
+          title: 'Group Alerts',
+          activeIcon: Icons.groups_rounded,
+          inactiveIcon: Icons.notifications_off_rounded,
+          value: settings.groupNotifications,
+          accent: const Color(0xFF0D9488),
+          onChanged: settings.setGroupNotifications,
+        );
+      default:
+        return const SizedBox.shrink();
+    }
   }
 
   Future<void> _toggleAppLock(
