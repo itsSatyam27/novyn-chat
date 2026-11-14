@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:share_plus/share_plus.dart';
 import '../../services/auth_service.dart';
 import '../../services/friend_service.dart';
 import '../../models/user_model.dart';
@@ -8,7 +9,10 @@ import '../../widgets/novyn_shimmer.dart';
 import '../../widgets/novyn_empty_state.dart';
 import '../../widgets/user_avatar.dart';
 import '../../widgets/novyn_ui.dart';
+import '../../theme/novyn_theme.dart';
 import '../chats/chat_detail_screen.dart';
+import 'discover_people_screen.dart';
+import 'package:novyn/services/haptic_service.dart';
 
 class PeopleScreen extends StatefulWidget {
   const PeopleScreen({super.key});
@@ -18,147 +22,464 @@ class PeopleScreen extends StatefulWidget {
 }
 
 class _PeopleScreenState extends State<PeopleScreen> {
+  static const _alphabet = <String>[
+    'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K',
+    'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W',
+    'X', 'Y', 'Z',
+  ];
+  static const _avatarPalette = <Color>[
+    Color(0xFF6D4CF5),
+    Color(0xFFC03F72),
+    Color(0xFF287A70),
+    Color(0xFFB85A0A),
+    Color(0xFF2865E8),
+    Color(0xFF8054C9),
+  ];
+
   String _search = '';
   String _filter = 'All';
+  Set<String> _favouriteUsernames = <String>{};
+  String? _favouriteOwner;
+  bool _favouritesLoaded = false;
+  bool _favouriteLoading = false;
   final ScrollController _scrollController = ScrollController();
+  final Map<String, GlobalKey> _letterKeys = <String, GlobalKey>{};
 
   @override
-  Widget build(BuildContext context) {
-    final auth = context.read<AuthService>();
-    final friends = context.read<FriendService>();
-    final myUid = auth.user?.username;
-    final cachedFriends = friends.cachedFriends ?? <UserModel>[];
+  void initState() {
+    super.initState();
+    final username = context.read<AuthService>().user?.username;
+    if (username != null && username.isNotEmpty) {
+      _loadFavourites(username);
+    }
+  }
 
-    if (myUid == null) {
-      return const Center(child: Text('Not logged in'));
+  String _favouritesKey(String username) =>
+      'novyn_contact_favorites_${username.trim().toLowerCase()}';
+
+  Future<void> _loadFavourites(String username) async {
+    _favouriteLoading = true;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final values = prefs.getStringList(_favouritesKey(username)) ?? <String>[];
+      if (!mounted ||
+          context.read<AuthService>().user?.username.trim().toLowerCase() !=
+              username.trim().toLowerCase()) {
+        return;
+      }
+      setState(() {
+        _favouriteUsernames =
+            values.map((value) => value.toLowerCase()).toSet();
+        _favouriteOwner = username.trim().toLowerCase();
+        _favouritesLoaded = true;
+      });
+    } catch (error) {
+      debugPrint('Could not load contact favourites: $error');
+    } finally {
+      _favouriteLoading = false;
+    }
+  }
+
+  Future<void> _toggleFavourite(UserModel user) async {
+    final username =
+        context.read<AuthService>().user?.username.trim().toLowerCase();
+    final target = user.username.trim().toLowerCase();
+    if (username == null || username.isEmpty || target.isEmpty) return;
+
+    if (!_favouritesLoaded || _favouriteOwner != username) {
+      await _loadFavourites(username);
+    }
+    if (!_favouritesLoaded || _favouriteOwner != username) {
+      _showMessage('Favourites are still loading. Try again.');
+      return;
     }
 
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      body: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            StreamBuilder<List<UserModel>>(
-              stream: friends.friendsStream(myUid),
-              initialData: cachedFriends,
-              builder: (context, friendSnap) {
-                final liveFriends = friendSnap.data ?? cachedFriends;
-                final onlineCount = liveFriends.where((user) => user.isOnline).length;
-                return NovynHeader(
-                  title: 'Contacts',
-                  subtitle: '${liveFriends.length} friend${liveFriends.length == 1 ? '' : 's'} · $onlineCount online',
-                  actions: const [],
-                );
-              },
-            ),
-            NovynSearchField(
-              hint: 'Search contacts by name or username...',
-              onChanged: (value) => setState(() => _search = value.trim().toLowerCase()),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-              child: Row(children: [
-                _filterChip('All', _filter == 'All', () => setState(() => _filter = 'All')),
-                const SizedBox(width: 8),
-                _filterChip('Online', _filter == 'Online', () => setState(() => _filter = 'Online')),
-                const SizedBox(width: 8),
-                _filterChip('Recently Active', _filter == 'Recently Active', () => setState(() => _filter = 'Recently Active')),
-              ]),
-            ),
-            StreamBuilder<List<UserModel>>(
-              stream: friends.friendsStream(myUid),
-              builder: (context, onlineSnap) {
-                final online = (onlineSnap.data ?? cachedFriends).where((u) => u.isOnline).toList();
-                if (online.isEmpty || _search.isNotEmpty || _filter != 'All') return const SizedBox.shrink();
-                return SizedBox(
-                  height: 112,
-                  child: ListView.separated(
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.fromLTRB(20, 2, 20, 10),
-                    itemCount: online.length,
-                    separatorBuilder: (_, __) => const SizedBox(width: 16),
-                    itemBuilder: (context, index) {
-                      final user = online[index];
-                      return GestureDetector(
-                        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ChatDetailScreen(peer: user))),
-                        child: SizedBox(
-                          width: 62,
-                          child: Column(children: [
-                            UserAvatar(name: user.name, photoUrl: user.photoUrl, radius: 25,
-                              showOnlineIndicator: true, isOnline: true, presence: user.status),
-                            const SizedBox(height: 7),
-                            Text(user.name, maxLines: 1, overflow: TextOverflow.ellipsis,
-                              style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 10.5,
-                                fontWeight: FontWeight.w700, color: Theme.of(context).colorScheme.onSurface)),
-                          ]),
-                        ),
+    final next = Set<String>.from(_favouriteUsernames);
+    final isAdded = next.add(target);
+    if (!isAdded) next.remove(target);
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final saved = await prefs.setStringList(
+        _favouritesKey(username),
+        next.toList(),
+      );
+      if (!saved) throw StateError('Could not save favourite contacts.');
+      if (!mounted ||
+          context.read<AuthService>().user?.username.trim().toLowerCase() !=
+              username) {
+        return;
+      }
+      setState(() => _favouriteUsernames = next);
+      HapticService.vibrate(
+        NovynHapticType.selection,
+        category: HapticCategory.navigation,
+      );
+      _showMessage(isAdded
+          ? '${user.name} added to favourites'
+          : '${user.name} removed from favourites');
+    } catch (error) {
+      if (mounted) _showMessage('Could not update favourite: $error');
+    }
+  }
+
+  void _showMessage(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(
+        content: Text(message),
+        behavior: SnackBarBehavior.floating,
+      ));
+  }
+
+  void _openDiscoverPeople(String myUid) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => DiscoverPeopleScreen(myUid: myUid),
+      ),
+    );
+  }
+
+  Future<void> _shareInvite(String myUid) async {
+    final profileUrl = 'https://novyn.app/user/$myUid';
+    try {
+      await Share.share(
+        'Connect with me on Novyn: $profileUrl',
+        subject: 'Join me on Novyn',
+      );
+    } catch (_) {
+      _showMessage('Could not open the share sheet.');
+    }
+  }
+
+  Future<void> _showFriendRequests(
+    String myUid,
+    FriendService service,
+  ) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      showDragHandle: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: SizedBox(
+          height: MediaQuery.of(sheetContext).size.height * .72,
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 4, 20, 14),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Friend requests',
+                        style: Theme.of(sheetContext)
+                            .textTheme
+                            .titleLarge
+                            ?.copyWith(fontWeight: FontWeight.w800),
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Close',
+                      onPressed: () => Navigator.pop(sheetContext),
+                      icon: const Icon(Icons.close_rounded),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: StreamBuilder<List<FriendRequest>>(
+                  stream: service.pendingRequestsStream(myUid),
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting &&
+                        !snapshot.hasData) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                    if (snapshot.hasError) {
+                      return const NovynEmptyState(
+                        icon: Icons.error_outline_rounded,
+                        title: 'Could not load requests',
+                        description: 'Check your connection and try again.',
                       );
-                    },
-                  ),
-                );
-              },
-            ),
-            Expanded(
-              child: StreamBuilder<List<UserModel>>(
-                stream: friends.friendsStream(myUid),
-                initialData: friends.cachedFriends,
-                builder: (context, snap) {
-                  if (snap.connectionState == ConnectionState.waiting && snap.data == null) {
-                    return ListView.builder(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      itemCount: 5,
-                      itemBuilder: (_, __) => NovynShimmer.friendCard(),
-                    );
-                  }
-                  final all = List<UserModel>.from(snap.data ?? []);
-                  all.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
-                  final filtered = all.where((u) {
-                    if (_filter == 'Online' && !u.isOnline) return false;
-                    if (_filter == 'Recently Active' && !u.isOnline && (u.lastSeen == null || DateTime.now().difference(u.lastSeen!).inDays > 7)) return false;
-                    if (_search.isNotEmpty &&
-                        !u.name.toLowerCase().contains(_search) &&
-                        !u.username.toLowerCase().contains(_search)) return false;
-                    return true;
-                  }).toList();
-                  if (filtered.isEmpty) {
-                    return _buildEmpty();
-                  }
-                  return ListView.builder(
-                    controller: _scrollController,
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 112),
-                    itemCount: filtered.length + 1,
-                    itemBuilder: (context, i) {
-                      if (i == 0) {
-                        return Padding(
-                          padding: const EdgeInsets.fromLTRB(4, 4, 4, 10),
+                    }
+                    final requests = snapshot.data ?? <FriendRequest>[];
+                    if (requests.isEmpty) {
+                      return const NovynEmptyState(
+                        icon: Icons.mark_email_read_outlined,
+                        title: 'No friend requests',
+                        description: 'New requests will appear here.',
+                      );
+                    }
+                    return ListView.separated(
+                      padding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
+                      itemCount: requests.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 8),
+                      itemBuilder: (context, index) {
+                        final request = requests[index];
+                        final user = request.fromUser;
+                        if (user == null) return const SizedBox.shrink();
+                        return Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 10,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).brightness == Brightness.dark
+                                ? Theme.of(context).colorScheme.surfaceContainerHighest
+                                : const Color(0xFFF7F4FC),
+                            borderRadius: BorderRadius.circular(18),
+                          ),
                           child: Row(
                             children: [
+                              UserAvatar(
+                                name: user.name,
+                                photoUrl: user.photoUrl,
+                                radius: 24,
+                              ),
+                              const SizedBox(width: 12),
                               Expanded(
-                                child: NovynSectionLabel(
-                                  _search.isEmpty ? 'ALL CONTACTS' : 'SEARCH RESULTS',
-                                  padding: EdgeInsets.zero,
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      user.name,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                    Text(
+                                      '@${user.username}',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .onSurfaceVariant,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
-                              Text(
-                                '${filtered.length}',
-                                style: TextStyle(
-                                  fontFamily: 'PlusJakartaSans',
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w700,
-                                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                                ),
+                              IconButton(
+                                tooltip: 'Decline request',
+                                onPressed: () async {
+                                  try {
+                                    await service.declineRequest(request.id);
+                                  } catch (_) {
+                                    _showMessage('Could not decline request.');
+                                  }
+                                },
+                                icon: const Icon(Icons.close_rounded),
+                                color: Theme.of(context).colorScheme.error,
+                              ),
+                              IconButton(
+                                tooltip: 'Accept request',
+                                onPressed: () async {
+                                  try {
+                                    await service.acceptRequest(
+                                      request.id,
+                                      myUid,
+                                      request.fromUid,
+                                    );
+                                    _showMessage(
+                                      'You are now friends with @${user.username}.',
+                                    );
+                                  } catch (_) {
+                                    _showMessage('Could not accept request.');
+                                  }
+                                },
+                                icon: const Icon(Icons.check_rounded),
+                                color: const Color(0xFF159C68),
                               ),
                             ],
                           ),
                         );
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _scrollToLetter(String letter, List<String> availableLetters) {
+    if (availableLetters.isEmpty) return;
+    var target = letter;
+    if (!availableLetters.contains(target)) {
+      final next = availableLetters.where((value) => value.compareTo(letter) >= 0);
+      target = next.isNotEmpty ? next.first : availableLetters.last;
+    }
+    final targetContext = _letterKeys[target]?.currentContext;
+    if (targetContext == null) return;
+    Scrollable.ensureVisible(
+      targetContext,
+      duration: const Duration(milliseconds: 180),
+      curve: Curves.easeOutCubic,
+      alignment: .08,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final auth = context.watch<AuthService>();
+    final friends = context.read<FriendService>();
+    final myUid = auth.user?.username;
+    final cachedFriends = friends.cachedFriends ?? <UserModel>[];
+
+    if (myUid != null &&
+        myUid.isNotEmpty &&
+        _favouriteOwner != null &&
+        _favouriteOwner != myUid.trim().toLowerCase() &&
+        !_favouriteLoading) {
+      _favouritesLoaded = false;
+      _favouriteOwner = null;
+      _favouriteUsernames = <String>{};
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _loadFavourites(myUid);
+      });
+    }
+
+    if (myUid == null || myUid.isEmpty) {
+      return const Center(child: Text('Not logged in'));
+    }
+
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final pageBackground = isDark
+        ? NovynTheme.pageBg(context)
+        : const Color(0xFFF3EFFA);
+
+    return Scaffold(
+      backgroundColor: pageBackground,
+      body: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(18, 10, 18, 6),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Contacts',
+                      style: TextStyle(
+                        fontFamily: 'PlusJakartaSans',
+                        fontSize: 30,
+                        height: 1.12,
+                        letterSpacing: -1,
+                        fontWeight: FontWeight.w800,
+                        color: Theme.of(context).colorScheme.onSurface,
+                      ),
+                    ),
+                  ),
+                  NovynIconButton(
+                    icon: Icons.person_add_alt_1_rounded,
+                    size: 46,
+                    radius: 17,
+                    iconSize: 21,
+                    onTap: () => _openDiscoverPeople(myUid),
+                  ),
+                  const SizedBox(width: 8),
+                  PopupMenuButton<String>(
+                    tooltip: 'Contact options',
+                    position: PopupMenuPosition.under,
+                    offset: const Offset(0, 10),
+                    elevation: 12,
+                    color: Theme.of(context).colorScheme.surface,
+                    surfaceTintColor: Colors.transparent,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                    onSelected: (value) {
+                      if (value == 'requests') {
+                        _showFriendRequests(myUid, friends);
+                      } else if (value == 'invite') {
+                        _shareInvite(myUid);
+                      } else if (value == 'discover') {
+                        _openDiscoverPeople(myUid);
                       }
-                      return _FriendCard(
-                        user: filtered[i - 1],
-                        myUid: myUid,
-                        friendService: friends,
-                      );
                     },
+                    itemBuilder: (_) => const [
+                      PopupMenuItem(
+                        value: 'requests',
+                        child: Text('Friend requests'),
+                      ),
+                      PopupMenuItem(
+                        value: 'invite',
+                        child: Text('Invite friends'),
+                      ),
+                      PopupMenuItem(
+                        value: 'discover',
+                        child: Text('Find people'),
+                      ),
+                    ],
+                    child: Container(
+                      width: 46,
+                      height: 46,
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.surface,
+                        borderRadius: BorderRadius.circular(17),
+                      ),
+                      child: Icon(
+                        Icons.more_horiz_rounded,
+                        size: 23,
+                        color: Theme.of(context).colorScheme.onSurface,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            _buildSearch(),
+            Expanded(
+              child: StreamBuilder<List<UserModel>>(
+                stream: friends.friendsStream(myUid),
+                initialData: cachedFriends,
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting &&
+                      snapshot.data == null) {
+                    return ListView.builder(
+                      itemCount: 5,
+                      padding: const EdgeInsets.only(top: 10),
+                      itemBuilder: (_, __) => NovynShimmer.friendCard(),
+                    );
+                  }
+
+                  final all = List<UserModel>.from(snapshot.data ?? cachedFriends)
+                    ..sort((a, b) =>
+                        a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+                  final filtered = all.where((user) {
+                    final name = user.name.toLowerCase();
+                    final username = user.username.toLowerCase();
+                    if (_filter == 'Online' && !user.isOnline) return false;
+                    if (_filter == 'Favourites' &&
+                        !_favouriteUsernames.contains(username)) {
+                      return false;
+                    }
+                    if (_search.isNotEmpty &&
+                        !name.contains(_search) &&
+                        !username.contains(_search)) {
+                      return false;
+                    }
+                    return true;
+                  }).toList();
+
+                  return Column(
+                    children: [
+                      _buildFilters(all),
+                      Expanded(
+                        child: _buildContactsList(filtered, myUid, friends),
+                      ),
+                    ],
                   );
                 },
               ),
@@ -169,188 +490,295 @@ class _PeopleScreenState extends State<PeopleScreen> {
     );
   }
 
-  @override
-  void dispose() {
-    _scrollController.dispose();
-    super.dispose();
-  }
-
-  Widget _filterChip(String label, bool selected, VoidCallback onTap) {
+  Widget _buildSearch() {
     final theme = Theme.of(context);
-    final accent = theme.colorScheme.primary;
-    final dark = theme.brightness == Brightness.dark;
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(22),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-          decoration: BoxDecoration(
-            gradient: selected ? NovynGradients.selected(context) : null,
-            color: selected
-                ? null
-                : (dark ? const Color(0xFF171622) : Colors.white),
-            borderRadius: BorderRadius.circular(22),
-            border: Border.all(
-              color: selected
-                  ? accent.withValues(alpha: .7)
-                  : theme.colorScheme.outlineVariant.withValues(alpha: .7),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+      child: Container(
+        height: 48,
+        padding: const EdgeInsets.symmetric(horizontal: 17),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface,
+          borderRadius: BorderRadius.circular(24),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              Icons.search_rounded,
+              size: 21,
+              color: theme.colorScheme.onSurfaceVariant,
             ),
-            boxShadow: selected
-                ? [
-                    BoxShadow(
-                      color: accent.withValues(alpha: .22),
-                      blurRadius: 14,
-                      offset: const Offset(0, 5),
-                    ),
-                  ]
-                : null,
-          ),
-          child: Text(
-            label,
-            style: TextStyle(
-              fontFamily: 'PlusJakartaSans',
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              color: selected ? Colors.white : theme.colorScheme.onSurfaceVariant,
+            const SizedBox(width: 11),
+            Expanded(
+              child: TextField(
+                onChanged: (value) {
+                  setState(() => _search = value.trim().toLowerCase());
+                  if (_scrollController.hasClients) {
+                    _scrollController.jumpTo(0);
+                  }
+                },
+                style: TextStyle(
+                  fontFamily: 'PlusJakartaSans',
+                  fontSize: 14,
+                  color: theme.colorScheme.onSurface,
+                ),
+                decoration: InputDecoration(
+                  hintText: 'Contacts me dhundo',
+                  hintStyle: TextStyle(
+                    fontFamily: 'PlusJakartaSans',
+                    fontSize: 14,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                  filled: false,
+                  isDense: true,
+                  isCollapsed: true,
+                  contentPadding: EdgeInsets.zero,
+                  border: InputBorder.none,
+                  enabledBorder: InputBorder.none,
+                  focusedBorder: InputBorder.none,
+                ),
+              ),
             ),
-          ),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildEmpty() {
-    return const NovynEmptyState(
-      icon: Icons.people_outline_rounded,
-      title: 'No friends yet',
-      description: 'Find people to start chatting\nwith them',
+  Widget _buildFilters(List<UserModel> all) {
+    final theme = Theme.of(context);
+    final labels = <(String, String)>[
+      ('All', 'All · ${all.length}'),
+      ('Online', 'Online'),
+      ('Favourites', 'Favourites'),
+    ];
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
+      child: Row(
+        children: [
+          for (final item in labels)
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: GestureDetector(
+                onTap: () {
+                  setState(() => _filter = item.$1);
+                  if (_scrollController.hasClients) {
+                    _scrollController.jumpTo(0);
+                  }
+                },
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  curve: Curves.easeOutCubic,
+                  height: 38,
+                  padding: const EdgeInsets.symmetric(horizontal: 17),
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: _filter == item.$1
+                        ? theme.colorScheme.primary
+                        : theme.colorScheme.surface,
+                    borderRadius: BorderRadius.circular(22),
+                  ),
+                  child: Text(
+                    item.$2,
+                    style: TextStyle(
+                      fontFamily: 'PlusJakartaSans',
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: _filter == item.$1
+                          ? Colors.white
+                          : theme.colorScheme.onSurface,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
-}
 
-class _FriendCard extends StatelessWidget {
-  final UserModel user;
-  final String myUid;
-  final FriendService friendService;
+  Widget _buildContactsList(
+    List<UserModel> contacts,
+    String myUid,
+    FriendService service,
+  ) {
+    if (contacts.isEmpty) {
+      return ListView(
+        controller: _scrollController,
+        physics: const BouncingScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(16, 0, 18, 112),
+        children: [
+          _buildActionTiles(myUid, service),
+          const SizedBox(height: 34),
+          const NovynEmptyState(
+            icon: Icons.people_outline_rounded,
+            title: 'No contacts found',
+            description: 'Try another search or choose a different filter.',
+          ),
+        ],
+      );
+    }
 
-  const _FriendCard({
-    required this.user,
-    required this.myUid,
-    required this.friendService,
-  });
+    final grouped = <String, List<UserModel>>{};
+    for (final user in contacts) {
+      final name = user.name.trim();
+      final first = name.isEmpty ? '#' : name.substring(0, 1).toUpperCase();
+      final letter = RegExp(r'^[A-Z]$').hasMatch(first) ? first : '#';
+      grouped.putIfAbsent(letter, () => <UserModel>[]).add(user);
+    }
+    final letters = grouped.keys.toList()..sort();
+    final children = <Widget>[
+      _buildActionTiles(myUid, service),
+      Padding(
+        padding: const EdgeInsets.fromLTRB(8, 6, 22, 10),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                _search.isEmpty ? 'CONTACTS' : 'SEARCH RESULTS',
+                style: TextStyle(
+                  fontFamily: 'PlusJakartaSans',
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1.15,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+            Text(
+              '${contacts.length}',
+              style: TextStyle(
+                fontFamily: 'PlusJakartaSans',
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
+      ),
+    ];
 
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final accent = theme.colorScheme.primary;
-    final statusColor = user.isOnline
-        ? const Color(0xFF3DDC97)
-        : theme.colorScheme.onSurfaceVariant;
-
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: () => _openChat(context),
-        borderRadius: BorderRadius.circular(18),
-        child: Container(
-          margin: const EdgeInsets.symmetric(horizontal: 3),
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
-          decoration: BoxDecoration(
-            border: Border(
-              bottom: BorderSide(
-                color: theme.colorScheme.outlineVariant.withValues(alpha: .42),
+    for (final letter in letters) {
+      final key = _letterKeys.putIfAbsent(letter, () => GlobalKey());
+      final users = grouped[letter]!;
+      children.add(
+        Padding(
+          key: key,
+          padding: const EdgeInsets.fromLTRB(8, 2, 22, 8),
+          child: Text(
+            letter,
+            style: TextStyle(
+              fontFamily: 'PlusJakartaSans',
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ),
+      );
+      children.add(
+        Padding(
+          padding: const EdgeInsets.only(right: 18, bottom: 12),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(26),
+            child: Material(
+              color: Theme.of(context).colorScheme.surface,
+              child: Column(
+                children: [
+                  for (var index = 0; index < users.length; index++) ...[
+                    _ContactRow(
+                      user: users[index],
+                      isFavourite: _favouriteUsernames
+                          .contains(users[index].username.toLowerCase()),
+                      onFavourite: () => _toggleFavourite(users[index]),
+                      onOpenChat: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => ChatDetailScreen(peer: users[index]),
+                        ),
+                      ),
+                    ),
+                    if (index != users.length - 1)
+                      Divider(
+                        height: 1,
+                        thickness: 1,
+                        indent: 70,
+                        color: Theme.of(context).brightness == Brightness.dark
+                            ? Colors.white.withValues(alpha: .07)
+                            : const Color(0xFFF0ECF6),
+                      ),
+                  ],
+                ],
               ),
             ),
           ),
-          child: Row(
+        ),
+      );
+    }
+    children.add(const SizedBox(height: 112));
+
+    return Stack(
+      children: [
+        ListView(
+          controller: _scrollController,
+          physics: const BouncingScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(16, 0, 0, 8),
+          children: children,
+        ),
+        if (_search.isEmpty && _filter != 'Favourites' && letters.isNotEmpty)
+          Positioned(
+            right: 1,
+            top: 0,
+            bottom: 8,
+            width: 17,
+            child: _AlphabetRail(
+              letters: _alphabet,
+              available: letters.toSet(),
+              onSelected: (letter) => _scrollToLetter(letter, letters),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildActionTiles(String myUid, FriendService service) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(0, 0, 18, 12),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(24),
+        child: Material(
+          color: theme.colorScheme.surface,
+          child: Column(
             children: [
-              UserAvatar(
-                name: user.name,
-                photoUrl: user.photoUrl,
-                radius: 24,
-                showOnlineIndicator: true,
-                isOnline: user.isOnline,
-                presence: user.status,
+              StreamBuilder<int>(
+                stream: service.pendingRequestsCountStream(myUid),
+                builder: (context, snapshot) {
+                  final count = snapshot.data ?? 0;
+                  return _ContactActionTile(
+                    icon: Icons.person_add_alt_1_rounded,
+                    title: 'Friend requests',
+                    subtitle: 'Naye logon ne connect kiya',
+                    badge: count,
+                    onTap: () => _showFriendRequests(myUid, service),
+                  );
+                },
               ),
-              const SizedBox(width: 13),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      user.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontFamily: 'PlusJakartaSans',
-                        fontSize: 14.5,
-                        fontWeight: FontWeight.w800,
-                        color: theme.colorScheme.onSurface,
-                      ),
-                    ),
-                    const SizedBox(height: 5),
-                    Row(
-                      children: [
-                        Container(
-                          width: 7,
-                          height: 7,
-                          decoration: BoxDecoration(
-                            color: statusColor,
-                            shape: BoxShape.circle,
-                            boxShadow: user.isOnline
-                                ? [
-                                    BoxShadow(
-                                      color: statusColor.withValues(alpha: .35),
-                                      blurRadius: 7,
-                                      spreadRadius: 1,
-                                    ),
-                                  ]
-                                : null,
-                          ),
-                        ),
-                        const SizedBox(width: 7),
-                        Text(
-                          user.isOnline ? 'Online' : 'Offline',
-                          style: TextStyle(
-                            fontFamily: 'PlusJakartaSans',
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w600,
-                            color: statusColor,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          '· @${user.username}',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontFamily: 'PlusJakartaSans',
-                            fontSize: 11,
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
+              Divider(
+                height: 1,
+                thickness: 1,
+                indent: 70,
+                color: theme.brightness == Brightness.dark
+                    ? Colors.white.withValues(alpha: .07)
+                    : const Color(0xFFF0ECF6),
               ),
-              const SizedBox(width: 8),
-              Container(
-                width: 38,
-                height: 38,
-                decoration: BoxDecoration(
-                  color: accent.withValues(alpha: .10),
-                  borderRadius: BorderRadius.circular(13),
-                  border: Border.all(color: accent.withValues(alpha: .16)),
-                ),
-                child: Icon(
-                  Icons.chat_bubble_outline_rounded,
-                  size: 17,
-                  color: accent,
-                ),
+              _ContactActionTile(
+                icon: Icons.link_rounded,
+                title: 'Invite friends',
+                subtitle: 'Apna invite link share karo',
+                onTap: () => _shareInvite(myUid),
               ),
             ],
           ),
@@ -359,11 +787,326 @@ class _FriendCard extends StatelessWidget {
     );
   }
 
-  void _openChat(BuildContext context) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => ChatDetailScreen(peer: user)),
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+}
+
+class _ContactActionTile extends StatelessWidget {
+  const _ContactActionTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+    this.badge = 0,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+  final int badge;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final accent = theme.colorScheme.primary;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
+          child: Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: accent.withValues(alpha: .12),
+                  borderRadius: BorderRadius.circular(13),
+                ),
+                child: Icon(icon, size: 20, color: accent),
+              ),
+              const SizedBox(width: 13),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: TextStyle(
+                        fontFamily: 'PlusJakartaSans',
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                        color: theme.colorScheme.onSurface,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        fontFamily: 'PlusJakartaSans',
+                        fontSize: 11.5,
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (badge > 0) ...[
+                Container(
+                  constraints: const BoxConstraints(minWidth: 22, minHeight: 22),
+                  alignment: Alignment.center,
+                  padding: const EdgeInsets.symmetric(horizontal: 6),
+                  decoration: BoxDecoration(
+                    color: accent,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Text(
+                    '$badge',
+                    style: const TextStyle(
+                      fontFamily: 'PlusJakartaSans',
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+              ],
+              Icon(
+                Icons.chevron_right_rounded,
+                size: 21,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
 
+class _ContactRow extends StatelessWidget {
+  const _ContactRow({
+    required this.user,
+    required this.isFavourite,
+    required this.onFavourite,
+    required this.onOpenChat,
+  });
+
+  final UserModel user;
+  final bool isFavourite;
+  final VoidCallback onFavourite;
+  final VoidCallback onOpenChat;
+
+  static const _palette = <Color>[
+    Color(0xFF6D4CF5),
+    Color(0xFFC03F72),
+    Color(0xFF287A70),
+    Color(0xFFB85A0A),
+    Color(0xFF2865E8),
+    Color(0xFF8054C9),
+  ];
+
+  Color get _avatarColor {
+    final value = user.username.isNotEmpty ? user.username : user.name;
+    final seed = value.codeUnits.fold<int>(0, (sum, unit) => sum + unit);
+    return _palette[seed % _palette.length];
+  }
+
+  String _presenceLabel() {
+    if (user.isOnline) return 'Online';
+    final lastSeen = user.lastSeen;
+    if (lastSeen == null) return 'Last seen recently';
+    final diff = DateTime.now().difference(lastSeen);
+    if (diff.inMinutes < 60) {
+      return 'Last seen ${diff.inMinutes.clamp(1, 59)}m ago';
+    }
+    if (diff.inHours < 24) return 'Last seen ${diff.inHours}h ago';
+    if (diff.inDays == 1) return 'Last seen yesterday';
+    if (diff.inDays < 7) return 'Last seen ${diff.inDays}d ago';
+    return 'Offline';
+  }
+
+  Widget _avatar() {
+    final color = _avatarColor;
+    final first = user.name.trim().isEmpty
+        ? '?'
+        : user.name.trim().substring(0, 1).toUpperCase();
+
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        if (user.photoUrl.isNotEmpty)
+          UserAvatar(
+            name: user.name,
+            photoUrl: user.photoUrl,
+            radius: 26,
+          )
+        else
+          Container(
+            width: 52,
+            height: 52,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: color,
+              shape: BoxShape.circle,
+            ),
+            child: Text(
+              first,
+              style: const TextStyle(
+                fontFamily: 'PlusJakartaSans',
+                fontSize: 20,
+                fontWeight: FontWeight.w800,
+                color: Colors.white,
+              ),
+            ),
+          ),
+        if (user.isOnline)
+          Positioned(
+            right: -1,
+            bottom: -1,
+            child: Container(
+              width: 14,
+              height: 14,
+              decoration: BoxDecoration(
+                color: const Color(0xFF21C779),
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 2),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final statusColor = user.isOnline
+        ? const Color(0xFF288C59)
+        : theme.colorScheme.onSurfaceVariant;
+    return InkWell(
+      onTap: onOpenChat,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 11),
+        child: Row(
+          children: [
+            _avatar(),
+            const SizedBox(width: 13),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          user.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontFamily: 'PlusJakartaSans',
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                            color: theme.colorScheme.onSurface,
+                          ),
+                        ),
+                      ),
+                      if (isFavourite) ...[
+                        const SizedBox(width: 5),
+                        GestureDetector(
+                          onTap: onFavourite,
+                          child: const Icon(
+                            Icons.star_rounded,
+                            size: 15,
+                            color: Color(0xFFB36A24),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    _presenceLabel(),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontFamily: 'PlusJakartaSans',
+                      fontSize: 12,
+                      fontWeight: user.isOnline ? FontWeight.w700 : FontWeight.w500,
+                      color: statusColor,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 10),
+            Material(
+              color: theme.colorScheme.primary.withValues(alpha: .10),
+              shape: const CircleBorder(),
+              child: InkWell(
+                onTap: onOpenChat,
+                customBorder: const CircleBorder(),
+                child: SizedBox(
+                  width: 44,
+                  height: 44,
+                  child: Icon(
+                    Icons.chat_bubble_outline_rounded,
+                    size: 19,
+                    color: theme.colorScheme.primary,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _AlphabetRail extends StatelessWidget {
+  const _AlphabetRail({
+    required this.letters,
+    required this.available,
+    required this.onSelected,
+  });
+
+  final List<String> letters;
+  final Set<String> available;
+  final ValueChanged<String> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        for (final letter in letters)
+          Expanded(
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => onSelected(letter),
+              child: Center(
+                child: Text(
+                  letter,
+                  style: TextStyle(
+                    fontFamily: 'PlusJakartaSans',
+                    fontSize: 8.5,
+                    height: 1,
+                    fontWeight: FontWeight.w800,
+                    color: available.contains(letter)
+                        ? Theme.of(context).colorScheme.primary
+                        : Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: .42),
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
