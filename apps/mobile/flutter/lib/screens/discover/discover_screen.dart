@@ -66,7 +66,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                 return NovynHeader(
                   title: 'Discover',
                   titleSize: 34,
-                  titleWeight: FontWeight.w700,
+                  titleWeight: FontWeight.w600,
                   actions: [
                     PopupMenuButton<String>(
                       tooltip: 'Discover options',
@@ -79,7 +79,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (_) => DiscoverPeopleScreen(myUid: myUid),
+                              builder: (_) => DiscoverPeopleScreen(myUid: myUid, initialTab: 2),
                             ),
                           );
                         } else if (value == 'refresh') {
@@ -379,7 +379,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
           Text(
             'No one online yet',
             textAlign: TextAlign.center,
-            style: NovynText.display(26, color: theme.colorScheme.onSurface),
+            style: NovynText.display(25, weight: FontWeight.w600, color: theme.colorScheme.onSurface),
           ),
           const SizedBox(height: 10),
           ConstrainedBox(
@@ -402,7 +402,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                 );
               },
               icon: const Icon(Icons.person_add_alt_1_rounded, size: 20),
-              label: Text('Invite a friend', style: NovynText.body(15, weight: FontWeight.w800, color: Colors.white)),
+              label: Text('Invite a friend', style: NovynText.body(15, weight: FontWeight.w600, color: Colors.white)),
               style: FilledButton.styleFrom(
                 backgroundColor: theme.colorScheme.primary,
                 foregroundColor: Colors.white,
@@ -462,7 +462,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
         children: [
           Icon(Icons.cloud_off_rounded, size: 34, color: theme.colorScheme.onSurfaceVariant),
           const SizedBox(height: 10),
-          Text(title, style: NovynText.body(14, weight: FontWeight.w800, color: theme.colorScheme.onSurface)),
+          Text(title, style: NovynText.body(14, weight: FontWeight.w600, color: theme.colorScheme.onSurface)),
           const SizedBox(height: 5),
           Text(message, textAlign: TextAlign.center, style: NovynText.body(12, color: theme.colorScheme.onSurfaceVariant)),
           const SizedBox(height: 14),
@@ -880,7 +880,7 @@ class _DiscoverPersonRow extends StatelessWidget {
                     user.name,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: NovynText.body(17, weight: FontWeight.w800, color: scheme.onSurface),
+                    style: NovynText.body(17, weight: FontWeight.w600, color: scheme.onSurface),
                   ),
                   const SizedBox(height: 4),
                   Text(
@@ -969,7 +969,7 @@ class _DiscoverEmptyAction extends StatelessWidget {
                 title,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: NovynText.body(14, weight: FontWeight.w800, color: scheme.onSurface),
+                style: NovynText.body(14, weight: FontWeight.w600, color: scheme.onSurface),
               ),
               const SizedBox(height: 3),
               Text(

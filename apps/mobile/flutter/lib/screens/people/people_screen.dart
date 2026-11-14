@@ -228,7 +228,7 @@ class _PeopleScreenState extends State<PeopleScreen> {
                         fontSize: 30,
                         height: 1.12,
                         letterSpacing: -1,
-                        fontWeight: FontWeight.w700,
+                        fontWeight: FontWeight.w600,
                         color: Theme.of(context).colorScheme.onSurface,
                       ),
                     ),
@@ -404,48 +404,54 @@ class _PeopleScreenState extends State<PeopleScreen> {
       ('Online', 'Online'),
       ('Favourites', 'Favourites'),
     ];
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.fromLTRB(8, 4, 16, 10),
-      child: Row(
-        children: [
-          for (final item in labels)
-            Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: GestureDetector(
-                onTap: () {
-                  setState(() => _filter = item.$1);
-                  if (_scrollController.hasClients) {
-                    _scrollController.jumpTo(0);
-                  }
-                },
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 180),
-                  curve: Curves.easeOutCubic,
-                  height: 38,
-                  padding: const EdgeInsets.symmetric(horizontal: 14),
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: _filter == item.$1
-                        ? theme.colorScheme.primary
-                        : theme.colorScheme.surface,
-                    borderRadius: BorderRadius.circular(22),
-                  ),
-                  child: Text(
-                    item.$2,
-                    style: TextStyle(
-                      fontFamily: 'PlusJakartaSans',
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: _filter == item.$1
-                          ? Colors.white
-                          : theme.colorScheme.onSurface,
+    return LayoutBuilder(
+      builder: (context, constraints) => SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(vertical: 4).copyWith(bottom: 10),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minWidth: constraints.maxWidth),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              for (final item in labels)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: GestureDetector(
+                    onTap: () {
+                      setState(() => _filter = item.$1);
+                      if (_scrollController.hasClients) {
+                        _scrollController.jumpTo(0);
+                      }
+                    },
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 180),
+                      curve: Curves.easeOutCubic,
+                      height: 38,
+                      padding: const EdgeInsets.symmetric(horizontal: 14),
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: _filter == item.$1
+                            ? theme.colorScheme.primary
+                            : theme.colorScheme.surface,
+                        borderRadius: BorderRadius.circular(22),
+                      ),
+                      child: Text(
+                        item.$2,
+                        style: TextStyle(
+                          fontFamily: 'PlusJakartaSans',
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                          color: _filter == item.$1
+                              ? Colors.white
+                              : theme.colorScheme.onSurface,
+                        ),
+                      ),
                     ),
                   ),
                 ),
-              ),
-            ),
-        ],
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -770,6 +776,8 @@ class _ContactRow extends StatelessWidget {
     return _palette[seed % _palette.length];
   }
 
+  String get _displayName => user.name.trim().isNotEmpty ? user.name.trim() : user.username.trim();
+
   String _presenceLabel() {
     if (user.isOnline) return 'Online';
     final lastSeen = user.lastSeen;
@@ -785,54 +793,14 @@ class _ContactRow extends StatelessWidget {
   }
 
   Widget _avatar() {
-    final color = _avatarColor;
-    final first = user.name.trim().isEmpty
-        ? '?'
-        : user.name.trim().substring(0, 1).toUpperCase();
-
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        if (user.photoUrl.isNotEmpty)
-          UserAvatar(
-            name: user.name,
-            photoUrl: user.photoUrl,
-            radius: 26,
-          )
-        else
-          Container(
-            width: 52,
-            height: 52,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: color,
-              shape: BoxShape.circle,
-            ),
-            child: Text(
-              first,
-              style: const TextStyle(
-                fontFamily: 'PlusJakartaSans',
-                fontSize: 20,
-                fontWeight: FontWeight.w800,
-                color: Colors.white,
-              ),
-            ),
-          ),
-        if (user.isOnline)
-          Positioned(
-            right: -1,
-            bottom: -1,
-            child: Container(
-              width: 14,
-              height: 14,
-              decoration: BoxDecoration(
-                color: const Color(0xFF21C779),
-                shape: BoxShape.circle,
-                border: Border.all(color: Colors.white, width: 2),
-              ),
-            ),
-          ),
-      ],
+    return UserAvatar(
+      name: _displayName.isNotEmpty ? _displayName : '?',
+      photoUrl: user.photoUrl.trim(),
+      radius: 26,
+      fallbackColor: _avatarColor,
+      showOnlineIndicator: user.isOnline,
+      isOnline: user.isOnline,
+      presence: user.status,
     );
   }
 
@@ -858,13 +826,13 @@ class _ContactRow extends StatelessWidget {
                     children: [
                       Flexible(
                         child: Text(
-                          user.name,
+                          _displayName,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             fontFamily: 'PlusJakartaSans',
                             fontSize: 15,
-                            fontWeight: FontWeight.w600,
+                            fontWeight: FontWeight.w500,
                             color: theme.colorScheme.onSurface,
                           ),
                         ),
@@ -890,7 +858,7 @@ class _ContactRow extends StatelessWidget {
                     style: TextStyle(
                       fontFamily: 'PlusJakartaSans',
                       fontSize: 12,
-                      fontWeight: user.isOnline ? FontWeight.w600 : FontWeight.w500,
+                      fontWeight: FontWeight.w400,
                       color: statusColor,
                     ),
                   ),
@@ -949,7 +917,7 @@ class _AlphabetRail extends StatelessWidget {
                     fontFamily: 'PlusJakartaSans',
                     fontSize: 8.5,
                     height: 1,
-                    fontWeight: FontWeight.w700,
+                    fontWeight: FontWeight.w600,
                     color: available.contains(letter)
                         ? Theme.of(context).colorScheme.primary
                         : Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: .42),

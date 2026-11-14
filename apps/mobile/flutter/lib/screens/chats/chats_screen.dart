@@ -946,12 +946,24 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
 
     final tileTopLeft =
         tileBox.localToGlobal(Offset.zero, ancestor: overlayBox);
-    final tileBottomRight = tileBox.localToGlobal(
-      tileBox.size.bottomRight(Offset.zero),
-      ancestor: overlayBox,
+    final tileCenterY = tileTopLeft.dy + tileBox.size.height / 2;
+    final menuHeight = (overlayBox.size.height - 24)
+        .clamp(240.0, 460.0)
+        .toDouble();
+    final maxMenuTop = (overlayBox.size.height - menuHeight - 12)
+        .clamp(12.0, double.infinity)
+        .toDouble();
+    final menuTop = (tileCenterY - menuHeight / 2)
+        .clamp(12.0, maxMenuTop)
+        .toDouble();
+    final anchorRect = Rect.fromLTWH(
+      overlayBox.size.width - 8,
+      menuTop,
+      1,
+      1,
     );
     final position = RelativeRect.fromRect(
-      Rect.fromPoints(tileTopLeft, tileBottomRight),
+      anchorRect,
       Offset.zero & overlayBox.size,
     );
 
@@ -990,6 +1002,12 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
     final action = await showMenu<String>(
       context: context,
       position: position,
+      popUpAnimationStyle: const AnimationStyle(
+        duration: Duration(milliseconds: 180),
+        reverseDuration: Duration(milliseconds: 130),
+        curve: Curves.easeOutCubic,
+        reverseCurve: Curves.easeInCubic,
+      ),
       elevation: 14,
       color: theme.brightness == Brightness.dark
           ? const Color(0xFF211D30)

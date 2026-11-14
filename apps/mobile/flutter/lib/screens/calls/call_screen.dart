@@ -771,7 +771,7 @@ class _CallScreenState extends State<CallScreen>
                     const Spacer(),
                     Column(
                       children: [
-                        Text(widget.peer.name, style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w800)),
+                        Text(widget.peer.name, style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w600)),
                         const SizedBox(height: 3),
                         ValueListenableBuilder<int>(
                           valueListenable: _seconds,
@@ -883,7 +883,7 @@ class _CallScreenState extends State<CallScreen>
                     _CallGlassButton(icon: Icons.keyboard_arrow_down_rounded, onTap: _minimizeCall),
                     const Spacer(),
                     Column(children: [
-                      Text(widget.peer.name, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800)),
+                      Text(widget.peer.name, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600)),
                       const SizedBox(height: 4),
                       ValueListenableBuilder<int>(
                         valueListenable: _seconds,
@@ -915,7 +915,7 @@ class _CallScreenState extends State<CallScreen>
                   ]),
                 ),
                 const SizedBox(height: 28),
-                Text(widget.peer.name, style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w800, letterSpacing: -.6)),
+                Text(widget.peer.name, style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w600, letterSpacing: -.6)),
                 const SizedBox(height: 9),
                 ValueListenableBuilder<int>(
                   valueListenable: _seconds,
@@ -1117,7 +1117,10 @@ class _CallScreenState extends State<CallScreen>
   }
 
   Widget _buildAudioRouteSelector() {
-    final routes = _audioRoutes;
+    final routes = _audioRoutes
+        .where((route) => route['kind'] == 'bluetooth')
+        .toList();
+    if (routes.isEmpty) return const SizedBox.shrink();
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
@@ -1233,17 +1236,22 @@ class _CallButton extends StatelessWidget {
   final VoidCallback onTap;
 
   const _CallButton({
-    required this.icon, required this.label,
-    required this.color, required this.onTap,
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Column(
-        children: [
-          Container(
+    return Tooltip(
+      message: label,
+      child: Semantics(
+        button: true,
+        label: label,
+        child: GestureDetector(
+          onTap: onTap,
+          child: Container(
             width: 72,
             height: 72,
             decoration: BoxDecoration(
@@ -1251,25 +1259,15 @@ class _CallButton extends StatelessWidget {
               shape: BoxShape.circle,
               boxShadow: [
                 BoxShadow(
-                  color: color.withValues(alpha: 0.45),
-                  blurRadius: 24,
-                  offset: const Offset(0, 8),
+                  color: color.withValues(alpha: 0.38),
+                  blurRadius: 20,
+                  offset: const Offset(0, 7),
                 ),
               ],
             ),
             child: Icon(icon, color: Colors.white, size: 32),
           ),
-          const SizedBox(height: 12),
-          Text(
-            label,
-            style: const TextStyle(
-              fontFamily: 'PlusJakartaSans',
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
-              color: Colors.white60,
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -1293,19 +1291,25 @@ class _ToggleButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final background = active
+        ? Colors.white.withValues(alpha: 0.92)
+        : Colors.white.withValues(alpha: 0.1);
+    final foreground = active ? const Color(0xFF1A1D2E) : Colors.white;
     return Opacity(
       opacity: disabled ? 0.35 : 1.0,
-      child: GestureDetector(
-        onTap: disabled ? null : onTap,
-        child: Column(
-          children: [
-            Container(
+      child: Tooltip(
+        message: label,
+        child: Semantics(
+          button: true,
+          enabled: !disabled,
+          label: label,
+          child: GestureDetector(
+            onTap: disabled ? null : onTap,
+            child: Container(
               width: 60,
               height: 60,
               decoration: BoxDecoration(
-                color: active
-                    ? Colors.white.withValues(alpha: 0.92)
-                    : Colors.white.withValues(alpha: 0.1),
+                color: background,
                 shape: BoxShape.circle,
                 border: Border.all(
                   color: active
@@ -1314,23 +1318,9 @@ class _ToggleButton extends StatelessWidget {
                   width: 1,
                 ),
               ),
-              child: Icon(
-                icon,
-                color: active ? const Color(0xFF1A1D2E) : Colors.white,
-                size: 26,
-              ),
+              child: Icon(icon, color: foreground, size: 26),
             ),
-            const SizedBox(height: 8),
-            Text(
-              label,
-              style: const TextStyle(
-                fontFamily: 'PlusJakartaSans',
-                fontSize: 11,
-                fontWeight: FontWeight.w500,
-                color: Colors.white54,
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -1460,12 +1450,12 @@ class _CallMiniWindowState extends State<_CallMiniWindow> {
       builder: (context, constraints) {
         final availableWidth =
             (constraints.maxWidth - 16).clamp(1.0, double.infinity).toDouble();
-        final width = (widget.isVideo ? 204.0 : 218.0)
+        final width = (widget.isVideo ? 204.0 : 300.0)
             .clamp(1.0, availableWidth)
             .toDouble();
         final height = widget.isVideo
             ? (width * 1.36).clamp(150.0, 278.0).toDouble()
-            : 142.0;
+            : 112.0;
         final maxX = (constraints.maxWidth - width - 10)
             .clamp(0.0, double.infinity)
             .toDouble();
@@ -1562,7 +1552,7 @@ class _CallMiniWindowState extends State<_CallMiniWindow> {
                   widget.peer.name,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700),
+                  style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
                 ),
               ),
               ValueListenableBuilder<int>(
@@ -1637,17 +1627,17 @@ class _CallMiniWindowState extends State<_CallMiniWindow> {
   }
 
   Widget _buildVoiceMini() {
-    final actionSize = MediaQuery.of(context).size.width < 260 ? 24.0 : 34.0;
+    final actionSize = MediaQuery.sizeOf(context).width < 360 ? 28.0 : 30.0;
     return Padding(
-      padding: const EdgeInsets.all(10),
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 8),
       child: Row(
         children: [
           UserAvatar(
             name: widget.peer.name,
             photoUrl: widget.peer.photoUrl,
-            radius: 25,
+            radius: 21,
           ),
-          const SizedBox(width: 9),
+          const SizedBox(width: 8),
           Expanded(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -1656,20 +1646,25 @@ class _CallMiniWindowState extends State<_CallMiniWindow> {
                 Text(
                   widget.peer.name,
                   maxLines: 1,
+                  softWrap: false,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700),
+                  style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
                 ),
-                const SizedBox(height: 3),
+                const SizedBox(height: 4),
                 ValueListenableBuilder<int>(
                   valueListenable: widget.seconds,
                   builder: (_, secs, __) => Text(
                     widget.state == CallState.connected ? _format(secs) : 'Calling…',
-                    style: const TextStyle(color: Colors.white60, fontSize: 10),
+                    maxLines: 1,
+                    softWrap: false,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: Colors.white60, fontSize: 10.5),
                   ),
                 ),
               ],
             ),
           ),
+          const SizedBox(width: 6),
           _PipAction(icon: widget.muted ? Icons.mic_off_rounded : Icons.mic_rounded, onTap: widget.onToggleMute, size: actionSize),
           const SizedBox(width: 3),
           _PipAction(icon: widget.speakerOn ? Icons.volume_up_rounded : Icons.volume_off_rounded, onTap: widget.onToggleSpeaker, size: actionSize),

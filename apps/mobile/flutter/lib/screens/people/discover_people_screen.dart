@@ -22,6 +22,7 @@ class _DiscoverPeopleScreenState extends State<DiscoverPeopleScreen> {
   late int _activeTab;
   final TextEditingController _usernameController = TextEditingController();
   final LayerLink _usernameFieldLink = LayerLink();
+  final GlobalKey _usernameFieldKey = GlobalKey();
   OverlayEntry? _usernameSuggestionsOverlay;
   Timer? _usernameSearchDebounce;
   List<FriendSearchResult> _usernameSuggestions = [];
@@ -133,14 +134,17 @@ class _DiscoverPeopleScreenState extends State<DiscoverPeopleScreen> {
     _usernameSuggestionsOverlay = OverlayEntry(
       builder: (overlayContext) {
         final theme = Theme.of(context);
-        final width = MediaQuery.sizeOf(overlayContext).width - 40;
+        final fieldObject = _usernameFieldKey.currentContext?.findRenderObject();
+        final width = fieldObject is RenderBox && fieldObject.hasSize
+            ? fieldObject.size.width
+            : MediaQuery.sizeOf(overlayContext).width - 80;
         return Stack(
           children: [
             CompositedTransformFollower(
               link: _usernameFieldLink,
               showWhenUnlinked: false,
-              targetAnchor: Alignment.bottomLeft,
-              followerAnchor: Alignment.topLeft,
+              targetAnchor: Alignment.bottomCenter,
+              followerAnchor: Alignment.topCenter,
               offset: const Offset(0, 7),
               child: Material(
                 color: theme.colorScheme.surface,
@@ -241,30 +245,37 @@ class _DiscoverPeopleScreenState extends State<DiscoverPeopleScreen> {
     final status = _requestedUsernameKeys.contains(key)
         ? 'sent'
         : result.requestStatus;
-    final canAdd = result.canRequest &&
-        status == 'none' &&
-        !_sendingRequest;
+    final canAdd = result.canRequest && status == 'none' && !_sendingRequest;
+    final canCancel = status == 'sent' && !_sendingRequest;
     final statusLabel = switch (status) {
-      'sent' => 'Requested',
+      'sent' => 'Request sent',
       'incoming' => 'Check requests',
       'friend' => 'Friends',
       _ => result.canRequest ? '' : 'Unavailable',
     };
     final actionIcon = canAdd
         ? Icons.person_add_alt_1_rounded
-        : status == 'sent' || status == 'friend'
-            ? Icons.check_circle_rounded
-            : status == 'incoming'
-                ? Icons.mark_email_unread_rounded
-                : Icons.lock_outline_rounded;
+        : canCancel
+            ? Icons.close_rounded
+            : status == 'friend'
+                ? Icons.check_circle_rounded
+                : status == 'incoming'
+                    ? Icons.mark_email_unread_rounded
+                    : Icons.lock_outline_rounded;
+    final theme = Theme.of(context);
+    final actionColor = canAdd
+        ? theme.colorScheme.primary
+        : canCancel
+            ? theme.colorScheme.error
+            : theme.colorScheme.onSurfaceVariant;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
       child: Row(
         children: [
           UserAvatar(
-            name: user.name,
-            photoUrl: user.photoUrl,
+            name: user.name.trim().isNotEmpty ? user.name.trim() : user.username,
+            photoUrl: user.photoUrl.trim(),
             radius: 21,
             showOnlineIndicator: true,
             isOnline: user.isOnline,
@@ -276,63 +287,37 @@ class _DiscoverPeopleScreenState extends State<DiscoverPeopleScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  user.name,
+                  user.name.trim().isNotEmpty ? user.name.trim() : user.username,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: NovynText.body(
-                    13,
-                    weight: FontWeight.w700,
-                    color: Theme.of(context).colorScheme.onSurface,
-                  ),
+                  style: NovynText.body(13, weight: FontWeight.w600, color: theme.colorScheme.onSurface),
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  '@${user.username}',
+                  statusLabel.isEmpty ? '@${user.username}' : '@${user.username} · $statusLabel',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: NovynText.body(
-                    11,
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
+                  style: NovynText.body(11, color: theme.colorScheme.onSurfaceVariant),
                 ),
               ],
             ),
           ),
-          if (statusLabel.isNotEmpty && !canAdd)
-            Padding(
-              padding: const EdgeInsets.only(right: 4),
-              child: Text(
-                statusLabel,
-                style: NovynText.body(
-                  10.5,
-                  weight: FontWeight.w700,
-                  color: status == 'sent' || status == 'friend'
-                      ? themeOrPrimary(context)
-                      : Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ),
+          const SizedBox(width: 8),
           Material(
             color: canAdd
-                ? Theme.of(context).colorScheme.primary.withValues(alpha: .12)
-                : Theme.of(context).colorScheme.surfaceContainerHighest,
+                ? theme.colorScheme.primary.withValues(alpha: .12)
+                : canCancel
+                    ? theme.colorScheme.error.withValues(alpha: .12)
+                    : theme.colorScheme.surfaceContainerHighest,
             borderRadius: BorderRadius.circular(12),
             child: InkWell(
               onTap: canAdd
                   ? () => _sendFriendRequestTo(context.read<FriendService>(), user)
-                  : null,
+                  : canCancel
+                      ? () => _cancelSentFriendRequest(context.read<FriendService>(), user)
+                      : null,
               borderRadius: BorderRadius.circular(12),
-              child: SizedBox(
-                width: 40,
-                height: 40,
-                child: Icon(
-                  actionIcon,
-                  size: 19,
-                  color: canAdd
-                      ? Theme.of(context).colorScheme.primary
-                      : Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-              ),
+              child: SizedBox(width: 40, height: 40, child: Icon(actionIcon, size: 19, color: actionColor)),
             ),
           ),
         ],
@@ -370,7 +355,39 @@ class _DiscoverPeopleScreenState extends State<DiscoverPeopleScreen> {
           : 'Could not send request to @${user.username}. Please try again.';
       _message(message);
     } finally {
-      if (mounted) setState(() => _sendingRequest = false);
+      if (mounted) {
+        setState(() => _sendingRequest = false);
+        _showUsernameSuggestions();
+      }
+    }
+  }
+
+  Future<void> _cancelSentFriendRequest(FriendService service, UserModel user) async {
+    if (_sendingRequest) return;
+    setState(() => _sendingRequest = true);
+    try {
+      await service.cancelSentRequest(user.username);
+      if (!mounted) return;
+      final key = user.username.toLowerCase();
+      setState(() {
+        _requestedUsernameKeys.remove(key);
+        _usernameSuggestions = _usernameSuggestions.map((result) {
+          if (result.user.username.toLowerCase() != key) return result;
+          return FriendSearchResult(
+            user: result.user,
+            requestStatus: 'none',
+            canRequest: true,
+          );
+        }).toList();
+      });
+      _message('Request to @${user.username} cancelled.');
+    } catch (_) {
+      if (mounted) _message('Could not cancel request to @${user.username}.');
+    } finally {
+      if (mounted) {
+        setState(() => _sendingRequest = false);
+        _showUsernameSuggestions();
+      }
     }
   }
 
@@ -550,6 +567,7 @@ class _DiscoverPeopleScreenState extends State<DiscoverPeopleScreen> {
               ]),
               const SizedBox(height: 20),
               CompositedTransformTarget(
+                key: _usernameFieldKey,
                 link: _usernameFieldLink,
                 child: TextField(
                   controller: _usernameController,

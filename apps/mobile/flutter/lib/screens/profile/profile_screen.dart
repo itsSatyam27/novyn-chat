@@ -1943,35 +1943,27 @@ class _NovynSettingsProfileCardState extends State<_NovynSettingsProfileCard> {
         border: Border.all(color: theme.colorScheme.outlineVariant),
       ),
       child: AnimatedSize(
-        duration: const Duration(milliseconds: 360),
-        curve: Curves.easeInOutQuart,
+        duration: const Duration(milliseconds: 210),
+        curve: Curves.easeOutCubic,
         alignment: Alignment.topCenter,
         child: AnimatedSwitcher(
-          duration: const Duration(milliseconds: 300),
-          reverseDuration: const Duration(milliseconds: 240),
+          duration: const Duration(milliseconds: 190),
+          reverseDuration: const Duration(milliseconds: 140),
           switchInCurve: Curves.easeOutCubic,
           switchOutCurve: Curves.easeInCubic,
           transitionBuilder: (child, animation) {
+            final curved = CurvedAnimation(
+              parent: animation,
+              curve: Curves.easeOutCubic,
+              reverseCurve: Curves.easeInCubic,
+            );
             final slide = Tween<Offset>(
-              begin: const Offset(0, .035),
+              begin: const Offset(0, .02),
               end: Offset.zero,
-            ).animate(CurvedAnimation(
-              parent: animation,
-              curve: Curves.easeOutCubic,
-            ));
-            final scale = Tween<double>(
-              begin: .985,
-              end: 1,
-            ).animate(CurvedAnimation(
-              parent: animation,
-              curve: Curves.easeOutCubic,
-            ));
+            ).animate(curved);
             return FadeTransition(
-              opacity: animation,
-              child: SlideTransition(
-                position: slide,
-                child: ScaleTransition(scale: scale, child: child),
-              ),
+              opacity: curved,
+              child: SlideTransition(position: slide, child: child),
             );
           },
           child: _editing ? _buildEditor(theme) : _buildSummary(theme),
@@ -2081,71 +2073,106 @@ class _NovynSettingsProfileCardState extends State<_NovynSettingsProfileCard> {
     key: const ValueKey('profile-inline-editor'),
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
-      Row(children: [
-        Stack(children: [
-          ProfileAvatarWithOrbit(
-            photoUrl: widget.photoUrl,
-            localFile: _pendingPhoto,
-            displayName: _nameController.text.trim().isEmpty ? widget.displayName : _nameController.text.trim(),
-            status: widget.status,
-          ),
-          Positioned(
-            right: 0,
-            bottom: 0,
-            child: Material(
-              color: theme.colorScheme.primary,
-              shape: const CircleBorder(),
-              child: InkWell(
-                customBorder: const CircleBorder(),
-                onTap: _saving ? null : _choosePhoto,
-                child: const Padding(
-                  padding: EdgeInsets.all(8),
-                  child: Icon(Icons.camera_alt_rounded, color: Colors.white, size: 16),
+      Row(
+        children: [
+          SizedBox(
+            width: 76,
+            height: 76,
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                ProfileAvatarWithOrbit(
+                  photoUrl: widget.photoUrl,
+                  localFile: _pendingPhoto,
+                  displayName: _nameController.text.trim().isEmpty
+                      ? widget.displayName
+                      : _nameController.text.trim(),
+                  status: widget.status,
                 ),
-              ),
+                Positioned(
+                  right: -2,
+                  bottom: -2,
+                  child: Material(
+                    color: theme.colorScheme.primary,
+                    shape: const CircleBorder(),
+                    child: InkWell(
+                      customBorder: const CircleBorder(),
+                      onTap: _saving ? null : _choosePhoto,
+                      child: const Padding(
+                        padding: EdgeInsets.all(7),
+                        child: Icon(Icons.camera_alt_rounded, color: Colors.white, size: 15),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
-        ]),
-        const SizedBox(width: 14),
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('Edit profile', style: NovynText.display(18, weight: FontWeight.w800, color: theme.colorScheme.onSurface)),
-          const SizedBox(height: 4),
-          Text('Update your photo and details', style: NovynText.body(12, color: theme.colorScheme.onSurfaceVariant)),
-          const SizedBox(height: 5),
-          Text('@${widget.username}', style: NovynText.body(12, weight: FontWeight.w700, color: theme.colorScheme.primary)),
-        ])),
-      ]),
-      const SizedBox(height: 18),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Edit profile',
+                  style: NovynText.display(17, weight: FontWeight.w700, color: theme.colorScheme.onSurface),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Update your profile details',
+                  style: NovynText.body(12, color: theme.colorScheme.onSurfaceVariant),
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  '@${widget.username}',
+                  style: NovynText.body(11.5, weight: FontWeight.w600, color: theme.colorScheme.primary),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+      const SizedBox(height: 16),
+      Divider(color: theme.colorScheme.outlineVariant.withValues(alpha: .65), height: 1),
+      const SizedBox(height: 15),
+      Text(
+        'PROFILE DETAILS',
+        style: NovynText.body(10.5, weight: FontWeight.w600, color: theme.colorScheme.onSurfaceVariant)
+            .copyWith(letterSpacing: 1.0),
+      ),
+      const SizedBox(height: 10),
       _inlineField(theme, 'Full name', _nameController, maxLines: 1),
       const SizedBox(height: 10),
       _inlineField(theme, 'Bio', _bioController, maxLines: 3),
-      const SizedBox(height: 16),
-      Row(children: [
-        Expanded(
-          child: OutlinedButton(
-            onPressed: _saving ? null : _cancelEdit,
-            style: OutlinedButton.styleFrom(
-              minimumSize: const Size.fromHeight(46),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      const SizedBox(height: 14),
+      Row(
+        children: [
+          Expanded(
+            child: OutlinedButton(
+              onPressed: _saving ? null : _cancelEdit,
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size.fromHeight(44),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              ),
+              child: const Text('Cancel'),
             ),
-            child: const Text('Cancel'),
           ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: FilledButton(
-            onPressed: (!_hasChanges || _saving) ? null : _save,
-            style: FilledButton.styleFrom(
-              minimumSize: const Size.fromHeight(46),
-              disabledBackgroundColor: theme.colorScheme.primary.withValues(alpha: .22),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: FilledButton(
+              onPressed: (!_hasChanges || _saving) ? null : _save,
+              style: FilledButton.styleFrom(
+                minimumSize: const Size.fromHeight(44),
+                disabledBackgroundColor: theme.colorScheme.primary.withValues(alpha: .22),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              ),
+              child: _saving
+                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : const Text('Save changes', style: TextStyle(fontWeight: FontWeight.w600)),
             ),
-            child: _saving
-              ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-              : const Text('Save changes', style: TextStyle(fontWeight: FontWeight.w800)),
           ),
-        ),
-      ]),
+        ],
+      ),
     ],
   );
 
@@ -2212,45 +2239,44 @@ class _SettingsQuickToggle extends StatelessWidget {
           child: Semantics(
             label: title,
             child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                width: 34,
-                height: 34,
-                decoration: BoxDecoration(
-                  color: accent.withValues(alpha: value ? (dark ? .24 : .14) : .08),
-                  borderRadius: BorderRadius.circular(11),
-                ),
-                child: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 200),
-                  transitionBuilder: (child, animation) => ScaleTransition(
-                    scale: animation,
-                    child: FadeTransition(opacity: animation, child: child),
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(
+                    color: accent.withValues(alpha: value ? (dark ? .24 : .14) : .08),
+                    borderRadius: BorderRadius.circular(11),
                   ),
-                  child: Icon(
-                    value ? activeIcon : inactiveIcon,
-                    key: ValueKey(value),
-                    size: 18,
-                    color: value ? accent : scheme.onSurfaceVariant,
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 170),
+                    transitionBuilder: (child, animation) => ScaleTransition(
+                      scale: animation,
+                      child: FadeTransition(opacity: animation, child: child),
+                    ),
+                    child: Icon(
+                      value ? activeIcon : inactiveIcon,
+                      key: ValueKey(value),
+                      size: 18,
+                      color: value ? accent : scheme.onSurfaceVariant,
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 8),
-              const Spacer(),
-              Transform.scale(
-                scale: .76,
-                alignment: Alignment.centerRight,
-                child: Switch.adaptive(
-                  value: value,
-                  onChanged: onChanged,
-                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  thumbColor: const WidgetStatePropertyAll(Colors.white),
-                  activeTrackColor: accent,
+                const SizedBox(width: 18),
+                Transform.scale(
+                  scale: .76,
+                  alignment: Alignment.center,
+                  child: Switch.adaptive(
+                    value: value,
+                    onChanged: onChanged,
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    thumbColor: const WidgetStatePropertyAll(Colors.white),
+                    activeTrackColor: accent,
+                  ),
                 ),
-              ),
-            ],
-          ),
+              ],
+            ),
           ),
         ),
       ),
