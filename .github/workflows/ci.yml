@@ -40,6 +40,7 @@ jobs:
         run: flutter test --no-pub test/novyn_dock_test.dart test/quick_toggle_preferences_test.dart
 
   android-release-compile:
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/heads/hardening/')
     name: Android release APK compile
     runs-on: ubuntu-latest
     steps:
