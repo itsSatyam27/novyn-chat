@@ -339,6 +339,7 @@ class _CallScreenState extends State<CallScreen>
     socket.onWebRTCOffer = (data) async {
       if (!mounted) return;
       if (_isVideo) await _applyVideoSpeakerDefault();
+      if (!mounted) return;
       if (!_webrtc.hasPeerConnection) {
         await _webrtc.createPeerConnection(socket, _peerId, false, callId: _callId);
       }
@@ -368,7 +369,7 @@ class _CallScreenState extends State<CallScreen>
 
     socket.onCallMediaUpgradeRequestCallback = (data) async {
       if (!mounted || data['callId']?.toString() != _callId || _isVideo) return;
-      final accept = await showDialog<bool>(
+      final accepted = await showDialog<bool>(
         context: context,
         barrierDismissible: false,
         builder: (dialogContext) => AlertDialog(
@@ -381,7 +382,21 @@ class _CallScreenState extends State<CallScreen>
         ),
       );
       if (!mounted) return;
-      socket.respondCallMediaUpgrade(_peerId, _callId, accepted: accept == true);
+      var consentGranted = accepted == true;
+      if (consentGranted) {
+        try {
+          await _webrtc.addLocalVideoTrack();
+        } catch (error) {
+          consentGranted = false;
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Camera could not start: $error')),
+            );
+          }
+        }
+      }
+      if (!mounted) return;
+      socket.respondCallMediaUpgrade(_peerId, _callId, accepted: consentGranted);
     };
 
     socket.onCallMediaUpgradeResponseCallback = (data) async {
@@ -624,6 +639,7 @@ class _CallScreenState extends State<CallScreen>
       await _ensureLocalMedia();
       if (!mounted) return;
       _stopRingtone();
+      await _applyVideoSpeakerDefault();
       context.read<SocketService>().acceptCall(widget.callerId ?? _peerId, _callId);
       setState(() => _state = CallState.connected);
       _refreshMiniOverlay();
