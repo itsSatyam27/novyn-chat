@@ -16,6 +16,7 @@ import '../../services/api_service.dart';
 import '../../services/auth_service.dart';
 import '../../services/audio_manager_service.dart';
 import '../../services/settings_service.dart';
+import '../../services/notification_service.dart';
 import '../../widgets/user_avatar.dart';
 import 'package:novyn/services/haptic_service.dart';
 
@@ -106,6 +107,7 @@ class _CallScreenState extends State<CallScreen>
     );
 
     _webrtc = WebRTCService();
+    NotificationService.setActiveCallActionHandler(_handleNotificationCallAction);
     _isVideo = widget.callType == 'video';
     _webrtc.onRemoteScreenShareChanged = (streamId) {
       if (!mounted) return;
@@ -319,6 +321,33 @@ class _CallScreenState extends State<CallScreen>
     final target = _speakerOn ? 'earpiece' : 'speaker';
     await _selectAudioRoute(target);
     _refreshMiniOverlay();
+    _publishActiveCallNotification();
+  }
+
+  void _handleNotificationCallAction(String actionId) {
+    if (!mounted || _state != CallState.connected) return;
+    switch (actionId) {
+      case 'call_toggle_mute':
+        _toggleMute();
+        break;
+      case 'call_toggle_speaker':
+        unawaited(_toggleSpeaker());
+        break;
+      case 'call_end':
+        _endCall();
+        break;
+    }
+  }
+
+  void _publishActiveCallNotification() {
+    if (!mounted || _state != CallState.connected) return;
+    unawaited(NotificationService.showActiveCallNotification(
+      callId: _callId,
+      caller: widget.peer.username,
+      isVideo: _isVideo,
+      muted: _muted,
+      speakerOn: _speakerOn,
+    ));
   }
 
   void _toggleMute() {
@@ -327,6 +356,7 @@ class _CallScreenState extends State<CallScreen>
     _webrtc.toggleMute(newVal);
     setState(() => _muted = newVal);
     _refreshMiniOverlay();
+    _publishActiveCallNotification();
   }
 
   void _listenToCallEvents() {
@@ -340,6 +370,7 @@ class _CallScreenState extends State<CallScreen>
       await _applyVideoSpeakerDefault();
       if (!mounted) return;
       setState(() => _state = CallState.connected);
+      _publishActiveCallNotification();
       _refreshMiniOverlay();
       _pulseCtrl.stop();
       _startTimer();
@@ -547,6 +578,7 @@ class _CallScreenState extends State<CallScreen>
     _callTimeoutTimer?.cancel();
     if (!mounted || _hasLoggedCall) return;
     _hasLoggedCall = true;
+    unawaited(NotificationService.clearActiveCallNotification());
     setState(() {
       _state = CallState.ended;
       _endReason = reason;
@@ -793,7 +825,8 @@ class _CallScreenState extends State<CallScreen>
       _stopRingtone();
       await _applyVideoSpeakerDefault();
       context.read<SocketService>().acceptCall(widget.callerId ?? _peerId, _callId);
-      setState(() => _state = CallState.connected);
+      setSt
+      _publishActiveCallNotification();ate(() => _state = CallState.connected);
       _refreshMiniOverlay();
       _pulseCtrl.stop();
       _startTimer();
@@ -814,6 +847,8 @@ class _CallScreenState extends State<CallScreen>
   @override
   void dispose() {
     _removeMiniOverlay();
+    NotificationService.setActiveCallActionHandler(null);
+    unawaited(NotificationService.clearActiveCallNotification());
     CallPlatformService.setPipListener(null);
     unawaited(CallPlatformService.setCallActive(false));
     _timer?.cancel();
