@@ -2130,7 +2130,9 @@ class _SettingsQuickToggle extends StatelessWidget {
                   : scheme.outlineVariant,
             ),
           ),
-          child: Row(
+          child: Semantics(
+            label: title,
+            child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               AnimatedContainer(
@@ -2156,18 +2158,7 @@ class _SettingsQuickToggle extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: scheme.onSurface,
-                    fontSize: 11.5,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
+              const Spacer(),
               Transform.scale(
                 scale: .76,
                 alignment: Alignment.centerRight,
@@ -2180,6 +2171,7 @@ class _SettingsQuickToggle extends StatelessWidget {
                 ),
               ),
             ],
+          ),
           ),
         ),
       ),
