@@ -823,7 +823,13 @@ class SocketService extends ChangeNotifier {
       // Reconcile the durable local outbox with the server echo. The same
       // clientTempId makes a late echo safe after an acknowledged retry.
       if (isOwn && clientTempId != null && clientTempId.isNotEmpty) {
-        await SyncService().removePendingMessage(clientTempId);
+        try {
+          await SyncService().removePendingMessage(clientTempId);
+        } catch (error) {
+          // Keep local history rendering even if persisting the outbox removal
+          // fails. The stable clientTempId makes a later retry idempotent.
+          debugPrint('[NovynOutbox] Could not persist queue removal: $error');
+        }
         await HybridDbService.deleteMessage(clientTempId);
       }
       // Save to local DB
