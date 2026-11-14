@@ -226,6 +226,8 @@ class SocketService extends ChangeNotifier {
 
     _socket = io.io(_serverUrl!, <String, dynamic>{
       'transports': ['websocket'],
+      // A fresh Manager ensures rotated session cookies are used on resume.
+      'forceNew': true,
       'autoConnect': false,
       'extraHeaders': headers,
       'reconnection': false, // manual reconnection
