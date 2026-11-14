@@ -247,8 +247,8 @@ class SyncService extends ChangeNotifier {
             lastError: error.toString(),
           ),
         );
-        debugPrint('[NovynOutbox] Will retry \${pending.tempId}: $error');
-        break;
+        debugPrint('[NovynOutbox] Will retry ' + pending.tempId + ': ' + error.toString());
+break;
       }
     }
   }
