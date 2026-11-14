@@ -651,7 +651,14 @@ class NotificationService {
     _syncPresentation();
     await _initializeLocalNotifications(context);
     _socket!.onIncomingMessage = (username, body) {
-      if (context.mounted) unawaited(showInAppMessage(username, body, context));
+      if (!context.mounted) return;
+      if (WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed) {
+        // Keep the branded PR #95 banner for active use; system alerts are
+        // used when the app is not currently visible.
+        unawaited(showInAppMessage(username, body, context));
+      } else {
+        unawaited(_showForegroundMessageNotification(username, body));
+      }
     };
     _socket!.onCallInviteCallback = (data) {
       if (!context.mounted) return;
@@ -821,20 +828,64 @@ class NotificationService {
       ));
       return;
     }
-    // The live socket handler already presents messages while connected.
-    // This FCM path is for a foreground app whose socket is disconnected.
-    if (_socket?.isConnected == true) return;
-    if (type == 'message') {
+    // Prefer the live socket callback; FCM is a fallback for disconnected
+    // sockets or app lifecycle states where the socket callback was missed.
+    if (type == 'message' && message.data['kind'] != 'group') {
+      if (_socket?.isConnected == true &&
+          WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed) return;
       final username = message.data['chat']?.toString().trim() ?? '';
       if (username.isNotEmpty) {
-        unawaited(showInAppMessage(
+        final body = message.data['body']?.toString().trim();
+        unawaited(_showForegroundMessageNotification(
           username,
-          (message.data['body']?.toString().trim().isNotEmpty == true
-              ? message.data['body'].toString().trim()
-              : message.notification?.body ?? 'You have a new message'),
-          context,
+          body?.isNotEmpty == true
+              ? body!
+              : message.notification?.body ?? 'You have a new message',
         ));
       }
+    }
+  }
+
+  static Future<void> _showForegroundMessageNotification(
+      String username, String messageBody) async {
+    final sender = username.trim();
+    final settings = _settings;
+    if (sender.isEmpty || settings == null || !settings.notificationsOn) return;
+    if (settings.doNotDisturbEnabled &&
+        !settings.favoriteChatIds.contains(sender.toLowerCase())) return;
+    if (_presenceAuth?.user?.presenceMode == 'busy') return;
+
+    final body = settings.messagePreview && !settings.hideNotificationContent
+        ? (messageBody.trim().isNotEmpty ? messageBody.trim() : 'You have a new message')
+        : 'You have a new message';
+    final notificationId = DateTime.now().millisecondsSinceEpoch % 2147483647;
+    try {
+      await _localNotifications.show(
+        notificationId,
+        sender,
+        body,
+        NotificationDetails(
+          android: AndroidNotificationDetails(
+            _messageChannelId,
+            _messageChannelName,
+            channelDescription: 'New direct messages from your Novyn contacts',
+            importance: Importance.max,
+            priority: Priority.high,
+            category: AndroidNotificationCategory.message,
+            icon: '@drawable/novyn_wings_icon',
+            onlyAlertOnce: false,
+            autoCancel: true,
+          ),
+          iOS: const DarwinNotificationDetails(
+            presentAlert: true,
+            presentBadge: true,
+            presentSound: true,
+          ),
+        ),
+        payload: sender,
+      );
+    } catch (error) {
+      debugPrint('[NovynNotifications] Foreground system notification failed: $error');
     }
   }
 
