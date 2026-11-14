@@ -614,7 +614,7 @@ class _PeopleScreenState extends State<PeopleScreen> {
                     title: 'Friend requests',
                     subtitle: 'Review and respond to incoming requests.',
                     badge: count,
-                    onTap: () => _showFriendRequests(myUid, service),
+                    onTap: () => _showFriendRequests(myUid),
                   );
                 },
               ),
