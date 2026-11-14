@@ -1062,6 +1062,15 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
         });
       }
     }
+    final timelineIndices = <int>[];
+    for (var index = 0; index < messages.length; index++) {
+      if (index == 0 ||
+          !_isSameChatDay(messages[index - 1].createdAt, messages[index].createdAt)) {
+        // Negative entries represent a date divider for the following message.
+        timelineIndices.add(-index - 1);
+      }
+      timelineIndices.add(index);
+    }
     final socket = context.read<SocketService>();
     if (peerIsTyping && _isNearLatest) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom(force: true));
@@ -1069,7 +1078,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
     return ListView.builder(
       controller: _scroll,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      itemCount: messages.length + 1 + (peerIsTyping ? 1 : 0), // loader + live typing row
+      itemCount: timelineIndices.length + 1 + (peerIsTyping ? 1 : 0), // start marker + date/message rows + typing
       // Performance optimizations
       addAutomaticKeepAlives: false,
       addRepaintBoundaries: true,
@@ -1119,10 +1128,16 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
           return const SizedBox(height: 8);
         }
 
-        if (peerIsTyping && i == messages.length + 1) {
+        final timelinePosition = i - 1;
+        if (peerIsTyping && timelinePosition == timelineIndices.length) {
           return _buildTypingIndicator();
         }
-        final msgIndex = i - 1;
+        final timelineItem = timelineIndices[timelinePosition];
+        if (timelineItem < 0) {
+          final dateMessageIndex = -timelineItem - 1;
+          return _buildDateSeparator(messages[dateMessageIndex].createdAt);
+        }
+        final msgIndex = timelineItem;
         return _SwipeToReply(
           onSwipe: () => _startReply(messages[msgIndex]),
           child: _MessageBubble(
@@ -1141,6 +1156,51 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
           ),
         );
       },
+    );
+  }
+
+  bool _isSameChatDay(DateTime first, DateTime second) {
+    final a = first.toLocal();
+    final b = second.toLocal();
+    return a.year == b.year && a.month == b.month && a.day == b.day;
+  }
+
+  Widget _buildDateSeparator(DateTime value) {
+    final local = value.toLocal();
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final messageDay = DateTime(local.year, local.month, local.day);
+    final scheme = Theme.of(context).colorScheme;
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    ];
+    final label = messageDay == today
+        ? 'Today'
+        : messageDay == today.subtract(const Duration(days: 1))
+            ? 'Yesterday'
+            : '${months[local.month - 1]} ${local.day}, ${local.year}';
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 13),
+      child: Center(
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 6),
+          decoration: BoxDecoration(
+            color: scheme.primary.withValues(alpha: .10),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontFamily: 'PlusJakartaSans',
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: scheme.onSurfaceVariant,
+            ),
+          ),
+        ),
+      ),
     );
   }
 
@@ -3692,37 +3752,11 @@ class _MessageBubble extends StatelessWidget {
           child: CustomPaint(painter: _SendingStatusPainter()),
         );
       case 'sent':
-        return Container(
-          width: 9,
-          height: 9,
-          decoration: const BoxDecoration(color: muted, shape: BoxShape.circle),
-        );
+        return const Icon(Icons.check_rounded, color: muted, size: 15);
       case 'delivered':
-        return const Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _StatusDot(color: muted),
-            SizedBox(width: 3),
-            _StatusDot(color: muted),
-          ],
-        );
+        return const Icon(Icons.done_all_rounded, color: muted, size: 15);
       case 'seen':
-        return Container(
-          width: 27,
-          height: 27,
-          alignment: Alignment.center,
-          decoration: const BoxDecoration(
-            color: Color(0xFFE8E2FF), shape: BoxShape.circle,
-          ),
-          child: const Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _StatusDot(color: purple, size: 8),
-              SizedBox(width: 2),
-              _StatusDot(color: purple, size: 8),
-            ],
-          ),
-        );
+        return const Icon(Icons.done_all_rounded, color: purple, size: 16);
       case 'failed':
         return const SizedBox(
           width: 20,
