@@ -11,6 +11,7 @@ class WebRTCService extends ChangeNotifier {
   final RTCVideoRenderer localRenderer  = RTCVideoRenderer();
   final RTCVideoRenderer remoteRenderer = RTCVideoRenderer();
   final RTCVideoRenderer remoteScreenRenderer = RTCVideoRenderer();
+  final RTCVideoRenderer localScreenRenderer = RTCVideoRenderer();
   MediaStream? _screenStream;
   RTCRtpSender? _screenSender;
   String? _remoteScreenStreamId;
@@ -71,6 +72,7 @@ class WebRTCService extends ChangeNotifier {
     await localRenderer.initialize();
     await remoteRenderer.initialize();
     await remoteScreenRenderer.initialize();
+    await localScreenRenderer.initialize();
     _isInitialized = true;
     notifyListeners();
   }
@@ -259,6 +261,7 @@ class WebRTCService extends ChangeNotifier {
       throw StateError('Screen capture did not return a video track.');
     }
     _screenStream = screen;
+    localScreenRenderer.srcObject = screen;
     _screenSender = await connection.addTrack(track, screen);
     _remoteScreenStreamId = screen.id;
     socket.updateCallScreenShare(peerId, callId, screen.id);
@@ -280,6 +283,7 @@ class WebRTCService extends ChangeNotifier {
     final screen = _screenStream;
     final sender = _screenSender;
     _screenStream = null;
+    localScreenRenderer.srcObject = null;
     _screenSender = null;
     _remoteScreenStreamId = null;
     socket.updateCallScreenShare(peerId, callId, null);
@@ -426,6 +430,7 @@ class WebRTCService extends ChangeNotifier {
     await localRenderer.dispose();
     await remoteRenderer.dispose();
     await remoteScreenRenderer.dispose();
+    await localScreenRenderer.dispose();
     await _screenStream?.dispose();
     _localStream = null;
     _remoteStream = null;
