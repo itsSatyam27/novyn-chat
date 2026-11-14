@@ -2630,6 +2630,7 @@ function toSerializedMessageEntry(doc) {
     game: doc?.game || undefined,
     ciphertext: toDisplayName(doc?.ciphertext) || undefined,
     iv: toDisplayName(doc?.iv) || undefined,
+    senderPublicKey: normalizePushPublicKey(doc?.senderPublicKey) || undefined,
     isEncrypted: Boolean(doc?.isEncrypted),
     seenBy: Array.isArray(doc?.seenBy) ? doc.seenBy : undefined,
     riddle: doc?.riddle || undefined,
