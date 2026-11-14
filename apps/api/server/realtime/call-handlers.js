@@ -244,6 +244,24 @@ function registerCallHandlers(socket, deps) {
     });
   });
 
+  socket.on("call_screen_share_state", (payload) => {
+    const userKey = socket.data.userKey;
+    if (!userKey) return;
+    const to = toDisplayName(payload?.to);
+    const callId = toDisplayName(payload?.callId).slice(0, 128);
+    if (!to || !callId) return;
+    const peerKey = normalizeName(to);
+    const active = activeCalls.get(userKey);
+    if (!active || active.peerKey !== peerKey || active.callId !== callId || active.status !== "connected") return;
+    const streamId = payload?.streamId == null ? null : toDisplayName(payload.streamId).slice(0, 128);
+    const peerSocketId = onlineUsers.get(peerKey);
+    if (peerSocketId) {
+      io.to(peerSocketId).emit("call_screen_share_changed", {
+        from: users.get(userKey)?.username || userKey, callId, streamId,
+      });
+    }
+  });
+
   socket.on("webrtc_signal", (payload) => {
     const userKey = socket.data.userKey;
     if (!userKey) return;

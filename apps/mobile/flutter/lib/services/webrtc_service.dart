@@ -10,11 +10,20 @@ class WebRTCService extends ChangeNotifier {
 
   final RTCVideoRenderer localRenderer  = RTCVideoRenderer();
   final RTCVideoRenderer remoteRenderer = RTCVideoRenderer();
+  final RTCVideoRenderer remoteScreenRenderer = RTCVideoRenderer();
+  final RTCVideoRenderer localScreenRenderer = RTCVideoRenderer();
+  MediaStream? _screenStream;
+  RTCRtpSender? _screenSender;
+  String? _remoteScreenStreamId;
+  bool get isScreenSharing => _screenStream != null;
+  void Function(String? streamId)? onRemoteScreenShareChanged;
 
   bool _isInitialized = false;
   bool _remoteDescriptionSet = false;
   bool _isOfferer = false;
   Timer? _iceRestartTimer;
+  Timer? _qualityTimer;
+  bool _qualitySampleInFlight = false;
   int _iceRestartAttempts = 0;
   SocketService? _activeSocket;
   String? _activePeerId;
@@ -32,7 +41,7 @@ class WebRTCService extends ChangeNotifier {
   RTCPeerConnectionState get connectionState => _connectionState;
 
   // Network quality indicator
-  String _networkQuality = 'good'; // good, fair, poor
+  String _networkQuality = 'good'; // excellent, good, poor
   String get networkQuality => _networkQuality;
 
   // ICE servers — STUN + free TURN servers for better connectivity
@@ -64,6 +73,8 @@ class WebRTCService extends ChangeNotifier {
   Future<void> init() async {
     await localRenderer.initialize();
     await remoteRenderer.initialize();
+    await remoteScreenRenderer.initialize();
+    await localScreenRenderer.initialize();
     _isInitialized = true;
     notifyListeners();
   }
@@ -124,8 +135,13 @@ class WebRTCService extends ChangeNotifier {
     // Handle remote stream
     _peerConnection!.onTrack = (event) {
       if (event.streams.isNotEmpty) {
-        _remoteStream = event.streams[0];
-        remoteRenderer.srcObject = _remoteStream;
+        final stream = event.streams[0];
+        if (stream.id == _remoteScreenStreamId) {
+          remoteScreenRenderer.srcObject = stream;
+        } else {
+          _remoteStream = stream;
+          remoteRenderer.srcObject = stream;
+        }
         notifyListeners();
       }
     };
@@ -150,13 +166,15 @@ class WebRTCService extends ChangeNotifier {
           state == RTCIceConnectionState.RTCIceConnectionStateCompleted) {
         final wasRecovering = _networkQuality == 'poor' || _iceRestartAttempts > 0;
         _networkQuality = 'good';
+        _startNetworkQualitySampling();
         _iceRestartAttempts = 0;
         _iceRestartTimer?.cancel();
         if (wasRecovering) onNetworkRecovered?.call();
       } else if (state == RTCIceConnectionState.RTCIceConnectionStateChecking) {
-        _networkQuality = 'fair';
+        _networkQuality = 'good';
       } else if (state == RTCIceConnectionState.RTCIceConnectionStateDisconnected ||
                  state == RTCIceConnectionState.RTCIceConnectionStateFailed) {
+        _qualityTimer?.cancel();
         _networkQuality = 'poor';
         _scheduleIceRestart();
       }
@@ -165,6 +183,86 @@ class WebRTCService extends ChangeNotifier {
 
     if (isOffer) {
       await _createAndSendOffer(socket, peerId, callId);
+    }
+  }
+
+  void _startNetworkQualitySampling() {
+    _qualityTimer?.cancel();
+    _sampleNetworkQuality();
+    _qualityTimer = Timer.periodic(
+      const Duration(seconds: 3),
+      (_) => _sampleNetworkQuality(),
+    );
+  }
+
+  double? _statsNumber(dynamic value) {
+    if (value is num) return value.toDouble();
+    return double.tryParse(value?.toString() ?? '');
+  }
+
+  Future<void> _sampleNetworkQuality() async {
+    final connection = _peerConnection;
+    if (connection == null || _qualitySampleInFlight) return;
+    _qualitySampleInFlight = true;
+    try {
+      final reports = await connection.getStats();
+      Map<dynamic, dynamic>? selectedPair;
+      double? roundTripSeconds;
+      double? availableBitrate;
+      var packetsLost = 0.0;
+      var packetsReceived = 0.0;
+      var hasPacketStats = false;
+
+      for (final report in reports) {
+        final values = report.values;
+        if (report.type == 'candidate-pair' && values['state'] == 'succeeded') {
+          final selected = values['selected'] == true || values['nominated'] == true;
+          if (selected || selectedPair == null) selectedPair = values;
+        } else if (report.type == 'inbound-rtp') {
+          final lost = _statsNumber(values['packetsLost']);
+          final received = _statsNumber(values['packetsReceived']);
+          if (lost != null || received != null) {
+            packetsLost += (lost ?? 0).clamp(0.0, double.infinity).toDouble();
+            packetsReceived += (received ?? 0).clamp(0.0, double.infinity).toDouble();
+            hasPacketStats = true;
+          }
+        }
+      }
+
+      if (selectedPair != null) {
+        roundTripSeconds = _statsNumber(selectedPair['currentRoundTripTime']);
+        availableBitrate = _statsNumber(selectedPair['availableOutgoingBitrate']);
+      }
+
+      final totalPackets = packetsLost + packetsReceived;
+      final packetLoss = hasPacketStats && totalPackets > 0
+          ? packetsLost / totalPackets
+          : null;
+      final poor = (roundTripSeconds != null && roundTripSeconds >= 0.40) ||
+          (packetLoss != null && packetLoss >= 0.05) ||
+          (availableBitrate != null && availableBitrate < 250000);
+      final fair = (roundTripSeconds != null && roundTripSeconds >= 0.18) ||
+          (packetLoss != null && packetLoss >= 0.02) ||
+          (availableBitrate != null && availableBitrate < 900000);
+      final hasMeasurements = roundTripSeconds != null ||
+          packetLoss != null ||
+          availableBitrate != null;
+
+      // Be conservative when stats are missing: connected without a measurable
+      // sample is "good"; excellent requires measured low-latency, low-loss media.
+      final nextQuality = poor
+          ? 'poor'
+          : fair || !hasMeasurements
+              ? 'good'
+              : 'excellent';
+      if (_networkQuality != nextQuality) {
+        _networkQuality = nextQuality;
+        notifyListeners();
+      }
+    } catch (error) {
+      debugPrint('[NovynWebRTC] Could not sample call network quality: $error');
+    } finally {
+      _qualitySampleInFlight = false;
     }
   }
 
@@ -249,6 +347,75 @@ class WebRTCService extends ChangeNotifier {
     await connection.setLocalDescription(offer);
     socket.sendOffer(peerId, callId, {'sdp': offer.sdp, 'type': offer.type});
     notifyListeners();
+  }
+
+  Future<void> startScreenShare(SocketService socket, String peerId, String callId) async {
+    final connection = _peerConnection;
+    if (connection == null) throw StateError('Call connection is not ready.');
+    if (_screenStream != null) return;
+    final screen = await navigator.mediaDevices.getDisplayMedia({
+      'audio': false,
+      'video': {
+        'frameRate': {'ideal': 12, 'max': 15},
+        'width': {'ideal': 1280, 'max': 1600},
+        'height': {'ideal': 720, 'max': 900},
+      },
+    });
+    final track = screen.getVideoTracks().firstOrNull;
+    if (track == null) {
+      await screen.dispose();
+      throw StateError('Screen capture did not return a video track.');
+    }
+    _screenStream = screen;
+    localScreenRenderer.srcObject = screen;
+    _screenSender = await connection.addTrack(track, screen);
+    _remoteScreenStreamId = screen.id;
+    socket.updateCallScreenShare(peerId, callId, screen.id);
+    track.onEnded = () {
+      stopScreenShare(socket, peerId, callId, renegotiate: true);
+    };
+    final offer = await connection.createOffer({
+      'offerToReceiveAudio': true,
+      'offerToReceiveVideo': true,
+    });
+    await connection.setLocalDescription(offer);
+    socket.sendOffer(peerId, callId, {'sdp': offer.sdp, 'type': offer.type});
+    notifyListeners();
+  }
+
+  Future<void> stopScreenShare(
+    SocketService socket, String peerId, String callId, {bool renegotiate = true}
+  ) async {
+    final screen = _screenStream;
+    final sender = _screenSender;
+    _screenStream = null;
+    localScreenRenderer.srcObject = null;
+    _screenSender = null;
+    _remoteScreenStreamId = null;
+    socket.updateCallScreenShare(peerId, callId, null);
+    if (sender != null && _peerConnection != null) {
+      try { await _peerConnection!.removeTrack(sender); } catch (_) {}
+    }
+    for (final track in screen?.getTracks() ?? <MediaStreamTrack>[]) {
+      track.onEnded = null;
+      await track.stop();
+    }
+    await screen?.dispose();
+    if (renegotiate && _peerConnection != null) {
+      final offer = await _peerConnection!.createOffer({
+        'offerToReceiveAudio': true,
+        'offerToReceiveVideo': true,
+      });
+      await _peerConnection!.setLocalDescription(offer);
+      socket.sendOffer(peerId, callId, {'sdp': offer.sdp, 'type': offer.type});
+    }
+    notifyListeners();
+  }
+
+  void setRemoteScreenShare(String? streamId) {
+    _remoteScreenStreamId = streamId;
+    onRemoteScreenShareChanged?.call(streamId);
+    if (streamId == null) remoteScreenRenderer.srcObject = null;
   }
 
   // ── Create and send offer (caller) ───────────────────────────────────────
@@ -368,10 +535,14 @@ class WebRTCService extends ChangeNotifier {
     await _peerConnection?.close();
     await localRenderer.dispose();
     await remoteRenderer.dispose();
+    await remoteScreenRenderer.dispose();
+    await localScreenRenderer.dispose();
+    await _screenStream?.dispose();
     _localStream = null;
     _remoteStream = null;
     _peerConnection = null;
     _iceRestartTimer?.cancel();
+    _qualityTimer?.cancel();
     _pendingIceCandidates.clear();
     _remoteDescriptionSet = false;
     _activeSocket = null;
