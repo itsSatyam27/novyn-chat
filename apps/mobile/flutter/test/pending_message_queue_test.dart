@@ -63,6 +63,14 @@ void main() {
       chatId: 'carol',
       createdAt: queuedAt.add(const Duration(seconds: 1)),
     ));
+    await sync.addPendingMessage(PendingMessage(
+      accountId: 'alice',
+      tempId: 'tmp-alice-3',
+      text: 'Keep order within Bob chat',
+      receiverId: 'bob',
+      chatId: 'bob',
+      createdAt: queuedAt.add(const Duration(seconds: 2)),
+    ));
     final sentTo = <String>[];
     await sync.flushPendingMessages((message) async {
       if (message.receiverId == 'bob') {
@@ -71,9 +79,12 @@ void main() {
       sentTo.add(message.receiverId);
     });
     expect(sentTo, ['carol']);
-    expect(sync.pendingMessages, hasLength(1));
-    expect(sync.pendingMessages.single.receiverId, 'bob');
-    expect(sync.pendingMessages.single.attemptCount, 2);
+    expect(sync.pendingMessages, hasLength(2));
+    expect(
+      sync.pendingMessages.map((message) => message.tempId),
+      ['tmp-alice-1', 'tmp-alice-3'],
+    );
+    expect(sync.pendingMessages.every((message) => message.attemptCount == 2), isTrue);
 
     // Switching the active Hive namespace must not expose Alice's outbox to Bob.
     await LocalDbService.activateAccount('bob');
