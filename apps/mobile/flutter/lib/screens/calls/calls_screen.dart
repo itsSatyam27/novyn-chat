@@ -532,6 +532,40 @@ class _CallsScreenState extends State<CallsScreen> {
     );
   }
 
+  List<_CallEntry> _filteredCalls() {
+    var result = _calls;
+    if (_filter != 'All') {
+      result = result.map((call) {
+        final matching = call.history
+            .where((log) => log['status'] == _filter.toLowerCase())
+            .toList();
+        if (matching.isEmpty) return null;
+        matching.sort((a, b) {
+          final aDate = DateTime.tryParse(a['createdAt']?.toString() ?? '') ?? DateTime.fromMillisecondsSinceEpoch(0);
+          final bDate = DateTime.tryParse(b['createdAt']?.toString() ?? '') ?? DateTime.fromMillisecondsSinceEpoch(0);
+          return bDate.compareTo(aDate);
+        });
+        final latest = matching.first;
+        final rawDate = latest['createdAt']?.toString() ?? '';
+        final parsedDate = DateTime.tryParse(rawDate);
+        return call.copyWith(
+          type: latest['type']?.toString() ?? call.type,
+          status: latest['status']?.toString() ?? call.status,
+          duration: (latest['duration'] as num?)?.toInt() ?? 0,
+          createdAt: parsedDate == null ? call.createdAt : (parsedDate.isUtc ? parsedDate.toLocal() : parsedDate),
+          history: matching,
+        );
+      }).whereType<_CallEntry>().toList();
+    }
+    if (_search.isNotEmpty) {
+      result = result.where((call) =>
+        call.peer.name.toLowerCase().contains(_search) ||
+        call.peer.username.toLowerCase().contains(_search)
+      ).toList();
+    }
+    return result;
+  }
+
   Future<void> _showQuickCallPicker() async {
     final friends = List<UserModel>.from(context.read<SocketService>().contacts.friends)
       ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
