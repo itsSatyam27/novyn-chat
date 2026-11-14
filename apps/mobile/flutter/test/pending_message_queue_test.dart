@@ -40,6 +40,13 @@ void main() {
     expect(sync.pendingMessages.single.tempId, 'tmp-alice-1');
     expect(sync.pendingMessages.single.text, 'Offline message');
 
+    // Logout clears in-memory data but keeps the durable account-scoped queue.
+    await sync.deactivateAccount();
+    expect(sync.pendingMessages, isEmpty);
+    await LocalDbService.activateAccount('alice');
+    await sync.activateAccount('alice');
+    expect(sync.pendingMessages.single.tempId, 'tmp-alice-1');
+
     await sync.flushPendingMessages((_) async {
       throw TimeoutException('network timeout');
     });
