@@ -1,3 +1,4 @@
+// Covers the compact and full-width row patterns used by Settings.
 import 'package:flutter_test/flutter_test.dart';
 import 'package:novyn/screens/profile/settings/quick_toggle_layout.dart';
 
