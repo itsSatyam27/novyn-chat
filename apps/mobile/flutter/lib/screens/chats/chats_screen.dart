@@ -565,7 +565,7 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
                         fontSize: 36,
                         height: 1.12,
                         letterSpacing: -1.25,
-                        fontWeight: FontWeight.w800,
+                        fontWeight: FontWeight.w700,
                         color: Theme.of(context).colorScheme.onSurface,
                       ),
                     ),
@@ -717,7 +717,7 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
         ),
       ),
       floatingActionButton: AnimatedSlide(
-        offset: _showNewChatFab ? Offset.zero : const Offset(0, 1.35),
+        offset: _showNewChatFab ? Offset.zero : const Offset(1.35, 0),
         duration: const Duration(milliseconds: 220),
         curve: Curves.easeOutCubic,
         child: AnimatedOpacity(
@@ -783,7 +783,7 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
                     style: TextStyle(
                       fontFamily: 'PlusJakartaSans',
                       fontSize: 14,
-                      fontWeight: FontWeight.w700,
+                      fontWeight: FontWeight.w600,
                       color: _selectedTab == item.$1
                           ? Colors.white
                           : colors.onSurface,
@@ -895,7 +895,7 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
         style: TextStyle(
           fontFamily: 'PlusJakartaSans',
           fontSize: 12,
-          fontWeight: FontWeight.w800,
+          fontWeight: FontWeight.w600,
           letterSpacing: 1.25,
           color: Theme.of(context).colorScheme.onSurfaceVariant,
         ),
@@ -903,66 +903,159 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
     );
   }
 
-  Future<void> _showChatOptions(ChatPreview chat) async {
+  Future<void> _showChatOptions(
+    ChatPreview chat,
+    BuildContext tileContext,
+  ) async {
     final settings = context.read<SettingsService>();
     final socket = context.read<SocketService>();
     final isFavorite = settings.favoriteChatIds.contains(chat.chatId);
-    final action = await showModalBottomSheet<String>(
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final tileBox = tileContext.findRenderObject() as RenderBox?;
+    final overlayBox =
+        Overlay.of(context).context.findRenderObject() as RenderBox?;
+    if (tileBox == null || overlayBox == null ||
+        !tileBox.hasSize || !overlayBox.hasSize) {
+      return;
+    }
+
+    final tileTopLeft =
+        tileBox.localToGlobal(Offset.zero, ancestor: overlayBox);
+    final tileBottomRight = tileBox.localToGlobal(
+      tileBox.size.bottomRight(Offset.zero),
+      ancestor: overlayBox,
+    );
+    final position = RelativeRect.fromRect(
+      Rect.fromPoints(tileTopLeft, tileBottomRight),
+      Offset.zero & overlayBox.size,
+    );
+
+    PopupMenuItem<String> option(
+      IconData icon,
+      String label,
+      String value, {
+      Color? color,
+    }) {
+      final foreground = color ?? colors.onSurface;
+      return PopupMenuItem<String>(
+        value: value,
+        height: 48,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: Row(
+          children: [
+            Icon(icon, size: 19, color: color ?? colors.onSurfaceVariant),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: foreground,
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final action = await showMenu<String>(
       context: context,
-      backgroundColor: Theme.of(context).colorScheme.surface,
-      showDragHandle: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      position: position,
+      elevation: 14,
+      color: theme.brightness == Brightness.dark
+          ? const Color(0xFF211D30)
+          : Colors.white,
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(18),
       ),
-      builder: (sheetContext) {
-        final colors = Theme.of(sheetContext).colorScheme;
-        Widget option(IconData icon, String label, String value, {Color? color}) {
-          return ListTile(
-            leading: Icon(icon, color: color ?? colors.onSurfaceVariant),
-            title: Text(label, style: TextStyle(color: color ?? colors.onSurface)),
-            onTap: () => Navigator.pop(sheetContext, value),
-          );
-        }
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
+      items: [
+        PopupMenuItem<String>(
+          enabled: false,
+          height: 46,
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+          child: Row(
             children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 4, 20, 10),
-                child: Row(children: [
-                  Expanded(
-                    child: Text(chat.peer.name,
-                      maxLines: 1, overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+              Expanded(
+                child: Text(
+                  chat.peer.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: colors.onSurface,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
                   ),
-                  if (chat.isGroup) const Chip(label: Text('Group')),
-                ]),
+                ),
               ),
-              option(
-                chat.isPinned ? Icons.push_pin_rounded : Icons.push_pin_outlined,
-                chat.isPinned ? 'Unpin chat' : 'Pin chat',
-                'pin',
-                color: chat.isPinned ? colors.primary : null,
-              ),
-              option(Icons.notifications_off_outlined, 'Mute notifications', 'mute'),
-              option(isFavorite ? Icons.star_rounded : Icons.star_border_rounded,
-                isFavorite ? 'Remove from favorites' : 'Add to favorites', 'favorite',
-                color: isFavorite ? const Color(0xFFFFB300) : null),
-              option(chat.unreadCount > 0 ? Icons.mark_chat_read_outlined : Icons.mark_chat_unread_outlined,
-                chat.unreadCount > 0 ? 'Mark as read' : 'Mark as unread', 'read'),
-              option(chat.isArchived ? Icons.unarchive_outlined : Icons.archive_outlined,
-                chat.isArchived ? 'Unarchive chat' : 'Archive chat', 'archive'),
-              const Divider(height: 8),
-              if (!chat.isGroup)
-                option(Icons.block_outlined, 'Block user', 'block', color: colors.error),
-              option(Icons.cleaning_services_outlined, 'Clear chat', 'clear', color: colors.error),
-              option(chat.isGroup ? Icons.logout_rounded : Icons.delete_outline_rounded,
-                chat.isGroup ? 'Exit group' : 'Delete chat', 'delete', color: colors.error),
-              const SizedBox(height: 8),
+              if (chat.isGroup)
+                Padding(
+                  padding: const EdgeInsets.only(left: 8),
+                  child: Text(
+                    'GROUP',
+                    style: TextStyle(
+                      color: colors.primary,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: .7,
+                    ),
+                  ),
+                ),
             ],
           ),
-        );
-      },
+        ),
+        const PopupMenuDivider(height: 1),
+        option(
+          chat.isPinned ? Icons.push_pin_rounded : Icons.push_pin_outlined,
+          chat.isPinned ? 'Unpin chat' : 'Pin chat',
+          'pin',
+          color: chat.isPinned ? colors.primary : null,
+        ),
+        option(Icons.notifications_off_outlined, 'Mute notifications', 'mute'),
+        option(
+          isFavorite ? Icons.star_rounded : Icons.star_border_rounded,
+          isFavorite ? 'Remove from favorites' : 'Add to favorites',
+          'favorite',
+          color: isFavorite ? const Color(0xFFFFB300) : null,
+        ),
+        option(
+          chat.unreadCount > 0
+              ? Icons.mark_chat_read_outlined
+              : Icons.mark_chat_unread_outlined,
+          chat.unreadCount > 0 ? 'Mark as read' : 'Mark as unread',
+          'read',
+        ),
+        option(
+          chat.isArchived ? Icons.unarchive_outlined : Icons.archive_outlined,
+          chat.isArchived ? 'Unarchive chat' : 'Archive chat',
+          'archive',
+        ),
+        const PopupMenuDivider(height: 1),
+        if (!chat.isGroup)
+          option(
+            Icons.block_outlined,
+            'Block user',
+            'block',
+            color: colors.error,
+          ),
+        option(
+          Icons.cleaning_services_outlined,
+          'Clear chat',
+          'clear',
+          color: colors.error,
+        ),
+        option(
+          chat.isGroup ? Icons.logout_rounded : Icons.delete_outline_rounded,
+          chat.isGroup ? 'Exit group' : 'Delete chat',
+          'delete',
+          color: colors.error,
+        ),
+      ],
     );
     if (!mounted || action == null) return;
 
@@ -1101,7 +1194,7 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
     return _ChatCard(
       preview: preview,
       isFavorite: context.watch<SettingsService>().favoriteChatIds.contains(preview.chatId),
-      onOptions: () => _showChatOptions(preview),
+      onOptions: (tileContext) => _showChatOptions(preview, tileContext),
       onTap: () async {
         await Navigator.push(
           context,
@@ -1215,7 +1308,7 @@ class _ChatSummaryTile extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text(value, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800, height: 1.05)),
+                  Text(value, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700, height: 1.05)),
                   const SizedBox(height: 3),
                   Text(label, maxLines: 1, overflow: TextOverflow.ellipsis,
                     style: NovynText.body(10, color: NovynColors.textMuted)),
@@ -1235,7 +1328,7 @@ class _ChatCard extends StatelessWidget {
   final ChatPreview preview;
   final VoidCallback onTap;
   final bool isFavorite;
-  final VoidCallback? onOptions;
+  final ValueChanged<BuildContext>? onOptions;
 
   const _ChatCard({
     required this.preview,
@@ -1343,7 +1436,7 @@ class _ChatCard extends StatelessWidget {
         );
         onTap();
       },
-      onLongPress: onOptions,
+      onLongPress: onOptions == null ? null : () => onOptions!(context),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
         child: Row(
@@ -1365,7 +1458,7 @@ class _ChatCard extends StatelessWidget {
                           style: TextStyle(
                             fontFamily: 'PlusJakartaSans',
                             fontSize: 16.5,
-                            fontWeight: FontWeight.w800,
+                            fontWeight: FontWeight.w600,
                             letterSpacing: -.25,
                             color: titleColor,
                           ),
@@ -1423,7 +1516,7 @@ class _ChatCard extends StatelessWidget {
                     style: TextStyle(
                       fontFamily: 'PlusJakartaSans',
                       fontSize: 12.5,
-                      fontWeight: hasUnread ? FontWeight.w800 : FontWeight.w500,
+                      fontWeight: hasUnread ? FontWeight.w600 : FontWeight.w500,
                       color: hasUnread ? colors.primary : metaColor,
                     ),
                   ),
@@ -1445,7 +1538,7 @@ class _ChatCard extends StatelessWidget {
                           fontFamily: 'PlusJakartaSans',
                           color: Colors.white,
                           fontSize: 10.5,
-                          fontWeight: FontWeight.w800,
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
                     ),
