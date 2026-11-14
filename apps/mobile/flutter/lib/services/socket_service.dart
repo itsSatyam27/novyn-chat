@@ -2282,6 +2282,18 @@ class SocketService extends ChangeNotifier {
   Function(Map)? onWebRTCAnswer;
   Function(Map)? onWebRTCIceCandidate;
 
+  // Publish screen-share state to the other participant in the active call.
+  // The server validates the call pair and forwards call_screen_share_changed.
+  void updateCallScreenShare(String peerId, String callId, String? streamId) {
+    final connection = _socket;
+    if (connection == null || !_isConnected || !_isAuthenticated) return;
+    connection.emit('call_screen_share_state', {
+      'to': peerId,
+      'callId': callId,
+      'streamId': streamId,
+    });
+  }
+
   // sendOffer / sendAnswer / sendIceCandidate — old webrtc_service.dart API
   void sendOffer(String receiverId, String callId, dynamic offer) {
     sendWebRTCSignal(receiverId, callId, {
