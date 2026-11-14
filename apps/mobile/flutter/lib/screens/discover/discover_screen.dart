@@ -25,7 +25,6 @@ class DiscoverScreen extends StatefulWidget {
 }
 
 class _DiscoverScreenState extends State<DiscoverScreen> {
-  String _search = '';
   bool _isResolvingQr = false;
   final Set<String> _sendingRequests = <String>{};
 
@@ -65,12 +64,22 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                 final count = snap.data ?? 0;
                 return NovynHeader(
                   title: 'Discover',
-                  titleSize: 34,
+                  subtitle: 'Find people and grow your circle',
+                  titleSize: 36,
                   titleWeight: FontWeight.w600,
                   actions: [
                     PopupMenuButton<String>(
                       tooltip: 'Discover options',
-                      icon: const Icon(Icons.more_horiz_rounded, size: 25),
+                      child: Container(
+                        width: 56,
+                        height: 56,
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).colorScheme.surface,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Icon(Icons.more_horiz_rounded, size: 25,
+                          color: Theme.of(context).colorScheme.onSurface),
+                      ),
                       offset: const Offset(0, 12),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
                       elevation: 10,
@@ -137,13 +146,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
               child: ListView(
                 padding: const EdgeInsets.only(bottom: 112),
                 children: [
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
-                    child: NovynSearchField(
-                      hint: 'Find people by name or @username...',
-                      onChanged: (value) => setState(() => _search = value.trim().toLowerCase()),
-                    ),
-                  ),
+                  const SizedBox(height: 12),
                   StreamBuilder<List<String>>(
                     stream: friends.friendUidsStream(myUid),
                     builder: (context, friendSnap) {
@@ -183,11 +186,9 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                             );
                           }
 
-                          final filtered = (userSnap.data ?? <UserModel>[])
-                              .where((user) => _search.isEmpty ||
-                                  user.name.toLowerCase().contains(_search) ||
-                                  user.username.toLowerCase().contains(_search))
-                              .toList();
+                          final filtered = List<UserModel>.from(
+                            userSnap.data ?? <UserModel>[],
+                          );
                           bool isOnline(UserModel user) =>
                               user.isOnline &&
                               !{'invisible', 'offline'}.contains(user.status.trim().toLowerCase());
@@ -233,8 +234,8 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                                         child: Text(
                                           title,
                                           style: NovynText.body(
-                                            11,
-                                            weight: FontWeight.w800,
+                                            12,
+                                            weight: FontWeight.w700,
                                             color: Theme.of(context).colorScheme.onSurfaceVariant,
                                           ).copyWith(letterSpacing: 1.1),
                                         ),
@@ -244,7 +245,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                                           color: Theme.of(context).colorScheme.surface,
                                           borderRadius: BorderRadius.circular(24),
                                           border: Border.all(
-                                            color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: .58),
+                                            color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: .22),
                                           ),
                                           boxShadow: [
                                             BoxShadow(
@@ -324,14 +325,6 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
   }
 
   Widget _buildEmpty(String myUid) {
-    if (_search.isNotEmpty) {
-      return const NovynEmptyState(
-        icon: Icons.search_off_rounded,
-        title: 'No matching people',
-        description: 'Try another name or username.',
-      );
-    }
-
     final theme = Theme.of(context);
     final dark = theme.brightness == Brightness.dark;
     final muted = theme.colorScheme.onSurfaceVariant;
@@ -865,7 +858,7 @@ class _DiscoverPersonRow extends StatelessWidget {
             UserAvatar(
               name: user.name,
               photoUrl: user.photoUrl,
-              radius: 38,
+              radius: 44,
               showOnlineIndicator: true,
               isOnline: isOnline,
               presence: user.status,
@@ -883,21 +876,26 @@ class _DiscoverPersonRow extends StatelessWidget {
                     style: NovynText.body(17, weight: FontWeight.w600, color: scheme.onSurface),
                   ),
                   const SizedBox(height: 4),
-                  Text(
-                    '@${user.username} · $statusText',
+                  RichText(
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: NovynText.body(13, color: statusColor).copyWith(
-                      fontWeight: isOnline ? FontWeight.w600 : FontWeight.w500,
-                    ),
+                    text: TextSpan(children: [
+                      TextSpan(text: '@${user.username}',
+                        style: NovynText.body(13, color: scheme.onSurfaceVariant)),
+                      TextSpan(text: ' · ',
+                        style: NovynText.body(13, color: scheme.onSurfaceVariant)),
+                      TextSpan(text: statusText,
+                        style: NovynText.body(13, weight: FontWeight.w500,
+                          color: isOnline ? const Color(0xFF25864C) : scheme.onSurfaceVariant)),
+                    ]),
                   ),
                 ],
               ),
             ),
             const SizedBox(width: 10),
             SizedBox(
-              width: 100,
-              height: 52,
+              width: 90,
+              height: 48,
               child: FilledButton(
                 onPressed: (isPending || isSending) ? null : onAddFriend,
                 style: FilledButton.styleFrom(
@@ -912,7 +910,7 @@ class _DiscoverPersonRow extends StatelessWidget {
                 ),
                 child: Text(
                   isSending ? 'Sending' : isPending ? 'Requested' : 'Add',
-                  style: NovynText.body(14, weight: FontWeight.w800,
+                  style: NovynText.body(13, weight: FontWeight.w600,
                     color: isPending || isSending ? scheme.onSurfaceVariant : scheme.primary),
                 ),
               ),
