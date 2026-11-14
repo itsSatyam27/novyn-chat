@@ -442,54 +442,57 @@ class _DiscoverPeopleScreenState extends State<DiscoverPeopleScreen> {
     final muted = isDark ? const Color(0xFFB7B2C9) : theme.colorScheme.onSurfaceVariant;
     return Scaffold(
       backgroundColor: NovynTheme.pageBg(context),
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back_rounded, color: foreground),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: Text('Friend Requests',
-          style: NovynText.display(20, color: foreground)),
-        centerTitle: false,
-      ),
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 18),
-            child: Text('Manage your connections',
-              style: NovynText.body(13, color: muted)),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Container(
-              padding: const EdgeInsets.all(5),
-              decoration: BoxDecoration(
-                color: theme.brightness == Brightness.dark
-                    ? const Color(0xFF171622) : const Color(0xFFF0EDFA),
-                borderRadius: BorderRadius.circular(17),
-                border: Border.all(color: theme.colorScheme.outlineVariant.withValues(alpha: .45)),
+      body: SafeArea(
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 10, 16, 16),
+              child: Row(
+                children: [
+                  IconButton(
+                    tooltip: 'Back',
+                    onPressed: () => Navigator.pop(context),
+                    icon: Icon(Icons.arrow_back_rounded, color: foreground, size: 25),
+                  ),
+                  const SizedBox(width: 5),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Friend Requests', style: NovynText.display(25, color: foreground)),
+                        const SizedBox(height: 2),
+                        Text('Manage your connections', style: NovynText.body(14, color: muted)),
+                      ],
+                    ),
+                  ),
+                  Material(
+                    color: theme.colorScheme.surface,
+                    borderRadius: BorderRadius.circular(17),
+                    child: InkWell(
+                      onTap: _showMyQrCode,
+                      borderRadius: BorderRadius.circular(17),
+                      child: SizedBox(
+                        width: 48,
+                        height: 48,
+                        child: Icon(Icons.qr_code_2_rounded, color: theme.colorScheme.primary, size: 24),
+                      ),
+                    ),
+                  ),
+                ],
               ),
-              child: Row(children: [
-                _tab('Received', 0, service),
-                _tab('Sent', 1, service),
-                _tab('Add friend', 2, service),
-              ]),
             ),
-          ),
-          const SizedBox(height: 18),
-          Expanded(
-            child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 220),
-              child: switch (_activeTab) {
-                0 => _received(service),
-                1 => _sent(service),
-                _ => _addFriend(service),
-              },
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 28),
+                children: [
+                  _addFriend(service),
+                  const SizedBox(height: 18),
+                  _sentSection(service),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -547,114 +550,247 @@ class _DiscoverPeopleScreenState extends State<DiscoverPeopleScreen> {
 
   Widget _addFriend(FriendService service) {
     final theme = Theme.of(context);
-    return ListView(
-      key: const ValueKey('add-friend'),
-      padding: const EdgeInsets.fromLTRB(20, 4, 20, 110),
-      children: [
-        Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: theme.brightness == Brightness.dark ? const Color(0xFF171622) : Colors.white,
-            borderRadius: BorderRadius.circular(22),
-            border: Border.all(color: theme.colorScheme.outlineVariant.withValues(alpha: .5)),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    final muted = theme.brightness == Brightness.dark
+        ? const Color(0xFFB7B2C9)
+        : theme.colorScheme.onSurfaceVariant;
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: theme.brightness == Brightness.dark ? const Color(0xFF171622) : Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: theme.colorScheme.outlineVariant.withValues(alpha: .38)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
             children: [
-              Row(children: [
-                Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.primary.withValues(alpha: .12),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Icon(Icons.person_add_alt_1_rounded, color: theme.colorScheme.primary),
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primary.withValues(alpha: .12),
+                  borderRadius: BorderRadius.circular(17),
                 ),
-                const SizedBox(width: 12),
-                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('Add a friend', style: NovynText.display(17, color: theme.brightness == Brightness.dark ? const Color(0xFFF4F1FF) : theme.colorScheme.onSurface)),
-                  const SizedBox(height: 3),
-                  Text('Connect using their Novyn username.', style: NovynText.body(12, color: theme.brightness == Brightness.dark ? const Color(0xFFB7B2C9) : theme.colorScheme.onSurfaceVariant)),
-                ])),
-              ]),
-              const SizedBox(height: 20),
-              CompositedTransformTarget(
-                key: _usernameFieldKey,
-                link: _usernameFieldLink,
-                child: TextField(
-                  controller: _usernameController,
-                  textInputAction: TextInputAction.send,
-                  onChanged: (value) => _onUsernameChanged(value, service),
-                  onSubmitted: (_) {
-                    _hideUsernameSuggestions();
-                    _sendFriendRequest(service);
-                  },
-                  decoration: InputDecoration(
-                    hintText: 'Enter username',
-                    prefixIcon: const Icon(Icons.alternate_email_rounded),
-                    suffixIcon: _searchingUsernames
-                        ? const Padding(
-                            padding: EdgeInsets.all(14),
-                            child: SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            ),
-                          )
-                        : null,
-                    filled: true,
-                    fillColor: theme.colorScheme.surfaceContainerHighest.withValues(alpha: .45),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide.none),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(15),
-                      borderSide: BorderSide(color: theme.colorScheme.outlineVariant.withValues(alpha: .55)),
-                    ),
-                  ),
-                ),
+                child: Icon(Icons.person_add_alt_1_rounded, color: theme.colorScheme.primary, size: 23),
               ),
-              const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton.icon(
-                  onPressed: _sendingRequest ? null : () => _sendFriendRequest(service),
-                  icon: _sendingRequest
-                      ? const SizedBox(width: 17, height: 17, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                      : const Icon(Icons.send_rounded, size: 17),
-                  label: Text(_sendingRequest ? 'Sending request...' : 'Send friend request'),
-                  style: FilledButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                  ),
+              const SizedBox(width: 13),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Add a friend', style: NovynText.display(19, color: theme.colorScheme.onSurface)),
+                    const SizedBox(height: 3),
+                    Text('Connect using their Novyn username.', style: NovynText.body(13, color: muted)),
+                  ],
                 ),
               ),
             ],
           ),
-        ),
-        const SizedBox(height: 14),
-        Container(
-          padding: const EdgeInsets.all(17),
-          decoration: BoxDecoration(
-            color: theme.colorScheme.primary.withValues(alpha: .07),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: theme.colorScheme.primary.withValues(alpha: .15)),
-          ),
-          child: Row(children: [
-            Icon(Icons.qr_code_2_rounded, size: 34, color: theme.colorScheme.primary),
-            const SizedBox(width: 12),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Share your QR code', style: NovynText.body(13, weight: FontWeight.w800, color: theme.brightness == Brightness.dark ? const Color(0xFFF4F1FF) : theme.colorScheme.onSurface)),
-              const SizedBox(height: 3),
-              Text('Let friends scan your profile to find you.', style: NovynText.body(11, color: theme.brightness == Brightness.dark ? const Color(0xFFB7B2C9) : theme.colorScheme.onSurfaceVariant)),
-            ])),
-            IconButton(
-              tooltip: 'Show my QR code',
-              onPressed: _showMyQrCode,
-              icon: Icon(Icons.open_in_new_rounded, color: theme.colorScheme.primary),
+          const SizedBox(height: 18),
+          CompositedTransformTarget(
+            key: _usernameFieldKey,
+            link: _usernameFieldLink,
+            child: TextField(
+              controller: _usernameController,
+              textInputAction: TextInputAction.send,
+              onChanged: (value) => _onUsernameChanged(value, service),
+              onSubmitted: (_) {
+                _hideUsernameSuggestions();
+                _sendFriendRequest(service);
+              },
+              style: NovynText.body(15, color: theme.colorScheme.onSurface),
+              decoration: InputDecoration(
+                hintText: 'Enter username',
+                prefixIcon: const Icon(Icons.alternate_email_rounded),
+                suffixIcon: _searchingUsernames
+                    ? const Padding(
+                        padding: EdgeInsets.all(14),
+                        child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+                      )
+                    : null,
+                filled: true,
+                fillColor: theme.colorScheme.surfaceContainerHighest.withValues(alpha: .45),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(17), borderSide: BorderSide.none),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(17),
+                  borderSide: BorderSide(color: theme.colorScheme.outlineVariant.withValues(alpha: .55)),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(17),
+                  borderSide: BorderSide(color: theme.colorScheme.primary, width: 1.5),
+                ),
+              ),
             ),
-          ]),
-        ),
-      ],
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: _sendingRequest ? null : () => _sendFriendRequest(service),
+              icon: _sendingRequest
+                  ? const SizedBox(width: 17, height: 17, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : const Icon(Icons.send_rounded, size: 18),
+              label: Text(_sendingRequest ? 'Sending request...' : 'Send friend request'),
+              style: FilledButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(17)),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _sentSection(FriendService service) {
+    final theme = Theme.of(context);
+    return StreamBuilder<Set<String>>(
+      stream: service.sentPendingUidsStream(widget.myUid),
+      builder: (context, snap) {
+        if (snap.connectionState == ConnectionState.waiting && !snap.hasData) {
+          return const Padding(
+            padding: EdgeInsets.symmetric(vertical: 30),
+            child: Center(child: CircularProgressIndicator()),
+          );
+        }
+        final names = (snap.data ?? <String>{}).toList()
+          ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(6, 0, 6, 10),
+              child: Text(
+                'SENT REQUESTS · ${names.length}',
+                style: NovynText.body(12, weight: FontWeight.w800, color: theme.colorScheme.onSurfaceVariant).copyWith(letterSpacing: 1.1),
+              ),
+            ),
+            if (names.isEmpty)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.fromLTRB(20, 34, 20, 34),
+                decoration: BoxDecoration(
+                  color: theme.brightness == Brightness.dark ? const Color(0xFF171622) : Colors.white,
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(color: theme.colorScheme.outlineVariant.withValues(alpha: .38)),
+                ),
+                child: Column(
+                  children: [
+                    Container(
+                      width: 88,
+                      height: 88,
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.primary.withValues(alpha: .08),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Center(
+                        child: Container(
+                          width: 66,
+                          height: 66,
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.primary.withValues(alpha: .10),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(Icons.send_outlined, color: theme.colorScheme.primary, size: 32),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    Text('No pending requests', style: NovynText.display(18, color: theme.colorScheme.onSurface)),
+                    const SizedBox(height: 5),
+                    Text(
+                      'Requests you send will show up here until they accept.',
+                      textAlign: TextAlign.center,
+                      style: NovynText.body(14, color: theme.colorScheme.onSurfaceVariant),
+                    ),
+                  ],
+                ),
+              )
+            else
+              Container(
+                decoration: BoxDecoration(
+                  color: theme.brightness == Brightness.dark ? const Color(0xFF171622) : Colors.white,
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(color: theme.colorScheme.outlineVariant.withValues(alpha: .38)),
+                ),
+                child: Column(
+                  children: [
+                    for (var i = 0; i < names.length; i++) ...[
+                      FutureBuilder<UserModel?>(
+                        future: service.getUser(names[i]),
+                        builder: (context, userSnap) {
+                          final username = names[i];
+                          final user = userSnap.data ?? UserModel(
+                            uid: username,
+                            username: username,
+                            name: username,
+                            email: '',
+                            bio: '',
+                            createdAt: DateTime.fromMillisecondsSinceEpoch(0),
+                          );
+                          final palette = <Color>[
+                            const Color(0xFF6D4CF5),
+                            const Color(0xFF117D73),
+                            const Color(0xFF0876A8),
+                            const Color(0xFFB85A0A),
+                          ];
+                          final avatarColor = palette[i % palette.length];
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                            child: Row(
+                              children: [
+                                CircleAvatar(
+                                  radius: 26,
+                                  backgroundColor: avatarColor,
+                                  backgroundImage: user.photoUrl.trim().isNotEmpty ? NetworkImage(user.photoUrl) : null,
+                                  child: user.photoUrl.trim().isEmpty
+                                      ? Text(
+                                          user.name.trim().isNotEmpty ? user.name.trim()[0].toUpperCase() : username[0].toUpperCase(),
+                                          style: NovynText.display(18, color: Colors.white),
+                                        )
+                                      : null,
+                                ),
+                                const SizedBox(width: 14),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(user.name, maxLines: 1, overflow: TextOverflow.ellipsis,
+                                        style: NovynText.body(15, weight: FontWeight.w700, color: theme.colorScheme.onSurface)),
+                                      const SizedBox(height: 3),
+                                      Text('@${user.username} · Pending response',
+                                        maxLines: 1, overflow: TextOverflow.ellipsis,
+                                        style: NovynText.body(12, color: theme.colorScheme.onSurfaceVariant)),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                TextButton.icon(
+                                  onPressed: _sendingRequest ? null : () => _cancelSentFriendRequest(service, user),
+                                  icon: const Icon(Icons.close_rounded, size: 17),
+                                  label: const Text('Cancel'),
+                                  style: TextButton.styleFrom(
+                                    foregroundColor: theme.colorScheme.error,
+                                    backgroundColor: theme.colorScheme.error.withValues(alpha: .08),
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+                      if (i != names.length - 1)
+                        Divider(height: 1, indent: 16, endIndent: 16, color: theme.colorScheme.outlineVariant.withValues(alpha: .5)),
+                    ],
+                  ],
+                ),
+              ),
+          ],
+        );
+      },
     );
   }
 
