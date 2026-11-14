@@ -1,222 +1,452 @@
-import 'dart:math';
-import 'package:flutter/material.dart';
-import '../../widgets/novyn_brand_mark.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'package:provider/provider.dart';
-import '../../services/auth_service.dart';
-import '../../theme/novyn_theme.dart';
-import '../main_screen.dart';
-import '../auth/onboarding_screen.dart';
+import 'dart:math' as math;
 
-// ═══════════════════════════════════════════════════════════════════════════
-//  SplashScreenV2 — Redesigned with pastel gradient & simplified animations
-// ═══════════════════════════════════════════════════════════════════════════
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
+
+import '../../services/auth_service.dart';
+import '../auth/auth_screen.dart';
+import '../main_screen.dart';
+
+/// Animated light aurora splash. Session restoration is resolved by the
+/// existing AuthService before routing, so a slow backend never looks like
+/// an unexpected sign-out.
 class SplashScreenV2 extends StatefulWidget {
-  const SplashScreenV2({super.key});
+  const SplashScreenV2({
+    super.key,
+    this.minDuration = const Duration(milliseconds: 2200),
+  });
+
+  final Duration minDuration;
 
   @override
   State<SplashScreenV2> createState() => _SplashScreenV2State();
 }
 
+class _C {
+  static const bg = Color(0xFFF7F4FF);
+  static const primary = Color(0xFF6C4DF6);
+  static const text = Color(0xFF1C1B29);
+  static const sub = Color(0xFF5B5873);
+}
+
+class _Bubble {
+  const _Bubble(
+    this.text,
+    this.top,
+    this.delay,
+    this.fontSize, {
+    this.left,
+    this.right,
+  });
+
+  final String text;
+  final double top;
+  final double delay;
+  final double fontSize;
+  final double? left;
+  final double? right;
+}
+
+const _bubbles = [
+  _Bubble('hey 👋', .21, 0, 15, left: .07),
+  _Bubble('kaisa hai?', .28, 1.4, 15, right: .06),
+  _Bubble('😂😂', .62, 2.6, 17, left: .09),
+  _Bubble('chal milte hain', .67, .8, 15, right: .05),
+  _Bubble('❤️', .13, 3.4, 18, left: .38),
+  _Bubble('typing…', .77, 4.2, 14, left: .06),
+];
+
 class _SplashScreenV2State extends State<SplashScreenV2>
     with TickerProviderStateMixin {
-  late AnimationController _mainController;
-  late AnimationController _loadController;
+  static const _loopSeconds = 7.2;
 
-  late Animation<double> _logoScale;
-  late Animation<double> _logoFade;
-  late Animation<double> _wordmarkSlide;
-  late Animation<double> _wordmarkFade;
-  late Animation<double> _taglineFade;
-  late Animation<double> _loadingBarSlide;
+  late final AnimationController _intro = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1600),
+  );
+
+  late final AnimationController _loop = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 7200),
+  );
+
+  late final AnimationController _progress = AnimationController(
+    vsync: this,
+    duration: widget.minDuration,
+  );
+
+  bool _started = false;
 
   @override
-  void initState() {
-    super.initState();
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_started) return;
+    _started = true;
 
-    _mainController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 2400),
-    );
-
-    _loadController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1200),
-    );
-
-    _setupAnimations();
-
-    _mainController.forward().whenComplete(() {
-      _loadController.forward();
-    });
+    if (MediaQuery.of(context).disableAnimations) {
+      _intro.value = 1;
+      _progress.value = 1;
+    } else {
+      _intro.forward();
+      _loop.repeat();
+      _progress.forward();
+    }
+    _boot();
   }
 
-  void _setupAnimations() {
-    // Logo bounces in with elastic curve
-    _logoScale = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _mainController,
-        curve: const Interval(0.0, 0.3, curve: Curves.elasticOut),
-      ),
-    );
-
-    _logoFade = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _mainController,
-        curve: const Interval(0.0, 0.25, curve: Curves.easeOut),
-      ),
-    );
-
-    // Wordmark slides up with fade
-    _wordmarkSlide = Tween<double>(begin: 30.0, end: 0.0).animate(
-      CurvedAnimation(
-        parent: _mainController,
-        curve: const Interval(0.25, 0.5, curve: Curves.easeOutCubic),
-      ),
-    );
-
-    _wordmarkFade = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _mainController,
-        curve: const Interval(0.2, 0.45, curve: Curves.easeOut),
-      ),
-    );
-
-    // Tagline fades in
-    _taglineFade = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _mainController,
-        curve: const Interval(0.5, 0.7, curve: Curves.easeOut),
-      ),
-    );
-
-    // Loading bar slides up from below
-    _loadingBarSlide = Tween<double>(begin: 40.0, end: 0.0).animate(
-      CurvedAnimation(
-        parent: _mainController,
-        curve: const Interval(0.6, 0.85, curve: Curves.easeOutCubic),
-      ),
-    );
-  }
-
-  Future<void> _completeStartup() async {
-    final auth = context.read<AuthService>();
-
-    // The visual splash can finish before the network-backed session restore.
-    // If a saved session exists, AuthService keeps retrying transient backend
-    // failures. Do not route to onboarding until it confirms signed-in or
-    // signed-out state; otherwise a Render cold start looks like a logout.
+  Future<void> _waitForSessionResolution(AuthService auth) async {
+    // AuthService performs bounded retries and marks authReady only after it
+    // can safely determine the current account state.
     while (mounted && !auth.authReady) {
       await Future<void>.delayed(const Duration(milliseconds: 250));
     }
-    if (!mounted) return;
+  }
 
-    final destination = auth.isLoggedIn
-        ? const MainScreen()
-        : const OnboardingScreen();
+  Future<void> _boot() async {
+    final auth = context.read<AuthService>();
+    await Future.wait<void>([
+      _waitForSessionResolution(auth),
+      Future<void>.delayed(widget.minDuration),
+    ]);
+
+    if (!mounted || !auth.authReady) return;
+    final destination =
+        auth.isLoggedIn ? const MainScreen() : const AuthScreen();
+
     Navigator.of(context).pushReplacement(
-      PageRouteBuilder(
-        pageBuilder: (_, __, ___) => destination,
-        transitionsBuilder: (_, anim, __, child) =>
-            FadeTransition(opacity: anim, child: child),
-        transitionDuration: const Duration(milliseconds: 600),
+      PageRouteBuilder<void>(
+        transitionDuration: const Duration(milliseconds: 450),
+        pageBuilder: (context, animation, secondaryAnimation) => destination,
+        transitionsBuilder: (context, animation, secondaryAnimation, child) =>
+            FadeTransition(
+          opacity: CurvedAnimation(
+            parent: animation,
+            curve: Curves.easeOut,
+          ),
+          child: child,
+        ),
       ),
     );
   }
 
   @override
   void dispose() {
-    _mainController.dispose();
-    _loadController.dispose();
+    _intro.dispose();
+    _loop.dispose();
+    _progress.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    const scheme = ColorScheme.light(
-      primary: Color(0xFF6D5DFC),
-      onSurface: Color(0xFF17152B),
-      onSurfaceVariant: Color(0xFF77748B),
-    );
-    const background = Color(0xFFFAFAFF);
-    const accent = Color(0xFF6D5DFC);
     final size = MediaQuery.sizeOf(context);
-    final compact = size.height < 700;
+    final bottomInset = MediaQuery.paddingOf(context).bottom;
 
-    return Scaffold(
-      backgroundColor: background,
-      body: Stack(
-        children: [
-          Positioned.fill(
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: RadialGradient(
-                  center: const Alignment(-.85, -1),
-                  radius: 1.25,
-                  colors: [accent.withValues(alpha: .13), background],
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.dark.copyWith(
+        statusBarColor: Colors.transparent,
+        systemNavigationBarColor: _C.bg,
+        systemNavigationBarIconBrightness: Brightness.dark,
+      ),
+      child: Scaffold(
+        backgroundColor: _C.bg,
+        body: AnimatedBuilder(
+          animation: Listenable.merge([_intro, _loop, _progress]),
+          builder: (context, _) {
+            final t = _loop.value * 2 * math.pi;
+            return Stack(
+              clipBehavior: Clip.none,
+              children: [
+                _blob(
+                  left: -90,
+                  top: -60,
+                  size: 320,
+                  color: const Color(0xFFB9A8FF),
+                  dx: math.sin(t) * 30,
+                  dy: math.cos(t) * 24,
                 ),
-              ),
+                _blob(
+                  right: -110,
+                  top: size.height * .27,
+                  size: 300,
+                  color: const Color(0xFFFFC6E0),
+                  dx: -math.sin(t) * 28,
+                  dy: math.cos(t) * 20,
+                ),
+                _blob(
+                  left: -100,
+                  top: size.height * .62,
+                  size: 300,
+                  color: const Color(0xFFBFE2FF),
+                  dx: math.cos(t) * 26,
+                  dy: -math.sin(t) * 26,
+                ),
+                _blob(
+                  right: -70,
+                  bottom: -80,
+                  size: 280,
+                  color: const Color(0xFFFFDFC4),
+                  dx: -math.cos(t) * 24,
+                  dy: math.sin(t) * 22,
+                ),
+                for (final bubble in _bubbles) _bubbleWidget(bubble, size),
+                Align(
+                  alignment: const Alignment(0, -.1),
+                  child: _center(),
+                ),
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 58 + bottomInset,
+                  child: _bottom(),
+                ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _blob({
+    double? left,
+    double? right,
+    double? top,
+    double? bottom,
+    required double size,
+    required Color color,
+    required double dx,
+    required double dy,
+  }) {
+    return Positioned(
+      left: left,
+      right: right,
+      top: top,
+      bottom: bottom,
+      child: Transform.translate(
+        offset: Offset(dx, dy),
+        child: Container(
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: RadialGradient(
+              colors: [color.withAlpha(165), color.withAlpha(0)],
             ),
           ),
-          Positioned(
-            right: -95,
-            bottom: -110,
+        ),
+      ),
+    );
+  }
+
+  Widget _bubbleWidget(_Bubble bubble, Size size) {
+    final gate = const Interval(.4, .7).transform(_intro.value);
+    final phase = (_loop.value - bubble.delay / _loopSeconds) % 1.0;
+    final opacity = phase < .18
+        ? phase / .18
+        : (phase < .78 ? 1.0 : (1 - phase) / .22);
+
+    return Positioned(
+      left: bubble.left == null ? null : size.width * bubble.left!,
+      right: bubble.right == null ? null : size.width * bubble.right!,
+      top: size.height * bubble.top,
+      child: Opacity(
+        opacity: (opacity * gate).clamp(0.0, 1.0).toDouble(),
+        child: Transform.translate(
+          offset: Offset(0, 34 - 88 * phase),
+          child: Transform.scale(
+            scale: .9 + .1 * phase,
             child: Container(
-              width: 280,
-              height: 280,
-              decoration: const BoxDecoration(
-                shape: BoxShape.circle,
-                color: Color(0x147C6CFF),
+              padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 9),
+              decoration: BoxDecoration(
+                color: Colors.white.withAlpha(184),
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: Colors.white.withAlpha(230)),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color(0x1F6C4DF6),
+                    blurRadius: 22,
+                    offset: Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: Text(
+                bubble.text,
+                style: TextStyle(
+                  fontSize: bubble.fontSize,
+                  fontWeight: FontWeight.w600,
+                  color: const Color(0xFF4A4670),
+                ),
               ),
             ),
           ),
-          SafeArea(
-            child: LayoutBuilder(
-              builder: (context, constraints) => SingleChildScrollView(
-                physics: const ClampingScrollPhysics(),
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(minHeight: constraints.maxHeight),
-                  child: IntrinsicHeight(
-                    child: Padding(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: 24,
-                        vertical: compact ? 12 : 24,
+        ),
+      ),
+    );
+  }
+
+  Widget _center() {
+    final value = _intro.value;
+    double segment(double begin, double end) =>
+        Interval(begin, end, curve: Curves.easeOut).transform(value);
+
+    final wordmarkOpacity = segment(.22, .6);
+    final taglineOpacity = segment(.3, .68);
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _logoGroup(),
+        const SizedBox(height: 46),
+        Opacity(
+          opacity: wordmarkOpacity,
+          child: Transform.translate(
+            offset: Offset(0, 14 * (1 - wordmarkOpacity)),
+            child: const Text(
+              'Novyn',
+              style: TextStyle(
+                fontSize: 42,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -1.4,
+                color: _C.text,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 6),
+        Opacity(
+          opacity: taglineOpacity,
+          child: Transform.translate(
+            offset: Offset(0, 14 * (1 - taglineOpacity)),
+            child: const Text(
+              'Your space, your people',
+              style: TextStyle(
+                fontSize: 15.5,
+                fontWeight: FontWeight.w500,
+                color: _C.sub,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _logoGroup() {
+    final introValue = _intro.value;
+    final pop = Curves.easeOutBack.transform(
+      const Interval(0, .5).transform(introValue),
+    );
+    final scale = .6 + .4 * pop;
+    final fade = const Interval(0, .3).transform(introValue);
+    final bobGate = const Interval(.6, 1).transform(introValue);
+    final bob = (1 + math.sin(_loop.value * 4 * math.pi)) / 2;
+    final lift = -9 * bob * bobGate;
+    final ringGate = const Interval(.5, .7).transform(introValue);
+    final sheenX = -60 +
+        240 * Interval(.55, 1, curve: Curves.easeInOut).transform(introValue);
+
+    Widget ring(double offset) {
+      final phase = (_loop.value * 2 + offset) % 1.0;
+      final opacity =
+          (phase < .25 ? phase / .25 : (1 - phase) / .75) * .28 * ringGate;
+      return Transform.scale(
+        scale: .8 + 2.2 * phase,
+        child: Container(
+          width: 130,
+          height: 130,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: _C.primary.withAlpha((opacity * 255).round()),
+              width: 2,
+            ),
+          ),
+        ),
+      );
+    }
+
+    final tile = Container(
+      width: 116,
+      height: 116,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(38),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF8E70FF), Color(0xFF5B3FE0)],
+        ),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x616C4DF6),
+            blurRadius: 44,
+            offset: Offset(0, 22),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(38),
+        child: Stack(
+          children: [
+            Center(
+              child: CustomPaint(
+                size: const Size(68, 68),
+                painter: _LogoMark(),
+              ),
+            ),
+            Positioned(
+              left: sheenX,
+              top: 0,
+              bottom: 0,
+              width: 46,
+              child: Transform(
+                transform: Matrix4.skewX(-.35),
+                child: const ColoredBox(color: Color(0x61FFFFFF)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    return SizedBox(
+      width: 116,
+      height: 116,
+      child: Stack(
+        clipBehavior: Clip.none,
+        alignment: Alignment.center,
+        children: [
+          ring(0),
+          ring(.5),
+          Positioned(
+            left: 16,
+            right: 16,
+            bottom: -26,
+            height: 14,
+            child: Transform.scale(
+              scaleX: 1 - .18 * bob,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(7),
+                  boxShadow: [
+                    BoxShadow(
+                      color: _C.primary.withAlpha(
+                        (110 * (1 - .35 * bob) * fade).round(),
                       ),
-                      child: Center(
-                        child: ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 440),
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              SizedBox(height: compact ? 8 : 18),
-                              _buildLogoSection(),
-                              SizedBox(height: compact ? 16 : 24),
-                              _buildWordmark(),
-                              const SizedBox(height: 8),
-                              _buildTagline(),
-                              SizedBox(height: compact ? 28 : 42),
-                              _buildLoadingBar(),
-                              SizedBox(height: compact ? 16 : 26),
-                              Text(
-                                'A little more connected.',
-                                textAlign: TextAlign.center,
-                                style: GoogleFonts.inter(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w500,
-                                  letterSpacing: .4,
-                                  color: scheme.onSurfaceVariant.withValues(alpha: .68),
-                                ),
-                              ),
-                              SizedBox(height: compact ? 8 : 16),
-                            ],
-                          ),
-                        ),
-                      ),
+                      blurRadius: 18,
+                      spreadRadius: 2,
                     ),
-                  ),
+                  ],
                 ),
               ),
+            ),
+          ),
+          Transform.translate(
+            offset: Offset(0, lift),
+            child: Transform.scale(
+              scale: scale,
+              child: Opacity(opacity: fade, child: tile),
             ),
           ),
         ],
@@ -224,508 +454,92 @@ class _SplashScreenV2State extends State<SplashScreenV2>
     );
   }
 
-  // ── Animated Novyn brand mark ─────────────────────────────────────────────
-  Widget _buildLogoSection() {
-    const scheme = ColorScheme.light(primary: Color(0xFF6D5DFC), onSurface: Color(0xFF17152B), onSurfaceVariant: Color(0xFF77748B));
-    const dark = false;
-    return AnimatedBuilder(
-      animation: Listenable.merge([_mainController, _loadController]),
-      builder: (context, _) {
-        final pulse = 1 + (sin(_loadController.value * pi * 5) * .018);
-        return Transform.scale(
-          scale: _logoScale.value * pulse,
-          child: Opacity(
-            opacity: _logoFade.value,
-            child: SizedBox(
-              width: 178,
-              height: 178,
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  Container(
-                    width: 174,
-                    height: 174,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(44),
-                      border: Border.all(
-                        color: scheme.primary.withValues(alpha: dark ? .20 : .14),
-                        width: 1,
+  Widget _bottom() {
+    final opacity =
+        const Interval(.45, .9, curve: Curves.easeOut).transform(_intro.value);
+    final progress = Curves.easeInOut.transform(_progress.value);
+
+    return Opacity(
+      opacity: opacity,
+      child: Transform.translate(
+        offset: Offset(0, 14 * (1 - opacity)),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Semantics(
+              label: 'Loading',
+              value: (progress * 100).round().toString() + '%',
+              child: Container(
+                width: 176,
+                height: 6,
+                decoration: BoxDecoration(
+                  color: _C.primary.withAlpha(41),
+                  borderRadius: BorderRadius.circular(3),
+                ),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: FractionallySizedBox(
+                    widthFactor: progress,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: _C.primary,
+                        borderRadius: BorderRadius.circular(3),
                       ),
                     ),
-                  ),
-                  Container(
-                    width: 146,
-                    height: 146,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(0xFF5141CD).withValues(alpha: .30),
-                          blurRadius: 38,
-                          spreadRadius: 2,
-                          offset: const Offset(0, 12),
-                        ),
-                      ],
-                    ),
-                    child: const NovynBrandMark(size: 146),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  // ── Paw prints circling around logo ───────────────────────────────────────
-  Widget _buildPawPrints() {
-    return AnimatedBuilder(
-      animation: _mainController,
-      builder: (context, _) {
-        const radius = 80.0;
-        final angle = _mainController.value * 2 * pi;
-        final positions = <Offset>[
-          Offset(radius * cos(angle), radius * sin(angle)),
-          Offset(radius * cos(angle + pi / 2), radius * sin(angle + pi / 2)),
-          Offset(radius * cos(angle + pi), radius * sin(angle + pi)),
-          Offset(radius * cos(angle + 3 * pi / 2), radius * sin(angle + 3 * pi / 2)),
-        ];
-
-        return Stack(
-          children: List.generate(
-            4,
-            (i) => Transform.translate(
-              offset: positions[i] * (_mainController.value * 2).clamp(0, 1),
-              child: Opacity(
-                opacity: (1 - _mainController.value * 2).clamp(0, 1),
-                child: CustomPaint(
-                  size: const Size(20, 20),
-                  painter: _SmallPawPainter(
-                    color: [
-                      NovynTheme.pastelPurple,
-                      NovynTheme.pastelPink,
-                      NovynTheme.pastelTeal,
-                      NovynTheme.pastelPeach,
-                    ][i],
                   ),
                 ),
               ),
             ),
-          ),
-        );
-      },
-    );
-  }
-
-  // ── Wordmark ──────────────────────────────────────────────────────────────
-  Widget _buildWordmark() {
-    const scheme = ColorScheme.light(primary: Color(0xFF6D5DFC), onSurface: Color(0xFF17152B), onSurfaceVariant: Color(0xFF77748B));
-    return AnimatedBuilder(
-      animation: _mainController,
-      builder: (context, _) => Transform.translate(
-        offset: Offset(0, _wordmarkSlide.value),
-        child: Opacity(
-          opacity: _wordmarkFade.value,
-          child: Text(
-            'novyn',
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 48,
-              fontWeight: FontWeight.w800,
-              letterSpacing: -2.2,
-              color: scheme.onSurface,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  // ── Tagline ───────────────────────────────────────────────────────────────
-  Widget _buildTagline() {
-    const scheme = ColorScheme.light(primary: Color(0xFF6D5DFC), onSurface: Color(0xFF17152B), onSurfaceVariant: Color(0xFF77748B));
-    return AnimatedBuilder(
-      animation: _mainController,
-      builder: (context, _) => Opacity(
-        opacity: _taglineFade.value,
-        child: Text(
-          'Connect. Chat. Vibe.',
-          style: GoogleFonts.inter(
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
-            letterSpacing: .7,
-            color: scheme.onSurfaceVariant,
-          ),
-        ),
-      ),
-    );
-  }
-
-  // ── Loading bar ────────────────────────────────────────────────────────────
-  Widget _buildLoadingBar() {
-    return AnimatedBuilder(
-      animation: _mainController,
-      builder: (context, _) {
-        return Transform.translate(
-          offset: Offset(0, _loadingBarSlide.value),
-          child: Opacity(
-            opacity: (_mainController.value * 2).clamp(0, 1),
-            child: _AnimatedLoadingBar(
-              loadController: _loadController,
-              onComplete: _completeStartup,
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-//  _AnimatedLoadingBar
-// ═══════════════════════════════════════════════════════════════════════════
-class _AnimatedLoadingBar extends StatefulWidget {
-  final AnimationController loadController;
-  final VoidCallback onComplete;
-
-  const _AnimatedLoadingBar({
-    required this.loadController,
-    required this.onComplete,
-  });
-
-  @override
-  State<_AnimatedLoadingBar> createState() => _AnimatedLoadingBarState();
-}
-
-class _AnimatedLoadingBarState extends State<_AnimatedLoadingBar> {
-  bool _navigated = false;
-
-  static const _messages = [
-    'settling in...',
-    'finding your vibe...',
-    'almost there...',
-  ];
-
-  @override
-  void initState() {
-    super.initState();
-    widget.loadController.addStatusListener(_onStatus);
-  }
-
-  void _onStatus(AnimationStatus status) {
-    if (status == AnimationStatus.completed && !_navigated) {
-      _navigated = true;
-      Future.delayed(const Duration(milliseconds: 400), widget.onComplete);
-    }
-  }
-
-  @override
-  void dispose() {
-    widget.loadController.removeStatusListener(_onStatus);
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    const barWidth = 200.0;
-    const barHeight = 8.0;
-    const radius = barHeight / 2;
-
-    return AnimatedBuilder(
-      animation: widget.loadController,
-      builder: (context, _) {
-        final fill = widget.loadController.value;
-        final msgIndex = (fill * (_messages.length - 0.01))
-            .floor()
-            .clamp(0, _messages.length - 1);
-
-        return Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Message
-            Text(
-              _messages[msgIndex],
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                letterSpacing: 0.5,
-                color: const Color(0xFF6D5DFC).withValues(alpha: 0.7),
-              ),
-            ),
             const SizedBox(height: 12),
-
-            // Progress bar
-            SizedBox(
-              width: barWidth,
-              height: barHeight,
-              child: Stack(
-                children: [
-                  // Track
-                  Container(
-                    decoration: BoxDecoration(
-                      color: NovynTheme.pastelPurple.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(radius),
-                    ),
-                  ),
-
-                  // Fill with gradient
-                  if (fill > 0)
-                    FractionallySizedBox(
-                      widthFactor: fill,
-                      child: Container(
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(radius),
-                          gradient: const LinearGradient(
-                            colors: [
-                              NovynTheme.pastelPurple,
-                              NovynTheme.pastelPink,
-                            ],
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: NovynTheme.pastelPurple
-                                  .withValues(alpha: 0.4),
-                              blurRadius: 8,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 8),
-
-            // Percentage
-            Text(
-              '${(fill * 100).round()}%',
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 10,
-                fontWeight: FontWeight.w600,
-                letterSpacing: 0.5,
-                color: const Color(0xFF6D5DFC).withValues(alpha: 0.5),
+            const Text(
+              'Getting your chats ready',
+              style: TextStyle(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w500,
+                color: _C.sub,
               ),
             ),
           ],
-        );
-      },
+        ),
+      ),
     );
   }
 }
 
-
-// ═══════════════════════════════════════════════════════════════════════════
-//  _NovynWingsPainter — clean white wings on the Novyn purple mark
-// ═══════════════════════════════════════════════════════════════════════════
-class _NovynWingsPainter extends CustomPainter {
+class _LogoMark extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
-    final sx = size.width / 100;
-    final sy = size.height / 100;
-    canvas.save();
-    canvas.scale(sx, sy);
-
-    final paint = Paint()
-      ..color = Colors.white
-      ..style = PaintingStyle.fill
-      ..isAntiAlias = true;
-
-    final leftWing = Path()
-      ..moveTo(49, 57)
-      ..cubicTo(42, 48, 31, 30, 13, 17)
-      ..cubicTo(14, 32, 20, 43, 31, 51)
-      ..cubicTo(23, 47, 15, 46, 9, 49)
-      ..cubicTo(15, 62, 26, 68, 38, 64)
-      ..cubicTo(42, 62, 46, 59, 49, 57)
+    final scale = size.width / 24;
+    final bubble = Path()
+      ..addRRect(
+        RRect.fromLTRBR(
+          2.5 * scale,
+          3.5 * scale,
+          21.5 * scale,
+          17.5 * scale,
+          Radius.circular(2.5 * scale),
+        ),
+      )
+      ..moveTo(7 * scale, 17 * scale)
+      ..lineTo(7 * scale, 21 * scale)
+      ..lineTo(12.4 * scale, 17.2 * scale)
       ..close();
+    canvas.drawPath(bubble, Paint()..color = Colors.white);
 
-    final rightWing = Path()
-      ..moveTo(51, 57)
-      ..cubicTo(58, 48, 69, 30, 87, 17)
-      ..cubicTo(86, 32, 80, 43, 69, 51)
-      ..cubicTo(77, 47, 85, 46, 91, 49)
-      ..cubicTo(85, 62, 74, 68, 62, 64)
-      ..cubicTo(58, 62, 54, 59, 51, 57)
-      ..close();
-
-    canvas.drawPath(leftWing, paint);
-    canvas.drawPath(rightWing, paint);
-
-    // Inner feather cuts give the mark its distinctive wing silhouette.
-    final cut = Paint()
-      ..color = const Color(0xFF6848ED)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.8
-      ..strokeCap = StrokeCap.round;
-    final leftFeather = Path()
-      ..moveTo(25, 34)
-      ..cubicTo(31, 43, 36, 49, 42, 53);
-    final rightFeather = Path()
-      ..moveTo(75, 34)
-      ..cubicTo(69, 43, 64, 49, 58, 53);
-    canvas.drawPath(leftFeather, cut);
-    canvas.drawPath(rightFeather, cut);
-
-    canvas.restore();
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-//  _CatPainterV2 — Cute cat face
-// ═══════════════════════════════════════════════════════════════════════════
-class _CatPainterV2 extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final w = size.width;
-    final h = size.height;
-
-    // Head
-    final headPaint = Paint()
-      ..color = Colors.white.withValues(alpha: 0.9)
-      ..style = PaintingStyle.fill;
-    canvas.drawOval(
-      Rect.fromCenter(
-        center: Offset(w / 2, h / 2.2),
-        width: w * 0.6,
-        height: h * 0.5,
-      ),
-      headPaint,
+    final letter = Path()
+      ..moveTo(8.9 * scale, 14 * scale)
+      ..lineTo(8.9 * scale, 8 * scale)
+      ..lineTo(15.1 * scale, 14 * scale)
+      ..lineTo(15.1 * scale, 8 * scale);
+    canvas.drawPath(
+      letter,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.9 * scale
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round
+        ..color = _C.primary,
     );
-
-    // Ears
-    canvas.drawOval(
-      Rect.fromCenter(
-        center: Offset(w * 0.35, h * 0.25),
-        width: w * 0.25,
-        height: h * 0.3,
-      ),
-      headPaint,
-    );
-    canvas.drawOval(
-      Rect.fromCenter(
-        center: Offset(w * 0.65, h * 0.25),
-        width: w * 0.25,
-        height: h * 0.3,
-      ),
-      headPaint,
-    );
-
-    // Inner ears (pink)
-    final innerEarPaint = Paint()
-      ..color = NovynTheme.pastelPink.withValues(alpha: 0.7)
-      ..style = PaintingStyle.fill;
-    canvas.drawOval(
-      Rect.fromCenter(
-        center: Offset(w * 0.35, h * 0.28),
-        width: w * 0.12,
-        height: h * 0.15,
-      ),
-      innerEarPaint,
-    );
-    canvas.drawOval(
-      Rect.fromCenter(
-        center: Offset(w * 0.65, h * 0.28),
-        width: w * 0.12,
-        height: h * 0.15,
-      ),
-      innerEarPaint,
-    );
-
-    // Eyes
-    final eyePaint = Paint()
-      ..color = const Color(0xFF6D5DFC)
-      ..style = PaintingStyle.fill;
-    canvas.drawCircle(Offset(w * 0.4, h * 0.45), w * 0.08, eyePaint);
-    canvas.drawCircle(Offset(w * 0.6, h * 0.45), w * 0.08, eyePaint);
-
-    // Eye shine
-    final shinePaint = Paint()
-      ..color = Colors.white
-      ..style = PaintingStyle.fill;
-    canvas.drawCircle(Offset(w * 0.42, h * 0.42), w * 0.03, shinePaint);
-    canvas.drawCircle(Offset(w * 0.62, h * 0.42), w * 0.03, shinePaint);
-
-    // Nose (peach)
-    final nosePaint = Paint()
-      ..color = NovynTheme.pastelPeach
-      ..style = PaintingStyle.fill;
-    canvas.drawOval(
-      Rect.fromCenter(
-        center: Offset(w / 2, h * 0.6),
-        width: w * 0.1,
-        height: w * 0.08,
-      ),
-      nosePaint,
-    );
-
-    // Mouth
-    final mouthPaint = Paint()
-      ..color = const Color(0xFF6D5DFC)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.5
-      ..strokeCap = StrokeCap.round;
-    final path = Path()
-      ..moveTo(w / 2, h * 0.65)
-      ..quadraticBezierTo(w * 0.35, h * 0.75, w * 0.3, h * 0.7)
-      ..moveTo(w / 2, h * 0.65)
-      ..quadraticBezierTo(w * 0.65, h * 0.75, w * 0.7, h * 0.7);
-    canvas.drawPath(path, mouthPaint);
-
-    // Whiskers
-    final whiskerPaint = Paint()
-      ..color = const Color(0xFF6D5DFC).withValues(alpha: 0.5)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 0.8
-      ..strokeCap = StrokeCap.round;
-    canvas.drawLine(Offset(w * 0.15, h * 0.5), Offset(w * 0.05, h * 0.48),
-        whiskerPaint);
-    canvas.drawLine(Offset(w * 0.15, h * 0.58), Offset(w * 0.05, h * 0.6),
-        whiskerPaint);
-    canvas.drawLine(Offset(w * 0.85, h * 0.5), Offset(w * 0.95, h * 0.48),
-        whiskerPaint);
-    canvas.drawLine(Offset(w * 0.85, h * 0.58), Offset(w * 0.95, h * 0.6),
-        whiskerPaint);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-//  _SmallPawPainter
-// ═══════════════════════════════════════════════════════════════════════════
-class _SmallPawPainter extends CustomPainter {
-  final Color color;
-  const _SmallPawPainter({required this.color});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..style = PaintingStyle.fill;
-
-    final w = size.width;
-    final h = size.height;
-
-    // Central pad
-    canvas.drawOval(
-      Rect.fromCenter(
-        center: Offset(w / 2, h * 0.65),
-        width: w * 0.5,
-        height: h * 0.4,
-      ),
-      paint,
-    );
-
-    // Toe beans
-    canvas.drawCircle(Offset(w * 0.2, h * 0.3), w * 0.12, paint);
-    canvas.drawCircle(Offset(w * 0.4, h * 0.15), w * 0.12, paint);
-    canvas.drawCircle(Offset(w * 0.6, h * 0.15), w * 0.12, paint);
-    canvas.drawCircle(Offset(w * 0.8, h * 0.3), w * 0.12, paint);
   }
 
   @override
