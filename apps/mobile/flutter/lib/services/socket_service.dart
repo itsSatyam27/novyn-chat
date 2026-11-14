@@ -1146,6 +1146,7 @@ class SocketService extends ChangeNotifier {
   void _markSocketAuthenticated() {
     if (!_isConnected) return;
     _isAuthenticated = true;
+    SyncService().setOnlineStatus(true);
     if (!_stealthPreferenceSynced) {
       _stealthPreferenceSynced = true;
       unawaited(_syncStealthModePreference());
@@ -2632,6 +2633,7 @@ class SocketService extends ChangeNotifier {
   void disconnect() {
     _manualDisconnect = true;
     SyncService().setOnlineStatus(false);
+    unawaited(SyncService().deactivateAccount());
     _myUsername = null;
     _outboxActivation = null;
     _isAuthenticated = false;
