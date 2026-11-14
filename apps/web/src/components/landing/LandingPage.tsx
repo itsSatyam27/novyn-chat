@@ -27,17 +27,12 @@ import {
 import { triggerHaptic } from '../../services/capacitor';
 import { NovynLogo } from '../ui/NovynLogo';
 
-const APK_DOWNLOAD_URL = '/downloads/novyn.apk';
-const APK_FILENAME = 'novyn.apk';
+const APK_DOWNLOAD_URL = 'https://github.com/itsSatyam27/novyn-chat/releases/latest/download/Novyn-Android-ARM64.apk';
 
 function triggerApkDownload() {
   triggerHaptic('medium');
-  const a = document.createElement('a');
-  a.href = APK_DOWNLOAD_URL;
-  a.download = APK_FILENAME;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
+  // GitHub Release assets are served as attachments, so this starts the APK download directly.
+  window.location.assign(APK_DOWNLOAD_URL);
 }
 
 interface LandingPageProps {
@@ -450,7 +445,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onOpenAuth }) => {
                   fontWeight: 700,
                 }}
               >
-                APK
+                49.6 MB
               </span>
             </div>
 
@@ -612,7 +607,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onOpenAuth }) => {
             }}
           >
             <Download style={{ width: '18px', height: '18px' }} />
-            Download APK (Android)
+            Download APK · 49.6 MB (ARM64)
           </button>
         </motion.div>
 
@@ -644,7 +639,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onOpenAuth }) => {
           className="mockup-container"
           style={{
             maxWidth: '880px',
-            background: 'rgba(12, 17, 29, 0.85)',
+            background: 'rgba(255, 255, 255, 0.92)',
             border: '1px solid var(--border)',
             borderRadius: '26px',
             boxShadow: '0 25px 65px rgba(36, 76, 96, 0.1), 0 0 50px rgba(16, 185, 129, 0.08)',
