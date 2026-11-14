@@ -135,6 +135,8 @@ class SocketService extends ChangeNotifier {
   Function(Map)? onCallAcceptedCallback;
   Function()? onCallRejectedCallback;
   Function(Map)? onCallEndedCallback;
+  Function(Map)? onCallMediaUpgradeRequestCallback;
+  Function(Map)? onCallMediaUpgradeResponseCallback;
   Function(Map)? onWebRTCSignalCallback;
 
   // Status and foreground message callbacks
@@ -878,6 +880,13 @@ class SocketService extends ChangeNotifier {
 
     _socket!.on('call_ended', (data) {
       onCallEndedCallback?.call(data is Map ? Map<String, dynamic>.from(data) : {});
+    });
+
+    _socket!.on('call_media_upgrade_request', (data) {
+      onCallMediaUpgradeRequestCallback?.call(data is Map ? Map<String, dynamic>.from(data) : {});
+    });
+    _socket!.on('call_media_upgrade_response', (data) {
+      onCallMediaUpgradeResponseCallback?.call(data is Map ? Map<String, dynamic>.from(data) : {});
     });
 
     // ── WebRTC signaling ──────────────────────────────────────────────────
@@ -1857,6 +1866,16 @@ class SocketService extends ChangeNotifier {
       'to': toUsername,
       'callId': callId,
       'signal': signal,
+    });
+  }
+
+  void requestCallMediaUpgrade(String toUsername, String callId) {
+    _socket?.emit('call_media_upgrade_request', {'to': toUsername, 'callId': callId});
+  }
+
+  void respondCallMediaUpgrade(String toUsername, String callId, {required bool accepted}) {
+    _socket?.emit('call_media_upgrade_response', {
+      'to': toUsername, 'callId': callId, 'accepted': accepted,
     });
   }
 
