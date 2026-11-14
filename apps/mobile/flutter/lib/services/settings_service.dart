@@ -122,6 +122,7 @@ class SettingsService extends ChangeNotifier {
   bool _secureStorageReadFailed = false;
 
   Future<String?> _readSecureValue(String key) async {
+    if (_secureStorageReadFailed) return null;
     try {
       return await _secureStorage
           .read(key: key)
@@ -134,6 +135,7 @@ class SettingsService extends ChangeNotifier {
   }
 
   Future<bool> _writeSecureValue(String key, String value) async {
+    if (_secureStorageReadFailed) return false;
     try {
       await _secureStorage
           .write(key: key, value: value)
@@ -147,6 +149,7 @@ class SettingsService extends ChangeNotifier {
   }
 
   Future<void> _deleteSecureValue(String key) async {
+    if (_secureStorageReadFailed) return;
     try {
       await _secureStorage
           .delete(key: key)
