@@ -1287,35 +1287,10 @@ class SocketService extends ChangeNotifier {
     final rawText = trimmedText.isNotEmpty
         ? trimmedText
         : (attachment?['kind'] == 'image' ? '[Image]' : '[File]');
-    // A resumed app may still be reconnecting after Android suspended its
-    // process. Wait for an authenticated socket before rejecting the send.
-    if (!_isConnected && !_manualDisconnect) {
-      _scheduleReconnect(1);
-    }
-    await _waitForSocketAuthentication();
-    _requireConnection();
 
-    // New Flutter messages are plaintext. Device identity registration is
-    // already started in the background after socket authentication, so never
-    // wait for secure storage or P-256 key setup before sending a message.
-    final payload = <String, dynamic>{
-      'to': toPeerUsername,
-      'toType': toType,
-      'text': rawText,
-      'attachment': attachment,
-      'replyTo': replyToId == null
-          ? null
-          : {
-              'id': replyToId,
-              'text': replyToText ?? '',
-              'from': replyToSender ?? '',
-            },
-      'clientTempId': clientTempId,
-    };
-
-    // New messages intentionally remain plaintext. The incoming/history
-    // handlers still decrypt older encrypted messages for backward compatibility.
-
+    // Render the outgoing bubble immediately. Android may suspend the socket
+    // while the app is backgrounded; reconnection/authentication happens after
+    // the local message is visible, not before the user sees any response.
     _messageStatuses[clientTempId] = 'sending';
     _messageStatusRevision++;
     final tempMsg = Message(
@@ -1329,25 +1304,47 @@ class SocketService extends ChangeNotifier {
       replyToText: replyToText,
       replyToSender: replyToSender,
       attachment: attachment,
-      isEncrypted: payload['isEncrypted'] == true,
-      ciphertext: payload['ciphertext']?.toString(),
-      iv: payload['iv']?.toString(),
+      isEncrypted: false,
     );
     _messages = [..._messages, tempMsg];
     notifyListeners();
 
-    final connection = _socket!;
-    final acknowledgement = Completer<Map<String, dynamic>>();
-    connection.emitWithAck('private_message', payload, ack: (dynamic result) {
-      if (acknowledgement.isCompleted) return;
-      acknowledgement.complete(
-        result is Map
-            ? Map<String, dynamic>.from(result)
-            : <String, dynamic>{'ok': false, 'message': 'Unexpected server response.'},
-      );
-    });
-
     try {
+      if (!_isConnected && !_manualDisconnect) {
+        _scheduleReconnect(1);
+      }
+      await _waitForSocketAuthentication();
+      _requireConnection();
+
+      // New Flutter messages are plaintext. Device identity registration is
+      // already started in the background after socket authentication, so
+      // secure storage/P-256 setup must never delay message delivery.
+      final payload = <String, dynamic>{
+        'to': toPeerUsername,
+        'toType': toType,
+        'text': rawText,
+        'attachment': attachment,
+        'replyTo': replyToId == null
+            ? null
+            : {
+                'id': replyToId,
+                'text': replyToText ?? '',
+                'from': replyToSender ?? '',
+              },
+        'clientTempId': clientTempId,
+      };
+
+      final connection = _socket!;
+      final acknowledgement = Completer<Map<String, dynamic>>();
+      connection.emitWithAck('private_message', payload, ack: (dynamic result) {
+        if (acknowledgement.isCompleted) return;
+        acknowledgement.complete(
+          result is Map
+              ? Map<String, dynamic>.from(result)
+              : <String, dynamic>{'ok': false, 'message': 'Unexpected server response.'},
+        );
+      });
+
       final result = await acknowledgement.future.timeout(
         const Duration(seconds: 15),
         onTimeout: () => throw TimeoutException(
@@ -1361,8 +1358,8 @@ class SocketService extends ChangeNotifier {
       }
       // The server's private_message echo replaces this optimistic message.
     } catch (_) {
-      // Keep the optimistic bubble visible so the user can see the failed state
-      // and the UI can offer a retry affordance in a later iteration.
+      // Keep the optimistic bubble visible with a failed state so the user can
+      // distinguish a delayed connection from a successfully delivered message.
       final index = _messages.indexWhere((message) => message.id == clientTempId);
       if (index >= 0) {
         _messageStatuses[clientTempId] = 'failed';
