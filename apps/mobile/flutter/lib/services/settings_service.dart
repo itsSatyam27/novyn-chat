@@ -868,18 +868,18 @@ class SettingsService extends ChangeNotifier {
     }
     _appLockPin = pin;
     if (pin == null) {
-      await _secureStorage.delete(key: _secureAppLockPin);
-    } else {
-      await _secureStorage.write(key: _secureAppLockPin, value: pin);
+      await _deleteSecureValue(_secureAppLockPin);
+    } else if (!await _writeSecureValue(_secureAppLockPin, pin)) {
+      throw StateError('Secure storage is temporarily unavailable. Try again.');
     }
     notifyListeners();
   }
 
   Future<void> recordFailedAppLockAttempt() async {
     _appLockFailedAttempts += 1;
-    await _secureStorage.write(
-      key: _secureAppLockFailures,
-      value: _appLockFailedAttempts.toString(),
+    await _writeSecureValue(
+      _secureAppLockFailures,
+      _appLockFailedAttempts.toString(),
     );
     Duration? cooldown;
     if (_appLockFailedAttempts == 15) {
@@ -891,9 +891,9 @@ class SettingsService extends ChangeNotifier {
     }
     if (cooldown != null) {
       _appLockLockedUntil = DateTime.now().add(cooldown);
-      await _secureStorage.write(
-        key: _secureAppLockUntil,
-        value: _appLockLockedUntil!.millisecondsSinceEpoch.toString(),
+      await _writeSecureValue(
+        _secureAppLockUntil,
+        _appLockLockedUntil!.millisecondsSinceEpoch.toString(),
       );
     }
     notifyListeners();
@@ -902,8 +902,8 @@ class SettingsService extends ChangeNotifier {
   Future<void> resetAppLockFailures() async {
     _appLockFailedAttempts = 0;
     _appLockLockedUntil = null;
-    await _secureStorage.delete(key: _secureAppLockFailures);
-    await _secureStorage.delete(key: _secureAppLockUntil);
+    await _deleteSecureValue(_secureAppLockFailures);
+    await _deleteSecureValue(_secureAppLockUntil);
     notifyListeners();
   }
 
@@ -936,9 +936,9 @@ class SettingsService extends ChangeNotifier {
     }
     _panicPin = pin;
     if (pin == null) {
-      await _secureStorage.delete(key: _securePanicPin);
-    } else {
-      await _secureStorage.write(key: _securePanicPin, value: pin);
+      await _deleteSecureValue(_securePanicPin);
+    } else if (!await _writeSecureValue(_securePanicPin, pin)) {
+      throw StateError('Secure storage is temporarily unavailable. Try again.');
     }
     notifyListeners();
   }
@@ -994,8 +994,8 @@ class SettingsService extends ChangeNotifier {
 
   Future<void> clearAll() async {
     await _prefs.clear();
-    await _secureStorage.delete(key: _secureAppLockPin);
-    await _secureStorage.delete(key: _securePanicPin);
+    await _deleteSecureValue(_secureAppLockPin);
+    await _deleteSecureValue(_securePanicPin);
     _notificationsOn = true;
     _messagePreview = true;
     _chatLinkPreviews = true;
