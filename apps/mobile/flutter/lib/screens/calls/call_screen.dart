@@ -841,7 +841,7 @@ class _CallScreenState extends State<CallScreen>
                 ),
               ),
               const Spacer(),
-              if (_audioRoutes.length > 1)
+              if (_audioRoutes.any((route) => route['kind'] == 'bluetooth'))
                 Padding(padding: const EdgeInsets.only(bottom: 12), child: _buildAudioRouteSelector()),
               if (_state == CallState.calling && widget.isIncoming)
                 _buildIncomingControls()
@@ -945,7 +945,7 @@ class _CallScreenState extends State<CallScreen>
                 ),
                 if (connected) ...[const SizedBox(height: 12), _NetworkQualityBadge(webrtc: _webrtc)],
                 const Spacer(flex: 3),
-                if (_audioRoutes.length > 1) Padding(padding: const EdgeInsets.only(bottom: 14), child: _buildAudioRouteSelector()),
+                if (_audioRoutes.any((route) => route['kind'] == 'bluetooth')) Padding(padding: const EdgeInsets.only(bottom: 14), child: _buildAudioRouteSelector()),
                 if (_state == CallState.calling && widget.isIncoming)
                   _buildIncomingControls()
                 else if (_state == CallState.calling)
@@ -1072,7 +1072,7 @@ class _CallScreenState extends State<CallScreen>
       padding: const EdgeInsets.symmetric(horizontal: 32),
       child: Column(
         children: [
-          if (_audioRoutes.length > 1) ...[
+          if (_audioRoutes.any((route) => route['kind'] == 'bluetooth')) ...[
             _buildAudioRouteSelector(),
             const SizedBox(height: 20),
           ],
