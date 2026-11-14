@@ -22,6 +22,8 @@ class WebRTCService extends ChangeNotifier {
   bool _remoteDescriptionSet = false;
   bool _isOfferer = false;
   Timer? _iceRestartTimer;
+  Timer? _qualityTimer;
+  bool _qualitySampleInFlight = false;
   int _iceRestartAttempts = 0;
   SocketService? _activeSocket;
   String? _activePeerId;
@@ -39,7 +41,7 @@ class WebRTCService extends ChangeNotifier {
   RTCPeerConnectionState get connectionState => _connectionState;
 
   // Network quality indicator
-  String _networkQuality = 'good'; // good, fair, poor
+  String _networkQuality = 'good'; // excellent, good, poor
   String get networkQuality => _networkQuality;
 
   // ICE servers — STUN + free TURN servers for better connectivity
@@ -164,13 +166,15 @@ class WebRTCService extends ChangeNotifier {
           state == RTCIceConnectionState.RTCIceConnectionStateCompleted) {
         final wasRecovering = _networkQuality == 'poor' || _iceRestartAttempts > 0;
         _networkQuality = 'good';
+        _startNetworkQualitySampling();
         _iceRestartAttempts = 0;
         _iceRestartTimer?.cancel();
         if (wasRecovering) onNetworkRecovered?.call();
       } else if (state == RTCIceConnectionState.RTCIceConnectionStateChecking) {
-        _networkQuality = 'fair';
+        _networkQuality = 'good';
       } else if (state == RTCIceConnectionState.RTCIceConnectionStateDisconnected ||
                  state == RTCIceConnectionState.RTCIceConnectionStateFailed) {
+        _qualityTimer?.cancel();
         _networkQuality = 'poor';
         _scheduleIceRestart();
       }
@@ -179,6 +183,86 @@ class WebRTCService extends ChangeNotifier {
 
     if (isOffer) {
       await _createAndSendOffer(socket, peerId, callId);
+    }
+  }
+
+  void _startNetworkQualitySampling() {
+    _qualityTimer?.cancel();
+    _sampleNetworkQuality();
+    _qualityTimer = Timer.periodic(
+      const Duration(seconds: 3),
+      (_) => _sampleNetworkQuality(),
+    );
+  }
+
+  double? _statsNumber(dynamic value) {
+    if (value is num) return value.toDouble();
+    return double.tryParse(value?.toString() ?? '');
+  }
+
+  Future<void> _sampleNetworkQuality() async {
+    final connection = _peerConnection;
+    if (connection == null || _qualitySampleInFlight) return;
+    _qualitySampleInFlight = true;
+    try {
+      final reports = await connection.getStats();
+      Map<dynamic, dynamic>? selectedPair;
+      double? roundTripSeconds;
+      double? availableBitrate;
+      var packetsLost = 0.0;
+      var packetsReceived = 0.0;
+      var hasPacketStats = false;
+
+      for (final report in reports) {
+        final values = report.values;
+        if (report.type == 'candidate-pair' && values['state'] == 'succeeded') {
+          final selected = values['selected'] == true || values['nominated'] == true;
+          if (selected || selectedPair == null) selectedPair = values;
+        } else if (report.type == 'inbound-rtp') {
+          final lost = _statsNumber(values['packetsLost']);
+          final received = _statsNumber(values['packetsReceived']);
+          if (lost != null || received != null) {
+            packetsLost += (lost ?? 0).clamp(0, double.infinity);
+            packetsReceived += (received ?? 0).clamp(0, double.infinity);
+            hasPacketStats = true;
+          }
+        }
+      }
+
+      if (selectedPair != null) {
+        roundTripSeconds = _statsNumber(selectedPair['currentRoundTripTime']);
+        availableBitrate = _statsNumber(selectedPair['availableOutgoingBitrate']);
+      }
+
+      final totalPackets = packetsLost + packetsReceived;
+      final packetLoss = hasPacketStats && totalPackets > 0
+          ? packetsLost / totalPackets
+          : null;
+      final poor = (roundTripSeconds != null && roundTripSeconds >= 0.40) ||
+          (packetLoss != null && packetLoss >= 0.05) ||
+          (availableBitrate != null && availableBitrate < 250000);
+      final fair = (roundTripSeconds != null && roundTripSeconds >= 0.18) ||
+          (packetLoss != null && packetLoss >= 0.02) ||
+          (availableBitrate != null && availableBitrate < 900000);
+      final hasMeasurements = roundTripSeconds != null ||
+          packetLoss != null ||
+          availableBitrate != null;
+
+      // Be conservative when stats are missing: connected without a measurable
+      // sample is "good"; excellent requires measured low-latency, low-loss media.
+      final nextQuality = poor
+          ? 'poor'
+          : fair || !hasMeasurements
+              ? 'good'
+              : 'excellent';
+      if (_networkQuality != nextQuality) {
+        _networkQuality = nextQuality;
+        notifyListeners();
+      }
+    } catch (error) {
+      debugPrint('[NovynWebRTC] Could not sample call network quality: $error');
+    } finally {
+      _qualitySampleInFlight = false;
     }
   }
 
@@ -436,6 +520,7 @@ class WebRTCService extends ChangeNotifier {
     _remoteStream = null;
     _peerConnection = null;
     _iceRestartTimer?.cancel();
+    _qualityTimer?.cancel();
     _pendingIceCandidates.clear();
     _remoteDescriptionSet = false;
     _activeSocket = null;
