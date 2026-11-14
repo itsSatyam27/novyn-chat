@@ -130,7 +130,7 @@ class ProfileScreen extends StatelessWidget {
                     showDivider: false,
                   ),
                 ]),
-                NovynSectionLabel('PREFERENCES', padding: const EdgeInsets.fromLTRB(4, 24, 4, 10)),
+                NovynSectionLabel('PREFERENCES', padding: const EdgeInsets.fromLTRB(4, 18, 4, 8)),
                 _NovynSettingsGroup(children: [
                   _NovynSettingsTile(
                     icon: Icons.palette_outlined,
@@ -169,7 +169,7 @@ class ProfileScreen extends StatelessWidget {
                     showDivider: false,
                   ),
                 ]),
-                NovynSectionLabel(l10n.support.toUpperCase(), padding: const EdgeInsets.fromLTRB(4, 24, 4, 10)),
+                NovynSectionLabel(l10n.support.toUpperCase(), padding: const EdgeInsets.fromLTRB(4, 18, 4, 8)),
                 _NovynSettingsGroup(children: [
                   _NovynSettingsTile(
                     icon: Icons.help_outline_rounded,
