@@ -488,13 +488,20 @@ class _CallsScreenState extends State<CallsScreen> {
   Widget _buildFilterCards() {
     final theme = Theme.of(context);
     final accent = theme.colorScheme.primary;
+    final isDark = theme.brightness == Brightness.dark;
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
       child: Container(
         padding: const EdgeInsets.all(4),
         decoration: BoxDecoration(
-          color: accent.withValues(alpha: .09),
+          color: isDark
+              ? const Color(0xFF171426)
+              : theme.colorScheme.surfaceContainerHighest,
           borderRadius: BorderRadius.circular(22),
+          border: Border.all(
+            color: accent.withValues(alpha: isDark ? .18 : .12),
+          ),
         ),
         child: Row(
           children: [
@@ -507,10 +514,17 @@ class _CallsScreenState extends State<CallsScreen> {
                     curve: Curves.easeOutCubic,
                     padding: const EdgeInsets.symmetric(vertical: 10),
                     decoration: BoxDecoration(
-                      color: _filter == option
-                          ? theme.colorScheme.surface
-                          : Colors.transparent,
+                      color: _filter == option ? accent : Colors.transparent,
                       borderRadius: BorderRadius.circular(18),
+                      boxShadow: _filter == option
+                          ? [
+                              BoxShadow(
+                                color: accent.withValues(alpha: .24),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
+                              ),
+                            ]
+                          : null,
                     ),
                     child: Text(
                       option,
@@ -518,9 +532,11 @@ class _CallsScreenState extends State<CallsScreen> {
                       style: TextStyle(
                         fontFamily: 'PlusJakartaSans',
                         fontSize: 14,
-                        fontWeight: FontWeight.w500,
+                        fontWeight: _filter == option
+                            ? FontWeight.w700
+                            : FontWeight.w500,
                         color: _filter == option
-                            ? accent
+                            ? Colors.white
                             : theme.colorScheme.onSurfaceVariant,
                       ),
                     ),
