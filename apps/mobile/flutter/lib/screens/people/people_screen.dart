@@ -600,10 +600,19 @@ class _PeopleScreenState extends State<PeopleScreen> {
     FriendService service,
   ) {
     if (contacts.isEmpty) {
-      return const NovynEmptyState(
-        icon: Icons.people_outline_rounded,
-        title: 'No contacts found',
-        description: 'Try another search or choose a different filter.',
+      return ListView(
+        controller: _scrollController,
+        physics: const BouncingScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(16, 0, 18, 112),
+        children: [
+          _buildActionTiles(myUid, service),
+          const SizedBox(height: 34),
+          const NovynEmptyState(
+            icon: Icons.people_outline_rounded,
+            title: 'No contacts found',
+            description: 'Try another search or choose a different filter.',
+          ),
+        ],
       );
     }
 
@@ -1006,10 +1015,13 @@ class _ContactRow extends StatelessWidget {
                       ),
                       if (isFavourite) ...[
                         const SizedBox(width: 5),
-                        const Icon(
-                          Icons.star_rounded,
-                          size: 15,
-                          color: Color(0xFFB36A24),
+                        GestureDetector(
+                          onTap: onFavourite,
+                          child: const Icon(
+                            Icons.star_rounded,
+                            size: 15,
+                            color: Color(0xFFB36A24),
+                          ),
                         ),
                       ],
                     ],
@@ -1045,19 +1057,6 @@ class _ContactRow extends StatelessWidget {
                     color: theme.colorScheme.primary,
                   ),
                 ),
-              ),
-            ),
-            const SizedBox(width: 4),
-            IconButton(
-              tooltip: isFavourite ? 'Remove from favourites' : 'Add to favourites',
-              onPressed: onFavourite,
-              visualDensity: VisualDensity.compact,
-              icon: Icon(
-                isFavourite ? Icons.star_rounded : Icons.star_border_rounded,
-                size: 18,
-                color: isFavourite
-                    ? const Color(0xFFB36A24)
-                    : theme.colorScheme.onSurfaceVariant.withValues(alpha: .65),
               ),
             ),
           ],
