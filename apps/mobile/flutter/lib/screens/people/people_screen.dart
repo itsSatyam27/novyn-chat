@@ -237,14 +237,6 @@ class _PeopleScreenState extends State<PeopleScreen> {
                     ),
                   ),
                   NovynIconButton(
-                    icon: Icons.person_add_alt_1_rounded,
-                    size: 46,
-                    radius: 17,
-                    iconSize: 21,
-                    onTap: () => _openDiscoverPeople(myUid),
-                  ),
-                  const SizedBox(width: 8),
-                  NovynIconButton(
                     icon: _isSearchVisible ? Icons.close_rounded : Icons.search_rounded,
                     size: 46,
                     radius: 18,
@@ -475,7 +467,7 @@ class _PeopleScreenState extends State<PeopleScreen> {
         child: ConstrainedBox(
           constraints: BoxConstraints(minWidth: constraints.maxWidth),
           child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisAlignment: MainAxisAlignment.start,
             children: [
               for (final item in labels)
                 Padding(
