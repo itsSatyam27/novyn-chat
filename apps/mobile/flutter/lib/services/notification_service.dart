@@ -436,6 +436,9 @@ class NotificationService {
 
   static Future<void> showInAppMessage(
       String username, String messageBody, BuildContext context) async {
+    // Keep the host screen context for navigation. The banner's animated
+    // builder context is disposed as soon as the overlay entry is removed.
+    final navigationContext = context;
     final settings = _settings;
     if (!context.mounted ||
         settings == null ||
@@ -491,7 +494,9 @@ class NotificationService {
                       entry.remove();
                       _inAppBannerEntry = null;
                     }
-                    unawaited(_openChatFromNotification(username, context));
+                    if (navigationContext.mounted) {
+                      unawaited(_openChatFromNotification(username, navigationContext));
+                    }
                   },
                   child: Container(
                     padding: const EdgeInsets.symmetric(
