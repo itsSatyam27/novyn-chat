@@ -7,6 +7,7 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../main_screen.dart';
+import '../chats/chat_detail_screen.dart';
 import '../../services/call_platform_service.dart';
 import '../../services/call_overlay_service.dart';
 import '../../models/user_model.dart';
@@ -85,6 +86,7 @@ class _CallScreenState extends State<CallScreen>
   bool get _showVideo => _isVideo && !_networkAudioOnly;
   bool _isScreenSharingLocal = false;
   bool _showSharedScreenFirst = true;
+  bool _videoUpgradeQueued = false;
   String? _remoteScreenStreamId;
 
   @override
@@ -374,6 +376,10 @@ class _CallScreenState extends State<CallScreen>
       _refreshMiniOverlay();
       _pulseCtrl.stop();
       _startTimer();
+      if (_videoUpgradeQueued) {
+        _videoUpgradeQueued = false;
+        _requestVideoUpgrade();
+      }
 
       // Caller creates the offer
       if (!widget.isIncoming) {
@@ -675,6 +681,21 @@ class _CallScreenState extends State<CallScreen>
     setState(() {
       _pipPosition = Offset(targetX, targetY);
     });
+  }
+
+  void _handleVideoAction() {
+    if (_isVideo) return;
+    HapticService.vibrate(NovynHapticType.selection, category: HapticCategory.calls);
+    if (_state == CallState.connected) {
+      _requestVideoUpgrade();
+    } else if (_state == CallState.calling && !widget.isIncoming) {
+      setState(() => _videoUpgradeQueued = !_videoUpgradeQueued);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_videoUpgradeQueued
+          ? 'Video will be requested when the call connects.'
+          : 'Video request removed.'), behavior: SnackBarBehavior.floating),
+      );
+    }
   }
 
   void _requestVideoUpgrade() {
@@ -1137,91 +1158,377 @@ class _CallScreenState extends State<CallScreen>
     );
   }
 
-  Widget _buildVoiceCall() {
+Widget _buildVoiceCall() {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final ink = dark ? const Color(0xFFF0EFFF) : const Color(0xFF1E1B49);
+    final mutedInk = dark ? const Color(0xFFAAA8C6) : const Color(0xFF5D5A85);
+    final surface = dark ? const Color(0xFF17172B) : Colors.white;
+    final border = dark ? const Color(0xFF39345F) : const Color(0xFFDDD8FF);
+    final incoming = _state == CallState.calling && widget.isIncoming;
     final connected = _state == CallState.connected;
+    final calling = _state == CallState.calling;
+
     return Container(
-      decoration: const BoxDecoration(
-        gradient: RadialGradient(
-          center: Alignment(-.42, -.68), radius: 1.35,
-          colors: [Color(0xFF414B91), Color(0xFF20233F), Color(0xFF0B0D19)],
-          stops: [0, .5, 1],
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: dark
+              ? const [Color(0xFF17172F), Color(0xFF11182D)]
+              : const [Color(0xFFF5F1FF), Color(0xFFE3EDFF)],
         ),
       ),
       child: Stack(
+        fit: StackFit.expand,
         children: [
           Positioned(
-            right: -120, bottom: 120,
-            child: Container(width: 420, height: 420, decoration: const BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: RadialGradient(colors: [Color(0x776D4B91), Color(0x006D4B91)]),
-            )),
+            right: -110,
+            top: 170,
+            child: Container(
+              width: 330,
+              height: 330,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(colors: [
+                  const Color(0xFF7867FF).withValues(alpha: .13),
+                  const Color(0xFF7867FF).withValues(alpha: 0),
+                ]),
+              ),
+            ),
+          ),
+          Positioned(
+            left: -145,
+            bottom: 20,
+            child: Container(
+              width: 350,
+              height: 350,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(colors: [
+                  const Color(0xFF69A6FF).withValues(alpha: dark ? .10 : .16),
+                  const Color(0xFF69A6FF).withValues(alpha: 0),
+                ]),
+              ),
+            ),
           ),
           SafeArea(
             child: Column(
               children: [
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 8, 18, 0),
-                  child: Row(children: [
-                    _CallGlassButton(icon: Icons.keyboard_arrow_down_rounded, onTap: _minimizeCall),
-                    const Spacer(),
-                    _CallNetworkIndicator(webrtc: _webrtc),
-                  ]),
-                ),
-                const Spacer(flex: 2),
-                AnimatedBuilder(
-                  animation: _pulse,
-                  builder: (_, child) => Transform.scale(
-                    scale: _state == CallState.calling ? _pulse.value : 1,
-                    child: child,
+                  padding: const EdgeInsets.fromLTRB(16, 9, 16, 0),
+                  child: Row(
+                    children: [
+                      _CallLightHeaderButton(
+                        icon: Icons.keyboard_arrow_down_rounded,
+                        foreground: ink,
+                        background: surface,
+                        border: border,
+                        onTap: _state == CallState.ended
+                            ? () => Navigator.of(context).maybePop()
+                            : _minimizeCall,
+                      ),
+                      Expanded(
+                        child: Center(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                            decoration: BoxDecoration(
+                              color: surface,
+                              borderRadius: BorderRadius.circular(24),
+                              border: Border.all(color: border),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.lock_outline_rounded,
+                                  size: 16, color: Theme.of(context).colorScheme.primary),
+                                const SizedBox(width: 8),
+                                Text('End-to-end encrypted',
+                                  style: TextStyle(color: ink, fontSize: 12.5,
+                                    fontWeight: FontWeight.w700)),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 44),
+                    ],
                   ),
-                  child: Stack(alignment: Alignment.center, children: [
-                    Container(width: 210, height: 210, decoration: BoxDecoration(
-                      shape: BoxShape.circle, border: Border.all(color: Colors.white.withValues(alpha: .10), width: 1.5),
-                    )),
-                    Container(width: 178, height: 178, decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      boxShadow: [BoxShadow(color: const Color(0xFF7564FF).withValues(alpha: .30), blurRadius: 42, spreadRadius: 8)],
-                    ), child: UserAvatar(name: widget.peer.name, photoUrl: widget.peer.photoUrl, radius: 88, fallbackColor: const Color(0xFF6D5DFC))),
-                  ]),
                 ),
-                const SizedBox(height: 28),
-                Text(widget.peer.name, style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w600, letterSpacing: -.6)),
-                const SizedBox(height: 9),
-                ValueListenableBuilder<int>(
-                  valueListenable: _seconds,
-                  builder: (_, secs, __) => Text(
-                    connected ? _formatDuration(secs) : _statusText(secs),
-                    style: TextStyle(color: connected ? const Color(0xFF9BE8C5) : Colors.white70, fontSize: 14, fontWeight: FontWeight.w500),
-                  ),
-                ),
-                const Spacer(flex: 3),
-                if (_audioRoutes.any((route) => route['kind'] == 'bluetooth')) Padding(padding: const EdgeInsets.only(bottom: 14), child: _buildAudioRouteSelector()),
-                if (_state == CallState.calling && widget.isIncoming)
-                  _buildIncomingControls()
-                else if (_state == CallState.calling)
-                  _buildCallingControls()
-                else if (connected)
-                  Container(
-                    margin: const EdgeInsets.fromLTRB(18, 0, 18, 18),
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                    decoration: BoxDecoration(
-                      color: const Color(0xCC151525),
-                      borderRadius: BorderRadius.circular(38),
-                      border: Border.all(color: Colors.white.withValues(alpha: .12)),
+                Expanded(
+                  child: Center(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          AnimatedBuilder(
+                            animation: _pulse,
+                            builder: (_, child) => Transform.scale(
+                              scale: calling ? _pulse.value : 1,
+                              child: child,
+                            ),
+                            child: _buildCallAvatarRings(dark, border),
+                          ),
+                          const SizedBox(height: 22),
+                          Text(widget.peer.name,
+                            textAlign: TextAlign.center,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(color: ink, fontSize: 31,
+                              height: 1.12, letterSpacing: -.8,
+                              fontWeight: FontWeight.w800)),
+                          const SizedBox(height: 7),
+                          ValueListenableBuilder<int>(
+                            valueListenable: _seconds,
+                            builder: (_, seconds, __) => Text(
+                              connected
+                                  ? _formatDuration(seconds)
+                                  : incoming
+                                      ? 'Incoming ${widget.callType} call'
+                                      : calling ? 'Ringing' : (_endReason ?? 'Call ended'),
+                              textAlign: TextAlign.center,
+                              style: TextStyle(color: mutedInk, fontSize: 15.5,
+                                fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                          if (!incoming && _state != CallState.ended) ...[
+                            const SizedBox(height: 20),
+                            _buildCallConnectionBadge(surface, border, mutedInk),
+                          ],
+                        ],
+                      ),
                     ),
-                    child: Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
-                      _CallDockButton(icon: _muted ? Icons.mic_off_rounded : Icons.mic_rounded, onTap: _toggleMute, active: _muted),
-                      _CallDockButton(icon: _speakerOn ? Icons.volume_up_rounded : Icons.volume_down_rounded, onTap: _toggleSpeaker, active: _speakerOn),
-                      _CallDockButton(icon: Icons.call_end_rounded, onTap: _endCall, danger: true),
-                    ]),
-                  )
+                  ),
+                ),
+                if (_audioRoutes.any((route) => route['kind'] == 'bluetooth'))
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: _buildAudioRouteSelector(),
+                  ),
+                if (incoming)
+                  _buildIncomingControls()
+                else if (calling || connected)
+                  _buildCallingControls()
                 else
-                  Padding(padding: const EdgeInsets.only(bottom: 28), child: Text(_endReason ?? 'Call ended', style: const TextStyle(color: Colors.white70))),
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 28),
+                    child: Text('Call ended', style: TextStyle(color: mutedInk)),
+                  ),
               ],
             ),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildCallAvatarRings(bool dark, Color border) {
+    final hasPhoto = widget.peer.photoUrl.trim().isNotEmpty;
+    final initial = widget.peer.name.trim().isNotEmpty
+        ? widget.peer.name.trim().substring(0, 1).toUpperCase()
+        : '?';
+    final avatar = hasPhoto
+        ? UserAvatar(name: widget.peer.name, photoUrl: widget.peer.photoUrl, radius: 62)
+        : Container(
+            decoration: const BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFF6484F4), Color(0xFF4058D8)],
+              ),
+            ),
+            alignment: Alignment.center,
+            child: Text(initial, style: const TextStyle(color: Colors.white,
+              fontSize: 50, fontWeight: FontWeight.w700)),
+          );
+
+    return SizedBox(
+      width: 204,
+      height: 204,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Container(width: 204, height: 204,
+            decoration: BoxDecoration(shape: BoxShape.circle,
+              border: Border.all(color: border.withValues(alpha: dark ? .25 : .58), width: 1.3))),
+          Container(width: 150, height: 150,
+            decoration: BoxDecoration(shape: BoxShape.circle,
+              border: Border.all(color: const Color(0xFF7868FF).withValues(alpha: .24), width: 1.5))),
+          Container(width: 112, height: 112,
+            decoration: BoxDecoration(shape: BoxShape.circle,
+              border: Border.all(color: const Color(0xFF7868FF).withValues(alpha: .32), width: 1.5))),
+          Container(
+            width: 132,
+            height: 132,
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+              boxShadow: [BoxShadow(
+                color: const Color(0xFF6758ED).withValues(alpha: .20),
+                blurRadius: 32, spreadRadius: 6)],
+            ),
+            child: ClipOval(child: avatar),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCallConnectionBadge(Color surface, Color border, Color mutedInk) {
+    return ListenableBuilder(
+      listenable: _webrtc,
+      builder: (context, _) {
+        final quality = _webrtc.networkQuality;
+        final good = quality == 'good' || quality == 'excellent';
+        final signal = good
+            ? const Color(0xFF6B55F2)
+            : quality == 'poor' ? const Color(0xFFEF4444) : const Color(0xFFE0A12B);
+        final label = quality == 'excellent'
+            ? 'Excellent connection'
+            : quality == 'good'
+                ? 'Good connection'
+                : quality == 'poor' ? 'Poor connection' : 'Checking connection';
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 9),
+          decoration: BoxDecoration(
+            color: surface,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: border),
+          ),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Icon(Icons.network_cell_rounded, size: 16, color: signal),
+            const SizedBox(width: 8),
+            Text(label, style: TextStyle(color: mutedInk, fontSize: 12.5,
+              fontWeight: FontWeight.w700)),
+          ]),
+        );
+      },
+    );
+  }
+
+  Future<void> _openPeerChat() async {
+    HapticService.vibrate(NovynHapticType.selection, category: HapticCategory.calls);
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(builder: (_) => ChatDetailScreen(peer: widget.peer)),
+    );
+  }
+
+  Future<void> _showReminderOptions() async {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final reminder = await showModalBottomSheet<Duration>(
+      context: context,
+      backgroundColor: dark ? const Color(0xFF17172B) : Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
+          child: Column(mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(child: Container(width: 38, height: 4,
+                decoration: BoxDecoration(
+                  color: dark ? Colors.white24 : const Color(0xFFDDD8FF),
+                  borderRadius: BorderRadius.circular(8)))),
+              const SizedBox(height: 18),
+              Text('Remind me to call back', style: TextStyle(
+                color: dark ? Colors.white : const Color(0xFF1E1B49),
+                fontSize: 18, fontWeight: FontWeight.w800)),
+              const SizedBox(height: 7),
+              Text('Choose when Novyn should remind you.',
+                style: TextStyle(color: dark ? const Color(0xFFAAA8C6) :
+                  const Color(0xFF5D5A85), fontSize: 13)),
+              const SizedBox(height: 10),
+              ListTile(contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.notifications_active_outlined),
+                title: const Text('In 5 minutes'),
+                onTap: () => Navigator.pop(sheetContext, const Duration(minutes: 5))),
+              ListTile(contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.notifications_active_outlined),
+                title: const Text('In 15 minutes'),
+                onTap: () => Navigator.pop(sheetContext, const Duration(minutes: 15))),
+              ListTile(contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.notifications_active_outlined),
+                title: const Text('In 1 hour'),
+                onTap: () => Navigator.pop(sheetContext, const Duration(hours: 1))),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (reminder == null || !mounted) return;
+    await NotificationService.scheduleCallReminder(caller: widget.peer.name, delay: reminder);
+    if (!mounted) return;
+    _rejectCall();
+  }
+
+  Widget _buildIncomingControls() {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final mutedInk = dark ? const Color(0xFFAAA8C6) : const Color(0xFF5D5A85);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 22),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+          _CallLightPillAction(
+            icon: Icons.chat_bubble_outline_rounded,
+            label: 'Message',
+            onTap: _openPeerChat),
+          const SizedBox(width: 10),
+          _CallLightPillAction(
+            icon: Icons.schedule_rounded,
+            label: 'Remind me',
+            onTap: _showReminderOptions),
+        ]),
+        const SizedBox(height: 18),
+        Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
+          Column(mainAxisSize: MainAxisSize.min, children: [
+            _CallButton(icon: Icons.call_end_rounded, label: 'Decline',
+              color: const Color(0xFFEF343A), onTap: _rejectCall),
+            const SizedBox(height: 9),
+            Text('Decline', style: TextStyle(color: mutedInk,
+              fontSize: 12.5, fontWeight: FontWeight.w600)),
+          ]),
+          Column(mainAxisSize: MainAxisSize.min, children: [
+            _CallButton(icon: Icons.call_rounded, label: 'Accept',
+              color: const Color(0xFF19B65A), onTap: _acceptCall),
+            const SizedBox(height: 9),
+            Text('Accept', style: TextStyle(color: mutedInk,
+              fontSize: 12.5, fontWeight: FontWeight.w600)),
+          ]),
+        ]),
+      ]),
+    );
+  }
+
+  Widget _buildCallingControls() {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final mutedInk = dark ? const Color(0xFFAAA8C6) : const Color(0xFF5D5A85);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(18, 0, 18, 22),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
+          _CallLightAction(
+            icon: _speakerOn ? Icons.volume_up_rounded : Icons.volume_up_outlined,
+            label: 'Speaker', active: _speakerOn, onTap: _toggleSpeaker),
+          _CallLightAction(
+            icon: Icons.videocam_outlined, label: 'Video',
+            active: _videoUpgradeQueued || _isVideo, onTap: _handleVideoAction),
+          _CallLightAction(
+            icon: _muted ? Icons.mic_off_rounded : Icons.mic_off_outlined,
+            label: 'Mute', active: _muted, onTap: _toggleMute),
+        ]),
+        const SizedBox(height: 23),
+        Column(mainAxisSize: MainAxisSize.min, children: [
+          _CallButton(icon: Icons.call_end_rounded, label: 'End',
+            color: const Color(0xFFEF343A), onTap: _endCall),
+          const SizedBox(height: 8),
+          Text('End', style: TextStyle(color: mutedInk,
+            fontSize: 12.5, fontWeight: FontWeight.w600)),
+        ]),
+      ]),
     );
   }
 
@@ -1386,61 +1693,48 @@ class _CallScreenState extends State<CallScreen>
     );
   }
 
-  Widget _buildAudioRouteSelector() {
-    final routes = _audioRoutes
-        .where((route) => route['kind'] == 'bluetooth')
-        .toList();
+Widget _buildAudioRouteSelector() {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final ink = dark ? Colors.white : const Color(0xFF1E1B49);
+    final routes = _audioRoutes.where((route) => route['kind'] == 'bluetooth').toList();
     if (routes.isEmpty) return const SizedBox.shrink();
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.08),
+        color: dark ? Colors.white.withValues(alpha: .08) : Colors.white,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+        border: Border.all(color: dark ? Colors.white.withValues(alpha: .12) :
+          const Color(0xFFDDD8FF)),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: routes.map((route) {
-          final id = route['id']?.toString() ?? '';
-          final name = route['name']?.toString() ?? 'Audio';
-          final selected = route['selected'] == true || id == _activeAudioRoute;
-          final bluetooth = route['kind'] == 'bluetooth';
-          final icon = bluetooth
-              ? Icons.bluetooth_audio_rounded
-              : id == 'speaker'
-                  ? Icons.volume_up_rounded
-                  : Icons.phone_in_talk_rounded;
-          return Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 3),
-            child: InkWell(
-              borderRadius: BorderRadius.circular(14),
-              onTap: selected ? null : () => _selectAudioRoute(id),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 180),
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                decoration: BoxDecoration(
-                  color: selected
-                      ? Colors.white.withValues(alpha: 0.18)
-                      : Colors.transparent,
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(icon, color: Colors.white, size: 17),
-                    const SizedBox(width: 6),
-                    Text(name, style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                    )),
-                  ],
-                ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: routes.map((route) {
+        final id = route['id']?.toString() ?? '';
+        final name = route['name']?.toString() ?? 'Audio';
+        final selected = route['selected'] == true || id == _activeAudioRoute;
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 3),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(14),
+            onTap: selected ? null : () => _selectAudioRoute(id),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: selected
+                    ? (dark ? Colors.white.withValues(alpha: .18) : const Color(0xFFEFEAFF))
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(14),
               ),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                Icon(Icons.bluetooth_audio_rounded,
+                  color: selected ? Theme.of(context).colorScheme.primary : ink, size: 17),
+                const SizedBox(width: 6),
+                Text(name, style: TextStyle(color: ink, fontSize: 11,
+                  fontWeight: FontWeight.w600)),
+              ]),
             ),
-          );
-        }).toList(),
-      ),
+          ),
+        );
+      }).toList()),
     );
   }
 
@@ -1499,6 +1793,132 @@ class _VideoControlBtn extends StatelessWidget {
 }
 
 // ── Big call button ────────────────────────────────────────────────────────
+class _CallLightHeaderButton extends StatelessWidget {
+  final IconData icon;
+  final Color foreground;
+  final Color background;
+  final Color border;
+  final VoidCallback onTap;
+
+  const _CallLightHeaderButton({
+    required this.icon,
+    required this.foreground,
+    required this.background,
+    required this.border,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) => Material(
+    color: background,
+    borderRadius: BorderRadius.circular(18),
+    child: InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(18),
+      child: Container(
+        width: 44,
+        height: 44,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: border.withValues(alpha: .75)),
+          boxShadow: [BoxShadow(
+            color: const Color(0xFF4B3D9A).withValues(alpha: .07),
+            blurRadius: 16, offset: const Offset(0, 5))],
+        ),
+        child: Icon(icon, color: foreground, size: 26),
+      ),
+    ),
+  );
+}
+
+class _CallLightAction extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool active;
+  final VoidCallback onTap;
+
+  const _CallLightAction({
+    required this.icon,
+    required this.label,
+    required this.active,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final primary = Theme.of(context).colorScheme.primary;
+    final surface = dark ? const Color(0xFF22213A) : Colors.white;
+    final foreground = active ? primary : (dark ? Colors.white : const Color(0xFF1E1B49));
+    final labelColor = dark ? const Color(0xFFAAA8C6) : const Color(0xFF5D5A85);
+    return SizedBox(
+      width: 86,
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Material(
+          color: active ? primary.withValues(alpha: dark ? .23 : .12) : surface,
+          shape: const CircleBorder(),
+          elevation: dark ? 0 : 2,
+          shadowColor: const Color(0xFF4B3D9A).withValues(alpha: .10),
+          child: InkWell(
+            onTap: onTap,
+            customBorder: const CircleBorder(),
+            child: SizedBox(width: 64, height: 64,
+              child: Icon(icon, color: foreground, size: 28)),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(label, maxLines: 1, overflow: TextOverflow.ellipsis,
+          style: TextStyle(color: labelColor, fontSize: 12.5,
+            fontWeight: FontWeight.w600)),
+      ]),
+    );
+  }
+}
+
+class _CallLightPillAction extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  const _CallLightPillAction({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final primary = Theme.of(context).colorScheme.primary;
+    final surface = dark ? const Color(0xFF22213A) : Colors.white;
+    final foreground = dark ? Colors.white : const Color(0xFF1E1B49);
+    return Material(
+      color: surface,
+      borderRadius: BorderRadius.circular(28),
+      elevation: dark ? 0 : 2,
+      shadowColor: const Color(0xFF4B3D9A).withValues(alpha: .10),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(28),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 17, vertical: 12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(28),
+            border: Border.all(color: dark ? const Color(0xFF39345F) :
+              const Color(0xFFDDD8FF)),
+          ),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Icon(icon, color: primary, size: 18),
+            const SizedBox(width: 8),
+            Text(label, style: TextStyle(color: foreground,
+              fontSize: 13, fontWeight: FontWeight.w700)),
+          ]),
+        ),
+      ),
+    );
+  }
+}
+
 class _CallButton extends StatelessWidget {
   final IconData icon;
   final String label;

@@ -219,6 +219,7 @@ class NotificationService {
   static const String _messageChannelId = 'novyn_messages';
   static const String _messageChannelName = 'Messages';
   static bool _localNotificationsReady = false;
+  static final Map<int, Timer> _callReminderTimers = {};
   static OverlayEntry? _inAppBannerEntry;
   static Timer? _inAppBannerTimer;
   static AuthService? _presenceAuth;
@@ -245,6 +246,48 @@ class NotificationService {
   /// actions. The notification itself stays ongoing while the call is active.
   static void setActiveCallActionHandler(ValueChanged<String>? handler) {
     _activeCallActionHandler = handler;
+  }
+
+  /// Schedules a local reminder while the application process is alive.
+  /// Force-stopping the app clears this in-process timer.
+  static Future<void> scheduleCallReminder({
+    required String caller,
+    required Duration delay,
+  }) async {
+    if (delay <= Duration.zero) return;
+    final id = DateTime.now().millisecondsSinceEpoch.remainder(2147483647);
+    _callReminderTimers.remove(id)?.cancel();
+    final android = _localNotifications.resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin>();
+    await android?.createNotificationChannel(const AndroidNotificationChannel(
+      'novyn_call_reminders',
+      'Call reminders',
+      description: 'Reminders to return calls later',
+      importance: Importance.high,
+    ));
+    _callReminderTimers[id] = Timer(delay, () async {
+      _callReminderTimers.remove(id);
+      try {
+        await _localNotifications.show(
+          id,
+          'Call $caller back',
+          'You asked Novyn to remind you to return this call.',
+          const NotificationDetails(
+            android: AndroidNotificationDetails(
+              'novyn_call_reminders',
+              'Call reminders',
+              channelDescription: 'Reminders to return calls later',
+              importance: Importance.high,
+              priority: Priority.high,
+              icon: '@drawable/novyn_wings_icon',
+            ),
+            iOS: DarwinNotificationDetails(),
+          ),
+        );
+      } catch (error) {
+        debugPrint('[NovynCalls] Could not show call reminder: $error');
+      }
+    });
   }
 
   static Future<void> showActiveCallNotification({
