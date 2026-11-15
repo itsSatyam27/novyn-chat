@@ -52,6 +52,8 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
       return;
     }
     if (!(prefs.getBool('notifications_on') ?? true)) return;
+    final presenceMode = (prefs.getString('novyn_notification_presence_mode') ?? 'online').toLowerCase();
+    if (presenceMode == 'busy' || presenceMode == 'invisible') return;
     final dndEnabled = prefs.getBool('do_not_disturb_enabled') ?? false;
     final favoriteIds = (prefs.getStringList('favorite_chat_ids') ?? [])
         .map((value) => value.toLowerCase()).toSet();
@@ -78,7 +80,8 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   // reading account and preview preferences written by the foreground isolate.
   await prefs.reload();
   final notificationsEnabled = prefs.getBool('notifications_on') ?? true;
-  if (!notificationsEnabled) return;
+  final presenceMode = (prefs.getString('novyn_notification_presence_mode') ?? 'online').toLowerCase();
+  if (!notificationsEnabled || presenceMode == 'busy' || presenceMode == 'invisible') return;
   // The active mode's notificationsEnabled preference is persisted above.
   // Keep honoring explicit silent payloads (including delayed pushes).
   final sender = (data['chat'] ?? '').toString().trim();
@@ -439,7 +442,8 @@ class NotificationService {
         !settings.notificationsOn ||
         (settings.doNotDisturbEnabled &&
             !settings.favoriteChatIds.contains(username.trim().toLowerCase())) ||
-        _presenceAuth?.user?.presenceMode == 'busy') {
+        (_presenceAuth?.user?.presenceMode == 'busy' ||
+            _presenceAuth?.user?.presenceMode == 'invisible')) {
       return;
     }
 
@@ -751,8 +755,11 @@ class NotificationService {
       final callId = data['callId']?.toString().trim() ?? '';
       if (caller.isEmpty || callId.isEmpty) return;
       final preferences = _settings;
-      if (preferences?.doNotDisturbEnabled == true &&
-          !preferences!.favoriteChatIds.contains(caller.toLowerCase())) {
+      if (preferences == null || !preferences.notificationsOn ||
+          _presenceAuth?.user?.presenceMode == 'busy' ||
+          _presenceAuth?.user?.presenceMode == 'invisible') return;
+      if (preferences.doNotDisturbEnabled &&
+          !preferences.favoriteChatIds.contains(caller.toLowerCase())) {
         return;
       }
       unawaited(_openIncomingCall(caller, callId, data['isVideo'] == true, context));
@@ -884,7 +891,9 @@ class NotificationService {
         if (callId.isNotEmpty) unawaited(_localNotifications.cancel(callId.hashCode));
         return;
       }
-      if (!(_settings?.notificationsOn ?? false)) return;
+      if (!(_settings?.notificationsOn ?? false) ||
+          _presenceAuth?.user?.presenceMode == 'busy' ||
+          _presenceAuth?.user?.presenceMode == 'invisible') return;
       final caller = message.data['chat']?.toString() ?? 'Novyn contact';
       final activeSettings = _settings;
       if (activeSettings?.doNotDisturbEnabled == true &&
