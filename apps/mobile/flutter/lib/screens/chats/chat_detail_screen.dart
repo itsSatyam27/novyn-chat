@@ -718,7 +718,14 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
       backgroundColor: scheme.surface,
       surfaceTintColor: Colors.transparent,
       elevation: 0,
-      toolbarHeight: 68,
+      toolbarHeight: 72,
+      scrolledUnderElevation: 0,
+      shape: Border(
+        bottom: BorderSide(
+          color: scheme.outlineVariant.withValues(alpha: .45),
+          width: .7,
+        ),
+      ),
       automaticallyImplyLeading: false,
       titleSpacing: 12,
       title: Row(
@@ -1174,7 +1181,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
     }
     return ListView.builder(
       controller: _scroll,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.fromLTRB(14, 16, 14, 18),
       itemCount: timelineIndices.length + 1 + (peerIsTyping ? 1 : 0), // start marker + date/message rows + typing
       // Performance optimizations
       addAutomaticKeepAlives: false,
@@ -1616,15 +1623,23 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
 
         // ── Main input row ─────────────────────────────────────────
         Container(
-          decoration: const BoxDecoration(color: Colors.transparent),
-          padding: EdgeInsets.fromLTRB(14, 10, 14, MediaQuery.of(context).viewInsets.bottom > 0 ? 10 : 14),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surface,
+            border: Border(
+              top: BorderSide(
+                color: theme.colorScheme.outlineVariant.withValues(alpha: .45),
+                width: .7,
+              ),
+            ),
+          ),
+          padding: EdgeInsets.fromLTRB(12, 10, 12, MediaQuery.of(context).viewInsets.bottom > 0 ? 10 : 12),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               // Attachment action is intentionally separate from the text field.
               Container(
-                width: 54,
-                height: 54,
+                width: 48,
+                height: 48,
                 decoration: BoxDecoration(
                   color: isDark
                       ? const Color(0xFF191A27)
@@ -1645,13 +1660,13 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
               // Standalone message field.
               Expanded(
                 child: Container(
-                  constraints: const BoxConstraints(minHeight: 54),
+                  constraints: const BoxConstraints(minHeight: 50),
                   decoration: BoxDecoration(
                     color: isDark
-                        ? const Color(0xFF11121D)
-                        : Colors.white,
-                    borderRadius: BorderRadius.circular(30),
-                    border: Border.all(color: theme.colorScheme.primary.withValues(alpha: .16)),
+                        ? theme.colorScheme.surfaceContainerHighest.withValues(alpha: .42)
+                        : theme.colorScheme.surfaceContainerHighest.withValues(alpha: .62),
+                    borderRadius: BorderRadius.circular(25),
+                    border: Border.all(color: theme.colorScheme.outlineVariant.withValues(alpha: .55)),
                     boxShadow: [
                       BoxShadow(
                         color: const Color(0xFF3F358B)
@@ -1724,8 +1739,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 200),
                   curve: Curves.easeInOut,
-                  width: 54,
-                  height: 54,
+                  width: 48,
+                  height: 48,
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       colors: hasText
@@ -2972,9 +2987,9 @@ class _MessageBubble extends StatelessWidget {
                   onLongPress: () => _showReactionPicker(context),
                   child: Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 10),
+                        horizontal: 16, vertical: 11),
                     constraints: BoxConstraints(
-                      maxWidth: MediaQuery.of(context).size.width * 0.76,
+                      maxWidth: MediaQuery.of(context).size.width * 0.78,
                     ),
                     decoration: BoxDecoration(
                       gradient: isMe
