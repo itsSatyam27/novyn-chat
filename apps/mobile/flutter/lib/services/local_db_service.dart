@@ -4,6 +4,7 @@ import '../models/chat_models.dart';
 import '../models/user_model.dart';
 import '../models/chat_preview.dart';
 import '../screens/chats/chats_screen.dart';
+import '../utils/message_pagination.dart';
 
 /// Local database service using Hive for instant loads and offline support
 class LocalDbService {
@@ -85,44 +86,30 @@ class LocalDbService {
   static Future<List<Message>> getMessages(String chatId, {int limit = 50}) async {
     await _ensureInit();
     try {
-      final all = _messagesBox?.values
-          .where((m) => m.chatId == chatId)
-          .toList() ?? [];
-      
-      // Sort by createdAt (oldest first)
-      all.sort((a, b) => a.createdAt.compareTo(b.createdAt));
-      
-      // Return last N messages
-      if (all.length > limit) {
-        return all.sublist(all.length - limit);
-      }
-      return all;
+      final messages = _messagesBox?.values
+              .where((message) => message.chatId == chatId) ??
+          const <Message>[];
+      return latestMessagesPage(messages, limit: limit);
     } catch (e) {
       print('Error getting messages: $e');
       return [];
     }
   }
 
-  /// Get older messages (pagination)
+  /// Get the nearest older page using a composite timestamp + message-ID cursor.
   static Future<List<Message>> getOlderMessages(
     String chatId,
-    DateTime before,
-    {int limit = 30}
-  ) async {
+    DateTime before, {
+    String? beforeId,
+    int limit = 30,
+  }) async {
     await _ensureInit();
     try {
-      final all = _messagesBox?.values
-          .where((m) => m.chatId == chatId && m.createdAt.isBefore(before))
-          .toList() ?? [];
-      
-      // Sort by createdAt (oldest first)
-      all.sort((a, b) => a.createdAt.compareTo(b.createdAt));
-      
-      // Return last N messages
-      if (all.length > limit) {
-        return all.sublist(all.length - limit);
-      }
-      return all;
+      final messages = _messagesBox?.values.where((message) =>
+              message.chatId == chatId &&
+              isMessageBeforeCursor(message, before, beforeId: beforeId)) ??
+          const <Message>[];
+      return latestMessagesPage(messages, limit: limit);
     } catch (e) {
       print('Error getting older messages: $e');
       return [];

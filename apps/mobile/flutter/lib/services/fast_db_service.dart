@@ -113,6 +113,9 @@ MessagesCompanion _toCompanion(models.Message m) => MessagesCompanion.insert(
 class FastDatabase extends _$FastDatabase {
   FastDatabase() : super(_openConnection());
 
+  /// In-memory constructor for deterministic SQLite query regression tests.
+  FastDatabase.forTesting(QueryExecutor executor) : super(executor);
+
   @override
   int get schemaVersion => 4;
 
@@ -134,29 +137,55 @@ class FastDatabase extends _$FastDatabase {
             await migrator.addColumn(messages, messages.iv);
           }
         },
+        // Composite index matches the chat filter and chronological cursor.
+        // beforeOpen also creates it for existing database files.
+        beforeOpen: (_) async {
+          await customStatement(
+            'CREATE INDEX IF NOT EXISTS idx_messages_chat_created_id '
+            'ON messages (chat_id, created_at, id)',
+          );
+        },
       );
 
   // ── MESSAGES ──────────────────────────────────────────────────────────────
 
   Future<List<models.Message>> getMessages(String chatId,
       {int limit = 50}) async {
+    if (limit <= 0) return <models.Message>[];
+    // LIMIT must select the newest rows; reverse the descending query for UI.
+    // Message ID provides stable ordering for equal timestamps.
     final rows = await (select(messages)
           ..where((m) => m.chatId.equals(chatId))
-          ..orderBy([(m) => OrderingTerm.asc(m.createdAt)])
+          ..orderBy([
+            (m) => OrderingTerm.desc(m.createdAt),
+            (m) => OrderingTerm.desc(m.id),
+          ])
           ..limit(limit))
         .get();
-    return rows.map(_toModel).toList();
+    return rows.reversed.map(_toModel).toList();
   }
 
-  Future<List<models.Message>> getOlderMessages(String chatId, DateTime before,
-      {int limit = 30}) async {
+  Future<List<models.Message>> getOlderMessages(
+    String chatId,
+    DateTime before, {
+    String? beforeId,
+    int limit = 30,
+  }) async {
+    if (limit <= 0) return <models.Message>[];
     final rows = await (select(messages)
-          ..where((m) =>
-              m.chatId.equals(chatId) & m.createdAt.isSmallerThanValue(before))
-          ..orderBy([(m) => OrderingTerm.asc(m.createdAt)])
+          ..where((m) => m.chatId.equals(chatId) &
+              (beforeId == null || beforeId.isEmpty
+                  ? m.createdAt.isSmallerThanValue(before)
+                  : m.createdAt.isSmallerThanValue(before) |
+                      (m.createdAt.equals(before) &
+                          m.id.isSmallerThanValue(beforeId))))
+          ..orderBy([
+            (m) => OrderingTerm.desc(m.createdAt),
+            (m) => OrderingTerm.desc(m.id),
+          ])
           ..limit(limit))
         .get();
-    return rows.map(_toModel).toList();
+    return rows.reversed.map(_toModel).toList();
   }
 
   Future<void> saveMessage(models.Message msg) async {

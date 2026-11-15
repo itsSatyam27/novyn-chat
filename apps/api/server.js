@@ -16,6 +16,7 @@ const { Server } = require("socket.io");
 const webpush = require("web-push");
 const { cloudinary, hasCloudinaryConfig } = require("./cloudinary");
 const { createChatAuthorization } = require("./server/chat/authorization");
+const { paginateHistoryMessages } = require("./server/chat/history-pagination");
 const { createIpRateLimiter, pruneHttpRateLimits } = require("./server/auth/rate-limit");
 const { createAuthToken: signAuthToken, verifyAuthToken: verifySignedAuthToken } = require("./server/auth/tokens");
 const { createAuthSessions } = require("./server/auth/sessions");
@@ -7008,20 +7009,9 @@ io.on("connection", (socket) => {
       ? toDisplayName(rawTarget.before)
       : "";
 
-    let endIndex = allMessages.length;
-    if (before) {
-      const beforeIndex = allMessages.findIndex(
-        (message) =>
-          String(message?.id || "") === before ||
-          String(message?.clientTempId || "") === before
-      );
-      if (beforeIndex >= 0) endIndex = beforeIndex;
-    }
-
-    const startIndex = Math.max(0, endIndex - limit);
-    const messages = allMessages.slice(startIndex, endIndex).map((message) => riddleForViewer(message, userKey));
-    const hasMore = startIndex > 0;
-    const nextBefore = hasMore ? String(messages[0]?.id || messages[0]?.clientTempId || "") : null;
+    const page = paginateHistoryMessages(allMessages, { limit, before });
+    const messages = page.messages.map((message) => riddleForViewer(message, userKey));
+    const { hasMore, nextBefore } = page;
     const wallpaper = conversationWallpapers.get(resolved.conversationKey) || "";
 
     socket.emit("history", {
