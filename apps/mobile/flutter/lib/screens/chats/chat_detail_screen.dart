@@ -2258,6 +2258,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
         _voiceSeconds = 0;
         _voiceRecordingPath = path;
       });
+      _syncTypingAnimation();
       _voiceTimer?.cancel();
       _voiceTimer = Timer.periodic(const Duration(seconds: 1), (_) {
         if (mounted && _isRecordingVoice) {
@@ -2283,6 +2284,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
       _isRecordingVoice = false;
       _uploadingAttachment = true;
     });
+    _syncTypingAnimation();
     try {
       final recordedPath = await _voiceRecorder.stop();
       final filePath = recordedPath ?? path;
