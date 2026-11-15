@@ -8,22 +8,22 @@ class DockCustomizationScreen extends StatelessWidget {
   const DockCustomizationScreen({super.key});
 
   static const styles = [
-    ('floating_pill', 'Floating Pill',
-        'A soft capsule with a clear active tab', Icons.view_carousel_rounded),
-    ('rounded_bar', 'Rounded Bar',
-        'A structured bar with comfortable labels', Icons.crop_16_9_rounded),
-    ('minimal', 'Minimal',
-        'Icon-only navigation for more chat space', Icons.more_horiz_rounded),
-    ('glass', 'Glass',
-        'A frosted surface with gentle depth', Icons.blur_on_rounded),
-    ('sliding', 'Sliding Indicator',
-        'A moving highlight beneath the active tab', Icons.swap_horiz_rounded),
-    ('elevated', 'Elevated Center',
-        'A stronger visual focus on the middle tab', Icons.add_circle_outline_rounded),
-    ('full_width', 'Full Width',
-        'An edge-to-edge navigation surface', Icons.view_week_rounded),
-    ('glow', 'Accent Glow',
-        'A subtle glow using your selected accent', Icons.auto_awesome_rounded),
+    ('slide_pill', 'Slide Pill',
+        'A springy accent pill moves beneath the active tab', Icons.view_carousel_rounded),
+    ('expand_capsule', 'Expand Capsule',
+        'The active tab widens to reveal its label', Icons.unfold_more_rounded),
+    ('edge_to_edge', 'Edge to Edge',
+        'A clean full-width bar with a moving top marker', Icons.view_week_rounded),
+    ('dot_minimal', 'Dot Minimal',
+        'Icon-only navigation with a gliding active dot', Icons.more_horiz_rounded),
+    ('soft_glow_glass', 'Soft Glow Glass',
+        'A frosted dock with a soft accent glow', Icons.blur_on_rounded),
+    ('liquid_stretch', 'Liquid Stretch',
+        'The active pill stretches as it moves between tabs', Icons.water_drop_rounded),
+    ('flip_tiles', 'Flip Tiles',
+        'The selected icon flips into an accent tile', Icons.flip_rounded),
+    ('draw_ring', 'Draw Ring',
+        'An accent ring draws around the selected icon', Icons.radio_button_checked_rounded),
   ];
 
   String _styleName(String value) =>
@@ -89,7 +89,7 @@ class DockCustomizationScreen extends StatelessWidget {
               ),
               const Spacer(),
               Text(
-                '8 styles',
+                '8 animated styles',
                 style: theme.textTheme.labelSmall?.copyWith(
                   color: colors.onSurfaceVariant,
                   fontWeight: FontWeight.w600,
@@ -139,12 +139,17 @@ class DockCustomizationScreen extends StatelessWidget {
   }
 }
 
-class _PreviewCard extends StatelessWidget {
-  const _PreviewCard({
-    required this.style,
-  });
+class _PreviewCard extends StatefulWidget {
+  const _PreviewCard({required this.style});
 
   final String style;
+
+  @override
+  State<_PreviewCard> createState() => _PreviewCardState();
+}
+
+class _PreviewCardState extends State<_PreviewCard> {
+  int _selectedIndex = 0;
 
   @override
   Widget build(BuildContext context) {
@@ -176,8 +181,7 @@ class _PreviewCard extends StatelessWidget {
                 ),
                 const Spacer(),
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
                   decoration: BoxDecoration(
                     color: colors.primary.withValues(alpha: .11),
                     borderRadius: BorderRadius.circular(20),
@@ -185,8 +189,7 @@ class _PreviewCard extends StatelessWidget {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.check_rounded,
-                          size: 12, color: colors.primary),
+                      Icon(Icons.check_rounded, size: 12, color: colors.primary),
                       const SizedBox(width: 4),
                       Text(
                         'APPLIED',
@@ -232,9 +235,9 @@ class _PreviewCard extends StatelessWidget {
             right: 12,
             bottom: 8,
             child: NovynDock(
-              selectedIndex: 0,
-              onSelected: (_) {},
-              style: style,
+              selectedIndex: _selectedIndex,
+              onSelected: (index) => setState(() => _selectedIndex = index),
+              style: widget.style,
               unreadCount: 2,
               requestCount: 1,
               preview: true,
@@ -285,6 +288,7 @@ class _DockStyleTile extends StatelessWidget {
 
 class _DockMiniPreview extends StatelessWidget {
   const _DockMiniPreview({required this.style, required this.selected});
+
   final String style;
   final bool selected;
 
@@ -292,37 +296,96 @@ class _DockMiniPreview extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     final accent = colors.primary;
-    final base = colors.primary.withValues(alpha: .08);
+    final inactive = colors.onSurfaceVariant;
+    final base = colors.primary.withValues(alpha: .07);
+
+    Widget dot(int index, {bool active = false}) => Container(
+      width: active ? 14 : 8,
+      height: active ? 14 : 8,
+      decoration: BoxDecoration(
+        color: active ? accent : inactive.withValues(alpha: .36),
+        shape: BoxShape.circle,
+      ),
+    );
+
+    if (style == 'dot_minimal') {
+      return Container(
+        width: double.infinity,
+        decoration: BoxDecoration(color: base, borderRadius: BorderRadius.circular(13)),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: List.generate(5, (i) => Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.circle, size: i == 0 ? 13 : 10, color: i == 0 ? accent : inactive.withValues(alpha: .45)),
+              const SizedBox(height: 5),
+              if (i == 0) Container(width: 5, height: 5, decoration: BoxDecoration(color: accent, shape: BoxShape.circle)),
+            ],
+          )),
+        ),
+      );
+    }
+
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(color: base, borderRadius: BorderRadius.circular(13)),
       padding: const EdgeInsets.all(8),
-      child: Column(children: [
-        Row(children: [
-          Container(width: 42, height: 5, decoration: BoxDecoration(color: accent.withValues(alpha: .16), borderRadius: BorderRadius.circular(5))),
+      child: Column(
+        children: [
+          Row(children: [
+            Container(width: 42, height: 5, decoration: BoxDecoration(color: accent.withValues(alpha: .20), borderRadius: BorderRadius.circular(5))),
+            const Spacer(),
+            Icon(selected ? Icons.check_circle_rounded : Icons.circle_outlined, size: 16, color: selected ? accent : colors.outlineVariant),
+          ]),
           const Spacer(),
-          Icon(selected ? Icons.check_circle_rounded : Icons.circle_outlined,
-            size: 17, color: selected ? accent : colors.outlineVariant),
-        ]),
-        const Spacer(),
-        if (style == 'minimal')
-          Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: List.generate(5, (i) => Icon(Icons.circle, size: 7, color: i == 0 ? accent : accent.withValues(alpha: .35))))
-        else
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 7),
-            decoration: BoxDecoration(
-              color: style == 'glass' || style == 'glow' ? accent.withValues(alpha: .13) : colors.surface,
-              borderRadius: BorderRadius.circular(style == 'floating_pill' ? 20 : 9),
-              boxShadow: style == 'glow' ? [BoxShadow(color: accent.withValues(alpha: .18), blurRadius: 9)] : null,
+          if (style == 'edge_to_edge')
+            Container(
+              decoration: BoxDecoration(color: colors.surface, borderRadius: BorderRadius.circular(8)),
+              padding: const EdgeInsets.only(top: 5, left: 5, right: 5, bottom: 7),
+              child: Column(children: [
+                Align(alignment: Alignment.centerLeft, child: Container(width: 15, height: 2.5, decoration: BoxDecoration(color: accent, borderRadius: BorderRadius.circular(4)))),
+                const SizedBox(height: 6),
+                Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: List.generate(5, (i) => dot(i, active: i == 0))),
+              ]),
+            )
+          else if (style == 'expand_capsule')
+            Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                decoration: BoxDecoration(color: accent.withValues(alpha: .16), borderRadius: BorderRadius.circular(16)),
+                child: Row(children: [dot(0, active: true), const SizedBox(width: 5), Container(width: 24, height: 4, color: accent.withValues(alpha: .7))]),
+              ),
+              const SizedBox(width: 5),
+              ...List.generate(4, (_) => Padding(padding: const EdgeInsets.symmetric(horizontal: 4), child: dot(1))),
+            ])
+          else if (style == 'draw_ring')
+            Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: List.generate(5, (i) => Container(
+              width: 24, height: 24,
+              decoration: BoxDecoration(shape: BoxShape.circle, border: i == 0 ? Border.all(color: accent, width: 2) : null),
+              alignment: Alignment.center,
+              child: dot(i, active: i == 0),
+            )))
+          else if (style == 'flip_tiles')
+            Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: List.generate(5, (i) => Container(
+              width: 24, height: 24,
+              decoration: BoxDecoration(color: i == 0 ? accent : colors.surface, borderRadius: BorderRadius.circular(7)),
+              alignment: Alignment.center,
+              child: dot(i, active: i == 0),
+            )))
+          else
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
+              decoration: BoxDecoration(
+                color: style == 'soft_glow_glass' ? accent.withValues(alpha: .12) : colors.surface,
+                borderRadius: BorderRadius.circular(style == 'slide_pill' || style == 'liquid_stretch' ? 18 : 10),
+                border: style == 'soft_glow_glass' ? Border.all(color: accent.withValues(alpha: .18)) : null,
+                boxShadow: style == 'soft_glow_glass' ? [BoxShadow(color: accent.withValues(alpha: .16), blurRadius: 10)] : null,
+              ),
+              child: Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: List.generate(5, (i) => dot(i, active: i == 0))),
             ),
-            child: Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: List.generate(5, (i) => Container(
-                width: style == 'elevated' && i == 2 ? 13 : 7,
-                height: style == 'elevated' && i == 2 ? 13 : 7,
-                decoration: BoxDecoration(color: i == 0 ? accent : accent.withValues(alpha: .35), shape: BoxShape.circle),
-              ))),
-          ),
-      ]),
+        ],
+      ),
     );
   }
 }
