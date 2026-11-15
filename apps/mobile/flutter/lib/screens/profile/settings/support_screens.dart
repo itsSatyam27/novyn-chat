@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import '../../../theme/novyn_theme.dart';
 import '../../../services/api_service.dart';
 import '../../../services/app_update_service.dart';
@@ -59,6 +60,15 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
       });
     }
     try {
+      // Show the installed package metadata even when GitHub is unreachable.
+      final packageInfo = await PackageInfo.fromPlatform();
+      if (mounted) {
+        setState(() {
+          _installedBuild = int.tryParse(packageInfo.buildNumber) ?? 0;
+          _buildNumber = packageInfo.buildNumber;
+          _appVersion = AppUpdateService.displayVersion;
+        });
+      }
       final result = await _updateService.checkForUpdates();
       if (!mounted) return;
       _installedBuild = result.installedBuild;
