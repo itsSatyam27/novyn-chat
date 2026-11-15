@@ -1608,7 +1608,14 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                   ),
                 ),
                 const SizedBox(width: 8),
-                Text('Tap mic to send', style: TextStyle(
+                IconButton(
+                  tooltip: 'Discard voice recording',
+                  visualDensity: VisualDensity.compact,
+                  onPressed: _cancelVoiceNote,
+                  icon: Icon(Icons.delete_outline_rounded,
+                    size: 20, color: theme.colorScheme.error),
+                ),
+                Text('Tap stop to send', style: TextStyle(
                   fontFamily: 'PlusJakartaSans', fontSize: 10,
                   fontWeight: FontWeight.w600, color: theme.colorScheme.onSurfaceVariant,
                 )),
@@ -1878,6 +1885,72 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
         mime = _mimeForFile(filename);
       }
       if (bytes == null || bytes.isEmpty) throw StateError('Could not read the selected file.');
+
+      // Preview the selected item before uploading so an accidental large
+      // attachment can be cancelled without consuming data or storage.
+      final isImage = mime.startsWith('image/');
+      final isVideo = mime.startsWith('video/');
+      final shouldSend = await showDialog<bool>(
+        context: context,
+        builder: (previewContext) {
+          final scheme = Theme.of(previewContext).colorScheme;
+          final sizeLabel = bytes!.length < 1024 * 1024
+              ? '${(bytes.length / 1024).toStringAsFixed(0)} KB'
+              : '${(bytes.length / (1024 * 1024)).toStringAsFixed(1)} MB';
+          return AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+            title: const Text('Review attachment',
+              style: TextStyle(fontFamily: 'PlusJakartaSans', fontWeight: FontWeight.w800)),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (isImage)
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(14),
+                    child: Image.memory(bytes!, height: 190, width: double.infinity,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => Container(
+                        height: 120, alignment: Alignment.center,
+                        color: scheme.surfaceContainerHighest,
+                        child: const Icon(Icons.broken_image_outlined, size: 36),
+                      ),
+                    ),
+                  )
+                else
+                  Container(
+                    height: 112, width: double.infinity,
+                    decoration: BoxDecoration(
+                      color: scheme.primary.withValues(alpha: .08),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Icon(
+                      isVideo ? Icons.play_circle_outline_rounded : Icons.insert_drive_file_rounded,
+                      size: 46, color: scheme.primary,
+                    ),
+                  ),
+                const SizedBox(height: 12),
+                Text(filename, maxLines: 2, overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontWeight: FontWeight.w700)),
+                const SizedBox(height: 4),
+                Text('$sizeLabel · ${mime.toUpperCase()}',
+                  style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(previewContext, false),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(previewContext, true),
+                child: const Text('Send'),
+              ),
+            ],
+          );
+        },
+      );
+      if (shouldSend != true || !mounted) return;
       setState(() => _uploadingAttachment = true);
 
       // Apply the selected Data & Storage photo-quality preference to actual
@@ -2328,6 +2401,34 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
         });
       }
     }
+  }
+
+  Future<void> _cancelVoiceNote() async {
+    if (!_isRecordingVoice) return;
+    _voiceTimer?.cancel();
+    _voiceTimer = null;
+    final path = _voiceRecordingPath;
+    try {
+      await _voiceRecorder.stop();
+    } catch (_) {
+      // Recorder may already have stopped during a lifecycle transition.
+    }
+    if (path != null) {
+      try {
+        final file = File(path);
+        if (await file.exists()) await file.delete();
+      } catch (_) {
+        // Temporary-file cleanup must not block returning to the composer.
+      }
+    }
+    if (!mounted) return;
+    HapticService.vibrate(NovynHapticType.light, category: HapticCategory.chat);
+    setState(() {
+      _isRecordingVoice = false;
+      _voiceSeconds = 0;
+      _voiceRecordingPath = null;
+    });
+    _syncTypingAnimation();
   }
 
   String _formatVoiceDuration(int seconds) {
