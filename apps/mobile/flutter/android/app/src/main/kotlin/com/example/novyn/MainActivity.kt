@@ -1,6 +1,9 @@
 package com.example.novyn
 
 import android.content.Context
+import android.net.Uri
+import androidx.core.content.FileProvider
+import java.io.File
 import android.content.BroadcastReceiver
 import android.content.Intent
 import android.content.IntentFilter
@@ -40,6 +43,43 @@ class MainActivity : FlutterFragmentActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
 
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "com.example.novyn/apk_installer")
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "canInstallPackages" -> {
+                        val allowed = Build.VERSION.SDK_INT < Build.VERSION_CODES.O || packageManager.canRequestPackageInstalls()
+                        result.success(allowed)
+                    }
+                    "openInstallPermissionSettings" -> {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            val intent = Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES).apply {
+                                data = Uri.parse("package:$packageName")
+                            }
+                            startActivity(intent)
+                        }
+                        result.success(null)
+                    }
+                    "installApk" -> {
+                        try {
+                            val path = call.argument<String>("path") ?: throw IllegalArgumentException("Missing APK path")
+                            val apk = File(path)
+                            if (!apk.isFile || apk.name != "Novyn-Android-ARM64.apk") {
+                                throw IllegalArgumentException("Only the verified Novyn ARM64 APK can be installed")
+                            }
+                            val uri = FileProvider.getUriForFile(this, "$packageName.fileprovider", apk)
+                            val intent = Intent(Intent.ACTION_VIEW).apply {
+                                setDataAndType(uri, "application/vnd.android.package-archive")
+                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+                            }
+                            startActivity(intent)
+                            result.success(null)
+                        } catch (error: Exception) {
+                            result.error("APK_INSTALL_FAILED", error.message, null)
+                        }
+                    }
+                    else -> result.notImplemented()
+                }
+            }
         callPipChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CALL_PIP_CHANNEL)
         callPipChannel?.setMethodCallHandler { call, result ->
             if (call.method == "setCallActive") {
