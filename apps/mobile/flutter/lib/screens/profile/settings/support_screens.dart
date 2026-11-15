@@ -43,7 +43,12 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
   }
 
   Future<void> _checkForUpdates() async {
+    final installedInfo = await PackageInfo.fromPlatform();
+    _installedBuild = int.tryParse(installedInfo.buildNumber) ?? 0;
+    _appVersion = installedInfo.version;
+    _buildNumber = installedInfo.buildNumber;
     setState(() {
+      _latestBuild = 0;
       _checking = true;
       _status = null;
       _apkUrl = null;
@@ -231,7 +236,7 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
                 color: available ? colors.primary : colors.onSurfaceVariant, height: 1.45)),
               if (available && _releaseName != null) ...[
                 const SizedBox(height: 6),
-                Text(_releaseName! + ' · ' + ((_apkSize ?? 0) / (1024 * 1024)).toStringAsFixed(1) + ' MB · ARM64-v8a',
+                Text(_releaseName! + ' · ' + ((_apkSize ?? 0) / 1000000).toStringAsFixed(1) + ' MB · ARM64-v8a',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w700)),
                 const SizedBox(height: 10),
                 if (_downloadedApkPath == null)
