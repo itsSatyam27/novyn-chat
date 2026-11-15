@@ -107,8 +107,8 @@ class SettingsService extends ChangeNotifier {
   static const List<String> defaultQuickToggleIds = [
     'app_lock',
     'do_not_disturb',
-    'read_receipts',
-    'in_app_sounds',
+    'dark_mode',
+    'stealth_mode',
   ];
   static const Set<String> supportedQuickToggleIds = {
     'app_lock',
