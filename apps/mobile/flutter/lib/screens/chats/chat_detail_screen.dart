@@ -1379,11 +1379,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
     final selection = current.selection;
     final start = selection.isValid ? selection.start.clamp(0, current.text.length).toInt() : current.text.length;
     final end = selection.isValid ? selection.end.clamp(start, current.text.length).toInt() : current.text.length;
-    final token = ':$emoji:';
-    final updated = current.text.replaceRange(start, end, token);
+    final glyph = novynCustomEmojis[emoji] ?? emoji;
+    final updated = current.text.replaceRange(start, end, glyph);
     _ctrl.value = TextEditingValue(
       text: updated,
-      selection: TextSelection.collapsed(offset: start + token.length),
+      selection: TextSelection.collapsed(offset: start + glyph.length),
     );
     setState(() {});
   }
@@ -1436,7 +1436,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                         _insertQuickEmoji(emoji);
                         Navigator.pop(sheetContext);
                       },
-                      child: Center(child: CustomEmojiView(name: emoji, size: 38)),
+                      child: Center(child: Text(novynCustomEmojis[emoji] ?? '', style: const TextStyle(fontSize: 30)),),
                     ),
                   )).toList(),
                 ),
@@ -1496,7 +1496,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                               }
                             }),
                             child: Stack(alignment: Alignment.center, children: [
-                              CustomEmojiView(name: emoji, size: 31),
+                              Text(novynCustomEmojis[emoji] ?? '', style: const TextStyle(fontSize: 25)),
                               if (active) Positioned(right: 3, top: 3, child: Icon(Icons.check_circle_rounded, size: 12, color: scheme.primary)),
                             ]),
                           ),
@@ -3194,8 +3194,8 @@ class _MessageBubble extends StatelessWidget {
                                 (message.attachment['kind']?.toString().toLowerCase() == 'image' ||
                                     message.attachment['mime']?.toString().toLowerCase().startsWith('image/') == true) &&
                                 (message.text as String).trim() == '[Image]'))
-                          CustomEmojiText(
-                          text: message.text as String,
+                          Text(
+                          novynEmojiText(message.text as String),
                           style: TextStyle(
                             fontFamily: 'PlusJakartaSans',
                             fontSize: 15,
