@@ -2506,51 +2506,71 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (sheetContext) => SafeArea(
-        child: Container(
-          height: MediaQuery.of(sheetContext).size.height * .62,
-          padding: const EdgeInsets.fromLTRB(18, 12, 18, 20),
-          decoration: BoxDecoration(
-            color: Theme.of(sheetContext).colorScheme.surface,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-          ),
-          child: Column(
-            children: [
-              Container(width: 38, height: 4,
-                decoration: BoxDecoration(color: Colors.grey.withValues(alpha: .4), borderRadius: BorderRadius.circular(4))),
-              const SizedBox(height: 14),
-              Row(children: [
-                const Expanded(child: Text('Pinned messages',
-                  style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 17, fontWeight: FontWeight.w700))),
-                IconButton(onPressed: () => Navigator.pop(sheetContext), icon: const Icon(Icons.close_rounded)),
-              ]),
-              Expanded(
-                child: pinned.isEmpty
-                    ? const Center(child: Text('No pinned messages yet'))
-                    : ListView.separated(
-                        itemCount: pinned.length,
-                        separatorBuilder: (_, __) => const Divider(height: 1),
-                        itemBuilder: (context, index) {
-                          final message = pinned[index];
-                          final preview = message.text.trim().isNotEmpty
-                              ? message.text
-                              : (message.attachment?['name']?.toString() ?? 'Attachment');
-                          return ListTile(
-                            contentPadding: EdgeInsets.zero,
-                            leading: CircleAvatar(
-                              backgroundColor: Theme.of(context).colorScheme.primary.withValues(alpha: .10),
-                              child: Icon(Icons.push_pin_rounded, color: Theme.of(context).colorScheme.primary, size: 19),
-                            ),
-                            title: Text(preview, maxLines: 2, overflow: TextOverflow.ellipsis),
-                            subtitle: Text(
-                              '${message.isFromMe ? 'You' : (widget.isGroup ? message.senderId : widget.peer.name)} · ${message.createdAt.toLocal().toString().substring(0, 16)}',
-                              maxLines: 1, overflow: TextOverflow.ellipsis,
-                            ),
-                          );
-                        },
-                      ),
-              ),
-            ],
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (context, refreshPinned) => SafeArea(
+          child: Container(
+            height: MediaQuery.of(sheetContext).size.height * .62,
+            padding: const EdgeInsets.fromLTRB(18, 12, 18, 20),
+            decoration: BoxDecoration(
+              color: Theme.of(sheetContext).colorScheme.surface,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+            ),
+            child: Column(
+              children: [
+                Container(width: 38, height: 4,
+                  decoration: BoxDecoration(color: Colors.grey.withValues(alpha: .4), borderRadius: BorderRadius.circular(4))),
+                const SizedBox(height: 14),
+                Row(children: [
+                  const Expanded(child: Text('Pinned messages',
+                    style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 17, fontWeight: FontWeight.w700))),
+                  IconButton(onPressed: () => Navigator.pop(sheetContext), icon: const Icon(Icons.close_rounded)),
+                ]),
+                Expanded(
+                  child: pinned.isEmpty
+                      ? const Center(child: Text('No pinned messages yet'))
+                      : ListView.separated(
+                          itemCount: pinned.length,
+                          separatorBuilder: (_, __) => const Divider(height: 1),
+                          itemBuilder: (context, index) {
+                            final message = pinned[index];
+                            final preview = message.text.trim().isNotEmpty
+                                ? message.text
+                                : (message.attachment?['name']?.toString() ?? 'Attachment');
+                            return ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              leading: CircleAvatar(
+                                backgroundColor: Theme.of(context).colorScheme.primary.withValues(alpha: .10),
+                                child: Icon(Icons.push_pin_rounded, color: Theme.of(context).colorScheme.primary, size: 19),
+                              ),
+                              title: Text(preview, maxLines: 2, overflow: TextOverflow.ellipsis),
+                              subtitle: Text(
+                                '${message.isFromMe ? 'You' : (widget.isGroup ? message.senderId : widget.peer.name)} · ${message.createdAt.toLocal().toString().substring(0, 16)}',
+                                maxLines: 1, overflow: TextOverflow.ellipsis,
+                              ),
+                              trailing: IconButton(
+                                tooltip: 'Unpin message',
+                                icon: const Icon(Icons.push_pin_outlined),
+                                onPressed: () {
+                                  try {
+                                    context.read<SocketService>().unpinMessage(
+                                      message.id,
+                                      widget.peer.uid.isNotEmpty ? widget.peer.uid : widget.peer.username,
+                                      isGroup: widget.isGroup,
+                                    );
+                                    refreshPinned(() => pinned.removeAt(index));
+                                  } catch (error) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(content: Text(error is StateError ? error.message : 'Could not unpin message.')),
+                                    );
+                                  }
+                                },
+                              ),
+                            );
+                          },
+                        ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
