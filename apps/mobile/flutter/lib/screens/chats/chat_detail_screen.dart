@@ -34,6 +34,7 @@ import 'group_info_screen.dart';
 import '../../widgets/connection_banner.dart';
 import '../../screens/calls/call_screen.dart';
 import 'package:novyn/services/haptic_service.dart';
+import '../../widgets/custom_emoji.dart';
 
 String _mimeForFile(String filename) {
   final name = filename.toLowerCase();
@@ -146,13 +147,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
   bool _suppressNextCountScroll = false;
   int _voiceSeconds = 0;
   String? _voiceRecordingPath;
-  static const List<String> _defaultQuickEmojis = ['😂', '❤️', '👍', '🙏', '😍', '🥰', '🔥', '🎉'];
-  static const List<String> _emojiChoices = [
-    '😂','🤣','😊','🙂','😉','😍','🥰','😘','😎','🤔','🥳','😭',
-    '😅','🙄','😴','🤗','😇','😋','😜','🤩','❤️','🧡','💛','💚',
-    '💙','💜','🖤','🤍','💔','💕','💯','🔥','👍','👎','👏','🙌',
-    '🙏','🤝','💪','🎉','✨','🌹','🌸','💐','☕','🍕','🐱','🐶',
-  ];
+  static const List<String> _defaultQuickEmojis = ['baddie', 'dead_hasna', 'sigma_stone', 'melting', 'clown_moment', 'ghosted', 'cutie', 'savage'];
+  static const List<String> _emojiChoices = novynCustomEmojiNames;
   List<String> _quickEmojis = List<String>.from(_defaultQuickEmojis);
 
   @override
@@ -1374,7 +1370,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
     final prefs = await SharedPreferences.getInstance();
     final saved = prefs.getStringList(_quickEmojiPreferenceKey);
     if (!mounted || saved == null || saved.isEmpty) return;
-    setState(() => _quickEmojis = saved);
+    final valid = saved.where(novynCustomEmojis.containsKey).toList();
+    if (valid.isNotEmpty) setState(() => _quickEmojis = valid);
   }
 
   void _insertQuickEmoji(String emoji) {
@@ -1382,10 +1379,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
     final selection = current.selection;
     final start = selection.isValid ? selection.start.clamp(0, current.text.length).toInt() : current.text.length;
     final end = selection.isValid ? selection.end.clamp(start, current.text.length).toInt() : current.text.length;
-    final updated = current.text.replaceRange(start, end, emoji);
+    final token = ':$emoji:';
+    final updated = current.text.replaceRange(start, end, token);
     _ctrl.value = TextEditingValue(
       text: updated,
-      selection: TextSelection.collapsed(offset: start + emoji.length),
+      selection: TextSelection.collapsed(offset: start + token.length),
     );
     setState(() {});
   }
@@ -1412,7 +1410,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
               mainAxisSize: MainAxisSize.min,
               children: [
                 Row(children: [
-                  Expanded(child: Text('Quick emojis', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 17, fontWeight: FontWeight.w800, color: scheme.onSurface))),
+                  Expanded(child: Text('Novyn emojis', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 17, fontWeight: FontWeight.w800, color: scheme.onSurface))),
                   TextButton.icon(
                     onPressed: () {
                       Navigator.pop(sheetContext);
@@ -1438,7 +1436,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                         _insertQuickEmoji(emoji);
                         Navigator.pop(sheetContext);
                       },
-                      child: Center(child: Text(emoji, style: const TextStyle(fontSize: 29))),
+                      child: Center(child: CustomEmojiView(name: emoji, size: 38)),
                     ),
                   )).toList(),
                 ),
@@ -1472,9 +1470,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Choose your quick emojis', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 18, fontWeight: FontWeight.w800, color: scheme.onSurface)),
+                  Text('Choose your Novyn emojis', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 18, fontWeight: FontWeight.w800, color: scheme.onSurface)),
                   const SizedBox(height: 5),
-                  Text('Select up to 8 emojis for this chat', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 12, color: scheme.onSurfaceVariant)),
+                  Text('Select up to 8 custom emojis for this chat', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 12, color: scheme.onSurfaceVariant)),
                   const SizedBox(height: 16),
                   Expanded(
                     child: GridView.builder(
@@ -1498,7 +1496,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                               }
                             }),
                             child: Stack(alignment: Alignment.center, children: [
-                              Text(emoji, style: const TextStyle(fontSize: 25)),
+                              CustomEmojiView(name: emoji, size: 31),
                               if (active) Positioned(right: 3, top: 3, child: Icon(Icons.check_circle_rounded, size: 12, color: scheme.primary)),
                             ]),
                           ),
@@ -3196,8 +3194,8 @@ class _MessageBubble extends StatelessWidget {
                                 (message.attachment['kind']?.toString().toLowerCase() == 'image' ||
                                     message.attachment['mime']?.toString().toLowerCase().startsWith('image/') == true) &&
                                 (message.text as String).trim() == '[Image]'))
-                          Text(
-                          message.text as String,
+                          CustomEmojiText(
+                          text: message.text as String,
                           style: TextStyle(
                             fontFamily: 'PlusJakartaSans',
                             fontSize: 15,
