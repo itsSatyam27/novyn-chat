@@ -56,8 +56,15 @@ class BackendContacts extends ChangeNotifier {
         sentRequests.removeWhere((user) => user.toLowerCase() == name);
         break;
       case 'user_status':
-        updateStatus(data['username']?.toString() ?? '', data['online'] == true,
-            presence: data['presence']?.toString());
+        final hasLastSeenAt = data.containsKey('lastSeenAt');
+        final lastSeenAt = DateTime.tryParse(data['lastSeenAt']?.toString() ?? '');
+        updateStatus(
+          data['username']?.toString() ?? '',
+          data['online'] == true,
+          presence: data['presence']?.toString(),
+          lastSeenAt: lastSeenAt,
+          clearLastSeen: hasLastSeenAt && lastSeenAt == null,
+        );
         return;
       default:
         return;
@@ -79,7 +86,13 @@ class BackendContacts extends ChangeNotifier {
     notifyListeners();
   }
 
-  void updateStatus(String username, bool online, {String? presence}) {
+  void updateStatus(
+    String username,
+    bool online, {
+    String? presence,
+    DateTime? lastSeenAt,
+    bool clearLastSeen = false,
+  }) {
     UserModel update(UserModel user) {
       if (user.username.toLowerCase() != username.toLowerCase()) return user;
       return user.copyWith(
@@ -88,6 +101,8 @@ class BackendContacts extends ChangeNotifier {
             (online
                 ? (user.status == 'offline' ? 'online' : user.status)
                 : 'offline'),
+        lastSeen: lastSeenAt,
+        clearLastSeen: clearLastSeen,
       );
     }
 

@@ -1093,11 +1093,19 @@ class SocketService extends ChangeNotifier {
 
       final online = data['online'] == true;
       final presence = data['presence']?.toString();
+      final hasLastSeenAt = data.containsKey('lastSeenAt');
+      final lastSeenAt = DateTime.tryParse(data['lastSeenAt']?.toString() ?? '');
       final normalized = username.toLowerCase();
 
       // Keep every Flutter surface in sync: contacts, cached chat previews,
       // and the active chat header all consume the same live presence event.
-      contacts.updateStatus(username, online, presence: presence);
+      contacts.updateStatus(
+        username,
+        online,
+        presence: presence,
+        lastSeenAt: lastSeenAt,
+        clearLastSeen: hasLastSeenAt && lastSeenAt == null,
+      );
       _conversations = _conversations.map((chat) {
         if (chat.isGroup || chat.peerUid.toLowerCase() != normalized) {
           return chat;
@@ -1105,6 +1113,8 @@ class SocketService extends ChangeNotifier {
         final updatedPeer = chat.peer.copyWith(
           isOnline: online,
           status: presence ?? (online ? 'online' : 'offline'),
+          lastSeen: lastSeenAt,
+          clearLastSeen: hasLastSeenAt && lastSeenAt == null,
         );
         return chat.copyWith(peer: updatedPeer);
       }).toList();
@@ -1361,6 +1371,7 @@ class SocketService extends ChangeNotifier {
           createdAt: DateTime.now(),
           isOnline: item['online'] == true,
           status: item['presence']?.toString() ?? 'Online',
+          lastSeen: DateTime.tryParse(item['lastSeenAt']?.toString() ?? ''),
           photoUrl: item['avatarId']?.toString() ?? '',
         );
         peers.add(peerModel);

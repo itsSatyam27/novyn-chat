@@ -101,6 +101,8 @@ class UserModel extends HiveObject {
     String? photoUrl,
     String? status,
     bool? isOnline,
+    DateTime? lastSeen,
+    bool clearLastSeen = false,
   }) {
     return UserModel(
       uid: uid,
@@ -114,7 +116,7 @@ class UserModel extends HiveObject {
       status: status ?? this.status,
       isOnline: isOnline ?? this.isOnline,
       createdAt: createdAt,
-      lastSeen: lastSeen,
+      lastSeen: clearLastSeen ? null : (lastSeen ?? this.lastSeen),
     );
   }
 
