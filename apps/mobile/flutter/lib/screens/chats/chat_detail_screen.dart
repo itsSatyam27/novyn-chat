@@ -1877,7 +1877,10 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
           mime = 'image/jpeg';
         }
       } else {
-        final result = await FilePicker.platform.pickFiles(withData: true);
+        final result = await FilePicker.platform.pickFiles(
+          type: type.toLowerCase() == 'sound' ? FileType.audio : FileType.any,
+          withData: true,
+        );
         if (result == null || result.files.isEmpty) return;
         final file = result.files.single;
         bytes = file.bytes;
@@ -1885,6 +1888,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
         mime = _mimeForFile(filename);
       }
       if (bytes == null || bytes.isEmpty) throw StateError('Could not read the selected file.');
+      if (!mounted) return;
       final selectedBytes = bytes;
 
       // Preview the selected item before uploading so an accidental large
@@ -1977,7 +1981,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
       final url = await ApiService.uploadMedia(bytes, filename, mime);
       if (!mounted) return;
       if (url == null || url.isEmpty) throw StateError('Upload failed. Please try again.');
-      final kind = mime.startsWith('image/') ? 'image' : mime.startsWith('video/') ? 'video' : 'file';
+      final kind = mime.startsWith('image/') ? 'image' : mime.startsWith('video/') ? 'video' : mime.startsWith('audio/') ? 'audio' : 'file';
       await context.read<SocketService>().sendMessage(
         '',
         widget.peer.uid.isNotEmpty ? widget.peer.uid : widget.peer.username,
@@ -4408,7 +4412,7 @@ class _AttachmentButtonState extends State<_AttachmentButton>
     _MenuItem(
         icon: Icons.headphones_rounded,
         label: 'Sound',
-        color: Color(0xFFEC4899), enabled: false),
+        color: Color(0xFFEC4899)),
     _MenuItem(
         icon: Icons.location_on_rounded,
         label: 'Location',
