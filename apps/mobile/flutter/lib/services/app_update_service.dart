@@ -273,6 +273,10 @@ class AppUpdateService extends ChangeNotifier {
   }
 
   Future<void> prepareForUpdate(AppUpdateInfo release) async {
+    final runningDownload = _downloadFuture;
+    if (runningDownload != null && _activeDownloadKey != release.key) {
+      await runningDownload;
+    }
     _currentRelease = release;
     final key = release.key;
     if (_activeDownloadKey == key &&

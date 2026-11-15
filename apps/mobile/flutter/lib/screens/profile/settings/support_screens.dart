@@ -1,18 +1,10 @@
-import 'dart:convert';
-import 'dart:io';
-import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:package_info_plus/package_info_plus.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
 import '../../../theme/novyn_theme.dart';
 import '../../../services/api_service.dart';
 import '../../../services/app_update_service.dart';
 
-const _releasesApi = 'https://api.github.com/repos/itsSatyam27/novyn-chat/releases/latest';
-const _arm64ApkName = 'Novyn-Android-ARM64.apk';
 const _installerChannel = MethodChannel('com.example.novyn/apk_installer');
 
 class AboutNovynScreen extends StatefulWidget {
@@ -324,7 +316,9 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
                               Text(
                                 _downloading ? 'Downloading update' :
                                   _installing ? 'Opening installer' :
-                                    _downloadedApkPath == null\n                                        ? (_updateService.hasPartialDownload ? 'Resume download' : 'Download update')\n                                        : 'Install update',
+                                    _downloadedApkPath == null
+                                        ? (_updateService.hasPartialDownload ? 'Resume download' : 'Download update')
+                                        : 'Install update',
                                 style: const TextStyle(color: Colors.white,
                                   fontSize: 15.5, fontWeight: FontWeight.w800)),
                             ]),
