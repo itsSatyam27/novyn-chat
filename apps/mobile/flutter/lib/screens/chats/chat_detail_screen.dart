@@ -1930,7 +1930,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                       borderRadius: BorderRadius.circular(14),
                     ),
                     child: Icon(
-                      isVideo ? Icons.play_circle_outline_rounded : Icons.insert_drive_file_rounded,
+                      isVideo
+                        ? Icons.play_circle_outline_rounded
+                        : mime.startsWith('audio/')
+                            ? Icons.headphones_rounded
+                            : Icons.insert_drive_file_rounded,
                       size: 46, color: scheme.primary,
                     ),
                   ),
