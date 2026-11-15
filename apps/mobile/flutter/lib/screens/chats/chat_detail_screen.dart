@@ -84,15 +84,12 @@ class _ChatContentSnapshot {
         messages.length != other.messages.length) {
       return false;
     }
-    for (var index = 0; index < messages.length; index++) {
-      if (!identical(messages[index], other.messages[index])) return false;
-    }
-    return true;
+    return identical(messages, other.messages);
   }
 
   @override
   int get hashCode => Object.hash(
-        Object.hashAll(messages.map(identityHashCode)),
+        identityHashCode(messages),
         peerIsTyping,
         chatWallpaper,
         messageStatusRevision,
@@ -1072,8 +1069,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                       icon: Icons.waving_hand_rounded,
                       title: 'Wave hello',
                       subtitle: 'Break the ice with a wave',
-                      tint: const Color(0xFFFFEED8),
-                      accent: const Color(0xFFB96819),
+                      tint: scheme.primaryContainer,
+                      accent: scheme.primary,
                       onTap: () {
                         unawaited(context.read<SocketService>().sendMessage(
                           '👋',
@@ -1093,8 +1090,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                       icon: Icons.gif_box_rounded,
                       title: 'Send a GIF',
                       subtitle: 'Pick something fun',
-                      tint: const Color(0xFFE4F0FC),
-                      accent: const Color(0xFF347DBB),
+                      tint: scheme.primaryContainer,
+                      accent: scheme.primary,
                       onTap: _showGifPicker,
                     ),
                     Divider(
@@ -1108,8 +1105,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                       icon: Icons.sports_esports_rounded,
                       title: 'Play Up or Down',
                       subtitle: 'Challenge them to a quick game',
-                      tint: const Color(0xFFE1F4E9),
-                      accent: const Color(0xFF368A53),
+                      tint: scheme.primaryContainer,
+                      accent: scheme.primary,
                       onTap: _showGameLauncher,
                     ),
                   ],
@@ -1125,10 +1122,14 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
   /// Shown when cache is empty and we're waiting for the first API response.
   /// Looks like message bubbles so the transition is smooth.
   Widget _buildLoadingShimmer() {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final base = isDark ? const Color(0xFF1E2235) : const Color(0xFFEEEEEE);
-    final highlight =
-        isDark ? const Color(0xFF2A2F45) : const Color(0xFFF5F5F5);
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final base = scheme.surfaceContainerHighest;
+    final highlight = Color.lerp(
+      base,
+      scheme.primary,
+      theme.brightness == Brightness.dark ? .10 : .045,
+    )!;
 
     Widget shimmerBox(
         {double width = 200, double height = 40, bool fromMe = false}) {
@@ -1173,6 +1174,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
   }
 
   int _lastMessageCount = 0;
+  List<Message>? _timelineSource;
+  List<int> _timelineIndices = const <int>[];
 
   Widget _buildMessageList(List<Message> messages, bool peerIsTyping) {
     if (messages.length > _lastMessageCount) {
@@ -1188,15 +1191,20 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
         });
       }
     }
-    final timelineIndices = <int>[];
-    for (var index = 0; index < messages.length; index++) {
-      if (index == 0 ||
-          !_isSameChatDay(messages[index - 1].createdAt, messages[index].createdAt)) {
-        // Negative entries represent a date divider for the following message.
-        timelineIndices.add(-index - 1);
+    if (!identical(_timelineSource, messages)) {
+      final indices = <int>[];
+      for (var index = 0; index < messages.length; index++) {
+        if (index == 0 ||
+            !_isSameChatDay(messages[index - 1].createdAt, messages[index].createdAt)) {
+          // Negative entries represent a date divider for the following message.
+          indices.add(-index - 1);
+        }
+        indices.add(index);
       }
-      timelineIndices.add(index);
+      _timelineSource = messages;
+      _timelineIndices = List<int>.unmodifiable(indices);
     }
+    final timelineIndices = _timelineIndices;
     final socket = context.read<SocketService>();
     if (peerIsTyping && _isNearLatest) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom(force: true));
