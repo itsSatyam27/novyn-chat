@@ -574,27 +574,11 @@ class _PeopleScreenState extends State<PeopleScreen> {
     }
     children.add(const SizedBox(height: 112));
 
-    return Stack(
-      children: [
-        ListView(
-          controller: _scrollController,
-          physics: const BouncingScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(16, 0, 0, 8),
-          children: children,
-        ),
-        if (_search.isEmpty && _filter != 'Favourites' && letters.isNotEmpty)
-          Positioned(
-            right: 1,
-            top: 0,
-            bottom: 8,
-            width: 17,
-            child: _AlphabetRail(
-              letters: _alphabet,
-              available: letters.toSet(),
-              onSelected: (letter) => _scrollToLetter(letter, letters),
-            ),
-          ),
-      ],
+    return ListView(
+      controller: _scrollController,
+      physics: const BouncingScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(16, 0, 0, 8),
+      children: children,
     );
   }
 
@@ -882,47 +866,6 @@ class _ContactRow extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
-}
-
-class _AlphabetRail extends StatelessWidget {
-  const _AlphabetRail({
-    required this.letters,
-    required this.available,
-    required this.onSelected,
-  });
-
-  final List<String> letters;
-  final Set<String> available;
-  final ValueChanged<String> onSelected;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        for (final letter in letters)
-          Expanded(
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: () => onSelected(letter),
-              child: Center(
-                child: Text(
-                  letter,
-                  style: TextStyle(
-                    fontFamily: 'PlusJakartaSans',
-                    fontSize: 8.5,
-                    height: 1,
-                    fontWeight: FontWeight.w600,
-                    color: available.contains(letter)
-                        ? Theme.of(context).colorScheme.primary
-                        : Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: .42),
-                  ),
-                ),
-              ),
-            ),
-          ),
-      ],
     );
   }
 }
