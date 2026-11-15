@@ -220,4 +220,46 @@ void main() {
     );
     expect((await bob.decrypt(tampered, 'bob', alicePublicKey)).needsMessageKey, isTrue);
   });
+  test('QR device pairing encrypts the existing Android identity and never creates a replacement', () async {
+    final androidStorage = <String, String>{};
+    final browserStorage = <String, String>{};
+    final android = MessageEncryptionService(
+      read: (key) async => androidStorage[key],
+      write: (key, value) async { androidStorage[key] = value; },
+    );
+    final browser = MessageEncryptionService(
+      read: (key) async => browserStorage[key],
+      write: (key, value) async { browserStorage[key] = value; },
+    );
+    final originalAndroidPublicKey = await android.initializeIdentity('alice');
+    final browserPublicKey = await browser.initializeIdentity('alice');
+    final encrypted = await android.encryptDevicePairingPayload(
+      'alice',
+      browserPublicKey,
+      'A' * 32,
+    );
+    expect(jsonDecode(encrypted['androidPublicKey']!)['d'], isNull);
+    expect(base64Decode(encrypted['iv']!).length, 12);
+    expect(base64Decode(encrypted['ciphertext']!).length, greaterThan(16));
+    final savedPrivateJwk =
+        jsonDecode(androidStorage['novyn_e2ee_identity_alice']!) as Map;
+    expect(encrypted['ciphertext']!.contains(savedPrivateJwk['d'].toString()), isFalse);
+    expect(await android.initializeIdentity('alice'), originalAndroidPublicKey);
+
+    var writesAfterMissingIdentity = 0;
+    final missingIdentity = MessageEncryptionService(
+      read: (_) async => null,
+      write: (_, __) async { writesAfterMissingIdentity++; },
+    );
+    await expectLater(
+      missingIdentity.encryptDevicePairingPayload(
+        'alice',
+        browserPublicKey,
+        'B' * 32,
+      ),
+      throwsA(isA<StateError>()),
+    );
+    expect(writesAfterMissingIdentity, 0);
+  });
+
 }

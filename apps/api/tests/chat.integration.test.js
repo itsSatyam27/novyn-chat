@@ -87,6 +87,68 @@ test('localhost discovery, requests, reconnect state, and private media', { time
   const alice = await signup('alice');
   const bob = await signup('bob');
   const eve = await signup('eve');
+
+  // QR device-pairing relay: authenticated ownership, ciphertext-only storage,
+  // approval, single-use consumption, and cross-account isolation.
+  const browserPublicKey = {
+    kty: 'EC', crv: 'P-256', x: 'A'.repeat(43), y: 'B'.repeat(43),
+  };
+  const pairingCreate = await fetch(`${base}/api/device-pairing`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: alice.cookie },
+    body: JSON.stringify({ browserPublicKey }),
+  });
+  assert.equal(pairingCreate.status, 200, await pairingCreate.clone().text());
+  const pairing = await pairingCreate.json();
+  assert.match(pairing.sessionId, /^[A-Za-z0-9_-]{32}$/);
+  assert.equal(pairing.username.toLowerCase(), 'alice');
+  assert.equal(Object.hasOwn(pairing.browserPublicKey, 'd'), false);
+
+  const crossAccountRead = await fetch(`${base}/api/device-pairing/${pairing.sessionId}`, {
+    headers: { Cookie: eve.cookie },
+  });
+  assert.equal(crossAccountRead.status, 404);
+
+  const encryptedEnvelope = {
+    androidPublicKey: JSON.stringify({
+      kty: 'EC', crv: 'P-256', x: 'C'.repeat(43), y: 'D'.repeat(43),
+    }),
+    iv: Buffer.alloc(12).toString('base64'),
+    ciphertext: Buffer.alloc(16).toString('base64'),
+  };
+  const pairingApprove = await fetch(`${base}/api/device-pairing/${pairing.sessionId}/approve`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: alice.cookie },
+    body: JSON.stringify(encryptedEnvelope),
+  });
+  assert.equal(pairingApprove.status, 200, await pairingApprove.clone().text());
+  const duplicateApproval = await fetch(`${base}/api/device-pairing/${pairing.sessionId}/approve`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: alice.cookie },
+    body: JSON.stringify(encryptedEnvelope),
+  });
+  assert.equal(duplicateApproval.status, 404);
+
+  const pairingPoll = await fetch(`${base}/api/device-pairing/${pairing.sessionId}`, {
+    headers: { Cookie: alice.cookie },
+  });
+  assert.equal(pairingPoll.status, 200);
+  const approvedPayload = await pairingPoll.json();
+  assert.equal(approvedPayload.status, 'approved');
+  assert.deepEqual(approvedPayload.response, encryptedEnvelope);
+  assert.equal(JSON.stringify(approvedPayload).includes('privateKey'), false);
+
+  const pairingConsume = await fetch(`${base}/api/device-pairing/${pairing.sessionId}/consume`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: alice.cookie },
+    body: JSON.stringify({}),
+  });
+  assert.equal(pairingConsume.status, 200);
+  const consumedPoll = await fetch(`${base}/api/device-pairing/${pairing.sessionId}`, {
+    headers: { Cookie: alice.cookie },
+  });
+  assert.equal(consumedPoll.status, 404);
+
   const legacyLogin = await fetch(`${base}/api/auth/signin`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ identifier: 'legacy', password: 'arbitrary-password' }),

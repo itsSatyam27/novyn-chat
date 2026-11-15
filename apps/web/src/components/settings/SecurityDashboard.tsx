@@ -16,6 +16,7 @@ import {
   QrCode,
 } from 'lucide-react';
 import { MessageKeyTransferDialog } from '../chat/MessageKeyTransferDialog';
+import { DevicePairingDialog } from './DevicePairingDialog';
 import { getMyPublicKeyJwk } from '../../services/e2ee';
 import { SettingsToast, type SettingsNotice } from './SettingsToast';
 import type { SettingsMainCategory, SettingsSubSection } from './SettingsPanel';
@@ -28,6 +29,7 @@ export function SecurityDashboard({ onSelectSection }: {
 } = {}) {
   const { user } = useAuth();
   const [keysOpen, setKeysOpen] = useState(false);
+  const [pairingOpen, setPairingOpen] = useState(false);
   const [keysReady, setKeysReady] = useState<boolean | null>(null);
   const [notice, setNotice] = useState<SettingsNotice | null>(null);
 
@@ -232,7 +234,7 @@ export function SecurityDashboard({ onSelectSection }: {
               </div>
               <div className="security-sync-benefit-item">
                 <Check size={12} className="benefit-check" />
-                <span>Restores past chat messages</span>
+                <span>Syncs your Android primary identity and available history keys</span>
               </div>
             </div>
 
@@ -241,14 +243,27 @@ export function SecurityDashboard({ onSelectSection }: {
               <button
                 type="button"
                 className="security-btn-glow"
-                onClick={() => setKeysOpen(true)}
+                onClick={() => setPairingOpen(true)}
                 aria-haspopup="dialog"
                 style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}
               >
-                <KeyRound size={15} /> Open Key Transfer
+                <QrCode size={15} /> Link with Android QR
+              </button>
+              <button
+                type="button"
+                onClick={() => setKeysOpen(true)}
+                aria-haspopup="dialog"
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 8,
+                  border: '1px solid var(--border)', borderRadius: 12,
+                  padding: '10px 14px', background: 'transparent',
+                  color: 'var(--text-main)', fontWeight: 700, cursor: 'pointer',
+                }}
+              >
+                <KeyRound size={15} /> Manual key backup
               </button>
               <span className="security-sync-footer-note">
-                Scan QR from your Android phone to sync
+                Open the QR scanner from Android Settings → Security → Link a web device
               </span>
             </div>
           </article>
@@ -444,6 +459,11 @@ export function SecurityDashboard({ onSelectSection }: {
         </div>
       </div>
 
+      <DevicePairingDialog
+        isOpen={pairingOpen}
+        onClose={() => setPairingOpen(false)}
+        username={user?.username || ''}
+      />
       <MessageKeyTransferDialog isOpen={keysOpen} onClose={() => setKeysOpen(false)} />
       {notice && <SettingsToast notice={notice} onDismiss={() => setNotice(null)} />}
     </section>

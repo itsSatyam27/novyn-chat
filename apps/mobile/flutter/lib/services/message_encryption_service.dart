@@ -151,6 +151,64 @@ class MessageEncryptionService {
     });
   }
 
+  /// Encrypts the Android primary identity for an authenticated QR-linked
+  /// browser. This method deliberately refuses to create a replacement identity.
+  Future<Map<String, String>> encryptDevicePairingPayload(
+    String username,
+    String browserPublicKeyJwk,
+    String sessionId,
+  ) async {
+    if (sessionId.length != 32 || !RegExp(r'^[A-Za-z0-9_-]{32}$').hasMatch(sessionId)) {
+      throw const FormatException('Invalid device-pairing session.');
+    }
+    final account = _account(username);
+    final identity = await _identity(account, createIfMissing: false);
+    final payload = <String, dynamic>{
+      'format': 'novyn-primary-device-identity',
+      'version': 1,
+      'username': account,
+      'identity': {
+        'kty': 'EC',
+        'crv': 'P-256',
+        'd': _b64url(identity.d),
+        'x': _b64url(identity.x),
+        'y': _b64url(identity.y),
+      },
+      'legacyKeys': await exportBackupKeys(account),
+    };
+    final plaintext = utf8.encode(jsonEncode(payload));
+    if (plaintext.length > 20 * 1024) {
+      throw StateError(
+        'This account has too many legacy message keys for QR transfer. Use the encrypted backup/import option instead.',
+      );
+    }
+    final shared = await _sharedKey(
+      account,
+      browserPublicKeyJwk,
+      requireExistingIdentity: true,
+    );
+    final wrappingKey = await Hkdf(
+      hmac: Hmac.sha256(),
+      outputLength: 32,
+    ).deriveKey(
+      secretKey: shared,
+      nonce: utf8.encode(sessionId),
+      info: utf8.encode('novyn-device-pairing-v1'),
+    );
+    final nonce = List<int>.generate(12, (_) => Random.secure().nextInt(256));
+    final box = await _aes.encrypt(plaintext, secretKey: wrappingKey, nonce: nonce);
+    final androidPublicKey = jsonEncode({
+      'kty': 'EC', 'crv': 'P-256',
+      'x': _b64url(identity.x), 'y': _b64url(identity.y),
+      'ext': true, 'key_ops': <String>[],
+    });
+    return {
+      'androidPublicKey': androidPublicKey,
+      'iv': base64Encode(box.nonce),
+      'ciphertext': base64Encode([...box.cipherText, ...box.mac.bytes]),
+    };
+  }
+
   Future<SecretKey> _sharedKey(String username, String peerPublicKeyJwk, {bool requireExistingIdentity = false}) async {
     final identity = await _identity(username, createIfMissing: !requireExistingIdentity);
     final decoded = jsonDecode(peerPublicKeyJwk);

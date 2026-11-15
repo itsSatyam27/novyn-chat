@@ -6,7 +6,9 @@
  */
 
 const DB_NAME = 'novyn_e2ee_keystore';
-const DB_VERSION = 2;
+const DB_VERSION = 4;
+const ARCHIVE_STORE_NAME = 'identity_key_archive';
+const LEGACY_STORE_NAME = 'legacy_message_keys';
 const STORE_NAME = 'identity_keys';
 
 // In-memory cache for derived shared AES keys
@@ -29,6 +31,12 @@ function openKeyStoreDB(): Promise<IDBDatabase> {
       const db = (e.target as IDBOpenDBRequest).result;
       if (!db.objectStoreNames.contains(STORE_NAME)) {
         db.createObjectStore(STORE_NAME, { keyPath: 'username' });
+      }
+      if (!db.objectStoreNames.contains(ARCHIVE_STORE_NAME)) {
+        db.createObjectStore(ARCHIVE_STORE_NAME, { keyPath: 'id' });
+      }
+      if (!db.objectStoreNames.contains(LEGACY_STORE_NAME)) {
+        db.createObjectStore(LEGACY_STORE_NAME, { keyPath: 'username' });
       }
     };
     request.onsuccess = () => resolve(request.result);
@@ -104,6 +112,192 @@ async function loadKeyPairFromDB(username: string): Promise<CryptoKeyPair | null
   } catch {
     return null;
   }
+}
+
+function decodeBase64(value: string): Uint8Array {
+  return Uint8Array.from(atob(value), (character) => character.charCodeAt(0));
+}
+
+function isP256PublicJwk(value: any): boolean {
+  return Boolean(
+    value && value.kty === 'EC' && value.crv === 'P-256' &&
+    typeof value.x === 'string' && /^[A-Za-z0-9_-]{43}$/.test(value.x) &&
+    typeof value.y === 'string' && /^[A-Za-z0-9_-]{43}$/.test(value.y) &&
+    !Object.prototype.hasOwnProperty.call(value, 'd')
+  );
+}
+
+async function loadArchivedKeyPairs(username: string): Promise<CryptoKeyPair[]> {
+  const db = await openKeyStoreDB();
+  try {
+    return await new Promise((resolve, reject) => {
+      const tx = db.transaction(ARCHIVE_STORE_NAME, 'readonly');
+      const request = tx.objectStore(ARCHIVE_STORE_NAME).getAll();
+      request.onsuccess = () => resolve(
+        (request.result || [])
+          .filter((entry: any) => entry.username === username.toLowerCase() &&
+            entry.privateKey instanceof CryptoKey && entry.publicKey instanceof CryptoKey)
+          .map((entry: any) => ({ privateKey: entry.privateKey, publicKey: entry.publicKey }))
+      );
+      request.onerror = () => reject(request.error);
+    });
+  } finally {
+    db.close();
+  }
+}
+
+async function loadLegacyMessageKeys(username: string): Promise<Record<string, any[]> | null> {
+  const db = await openKeyStoreDB();
+  try {
+    return await new Promise((resolve, reject) => {
+      const tx = db.transaction(LEGACY_STORE_NAME, 'readonly');
+      const request = tx.objectStore(LEGACY_STORE_NAME).get(username.toLowerCase());
+      request.onsuccess = () => resolve(request.result?.keys || null);
+      request.onerror = () => reject(request.error);
+    });
+  } finally {
+    db.close();
+  }
+}
+
+/**
+ * Installs the Android primary identity received through the authenticated,
+ * E2EE-encrypted pairing relay. The previous browser key is archived before
+ * replacement so it remains available for historical message decryption.
+ */
+export async function installPrimaryIdentityFromPairing(
+  username: string,
+  identity: { kty: string; crv: string; d: string; x: string; y: string },
+  legacyBackup?: { username: string; keys: Record<string, any[]> }
+): Promise<string> {
+  const userKey = username.trim().toLowerCase();
+  if (!userKey || identity?.kty !== 'EC' || identity?.crv !== 'P-256' ||
+      ![identity.d, identity.x, identity.y].every((value) =>
+        typeof value === 'string' && /^[A-Za-z0-9_-]{43}$/.test(value))) {
+    throw new Error('The linked-device identity is invalid.');
+  }
+  if (legacyBackup &&
+      (legacyBackup.username?.toLowerCase() !== userKey ||
+       !legacyBackup.keys || typeof legacyBackup.keys !== 'object' ||
+       Object.keys(legacyBackup.keys).length > 10000)) {
+    throw new Error('The legacy message-key backup is invalid.');
+  }
+
+  const privateKey = await window.crypto.subtle.importKey(
+    'jwk',
+    { ...identity, ext: true, key_ops: ['deriveKey', 'deriveBits'] },
+    { name: 'ECDH', namedCurve: 'P-256' },
+    false,
+    ['deriveKey', 'deriveBits']
+  );
+  const publicJwk = {
+    kty: 'EC', crv: 'P-256', x: identity.x, y: identity.y,
+    ext: true, key_ops: [],
+  };
+  const publicKey = await window.crypto.subtle.importKey(
+    'jwk', publicJwk,
+    { name: 'ECDH', namedCurve: 'P-256' },
+    true, []
+  );
+
+  // Prove that the supplied private and public coordinates form one keypair.
+  const probe = await window.crypto.subtle.generateKey(
+    { name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveBits']
+  );
+  const fromPrivate = new Uint8Array(await window.crypto.subtle.deriveBits(
+    { name: 'ECDH', public: probe.publicKey }, privateKey, 256
+  ));
+  const fromPublic = new Uint8Array(await window.crypto.subtle.deriveBits(
+    { name: 'ECDH', public: publicKey }, probe.privateKey, 256
+  ));
+  if (fromPrivate.length !== fromPublic.length ||
+      fromPrivate.some((byte, index) => byte !== fromPublic[index])) {
+    throw new Error('The primary identity keypair failed verification.');
+  }
+
+  if (legacyBackup) {
+    for (const [peer, versions] of Object.entries(legacyBackup.keys)) {
+      if (!/^[a-z0-9_.-]{1,30}$/.test(peer) || !Array.isArray(versions)) {
+        throw new Error('The legacy message-key backup contains an invalid entry.');
+      }
+      for (const version of versions) {
+        if (!version || typeof version.key !== 'string' ||
+            decodeBase64(version.key).length !== 32 ||
+            !isP256PublicJwk(JSON.parse(version.publicKey)) ||
+            !isP256PublicJwk(JSON.parse(version.identity))) {
+          throw new Error('The legacy message-key backup contains invalid key material.');
+        }
+      }
+    }
+  }
+
+  const db = await openKeyStoreDB();
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(
+        [STORE_NAME, ARCHIVE_STORE_NAME, LEGACY_STORE_NAME],
+        'readwrite'
+      );
+      const activeStore = tx.objectStore(STORE_NAME);
+      const archiveStore = tx.objectStore(ARCHIVE_STORE_NAME);
+      const legacyStore = tx.objectStore(LEGACY_STORE_NAME);
+      const currentRequest = activeStore.get(userKey);
+      currentRequest.onsuccess = () => {
+        const current = currentRequest.result;
+        if (current?.privateKey instanceof CryptoKey &&
+            current.publicKey instanceof CryptoKey) {
+          archiveStore.put({
+            id: userKey + ':' + Date.now() + ':' +
+              Array.from(window.crypto.getRandomValues(new Uint8Array(6)))
+                .map((value) => value.toString(16).padStart(2, '0')).join(''),
+            username: userKey,
+            privateKey: current.privateKey,
+            publicKey: current.publicKey,
+            archivedAt: Date.now(),
+          });
+        }
+        activeStore.put({
+          username: userKey,
+          privateKey,
+          publicKey,
+          createdAt: Date.now(),
+          source: 'android-primary',
+        });
+        if (legacyBackup) {
+          const legacyRequest = legacyStore.get(userKey);
+          legacyRequest.onsuccess = () => {
+            const mergedKeys: Record<string, any[]> = {
+              ...(legacyRequest.result?.keys || {}),
+            };
+            for (const [peer, incoming] of Object.entries(legacyBackup.keys)) {
+              const versions = Array.isArray(mergedKeys[peer]) ? [...mergedKeys[peer]] : [];
+              for (const version of incoming) {
+                if (!versions.some((existing) =>
+                  existing.key === version.key && existing.publicKey === version.publicKey
+                )) versions.push(version);
+              }
+              mergedKeys[peer] = versions;
+            }
+            legacyStore.put({ username: userKey, keys: mergedKeys, updatedAt: Date.now() });
+          };
+        }
+      };
+      currentRequest.onerror = () => {
+        try { tx.abort(); } catch (_) {}
+      };
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error || new Error('Could not save the linked-device keys.'));
+      tx.onabort = () => reject(tx.error || new Error('Could not save the linked-device keys.'));
+    });
+  } finally {
+    db.close();
+  }
+
+  cachedKeyPair = { privateKey, publicKey };
+  currentUsernameKey = userKey;
+  sharedKeysCache.clear();
+  peerPublicKeysCache.clear();
+  return JSON.stringify(publicJwk);
 }
 
 export function isCryptoSubtleAvailable(): boolean {
@@ -293,29 +487,69 @@ export async function decryptMessageContent(
   peerUsername: string,
   peerPublicKeyJwk?: string
 ): Promise<string | null> {
-  if (!ciphertext || !ivBase64 || !peerPublicKeyJwk) return null;
+  if (!ciphertext || !ivBase64) return null;
+  const iv = decodeBase64(ivBase64);
+  const encryptedBytes = decodeBase64(ciphertext);
+  const tryDecrypt = async (key: CryptoKey): Promise<string | null> => {
+    try {
+      const decrypted = await window.crypto.subtle.decrypt(
+        { name: 'AES-GCM', iv }, key, encryptedBytes
+      );
+      return new TextDecoder().decode(decrypted);
+    } catch {
+      return null;
+    }
+  };
 
-  try {
-    const key = await getDerivedSharedKey(peerUsername, peerPublicKeyJwk);
-    if (!key) return null;
+  if (peerPublicKeyJwk) {
+    const activeKey = await getDerivedSharedKey(peerUsername, peerPublicKeyJwk);
+    if (activeKey) {
+      const activeText = await tryDecrypt(activeKey);
+      if (activeText !== null) return activeText;
+    }
 
-    const iv = Uint8Array.from(atob(ivBase64), (c) => c.charCodeAt(0));
-    const encryptedBytes = Uint8Array.from(atob(ciphertext), (c) => c.charCodeAt(0));
-
-    const decryptedBuffer = await window.crypto.subtle.decrypt(
-      {
-        name: 'AES-GCM',
-        iv,
-      },
-      key,
-      encryptedBytes
-    );
-
-    return new TextDecoder().decode(decryptedBuffer);
-  } catch (err) {
-    console.warn('E2EE decryption error (may be from different device or session):', err);
-    return null;
+    // Retain decryption compatibility with the browser identity that existed
+    // before Android became the primary identity for this linked device.
+    try {
+      const peerPublicKey = await importPeerPublicKey(peerPublicKeyJwk);
+      if (peerPublicKey) {
+        const archivedPairs = await loadArchivedKeyPairs(currentUsernameKey || '');
+        for (const archived of archivedPairs) {
+          try {
+            const key = await window.crypto.subtle.deriveKey(
+              { name: 'ECDH', public: peerPublicKey },
+              archived.privateKey,
+              { name: 'AES-GCM', length: 256 },
+              false,
+              ['decrypt']
+            );
+            const archivedText = await tryDecrypt(key);
+            if (archivedText !== null) return archivedText;
+          } catch { /* Try the next archived identity. */ }
+        }
+      }
+    } catch { /* Legacy fallback below may still work. */ }
   }
+
+  // Flutter may previously have imported conversation-specific AES keys from
+  // an older Novyn export. Keep those readable after QR linking as well.
+  try {
+    const backups = await loadLegacyMessageKeys(currentUsernameKey || '');
+    const versions = backups?.[peerUsername.toLowerCase()] || [];
+    for (const version of [...versions].reverse()) {
+      try {
+        const rawKey = decodeBase64(version.key);
+        if (rawKey.length !== 32) continue;
+        const key = await window.crypto.subtle.importKey(
+          'raw', rawKey, { name: 'AES-GCM' }, false, ['decrypt']
+        );
+        const legacyText = await tryDecrypt(key);
+        if (legacyText !== null) return legacyText;
+      } catch { /* Try the next imported conversation key. */ }
+    }
+  } catch { /* No compatible legacy keys on this browser. */ }
+
+  return null;
 }
 
 /**

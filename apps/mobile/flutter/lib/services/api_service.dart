@@ -233,6 +233,31 @@ class ApiService {
     } catch (_) {}
   }
 
+  /// Approve a browser-pairing challenge with an E2EE-encrypted identity payload.
+  static Future<void> approveDevicePairing(
+    String sessionId,
+    Map<String, String> encryptedPayload,
+  ) async {
+    if (!RegExp(r'^[A-Za-z0-9_-]{32}$').hasMatch(sessionId)) {
+      throw const FormatException('Invalid device-pairing session.');
+    }
+    final response = await http.post(
+      Uri.parse('$baseUrl/api/device-pairing/$sessionId/approve'),
+      headers: await _csrfHeaders(),
+      body: jsonEncode(encryptedPayload),
+    ).timeout(const Duration(seconds: 20));
+    Map<String, dynamic> body = {};
+    try {
+      final decoded = jsonDecode(response.body);
+      if (decoded is Map) body = Map<String, dynamic>.from(decoded);
+    } catch (_) {}
+    if (response.statusCode < 200 || response.statusCode >= 300 || body['ok'] != true) {
+      throw StateError(
+        body['error']?.toString() ?? 'Could not approve this linked-device request.',
+      );
+    }
+  }
+
   // ── Feedback ──────────────────────────────────────────────────────────────
   static Future<Map<String, dynamic>> submitFeedback({
     required String type,

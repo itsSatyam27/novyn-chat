@@ -728,6 +728,153 @@ app.post("/api/calls", requireUser, requireCsrf, (req, res) => {
   res.json({ ok: true });
 });
 
+// QR-based linked-device handoff. The Web browser holds an ephemeral
+// private key in memory; Android encrypts its primary identity to that key.
+// The backend is an authenticated, expiring ciphertext relay only.
+app.post(
+  "/api/device-pairing",
+  requireUser,
+  requireCsrf,
+  createIpRateLimiter({ getStore: () => httpRateLimits }, "device-pairing-create", 20, 60 * 1000),
+  (req, res) => {
+    pruneDevicePairingSessions();
+    if (!isValidDevicePairingPublicKey(req.body?.browserPublicKey)) {
+      return res.status(400).json({ error: "Invalid browser pairing public key." });
+    }
+    // Only one live challenge per account; revoke stale QR codes on refresh.
+    for (const [id, existing] of devicePairingSessions.entries()) {
+      if (existing.userKey === req.userKey && existing.state === "pending") {
+        devicePairingSessions.delete(id);
+      }
+    }
+    const sessionId = crypto.randomBytes(24).toString("base64url");
+    const expiresAt = Date.now() + DEVICE_PAIRING_TTL_MS;
+    const rawBrowserPublicKey = typeof req.body.browserPublicKey === "string"
+      ? JSON.parse(req.body.browserPublicKey)
+      : req.body.browserPublicKey;
+    const browserPublicKey = {
+      kty: "EC", crv: "P-256",
+      x: rawBrowserPublicKey.x,
+      y: rawBrowserPublicKey.y,
+    };
+    devicePairingSessions.set(sessionId, {
+      sessionId,
+      userKey: req.userKey,
+      browserPublicKey,
+      state: "pending",
+      expiresAt,
+      response: null,
+    });
+    res.set("Cache-Control", "no-store, max-age=0");
+    res.json({
+      ok: true,
+      sessionId,
+      username: users.get(req.userKey)?.username || req.userKey,
+      browserPublicKey,
+      expiresAt,
+    });
+  },
+);
+
+app.get(
+  "/api/device-pairing/:sessionId",
+  requireUser,
+  createIpRateLimiter({ getStore: () => httpRateLimits }, "device-pairing-poll", 120, 60 * 1000),
+  (req, res) => {
+  pruneDevicePairingSessions();
+  const id = String(req.params.sessionId || "");
+  if (!/^[A-Za-z0-9_-]{32}$/.test(id)) {
+    return res.status(400).json({ error: "Invalid pairing session." });
+  }
+  const session = devicePairingSessions.get(id);
+  if (!session || session.userKey !== req.userKey) {
+    return res.status(404).json({ error: "Pairing session not found or expired." });
+  }
+  res.set("Cache-Control", "no-store, max-age=0");
+  res.json({
+    ok: true,
+    status: session.state,
+    expiresAt: session.expiresAt,
+    ...(session.state === "approved" ? { response: session.response } : {}),
+  });
+  },
+);
+
+app.post(
+  "/api/device-pairing/:sessionId/approve",
+  requireUser,
+  requireCsrf,
+  createIpRateLimiter({ getStore: () => httpRateLimits }, "device-pairing-approve", 20, 60 * 1000),
+  (req, res) => {
+    pruneDevicePairingSessions();
+    const id = String(req.params.sessionId || "");
+    const session = devicePairingSessions.get(id);
+    if (!session || session.userKey !== req.userKey || session.state !== "pending") {
+      return res.status(404).json({ error: "Pairing request is no longer active." });
+    }
+    const { androidPublicKey, iv, ciphertext } = req.body || {};
+    if (!isValidDevicePairingPublicKey(androidPublicKey) ||
+        typeof iv !== "string" || !/^[A-Za-z0-9+/]{16}$/.test(iv) ||
+        typeof ciphertext !== "string" ||
+        ciphertext.length < 24 || ciphertext.length > DEVICE_PAIRING_MAX_CIPHERTEXT ||
+        !/^[A-Za-z0-9+/]+={0,2}$/.test(ciphertext)) {
+      return res.status(400).json({ error: "Invalid encrypted pairing payload." });
+    }
+    const ivBytes = Buffer.from(iv, "base64");
+    const ciphertextBytes = Buffer.from(ciphertext, "base64");
+    if (ivBytes.length !== 12 || ciphertextBytes.length < 16 ||
+        ciphertextBytes.length > 32 * 1024) {
+      return res.status(400).json({ error: "Invalid encrypted pairing payload size." });
+    }
+    const rawAndroidPublicKey = typeof androidPublicKey === "string"
+      ? JSON.parse(androidPublicKey)
+      : androidPublicKey;
+    session.response = {
+      androidPublicKey: {
+        kty: "EC", crv: "P-256",
+        x: rawAndroidPublicKey.x,
+        y: rawAndroidPublicKey.y,
+      },
+      iv,
+      ciphertext,
+    };
+    session.state = "approved";
+    session.approvedAt = Date.now();
+    res.set("Cache-Control", "no-store, max-age=0");
+    res.json({ ok: true });
+  },
+);
+
+app.post(
+  "/api/device-pairing/:sessionId/consume",
+  requireUser,
+  requireCsrf,
+  (req, res) => {
+    pruneDevicePairingSessions();
+    const id = String(req.params.sessionId || "");
+    const session = devicePairingSessions.get(id);
+    if (!session || session.userKey !== req.userKey || session.state !== "approved") {
+      return res.status(404).json({ error: "Approved pairing payload not found." });
+    }
+    devicePairingSessions.delete(id);
+    res.set("Cache-Control", "no-store, max-age=0");
+    res.json({ ok: true });
+  },
+);
+
+app.delete(
+  "/api/device-pairing/:sessionId",
+  requireUser,
+  requireCsrf,
+  (req, res) => {
+    const id = String(req.params.sessionId || "");
+    const session = devicePairingSessions.get(id);
+    if (session && session.userKey === req.userKey) devicePairingSessions.delete(id);
+    res.set("Cache-Control", "no-store, max-age=0");
+    res.json({ ok: true });
+  },
+);
+
 app.get("/api/stats", (req, res) => {
   const totalUsers = Array.from(users.values()).filter((user) => user?.isRegistered).length;
   const onlineCount = onlineUsers.size;
@@ -794,6 +941,37 @@ app.get(
 
 
 const conversationWallpapers = new Map();
+
+// Short-lived, authenticated relay state for QR device pairing. Only encrypted
+// payloads are stored here; the server never receives a private key in plaintext.
+const devicePairingSessions = new Map();
+const DEVICE_PAIRING_TTL_MS = 2 * 60 * 1000;
+const DEVICE_PAIRING_MAX_CIPHERTEXT = 48 * 1024;
+
+function isValidDevicePairingPublicKey(value) {
+  let key = value;
+  if (typeof key === "string") {
+    try { key = JSON.parse(key); } catch (_) { return false; }
+  }
+  const allowed = new Set(["kty", "crv", "x", "y", "ext", "key_ops"]);
+  return Boolean(
+    key && typeof key === "object" && !Array.isArray(key) &&
+    Object.keys(key).every((name) => allowed.has(name)) &&
+    key.kty === "EC" && key.crv === "P-256" &&
+    typeof key.x === "string" && /^[A-Za-z0-9_-]{43}$/.test(key.x) &&
+    typeof key.y === "string" && /^[A-Za-z0-9_-]{43}$/.test(key.y) &&
+    (key.ext === undefined || key.ext === true) &&
+    (key.key_ops === undefined || (Array.isArray(key.key_ops) && key.key_ops.length === 0))
+  );
+}
+
+function pruneDevicePairingSessions(now = Date.now()) {
+  for (const [id, session] of devicePairingSessions.entries()) {
+    if (!session || session.expiresAt <= now || session.state === "consumed") {
+      devicePairingSessions.delete(id);
+    }
+  }
+}
 
 const DATA_DIR = path.resolve(process.env.DATA_DIR || path.join(__dirname, "runtime", "data"));
 const DATA_FILE = path.join(DATA_DIR, "chat-state.json");
