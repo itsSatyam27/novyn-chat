@@ -1158,7 +1158,7 @@ class _CallScreenState extends State<CallScreen>
     );
   }
 
-Widget _buildVoiceCall() {
+  Widget _buildVoiceCall() {
     final dark = Theme.of(context).brightness == Brightness.dark;
     final ink = dark ? const Color(0xFFF0EFFF) : const Color(0xFF1E1B49);
     final mutedInk = dark ? const Color(0xFFAAA8C6) : const Color(0xFF5D5A85);
@@ -1532,95 +1532,6 @@ Widget _buildVoiceCall() {
     );
   }
 
-  Widget _buildIncomingControls() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(44, 0, 44, 24),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            'Incoming ${widget.callType} call',
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              fontFamily: 'PlusJakartaSans',
-              fontSize: 13,
-              color: Colors.white70,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          const SizedBox(height: 26),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _CallButton(
-                    icon: Icons.call_end_rounded,
-                    label: 'Decline',
-                    color: const Color(0xFFEF4444),
-                    onTap: _rejectCall,
-                  ),
-                  const SizedBox(height: 10),
-                  const Text('Decline', style: TextStyle(color: Colors.white70, fontSize: 12)),
-                ],
-              ),
-              Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _CallButton(
-                    icon: Icons.call_rounded,
-                    label: 'Accept',
-                    color: const Color(0xFF10B981),
-                    onTap: _acceptCall,
-                  ),
-                  const SizedBox(height: 10),
-                  const Text('Accept', style: TextStyle(color: Colors.white70, fontSize: 12)),
-                ],
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCallingControls() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 32),
-      child: Column(
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              _ToggleButton(
-                icon: _muted ? Icons.mic_off_rounded : Icons.mic_rounded,
-                label: _muted ? 'Unmute' : 'Mute',
-                active: _muted,
-                onTap: _toggleMute,
-              ),
-              _ToggleButton(
-                icon: _speakerOn
-                    ? Icons.volume_up_rounded
-                    : Icons.volume_off_rounded,
-                label: 'Speaker',
-                active: _speakerOn,
-                onTap: _toggleSpeaker,
-              ),
-            ],
-          ),
-          const SizedBox(height: 36),
-          _CallButton(
-            icon: Icons.call_end_rounded,
-            label: 'Cancel',
-            color: const Color(0xFFEF4444),
-            onTap: _endCall,
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildConnectedControls() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 32),
@@ -1693,7 +1604,7 @@ Widget _buildVoiceCall() {
     );
   }
 
-Widget _buildAudioRouteSelector() {
+  Widget _buildAudioRouteSelector() {
     final dark = Theme.of(context).brightness == Brightness.dark;
     final ink = dark ? Colors.white : const Color(0xFF1E1B49);
     final routes = _audioRoutes.where((route) => route['kind'] == 'bluetooth').toList();
