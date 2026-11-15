@@ -36,12 +36,20 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   int _selectedIndex = 0;
   AuthService? _authService;
   String? _activeUsername;
+  Timer? _updateCheckTimer;
+  DateTime? _lastUpdateCheck;
 
   late final List<Widget> _screens;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    NotificationService.setAppUpdateTapHandler(_openAboutNovyn);
+    _updateCheckTimer = Timer.periodic(
+      AppUpdateService.backgroundCheckFrequency,
+      (_) => _runUpdateCheck(force: true),
+    );
     // Build screens — ChatsScreen gets a callback to switch to People tab (index 2)
     _screens = [
       ChatsScreen(onNavigateToPeople: () => _onTabTap(3)), // index 3 now
@@ -118,6 +126,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     unawaited(() async {
       await NotificationService.init(context);
       if (!mounted || auth.user?.username.toLowerCase() != username.toLowerCase()) return;
+      unawaited(_runUpdateCheck(force: true));
       await NotificationService.saveTokenForUser(username);
     }());
 
@@ -153,6 +162,9 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _updateCheckTimer?.cancel();
+    NotificationService.setAppUpdateTapHandler(null);
     _authService?.removeListener(_handleAuthChanged);
     if (widget.managePresence && _authService?.user != null) {
       _authService!.setOnline(false);

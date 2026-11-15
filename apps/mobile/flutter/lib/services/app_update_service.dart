@@ -27,8 +27,9 @@ void novynUpdateCallbackDispatcher() {
     ui.DartPluginRegistrant.ensureInitialized();
     if (task != _updateTaskName) return true;
     try {
-      final result = await AppUpdateService.instance.checkForUpdates(
+      await AppUpdateService.instance.checkForUpdates(
         notifyIfAvailable: true,
+        isBackgroundCheck: true,
       );
       return true;
     } catch (error) {
@@ -105,6 +106,7 @@ class AppUpdateService extends ChangeNotifier {
 
   Future<AppUpdateCheckResult> checkForUpdates({
     bool notifyIfAvailable = false,
+    bool isBackgroundCheck = false,
   }) async {
     final installedInfo = await PackageInfo.fromPlatform();
     final installedBuild = int.tryParse(installedInfo.buildNumber) ?? 0;
@@ -193,7 +195,7 @@ class AppUpdateService extends ChangeNotifier {
     );
     await prepareForUpdate(release);
     if (notifyIfAvailable) {
-      await _notifyIfNewBuild(release);
+      await _notifyIfNewBuild(release, isBackgroundCheck: isBackgroundCheck);
     }
     return AppUpdateCheckResult(
       installedBuild: installedBuild,
@@ -204,7 +206,7 @@ class AppUpdateService extends ChangeNotifier {
     );
   }
 
-  Future<void> _notifyIfNewBuild(AppUpdateInfo release) async {
+  Future<void> _notifyIfNewBuild(AppUpdateInfo release, {required bool isBackgroundCheck}) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.reload();
     final lastNotified = prefs.getInt(_lastNotifiedBuildKey) ?? 0;
@@ -214,11 +216,60 @@ class AppUpdateService extends ChangeNotifier {
     // and show duplicate alerts for the same release.
     await prefs.setInt(_lastNotifiedBuildKey, release.build);
     try {
-      await NotificationService.showAppUpdateAvailable();
+      if (isBackgroundCheck) {
+        await _showBackgroundUpdateNotification();
+      } else {
+        await NotificationService.showAppUpdateAvailable();
+      }
     } catch (error) {
       await prefs.setInt(_lastNotifiedBuildKey, lastNotified);
       debugPrint('[NovynUpdates] Could not show update notification: ' + error.toString());
     }
+  }
+
+
+  Future<void> _showBackgroundUpdateNotification() async {
+    final plugin = FlutterLocalNotificationsPlugin();
+    await plugin.initialize(
+      const InitializationSettings(
+        android: AndroidInitializationSettings('@drawable/novyn_wings_icon'),
+        iOS: DarwinInitializationSettings(),
+      ),
+    );
+    final android = plugin.resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin>();
+    await android?.createNotificationChannel(
+      const AndroidNotificationChannel(
+        'novyn_app_updates',
+        'App updates',
+        description: 'Notifications when a new Novyn version is available',
+        importance: Importance.high,
+        playSound: true,
+        enableVibration: true,
+      ),
+    );
+    await plugin.show(
+      781205,
+      'A new Novyn version is available',
+      'Tap to open About Novyn and check for updates.',
+      const NotificationDetails(
+        android: AndroidNotificationDetails(
+          'novyn_app_updates',
+          'App updates',
+          channelDescription: 'Notifications when a new Novyn version is available',
+          importance: Importance.high,
+          priority: Priority.high,
+          icon: '@drawable/novyn_wings_icon',
+          autoCancel: true,
+        ),
+        iOS: DarwinNotificationDetails(
+          presentAlert: true,
+          presentBadge: true,
+          presentSound: true,
+        ),
+      ),
+      payload: 'app_update',
+    );
   }
 
   Future<void> prepareForUpdate(AppUpdateInfo release) async {
@@ -352,7 +403,7 @@ class AppUpdateService extends ChangeNotifier {
           await sink.writeFrom(chunk);
           received += chunk.length;
           downloadedBytes = received;
-          downloadProgress = (received / release.size).clamp(0.0, 1.0);
+          downloadProgress = (received / release.size).clamp(0.0, 1.0).toDouble();
           hasPartialDownload = received > 0;
           notifyListeners();
         }
@@ -386,7 +437,7 @@ class AppUpdateService extends ChangeNotifier {
     final length = await partialFile.length();
     if (length != release.size) {
       downloadedBytes = length;
-      downloadProgress = (length / release.size).clamp(0.0, 1.0);
+      downloadProgress = (length / release.size).clamp(0.0, 1.0).toDouble();
       hasPartialDownload = length > 0;
       downloadError =
           'Download paused. Your progress is saved; tap Resume download to continue.';

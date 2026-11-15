@@ -33,6 +33,7 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
   @override
   void initState() {
     super.initState();
+    _updateService.addListener(_handleDownloadStateChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _checkForUpdates();
     });
@@ -114,6 +115,12 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
     } finally {
       if (mounted) setState(() => _installing = false);
     }
+  }
+
+  @override
+  void dispose() {
+    _updateService.removeListener(_handleDownloadStateChanged);
+    super.dispose();
   }
 
   @override

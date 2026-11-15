@@ -468,6 +468,10 @@ class NotificationService {
         }
         final payload = response.payload?.trim() ?? '';
         if (!context.mounted || payload.isEmpty) return;
+        if (payload == 'app_update') {
+          _appUpdateTapHandler?.call(context);
+          return;
+        }
         if (payload.startsWith('call:')) {
           final parts = payload.substring(5).split('|');
           if (parts.length >= 3 && parts[0].isNotEmpty) {
@@ -894,7 +898,9 @@ class NotificationService {
     final localLaunch = await _localNotifications.getNotificationAppLaunchDetails();
     final localPayload = localLaunch?.notificationResponse?.payload?.trim() ?? '';
     if (localLaunch?.didNotificationLaunchApp == true && localPayload.isNotEmpty && context.mounted) {
-      if (localPayload.startsWith('call:')) {
+      if (localPayload == 'app_update') {
+        _appUpdateTapHandler?.call(context);
+      } else if (localPayload.startsWith('call:')) {
         final parts = localPayload.substring(5).split('|');
         if (parts.length >= 3 && parts[0].isNotEmpty) {
           unawaited(_openIncomingCall(parts[1], parts[0], parts[2] == '1', context));

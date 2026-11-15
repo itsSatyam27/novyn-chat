@@ -1,4 +1,5 @@
-import 'dart:async';\nimport 'dart:io';
+import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'dart:ui' show PlatformDispatcher;
 import 'package:flutter/foundation.dart';
@@ -11,7 +12,8 @@ import 'services/auth_service.dart';
 import 'services/settings_service.dart';
 import 'services/friend_service.dart';
 import 'services/socket_service.dart';
-import 'services/notification_service.dart';\nimport 'services/app_update_service.dart';
+import 'services/notification_service.dart';
+import 'services/app_update_service.dart';
 import 'services/api_service.dart';
 import 'services/sync_service.dart';
 import 'services/haptic_service.dart';
