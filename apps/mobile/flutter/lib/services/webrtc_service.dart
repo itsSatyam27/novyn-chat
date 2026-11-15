@@ -135,11 +135,10 @@ class WebRTCService extends ChangeNotifier {
       dynamicIcePayload,
       fallbackServers: _fallbackIceServers,
     );
-    final usingDynamicIce =
-        dynamicIcePayload is Map &&
-        dynamicIcePayload['authenticated'] == true &&
+    final icePayload = dynamicIcePayload ?? const <String, dynamic>{};
+    final usingDynamicIce = icePayload['authenticated'] == true &&
         RtcIceConfiguration.normalizeServers(
-          dynamicIcePayload['iceServers'],
+          icePayload['iceServers'],
           allowCredentials: true,
         ).isNotEmpty;
     debugPrint(usingDynamicIce
