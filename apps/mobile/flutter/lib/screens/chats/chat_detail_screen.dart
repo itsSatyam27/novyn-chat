@@ -828,6 +828,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
           const SizedBox(width: 8),
           _ChatHeaderButton(
             icon: Icons.search_rounded,
+            iconSize: 18,
             filled: true,
             tooltip: 'Search messages',
             onTap: () => showSearch<String>(
@@ -2207,7 +2208,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
         final scheme = theme.colorScheme;
         return Container(
           margin: const EdgeInsets.fromLTRB(10, 0, 10, 10),
-          constraints: BoxConstraints(maxHeight: MediaQuery.of(sheetContext).size.height * .78),
+          constraints: BoxConstraints(maxHeight: MediaQuery.of(sheetContext).size.height * .82),
           padding: const EdgeInsets.fromLTRB(18, 12, 18, 18),
           decoration: BoxDecoration(
             color: scheme.surface, borderRadius: BorderRadius.circular(28),
@@ -2234,7 +2235,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
             Flexible(child: GridView.builder(
               shrinkWrap: true, itemCount: games.length,
               gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2, mainAxisSpacing: 10, crossAxisSpacing: 10, childAspectRatio: 1.55),
+                crossAxisCount: 2, mainAxisSpacing: 12, crossAxisSpacing: 12, childAspectRatio: 1.28),
               itemBuilder: (context, index) {
                 final item = games[index];
                 final tint = index.isEven ? scheme.primary : scheme.tertiary;
@@ -2256,19 +2257,41 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                           behavior: SnackBarBehavior.floating));
                       }
                     },
-                    child: Padding(padding: const EdgeInsets.all(12), child: Row(children: [
-                      Container(width: 42, height: 42,
-                        decoration: BoxDecoration(color: tint.withValues(alpha: .14), borderRadius: BorderRadius.circular(14)),
-                        child: Icon(item['icon'] as IconData, color: tint)),
-                      const SizedBox(width: 10),
-                      Expanded(child: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Text(item['title'] as String, maxLines: 2, overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w800)),
-                        const SizedBox(height: 3),
-                        Text(item['subtitle'] as String, maxLines: 2, overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant, fontSize: 10)),
-                      ])),
-                    ])),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Container(
+                            width: 42, height: 42,
+                            decoration: BoxDecoration(
+                              color: tint.withValues(alpha: .14),
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: Icon(item['icon'] as IconData, color: tint),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            item['title'] as String,
+                            maxLines: 2,
+                            textAlign: TextAlign.center,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w800),
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            item['subtitle'] as String,
+                            maxLines: 1,
+                            textAlign: TextAlign.center,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: scheme.onSurfaceVariant, fontSize: 10,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 );
               },
@@ -4460,11 +4483,19 @@ class _GifPickerSheetState extends State<_GifPickerSheet> {
     final bottom = MediaQuery.of(context).viewInsets.bottom;
     final scheme = Theme.of(context).colorScheme;
     return Container(
-      height: MediaQuery.of(context).size.height * 0.78,
+      height: MediaQuery.of(context).size.height * 0.84,
       padding: EdgeInsets.fromLTRB(16, 12, 16, 12 + bottom),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        color: scheme.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(26)),
+        border: Border.all(color: scheme.outlineVariant.withValues(alpha: .55)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: .12),
+            blurRadius: 24,
+            offset: const Offset(0, -5),
+          ),
+        ],
       ),
       child: Column(
         children: [
@@ -4472,10 +4503,23 @@ class _GifPickerSheetState extends State<_GifPickerSheet> {
           const SizedBox(height: 14),
           Row(
             children: [
-              Icon(Icons.gif_box_rounded, size: 22),
-              const SizedBox(width: 9),
-              const Expanded(child: Text('GIFs & Stickers', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 17, fontWeight: FontWeight.w700))),
-              IconButton(onPressed: () => Navigator.pop(context), icon: Icon(Icons.close_rounded)),
+              Container(
+                width: 38, height: 38,
+                decoration: BoxDecoration(
+                  color: scheme.primaryContainer,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(Icons.gif_box_rounded, size: 21, color: scheme.onPrimaryContainer),
+              ),
+              const SizedBox(width: 10),
+              Expanded(child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('GIFs & Stickers', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
+                  Text('Find the perfect reaction', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
+                ],
+              )),
+              IconButton(onPressed: () => Navigator.pop(context), icon: Icon(Icons.close_rounded, color: scheme.onSurfaceVariant)),
             ],
           ),
           TextField(
@@ -4490,7 +4534,22 @@ class _GifPickerSheetState extends State<_GifPickerSheet> {
                 icon: Icon(Icons.close_rounded, size: 18),
               ),
               filled: true,
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
+              fillColor: scheme.surfaceContainerLow,
+              contentPadding: const EdgeInsets.symmetric(vertical: 15),
+              prefixIconColor: scheme.primary,
+              hintStyle: TextStyle(color: scheme.onSurfaceVariant),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: BorderSide(color: scheme.outlineVariant.withValues(alpha: .6)),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: BorderSide(color: scheme.outlineVariant.withValues(alpha: .6)),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: BorderSide(color: scheme.primary, width: 1.4),
+              ),
             ),
           ),
           const SizedBox(height: 10),
@@ -4547,10 +4606,33 @@ class _GifPickerSheetState extends State<_GifPickerSheet> {
                               return InkWell(
                                 onTap: () => widget.onSelect(item),
                                 borderRadius: BorderRadius.circular(10),
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(10),
-                                  child: Image.network(preview, fit: BoxFit.cover,
-                                    errorBuilder: (_, __, ___) => const Center(child: Icon(Icons.broken_image_outlined))),
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: scheme.surfaceContainerLow,
+                                    borderRadius: BorderRadius.circular(14),
+                                    border: Border.all(color: scheme.outlineVariant.withValues(alpha: .45)),
+                                  ),
+                                  clipBehavior: Clip.antiAlias,
+                                  child: Image.network(
+                                    preview,
+                                    fit: _type == 'stickers' ? BoxFit.contain : BoxFit.cover,
+                                    loadingBuilder: (context, child, progress) => progress == null
+                                        ? child
+                                        : Center(
+                                            child: SizedBox(
+                                              width: 20, height: 20,
+                                              child: CircularProgressIndicator(
+                                                strokeWidth: 2,
+                                                value: progress.expectedTotalBytes == null
+                                                    ? null
+                                                    : progress.cumulativeBytesLoaded / progress.expectedTotalBytes!,
+                                              ),
+                                            ),
+                                          ),
+                                    errorBuilder: (_, __, ___) => Center(
+                                      child: Icon(Icons.broken_image_outlined, color: scheme.onSurfaceVariant),
+                                    ),
+                                  ),
                                 ),
                               );
                             },
@@ -4953,12 +5035,20 @@ class _MessageSearchDelegate extends SearchDelegate<String> {
   @override
   ThemeData appBarTheme(BuildContext context) {
     return Theme.of(context).copyWith(
+      scaffoldBackgroundColor: Theme.of(context).colorScheme.surface,
+      canvasColor: Theme.of(context).colorScheme.surface,
       appBarTheme: AppBarTheme(
         backgroundColor: Theme.of(context).colorScheme.surface,
+        foregroundColor: Theme.of(context).colorScheme.onSurface,
+        surfaceTintColor: Colors.transparent,
         elevation: 0,
+        scrolledUnderElevation: 0,
+        iconTheme: IconThemeData(color: Theme.of(context).colorScheme.onSurface),
       ),
-      inputDecorationTheme: const InputDecorationTheme(
+      textTheme: Theme.of(context).textTheme,
+      inputDecorationTheme: InputDecorationTheme(
         border: InputBorder.none,
+        hintStyle: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
       ),
     );
   }
