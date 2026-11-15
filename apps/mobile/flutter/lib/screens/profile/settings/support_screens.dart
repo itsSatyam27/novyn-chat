@@ -1,202 +1,265 @@
 import 'dart:convert';
-
+import 'dart:io';
+import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:package_info_plus/package_info_plus.dart';
+import 'package:path_provider/path_provider.dart';
 import '../../../widgets/novyn_brand_mark.dart';
 import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
-
 import '../../../theme/novyn_theme.dart';
 import '../../../services/api_service.dart';
 
-const _appVersion = '1.0.0';
-const _buildNumber = '1';
 const _releasesApi = 'https://api.github.com/repos/itsSatyam27/novyn-chat/releases/latest';
+const _arm64ApkName = 'Novyn-Android-ARM64.apk';
+const _installerChannel = MethodChannel('com.example.novyn/apk_installer');
 
 class AboutNovynScreen extends StatefulWidget {
   const AboutNovynScreen({super.key});
-
   @override
   State<AboutNovynScreen> createState() => _AboutNovynScreenState();
 }
 
 class _AboutNovynScreenState extends State<AboutNovynScreen> {
-  bool _checking = false;
-  String? _status;
-  Uri? _releaseUrl;
-  bool? _updateAvailable;
+  bool _checking = false, _downloading = false, _installing = false;
+  String? _status, _releaseName, _apkUrl, _expectedSha256, _downloadedApkPath;
+  int? _apkSize;
+  int _installedBuild = 0, _latestBuild = 0;
+  double _downloadProgress = 0;
+  String _appVersion = '—', _buildNumber = '0';
+
+  @override
+  void initState() {
+    super.initState();
+    PackageInfo.fromPlatform().then((info) {
+      if (!mounted) return;
+      setState(() {
+        _appVersion = info.version;
+        _buildNumber = info.buildNumber;
+        _installedBuild = int.tryParse(info.buildNumber) ?? 0;
+      });
+    });
+  }
 
   Future<void> _checkForUpdates() async {
     setState(() {
       _checking = true;
       _status = null;
-      _releaseUrl = null;
-      _updateAvailable = null;
+      _apkUrl = null;
+      _expectedSha256 = null;
+      _downloadedApkPath = null;
+      _releaseName = null;
+      _apkSize = null;
     });
     try {
-      final response = await http.get(
-        Uri.parse(_releasesApi),
-        headers: const {'Accept': 'application/vnd.github+json'},
-      ).timeout(const Duration(seconds: 15));
-      if (!mounted) return;
+      final response = await http.get(Uri.parse(_releasesApi),
+          headers: const {'Accept': 'application/vnd.github+json'})
+          .timeout(const Duration(seconds: 20));
       if (response.statusCode == 404) {
-        setState(() => _status = 'No public release is available yet. You are using Novyn v$_appVersion.');
+        setState(() => _status = 'No public Android release is available yet.');
         return;
       }
-      if (response.statusCode != 200) {
-        throw Exception('Update service returned status ${response.statusCode}.');
-      }
+      if (response.statusCode != 200) throw Exception('Update service unavailable.');
       final data = jsonDecode(response.body);
-      if (data is! Map) throw const FormatException('Invalid release information.');
-      final tag = (data['tag_name'] ?? '').toString().replaceFirst(RegExp(r'^[vV]'), '');
-      final url = Uri.tryParse((data['html_url'] ?? '').toString());
-      if (tag.isEmpty || url == null || !url.hasScheme) {
-        throw const FormatException('Latest release information is incomplete.');
+      if (data is! Map || data['draft'] == true) throw const FormatException('Invalid release.');
+      final tag = (data['tag_name'] ?? '').toString();
+      final match = RegExp(r'^novyn-arm64-build-(\d+)(?:-\d+)?$').firstMatch(tag);
+      if (match == null) throw const FormatException('Latest release is not a supported ARM64 build.');
+      final build = int.parse(match.group(1)!);
+      final assets = data['assets'];
+      if (assets is! List) throw const FormatException('Release assets are missing.');
+      Map? asset;
+      for (final item in assets) {
+        if (item is Map && item['name'] == _arm64ApkName) { asset = item; break; }
       }
-      final available = _compareVersions(tag, _appVersion) > 0;
+      if (asset == null) throw const FormatException('ARM64 APK is missing.');
+      final url = Uri.tryParse((asset['browser_download_url'] ?? '').toString());
+      final digest = (asset['digest'] ?? '').toString();
+      final size = int.tryParse((asset['size'] ?? '').toString());
+      if (url == null || url.host != 'github.com' ||
+          !url.path.contains('/itsSatyam27/novyn-chat/releases/download/') ||
+          !url.path.endsWith('/' + _arm64ApkName) ||
+          !RegExp(r'^sha256:[a-fA-F0-9]{64}$').hasMatch(digest) ||
+          size == null || size < 10 * 1024 * 1024 || size > 100 * 1024 * 1024) {
+        throw const FormatException('ARM64 APK metadata failed validation.');
+      }
       setState(() {
-        _releaseUrl = url;
-        _updateAvailable = available;
-        _status = available
-          ? 'Novyn v$tag is available. Open the release page to view release notes and download options.'
-          : 'You are up to date. Novyn v$_appVersion is the latest published release.';
+        _latestBuild = build;
+        _releaseName = (data['name'] ?? tag).toString();
+        _apkUrl = url.toString();
+        _expectedSha256 = digest.substring(7).toLowerCase();
+        _apkSize = size;
+        _status = build > _installedBuild
+            ? 'A new ARM64 update is available.'
+            : 'You are up to date. Novyn is running the latest ARM64 release.';
       });
-    } catch (error) {
-      if (mounted) setState(() => _status = 'Could not check for updates. Check your internet connection and try again.');
+    } catch (_) {
+      if (mounted) setState(() => _status = 'Could not verify updates. Check your connection and try again.');
     } finally {
       if (mounted) setState(() => _checking = false);
     }
   }
 
-  int _compareVersions(String left, String right) {
-    List<int> parts(String value) => value.split('.').map((part) {
-      final digits = RegExp(r'^\d+').firstMatch(part)?.group(0);
-      return int.tryParse(digits ?? '') ?? 0;
-    }).toList();
-    final a = parts(left), b = parts(right);
-    for (var i = 0; i < (a.length > b.length ? a.length : b.length); i++) {
-      final av = i < a.length ? a[i] : 0;
-      final bv = i < b.length ? b[i] : 0;
-      if (av != bv) return av.compareTo(bv);
+  Future<void> _downloadUpdate() async {
+    final url = _apkUrl, hash = _expectedSha256;
+    final size = _apkSize;
+    if (url == null || hash == null || size == null) return;
+    setState(() { _downloading = true; _downloadProgress = 0; _status = 'Downloading ARM64 update…'; });
+    final client = http.Client();
+    String? path;
+    try {
+      final response = await client.send(http.Request('GET', Uri.parse(url)))
+          .timeout(const Duration(seconds: 30));
+      if (response.statusCode != 200 || (response.contentLength ?? size) != size) {
+        throw const FormatException('APK download response is invalid.');
+      }
+      final dir = await getTemporaryDirectory();
+      final file = File(dir.path + '/' + _arm64ApkName);
+      path = file.path;
+      if (await file.exists()) await file.delete();
+      final sink = file.openWrite();
+      final hashSink = AccumulatorSink<Digest>();
+      final converter = sha256.startChunkedConversion(hashSink);
+      var received = 0;
+      try {
+        await for (final chunk in response.stream) {
+          received += chunk.length;
+          if (received > size) throw const FormatException('APK exceeds expected size.');
+          converter.add(chunk);
+          sink.add(chunk);
+          if (mounted) setState(() => _downloadProgress = received / size);
+        }
+      } finally {
+        converter.close();
+        await sink.flush();
+        await sink.close();
+      }
+      if (received != size || hashSink.events.single.toString() != hash) {
+        await file.delete();
+        throw const FormatException('APK checksum verification failed.');
+      }
+      if (!mounted) return;
+      setState(() { _downloadedApkPath = file.path; _status = 'ARM64 APK downloaded and verified. Ready to install.'; });
+    } catch (_) {
+      if (path != null) {
+        final partial = File(path);
+        if (await partial.exists()) await partial.delete();
+      }
+      if (mounted) setState(() => _status = 'Download or verification failed. Please try again.');
+    } finally {
+      client.close();
+      if (mounted) setState(() => _downloading = false);
     }
-    return 0;
   }
 
-  Future<void> _openRelease() async {
-    final url = _releaseUrl;
-    if (url == null) return;
-    if (!await launchUrl(url, mode: LaunchMode.externalApplication) && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not open the release page.')));
+  Future<void> _installUpdate() async {
+    final path = _downloadedApkPath;
+    if (path == null) return;
+    setState(() => _installing = true);
+    try {
+      final allowed = await _installerChannel.invokeMethod<bool>('canInstallPackages') ?? false;
+      if (!allowed) {
+        await _installerChannel.invokeMethod<void>('openInstallPermissionSettings');
+        if (mounted) setState(() => _status = 'Allow Novyn to install updates, then tap Install update again.');
+        return;
+      }
+      await _installerChannel.invokeMethod<void>('installApk', {'path': path});
+    } on PlatformException {
+      if (mounted) setState(() => _status = 'Could not open Android installer. Please try again.');
+    } finally {
+      if (mounted) setState(() => _installing = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
+    final available = _latestBuild > _installedBuild;
     return Scaffold(
       backgroundColor: NovynTheme.pageBg(context),
-      appBar: AppBar(
-        backgroundColor: NovynTheme.pageBg(context),
-        elevation: 0,
-        title: const Text('About Novyn', style: TextStyle(fontWeight: FontWeight.w800)),
-      ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 18, 20, 36),
-        children: [
-          Center(
-            child: Column(children: [
-              Container(
-                width: 92,
-                height: 92,
-                padding: const EdgeInsets.all(17),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(27),
-                  gradient: const LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [Color(0xFF7C6CFF), Color(0xFF5141CD)],
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFF5141CD).withValues(alpha: .22),
-                      blurRadius: 22,
-                      offset: const Offset(0, 9),
-                    ),
-                  ],
-                ),
-                child: const NovynBrandMark(size: 76),
-              ),
-              const SizedBox(height: 16),
-              Text('Novyn', style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w900)),
-              const SizedBox(height: 5),
-              Text('Your space, your people.', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: colors.onSurfaceVariant)),
-            ]),
-          ),
-          const SizedBox(height: 28),
-          _infoCard(context, [
-            _InfoRow(label: 'App version', value: '$_appVersion ($_buildNumber)'),
-            _InfoRow(label: 'Platform', value: 'Flutter'),
-            _InfoRow(label: '©', value: '2026 Novyn'),
-          ]),
-          const SizedBox(height: 18),
-          Container(
-            padding: const EdgeInsets.all(17),
-            decoration: BoxDecoration(
-              color: NovynTheme.cardBg(context),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: colors.outlineVariant.withValues(alpha: .6)),
-            ),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Row(children: [
-                Icon(Icons.system_update_alt_rounded, color: colors.primary),
-                const SizedBox(width: 10),
-                const Expanded(child: Text('App updates', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16))),
-              ]),
-              const SizedBox(height: 8),
-              Text('Check the latest published Novyn release.', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant)),
+      appBar: AppBar(backgroundColor: NovynTheme.pageBg(context), elevation: 0,
+        title: const Text('About Novyn', style: TextStyle(fontWeight: FontWeight.w800))),
+      body: ListView(padding: const EdgeInsets.fromLTRB(20, 18, 20, 36), children: [
+        Center(child: Column(children: [
+          Container(width: 92, height: 92, padding: const EdgeInsets.all(17),
+            decoration: BoxDecoration(borderRadius: BorderRadius.circular(27),
+              gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
+                colors: [Color(0xFF7C6CFF), Color(0xFF5141CD)]),
+              boxShadow: [BoxShadow(color: const Color(0xFF5141CD).withValues(alpha: .22),
+                blurRadius: 22, offset: const Offset(0, 9))]),
+            child: const NovynBrandMark(size: 76)),
+          const SizedBox(height: 16),
+          Text('Novyn', style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w900)),
+          const SizedBox(height: 5),
+          Text('Your space, your people.', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: colors.onSurfaceVariant)),
+        ])),
+        const SizedBox(height: 28),
+        _infoCard(context, [
+          _InfoRow(label: 'App version', value: _appVersion + ' (' + _buildNumber + ')'),
+          _InfoRow(label: 'Platform', value: 'Flutter · Android ARM64'),
+          _InfoRow(label: '©', value: '2026 Novyn'),
+        ]),
+        const SizedBox(height: 18),
+        Container(padding: const EdgeInsets.all(17),
+          decoration: BoxDecoration(color: NovynTheme.cardBg(context),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: colors.outlineVariant.withValues(alpha: .6))),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [Icon(Icons.system_update_alt_rounded, color: colors.primary),
+              const SizedBox(width: 10),
+              const Expanded(child: Text('App updates', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)))]),
+            const SizedBox(height: 8),
+            Text('Check and install the latest ARM64 Android release.',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant)),
+            const SizedBox(height: 14),
+            SizedBox(width: double.infinity, child: FilledButton.icon(
+              onPressed: _checking || _downloading ? null : _checkForUpdates,
+              icon: _checking ? const SizedBox(width: 17, height: 17, child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Icon(Icons.refresh_rounded),
+              label: Text(_checking ? 'Checking…' : 'Check for updates'))),
+            if (_downloading) ...[
               const SizedBox(height: 14),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton.icon(
-                  onPressed: _checking ? null : _checkForUpdates,
-                  icon: _checking
-                    ? const SizedBox(width: 17, height: 17, child: CircularProgressIndicator(strokeWidth: 2))
-                    : const Icon(Icons.refresh_rounded),
-                  label: Text(_checking ? 'Checking…' : 'Check for updates'),
-                ),
-              ),
-              if (_status != null) ...[
-                const SizedBox(height: 12),
-                Text(_status!, style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: _updateAvailable == true ? colors.primary : colors.onSurfaceVariant,
-                  height: 1.45,
-                )),
-                if (_updateAvailable == true) ...[
-                  const SizedBox(height: 10),
-                  OutlinedButton.icon(
-                    onPressed: _openRelease,
-                    icon: const Icon(Icons.open_in_new_rounded),
-                    label: const Text('View update'),
-                  ),
-                ],
+              LinearProgressIndicator(value: _downloadProgress),
+              const SizedBox(height: 6),
+              Text('Downloading ARM64 APK · ' + (_downloadProgress * 100).toStringAsFixed(0) + '%',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant)),
+            ],
+            if (_status != null) ...[
+              const SizedBox(height: 12),
+              Text(_status!, style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: available ? colors.primary : colors.onSurfaceVariant, height: 1.45)),
+              if (available && _releaseName != null) ...[
+                const SizedBox(height: 6),
+                Text(_releaseName! + ' · ' + ((_apkSize ?? 0) / (1024 * 1024)).toStringAsFixed(1) + ' MB · ARM64-v8a',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w700)),
+                const SizedBox(height: 10),
+                if (_downloadedApkPath == null)
+                  SizedBox(width: double.infinity, child: FilledButton.icon(
+                    onPressed: _downloading ? null : _downloadUpdate,
+                    icon: const Icon(Icons.download_rounded), label: const Text('Download update')))
+                else
+                  SizedBox(width: double.infinity, child: FilledButton.icon(
+                    onPressed: _installing ? null : _installUpdate,
+                    icon: _installing ? const SizedBox(width: 17, height: 17, child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Icon(Icons.install_mobile_rounded),
+                    label: Text(_installing ? 'Opening installer…' : 'Install update'))),
               ],
-            ]),
-          ),
-          const SizedBox(height: 22),
-          Center(child: Text('MADE TO KEEP YOUR PEOPLE CLOSE', style: Theme.of(context).textTheme.labelSmall?.copyWith(
-            letterSpacing: 1.2, color: colors.onSurfaceVariant.withValues(alpha: .65), fontWeight: FontWeight.w800,
-          ))),
-        ],
-      ),
+            ],
+          ])),
+        const SizedBox(height: 22),
+        Center(child: Text('MADE TO KEEP YOUR PEOPLE CLOSE',
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(letterSpacing: 1.2,
+            color: colors.onSurfaceVariant.withValues(alpha: .65), fontWeight: FontWeight.w800))),
+      ]),
     );
   }
 
   Widget _infoCard(BuildContext context, List<Widget> children) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-    decoration: BoxDecoration(
-      color: NovynTheme.cardBg(context),
+    decoration: BoxDecoration(color: NovynTheme.cardBg(context),
       borderRadius: BorderRadius.circular(20),
-      border: Border.all(color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: .6)),
-    ),
+      border: Border.all(color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: .6))),
     child: Column(children: children),
   );
 }
