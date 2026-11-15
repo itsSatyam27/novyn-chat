@@ -118,6 +118,12 @@ function decodeBase64(value: string): Uint8Array {
   return Uint8Array.from(atob(value), (character) => character.charCodeAt(0));
 }
 
+function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  const copy = new Uint8Array(bytes.length);
+  copy.set(bytes);
+  return copy.buffer;
+}
+
 function isP256PublicJwk(value: any): boolean {
   return Boolean(
     value && value.kty === 'EC' && value.crv === 'P-256' &&
@@ -493,7 +499,7 @@ export async function decryptMessageContent(
   const tryDecrypt = async (key: CryptoKey): Promise<string | null> => {
     try {
       const decrypted = await window.crypto.subtle.decrypt(
-        { name: 'AES-GCM', iv }, key, encryptedBytes
+        { name: 'AES-GCM', iv: toArrayBuffer(iv) }, key, toArrayBuffer(encryptedBytes)
       );
       return new TextDecoder().decode(decrypted);
     } catch {
@@ -541,7 +547,7 @@ export async function decryptMessageContent(
         const rawKey = decodeBase64(version.key);
         if (rawKey.length !== 32) continue;
         const key = await window.crypto.subtle.importKey(
-          'raw', rawKey, { name: 'AES-GCM' }, false, ['decrypt']
+          'raw', toArrayBuffer(rawKey), { name: 'AES-GCM' }, false, ['decrypt']
         );
         const legacyText = await tryDecrypt(key);
         if (legacyText !== null) return legacyText;
