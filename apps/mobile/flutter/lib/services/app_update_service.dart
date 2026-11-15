@@ -352,20 +352,23 @@ class AppUpdateService extends ChangeNotifier {
     expectedBytes = release.size;
     notifyListeners();
 
-    final directory = await getApplicationSupportDirectory();
-    final partialFile = _partialFile(directory.path, release);
-    final completeFile = _completeFile(directory.path, release);
     final client = http.Client();
+    File? partialFile;
 
     try {
-      var offset = await partialFile.exists() ? await partialFile.length() : 0;
+      final directory = await getApplicationSupportDirectory();
+      final partial = _partialFile(directory.path, release);
+      final complete = _completeFile(directory.path, release);
+      partialFile = partial;
+
+      var offset = await partial.exists() ? await partial.length() : 0;
       if (offset > release.size) {
-        await partialFile.delete();
+        await partial.delete();
         offset = 0;
       }
 
       if (offset == release.size) {
-        await _verifyAndFinalize(partialFile, completeFile, release);
+        await _verifyAndFinalize(partial, complete, release);
         return;
       }
 
@@ -390,14 +393,14 @@ class AppUpdateService extends ChangeNotifier {
         // Some CDNs ignore Range. Start clean rather than appending the full
         // file to an existing partial APK.
         offset = 0;
-        await partialFile.writeAsBytes(const <int>[], flush: true);
+        await partial.writeAsBytes(const <int>[], flush: true);
       } else {
         throw FormatException(
           'APK download returned HTTP ' + response.statusCode.toString() + '.',
         );
       }
 
-      final sink = await partialFile.open(
+      final sink = await partial.open(
         mode: offset > 0 ? FileMode.append : FileMode.write,
       );
       var received = offset;
@@ -417,9 +420,10 @@ class AppUpdateService extends ChangeNotifier {
         await sink.close();
       }
 
-      await _verifyAndFinalize(partialFile, completeFile, release);
+      await _verifyAndFinalize(partial, complete, release);
     } catch (error) {
-      final length = await partialFile.exists() ? await partialFile.length() : 0;
+      final partial = partialFile;
+      final length = partial != null && await partial.exists() ? await partial.length() : 0;
       downloadedBytes = length;
       downloadProgress = release.size == 0 ? 0.0 : (length / release.size).clamp(0.0, 1.0).toDouble();
       hasPartialDownload = length > 0;
@@ -472,13 +476,17 @@ class AppUpdateService extends ChangeNotifier {
 
   File _partialFile(String directory, AppUpdateInfo release) {
     return File(
-      directory + '/novyn-arm64-' + release.build.toString() + '.apk.part',
+      directory +
+          '/novyn-arm64-' +
+          release.build.toString() +
+          '-' +
+          release.sha256.substring(0, 12) +
+          '.apk.part',
     );
   }
 
   File _completeFile(String directory, AppUpdateInfo release) {
-    return File(
-      directory + '/novyn-arm64-' + release.build.toString() + '.apk',
-    );
+    // MainActivity's installer accepts this exact verified APK filename.
+    return File(directory + '/' + _arm64ApkName);
   }
 }
