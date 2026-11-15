@@ -346,7 +346,15 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
     debugPrint('[NovynPerf] chat_cache_ms=${cacheWatch.elapsedMilliseconds} count=${cachedMessages.length}');
     if (!mounted) return;
 
-    socket.openChat(_chatId!, cachedMessages, isGroup: widget.isGroup);
+    // openChat requests history from the authenticated Socket.IO session and
+    // completes only after the matching conversation response is processed.
+    // Avoid the legacy REST history endpoint, which can return an empty list
+    // independently of the live conversation and race the socket response.
+    final historyRequest = socket.openChat(
+      _chatId!,
+      cachedMessages,
+      isGroup: widget.isGroup,
+    );
     unawaited(_hydrateIndexedCache(_chatId!, socket));
     setState(() {
       _loading = false;
@@ -354,38 +362,20 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
     });
 
     try {
-      // Group history is delivered by the authenticated Socket.IO group
-      // channel. The legacy REST history endpoint is for direct conversations.
-      final history = widget.isGroup
-          ? await Future<List<Message>>.delayed(
-              const Duration(milliseconds: 900),
-              () => socket.messages,
-            )
-          : await ApiService.getHistory(
-              _chatId!,
-              myUsername: _myUid,
-            ).timeout(const Duration(seconds: 12), onTimeout: () => <Message>[]);
-
+      final history = await historyRequest;
       if (!mounted) return;
+
       if (history.isNotEmpty) {
-        // Publish messages to the active timeline before waiting for disk I/O.
-        socket.mergeChatHistory(history);
+        // The socket service has already merged these messages into the
+        // active timeline. Persist the confirmed snapshot and reveal it.
         unawaited(HybridDbService.saveMessages(history));
         unawaited(HybridDbService.setLastSync(_chatId!, DateTime.now()));
         _jumpToLatestImmediately();
-      } else if (cachedMessages.isNotEmpty) {
+      } else if (socket.messages.isNotEmpty) {
+        // A live message may have arrived while the history request was in flight.
         _jumpToLatestImmediately();
       } else {
-        // Socket history is also requested by openChat/resume_session. Give
-        // that authenticated response a short chance to arrive before showing
-        // the empty-conversation state.
-        await Future<void>.delayed(const Duration(milliseconds: 900));
-        if (!mounted) return;
-        if (socket.messages.isNotEmpty) {
-          _jumpToLatestImmediately();
-        } else {
-          setState(() => _initialPositionReady = true);
-        }
+        setState(() => _initialPositionReady = true);
       }
 
       final settings = context.read<SettingsService>();
