@@ -87,13 +87,14 @@ class _GameMessageCardState extends State<GameMessageCard> {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Container(
       width: 270,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerLow,
+        color: scheme.surfaceContainerLow,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.18)),
+        border: Border.all(color: scheme.outlineVariant.withValues(alpha: .6)),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.045),
@@ -186,7 +187,7 @@ class _GameMessageCardState extends State<GameMessageCard> {
                 alignment: Alignment.center,
                 child: Text(
                   board[index] == 'X' ? '✕' : board[index] == 'O' ? '◯' : '',
-                  style: TextStyle(fontSize: 30, fontWeight: FontWeight.w800, color: board[index] == 'X' ? const Color(0xFF64748B) : const Color(0xFF0EA5E9)),
+                  style: TextStyle(fontSize: 30, fontWeight: FontWeight.w800, color: board[index] == 'X' ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.tertiary),
                 ),
               ),
             ),
@@ -236,7 +237,7 @@ class _GameMessageCardState extends State<GameMessageCard> {
             itemBuilder: (context, index) => Container(
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: board[index] == 'R' ? const Color(0xFF64748B) : board[index] == 'Y' ? const Color(0xFF0EA5E9) : Theme.of(context).colorScheme.surface,
+                color: board[index] == 'R' ? Theme.of(context).colorScheme.primary : board[index] == 'Y' ? Theme.of(context).colorScheme.tertiary : Theme.of(context).colorScheme.surface,
               ),
             ),
           ),
@@ -364,7 +365,7 @@ class _GameMessageCardState extends State<GameMessageCard> {
           onPanEnd: (_) => _move({'action': 'draw', 'strokes': _strokes}),
           child: CustomPaint(
             size: const Size(200, 150),
-            painter: _DoodlePainter(strokes),
+            painter: _DoodlePainter(strokes, Theme.of(context).colorScheme.primary),
             child: Container(
               width: 200,
               height: 150,
@@ -379,11 +380,12 @@ class _GameMessageCardState extends State<GameMessageCard> {
 
 class _DoodlePainter extends CustomPainter {
   final List<Map<String, dynamic>> strokes;
-  _DoodlePainter(this.strokes);
+  final Color strokeColor;
+  _DoodlePainter(this.strokes, this.strokeColor);
 
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()..color = const Color(0xFF64748B)..strokeWidth = 3..strokeCap = StrokeCap.round;
+    final paint = Paint()..color = strokeColor..strokeWidth = 3..strokeCap = StrokeCap.round;
     for (final stroke in strokes) {
       final x1 = (stroke['x1'] as num?)?.toDouble() ?? 0;
       final y1 = (stroke['y1'] as num?)?.toDouble() ?? 0;
@@ -394,5 +396,6 @@ class _DoodlePainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _DoodlePainter oldDelegate) => oldDelegate.strokes != strokes;
+  bool shouldRepaint(covariant _DoodlePainter oldDelegate) =>
+      oldDelegate.strokes != strokes || oldDelegate.strokeColor != strokeColor;
 }
