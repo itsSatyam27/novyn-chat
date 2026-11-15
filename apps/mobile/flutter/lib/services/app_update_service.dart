@@ -5,6 +5,7 @@ import 'dart:ui' as ui;
 
 import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter/widgets.dart';
 import 'package:http/http.dart' as http;
 import 'package:package_info_plus/package_info_plus.dart';
@@ -420,7 +421,7 @@ class AppUpdateService extends ChangeNotifier {
     } catch (error) {
       final length = await partialFile.exists() ? await partialFile.length() : 0;
       downloadedBytes = length;
-      downloadProgress = release.size == 0 ? 0 : (length / release.size).clamp(0.0, 1.0);
+      downloadProgress = release.size == 0 ? 0.0 : (length / release.size).clamp(0.0, 1.0).toDouble();
       hasPartialDownload = length > 0;
       downloadError = length > 0
           ? 'Download paused. Your progress is saved; tap Resume download to continue.'

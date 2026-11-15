@@ -281,6 +281,13 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
                       Text('Downloading ${(_downloadProgress * 100).toStringAsFixed(0)}%',
                         style: TextStyle(color: muted, fontSize: 12, fontWeight: FontWeight.w600)),
                     ],
+                    if (_updateService.downloadError != null) ...[
+                      const SizedBox(height: 10),
+                      Text(
+                        _updateService.downloadError!,
+                        style: TextStyle(color: muted, fontSize: 12.5, height: 1.35),
+                      ),
+                    ],
                     const SizedBox(height: 16),
                     SizedBox(
                       height: 54,
