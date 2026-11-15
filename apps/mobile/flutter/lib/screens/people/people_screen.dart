@@ -8,6 +8,7 @@ import '../../models/user_model.dart';
 import '../../widgets/novyn_shimmer.dart';
 import '../../widgets/novyn_empty_state.dart';
 import '../../widgets/user_avatar.dart';
+import '../../utils/presence_utils.dart';
 import '../../widgets/novyn_ui.dart';
 import '../../theme/novyn_theme.dart';
 import '../chats/chat_detail_screen.dart';
@@ -777,17 +778,14 @@ class _ContactRow extends StatelessWidget {
   String get _displayName => user.name.trim().isNotEmpty ? user.name.trim() : user.username.trim();
 
   String _presenceLabel() {
-    if (user.isOnline) return 'Online';
-    final lastSeen = user.lastSeen;
-    if (lastSeen == null) return 'Last seen recently';
-    final diff = DateTime.now().difference(lastSeen);
-    if (diff.inMinutes < 60) {
-      return 'Last seen ${diff.inMinutes.clamp(1, 59)}m ago';
+    if (user.isOnline) {
+      return switch (user.status.trim().toLowerCase()) {
+        'away' => 'Away',
+        'busy' || 'dnd' => 'Busy',
+        _ => 'Online',
+      };
     }
-    if (diff.inHours < 24) return 'Last seen ${diff.inHours}h ago';
-    if (diff.inDays == 1) return 'Last seen yesterday';
-    if (diff.inDays < 7) return 'Last seen ${diff.inDays}d ago';
-    return 'Offline';
+    return formatLastSeenLabel(user.lastSeen);
   }
 
   Widget _avatar() {

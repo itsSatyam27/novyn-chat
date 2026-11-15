@@ -27,6 +27,7 @@ import '../../services/draft_service.dart';
 import '../../services/settings_service.dart';
 import '../../services/media_storage_service.dart';
 import '../../widgets/user_avatar.dart';
+import '../../utils/presence_utils.dart';
 import '../../widgets/novyn_toast.dart';
 import 'profile_info_screen.dart';
 import 'group_info_screen.dart';
@@ -130,6 +131,10 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
   String? _myUid;
   bool _peerIsOnline = false;
   String _peerPresence = 'offline';
+  DateTime? _peerLastSeen;
+  bool _showPeerLastSeen = false;
+  Timer? _presenceTransitionTimer;
+  Timer? _lastSeenRefreshTimer;
   dynamic _replyingTo; // the message being replied to
   bool _uploadingAttachment = false;
   final ImagePicker _imagePicker = ImagePicker();
@@ -163,6 +168,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
     _syncTypingAnimation();
     _peerIsOnline = widget.peer.isOnline;
     _peerPresence = widget.peer.status.trim().toLowerCase();
+    _peerLastSeen = widget.peer.lastSeen;
+    _schedulePeerLastSeenReveal();
     _loadQuickEmojis();
     _init();
     _scroll.addListener(_onScroll);
@@ -181,6 +188,35 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
     });
   }
 
+  bool _isOfflinePresenceState() =>
+      !_peerIsOnline || _peerPresence == 'offline' || _peerPresence == 'invisible';
+
+  String _peerStatusLabel() {
+    if (_peerPresence == 'away') return 'Away';
+    if (_peerPresence == 'busy' || _peerPresence == 'dnd') return 'Busy';
+    if (_isOfflinePresenceState()) {
+      return _showPeerLastSeen && _peerLastSeen != null
+          ? formatLastSeenLabel(_peerLastSeen)
+          : 'Offline';
+    }
+    return 'Online';
+  }
+
+  void _schedulePeerLastSeenReveal() {
+    _presenceTransitionTimer?.cancel();
+    _lastSeenRefreshTimer?.cancel();
+    _showPeerLastSeen = false;
+    if (widget.isGroup || !_isOfflinePresenceState() || _peerLastSeen == null) return;
+    // Keep Offline visible briefly, then transition inside a fixed-height slot.
+    _presenceTransitionTimer = Timer(const Duration(milliseconds: 850), () {
+      if (!mounted || !_isOfflinePresenceState() || _peerLastSeen == null) return;
+      setState(() => _showPeerLastSeen = true);
+      _lastSeenRefreshTimer = Timer.periodic(const Duration(minutes: 1), (_) {
+        if (mounted && _showPeerLastSeen) setState(() {});
+      });
+    });
+  }
+
   void _handlePeerPresenceChanged() {
     if (!mounted || widget.isGroup) return;
     final currentPeer =
@@ -189,12 +225,17 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
 
     final nextOnline = currentPeer.isOnline;
     final nextPresence = currentPeer.status.trim().toLowerCase();
-    if (_peerIsOnline == nextOnline && _peerPresence == nextPresence) return;
+    final nextLastSeen = currentPeer.lastSeen;
+    if (_peerIsOnline == nextOnline &&
+        _peerPresence == nextPresence &&
+        _peerLastSeen == nextLastSeen) return;
 
     setState(() {
       _peerIsOnline = nextOnline;
       _peerPresence = nextPresence;
+      _peerLastSeen = nextLastSeen;
     });
+    _schedulePeerLastSeenReveal();
   }
 
   // Load draft message for this chat
@@ -422,6 +463,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
     WidgetsBinding.instance.removeObserver(this);
     _typingAnimation.dispose();
     _voiceTimer?.cancel();
+    _presenceTransitionTimer?.cancel();
+    _lastSeenRefreshTimer?.cancel();
     if (_isRecordingVoice) unawaited(_voiceRecorder.stop());
     unawaited(_voiceRecorder.dispose());
     _socketService.removeListener(_syncTypingAnimation);
@@ -671,6 +714,16 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
     final scheme = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;
     final accent = isDark ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.primary;
+    final peerStatusLabel = widget.isGroup
+        ? (widget.peer.bio.isNotEmpty ? widget.peer.bio : 'Group conversation')
+        : _peerStatusLabel();
+    final peerStatusColor = widget.isGroup
+        ? scheme.onSurfaceVariant
+        : switch (_peerPresence) {
+            'away' => const Color(0xFFF59E0B),
+            'busy' || 'dnd' => const Color(0xFFEC4899),
+            _ => _isOfflinePresenceState() ? scheme.onSurfaceVariant : const Color(0xFF10B981),
+          };
     return AppBar(
       backgroundColor: scheme.surface,
       surfaceTintColor: Colors.transparent,
@@ -721,29 +774,42 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                             color: scheme.onSurface,
                           ),
                         ),
-                        Text(
-                          widget.isGroup
-                              ? (widget.peer.bio.isNotEmpty ? widget.peer.bio : 'Group conversation')
-                              : switch (_peerPresence) {
-                                  'away' => 'Away',
-                                  'busy' || 'dnd' => 'Busy',
-                                  'offline' || 'invisible' => 'Offline',
-                                  _ => _peerIsOnline ? 'Online' : 'Offline',
-                                },
-                          style: TextStyle(
-                            fontFamily: 'PlusJakartaSans',
-                            fontSize: 13,
-                            fontWeight: FontWeight.w500,
-                            color: widget.isGroup
-                                ? scheme.onSurfaceVariant
-                                : switch (_peerPresence) {
-                                    'away' => const Color(0xFFF59E0B),
-                                    'busy' || 'dnd' => const Color(0xFFEC4899),
-                                    'offline' || 'invisible' => scheme.onSurfaceVariant,
-                                    _ => _peerIsOnline
-                                        ? const Color(0xFF10B981)
-                                        : scheme.onSurfaceVariant,
-                                  },
+                        SizedBox(
+                          height: 18,
+                          child: AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 320),
+                            switchInCurve: Curves.easeOutCubic,
+                            switchOutCurve: Curves.easeInCubic,
+                            transitionBuilder: (child, animation) {
+                              final slide = Tween<Offset>(
+                                begin: const Offset(0, .18),
+                                end: Offset.zero,
+                              ).animate(CurvedAnimation(
+                                parent: animation,
+                                curve: Curves.easeOutCubic,
+                              ));
+                              return FadeTransition(
+                                opacity: animation,
+                                child: SlideTransition(position: slide, child: child),
+                              );
+                            },
+                            child: Align(
+                              key: ValueKey(peerStatusLabel),
+                              alignment: Alignment.centerLeft,
+                              child: Text(
+                                peerStatusLabel,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                softWrap: false,
+                                style: TextStyle(
+                                  fontFamily: 'PlusJakartaSans',
+                                  fontSize: 13,
+                                  height: 1.1,
+                                  fontWeight: FontWeight.w500,
+                                  color: peerStatusColor,
+                                ),
+                              ),
+                            ),
                           ),
                         ),
                       ],
