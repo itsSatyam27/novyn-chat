@@ -25,8 +25,13 @@ function searchFixture(users, options = {}) {
     usersAreBlocked: (left, right) =>
       options.blocked?.has(`${left}:${right}`) ||
       options.blocked?.has(`${right}:${left}`),
-    privacyAllows: (user, viewer, setting) =>
-      options.hidden?.has(`${user.username}:${setting}`) !== true,
+    privacyAllows: (user, viewer, setting) => {
+      if (options.hidden?.has(`${user.username}:${setting}`) === true) return false;
+      const audience = user[setting] || 'everyone';
+      if (audience === 'nobody') return false;
+      if (audience === 'friends') return user.friends?.has(viewer) === true;
+      return true;
+    },
     getEffectivePresence: (key) => options.presence?.get(key) || 'offline',
     getVisibleLastSeen: (user) => user.lastSeenAt || null,
     limit: options.limit || 8,
@@ -92,4 +97,12 @@ test('username search limits profile data and honors avatar and presence privacy
   assert.equal(result.online, true);
   assert.equal(Object.hasOwn(result, 'email'), false);
   assert.equal(Object.hasOwn(result, 'age'), false);
+});
+
+test('Discover privacy excludes profiles hidden from search', () => {
+  const me = makeUser('me');
+  const alice = makeUser('alice', { discoverPrivacy: 'everyone' });
+  const hidden = makeUser('alihidden', { discoverPrivacy: 'nobody' });
+  const results = searchFixture([me, alice, hidden]);
+  assert.deepEqual(results.map((user) => user.username), ['alice']);
 });

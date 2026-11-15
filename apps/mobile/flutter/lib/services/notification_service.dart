@@ -79,18 +79,16 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await prefs.reload();
   final notificationsEnabled = prefs.getBool('notifications_on') ?? true;
   if (!notificationsEnabled) return;
-  final localPresence = (prefs.getString('novyn_notification_presence_mode') ?? '').toLowerCase();
-  // Busy suppresses message alerts in every app lifecycle state. The server
-  // also suppresses these pushes; this guard covers delayed/already queued FCM.
+  // The active mode's notificationsEnabled preference is persisted above.
+  // Keep honoring explicit silent payloads (including delayed pushes).
   final sender = (data['chat'] ?? '').toString().trim();
   final dndEnabled = prefs.getBool('do_not_disturb_enabled') ?? false;
   final favoriteIds = (prefs.getStringList('favorite_chat_ids') ?? [])
       .map((value) => value.toLowerCase()).toSet();
   if (dndEnabled && !favoriteIds.contains(sender.toLowerCase())) return;
-  if (localPresence == 'busy' ||
-      data['silent']?.toString().toLowerCase() == 'true' ||
+  if (data['silent']?.toString().toLowerCase() == 'true' ||
       data['silent']?.toString() == '1') {
-    debugPrint('[NovynNotifications] Message alert suppressed while Busy.');
+    debugPrint('[NovynNotifications] Message alert suppressed by a silent push.');
     return;
   }
 
@@ -657,9 +655,13 @@ class NotificationService {
               'Could not load notification preferences.');
         }
         final values = Map<String, dynamic>.from(remote['settings'] as Map);
-        await settings.setNotifications(values['notificationsEnabled'] != false);
-        await settings.setMessagePreview(values['messagePreviewEnabled'] != false);
-        await settings.setGroupNotifications(values['groupNotificationsEnabled'] != false);
+        final activeMode = SettingsService.normalizeSmartPresenceMode(
+          _presenceAuth?.user?.presenceMode ?? 'online',
+        );
+        // Hydrate every privacy/notification key from the account before
+        // applying mode defaults. This preserves choices made on another client.
+        await settings.hydrateSmartPresenceModeFromServer(activeMode, values);
+        await settings.applySmartPresenceLocalPolicy(activeMode);
         _preferencesLoadedForUser = username;
         if (settings.notificationsOn &&
             _permissionRequestedForUser != username) {

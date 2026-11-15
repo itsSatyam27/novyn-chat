@@ -6,11 +6,23 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../../services/settings_service.dart';
+import '../../../services/socket_service.dart';
 import '../../../theme/novyn_theme.dart';
 import '../widgets/profile_widgets.dart';
 
 class NotificationSettingsScreen extends StatelessWidget {
   const NotificationSettingsScreen({super.key});
+  Future<void> _saveServerToggle(BuildContext context, String key, bool value,
+      Future<void> Function(bool) saveLocal) async {
+    try {
+      final result = await context.read<SocketService>().updateAccountSettings({key: value});
+      if (result['ok'] != true) throw StateError(result['message']?.toString() ?? 'Setting update was not confirmed.');
+      await saveLocal(value);
+    } catch (error) {
+      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not save notification setting: $error')));
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -48,7 +60,7 @@ class NotificationSettingsScreen extends StatelessWidget {
             title: 'Push notifications',
             subtitle: 'Receive alerts for new activity in Novyn',
             value: enabled,
-            onChanged: settings.setNotifications,
+            onChanged: (value) => _saveServerToggle(context, 'notificationsEnabled', value, settings.setNotifications),
             isPrimary: true,
           ),
           AnimatedOpacity(
@@ -62,7 +74,7 @@ class NotificationSettingsScreen extends StatelessWidget {
                 title: 'Message previews',
                 subtitle: 'Show message text in notification alerts',
                 value: previews,
-                onChanged: settings.setMessagePreview,
+                onChanged: (value) => _saveServerToggle(context, 'messagePreviewEnabled', value, settings.setMessagePreview),
               ),
             ),
           ),
@@ -78,7 +90,7 @@ class NotificationSettingsScreen extends StatelessWidget {
                 title: 'Group notifications',
                 subtitle: 'Get notified about activity in your groups',
                 value: settings.groupNotifications,
-                onChanged: settings.setGroupNotifications,
+                onChanged: (value) => _saveServerToggle(context, 'groupNotificationsEnabled', value, settings.setGroupNotifications),
               ),
             ),
           ),

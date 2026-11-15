@@ -98,6 +98,8 @@ class SettingsService extends ChangeNotifier {
   static const _kReduceMotion = 'accessibility_reduce_motion';
   static const _kBusyPreviousPresence = 'busy_previous_presence_mode';
   static const _kDoNotDisturb = 'do_not_disturb_enabled';
+  static const _kSmartPresenceOverrides = 'smart_presence_overrides_v1';
+  static const _kActiveSmartPresenceMode = 'active_smart_presence_mode_v1';
 
   // Settings-screen shortcuts are account-scoped and never change the setting
   // values themselves. Keep the catalog limited to actions with real setters.
@@ -221,6 +223,8 @@ class SettingsService extends ChangeNotifier {
   bool _reduceMotion = false;
   String? _busyPreviousPresenceMode;
   bool _doNotDisturbEnabled = false;
+  Map<String, Map<String, dynamic>> _smartPresenceOverrides = {};
+  String _activeSmartPresenceMode = 'online';
 
   static String _quickToggleStorageKey(String accountKey) {
     final normalized = accountKey.trim().toLowerCase().replaceAll(
@@ -358,6 +362,173 @@ class SettingsService extends ChangeNotifier {
   bool get reduceMotion => _reduceMotion;
   String? get busyPreviousPresenceMode => _busyPreviousPresenceMode;
   bool get doNotDisturbEnabled => _doNotDisturbEnabled;
+  String get activeSmartPresenceMode => _activeSmartPresenceMode;
+  static const Set<String> _smartPresenceServerKeys = {
+    'callsEnabled', 'callPrivacy', 'messagePrivacy', 'profilePhotoPrivacy', 'presencePrivacy',
+    'discoverPrivacy', 'groupInvitePrivacy', 'friendRequestPrivacy',
+    'readReceiptsEnabled', 'typingIndicatorsEnabled', 'notificationsEnabled',
+    'messagePreviewEnabled', 'groupNotificationsEnabled',
+  };
+  static const Set<String> _smartPresenceLocalKeys = {'inAppSoundsEnabled', 'inAppVibrationEnabled'};
+  static const Set<String> _smartPresenceAllowedKeys = {
+    ..._smartPresenceServerKeys, ..._smartPresenceLocalKeys,
+  };
+  static String normalizeSmartPresenceMode(String mode) {
+    final value = mode.trim().toLowerCase();
+    if (value == 'away' || value == 'idle') return 'idle';
+    if (value == 'dnd') return 'busy';
+    return const {'online', 'busy', 'invisible'}.contains(value) ? value : 'online';
+  }
+  static String presenceStatusForSmartMode(String mode) =>
+      normalizeSmartPresenceMode(mode) == 'idle' ? 'away' : normalizeSmartPresenceMode(mode);
+  static Map<String, dynamic> smartPresenceDefaults(String mode) {
+    switch (normalizeSmartPresenceMode(mode)) {
+      case 'idle':
+        return {
+          'callsEnabled': true, 'callPrivacy': 'friends', 'messagePrivacy': 'friends',
+          'profilePhotoPrivacy': 'friends', 'presencePrivacy': 'friends',
+          'discoverPrivacy': 'friends', 'groupInvitePrivacy': 'friends',
+          'friendRequestPrivacy': 'mutuals',
+          'readReceiptsEnabled': true, 'typingIndicatorsEnabled': true,
+          'notificationsEnabled': true, 'messagePreviewEnabled': true,
+          'groupNotificationsEnabled': true, 'inAppSoundsEnabled': true,
+          'inAppVibrationEnabled': true,
+        };
+      case 'busy':
+        return {
+          'callsEnabled': false, 'callPrivacy': 'nobody', 'messagePrivacy': 'friends',
+          'profilePhotoPrivacy': 'friends', 'presencePrivacy': 'friends',
+          'discoverPrivacy': 'friends', 'groupInvitePrivacy': 'friends',
+          'friendRequestPrivacy': 'mutuals',
+          'readReceiptsEnabled': false, 'typingIndicatorsEnabled': false,
+          'notificationsEnabled': false, 'messagePreviewEnabled': false,
+          'groupNotificationsEnabled': false, 'inAppSoundsEnabled': false,
+          'inAppVibrationEnabled': false,
+        };
+      case 'invisible':
+        return {
+          'callsEnabled': false, 'callPrivacy': 'nobody', 'messagePrivacy': 'friends',
+          'profilePhotoPrivacy': 'nobody', 'presencePrivacy': 'nobody',
+          'discoverPrivacy': 'nobody', 'groupInvitePrivacy': 'nobody',
+          'friendRequestPrivacy': 'nobody',
+          'readReceiptsEnabled': false, 'typingIndicatorsEnabled': false,
+          'notificationsEnabled': false, 'messagePreviewEnabled': false,
+          'groupNotificationsEnabled': false, 'inAppSoundsEnabled': false,
+          'inAppVibrationEnabled': false,
+        };
+      case 'online':
+      default:
+        return {
+          'callsEnabled': true, 'callPrivacy': 'everyone', 'messagePrivacy': 'everyone',
+          'profilePhotoPrivacy': 'everyone', 'presencePrivacy': 'everyone',
+          'discoverPrivacy': 'everyone', 'groupInvitePrivacy': 'everyone',
+          'friendRequestPrivacy': 'everyone',
+          'readReceiptsEnabled': true, 'typingIndicatorsEnabled': true,
+          'notificationsEnabled': true, 'messagePreviewEnabled': true,
+          'groupNotificationsEnabled': true, 'inAppSoundsEnabled': true,
+          'inAppVibrationEnabled': true,
+        };
+    }
+  }
+  Map<String, dynamic> smartPresencePolicyFor(String mode) {
+    final key = normalizeSmartPresenceMode(mode);
+    return {...smartPresenceDefaults(key), ...?_smartPresenceOverrides[key]};
+  }
+  bool hasSmartPresenceCustomizations(String mode) =>
+      _smartPresenceOverrides[normalizeSmartPresenceMode(mode)]?.isNotEmpty ?? false;
+  static Map<String, dynamic> smartPresenceServerFields(Map<String, dynamic> policy) => {
+    for (final entry in policy.entries)
+      if (_smartPresenceServerKeys.contains(entry.key)) entry.key: entry.value,
+  };
+  Future<void> saveSmartPresenceOverride(String mode, String key, dynamic value) async {
+    if (!_smartPresenceAllowedKeys.contains(key)) {
+      throw ArgumentError.value(key, 'key', 'Unsupported Smart Presence setting');
+    }
+    final normalized = normalizeSmartPresenceMode(mode);
+    final overrides = _smartPresenceOverrides.putIfAbsent(normalized, () => <String, dynamic>{});
+    if (smartPresenceDefaults(normalized)[key] == value) {
+      overrides.remove(key);
+    } else {
+      overrides[key] = value;
+    }
+    if (overrides.isEmpty) _smartPresenceOverrides.remove(normalized);
+    await _prefs.setString(_kSmartPresenceOverrides, jsonEncode(_smartPresenceOverrides));
+    notifyListeners();
+  }
+  Future<void> hydrateSmartPresenceModeFromServer(
+    String mode,
+    Map<String, dynamic> serverPolicy,
+  ) async {
+    final normalized = normalizeSmartPresenceMode(mode);
+    final defaults = smartPresenceDefaults(normalized);
+    final previous = _smartPresenceOverrides[normalized] ?? const <String, dynamic>{};
+    final next = <String, dynamic>{};
+    const privacyValues = {'everyone', 'friends', 'nobody', 'mutuals'};
+
+    for (final key in _smartPresenceServerKeys) {
+      if (!serverPolicy.containsKey(key)) continue;
+      final value = serverPolicy[key];
+      final defaultValue = defaults[key];
+      if (defaultValue is bool && value is bool) {
+        if (value != defaultValue) next[key] = value;
+      } else if (defaultValue is String &&
+          value is String &&
+          privacyValues.contains(value)) {
+        if (value != defaultValue) next[key] = value;
+      }
+    }
+    for (final key in _smartPresenceLocalKeys) {
+      if (previous.containsKey(key)) next[key] = previous[key];
+    }
+
+    if (next.isEmpty) {
+      _smartPresenceOverrides.remove(normalized);
+    } else {
+      _smartPresenceOverrides[normalized] = next;
+    }
+    await _prefs.setString(_kSmartPresenceOverrides, jsonEncode(_smartPresenceOverrides));
+    notifyListeners();
+  }
+
+  Future<void> recordActiveSmartPresenceOverride(String key, dynamic value) =>
+      saveSmartPresenceOverride(_activeSmartPresenceMode, key, value);
+  Future<void> resetSmartPresenceOverrides(String mode) async {
+    _smartPresenceOverrides.remove(normalizeSmartPresenceMode(mode));
+    await _prefs.setString(_kSmartPresenceOverrides, jsonEncode(_smartPresenceOverrides));
+    notifyListeners();
+  }
+  Future<void> applySmartPresenceLocalPolicy(String mode, {Map<String, dynamic>? policy}) async {
+    final normalized = normalizeSmartPresenceMode(mode);
+    final values = policy ?? smartPresencePolicyFor(normalized);
+    _activeSmartPresenceMode = normalized;
+    _notificationsOn = values['notificationsEnabled'] != false;
+    _messagePreview = values['messagePreviewEnabled'] != false;
+    _groupNotifications = values['groupNotificationsEnabled'] != false;
+    _readReceipts = values['readReceiptsEnabled'] != false;
+    _inAppSounds = values['inAppSoundsEnabled'] != false;
+    _inAppVibration = values['inAppVibrationEnabled'] != false;
+    final presence = values['presencePrivacy']?.toString() ?? 'everyone';
+    final photo = values['profilePhotoPrivacy']?.toString() ?? 'everyone';
+    _lastSeenVisibility = presence == 'friends' ? 'contacts' : presence;
+    _profilePhotoVisibility = photo == 'friends' ? 'contacts' : photo;
+    await Future.wait([
+      _prefs.setString(_kActiveSmartPresenceMode, normalized),
+      _prefs.setBool(_kNotifications, _notificationsOn),
+      _prefs.setBool(_kMessagePreview, _messagePreview),
+      _prefs.setBool(_kGroupNotifications, _groupNotifications),
+      _prefs.setBool(_kReadReceipts, _readReceipts),
+      _prefs.setBool(_kInAppSounds, _inAppSounds),
+      _prefs.setBool(_kInAppVibration, _inAppVibration),
+      _prefs.setString(_kLastSeen, _lastSeenVisibility),
+      _prefs.setString(_kProfilePhoto, _profilePhotoVisibility),
+    ]);
+    notifyListeners();
+  }
+  Future<void> setActiveSmartPresenceMode(String mode) async {
+    _activeSmartPresenceMode = normalizeSmartPresenceMode(mode);
+    await _prefs.setString(_kActiveSmartPresenceMode, _activeSmartPresenceMode);
+    notifyListeners();
+  }
 
   // ── Load from disk ───────────────────────────────────────────────────────
   Future<void> load() async {
@@ -469,6 +640,23 @@ class SettingsService extends ChangeNotifier {
     _reduceMotion = _prefs.getBool(_kReduceMotion) ?? false;
     _busyPreviousPresenceMode = _prefs.getString(_kBusyPreviousPresence);
     _doNotDisturbEnabled = _prefs.getBool(_kDoNotDisturb) ?? false;
+    _activeSmartPresenceMode = normalizeSmartPresenceMode(_prefs.getString(_kActiveSmartPresenceMode) ?? 'online');
+    _smartPresenceOverrides = {};
+    final rawPresenceOverrides = _prefs.getString(_kSmartPresenceOverrides);
+    if (rawPresenceOverrides != null) {
+      try {
+        final decoded = jsonDecode(rawPresenceOverrides);
+        if (decoded is Map) {
+          for (final entry in decoded.entries) {
+            final mode = normalizeSmartPresenceMode(entry.key.toString());
+            if (entry.value is! Map) continue;
+            final values = Map<String, dynamic>.from(entry.value as Map)
+              ..removeWhere((key, _) => !_smartPresenceAllowedKeys.contains(key));
+            if (values.isNotEmpty) _smartPresenceOverrides[mode] = values;
+          }
+        }
+      } catch (_) { _smartPresenceOverrides = {}; }
+    }
     
     // Load saved sessions
     final raw = _prefs.getString(_kSavedSessions);
@@ -487,9 +675,10 @@ class SettingsService extends ChangeNotifier {
   }
 
   // ── Setters (persist immediately) ───────────────────────────────────────
-  Future<void> setNotifications(bool v) async {
+  Future<void> setNotifications(bool v, {bool recordPresenceOverride = true}) async {
     _notificationsOn = v;
     await _prefs.setBool(_kNotifications, v);
+    if (recordPresenceOverride) await recordActiveSmartPresenceOverride('notificationsEnabled', v);
     notifyListeners();
   }
 
@@ -499,15 +688,17 @@ class SettingsService extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> setMessagePreview(bool v) async {
+  Future<void> setMessagePreview(bool v, {bool recordPresenceOverride = true}) async {
     _messagePreview = v;
     await _prefs.setBool(_kMessagePreview, v);
+    if (recordPresenceOverride) await recordActiveSmartPresenceOverride('messagePreviewEnabled', v);
     notifyListeners();
   }
 
-  Future<void> setReadReceipts(bool v) async {
+  Future<void> setReadReceipts(bool v, {bool recordPresenceOverride = true}) async {
     _readReceipts = v;
     await _prefs.setBool(_kReadReceipts, v);
+    if (recordPresenceOverride) await recordActiveSmartPresenceOverride('readReceiptsEnabled', v);
     notifyListeners();
   }
 
@@ -538,15 +729,17 @@ class SettingsService extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> setInAppSounds(bool v) async {
+  Future<void> setInAppSounds(bool v, {bool recordPresenceOverride = true}) async {
     _inAppSounds = v;
     await _prefs.setBool(_kInAppSounds, v);
+    if (recordPresenceOverride) await recordActiveSmartPresenceOverride('inAppSoundsEnabled', v);
     notifyListeners();
   }
 
-  Future<void> setInAppVibration(bool v) async {
+  Future<void> setInAppVibration(bool v, {bool recordPresenceOverride = true}) async {
     _inAppVibration = v;
     await _prefs.setBool(_kInAppVibration, v);
+    if (recordPresenceOverride) await recordActiveSmartPresenceOverride('inAppVibrationEnabled', v);
     notifyListeners();
   }
 
@@ -573,9 +766,10 @@ class SettingsService extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> setGroupNotifications(bool v) async {
+  Future<void> setGroupNotifications(bool v, {bool recordPresenceOverride = true}) async {
     _groupNotifications = v;
     await _prefs.setBool(_kGroupNotifications, v);
+    if (recordPresenceOverride) await recordActiveSmartPresenceOverride('groupNotificationsEnabled', v);
     notifyListeners();
   }
 
@@ -677,15 +871,17 @@ class SettingsService extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> setLastSeenVisibility(String v) async {
+  Future<void> setLastSeenVisibility(String v, {bool recordPresenceOverride = true}) async {
     _lastSeenVisibility = v;
     await _prefs.setString(_kLastSeen, v);
+    if (recordPresenceOverride) await recordActiveSmartPresenceOverride('presencePrivacy', v == 'contacts' ? 'friends' : v);
     notifyListeners();
   }
 
-  Future<void> setProfilePhotoVisibility(String v) async {
+  Future<void> setProfilePhotoVisibility(String v, {bool recordPresenceOverride = true}) async {
     _profilePhotoVisibility = v;
     await _prefs.setString(_kProfilePhoto, v);
+    if (recordPresenceOverride) await recordActiveSmartPresenceOverride('profilePhotoPrivacy', v == 'contacts' ? 'friends' : v);
     notifyListeners();
   }
 

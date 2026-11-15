@@ -26,6 +26,7 @@ function buildUserSearchResults({
     const normalizedUsername = username.toLowerCase();
     if (!normalizedUsername.includes(needle)) continue;
     if (usersAreBlocked(userKey, candidateKey)) continue;
+    if (!privacyAllows(candidate, userKey, 'discoverPrivacy')) continue;
 
     const isFriend = Boolean(me.friends?.has(candidateKey));
     // Outgoing requests are stored on the recipient; incoming requests are

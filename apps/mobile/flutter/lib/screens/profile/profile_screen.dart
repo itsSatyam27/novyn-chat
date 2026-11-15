@@ -11,6 +11,7 @@ import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 import 'dart:ui';
 import '../../services/settings_service.dart';
+import '../../services/socket_service.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:gal/gal.dart';
@@ -20,6 +21,7 @@ import '../security/setup_pin_screen.dart';
 import 'widgets/profile_widgets.dart';
 import 'settings/notification_settings_screen.dart';
 import 'settings/security_privacy_screen.dart';
+import 'settings/smart_presence_screen.dart';
 import 'settings/data_storage_screen.dart';
 import 'settings/language_region_screen.dart';
 import 'settings/accessibility_screen.dart';
@@ -135,6 +137,15 @@ class ProfileScreen extends StatelessWidget {
                 ),
                 NovynSectionLabel('ACCOUNT', padding: const EdgeInsets.fromLTRB(4, 18, 4, 8)),
                 _NovynSettingsGroup(children: [
+                  _NovynSettingsTile(
+                    icon: Icons.tune_rounded,
+                    title: 'Smart Presence',
+                    subtitle: 'Status modes, privacy and notification presets',
+                    accent: const Color(0xFF7C6CF2),
+                    onTap: () => Navigator.push(context, MaterialPageRoute(
+                      builder: (_) => const SmartPresenceScreen(),
+                    )),
+                  ),
                   _NovynSettingsTile(
                     icon: Icons.shield_outlined,
                     title: 'Security & Privacy',
@@ -273,7 +284,9 @@ class ProfileScreen extends StatelessWidget {
           inactiveIcon: Icons.done_rounded,
           value: settings.readReceipts,
           accent: const Color(0xFF2563EB),
-          onChanged: settings.setReadReceipts,
+          onChanged: (value) => _saveQuickToggleAccountSetting(
+            context, settings, 'readReceiptsEnabled', value, settings.setReadReceipts,
+          ),
           expanded: expanded,
         );
       case 'in_app_sounds':
@@ -303,11 +316,35 @@ class ProfileScreen extends StatelessWidget {
           inactiveIcon: Icons.notifications_off_rounded,
           value: settings.groupNotifications,
           accent: const Color(0xFF0D9488),
-          onChanged: settings.setGroupNotifications,
+          onChanged: (value) => _saveQuickToggleAccountSetting(
+            context, settings, 'groupNotificationsEnabled', value, settings.setGroupNotifications,
+          ),
           expanded: expanded,
         );
       default:
         return const SizedBox.shrink();
+    }
+  }
+
+  Future<void> _saveQuickToggleAccountSetting(
+    BuildContext context,
+    SettingsService settings,
+    String key,
+    bool value,
+    Future<void> Function(bool) saveLocal,
+  ) async {
+    try {
+      final result = await context.read<SocketService>().updateAccountSettings({key: value});
+      if (result['ok'] != true) {
+        throw StateError(result['message']?.toString() ?? 'The setting was not saved.');
+      }
+      await saveLocal(value);
+    } catch (error) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not save setting: $error')),
+        );
+      }
     }
   }
 
