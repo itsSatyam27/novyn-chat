@@ -493,11 +493,9 @@ class _PeopleScreenState extends State<PeopleScreen> {
     ];
 
     for (final letter in letters) {
-      final key = _letterKeys.putIfAbsent(letter, () => GlobalKey());
       final users = grouped[letter]!;
       children.add(
         Padding(
-          key: key,
           padding: const EdgeInsets.fromLTRB(8, 2, 22, 8),
           child: Text(
             letter,
