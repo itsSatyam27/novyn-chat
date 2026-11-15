@@ -70,6 +70,7 @@ class SocketService extends ChangeNotifier {
   Future<void>? _identityRegistration;
   Future<void>? _outboxActivation;
   String? _registeredIdentityAccount;
+  String? _encryptionIdentityIssue;
   bool _isAuthenticated = false;
   bool _hasLoadedConversations = false;
   Completer<void>? _authenticationReady;
@@ -160,6 +161,7 @@ class SocketService extends ChangeNotifier {
   String? get currentChatWith => _currentChatWith;
   bool get activeChatCaptureProtected => _activeChatCaptureProtected;
   String? get myUsername => _myUsername;
+  String? get encryptionIdentityIssue => _encryptionIdentityIssue;
 
   // ── Connect ───────────────────────────────────────────────────────────────
   /// Rebuild the socket handshake after the REST session cookie rotates.
@@ -330,7 +332,7 @@ class SocketService extends ChangeNotifier {
 
       await _registerEncryptionIdentity();
       if (_registeredIdentityAccount != account.toLowerCase()) {
-        throw StateError('Secure identity registration is pending.');
+        throw StateError(_encryptionIdentityIssue ?? 'Secure identity registration is pending.');
       }
 
       var peerPublicKey = _peerKeys[pending.receiverId.toLowerCase()] ?? '';
@@ -1289,12 +1291,40 @@ class SocketService extends ChangeNotifier {
 
     final task = () async {
       try {
-        final publicKey = await encryption.initializeIdentity(account);
+        // Flutter is the primary device. Never generate a replacement private
+        // identity when the server already knows this account's public key.
+        var publicKey = await encryption.existingIdentityPublicKey(account);
+        if (publicKey == null) {
+          final lookup = Completer<Map<String, dynamic>>();
+          connection.emitWithAck('get_public_key', {'username': account},
+              ack: (dynamic result) {
+            if (!lookup.isCompleted) {
+              lookup.complete(result is Map
+                  ? Map<String, dynamic>.from(result)
+                  : <String, dynamic>{});
+            }
+          });
+          final registered = await lookup.future.timeout(
+            const Duration(seconds: 6),
+            onTimeout: () => throw TimeoutException(
+              'Could not verify the existing Novyn encryption identity. No replacement was created.',
+            ),
+          );
+          final serverPublicKey = registered['publicKey']?.toString() ?? '';
+          if (serverPublicKey.isNotEmpty) {
+            throw StateError(
+              'This account already has an encryption identity, but its private key is missing on this phone. Novyn stopped a key replacement to protect old chats. Restore the original identity from a trusted linked device.',
+            );
+          }
+          publicKey = await encryption.initializeIdentity(account);
+        }
         if (publicKey.isEmpty || _myUsername != account ||
             _socket != connection || !_isConnected) return;
         final completer = Completer<Map<String, dynamic>>();
-        connection.emitWithAck('register_public_key', {'publicKey': publicKey},
-            ack: (dynamic result) {
+        connection.emitWithAck('register_public_key', {
+          'publicKey': publicKey,
+          'primaryDevice': true,
+        }, ack: (dynamic result) {
           if (!completer.isCompleted) {
             completer.complete(result is Map
                 ? Map<String, dynamic>.from(result)
@@ -1307,11 +1337,15 @@ class SocketService extends ChangeNotifier {
         );
         if (result['ok'] == true && _myUsername == account && _socket == connection) {
           _registeredIdentityAccount = account.toLowerCase();
+          _encryptionIdentityIssue = null;
           unawaited(decryptCurrentMessages());
         } else {
-          debugPrint('[NovynE2EE] Device identity registration was not confirmed.');
+          _encryptionIdentityIssue = result['message']?.toString() ??
+              'Primary-device identity registration was not confirmed.';
+          debugPrint('[NovynE2EE] $_encryptionIdentityIssue');
         }
       } catch (error) {
+        _encryptionIdentityIssue = error.toString().replaceFirst('Bad state: ', '');
         debugPrint('[NovynE2EE] Identity setup failed: $error');
       }
     }();
@@ -1566,7 +1600,7 @@ class SocketService extends ChangeNotifier {
     _stealthModePreference = enabled;
   }
 
-  void closeChat() {
+  void closeChat({bool notify = true}) {
     if (_typingTargetKey != null) _stopActiveTyping();
     final wasCaptureProtected = _activeChatCaptureProtected;
     final pendingHistory = _chatHistoryCompleter;
@@ -1583,7 +1617,8 @@ class SocketService extends ChangeNotifier {
     }
     _messages = [];
     _peerIsTyping = false;
-    notifyListeners();
+    // Avoid rebuilding all SocketService consumers while the route is disposing.
+    if (notify) notifyListeners();
   }
 
   Future<bool> loadOlderHistory(String peerUsername, String beforeMessageId, {bool isGroup = false}) async {

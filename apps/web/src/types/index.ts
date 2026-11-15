@@ -95,6 +95,7 @@ export interface Message {
   } | null;
   ciphertext?: string;
   iv?: string;
+  senderPublicKey?: string;
   isEncrypted?: boolean;
 }
 

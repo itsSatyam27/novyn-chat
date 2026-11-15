@@ -41,6 +41,7 @@ export function readLastMessage(item: any, username: string): Message | undefine
     isEncrypted: Boolean(message.isEncrypted),
     ciphertext: message.ciphertext,
     iv: message.iv,
+    senderPublicKey: message.senderPublicKey,
   };
 }
 

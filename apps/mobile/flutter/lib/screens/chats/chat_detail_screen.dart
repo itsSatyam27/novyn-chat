@@ -474,7 +474,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
     unawaited(_disposeVoiceRecorderSafely(stopFirst: stopRecorderBeforeDispose));
     _socketService.removeListener(_syncTypingAnimation);
     _socketService.contacts.removeListener(_handlePeerPresenceChanged);
-    _socketService.closeChat();
+    _socketService.closeChat(notify: false);
     _scroll.removeListener(_onScroll);
     _ctrl.removeListener(_saveDraft);
     _ctrl.dispose();

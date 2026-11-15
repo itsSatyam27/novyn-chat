@@ -306,6 +306,36 @@ export async function installPrimaryIdentityFromPairing(
   return JSON.stringify(publicJwk);
 }
 
+/**
+ * Load only the Android primary identity installed through QR pairing.
+ * Browser-local identities are never promoted or registered as account primary.
+ */
+export async function initLinkedPrimaryIdentity(username: string): Promise<string> {
+  if (!username || !isCryptoSubtleAvailable()) return '';
+  const userKey = username.trim().toLowerCase();
+  let db: IDBDatabase | null = null;
+  try {
+    db = await openKeyStoreDB();
+    const record = await new Promise<any>((resolve, reject) => {
+      const tx = db!.transaction(STORE_NAME, 'readonly');
+      const request = tx.objectStore(STORE_NAME).get(userKey);
+      request.onsuccess = () => resolve(request.result || null);
+      request.onerror = () => reject(request.error);
+    });
+    if (record?.source !== 'android-primary') return '';
+    const keyPair = await loadKeyPairFromDB(userKey);
+    if (!keyPair) return '';
+    cachedKeyPair = keyPair;
+    currentUsernameKey = userKey;
+    return getMyPublicKeyJwk();
+  } catch (error) {
+    console.warn('Linked Android identity is unavailable:', error);
+    return '';
+  } finally {
+    db?.close();
+  }
+}
+
 export function isCryptoSubtleAvailable(): boolean {
   try {
     return Boolean(

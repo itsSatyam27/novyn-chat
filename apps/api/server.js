@@ -8064,6 +8064,26 @@ io.on("connection", (socket) => {
     }
     const user = users.get(userKey);
     if (user) {
+      let existingJwk = null;
+      let incomingJwk = null;
+      try {
+        existingJwk = typeof user.publicKey === "string"
+          ? JSON.parse(user.publicKey)
+          : user.publicKey;
+        incomingJwk = JSON.parse(publicKey);
+      } catch (_) {}
+      const hasDifferentExistingIdentity =
+        isValidDevicePairingPublicKey(existingJwk) &&
+        isValidDevicePairingPublicKey(incomingJwk) &&
+        (existingJwk.x !== incomingJwk.x || existingJwk.y !== incomingJwk.y);
+      if (hasDifferentExistingIdentity && payload?.primaryDevice !== true) {
+        respond({
+          ok: false,
+          code: "PRIMARY_DEVICE_REQUIRED",
+          message: "This account already has a different message identity. Link this browser to the Android primary device instead of replacing the account key.",
+        });
+        return;
+      }
       user.publicKey = publicKey;
       schedulePersist();
       // Notify friends of updated public key

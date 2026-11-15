@@ -9,7 +9,7 @@ import { browserAlertsEnabled, messagePreviewsEnabled, callSoundEnabled } from '
 import { setBlockedContact } from '../services/accountSettings';
 import { ENCRYPTED_MESSAGE_PLACEHOLDER, readLastMessage, needsDecryption, withDecryptedText } from '../services/messagePresentation';
 import {
-  initE2EEIdentity,
+  initLinkedPrimaryIdentity,
   encryptMessageContent,
   decryptMessageContent,
   generateSafetyNumber,
@@ -287,19 +287,19 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const myPublicKeyRef = useRef<string>('');
   myPublicKeyRef.current = myPublicKey;
 
-  // Initialize E2EE Identity Key on client device
+  // Web is a linked device: load only the Android primary identity installed
+  // by authenticated QR pairing. Never generate/register an independent key.
   useEffect(() => {
+    let cancelled = false;
+    setMyPublicKey('');
+    myPublicKeyRef.current = '';
     if (!user?.username) return;
-    initE2EEIdentity(user.username).then((pubKey) => {
-      if (pubKey) {
-        setMyPublicKey(pubKey);
-        myPublicKeyRef.current = pubKey;
-        const socket = getSocket();
-        if (socket) {
-          socket.emit('register_public_key', { publicKey: pubKey });
-        }
-      }
+    initLinkedPrimaryIdentity(user.username).then((pubKey) => {
+      if (cancelled) return;
+      setMyPublicKey(pubKey);
+      myPublicKeyRef.current = pubKey;
     });
+    return () => { cancelled = true; };
   }, [user?.username]);
 
   // Decrypt both open-chat messages and unopened conversation previews. Waiting
@@ -311,8 +311,13 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const queue = (conversation: Conversation, message?: Message) => {
       if (conversation.isGroup || !conversation.publicKey || !needsDecryption(message)) return;
       const partner = conversation.username.toLowerCase();
+      const isOwnMessage = message.sender?.toLowerCase() === user.username.toLowerCase();
+      const messagePeerKey = !isOwnMessage && message.senderPublicKey
+        ? message.senderPublicKey
+        : conversation.publicKey;
+      if (!messagePeerKey) return;
       jobs.set(JSON.stringify([partner, message.id, message.ciphertext, message.iv]), {
-        partner, message, publicKey: conversation.publicKey,
+        partner, message, publicKey: messagePeerKey,
       });
     };
     conversations.forEach((conversation) => queue(conversation, conversation.lastMessage));
@@ -967,6 +972,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
           riddle: m.riddle || null,
           ciphertext: !m.deletedAt ? m.ciphertext : undefined,
           iv: !m.deletedAt ? m.iv : undefined,
+          senderPublicKey: !m.deletedAt ? m.senderPublicKey : undefined,
           isEncrypted: Boolean(m.isEncrypted && !m.deletedAt),
         }));
 
@@ -1073,7 +1079,9 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const partnerConv = conversationsRef.current.find(
             (c) => c.username.toLowerCase() === partner.toLowerCase()
           );
-          const peerKey = rawMsg.publicKey || partnerConv?.publicKey;
+          const peerKey = isMine
+            ? partnerConv?.publicKey
+            : (rawMsg.senderPublicKey || rawMsg.publicKey || partnerConv?.publicKey);
           if (peerKey) {
             try {
               const clearText = await decryptMessageContent(rawMsg.ciphertext, rawMsg.iv, partner.toLowerCase(), peerKey);
@@ -1108,6 +1116,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         riddle: rawMsg.riddle || null,
         ciphertext: rawMsg.ciphertext,
         iv: rawMsg.iv,
+        senderPublicKey: rawMsg.senderPublicKey,
         isEncrypted: Boolean(rawMsg.isEncrypted),
       };
 
@@ -1525,6 +1534,14 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       };
       // Check if peer has public key for E2EE encryption
       const peerPubKey = activeConv?.publicKey;
+      if (toType === 'friend' && !activeConv?.isSelf && !myPublicKeyRef.current) {
+        fail('Link this browser to your Android primary device with QR pairing before sending secure messages.');
+        return;
+      }
+      if (toType === 'friend' && !activeConv?.isSelf && !peerPubKey) {
+        fail('The contact encryption key is not available yet.');
+        return;
+      }
       if (toType === 'friend' && peerPubKey && !activeConv?.isSelf) {
           encryptMessageContent(rawText, targetChat, peerPubKey).then(async (encrypted) => {
           if (encrypted) {

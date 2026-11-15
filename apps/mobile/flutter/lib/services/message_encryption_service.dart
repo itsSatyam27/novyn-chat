@@ -151,6 +151,20 @@ class MessageEncryptionService {
     });
   }
 
+  /// Returns an existing public identity without generating a replacement.
+  /// A null result means this account has no private identity on this device.
+  Future<String?> existingIdentityPublicKey(String username) async {
+    final account = _account(username);
+    final raw = await _read('novyn_e2ee_identity_$account');
+    if (raw == null || raw.isEmpty) return null;
+    final identity = await _identity(account, createIfMissing: false);
+    return jsonEncode({
+      'kty': 'EC', 'crv': 'P-256',
+      'x': _b64url(identity.x), 'y': _b64url(identity.y),
+      'ext': true, 'key_ops': <String>[],
+    });
+  }
+
   /// Encrypts the Android primary identity for an authenticated QR-linked
   /// browser. This method deliberately refuses to create a replacement identity.
   Future<Map<String, String>> encryptDevicePairingPayload(

@@ -24,6 +24,25 @@ class _LegacyMessageAdapter extends TypeAdapter<Message> {
 }
 
 void main() {
+  test('existing identity lookup never creates a replacement key', () async {
+    final storage = <String, String>{};
+    var writes = 0;
+    final service = MessageEncryptionService(
+      read: (key) async => storage[key],
+      write: (key, value) async {
+        writes++;
+        storage[key] = value;
+      },
+    );
+
+    expect(await service.existingIdentityPublicKey('alice'), isNull);
+    expect(writes, 0);
+
+    final originalPublicKey = await service.initializeIdentity('alice');
+    expect(await service.existingIdentityPublicKey('alice'), originalPublicKey);
+    expect(writes, 1);
+  });
+
   test('existing 12-field Hive message records remain readable after upgrade', () async {
     final directory = await Directory.systemTemp.createTemp('novyn-legacy-messages-');
     Hive.init(directory.path);
