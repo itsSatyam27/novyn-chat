@@ -124,23 +124,20 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
       path = file.path;
       if (await file.exists()) await file.delete();
       final sink = file.openWrite();
-      final hashSink = AccumulatorSink<Digest>();
-      final converter = sha256.startChunkedConversion(hashSink);
       var received = 0;
       try {
         await for (final chunk in response.stream) {
           received += chunk.length;
           if (received > size) throw const FormatException('APK exceeds expected size.');
-          converter.add(chunk);
           sink.add(chunk);
           if (mounted) setState(() => _downloadProgress = received / size);
         }
       } finally {
-        converter.close();
         await sink.flush();
         await sink.close();
       }
-      if (received != size || hashSink.events.single.toString() != hash) {
+      final actualDigest = await sha256.bind(file.openRead()).first;
+      if (received != size || actualDigest.toString() != hash) {
         await file.delete();
         throw const FormatException('APK checksum verification failed.');
       }
