@@ -141,7 +141,7 @@ class AppUpdateService extends ChangeNotifier {
     }
 
     // Ignore universal releases and select the highest published stable ARM64 build.
-    final tagPattern = RegExp(r'^novyn-arm64-build-(\\d+)(?:-\\d+)*$');
+    final tagPattern = RegExp(r'^novyn-arm64-build-(\d+)(?:-\d+)*$');
     Map<String, dynamic>? selectedAsset;
     var selectedBuild = -1;
 
