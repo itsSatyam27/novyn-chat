@@ -580,9 +580,12 @@ class SettingsService extends ChangeNotifier {
       'glow': 'soft_glow_glass',
     };
     final savedDockStyle = _prefs.getString(_kDockStyle) ?? 'slide_pill';
-    _dockStyle = dockStyles.contains(savedDockStyle)
-        ? savedDockStyle
-        : (legacyDockStyles[savedDockStyle] ?? 'slide_pill');
+    if (dockStyles.contains(savedDockStyle)) {
+      _dockStyle = savedDockStyle;
+    } else {
+      _dockStyle = legacyDockStyles[savedDockStyle] ?? 'slide_pill';
+      await _prefs.setString(_kDockStyle, _dockStyle);
+    }
     _twoFactorAuth = _prefs.getBool(_kTwoFactorAuth) ?? false;
     _lastSeenVisibility = _prefs.getString(_kLastSeen) ?? 'everyone';
     _profilePhotoVisibility = _prefs.getString(_kProfilePhoto) ?? 'everyone';
