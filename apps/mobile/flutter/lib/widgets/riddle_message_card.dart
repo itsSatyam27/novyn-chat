@@ -66,13 +66,14 @@ class _RiddleMessageCardState extends State<RiddleMessageCard> {
     final triesLeft = _triesLeftOverride ?? (widget.riddle['triesLeft'] as num?)?.toInt() ?? 0;
     final maxTries = (widget.riddle['maxTries'] as num?)?.toInt() ?? 3;
     final exhausted = !unlocked && triesLeft <= 0;
+    final scheme = Theme.of(context).colorScheme;
     return Container(
       width: 270,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerLow,
+        color: scheme.surfaceContainerLow,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.18)),
+        border: Border.all(color: scheme.outlineVariant.withValues(alpha: .6)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -91,7 +92,7 @@ class _RiddleMessageCardState extends State<RiddleMessageCard> {
           Text(widget.riddle['question']?.toString() ?? '', style: const TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 12)),
           if ((widget.riddle['hint']?.toString() ?? '').isNotEmpty) ...[
             const SizedBox(height: 5),
-            Text('Hint: ${widget.riddle['hint']}', style: const TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 11, color: Color(0xFF94A3B8))),
+            Text('Hint: ${widget.riddle['hint']}', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 11, color: scheme.onSurfaceVariant)),
           ],
           if (!unlocked && !widget.isMe) ...[
             const SizedBox(height: 10),
@@ -114,13 +115,13 @@ class _RiddleMessageCardState extends State<RiddleMessageCard> {
             ),
             if (_feedback != null) Padding(
               padding: const EdgeInsets.only(top: 5),
-              child: Text(_feedback!, style: const TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 10, color: Color(0xFFDC2626))),
+              child: Text(_feedback!, style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 10, color: scheme.error)),
             ),
             const SizedBox(height: 5),
-            Text('$triesLeft tries left', style: const TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 10, color: Color(0xFF94A3B8))),
+            Text('$triesLeft tries left', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 10, color: scheme.onSurfaceVariant)),
           ],
           if (widget.isMe && !unlocked)
-            Text('Recipient gets $maxTries attempts', style: const TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 10, color: Color(0xFF94A3B8))),
+            Text('Recipient gets $maxTries attempts', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 10, color: scheme.onSurfaceVariant)),
         ],
       ),
     );

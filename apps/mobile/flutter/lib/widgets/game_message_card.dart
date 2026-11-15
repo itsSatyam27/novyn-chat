@@ -26,11 +26,15 @@ class _GameMessageCardState extends State<GameMessageCard> {
   final TextEditingController _number = TextEditingController();
   final TextEditingController _guess = TextEditingController();
   List<Map<String, dynamic>> _strokes = [];
+  Map<String, dynamic>? _optimisticData;
   bool _sendingMove = false;
 
   @override
   void didUpdateWidget(covariant GameMessageCard oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.game['data'] != widget.game['data']) {
+      _optimisticData = null;
+    }
     final oldStrokes = oldWidget.game['data'] is Map ? (oldWidget.game['data'] as Map)['strokes'] : null;
     final newStrokes = widget.game['data'] is Map ? (widget.game['data'] as Map)['strokes'] : null;
     if (oldStrokes != newStrokes && newStrokes is List) {
@@ -52,9 +56,10 @@ class _GameMessageCardState extends State<GameMessageCard> {
   String get _turn => widget.game['turn']?.toString() ?? '';
   String get _state => widget.game['state']?.toString() ?? 'in_progress';
   String get _winner => widget.game['winner']?.toString() ?? '';
-  Map<String, dynamic> get _data => widget.game['data'] is Map
-      ? Map<String, dynamic>.from(widget.game['data'])
-      : <String, dynamic>{};
+  Map<String, dynamic> get _data => _optimisticData ??
+      (widget.game['data'] is Map
+          ? Map<String, dynamic>.from(widget.game['data'])
+          : <String, dynamic>{});
   bool get _myTurn => _turn.toLowerCase() == widget.currentUsername.toLowerCase();
   bool get _finished => _state == 'finished';
   bool get _canJoinGroup => widget.isGroup &&
@@ -63,7 +68,11 @@ class _GameMessageCardState extends State<GameMessageCard> {
 
   Future<void> _move(Map<String, dynamic> data) async {
     if (_sendingMove || _finished) return;
-    setState(() => _sendingMove = true);
+    final previousData = _optimisticData;
+    setState(() {
+      _sendingMove = true;
+      _optimisticData = Map<String, dynamic>.from(data);
+    });
     try {
       await context.read<SocketService>().makeGameMove(
         widget.messageId,
@@ -73,6 +82,7 @@ class _GameMessageCardState extends State<GameMessageCard> {
       );
     } catch (error) {
       if (mounted) {
+        setState(() => _optimisticData = previousData);
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(error is StateError
               ? error.message.toString()
@@ -87,13 +97,14 @@ class _GameMessageCardState extends State<GameMessageCard> {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Container(
       width: 270,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerLow,
+        color: scheme.surfaceContainerLow,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.18)),
+        border: Border.all(color: scheme.outlineVariant.withValues(alpha: .6)),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.045),
@@ -186,7 +197,7 @@ class _GameMessageCardState extends State<GameMessageCard> {
                 alignment: Alignment.center,
                 child: Text(
                   board[index] == 'X' ? '✕' : board[index] == 'O' ? '◯' : '',
-                  style: TextStyle(fontSize: 30, fontWeight: FontWeight.w800, color: board[index] == 'X' ? const Color(0xFF64748B) : const Color(0xFF0EA5E9)),
+                  style: TextStyle(fontSize: 30, fontWeight: FontWeight.w800, color: board[index] == 'X' ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.tertiary),
                 ),
               ),
             ),
@@ -236,7 +247,7 @@ class _GameMessageCardState extends State<GameMessageCard> {
             itemBuilder: (context, index) => Container(
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: board[index] == 'R' ? const Color(0xFF64748B) : board[index] == 'Y' ? const Color(0xFF0EA5E9) : Theme.of(context).colorScheme.surface,
+                color: board[index] == 'R' ? Theme.of(context).colorScheme.primary : board[index] == 'Y' ? Theme.of(context).colorScheme.tertiary : Theme.of(context).colorScheme.surface,
               ),
             ),
           ),
@@ -364,7 +375,7 @@ class _GameMessageCardState extends State<GameMessageCard> {
           onPanEnd: (_) => _move({'action': 'draw', 'strokes': _strokes}),
           child: CustomPaint(
             size: const Size(200, 150),
-            painter: _DoodlePainter(strokes),
+            painter: _DoodlePainter(strokes, Theme.of(context).colorScheme.primary),
             child: Container(
               width: 200,
               height: 150,
@@ -379,11 +390,12 @@ class _GameMessageCardState extends State<GameMessageCard> {
 
 class _DoodlePainter extends CustomPainter {
   final List<Map<String, dynamic>> strokes;
-  _DoodlePainter(this.strokes);
+  final Color strokeColor;
+  _DoodlePainter(this.strokes, this.strokeColor);
 
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()..color = const Color(0xFF64748B)..strokeWidth = 3..strokeCap = StrokeCap.round;
+    final paint = Paint()..color = strokeColor..strokeWidth = 3..strokeCap = StrokeCap.round;
     for (final stroke in strokes) {
       final x1 = (stroke['x1'] as num?)?.toDouble() ?? 0;
       final y1 = (stroke['y1'] as num?)?.toDouble() ?? 0;
@@ -394,5 +406,6 @@ class _DoodlePainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _DoodlePainter oldDelegate) => oldDelegate.strokes != strokes;
+  bool shouldRepaint(covariant _DoodlePainter oldDelegate) =>
+      oldDelegate.strokes != strokes || oldDelegate.strokeColor != strokeColor;
 }

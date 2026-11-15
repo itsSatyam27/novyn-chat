@@ -10,6 +10,7 @@ class ProfileInfoScreen extends StatelessWidget {
   final VoidCallback? onVoiceCall;
   final VoidCallback? onVideoCall;
   final VoidCallback? onSharedMedia;
+  final VoidCallback? onPinnedMessages;
   final VoidCallback? onWallpaper;
   final VoidCallback? onQuickEmojis;
   final bool initiallyBlocked;
@@ -27,6 +28,7 @@ class ProfileInfoScreen extends StatelessWidget {
     this.onVoiceCall,
     this.onVideoCall,
     this.onSharedMedia,
+    this.onPinnedMessages,
     this.onWallpaper,
     this.onQuickEmojis,
     this.initiallyBlocked = false,
@@ -277,6 +279,8 @@ class ProfileInfoScreen extends StatelessWidget {
               children: [
                 if (onSharedMedia != null)
                   SizedBox(width: tileWidth, child: _FeatureTile(icon: Icons.image_outlined, title: 'Shared media', subtitle: 'Photos, videos and files', tint: const Color(0xFFE4F1FC), accent: const Color(0xFF347DBB), onTap: onSharedMedia!)),
+                if (onPinnedMessages != null)
+                  SizedBox(width: tileWidth, child: _FeatureTile(icon: Icons.push_pin_outlined, title: 'Pinned messages', subtitle: 'Quick access to saved messages', tint: const Color(0xFFFFF0D9), accent: const Color(0xFFB87512), onTap: onPinnedMessages!)),
                 if (onWallpaper != null)
                   SizedBox(width: tileWidth, child: _FeatureTile(icon: Icons.palette_outlined, title: 'Chat wallpaper', subtitle: 'Personalise this chat', tint: const Color(0xFFFCE8F1), accent: const Color(0xFFC92B72), onTap: onWallpaper!)),
                 SizedBox(width: tileWidth, child: _FeatureTile(icon: Icons.qr_code_2_rounded, title: 'QR code', subtitle: 'Scannable profile', tint: const Color(0xFFEEE9FF), accent: const Color(0xFF6554D9), onTap: () => _showContactQr(context))),

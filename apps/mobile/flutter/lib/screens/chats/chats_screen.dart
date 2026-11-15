@@ -562,9 +562,7 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
     final pinnedChats = activeChats.where((chat) => chat.isPinned).toList();
     final recentChats = activeChats.where((chat) => !chat.isPinned).toList();
 
-    final pageBackground = Theme.of(context).brightness == Brightness.dark
-        ? NovynTheme.pageBg(context)
-        : const Color(0xFFF4F0FA);
+    final pageBackground = NovynTheme.pageBg(context);
 
     return Scaffold(
       backgroundColor: pageBackground,
@@ -638,8 +636,7 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
                     position: PopupMenuPosition.under,
                     offset: const Offset(0, 10),
                     elevation: 14,
-                    color: Theme.of(context).brightness == Brightness.dark
-                        ? const Color(0xFF211D30) : Colors.white,
+                    color: Theme.of(context).colorScheme.surface,
                     surfaceTintColor: Colors.transparent,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(18),
@@ -1009,9 +1006,7 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
         reverseCurve: Curves.easeInCubic,
       ),
       elevation: 14,
-      color: theme.brightness == Brightness.dark
-          ? const Color(0xFF211D30)
-          : Colors.white,
+      color: colors.surface,
       surfaceTintColor: Colors.transparent,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(18),

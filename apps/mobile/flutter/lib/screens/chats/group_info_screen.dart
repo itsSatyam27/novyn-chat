@@ -10,6 +10,7 @@ class GroupInfoScreen extends StatefulWidget {
   final String groupId;
   final String fallbackName;
   final VoidCallback? onSharedMedia;
+  final VoidCallback? onPinnedMessages;
   final VoidCallback? onWallpaper;
   final VoidCallback? onLeft;
 
@@ -18,6 +19,7 @@ class GroupInfoScreen extends StatefulWidget {
     required this.groupId,
     required this.fallbackName,
     this.onSharedMedia,
+    this.onPinnedMessages,
     this.onWallpaper,
     this.onLeft,
   });
@@ -614,6 +616,18 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
                                   tint: const Color(0xFFE4F1FC),
                                   accent: const Color(0xFF347DBB),
                                   onTap: widget.onSharedMedia!,
+                                ),
+                              ),
+                            if (widget.onPinnedMessages != null)
+                              SizedBox(
+                                width: tileWidth,
+                                child: _GroupFeatureTile(
+                                  icon: Icons.push_pin_outlined,
+                                  title: 'Pinned messages',
+                                  subtitle: 'Quick access to saved messages',
+                                  tint: const Color(0xFFFFF0D9),
+                                  accent: const Color(0xFFB87512),
+                                  onTap: widget.onPinnedMessages!,
                                 ),
                               ),
                             if (widget.onWallpaper != null)
