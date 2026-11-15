@@ -2488,6 +2488,7 @@ function hydrateMessage(rawMessage) {
     game: message.game || null,
     ciphertext: toDisplayName(message.ciphertext) || undefined,
     iv: toDisplayName(message.iv) || undefined,
+    senderPublicKey: normalizePushPublicKey(message.senderPublicKey) || undefined,
     isEncrypted: Boolean(message.isEncrypted),
   };
   if (toType === "group") {

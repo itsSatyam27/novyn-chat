@@ -309,7 +309,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     let cancelled = false;
     const jobs = new Map<string, { partner: string; message: Message; publicKey: string }>();
     const queue = (conversation: Conversation, message?: Message) => {
-      if (conversation.isGroup || !conversation.publicKey || !needsDecryption(message)) return;
+      if (conversation.isGroup || !needsDecryption(message)) return;
       const partner = conversation.username.toLowerCase();
       const isOwnMessage = message.sender?.toLowerCase() === user.username.toLowerCase();
       const messagePeerKey = !isOwnMessage && message.senderPublicKey
