@@ -1,6 +1,11 @@
 name: Novyn Optimized ARM64 APK
 
 on:
+  push:
+    branches: [phase-2, main]
+    paths:
+      - "apps/mobile/flutter/**"
+      - ".github/workflows/optimized-arm64-apk.yml"
   workflow_dispatch:
 
 permissions:
@@ -68,9 +73,34 @@ jobs:
         working-directory: apps/mobile/flutter
         run: flutter analyze --no-pub --no-fatal-infos --no-fatal-warnings
 
+      - name: Generate monotonic Android build code
+        id: build-meta
+        run: |
+          set -euo pipefail
+          BUILD_CODE="$(date -u +%s)"
+          echo "build_code=${BUILD_CODE}" >> "${GITHUB_OUTPUT}"
+          echo "Novyn Android build code: ${BUILD_CODE}" >> "${GITHUB_STEP_SUMMARY}"
+
       - name: Build split release APKs
         working-directory: apps/mobile/flutter
-        run: flutter build apk --release --split-per-abi --build-number="${GITHUB_RUN_NUMBER}"
+        run: flutter build apk --release --split-per-abi --build-number="${{ steps.build-meta.outputs.build_code }}"
+
+      - name: Verify ARM64 APK package and signature
+        run: |
+          set -euo pipefail
+          APK="apps/mobile/flutter/build/app/outputs/flutter-apk/app-arm64-v8a-release.apk"
+          BUILD_TOOLS="$(find "${ANDROID_HOME}/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)"
+          "${BUILD_TOOLS}/apksigner" verify --verbose --print-certs "${APK}"
+          BADGING="$("${BUILD_TOOLS}/aapt" dump badging "${APK}")"
+          grep -F "package: name='com.example.novyn'" <<< "${BADGING}"
+          grep -F "versionName='1.0.0-beta'" <<< "${BADGING}"
+          VERSION_CODE="$(sed -n "s/.*versionCode='\\([0-9]*\\)'.*/\\1/p" <<< "${BADGING}" | head -n 1)"
+          test -n "${VERSION_CODE}"
+          test "${VERSION_CODE}" -gt 0
+          test "${VERSION_CODE}" -lt 2100000000
+          unzip -t "${APK}" >/dev/null
+          unzip -Z1 "${APK}" | grep -q '^lib/arm64-v8a/'
+          echo "APK package, version, ARM64 payload, ZIP structure, and signature verified." >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Report ARM64 APK size
         id: apk-size
@@ -84,7 +114,7 @@ jobs:
           {
             echo "## Novyn ARM64 APK"
             echo ""
-            echo "- File: `app-arm64-v8a-release.apk`"
+            echo "- File: app-arm64-v8a-release.apk"
             echo "- Size: **${MIB} MiB**"
             echo "- Build: ${GITHUB_RUN_NUMBER}"
           } >> "$GITHUB_STEP_SUMMARY"
@@ -99,14 +129,20 @@ jobs:
           RELEASE_APK="${RELEASE_DIR}/Novyn-Android-ARM64.apk"
           mkdir -p "${RELEASE_DIR}"
           cp "${SOURCE_APK}" "${RELEASE_APK}"
-          TAG="novyn-arm64-build-${GITHUB_RUN_NUMBER}-${GITHUB_RUN_ATTEMPT}"
+          BUILD_CODE="${{ steps.build-meta.outputs.build_code }}"
+          TAG="novyn-arm64-build-${BUILD_CODE}-${GITHUB_RUN_ATTEMPT}"
           MB=$(awk -v bytes="$(stat -c%s "${RELEASE_APK}")" 'BEGIN { printf "%.1f", bytes / 1000000 }')
+          if [ "${GITHUB_REF_NAME}" = "main" ]; then
+            RELEASE_CHANNEL_ARGS=(--latest)
+          else
+            RELEASE_CHANNEL_ARGS=(--prerelease)
+          fi
           gh release create "${TAG}" "${RELEASE_APK}" \
             --repo "${GITHUB_REPOSITORY}" \
             --target "${GITHUB_SHA}" \
             --title "Novyn Android ARM64 APK — ${MB} MB" \
             --notes "Signed ARM64-v8a Android release APK. Direct download; no ZIP extraction required." \
-            --latest
+            "${RELEASE_CHANNEL_ARGS[@]}"
 
       - name: Upload ARM64 APK
         uses: actions/upload-artifact@v4

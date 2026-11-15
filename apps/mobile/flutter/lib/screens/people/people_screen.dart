@@ -8,6 +8,7 @@ import '../../models/user_model.dart';
 import '../../widgets/novyn_shimmer.dart';
 import '../../widgets/novyn_empty_state.dart';
 import '../../widgets/user_avatar.dart';
+import '../../utils/presence_utils.dart';
 import '../../widgets/novyn_ui.dart';
 import '../../theme/novyn_theme.dart';
 import '../chats/chat_detail_screen.dart';
@@ -22,11 +23,6 @@ class PeopleScreen extends StatefulWidget {
 }
 
 class _PeopleScreenState extends State<PeopleScreen> {
-  static const _alphabet = <String>[
-    'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K',
-    'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W',
-    'X', 'Y', 'Z',
-  ];
   static const _avatarPalette = <Color>[
     Color(0xFF6D4CF5),
     Color(0xFFC03F72),
@@ -46,7 +42,6 @@ class _PeopleScreenState extends State<PeopleScreen> {
   bool _favouritesLoaded = false;
   bool _favouriteLoading = false;
   final ScrollController _scrollController = ScrollController();
-  final Map<String, GlobalKey> _letterKeys = <String, GlobalKey>{};
 
   @override
   void initState() {
@@ -154,23 +149,6 @@ class _PeopleScreenState extends State<PeopleScreen> {
       MaterialPageRoute(
         builder: (_) => ReceivedFriendRequestsScreen(myUid: myUid),
       ),
-    );
-  }
-
-  void _scrollToLetter(String letter, List<String> availableLetters) {
-    if (availableLetters.isEmpty) return;
-    var target = letter;
-    if (!availableLetters.contains(target)) {
-      final next = availableLetters.where((value) => value.compareTo(letter) >= 0);
-      target = next.isNotEmpty ? next.first : availableLetters.last;
-    }
-    final targetContext = _letterKeys[target]?.currentContext;
-    if (targetContext == null) return;
-    Scrollable.ensureVisible(
-      targetContext,
-      duration: const Duration(milliseconds: 180),
-      curve: Curves.easeOutCubic,
-      alignment: .08,
     );
   }
 
@@ -515,11 +493,9 @@ class _PeopleScreenState extends State<PeopleScreen> {
     ];
 
     for (final letter in letters) {
-      final key = _letterKeys.putIfAbsent(letter, () => GlobalKey());
       final users = grouped[letter]!;
       children.add(
         Padding(
-          key: key,
           padding: const EdgeInsets.fromLTRB(8, 2, 22, 8),
           child: Text(
             letter,
@@ -573,27 +549,11 @@ class _PeopleScreenState extends State<PeopleScreen> {
     }
     children.add(const SizedBox(height: 112));
 
-    return Stack(
-      children: [
-        ListView(
-          controller: _scrollController,
-          physics: const BouncingScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(16, 0, 0, 8),
-          children: children,
-        ),
-        if (_search.isEmpty && _filter != 'Favourites' && letters.isNotEmpty)
-          Positioned(
-            right: 1,
-            top: 0,
-            bottom: 8,
-            width: 17,
-            child: _AlphabetRail(
-              letters: _alphabet,
-              available: letters.toSet(),
-              onSelected: (letter) => _scrollToLetter(letter, letters),
-            ),
-          ),
-      ],
+    return ListView(
+      controller: _scrollController,
+      physics: const BouncingScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(16, 0, 0, 8),
+      children: children,
     );
   }
 
@@ -777,17 +737,14 @@ class _ContactRow extends StatelessWidget {
   String get _displayName => user.name.trim().isNotEmpty ? user.name.trim() : user.username.trim();
 
   String _presenceLabel() {
-    if (user.isOnline) return 'Online';
-    final lastSeen = user.lastSeen;
-    if (lastSeen == null) return 'Last seen recently';
-    final diff = DateTime.now().difference(lastSeen);
-    if (diff.inMinutes < 60) {
-      return 'Last seen ${diff.inMinutes.clamp(1, 59)}m ago';
+    if (user.isOnline) {
+      return switch (user.status.trim().toLowerCase()) {
+        'away' => 'Away',
+        'busy' || 'dnd' => 'Busy',
+        _ => 'Online',
+      };
     }
-    if (diff.inHours < 24) return 'Last seen ${diff.inHours}h ago';
-    if (diff.inDays == 1) return 'Last seen yesterday';
-    if (diff.inDays < 7) return 'Last seen ${diff.inDays}d ago';
-    return 'Offline';
+    return formatLastSeenLabel(user.lastSeen);
   }
 
   Widget _avatar() {
@@ -884,47 +841,6 @@ class _ContactRow extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
-}
-
-class _AlphabetRail extends StatelessWidget {
-  const _AlphabetRail({
-    required this.letters,
-    required this.available,
-    required this.onSelected,
-  });
-
-  final List<String> letters;
-  final Set<String> available;
-  final ValueChanged<String> onSelected;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        for (final letter in letters)
-          Expanded(
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: () => onSelected(letter),
-              child: Center(
-                child: Text(
-                  letter,
-                  style: TextStyle(
-                    fontFamily: 'PlusJakartaSans',
-                    fontSize: 8.5,
-                    height: 1,
-                    fontWeight: FontWeight.w600,
-                    color: available.contains(letter)
-                        ? Theme.of(context).colorScheme.primary
-                        : Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: .42),
-                  ),
-                ),
-              ),
-            ),
-          ),
-      ],
     );
   }
 }

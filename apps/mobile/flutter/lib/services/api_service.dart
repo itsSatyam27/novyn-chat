@@ -202,6 +202,28 @@ class ApiService {
     }
   }
 
+  /// Fetch the backend-managed ICE configuration for the next call.
+  /// TURN credentials are returned only by the authenticated /api/rtc/ice endpoint.
+  static Future<Map<String, dynamic>?> getRtcIceConfiguration({
+    Duration timeout = const Duration(milliseconds: 3500),
+  }) async {
+    try {
+      final response = await http
+          .get(
+            Uri.parse('$baseUrl/api/rtc/ice'),
+            headers: _authHeaders,
+          )
+          .timeout(timeout);
+      if (response.statusCode != 200) return null;
+      final decoded = jsonDecode(response.body);
+      if (decoded is! Map) return null;
+      return Map<String, dynamic>.from(decoded);
+    } catch (error) {
+      debugPrint('[NovynRTC] Dynamic ICE configuration unavailable: $error');
+      return null;
+    }
+  }
+
   // ── Health check / wake-up ping ───────────────────────────────────────────
   static Future<void> ping() async {
     try {
@@ -614,6 +636,7 @@ class ApiService {
             isEncrypted: m['isEncrypted'] == true,
             ciphertext: m['ciphertext']?.toString(),
             iv: m['iv']?.toString(),
+            senderPublicKey: m['senderPublicKey']?.toString(),
             senderId: sender,
             isFromMe: myUsername != null && sender == myUsername,
             createdAt: DateTime.tryParse(m['timestamp']?.toString() ?? '') ??

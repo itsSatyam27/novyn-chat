@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'dart:io';
-import 'package:cryptography/cryptography.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive/hive.dart';
 import 'package:novyn/models/chat_models.dart';
@@ -93,27 +92,48 @@ void main() {
         (await restarted.decrypt(encrypted(tampered), 'interop-alice'))
             .needsMessageKey,
         isTrue);
-    final outgoing = await restarted.encrypt('Android → web test',
-        'interop-alice', 'interop-bob', fixture['peerPublicKey']);
+    final aliceStorage = <String, String>{};
+    final bobStorage = <String, String>{};
+    final alice = MessageEncryptionService(
+      read: (key) async => aliceStorage[key],
+      write: (key, value) async { aliceStorage[key] = value; },
+    );
+    final bob = MessageEncryptionService(
+      read: (key) async => bobStorage[key],
+      write: (key, value) async { bobStorage[key] = value; },
+    );
+    final alicePublicKey = await alice.initializeIdentity('alice');
+    final bobPublicKey = await bob.initializeIdentity('bob');
+    final outgoing = await alice.encrypt(
+      'Android → web test', 'alice', 'bob', bobPublicKey,
+    );
     expect(outgoing, isNotNull);
-    final ciphertext = base64Decode(outgoing!['ciphertext']);
-    final plaintext = await AesGcm.with256bits().decrypt(
-        SecretBox(ciphertext.sublist(0, ciphertext.length - 16),
-            nonce: base64Decode(outgoing['iv']),
-            mac: Mac(ciphertext.sublist(ciphertext.length - 16))),
-        secretKey: SecretKey(base64Decode(fixture['sharedKey'])));
-    expect(utf8.decode(plaintext), 'Android → web test');
+    expect(outgoing!['isEncrypted'], isTrue);
+    expect(outgoing['senderPublicKey'], alicePublicKey);
+    expect(jsonDecode(outgoing['senderPublicKey'] as String)['crv'], 'P-256');
+    final incoming = Message(
+      id: 'round-trip',
+      text: '🔒 Encrypted message',
+      isFromMe: false,
+      isEncrypted: true,
+      ciphertext: outgoing['ciphertext'] as String,
+      iv: outgoing['iv'] as String,
+      senderPublicKey: alicePublicKey,
+    );
+    final roundTrip = await bob.decrypt(incoming, 'bob', alicePublicKey);
+    expect(roundTrip.text, 'Android → web test');
+    expect(roundTrip.needsMessageKey, isFalse);
     expect(
-        await restarted.encrypt(
-            'message', 'interop-alice', 'interop-bob', '{}'),
-        isNull);
+      await alice.encrypt('message', 'alice', 'bob', '{}'),
+      isNull,
+    );
     expect(
         (await restarted.decrypt(
                 Message(id: 'plain', text: 'hii', isFromMe: true),
                 'interop-alice'))
             .text,
         'hii');
-  }, timeout: const Timeout(Duration(minutes: 2)));
+  });
   test('wrong password, wrong account and unsupported format never store keys',
       () async {
     var writes = 0;
@@ -133,5 +153,71 @@ void main() {
         service.importKeys('{}', fixture['password'], 'interop-alice'),
         throwsFormatException);
     expect(writes, 0);
-  }, timeout: const Timeout(Duration(minutes: 2)));
+  });
+
+  test('P-256 identity survives service recreation and rejects another account or tampered payloads', () async {
+    final aliceStorage = <String, String>{};
+    final bobStorage = <String, String>{};
+    final malloryStorage = <String, String>{};
+
+    MessageEncryptionService service(Map<String, String> storage) =>
+        MessageEncryptionService(
+          read: (key) async => storage[key],
+          write: (key, value) async { storage[key] = value; },
+        );
+
+    final alice = service(aliceStorage);
+    final bob = service(bobStorage);
+    final alicePublicKey = await alice.initializeIdentity('Alice');
+    final bobPublicKey = await bob.initializeIdentity('Bob');
+
+    // A fresh service instance simulates an app restart on the same device.
+    final restartedAlice = service(aliceStorage);
+    expect(await restartedAlice.initializeIdentity('alice'), alicePublicKey);
+
+    final encrypted = await restartedAlice.encrypt(
+      'Private Android message', 'alice', 'bob', bobPublicKey,
+    );
+    expect(encrypted, isNotNull);
+    expect(encrypted!['isEncrypted'], isTrue);
+    expect(encrypted['ciphertext'], isNot('Private Android message'));
+    expect(encrypted['senderPublicKey'], alicePublicKey);
+
+    final envelope = Message(
+      id: 'interop-restart',
+      text: '🔒 Encrypted message',
+      isFromMe: false,
+      chatId: 'alice',
+      isEncrypted: true,
+      ciphertext: encrypted['ciphertext'] as String,
+      iv: encrypted['iv'] as String,
+      senderPublicKey: alicePublicKey,
+    );
+
+    expect(
+      (await bob.decrypt(envelope, 'bob', alicePublicKey)).text,
+      'Private Android message',
+    );
+
+    final mallory = service(malloryStorage);
+    await mallory.initializeIdentity('mallory');
+    expect(
+      (await mallory.decrypt(envelope, 'mallory', alicePublicKey)).needsMessageKey,
+      isTrue,
+    );
+
+    final tamperedCiphertext = base64Decode(encrypted['ciphertext'] as String);
+    tamperedCiphertext[tamperedCiphertext.length ~/ 2] ^= 0x01;
+    final tampered = Message(
+      id: 'tampered',
+      text: '🔒 Encrypted message',
+      isFromMe: false,
+      chatId: 'alice',
+      isEncrypted: true,
+      ciphertext: base64Encode(tamperedCiphertext),
+      iv: encrypted['iv'] as String,
+      senderPublicKey: alicePublicKey,
+    );
+    expect((await bob.decrypt(tampered, 'bob', alicePublicKey)).needsMessageKey, isTrue);
+  });
 }

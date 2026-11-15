@@ -4,6 +4,7 @@ import '../models/chat_models.dart';
 import '../models/user_model.dart';
 import '../models/chat_preview.dart';
 import '../screens/chats/chats_screen.dart';
+import '../utils/message_pagination.dart';
 
 /// Local database service using Hive for instant loads and offline support
 class LocalDbService {
@@ -85,44 +86,30 @@ class LocalDbService {
   static Future<List<Message>> getMessages(String chatId, {int limit = 50}) async {
     await _ensureInit();
     try {
-      final all = _messagesBox?.values
-          .where((m) => m.chatId == chatId)
-          .toList() ?? [];
-      
-      // Sort by createdAt (oldest first)
-      all.sort((a, b) => a.createdAt.compareTo(b.createdAt));
-      
-      // Return last N messages
-      if (all.length > limit) {
-        return all.sublist(all.length - limit);
-      }
-      return all;
+      final messages = _messagesBox?.values
+              .where((message) => message.chatId == chatId) ??
+          const <Message>[];
+      return latestMessagesPage(messages, limit: limit);
     } catch (e) {
       print('Error getting messages: $e');
       return [];
     }
   }
 
-  /// Get older messages (pagination)
+  /// Get the nearest older page using a composite timestamp + message-ID cursor.
   static Future<List<Message>> getOlderMessages(
     String chatId,
-    DateTime before,
-    {int limit = 30}
-  ) async {
+    DateTime before, {
+    String? beforeId,
+    int limit = 30,
+  }) async {
     await _ensureInit();
     try {
-      final all = _messagesBox?.values
-          .where((m) => m.chatId == chatId && m.createdAt.isBefore(before))
-          .toList() ?? [];
-      
-      // Sort by createdAt (oldest first)
-      all.sort((a, b) => a.createdAt.compareTo(b.createdAt));
-      
-      // Return last N messages
-      if (all.length > limit) {
-        return all.sublist(all.length - limit);
-      }
-      return all;
+      final messages = _messagesBox?.values.where((message) =>
+              message.chatId == chatId &&
+              isMessageBeforeCursor(message, before, beforeId: beforeId)) ??
+          const <Message>[];
+      return latestMessagesPage(messages, limit: limit);
     } catch (e) {
       print('Error getting older messages: $e');
       return [];
@@ -390,6 +377,47 @@ class LocalDbService {
   static Future<void> setAccountScope(String username) async {
     await _ensureInit();
     await _metaBox?.put('account_scope', username.trim().toLowerCase());
+  }
+
+  static const String _pendingMessagesKey = 'pending_messages_v1';
+
+  /// Read the durable outbox from the active account's Hive metadata box.
+  static Future<List<Map<String, dynamic>>> getPendingMessages(String username) async {
+    await _ensureInit();
+    final account = username.trim().toLowerCase();
+    if (_metaBox?.get('account_scope')?.toString().trim().toLowerCase() != account) {
+      return <Map<String, dynamic>>[];
+    }
+    try {
+      final raw = _metaBox?.get(_pendingMessagesKey);
+      if (raw is! List) return <Map<String, dynamic>>[];
+      return raw
+          .whereType<Map>()
+          .map((entry) => Map<String, dynamic>.from(entry))
+          .toList(growable: false);
+    } catch (error) {
+      print('Error reading pending messages: $error');
+      return <Map<String, dynamic>>[];
+    }
+  }
+
+  /// Atomically replace the active account's durable outbox snapshot.
+  static Future<void> savePendingMessages(
+    String username,
+    List<Map<String, dynamic>> messages,
+  ) async {
+    await _ensureInit();
+    final account = username.trim().toLowerCase();
+    if (_metaBox?.get('account_scope')?.toString().trim().toLowerCase() != account) {
+      throw StateError('The active local database belongs to another account.');
+    }
+    if (messages.length > 1000) {
+      throw StateError('The pending message queue is full.');
+    }
+    final snapshot = messages
+        .map((entry) => Map<String, dynamic>.from(entry))
+        .toList(growable: false);
+    await _metaBox?.put(_pendingMessagesKey, snapshot);
   }
 
   /// Set last sync time for a chat

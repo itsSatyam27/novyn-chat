@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'package:novyn/services/fast_db_service.dart';
 import 'package:novyn/services/local_db_service.dart';
 import '../models/chat_models.dart';
 import '../models/chat_preview.dart';
 import '../models/user_model.dart';
 import '../screens/chats/chats_screen.dart';
+import '../utils/message_pagination.dart';
 
 /// Hybrid database service that uses:
 /// - Drift (SQLite) for fast indexed queries (messages, chats)
@@ -15,24 +17,48 @@ import '../screens/chats/chats_screen.dart';
 class HybridDbService {
   static FastDatabase? _fastDb;
   static bool _isInitialized = false;
+  static Future<void>? _initFuture;
+  static Future<void> _driftWriteQueue = Future<void>.value();
 
   /// Initialize both databases
-  static Future<void> init() async {
-    if (_isInitialized) return;
+  static Future<void> init() {
+    if (_isInitialized) return Future<void>.value();
+    return _initFuture ??= _initialize();
+  }
 
+  static Future<void> _initialize() async {
     try {
-      // Initialize Hive (for users, metadata)
-      await LocalDbService.init();
-      
-      // Initialize Drift (for messages, chats)
-      _fastDb = await FastDbService.database;
-      
+      // Hive and Drift are independent stores; start both without serial waits.
+      final stores = await Future.wait<dynamic>([
+        LocalDbService.init(),
+        FastDbService.database,
+      ]);
+      _fastDb = stores[1] as FastDatabase;
       _isInitialized = true;
       print('✅ HybridDbService initialized (Drift + Hive)');
     } catch (e) {
+      _initFuture = null;
       print('❌ HybridDbService init error: $e');
-      // Don't set _isInitialized to true on error
       rethrow;
+    }
+  }
+
+  /// Read the complete Hive cache first so opening a chat does not wait for
+  /// the secondary indexed store. Drift is warmed in parallel and merged later.
+  static Future<List<Message>> getCachedMessages(
+    String chatId, {int limit = 50}
+  ) async {
+    final localReady = LocalDbService.init();
+    unawaited(_warmFastStore());
+    await localReady;
+    return LocalDbService.getMessages(chatId, limit: limit);
+  }
+
+  static Future<void> _warmFastStore() async {
+    try {
+      _fastDb ??= await FastDbService.database;
+    } catch (e) {
+      print('Drift warm-up failed: $e');
     }
   }
 
@@ -47,17 +73,17 @@ class HybridDbService {
       // FastDbService already returns models.Message (converted in fast_db_service.dart)
       // Drift provides indexed ordering; Hive retains the complete Message model
       // (including attachments, polls, games and other optional payloads).
-      final indexed = await _fastDb!.getMessages(chatId, limit: limit);
-      final complete = await LocalDbService.getMessages(chatId, limit: limit);
+      final reads = await Future.wait<List<Message>>([
+        _fastDb!.getMessages(chatId, limit: limit),
+        LocalDbService.getMessages(chatId, limit: limit),
+      ]);
+      final indexed = reads[0];
+      final complete = reads[1];
       final merged = <String, Message>{
         for (final message in indexed) message.id: message,
         for (final message in complete) message.id: message,
       };
-      final result = merged.values.toList()
-        ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
-      return result.length > limit
-          ? result.sublist(result.length - limit)
-          : result;
+      return latestMessagesPage(merged.values, limit: limit);
     } catch (e) {
       print('Error getting messages: $e');
       return [];
@@ -67,23 +93,34 @@ class HybridDbService {
   /// Get older messages (pagination) - FAST with Drift indexes
   static Future<List<Message>> getOlderMessages(
     String chatId,
-    DateTime before,
-    {int limit = 30}
-  ) async {
+    DateTime before, {
+    String? beforeId,
+    int limit = 30,
+  }) async {
     await _ensureInit();
     try {
-      // FastDbService already returns models.Message (converted in fast_db_service.dart)
-      final indexed = await _fastDb!.getOlderMessages(chatId, before, limit: limit);
-      final complete = await LocalDbService.getOlderMessages(chatId, before, limit: limit);
+      // Both stores use the same composite cursor and ascending output order.
+      final reads = await Future.wait<List<Message>>([
+        _fastDb!.getOlderMessages(
+          chatId,
+          before,
+          beforeId: beforeId,
+          limit: limit,
+        ),
+        LocalDbService.getOlderMessages(
+          chatId,
+          before,
+          beforeId: beforeId,
+          limit: limit,
+        ),
+      ]);
+      final indexed = reads[0];
+      final complete = reads[1];
       final merged = <String, Message>{
         for (final message in indexed) message.id: message,
         for (final message in complete) message.id: message,
       };
-      final result = merged.values.toList()
-        ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
-      return result.length > limit
-          ? result.sublist(result.length - limit)
-          : result;
+      return latestMessagesPage(merged.values, limit: limit);
     } catch (e) {
       print('Error getting older messages: $e');
       return [];
@@ -92,54 +129,32 @@ class HybridDbService {
 
   /// Save a single message - FAST with Drift
   static Future<void> saveMessage(Message message) async {
-    await _ensureInit();
-    try {
-      await Future.wait([
-        _fastDb!.saveMessage(message),
-        LocalDbService.saveMessage(message),
-      ]);
-    } catch (e) {
-      print('Error saving message: $e');
-    }
+    await _ensureLocalInit();
+    // Hive stores the complete message payload and is the durable first write.
+    await LocalDbService.saveMessage(message);
+    _queueDriftWrite((db) => db.saveMessage(message));
   }
 
   /// Save multiple messages (bulk insert) - FAST with Drift
   static Future<void> saveMessages(List<Message> messages) async {
-    await _ensureInit();
-    try {
-      await Future.wait([
-        _fastDb!.saveMessages(messages),
-        LocalDbService.saveMessages(messages),
-      ]);
-    } catch (e) {
-      print('Error saving messages: $e');
-    }
+    await _ensureLocalInit();
+    final snapshot = List<Message>.unmodifiable(messages);
+    await LocalDbService.saveMessages(snapshot);
+    _queueDriftWrite((db) => db.saveMessages(snapshot));
   }
 
   /// Update a message
   static Future<void> updateMessage(String messageId, Message updated) async {
-    await _ensureInit();
-    try {
-      await Future.wait([
-        _fastDb!.updateMessage(messageId, updated),
-        LocalDbService.updateMessage(messageId, updated),
-      ]);
-    } catch (e) {
-      print('Error updating message: $e');
-    }
+    await _ensureLocalInit();
+    await LocalDbService.updateMessage(messageId, updated);
+    _queueDriftWrite((db) => db.updateMessage(messageId, updated));
   }
 
   /// Delete a message
   static Future<void> deleteMessage(String messageId) async {
-    await _ensureInit();
-    try {
-      await Future.wait([
-        _fastDb!.deleteMessage(messageId),
-        LocalDbService.deleteMessage(messageId),
-      ]);
-    } catch (e) {
-      print('Error deleting message: $e');
-    }
+    await _ensureLocalInit();
+    await LocalDbService.deleteMessage(messageId);
+    _queueDriftWrite((db) => db.deleteMessage(messageId));
   }
 
   /// Get message count for a chat
@@ -352,6 +367,8 @@ class HybridDbService {
     final normalized = username.trim().toLowerCase();
     if (normalized.isEmpty) return;
 
+    // Finish queued mirrors before switching account-scoped database files.
+    await _driftWriteQueue;
     await LocalDbService.init();
     final legacyOwner = await LocalDbService.getAccountScope();
     await LocalDbService.activateAccount(normalized);
@@ -373,6 +390,7 @@ class HybridDbService {
 
   /// Clear all data (logout)
   static Future<void> clearAll() async {
+    await _driftWriteQueue;
     await _ensureInit();
     try {
       await _fastDb!.clearAll();
@@ -403,16 +421,33 @@ class HybridDbService {
   }
 
   /// Ensure initialization
-  static Future<void> _ensureInit() async {
-    if (!_isInitialized) {
-      await init();
-    }
+  static Future<void> _ensureLocalInit() async {
+    await LocalDbService.init();
   }
 
-  /// Close all databases
+  static void _queueDriftWrite(
+    Future<void> Function(FastDatabase db) write,
+  ) {
+    _driftWriteQueue = _driftWriteQueue.then((_) async {
+      await _ensureInit();
+      final db = _fastDb;
+      if (db != null) await write(db);
+    }).catchError((Object error) {
+      print('Background Drift mirror failed: $error');
+    });
+  }
+
+  static Future<void> _ensureInit() async {
+    if (!_isInitialized) await init();
+  }
+
+  /// Close all databases after pending secondary writes have drained.
   static Future<void> close() async {
+    await _driftWriteQueue;
     await FastDbService.close();
     await LocalDbService.close();
     _isInitialized = false;
+    _initFuture = null;
+    _fastDb = null;
   }
 }

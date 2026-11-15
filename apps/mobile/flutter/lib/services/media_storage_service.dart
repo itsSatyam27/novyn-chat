@@ -9,6 +9,27 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'api_service.dart';
 
+/// Merges a completed download batch with attachments queued while it ran.
+/// Failed or policy-deferred batch items stay queued; newly arrived items are
+/// never lost when the batch writes its result.
+List<Map<String, dynamic>> mergePendingMediaQueue({
+  required List<Map<String, dynamic>> batch,
+  required List<Map<String, dynamic>> remaining,
+  required List<Map<String, dynamic>> latest,
+}) {
+  final batchIds = batch.map((item) => item['id']?.toString() ?? '').toSet();
+  final merged = <String, Map<String, dynamic>>{};
+  for (final item in remaining) {
+    final id = item['id']?.toString() ?? '';
+    if (id.isNotEmpty) merged[id] = item;
+  }
+  for (final item in latest) {
+    final id = item['id']?.toString() ?? '';
+    if (id.isNotEmpty && !batchIds.contains(id)) merged.putIfAbsent(id, () => item);
+  }
+  return merged.values.toList();
+}
+
 /// Applies the user's media-download policy to newly received attachments.
 /// Downloads are performed while Novyn is running; the OS may suspend this
 /// work when the app is terminated or heavily background-restricted.
@@ -108,7 +129,15 @@ class MediaStorageService {
           _inFlight.remove(id);
         }
       }
-      await prefs.setString(_queueKey, jsonEncode(remaining));
+      // Attachments can arrive while this batch is downloading. Merge against
+      // the latest persisted queue so those new items are not overwritten.
+      final latest = _readQueue(prefs);
+      final merged = mergePendingMediaQueue(
+        batch: queue,
+        remaining: remaining,
+        latest: latest,
+      );
+      await prefs.setString(_queueKey, jsonEncode(merged));
     } finally {
       _isDraining = false;
     }

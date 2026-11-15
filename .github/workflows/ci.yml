@@ -2,9 +2,9 @@ name: Novyn CI
 
 on:
   push:
-    branches: [main, "hardening/**"]
+    branches: [main, "phase-2", "features/**", "hardening/**", "calls/**", "offline/**"]
   pull_request:
-    branches: [main]
+    branches: [main, "phase-2"]
 
 jobs:
   validate:
@@ -37,10 +37,10 @@ jobs:
         run: flutter analyze --no-pub --no-fatal-infos --no-fatal-warnings
       - name: Run dock widget tests
         working-directory: apps/mobile/flutter
-        run: flutter test --no-pub test/novyn_dock_test.dart test/quick_toggle_preferences_test.dart
+        run: flutter test --no-pub test/novyn_dock_test.dart test/quick_toggle_preferences_test.dart test/quick_toggle_layout_test.dart test/message_encryption_test.dart test/rtc_ice_configuration_test.dart test/pending_message_queue_test.dart test/message_pagination_test.dart test/smart_presence_policy_test.dart test/last_seen_presence_test.dart test/media_download_queue_test.dart
 
   android-release-compile:
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/heads/hardening/')
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/phase-2' || startsWith(github.ref, 'refs/heads/hardening/') || startsWith(github.ref, 'refs/heads/calls/') || startsWith(github.ref, 'refs/heads/offline/'))
     name: Android release APK compile
     runs-on: ubuntu-latest
     steps:
@@ -95,4 +95,11 @@ jobs:
         run: flutter pub get
       - name: Compile Android release APK
         working-directory: apps/mobile/flutter
-        run: flutter build apk --release --build-number="${GITHUB_RUN_NUMBER}"
+        run: flutter build apk --release --target-platform android-arm64 --split-per-abi --build-number="${GITHUB_RUN_NUMBER}"
+      - name: Upload ARM64 release APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Novyn-Android-ARM64
+          path: apps/mobile/flutter/build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
+          if-no-files-found: error
+          retention-days: 14

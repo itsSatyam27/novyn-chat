@@ -1,218 +1,441 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
-import '../../../widgets/novyn_brand_mark.dart';
-import 'package:http/http.dart' as http;
+import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
-
 import '../../../theme/novyn_theme.dart';
 import '../../../services/api_service.dart';
+import '../../../services/app_update_service.dart';
 
-const _appVersion = '1.0.0';
-const _buildNumber = '1';
-const _releasesApi = 'https://api.github.com/repos/itsSatyam27/novyn-chat/releases/latest';
+const _installerChannel = MethodChannel('com.example.novyn/apk_installer');
 
 class AboutNovynScreen extends StatefulWidget {
   const AboutNovynScreen({super.key});
-
   @override
   State<AboutNovynScreen> createState() => _AboutNovynScreenState();
 }
 
 class _AboutNovynScreenState extends State<AboutNovynScreen> {
-  bool _checking = false;
-  String? _status;
-  Uri? _releaseUrl;
-  bool? _updateAvailable;
+  bool _checking = true, _downloading = false, _installing = false;
+  String? _status, _apkUrl, _expectedSha256, _downloadedApkPath;
+  int? _apkSize;
+  int _installedBuild = 0, _latestBuild = 0;
+  double _downloadProgress = 0;
+  String _appVersion = AppUpdateService.displayVersion, _buildNumber = '0';
+  final AppUpdateService _updateService = AppUpdateService.instance;
+
+  @override
+  void initState() {
+    super.initState();
+    _updateService.addListener(_handleDownloadStateChanged);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _checkForUpdates();
+    });
+  }
+
+  void _handleDownloadStateChanged() {
+    if (!mounted) return;
+    setState(() {
+      _downloading = _updateService.isDownloading;
+      _downloadProgress = _updateService.downloadProgress;
+      _downloadedApkPath = _updateService.downloadedApkPath;
+      if (_updateService.downloadError != null) {
+        _status = _updateService.downloadError;
+      } else if (_downloadedApkPath != null) {
+        _status = 'ARM64 APK downloaded and verified. Ready to install.';
+      } else if (_downloading) {
+        _status = 'Downloading ARM64 update…';
+      }
+    });
+  }
 
   Future<void> _checkForUpdates() async {
-    setState(() {
-      _checking = true;
-      _status = null;
-      _releaseUrl = null;
-      _updateAvailable = null;
-    });
+    if (mounted) {
+      setState(() {
+        _checking = true;
+        _status = null;
+        _latestBuild = 0;
+        _apkUrl = null;
+        _expectedSha256 = null;
+        _apkSize = null;
+      });
+    }
     try {
-      final response = await http.get(
-        Uri.parse(_releasesApi),
-        headers: const {'Accept': 'application/vnd.github+json'},
-      ).timeout(const Duration(seconds: 15));
+      final result = await _updateService.checkForUpdates();
       if (!mounted) return;
-      if (response.statusCode == 404) {
-        setState(() => _status = 'No public release is available yet. You are using Novyn v$_appVersion.');
+      _installedBuild = result.installedBuild;
+      _appVersion = AppUpdateService.displayVersion;
+      _buildNumber = result.buildNumber;
+      final release = result.release;
+      if (release != null) {
+        _latestBuild = release.build;
+        _apkUrl = release.url;
+        _expectedSha256 = release.sha256;
+        _apkSize = release.size;
+      }
+      setState(() {
+        _status = result.message;
+        _checking = false;
+      });
+      _handleDownloadStateChanged();
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _status = 'Could not verify updates. Check your connection and try again.';
+          _checking = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _downloadUpdate() async {
+    await _updateService.downloadUpdate();
+  }
+
+  Future<void> _installUpdate() async {
+    final path = _downloadedApkPath;
+    if (path == null) return;
+    setState(() => _installing = true);
+    try {
+      final allowed = await _installerChannel.invokeMethod<bool>('canInstallPackages') ?? false;
+      if (!allowed) {
+        await _installerChannel.invokeMethod<void>('openInstallPermissionSettings');
+        if (mounted) setState(() => _status = 'Allow Novyn to install updates, then tap Install update again.');
         return;
       }
-      if (response.statusCode != 200) {
-        throw Exception('Update service returned status ${response.statusCode}.');
-      }
-      final data = jsonDecode(response.body);
-      if (data is! Map) throw const FormatException('Invalid release information.');
-      final tag = (data['tag_name'] ?? '').toString().replaceFirst(RegExp(r'^[vV]'), '');
-      final url = Uri.tryParse((data['html_url'] ?? '').toString());
-      if (tag.isEmpty || url == null || !url.hasScheme) {
-        throw const FormatException('Latest release information is incomplete.');
-      }
-      final available = _compareVersions(tag, _appVersion) > 0;
-      setState(() {
-        _releaseUrl = url;
-        _updateAvailable = available;
-        _status = available
-          ? 'Novyn v$tag is available. Open the release page to view release notes and download options.'
-          : 'You are up to date. Novyn v$_appVersion is the latest published release.';
-      });
-    } catch (error) {
-      if (mounted) setState(() => _status = 'Could not check for updates. Check your internet connection and try again.');
+      await _installerChannel.invokeMethod<void>('installApk', {'path': path});
+    } on PlatformException {
+      if (mounted) setState(() => _status = 'Could not open Android installer. Please try again.');
     } finally {
-      if (mounted) setState(() => _checking = false);
-    }
-  }
-
-  int _compareVersions(String left, String right) {
-    List<int> parts(String value) => value.split('.').map((part) {
-      final digits = RegExp(r'^\d+').firstMatch(part)?.group(0);
-      return int.tryParse(digits ?? '') ?? 0;
-    }).toList();
-    final a = parts(left), b = parts(right);
-    for (var i = 0; i < (a.length > b.length ? a.length : b.length); i++) {
-      final av = i < a.length ? a[i] : 0;
-      final bv = i < b.length ? b[i] : 0;
-      if (av != bv) return av.compareTo(bv);
-    }
-    return 0;
-  }
-
-  Future<void> _openRelease() async {
-    final url = _releaseUrl;
-    if (url == null) return;
-    if (!await launchUrl(url, mode: LaunchMode.externalApplication) && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not open the release page.')));
+      if (mounted) setState(() => _installing = false);
     }
   }
 
   @override
+  void dispose() {
+    _updateService.removeListener(_handleDownloadStateChanged);
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final pageBg = dark ? NovynTheme.pageBg(context) : const Color(0xFFF5F3FF);
+    final ink = dark ? const Color(0xFFF0EFFF) : const Color(0xFF1E1B49);
+    final muted = dark ? const Color(0xFFAAA8C6) : const Color(0xFF5D5A85);
+    final surface = dark ? const Color(0xFF13141D) : Colors.white;
+    final border = dark ? const Color(0xFF39345F) : const Color(0xFFDDD8FF);
+    final primary = Theme.of(context).colorScheme.primary;
+    final available = _latestBuild > _installedBuild;
+    final upToDate = !_checking && !available &&
+        (_status?.toLowerCase().contains('up to date') == true);
+    final error = !_checking && !available && !upToDate;
+
     return Scaffold(
-      backgroundColor: NovynTheme.pageBg(context),
-      appBar: AppBar(
-        backgroundColor: NovynTheme.pageBg(context),
-        elevation: 0,
-        title: const Text('About Novyn', style: TextStyle(fontWeight: FontWeight.w800)),
-      ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 18, 20, 36),
-        children: [
-          Center(
-            child: Column(children: [
-              Container(
-                width: 92,
-                height: 92,
-                padding: const EdgeInsets.all(17),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(27),
-                  gradient: const LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [Color(0xFF7C6CFF), Color(0xFF5141CD)],
+      backgroundColor: pageBg,
+      body: SafeArea(
+        child: SingleChildScrollView(
+          physics: const BouncingScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(20, 10, 20, 34),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(children: [
+                Material(
+                  color: surface,
+                  borderRadius: BorderRadius.circular(17),
+                  child: InkWell(
+                    onTap: () => Navigator.of(context).maybePop(),
+                    borderRadius: BorderRadius.circular(17),
+                    child: Container(
+                      width: 46,
+                      height: 46,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(17),
+                        border: Border.all(color: border),
+                      ),
+                      child: Icon(Icons.chevron_left_rounded, color: ink, size: 30),
+                    ),
                   ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFF5141CD).withValues(alpha: .22),
-                      blurRadius: 22,
-                      offset: const Offset(0, 9),
+                ),
+                const SizedBox(width: 14),
+                Text('About Novyn', style: TextStyle(color: ink, fontSize: 26,
+                  letterSpacing: -.7, fontWeight: FontWeight.w800)),
+              ]),
+              const SizedBox(height: 22),
+              Center(
+                child: Column(children: [
+                  Container(
+                    width: 88,
+                    height: 88,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(29),
+                      gradient: const LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [Color(0xFF806FFF), Color(0xFF5141CD)],
+                      ),
+                      boxShadow: [BoxShadow(
+                        color: const Color(0xFF5141CD).withValues(alpha: .23),
+                        blurRadius: 28, offset: const Offset(0, 11))],
+                    ),
+                    child: const Icon(Icons.bookmark_rounded, color: Colors.white, size: 47),
+                  ),
+                  const SizedBox(height: 16),
+                  Text('Novyn', style: TextStyle(color: ink, fontSize: 34,
+                    letterSpacing: -1.1, fontWeight: FontWeight.w800)),
+                  const SizedBox(height: 5),
+                  Text('Your space, your people.',
+                    style: TextStyle(color: muted, fontSize: 16, fontWeight: FontWeight.w500)),
+                  const SizedBox(height: 14),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 17, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: surface,
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(color: border),
+                    ),
+                    child: Text('Version $_appVersion (build $_buildNumber)',
+                      style: TextStyle(color: ink, fontSize: 14, fontWeight: FontWeight.w700)),
+                  ),
+                ]),
+              ),
+              const SizedBox(height: 22),
+              Container(
+                padding: const EdgeInsets.all(19),
+                decoration: BoxDecoration(
+                  color: available
+                      ? (dark ? const Color(0xFF211D3B) : const Color(0xFFF0EDFF))
+                      : surface,
+                  borderRadius: BorderRadius.circular(26),
+                  border: Border.all(color: available ? primary : border,
+                    width: available ? 1.5 : 1),
+                  boxShadow: available ? [BoxShadow(
+                    color: primary.withValues(alpha: .08),
+                    blurRadius: 22, offset: const Offset(0, 8))] : const [],
+                ),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                  Row(children: [
+                    Container(
+                      width: 46,
+                      height: 46,
+                      decoration: BoxDecoration(
+                        color: available
+                            ? primary
+                            : upToDate
+                                ? const Color(0xFFDDFBE8)
+                                : error
+                                    ? const Color(0xFFFFF0D9)
+                                    : primary.withValues(alpha: .12),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: _checking
+                          ? const Padding(
+                              padding: EdgeInsets.all(13),
+                              child: CircularProgressIndicator(strokeWidth: 2.2))
+                          : Icon(
+                              available ? Icons.download_rounded :
+                                upToDate ? Icons.check_rounded :
+                                  error ? Icons.error_outline_rounded : Icons.sync_rounded,
+                              color: available ? Colors.white :
+                                upToDate ? const Color(0xFF176B3B) :
+                                  error ? const Color(0xFF9A5A08) : primary,
+                              size: 25),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          available ? 'Update available' :
+                            upToDate ? 'You are up to date' :
+                              error ? 'Could not check for updates' : 'Checking for updates',
+                          style: TextStyle(color: ink, fontSize: 18,
+                            letterSpacing: -.35, fontWeight: FontWeight.w800)),
+                        const SizedBox(height: 3),
+                        Text(
+                          available ? 'A newer build is ready to install.' :
+                            upToDate ? 'Last checked just now' :
+                              error ? (_status ?? 'Check your connection and try again.') :
+                                'Looking for the latest Novyn build.',
+                          style: TextStyle(color: muted, fontSize: 13, height: 1.35,
+                            fontWeight: FontWeight.w500)),
+                      ],
+                    )),
+                  ]),
+                  if (available) ...[
+                    const SizedBox(height: 14),
+                    Wrap(spacing: 8, runSpacing: 8, children: [
+                      _updateChip(((_apkSize ?? 0) / 1000000).toStringAsFixed(1) + ' MB',
+                        surface, ink, border),
+                      _updateChip('ARM64-v8a', surface, ink, border),
+                    ]),
+                    if (_downloading || _updateService.hasPartialDownload) ...[
+                      const SizedBox(height: 14),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: LinearProgressIndicator(
+                          value: _downloadProgress,
+                          minHeight: 5,
+                          backgroundColor: primary.withValues(alpha: .15)),
+                      ),
+                      const SizedBox(height: 6),
+                      Text('Downloading ${(_downloadProgress * 100).toStringAsFixed(0)}%',
+                        style: TextStyle(color: muted, fontSize: 12, fontWeight: FontWeight.w600)),
+                    ],
+                    if (_updateService.downloadError != null) ...[
+                      const SizedBox(height: 10),
+                      Text(
+                        _updateService.downloadError!,
+                        style: TextStyle(color: muted, fontSize: 12.5, height: 1.35),
+                      ),
+                    ],
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      height: 54,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [Color(0xFF705DFF), Color(0xFF5543E8)],
+                          ),
+                          borderRadius: BorderRadius.circular(32),
+                          boxShadow: [BoxShadow(
+                            color: primary.withValues(alpha: .24),
+                            blurRadius: 20, offset: const Offset(0, 8))],
+                        ),
+                        child: Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            onTap: _downloading || _installing
+                                ? null
+                                : (_downloadedApkPath == null ? _downloadUpdate : _installUpdate),
+                            borderRadius: BorderRadius.circular(32),
+                            child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                              if (_downloading || _installing)
+                                const SizedBox(width: 20, height: 20,
+                                  child: CircularProgressIndicator(strokeWidth: 2,
+                                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white)))
+                              else
+                                Icon(_downloadedApkPath == null
+                                  ? Icons.download_rounded : Icons.install_mobile_rounded,
+                                  color: Colors.white, size: 22),
+                              const SizedBox(width: 10),
+                              Text(
+                                _downloading ? 'Downloading update' :
+                                  _installing ? 'Opening installer' :
+                                    _downloadedApkPath == null
+                                        ? (_updateService.hasPartialDownload ? 'Resume download' : 'Download update')
+                                        : 'Install update',
+                                style: const TextStyle(color: Colors.white,
+                                  fontSize: 15.5, fontWeight: FontWeight.w800)),
+                            ]),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 11),
+                    Center(child: TextButton(
+                      onPressed: _checking || _downloading || _installing ? null : _checkForUpdates,
+                      style: TextButton.styleFrom(foregroundColor: primary,
+                        textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800)),
+                      child: const Text('Check again'))),
+                  ] else ...[
+                    if (error) ...[
+                      const SizedBox(height: 12),
+                      Text('$_status', style: TextStyle(color: muted, fontSize: 12.5, height: 1.4)),
+                    ],
+                    const SizedBox(height: 17),
+                    SizedBox(
+                      height: 54,
+                      child: OutlinedButton.icon(
+                        onPressed: _checking ? null : _checkForUpdates,
+                        icon: _checking
+                            ? SizedBox(width: 19, height: 19,
+                                child: CircularProgressIndicator(strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(ink)))
+                            : Icon(Icons.refresh_rounded, color: ink, size: 21),
+                        label: Text(
+                          _checking ? 'Checking for updates' :
+                            upToDate ? 'Check for updates' : 'Try again',
+                          style: TextStyle(color: ink, fontSize: 15, fontWeight: FontWeight.w800)),
+                        style: OutlinedButton.styleFrom(
+                          side: BorderSide(color: border, width: 1.5),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(32))),
+                      ),
                     ),
                   ],
-                ),
-                child: const NovynBrandMark(size: 76),
+                ]),
               ),
-              const SizedBox(height: 16),
-              Text('Novyn', style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w900)),
-              const SizedBox(height: 5),
-              Text('Your space, your people.', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: colors.onSurfaceVariant)),
-            ]),
-          ),
-          const SizedBox(height: 28),
-          _infoCard(context, [
-            _InfoRow(label: 'App version', value: '$_appVersion ($_buildNumber)'),
-            _InfoRow(label: 'Platform', value: 'Flutter'),
-            _InfoRow(label: '©', value: '2026 Novyn'),
-          ]),
-          const SizedBox(height: 18),
-          Container(
-            padding: const EdgeInsets.all(17),
-            decoration: BoxDecoration(
-              color: NovynTheme.cardBg(context),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: colors.outlineVariant.withValues(alpha: .6)),
-            ),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Row(children: [
-                Icon(Icons.system_update_alt_rounded, color: colors.primary),
-                const SizedBox(width: 10),
-                const Expanded(child: Text('App updates', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16))),
+              const SizedBox(height: 15),
+              _infoCard(context, [
+                _InfoRow(label: 'App version', value: '$_appVersion (build $_buildNumber)'),
+                Divider(height: 1, color: border.withValues(alpha: .8)),
+                const _InfoRow(label: 'Platform', value: 'Flutter · Android ARM64'),
               ]),
-              const SizedBox(height: 8),
-              Text('Check the latest published Novyn release.', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant)),
-              const SizedBox(height: 14),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton.icon(
-                  onPressed: _checking ? null : _checkForUpdates,
-                  icon: _checking
-                    ? const SizedBox(width: 17, height: 17, child: CircularProgressIndicator(strokeWidth: 2))
-                    : const Icon(Icons.refresh_rounded),
-                  label: Text(_checking ? 'Checking…' : 'Check for updates'),
-                ),
-              ),
-              if (_status != null) ...[
-                const SizedBox(height: 12),
-                Text(_status!, style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: _updateAvailable == true ? colors.primary : colors.onSurfaceVariant,
-                  height: 1.45,
-                )),
-                if (_updateAvailable == true) ...[
-                  const SizedBox(height: 10),
-                  OutlinedButton.icon(
-                    onPressed: _openRelease,
-                    icon: const Icon(Icons.open_in_new_rounded),
-                    label: const Text('View update'),
-                  ),
-                ],
-              ],
-            ]),
+              const SizedBox(height: 23),
+              Center(child: Text('MADE TO KEEP YOUR PEOPLE CLOSE',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: muted, fontSize: 12.5, letterSpacing: 1.7,
+                  fontWeight: FontWeight.w800))),
+              const SizedBox(height: 6),
+              Center(child: Text('© ${DateTime.now().year} Novyn',
+                style: TextStyle(color: muted, fontSize: 12.5, fontWeight: FontWeight.w500))),
+            ],
           ),
-          const SizedBox(height: 22),
-          Center(child: Text('MADE TO KEEP YOUR PEOPLE CLOSE', style: Theme.of(context).textTheme.labelSmall?.copyWith(
-            letterSpacing: 1.2, color: colors.onSurfaceVariant.withValues(alpha: .65), fontWeight: FontWeight.w800,
-          ))),
-        ],
+        ),
       ),
     );
   }
 
+  Widget _updateChip(String text, Color surface, Color ink, Color border) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+      decoration: BoxDecoration(
+        color: surface,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: border),
+      ),
+      child: Text(text, style: TextStyle(color: ink, fontSize: 13,
+        fontWeight: FontWeight.w700)),
+    );
+  }
+
   Widget _infoCard(BuildContext context, List<Widget> children) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 4),
     decoration: BoxDecoration(
       color: NovynTheme.cardBg(context),
-      borderRadius: BorderRadius.circular(20),
-      border: Border.all(color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: .6)),
+      borderRadius: BorderRadius.circular(25),
+      border: Border.all(color: Theme.of(context).brightness == Brightness.dark
+        ? const Color(0xFF39345F) : const Color(0xFFDDD8FF)),
     ),
     child: Column(children: children),
   );
+
+
 }
 
 class _InfoRow extends StatelessWidget {
   const _InfoRow({required this.label, required this.value});
   final String label;
   final String value;
+
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 11),
-    child: Row(children: [
-      Expanded(child: Text(label, style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant))),
-      Text(value, style: const TextStyle(fontWeight: FontWeight.w800)),
-    ]),
-  );
+  Widget build(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 15),
+      child: Row(children: [
+        Expanded(child: Text(label, style: TextStyle(
+          color: dark ? const Color(0xFFAAA8C6) : const Color(0xFF5D5A85),
+          fontSize: 14.5, fontWeight: FontWeight.w500))),
+        const SizedBox(width: 12),
+        Flexible(child: Text(value, textAlign: TextAlign.right, maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(color: dark ? const Color(0xFFF0EFFF) : const Color(0xFF1E1B49),
+            fontSize: 14.5, fontWeight: FontWeight.w800))),
+      ]),
+    );
+  }
 }
 
 class HelpSupportScreen extends StatelessWidget {

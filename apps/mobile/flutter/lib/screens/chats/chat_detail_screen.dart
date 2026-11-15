@@ -27,6 +27,7 @@ import '../../services/draft_service.dart';
 import '../../services/settings_service.dart';
 import '../../services/media_storage_service.dart';
 import '../../widgets/user_avatar.dart';
+import '../../utils/presence_utils.dart';
 import '../../widgets/novyn_toast.dart';
 import 'profile_info_screen.dart';
 import 'group_info_screen.dart';
@@ -130,6 +131,10 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
   String? _myUid;
   bool _peerIsOnline = false;
   String _peerPresence = 'offline';
+  DateTime? _peerLastSeen;
+  bool _showPeerLastSeen = false;
+  Timer? _presenceTransitionTimer;
+  Timer? _lastSeenRefreshTimer;
   dynamic _replyingTo; // the message being replied to
   bool _uploadingAttachment = false;
   final ImagePicker _imagePicker = ImagePicker();
@@ -163,6 +168,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
     _syncTypingAnimation();
     _peerIsOnline = widget.peer.isOnline;
     _peerPresence = widget.peer.status.trim().toLowerCase();
+    _peerLastSeen = widget.peer.lastSeen;
+    _schedulePeerLastSeenReveal();
     _loadQuickEmojis();
     _init();
     _scroll.addListener(_onScroll);
@@ -181,6 +188,35 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
     });
   }
 
+  bool _isOfflinePresenceState() =>
+      !_peerIsOnline || _peerPresence == 'offline' || _peerPresence == 'invisible';
+
+  String _peerStatusLabel() {
+    if (_peerPresence == 'away') return 'Away';
+    if (_peerPresence == 'busy' || _peerPresence == 'dnd') return 'Busy';
+    if (_isOfflinePresenceState()) {
+      return _showPeerLastSeen && _peerLastSeen != null
+          ? formatLastSeenLabel(_peerLastSeen)
+          : 'Offline';
+    }
+    return 'Online';
+  }
+
+  void _schedulePeerLastSeenReveal() {
+    _presenceTransitionTimer?.cancel();
+    _lastSeenRefreshTimer?.cancel();
+    _showPeerLastSeen = false;
+    if (widget.isGroup || !_isOfflinePresenceState() || _peerLastSeen == null) return;
+    // Keep Offline visible briefly, then transition inside a fixed-height slot.
+    _presenceTransitionTimer = Timer(const Duration(milliseconds: 850), () {
+      if (!mounted || !_isOfflinePresenceState() || _peerLastSeen == null) return;
+      setState(() => _showPeerLastSeen = true);
+      _lastSeenRefreshTimer = Timer.periodic(const Duration(minutes: 1), (_) {
+        if (mounted && _showPeerLastSeen) setState(() {});
+      });
+    });
+  }
+
   void _handlePeerPresenceChanged() {
     if (!mounted || widget.isGroup) return;
     final currentPeer =
@@ -189,12 +225,17 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
 
     final nextOnline = currentPeer.isOnline;
     final nextPresence = currentPeer.status.trim().toLowerCase();
-    if (_peerIsOnline == nextOnline && _peerPresence == nextPresence) return;
+    final nextLastSeen = currentPeer.lastSeen;
+    if (_peerIsOnline == nextOnline &&
+        _peerPresence == nextPresence &&
+        _peerLastSeen == nextLastSeen) return;
 
     setState(() {
       _peerIsOnline = nextOnline;
       _peerPresence = nextPresence;
+      _peerLastSeen = nextLastSeen;
     });
+    _schedulePeerLastSeenReveal();
   }
 
   // Load draft message for this chat
@@ -287,60 +328,54 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
       return;
     }
 
-    _chatId = widget.peer.uid.isNotEmpty
-        ? widget.peer.uid
+    // Direct-message history and notification deep-links use the peer
+    // username as the canonical conversation key. Groups retain their UID key.
+    _chatId = widget.isGroup
+        ? (widget.peer.uid.isNotEmpty ? widget.peer.uid : widget.peer.username)
         : widget.peer.username;
 
+    final cacheWatch = Stopwatch()..start();
     List<Message> cachedMessages = [];
     try {
-      // Never let a slow local database keep the whole conversation screen
-      // on its first-load spinner indefinitely.
-      cachedMessages = await HybridDbService.getMessages(_chatId!)
-          .timeout(const Duration(seconds: 6), onTimeout: () => <Message>[]);
+      // Render the complete Hive cache first; Drift is warmed and merged later.
+      cachedMessages = await HybridDbService.getCachedMessages(_chatId!)
+          .timeout(const Duration(seconds: 4), onTimeout: () => <Message>[]);
     } catch (error) {
       debugPrint('[NovynChat] Local message cache read failed: $error');
     }
+    debugPrint('[NovynPerf] chat_cache_ms=${cacheWatch.elapsedMilliseconds} count=${cachedMessages.length}');
     if (!mounted) return;
 
-    socket.openChat(_chatId!, cachedMessages, isGroup: widget.isGroup);
+    // openChat requests history from the authenticated Socket.IO session and
+    // completes only after the matching conversation response is processed.
+    // Avoid the legacy REST history endpoint, which can return an empty list
+    // independently of the live conversation and race the socket response.
+    final historyRequest = socket.openChat(
+      _chatId!,
+      cachedMessages,
+      isGroup: widget.isGroup,
+    );
+    unawaited(_hydrateIndexedCache(_chatId!, socket));
     setState(() {
       _loading = false;
       _fetchingFromServer = cachedMessages.isEmpty;
     });
 
     try {
-      // Group history is delivered by the authenticated Socket.IO group
-      // channel. The legacy REST history endpoint is for direct conversations.
-      final history = widget.isGroup
-          ? await Future<List<Message>>.delayed(
-              const Duration(milliseconds: 900),
-              () => socket.messages,
-            )
-          : await ApiService.getHistory(
-              _chatId!,
-              myUsername: _myUid,
-            ).timeout(const Duration(seconds: 12), onTimeout: () => <Message>[]);
-
+      final history = await historyRequest;
       if (!mounted) return;
+
       if (history.isNotEmpty) {
-        // Publish messages to the active timeline before waiting for disk I/O.
-        socket.mergeChatHistory(history);
+        // The socket service has already merged these messages into the
+        // active timeline. Persist the confirmed snapshot and reveal it.
         unawaited(HybridDbService.saveMessages(history));
         unawaited(HybridDbService.setLastSync(_chatId!, DateTime.now()));
         _jumpToLatestImmediately();
-      } else if (cachedMessages.isNotEmpty) {
+      } else if (socket.messages.isNotEmpty) {
+        // A live message may have arrived while the history request was in flight.
         _jumpToLatestImmediately();
       } else {
-        // Socket history is also requested by openChat/resume_session. Give
-        // that authenticated response a short chance to arrive before showing
-        // the empty-conversation state.
-        await Future<void>.delayed(const Duration(milliseconds: 900));
-        if (!mounted) return;
-        if (socket.messages.isNotEmpty) {
-          _jumpToLatestImmediately();
-        } else {
-          setState(() => _initialPositionReady = true);
-        }
+        setState(() => _initialPositionReady = true);
       }
 
       final settings = context.read<SettingsService>();
@@ -358,6 +393,24 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
       }
     } finally {
       if (mounted) setState(() => _fetchingFromServer = false);
+    }
+  }
+
+  Future<void> _hydrateIndexedCache(String chatId, SocketService socket) async {
+    final watch = Stopwatch()..start();
+    try {
+      final merged = await HybridDbService.getMessages(chatId);
+      if (!mounted || _chatId != chatId || merged.isEmpty) return;
+      // Do not let a late, potentially stale disk mirror overwrite newer
+      // socket/server message state; only backfill IDs missing from memory.
+      final existingIds = socket.messages.map((message) => message.id).toSet();
+      final missing = merged
+          .where((message) => !existingIds.contains(message.id))
+          .toList();
+      if (missing.isNotEmpty) socket.mergeChatHistory(missing);
+      debugPrint('[NovynPerf] chat_secondary_cache_ms=${watch.elapsedMilliseconds} backfilled=${missing.length}');
+    } catch (error) {
+      debugPrint('[NovynChat] Secondary cache hydration failed: $error');
     }
   }
 
@@ -400,6 +453,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
     WidgetsBinding.instance.removeObserver(this);
     _typingAnimation.dispose();
     _voiceTimer?.cancel();
+    _presenceTransitionTimer?.cancel();
+    _lastSeenRefreshTimer?.cancel();
     if (_isRecordingVoice) unawaited(_voiceRecorder.stop());
     unawaited(_voiceRecorder.dispose());
     _socketService.removeListener(_syncTypingAnimation);
@@ -649,6 +704,16 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
     final scheme = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;
     final accent = isDark ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.primary;
+    final peerStatusLabel = widget.isGroup
+        ? (widget.peer.bio.isNotEmpty ? widget.peer.bio : 'Group conversation')
+        : _peerStatusLabel();
+    final peerStatusColor = widget.isGroup
+        ? scheme.onSurfaceVariant
+        : switch (_peerPresence) {
+            'away' => const Color(0xFFF59E0B),
+            'busy' || 'dnd' => const Color(0xFFEC4899),
+            _ => _isOfflinePresenceState() ? scheme.onSurfaceVariant : const Color(0xFF10B981),
+          };
     return AppBar(
       backgroundColor: scheme.surface,
       surfaceTintColor: Colors.transparent,
@@ -699,29 +764,42 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                             color: scheme.onSurface,
                           ),
                         ),
-                        Text(
-                          widget.isGroup
-                              ? (widget.peer.bio.isNotEmpty ? widget.peer.bio : 'Group conversation')
-                              : switch (_peerPresence) {
-                                  'away' => 'Away',
-                                  'busy' || 'dnd' => 'Busy',
-                                  'offline' || 'invisible' => 'Offline',
-                                  _ => _peerIsOnline ? 'Online' : 'Offline',
-                                },
-                          style: TextStyle(
-                            fontFamily: 'PlusJakartaSans',
-                            fontSize: 13,
-                            fontWeight: FontWeight.w500,
-                            color: widget.isGroup
-                                ? scheme.onSurfaceVariant
-                                : switch (_peerPresence) {
-                                    'away' => const Color(0xFFF59E0B),
-                                    'busy' || 'dnd' => const Color(0xFFEC4899),
-                                    'offline' || 'invisible' => scheme.onSurfaceVariant,
-                                    _ => _peerIsOnline
-                                        ? const Color(0xFF10B981)
-                                        : scheme.onSurfaceVariant,
-                                  },
+                        SizedBox(
+                          height: 18,
+                          child: AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 320),
+                            switchInCurve: Curves.easeOutCubic,
+                            switchOutCurve: Curves.easeInCubic,
+                            transitionBuilder: (child, animation) {
+                              final slide = Tween<Offset>(
+                                begin: const Offset(0, .18),
+                                end: Offset.zero,
+                              ).animate(CurvedAnimation(
+                                parent: animation,
+                                curve: Curves.easeOutCubic,
+                              ));
+                              return FadeTransition(
+                                opacity: animation,
+                                child: SlideTransition(position: slide, child: child),
+                              );
+                            },
+                            child: Align(
+                              key: ValueKey(peerStatusLabel),
+                              alignment: Alignment.centerLeft,
+                              child: Text(
+                                peerStatusLabel,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                softWrap: false,
+                                style: TextStyle(
+                                  fontFamily: 'PlusJakartaSans',
+                                  fontSize: 13,
+                                  height: 1.1,
+                                  fontWeight: FontWeight.w500,
+                                  color: peerStatusColor,
+                                ),
+                              ),
+                            ),
                           ),
                         ),
                       ],

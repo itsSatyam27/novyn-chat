@@ -10,7 +10,7 @@ const { createSocketAuthMiddleware } = require("./server/realtime/socket-auth");
 const { isAllowedSocketOrigin } = require("./server/security/origins");
 const { mediaNames, canReadMedia } = require("./server/security/media-access");
 const { registerMessageMutationHandlers } = require("./server/realtime/message-mutations");
-const { registerCallHandlers } = require("./server/realtime/call-handlers");
+const { registerCallHandlers, cancelCallForUser } = require("./server/realtime/call-handlers");
 const { applyGameMove, createGameChallenge } = require("./server/realtime/game-rules");
 const { Server } = require("socket.io");
 const webpush = require("web-push");
@@ -1387,10 +1387,12 @@ function createUserRecord(username) {
     presenceMode: "online",
     publicKey: "",
     retentionDays: 0,
+    callsEnabled: true,
     callPrivacy: "friends",
     messagePrivacy: "friends",
     profilePhotoPrivacy: "everyone",
     presencePrivacy: "everyone",
+    discoverPrivacy: "everyone",
     readReceiptsEnabled: true,
     typingIndicatorsEnabled: true,
     groupInvitePrivacy: "friends",
@@ -1435,8 +1437,9 @@ function serializeState() {
       presenceMode: normalizePresenceMode(user.presenceMode),
       publicKey: toDisplayName(user.publicKey),
       retentionDays: 0,
-      callPrivacy: user.callPrivacy || "friends", messagePrivacy: user.messagePrivacy || "friends",
-      profilePhotoPrivacy: user.profilePhotoPrivacy || "everyone", presencePrivacy: user.presencePrivacy || "everyone",
+      callsEnabled: user.callsEnabled !== false,
+        callPrivacy: user.callPrivacy || "friends", messagePrivacy: user.messagePrivacy || "friends",
+      profilePhotoPrivacy: user.profilePhotoPrivacy || "everyone", presencePrivacy: user.presencePrivacy || "everyone", discoverPrivacy: user.discoverPrivacy || "everyone",
       readReceiptsEnabled: user.readReceiptsEnabled !== false, typingIndicatorsEnabled: user.typingIndicatorsEnabled !== false,
       groupInvitePrivacy: user.groupInvitePrivacy || "friends", friendRequestPrivacy: user.friendRequestPrivacy || "everyone",
       callLogs: Array.isArray(user.callLogs) ? user.callLogs.slice(0, 500) : [],
@@ -1649,6 +1652,17 @@ async function persistMongoNow() {
               lastSeenAt: toDisplayName(entry.lastSeenAt),
               presenceMode: normalizePresenceMode(entry.presenceMode),
               publicKey: toDisplayName(entry.publicKey),
+              callsEnabled: entry.callsEnabled !== false,
+              callPrivacy: entry.callPrivacy || "friends",
+              messagePrivacy: entry.messagePrivacy || "friends",
+              profilePhotoPrivacy: entry.profilePhotoPrivacy || "everyone",
+              presencePrivacy: entry.presencePrivacy || "everyone",
+              discoverPrivacy: entry.discoverPrivacy || "everyone",
+              readReceiptsEnabled: entry.readReceiptsEnabled !== false,
+              typingIndicatorsEnabled: entry.typingIndicatorsEnabled !== false,
+              groupInvitePrivacy: entry.groupInvitePrivacy || "friends",
+              friendRequestPrivacy: entry.friendRequestPrivacy || "everyone",
+
               callLogs: Array.isArray(entry.callLogs) ? entry.callLogs.slice(0, 500) : [],
               snapshotId,
               updatedAt,
@@ -2114,17 +2128,13 @@ async function sendPushToUser(userKey, payload) {
   const user = users.get(userKey);
   if (!user || user.notificationsEnabled === false) return;
   if (payload?.group === true && user.groupNotificationsEnabled === false) return;
-  // Busy means no message alert at all (web push or FCM), not merely silent delivery.
-  // Keep call and security notifications unaffected.
-  if (payload?.type === "message" && normalizePresenceMode(user.presenceMode) === "busy") return;
-
   const previewEnabled = user.messagePreviewEnabled !== false;
   const safePayload = {
     ...payload,
     ...(payload?.type === "message" && !previewEnabled
       ? { body: payload?.group === true ? "New group message" : "You have a new message" }
       : {}),
-    silent: payload?.silent === true || normalizePresenceMode(user.presenceMode) === "busy",
+    silent: payload?.silent === true,
   };
   const body = JSON.stringify(safePayload);
 
@@ -2168,6 +2178,11 @@ async function sendPushToUser(userKey, payload) {
         // decrypts locally and creates the visible notification; plaintext
         // never passes through FCM or this server.
         const isCallPush = safePayload.type === "call";
+        // Direct-message notifications are rendered by the app's background
+        // handler. Sending an FCM notification payload as well makes Android
+        // auto-display a second, generic alert for the same message.
+        const isDirectMessagePush =
+          safePayload.type === "message" && safePayload.group !== true;
         const data = {
           type: toDisplayName(safePayload.type) || "message",
           url: toDisplayName(safePayload.url),
@@ -2199,7 +2214,7 @@ async function sendPushToUser(userKey, payload) {
         }
         const message = {
           token,
-          ...(!isEncryptedDirectMessage && !isCallPush ? {
+          ...(!isDirectMessagePush && !isCallPush ? {
             notification: {
               title: toDisplayName(safePayload.title) || "Novyn",
               body: toDisplayName(safePayload.body) || "You have a new message",
@@ -2209,7 +2224,7 @@ async function sendPushToUser(userKey, payload) {
           android: {
             priority: safePayload.silent ? "normal" : "high",
             ...(isCallPush ? { ttl: 45000 } : {}),
-            ...(!isEncryptedDirectMessage && !isCallPush ? {
+            ...(!isDirectMessagePush && !isCallPush ? {
               notification: {
                 tag: toDisplayName(safePayload.tag) || undefined,
                 ...(safePayload.silent ? {} : { sound: "default" }),
@@ -2217,13 +2232,13 @@ async function sendPushToUser(userKey, payload) {
             } : {}),
           },
           apns: {
-            headers: (isEncryptedDirectMessage || isCallPush) ? {
+            headers: (isDirectMessagePush || isCallPush) ? {
               "apns-push-type": "background",
               "apns-priority": "5",
               ...(isCallPush ? { "apns-expiration": String(Math.floor(Date.now() / 1000) + 45) } : {}),
             } : undefined,
             payload: {
-              aps: (isEncryptedDirectMessage || isCallPush)
+              aps: (isDirectMessagePush || isCallPush)
                 ? { "content-available": 1 }
                 : {
                     alert: {
@@ -2376,6 +2391,7 @@ function applyLoadedState(parsed) {
     user.messagePrivacy = ["everyone", "friends", "nobody"].includes(entry.messagePrivacy) ? entry.messagePrivacy : "friends";
     user.profilePhotoPrivacy = ["everyone", "friends", "nobody"].includes(entry.profilePhotoPrivacy) ? entry.profilePhotoPrivacy : "everyone";
     user.presencePrivacy = ["everyone", "friends", "nobody"].includes(entry.presencePrivacy) ? entry.presencePrivacy : "everyone";
+    user.discoverPrivacy = ["everyone", "friends", "nobody"].includes(entry.discoverPrivacy) ? entry.discoverPrivacy : "everyone";
     user.readReceiptsEnabled = entry.readReceiptsEnabled !== false;
     user.typingIndicatorsEnabled = entry.typingIndicatorsEnabled !== false;
     user.groupInvitePrivacy = ["everyone", "friends", "nobody"].includes(entry.groupInvitePrivacy) ? entry.groupInvitePrivacy : "friends";
@@ -2595,8 +2611,9 @@ function toSerializedUserEntry(doc) {
     lastSeenAt: toDisplayName(doc?.lastSeenAt),
     presenceMode: normalizePresenceMode(doc?.presenceMode),
     publicKey: toDisplayName(doc?.publicKey),
+    callsEnabled: doc?.callsEnabled !== false,
     callPrivacy: doc?.callPrivacy || "friends", messagePrivacy: doc?.messagePrivacy || "friends",
-    profilePhotoPrivacy: doc?.profilePhotoPrivacy || "everyone", presencePrivacy: doc?.presencePrivacy || "everyone",
+    profilePhotoPrivacy: doc?.profilePhotoPrivacy || "everyone", presencePrivacy: doc?.presencePrivacy || "everyone", discoverPrivacy: doc?.discoverPrivacy || "everyone",
     readReceiptsEnabled: doc?.readReceiptsEnabled !== false, typingIndicatorsEnabled: doc?.typingIndicatorsEnabled !== false,
     groupInvitePrivacy: doc?.groupInvitePrivacy || "friends", friendRequestPrivacy: doc?.friendRequestPrivacy || "everyone",
     callLogs: Array.isArray(doc?.callLogs) ? doc.callLogs.slice(0, 500) : [],
@@ -2630,6 +2647,7 @@ function toSerializedMessageEntry(doc) {
     game: doc?.game || undefined,
     ciphertext: toDisplayName(doc?.ciphertext) || undefined,
     iv: toDisplayName(doc?.iv) || undefined,
+    senderPublicKey: normalizePushPublicKey(doc?.senderPublicKey) || undefined,
     isEncrypted: Boolean(doc?.isEncrypted),
     seenBy: Array.isArray(doc?.seenBy) ? doc.seenBy : undefined,
     riddle: doc?.riddle || undefined,
@@ -3201,6 +3219,7 @@ function createStoredMessage(params = {}) {
   if (params.ciphertext) message.ciphertext = toDisplayName(params.ciphertext);
   if (params.iv) message.iv = toDisplayName(params.iv);
   if (params.isEncrypted) message.isEncrypted = Boolean(params.isEncrypted);
+  if (params.senderPublicKey) message.senderPublicKey = normalizePushPublicKey(params.senderPublicKey);
   const temp = toDisplayName(params.clientTempId).slice(0, 64);
   if (temp) message.clientTempId = temp;
   return message;
@@ -3279,6 +3298,7 @@ function deliverFriendMessage(params = {}) {
     ciphertext: params.ciphertext,
     iv: params.iv,
     isEncrypted: params.isEncrypted,
+    senderPublicKey: params.senderPublicKey,
     clientTempId,
   });
 
@@ -3761,6 +3781,7 @@ function getConversationSummaryByKey(conversationKey) {
       isEncrypted: Boolean(message.isEncrypted && !message.deletedAt),
       ciphertext: !message.deletedAt ? message.ciphertext : undefined,
       iv: !message.deletedAt ? message.iv : undefined,
+      senderPublicKey: !message.deletedAt ? message.senderPublicKey : undefined,
       attachment: !message.deletedAt ? message.attachment : undefined,
       isVoice: !message.deletedAt && Boolean(message.isVoice || message.attachment?.kind === 'audio'),
     },
@@ -4033,6 +4054,7 @@ function buildDiscoverOnlineList(forUser, limit = 100) {
     const user = users.get(onlineKey);
     if (!user || !user.isRegistered) continue;
     if (isBlockedBy(me, onlineKey) || isBlockedBy(user, userKey)) continue;
+    if (!privacyAllows(user, userKey, "discoverPrivacy")) continue;
     const presenceAllowed = privacyAllows(user, userKey, "presencePrivacy");
     if (!presenceAllowed) continue;
     const presence = getEffectivePresence(onlineKey);
@@ -4330,8 +4352,9 @@ function buildRegisterSuccessPayload(userKey, user) {
     username: user.username,
     email: user.email || "",
     presenceMode: normalizePresenceMode(user.presenceMode),
-    callPrivacy: user.callPrivacy || "friends", messagePrivacy: user.messagePrivacy || "friends",
-    profilePhotoPrivacy: user.profilePhotoPrivacy || "everyone", presencePrivacy: user.presencePrivacy || "everyone",
+    callsEnabled: user.callsEnabled !== false,
+        callPrivacy: user.callPrivacy || "friends", messagePrivacy: user.messagePrivacy || "friends",
+    profilePhotoPrivacy: user.profilePhotoPrivacy || "everyone", presencePrivacy: user.presencePrivacy || "everyone", discoverPrivacy: user.discoverPrivacy || "everyone",
     readReceiptsEnabled: user.readReceiptsEnabled !== false, typingIndicatorsEnabled: user.typingIndicatorsEnabled !== false,
     groupInvitePrivacy: user.groupInvitePrivacy || "friends", friendRequestPrivacy: user.friendRequestPrivacy || "everyone",
     friends: buildFriendList(userKey),
@@ -4871,7 +4894,7 @@ app.post(
           displayName: user.displayName || user.username,
           bio: user.bio || "",
           avatarId: privacyAllows(user, friendKey, "profilePhotoPrivacy") ? user.avatarId || "" : "",
-          presenceMode: privacyAllows(user, friendKey, "presencePrivacy") ? getEffectivePresence(userKey) : "offline",
+          presenceMode: privacyAllows(user, friendKey, "presencePrivacy") ? getDisplayPresence(userKey) : "offline",
         });
       }
     }
@@ -5180,8 +5203,9 @@ app.get("/api/auth/session", (req, res) => {
     isGoogleUser: Boolean(user.googleUid),
     twoFactorEnabled: Boolean(user.twoFactorEnabled),
     retentionDays: 0,
-    callPrivacy: user.callPrivacy || "friends", messagePrivacy: user.messagePrivacy || "friends",
-    profilePhotoPrivacy: user.profilePhotoPrivacy || "everyone", presencePrivacy: user.presencePrivacy || "everyone",
+    callsEnabled: user.callsEnabled !== false,
+        callPrivacy: user.callPrivacy || "friends", messagePrivacy: user.messagePrivacy || "friends",
+    profilePhotoPrivacy: user.profilePhotoPrivacy || "everyone", presencePrivacy: user.presencePrivacy || "everyone", discoverPrivacy: user.discoverPrivacy || "everyone",
     readReceiptsEnabled: user.readReceiptsEnabled !== false, typingIndicatorsEnabled: user.typingIndicatorsEnabled !== false,
     groupInvitePrivacy: user.groupInvitePrivacy || "friends", friendRequestPrivacy: user.friendRequestPrivacy || "everyone",
   });
@@ -6266,10 +6290,11 @@ io.on("connection", (socket) => {
     respond({
       ok: true,
       settings: {
+        callsEnabled: user.callsEnabled !== false,
         callPrivacy: user.callPrivacy || "friends",
         messagePrivacy: user.messagePrivacy || "friends",
         profilePhotoPrivacy: user.profilePhotoPrivacy || "everyone",
-        presencePrivacy: user.presencePrivacy || "everyone",
+        presencePrivacy: user.presencePrivacy || "everyone", discoverPrivacy: user.discoverPrivacy || "everyone",
         groupInvitePrivacy: user.groupInvitePrivacy || "friends",
         friendRequestPrivacy: user.friendRequestPrivacy || "everyone",
         readReceiptsEnabled: user.readReceiptsEnabled !== false,
@@ -6304,11 +6329,16 @@ io.on("connection", (socket) => {
       const days = Number(payload.retentionDays);
       if (days === 0) user.retentionDays = 0;
     }
-    const privacyChoices = { callPrivacy: ["everyone", "friends", "nobody"], messagePrivacy: ["everyone", "friends", "nobody"], profilePhotoPrivacy: ["everyone", "friends", "nobody"], presencePrivacy: ["everyone", "friends", "nobody"], groupInvitePrivacy: ["everyone", "friends", "nobody"], friendRequestPrivacy: ["everyone", "mutuals", "nobody"] };
+    const privacyChoices = { callPrivacy: ["everyone", "friends", "nobody"], messagePrivacy: ["everyone", "friends", "nobody"], profilePhotoPrivacy: ["everyone", "friends", "nobody"], presencePrivacy: ["everyone", "friends", "nobody"], discoverPrivacy: ["everyone", "friends", "nobody"], groupInvitePrivacy: ["everyone", "friends", "nobody"], friendRequestPrivacy: ["everyone", "mutuals", "nobody"] };
     for (const [key, choices] of Object.entries(privacyChoices)) if (choices.includes(payload?.[key])) user[key] = payload[key];
+    if (typeof payload?.callsEnabled === "boolean") user.callsEnabled = payload.callsEnabled;
     if (typeof payload?.notificationsEnabled === "boolean") user.notificationsEnabled = payload.notificationsEnabled;
     if (typeof payload?.messagePreviewEnabled === "boolean") user.messagePreviewEnabled = payload.messagePreviewEnabled;
     if (typeof payload?.groupNotificationsEnabled === "boolean") user.groupNotificationsEnabled = payload.groupNotificationsEnabled;
+    if (payload?.callsEnabled === false) {
+      cancelCallForUser(userKey, { activeCalls, clearCallPair, onlineUsers, io, users },
+        "Calls were disabled in your status mode.");
+    }
     if (typeof payload?.readReceiptsEnabled === "boolean") user.readReceiptsEnabled = payload.readReceiptsEnabled;
     if (typeof payload?.typingIndicatorsEnabled === "boolean") user.typingIndicatorsEnabled = payload.typingIndicatorsEnabled;
     if (typeof payload?.stealthModeEnabled === "boolean") user.stealthModeEnabled = payload.stealthModeEnabled;
@@ -6323,8 +6353,9 @@ io.on("connection", (socket) => {
       presenceMode: user.presenceMode,
       email: user.email || "",
       retentionDays: 0,
-      callPrivacy: user.callPrivacy || "friends", messagePrivacy: user.messagePrivacy || "friends",
-      profilePhotoPrivacy: user.profilePhotoPrivacy || "everyone", presencePrivacy: user.presencePrivacy || "everyone",
+      callsEnabled: user.callsEnabled !== false,
+        callPrivacy: user.callPrivacy || "friends", messagePrivacy: user.messagePrivacy || "friends",
+      profilePhotoPrivacy: user.profilePhotoPrivacy || "everyone", presencePrivacy: user.presencePrivacy || "everyone", discoverPrivacy: user.discoverPrivacy || "everyone",
       readReceiptsEnabled: user.readReceiptsEnabled !== false, typingIndicatorsEnabled: user.typingIndicatorsEnabled !== false,
       groupInvitePrivacy: user.groupInvitePrivacy || "friends", friendRequestPrivacy: user.friendRequestPrivacy || "everyone",
       stealthModeEnabled: user.stealthModeEnabled === true,
@@ -6345,7 +6376,7 @@ io.on("connection", (socket) => {
           displayName: user.displayName,
           bio: user.bio,
           avatarId: privacyAllows(user, friendKey, "profilePhotoPrivacy") ? user.avatarId : "",
-          presenceMode: privacyAllows(user, friendKey, "presencePrivacy") ? getEffectivePresence(userKey) : "offline",
+          presenceMode: privacyAllows(user, friendKey, "presencePrivacy") ? getDisplayPresence(userKey) : "offline",
         });
       }
     }
@@ -7675,7 +7706,8 @@ io.on("connection", (socket) => {
     const isEncrypted = Boolean(payload?.isEncrypted);
     const ciphertext = toDisplayName(payload?.ciphertext);
     const iv = toDisplayName(payload?.iv);
-    if (isEncrypted && (!ciphertext || !iv)) {
+    const senderPublicKey = normalizePushPublicKey(payload?.senderPublicKey);
+    if (isEncrypted && (!ciphertext || !iv || !senderPublicKey)) {
       rejectMessage("Invalid encrypted message payload.");
       return;
     }
@@ -7747,6 +7779,7 @@ io.on("connection", (socket) => {
       ciphertext,
       iv,
       isEncrypted,
+      senderPublicKey,
       clientTempId: safeClientTempId,
     });
     if (!result.ok) {
@@ -7996,7 +8029,6 @@ io.on("connection", (socket) => {
     // The sender's setting controls whether they broadcast typing; each
     // recipient's setting independently controls whether they receive it.
     const isTyping = Boolean(payload?.isTyping) &&
-      normalizePresenceMode(me.presenceMode) !== "invisible" &&
       me.typingIndicatorsEnabled !== false;
 
     if (toType === "group") {

@@ -16,6 +16,8 @@ import '../services/friend_service.dart';
 import '../models/user_model.dart';
 import '../widgets/novyn_dock.dart';
 import '../services/settings_service.dart';
+import '../services/app_update_service.dart';
+import 'profile/settings/support_screens.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({
@@ -30,16 +32,24 @@ class MainScreen extends StatefulWidget {
   State<MainScreen> createState() => _MainScreenState();
 }
 
-class _MainScreenState extends State<MainScreen> {
+class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   int _selectedIndex = 0;
   AuthService? _authService;
   String? _activeUsername;
+  Timer? _updateCheckTimer;
+  DateTime? _lastUpdateCheck;
 
   late final List<Widget> _screens;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    NotificationService.setAppUpdateTapHandler(_openAboutNovyn);
+    _updateCheckTimer = Timer.periodic(
+      AppUpdateService.backgroundCheckFrequency,
+      (_) => _runUpdateCheck(force: true),
+    );
     // Build screens — ChatsScreen gets a callback to switch to People tab (index 2)
     _screens = [
       ChatsScreen(onNavigateToPeople: () => _onTabTap(3)), // index 3 now
@@ -57,6 +67,36 @@ class _MainScreenState extends State<MainScreen> {
       _authService!.addListener(_handleAuthChanged);
       _handleAuthChanged();
     });
+  }
+
+  void _openAboutNovyn(BuildContext hostContext) {
+    if (!hostContext.mounted) return;
+    Navigator.of(hostContext).push(
+      MaterialPageRoute(builder: (_) => const AboutNovynScreen()),
+    );
+  }
+
+  Future<void> _runUpdateCheck({bool force = false}) async {
+    if (!mounted) return;
+    final now = DateTime.now();
+    if (!force &&
+        _lastUpdateCheck != null &&
+        now.difference(_lastUpdateCheck!) < const Duration(minutes: 15)) {
+      return;
+    }
+    _lastUpdateCheck = now;
+    try {
+      await AppUpdateService.instance.checkForUpdates(notifyIfAvailable: true);
+    } catch (error) {
+      debugPrint('[NovynUpdates] Foreground check failed: ' + error.toString());
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      unawaited(_runUpdateCheck());
+    }
   }
 
   void _handleAuthChanged() {
@@ -86,6 +126,7 @@ class _MainScreenState extends State<MainScreen> {
     unawaited(() async {
       await NotificationService.init(context);
       if (!mounted || auth.user?.username.toLowerCase() != username.toLowerCase()) return;
+      unawaited(_runUpdateCheck(force: true));
       await NotificationService.saveTokenForUser(username);
     }());
 
@@ -121,6 +162,9 @@ class _MainScreenState extends State<MainScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _updateCheckTimer?.cancel();
+    NotificationService.setAppUpdateTapHandler(null);
     _authService?.removeListener(_handleAuthChanged);
     if (widget.managePresence && _authService?.user != null) {
       _authService!.setOnline(false);

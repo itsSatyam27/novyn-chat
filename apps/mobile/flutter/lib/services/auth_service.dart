@@ -100,6 +100,8 @@ class AuthService extends ChangeNotifier {
   static const String _cachedIdentityKey = 'novyn_last_signed_in_identity_v1';
 
   final Future<void> Function(String)? savePresence;
+  final Map<String, dynamic> Function(String)? presencePolicy;
+  final Future<void> Function(String, Map<String, dynamic>)? savePresencePolicy;
   final Future<void> Function(String, String)? savePassword;
   final Future<void> Function(String)? clearNotificationsToken;
   final Future<void> Function()? onAccountReset;
@@ -126,6 +128,8 @@ class AuthService extends ChangeNotifier {
 
   AuthService(
       {this.savePresence,
+      this.presencePolicy,
+      this.savePresencePolicy,
       this.savePassword,
       this.clearNotificationsToken,
       this.onAccountReset,
@@ -825,10 +829,10 @@ class AuthService extends ChangeNotifier {
     if (!['online', 'away', 'busy', 'invisible'].contains(mode)) {
       throw ArgumentError.value(status, 'status', 'Unknown presence mode');
     }
-    if (_user == null || savePresence == null) {
+    if (_user == null || (savePresence == null && savePresencePolicy == null)) {
       throw StateError('Sign in and reconnect before changing your status.');
     }
-    if (_updatingPresence || _user!.presenceMode == mode) return;
+    if (_updatingPresence) return;
     final previous = _user!.presenceMode;
     _updatingPresence = true;
     _user = _user!.copyWith(presenceMode: mode);
@@ -839,7 +843,12 @@ class AuthService extends ChangeNotifier {
       // when the app is backgrounded or its socket temporarily disconnects.
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('novyn_notification_presence_mode', mode);
-      await savePresence!(mode);
+      if (savePresencePolicy != null) {
+        final policy = presencePolicy?.call(mode) ?? const <String, dynamic>{};
+        await savePresencePolicy!(mode, policy);
+      } else {
+        await savePresence!(mode);
+      }
     } catch (_) {
       _user = _user?.copyWith(presenceMode: previous);
       try {

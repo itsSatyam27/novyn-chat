@@ -17,6 +17,7 @@ import 'friend_service.dart';
 import '../screens/chats/chat_detail_screen.dart';
 import '../screens/calls/calls_screen.dart';
 import '../screens/calls/call_screen.dart';
+import '../widgets/user_avatar.dart';
 
 // Top-level handler — must be a top-level function
 @pragma('vm:entry-point')
@@ -51,6 +52,8 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
       return;
     }
     if (!(prefs.getBool('notifications_on') ?? true)) return;
+    final presenceMode = (prefs.getString('active_smart_presence_mode_v1') ?? 'online').toLowerCase();
+    if (presenceMode == 'busy' || presenceMode == 'invisible') return;
     final dndEnabled = prefs.getBool('do_not_disturb_enabled') ?? false;
     final favoriteIds = (prefs.getStringList('favorite_chat_ids') ?? [])
         .map((value) => value.toLowerCase()).toSet();
@@ -77,19 +80,18 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   // reading account and preview preferences written by the foreground isolate.
   await prefs.reload();
   final notificationsEnabled = prefs.getBool('notifications_on') ?? true;
-  if (!notificationsEnabled) return;
-  final localPresence = (prefs.getString('novyn_notification_presence_mode') ?? '').toLowerCase();
-  // Busy suppresses message alerts in every app lifecycle state. The server
-  // also suppresses these pushes; this guard covers delayed/already queued FCM.
+  final presenceMode = (prefs.getString('active_smart_presence_mode_v1') ?? 'online').toLowerCase();
+  if (!notificationsEnabled || presenceMode == 'busy' || presenceMode == 'invisible') return;
+  // The active mode's notificationsEnabled preference is persisted above.
+  // Keep honoring explicit silent payloads (including delayed pushes).
   final sender = (data['chat'] ?? '').toString().trim();
   final dndEnabled = prefs.getBool('do_not_disturb_enabled') ?? false;
   final favoriteIds = (prefs.getStringList('favorite_chat_ids') ?? [])
       .map((value) => value.toLowerCase()).toSet();
   if (dndEnabled && !favoriteIds.contains(sender.toLowerCase())) return;
-  if (localPresence == 'busy' ||
-      data['silent']?.toString().toLowerCase() == 'true' ||
+  if (data['silent']?.toString().toLowerCase() == 'true' ||
       data['silent']?.toString() == '1') {
-    debugPrint('[NovynNotifications] Message alert suppressed while Busy.');
+    debugPrint('[NovynNotifications] Message alert suppressed by a silent push.');
     return;
   }
 
@@ -217,6 +219,7 @@ class NotificationService {
   static const String _messageChannelId = 'novyn_messages';
   static const String _messageChannelName = 'Messages';
   static bool _localNotificationsReady = false;
+  static final Map<int, Timer> _callReminderTimers = {};
   static OverlayEntry? _inAppBannerEntry;
   static Timer? _inAppBannerTimer;
   static AuthService? _presenceAuth;
@@ -236,6 +239,177 @@ class NotificationService {
   static StreamSubscription<RemoteMessage>? _openedSubscription;
   static bool? _lastAlertsEnabled;
   static bool? _lastSoundEnabled;
+  static ValueChanged<String>? _activeCallActionHandler;
+  static const int _activeCallNotificationId = 781204;
+  static const int _appUpdateNotificationId = 781205;
+  static ValueChanged<BuildContext>? _appUpdateTapHandler;
+
+  static void setAppUpdateTapHandler(ValueChanged<BuildContext>? handler) {
+    _appUpdateTapHandler = handler;
+  }
+
+  static Future<void> showAppUpdateAvailable() async {
+    if (!_localNotificationsReady) {
+      await _localNotifications.initialize(
+        const InitializationSettings(
+          android: AndroidInitializationSettings('@drawable/novyn_wings_icon'),
+          iOS: DarwinInitializationSettings(),
+        ),
+      );
+    }
+    final android = _localNotifications.resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin>();
+    await android?.createNotificationChannel(
+      const AndroidNotificationChannel(
+        'novyn_app_updates',
+        'App updates',
+        description: 'Notifications when a new Novyn version is available',
+        importance: Importance.high,
+        playSound: true,
+        enableVibration: true,
+      ),
+    );
+    await _localNotifications.show(
+      _appUpdateNotificationId,
+      'A new Novyn version is available',
+      'Tap to open About Novyn and check for updates.',
+      const NotificationDetails(
+        android: AndroidNotificationDetails(
+          'novyn_app_updates',
+          'App updates',
+          channelDescription: 'Notifications when a new Novyn version is available',
+          importance: Importance.high,
+          priority: Priority.high,
+          icon: '@drawable/novyn_wings_icon',
+          autoCancel: true,
+        ),
+        iOS: DarwinNotificationDetails(
+          presentAlert: true,
+          presentBadge: true,
+          presentSound: true,
+        ),
+      ),
+      payload: 'app_update',
+    );
+  }
+
+  /// Registers the currently visible call screen as the owner of notification
+  /// actions. The notification itself stays ongoing while the call is active.
+  static void setActiveCallActionHandler(ValueChanged<String>? handler) {
+    _activeCallActionHandler = handler;
+  }
+
+  /// Schedules a local reminder while the application process is alive.
+  /// Force-stopping the app clears this in-process timer.
+  static Future<void> scheduleCallReminder({
+    required String caller,
+    required Duration delay,
+  }) async {
+    if (delay <= Duration.zero) return;
+    final id = DateTime.now().millisecondsSinceEpoch.remainder(2147483647);
+    _callReminderTimers.remove(id)?.cancel();
+    final android = _localNotifications.resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin>();
+    await android?.createNotificationChannel(const AndroidNotificationChannel(
+      'novyn_call_reminders',
+      'Call reminders',
+      description: 'Reminders to return calls later',
+      importance: Importance.high,
+    ));
+    _callReminderTimers[id] = Timer(delay, () async {
+      _callReminderTimers.remove(id);
+      try {
+        await _localNotifications.show(
+          id,
+          'Call $caller back',
+          'You asked Novyn to remind you to return this call.',
+          const NotificationDetails(
+            android: AndroidNotificationDetails(
+              'novyn_call_reminders',
+              'Call reminders',
+              channelDescription: 'Reminders to return calls later',
+              importance: Importance.high,
+              priority: Priority.high,
+              icon: '@drawable/novyn_wings_icon',
+            ),
+            iOS: DarwinNotificationDetails(),
+          ),
+        );
+      } catch (error) {
+        debugPrint('[NovynCalls] Could not show call reminder: $error');
+      }
+    });
+  }
+
+  static Future<void> showActiveCallNotification({
+    required String callId,
+    required String caller,
+    required bool isVideo,
+    required bool muted,
+    required bool speakerOn,
+  }) async {
+    final android = _localNotifications.resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin>();
+    await android?.createNotificationChannel(const AndroidNotificationChannel(
+      'novyn_active_call',
+      'Active calls',
+      description: 'Controls for ongoing Novyn calls',
+      importance: Importance.low,
+      playSound: false,
+      enableVibration: false,
+    ));
+    await _localNotifications.show(
+      _activeCallNotificationId,
+      isVideo ? 'Video call with $caller' : 'Voice call with $caller',
+      'Tap an action to manage your call',
+      NotificationDetails(
+        android: AndroidNotificationDetails(
+          'novyn_active_call',
+          'Active calls',
+          channelDescription: 'Controls for ongoing Novyn calls',
+          importance: Importance.low,
+          priority: Priority.low,
+          category: AndroidNotificationCategory.call,
+          ongoing: true,
+          autoCancel: false,
+          onlyAlertOnce: true,
+          playSound: false,
+          enableVibration: false,
+          actions: <AndroidNotificationAction>[
+            AndroidNotificationAction(
+              'call_toggle_mute',
+              muted ? 'Unmute' : 'Mute',
+              showsUserInterface: true,
+              cancelNotification: false,
+            ),
+            AndroidNotificationAction(
+              'call_toggle_speaker',
+              speakerOn ? 'Earpiece' : 'Speaker',
+              showsUserInterface: true,
+              cancelNotification: false,
+            ),
+            const AndroidNotificationAction(
+              'call_end',
+              'End call',
+              showsUserInterface: true,
+              cancelNotification: false,
+            ),
+          ],
+        ),
+        iOS: const DarwinNotificationDetails(
+          presentAlert: false,
+          presentBadge: false,
+          presentSound: false,
+        ),
+      ),
+      payload: 'active_call:$callId',
+    );
+  }
+
+  static Future<void> clearActiveCallNotification() async {
+    await _localNotifications.cancel(_activeCallNotificationId);
+    _activeCallActionHandler = null;
+  }
 
   static void _onSettingsChanged() {
     final enabled = _settings?.notificationsOn ?? false;
@@ -287,8 +461,17 @@ class NotificationService {
         iOS: DarwinInitializationSettings(),
       ),
       onDidReceiveNotificationResponse: (response) {
+        final actionId = response.actionId ?? '';
+        if (actionId.startsWith('call_')) {
+          _activeCallActionHandler?.call(actionId);
+          return;
+        }
         final payload = response.payload?.trim() ?? '';
         if (!context.mounted || payload.isEmpty) return;
+        if (payload == 'app_update') {
+          _appUpdateTapHandler?.call(context);
+          return;
+        }
         if (payload.startsWith('call:')) {
           final parts = payload.substring(5).split('|');
           if (parts.length >= 3 && parts[0].isNotEmpty) {
@@ -351,20 +534,27 @@ class NotificationService {
 
   static Future<void> showInAppMessage(
       String username, String messageBody, BuildContext context) async {
+    // Keep the host screen context for navigation. The banner's animated
+    // builder context is disposed as soon as the overlay entry is removed.
+    final navigationContext = context;
     final settings = _settings;
     if (!context.mounted ||
         settings == null ||
         !settings.notificationsOn ||
         (settings.doNotDisturbEnabled &&
             !settings.favoriteChatIds.contains(username.trim().toLowerCase())) ||
-        _presenceAuth?.user?.presenceMode == 'busy') {
+        (_presenceAuth?.user?.presenceMode == 'busy' ||
+            _presenceAuth?.user?.presenceMode == 'invisible')) {
       return;
     }
 
-    final preview = settings.messagePreview
+    final preview = settings.messagePreview && !settings.hideNotificationContent
         ? messageBody.trim()
         : 'You have a new message';
-    final title = username;
+    final senderProfile = _socket?.contacts.findUser(username);
+    final title = senderProfile?.name.trim().isNotEmpty == true
+        ? senderProfile!.name.trim()
+        : username;
     // Foreground messages use only this branded in-app banner. The operating
     // system notification is reserved for background/terminated delivery.
     _inAppBannerTimer?.cancel();
@@ -402,7 +592,9 @@ class NotificationService {
                       entry.remove();
                       _inAppBannerEntry = null;
                     }
-                    unawaited(_openChatFromNotification(username, context));
+                    if (navigationContext.mounted) {
+                      unawaited(_openChatFromNotification(username, navigationContext));
+                    }
                   },
                   child: Container(
                     padding: const EdgeInsets.symmetric(
@@ -427,17 +619,20 @@ class NotificationService {
                     child: Row(
                       children: [
                         Container(
-                          width: 42,
-                          height: 42,
+                          padding: const EdgeInsets.all(2),
                           decoration: BoxDecoration(
-                            color: Theme.of(context).colorScheme.primary
-                                .withValues(alpha: .12),
-                            borderRadius: BorderRadius.circular(14),
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: Theme.of(context).colorScheme.primary
+                                  .withValues(alpha: .55),
+                              width: 1.5,
+                            ),
                           ),
-                          child: Icon(
-                            Icons.forum_rounded,
-                            color: Theme.of(context).colorScheme.primary,
-                            size: 21,
+                          child: UserAvatar(
+                            name: title,
+                            photoUrl: senderProfile?.photoUrl ?? '',
+                            radius: 24,
+                            fallbackColor: Theme.of(context).colorScheme.primary,
                           ),
                         ),
                         const SizedBox(width: 12),
@@ -567,9 +762,13 @@ class NotificationService {
               'Could not load notification preferences.');
         }
         final values = Map<String, dynamic>.from(remote['settings'] as Map);
-        await settings.setNotifications(values['notificationsEnabled'] != false);
-        await settings.setMessagePreview(values['messagePreviewEnabled'] != false);
-        await settings.setGroupNotifications(values['groupNotificationsEnabled'] != false);
+        final activeMode = SettingsService.normalizeSmartPresenceMode(
+          _presenceAuth?.user?.presenceMode ?? 'online',
+        );
+        // Hydrate every privacy/notification key from the account before
+        // applying mode defaults. This preserves choices made on another client.
+        await settings.hydrateSmartPresenceModeFromServer(activeMode, values);
+        await settings.applySmartPresenceLocalPolicy(activeMode);
         _preferencesLoadedForUser = username;
         if (settings.notificationsOn &&
             _permissionRequestedForUser != username) {
@@ -644,7 +843,14 @@ class NotificationService {
     _syncPresentation();
     await _initializeLocalNotifications(context);
     _socket!.onIncomingMessage = (username, body) {
-      if (context.mounted) unawaited(showInAppMessage(username, body, context));
+      if (!context.mounted) return;
+      if (WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed) {
+        // Keep the branded PR #95 banner for active use; system alerts are
+        // used when the app is not currently visible.
+        unawaited(showInAppMessage(username, body, context));
+      } else {
+        unawaited(_showForegroundMessageNotification(username, body));
+      }
     };
     _socket!.onCallInviteCallback = (data) {
       if (!context.mounted) return;
@@ -652,8 +858,11 @@ class NotificationService {
       final callId = data['callId']?.toString().trim() ?? '';
       if (caller.isEmpty || callId.isEmpty) return;
       final preferences = _settings;
-      if (preferences?.doNotDisturbEnabled == true &&
-          !preferences!.favoriteChatIds.contains(caller.toLowerCase())) {
+      if (preferences == null || !preferences.notificationsOn ||
+          _presenceAuth?.user?.presenceMode == 'busy' ||
+          _presenceAuth?.user?.presenceMode == 'invisible') return;
+      if (preferences.doNotDisturbEnabled &&
+          !preferences.favoriteChatIds.contains(caller.toLowerCase())) {
         return;
       }
       unawaited(_openIncomingCall(caller, callId, data['isVideo'] == true, context));
@@ -689,7 +898,9 @@ class NotificationService {
     final localLaunch = await _localNotifications.getNotificationAppLaunchDetails();
     final localPayload = localLaunch?.notificationResponse?.payload?.trim() ?? '';
     if (localLaunch?.didNotificationLaunchApp == true && localPayload.isNotEmpty && context.mounted) {
-      if (localPayload.startsWith('call:')) {
+      if (localPayload == 'app_update') {
+        _appUpdateTapHandler?.call(context);
+      } else if (localPayload.startsWith('call:')) {
         final parts = localPayload.substring(5).split('|');
         if (parts.length >= 3 && parts[0].isNotEmpty) {
           unawaited(_openIncomingCall(parts[1], parts[0], parts[2] == '1', context));
@@ -785,7 +996,9 @@ class NotificationService {
         if (callId.isNotEmpty) unawaited(_localNotifications.cancel(callId.hashCode));
         return;
       }
-      if (!(_settings?.notificationsOn ?? false)) return;
+      if (!(_settings?.notificationsOn ?? false) ||
+          _presenceAuth?.user?.presenceMode == 'busy' ||
+          _presenceAuth?.user?.presenceMode == 'invisible') return;
       final caller = message.data['chat']?.toString() ?? 'Novyn contact';
       final activeSettings = _settings;
       if (activeSettings?.doNotDisturbEnabled == true &&
@@ -814,20 +1027,66 @@ class NotificationService {
       ));
       return;
     }
-    // The live socket handler already presents messages while connected.
-    // This FCM path is for a foreground app whose socket is disconnected.
-    if (_socket?.isConnected == true) return;
-    if (type == 'message') {
+    // Prefer the live socket callback; FCM is a fallback for disconnected
+    // sockets or app lifecycle states where the socket callback was missed.
+    if (type == 'message' && message.data['kind'] != 'group') {
+      // A live socket callback handles both resumed banners and inactive-app
+      // system alerts. FCM is only a fallback when the socket is disconnected.
+      if (_socket?.isConnected == true) return;
       final username = message.data['chat']?.toString().trim() ?? '';
       if (username.isNotEmpty) {
-        unawaited(showInAppMessage(
+        final body = message.data['body']?.toString().trim();
+        unawaited(_showForegroundMessageNotification(
           username,
-          (message.data['body']?.toString().trim().isNotEmpty == true
-              ? message.data['body'].toString().trim()
-              : message.notification?.body ?? 'You have a new message'),
-          context,
+          body?.isNotEmpty == true
+              ? body!
+              : message.notification?.body ?? 'You have a new message',
         ));
       }
+    }
+  }
+
+  static Future<void> _showForegroundMessageNotification(
+      String username, String messageBody) async {
+    final sender = username.trim();
+    final settings = _settings;
+    if (sender.isEmpty || settings == null || !settings.notificationsOn) return;
+    if (settings.doNotDisturbEnabled &&
+        !settings.favoriteChatIds.contains(sender.toLowerCase())) return;
+    if (_presenceAuth?.user?.presenceMode == 'busy' ||
+        _presenceAuth?.user?.presenceMode == 'invisible') return;
+
+    final body = settings.messagePreview && !settings.hideNotificationContent
+        ? (messageBody.trim().isNotEmpty ? messageBody.trim() : 'You have a new message')
+        : 'You have a new message';
+    final notificationId = DateTime.now().millisecondsSinceEpoch % 2147483647;
+    try {
+      await _localNotifications.show(
+        notificationId,
+        sender,
+        body,
+        NotificationDetails(
+          android: AndroidNotificationDetails(
+            _messageChannelId,
+            _messageChannelName,
+            channelDescription: 'New direct messages from your Novyn contacts',
+            importance: Importance.max,
+            priority: Priority.high,
+            category: AndroidNotificationCategory.message,
+            icon: '@drawable/novyn_wings_icon',
+            onlyAlertOnce: false,
+            autoCancel: true,
+          ),
+          iOS: const DarwinNotificationDetails(
+            presentAlert: true,
+            presentBadge: true,
+            presentSound: true,
+          ),
+        ),
+        payload: sender,
+      );
+    } catch (error) {
+      debugPrint('[NovynNotifications] Foreground system notification failed: $error');
     }
   }
 

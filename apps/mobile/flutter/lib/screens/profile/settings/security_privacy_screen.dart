@@ -1505,11 +1505,14 @@ class _PrivacyDashboardState extends State<_PrivacyDashboard> {
       final presence = _values['presencePrivacy']!;
       final photo = _values['profilePhotoPrivacy']!;
       await widget.settings.setLastSeenVisibility(
-          presence == 'friends' ? 'contacts' : presence);
+          presence == 'friends' ? 'contacts' : presence,
+          recordPresenceOverride: false);
       await widget.settings.setProfilePhotoVisibility(
-          photo == 'friends' ? 'contacts' : photo);
+          photo == 'friends' ? 'contacts' : photo,
+          recordPresenceOverride: false);
       await widget.settings.setReadReceipts(
-          data['readReceiptsEnabled'] != false);
+          data['readReceiptsEnabled'] != false,
+          recordPresenceOverride: false);
     } catch (error) {
       if (!mounted) return;
       setState(() => _loading = false);
@@ -1556,10 +1559,11 @@ class _PrivacyDashboardState extends State<_PrivacyDashboard> {
         result['message']?.toString() ?? 'Could not save this privacy setting.');
       if (key == 'presencePrivacy') {
         // Server uses this setting for both online and last-seen visibility.
-        await widget.settings.setLastSeenVisibility(value == 'friends' ? 'contacts' : value);
+        await widget.settings.setLastSeenVisibility(value == 'friends' ? 'contacts' : value, recordPresenceOverride: false);
       } else if (key == 'profilePhotoPrivacy') {
-        await widget.settings.setProfilePhotoVisibility(value == 'friends' ? 'contacts' : value);
+        await widget.settings.setProfilePhotoVisibility(value == 'friends' ? 'contacts' : value, recordPresenceOverride: false);
       }
+      await widget.settings.saveSmartPresenceOverride(widget.settings.activeSmartPresenceMode, key, value);
       if (mounted) NovynAlert.show(context, 'Privacy setting updated.');
     } catch (error) {
       if (mounted) {
@@ -1585,10 +1589,11 @@ class _PrivacyDashboardState extends State<_PrivacyDashboard> {
       if (result['ok'] != true) throw StateError(
         result['message']?.toString() ?? 'Could not save this privacy setting.');
       if (key == 'readReceiptsEnabled') {
-        await widget.settings.setReadReceipts(value);
+        await widget.settings.setReadReceipts(value, recordPresenceOverride: false);
       } else {
         setState(() => _typing = value);
       }
+      await widget.settings.saveSmartPresenceOverride(widget.settings.activeSmartPresenceMode, key, value);
       if (mounted) NovynAlert.show(context, 'Privacy setting updated.');
     } catch (error) {
       if (mounted) {
