@@ -52,7 +52,7 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
       return;
     }
     if (!(prefs.getBool('notifications_on') ?? true)) return;
-    final presenceMode = (prefs.getString('novyn_notification_presence_mode') ?? 'online').toLowerCase();
+    final presenceMode = (prefs.getString('active_smart_presence_mode_v1') ?? 'online').toLowerCase();
     if (presenceMode == 'busy' || presenceMode == 'invisible') return;
     final dndEnabled = prefs.getBool('do_not_disturb_enabled') ?? false;
     final favoriteIds = (prefs.getStringList('favorite_chat_ids') ?? [])
@@ -80,7 +80,7 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   // reading account and preview preferences written by the foreground isolate.
   await prefs.reload();
   final notificationsEnabled = prefs.getBool('notifications_on') ?? true;
-  final presenceMode = (prefs.getString('novyn_notification_presence_mode') ?? 'online').toLowerCase();
+  final presenceMode = (prefs.getString('active_smart_presence_mode_v1') ?? 'online').toLowerCase();
   if (!notificationsEnabled || presenceMode == 'busy' || presenceMode == 'invisible') return;
   // The active mode's notificationsEnabled preference is persisted above.
   // Keep honoring explicit silent payloads (including delayed pushes).
@@ -948,7 +948,8 @@ class NotificationService {
     if (sender.isEmpty || settings == null || !settings.notificationsOn) return;
     if (settings.doNotDisturbEnabled &&
         !settings.favoriteChatIds.contains(sender.toLowerCase())) return;
-    if (_presenceAuth?.user?.presenceMode == 'busy') return;
+    if (_presenceAuth?.user?.presenceMode == 'busy' ||
+        _presenceAuth?.user?.presenceMode == 'invisible') return;
 
     final body = settings.messagePreview && !settings.hideNotificationContent
         ? (messageBody.trim().isNotEmpty ? messageBody.trim() : 'You have a new message')
