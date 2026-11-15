@@ -3831,17 +3831,18 @@ class _MessageBubble extends StatelessWidget {
   Widget _buildPollCard(BuildContext context, Map poll) {
     final rawOptions = poll['options'];
     final options = rawOptions is List ? rawOptions.whereType<Map>().toList() : <Map>[];
+    final scheme = Theme.of(context).colorScheme;
     final totalVotes = options.fold<int>(0, (sum, option) {
       final votes = option['votes'];
       return sum + (votes is List ? votes.length : 0);
     });
     return Container(
-      width: 250,
-      padding: const EdgeInsets.all(12),
+      width: 270,
+      padding: const EdgeInsets.all(13),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.06),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+        color: scheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: scheme.outlineVariant.withValues(alpha: .55)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -3852,7 +3853,7 @@ class _MessageBubble extends StatelessWidget {
               const SizedBox(width: 7),
               Text('POLL', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 10 * context.watch<SettingsService>().chatLabelSize, fontWeight: FontWeight.w800, letterSpacing: 1)),
               const Spacer(),
-              Text('$totalVotes votes', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 10 * context.watch<SettingsService>().chatLabelSize, color: Color(0xFF94A3B8))),
+              Text('$totalVotes votes', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 10 * context.watch<SettingsService>().chatLabelSize, color: scheme.onSurfaceVariant)),
             ],
           ),
           const SizedBox(height: 8),
@@ -3880,7 +3881,7 @@ class _MessageBubble extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 9),
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(9),
-                    border: Border.all(color: selected ? Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.55) : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.12)),
+                    border: Border.all(color: selected ? scheme.primary : scheme.outlineVariant),
                   ),
                   child: Column(
                     children: [
@@ -3897,7 +3898,7 @@ class _MessageBubble extends StatelessWidget {
                         child: LinearProgressIndicator(
                           value: ratio,
                           minHeight: 4,
-                          backgroundColor: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.08),
+                          backgroundColor: scheme.surfaceContainerHighest,
                         ),
                       ),
                     ],
