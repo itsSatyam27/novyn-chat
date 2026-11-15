@@ -6,6 +6,25 @@ function clearRingingTimer(callId) {
   if (timer) clearTimeout(timer);
   ringingTimers.delete(callId);
 }
+
+function cancelCallForUser(userKey, deps, reason = "Call ended") {
+  const active = deps.activeCalls.get(userKey);
+  if (!active) return false;
+  clearRingingTimer(active.callId);
+  const peerKey = active.peerKey;
+  deps.clearCallPair(userKey);
+  const payload = {
+    from: deps.users.get(userKey)?.username || userKey,
+    callId: active.callId,
+    reason,
+  };
+  for (const key of [userKey, peerKey]) {
+    const socketId = key ? deps.onlineUsers.get(key) : null;
+    if (socketId) deps.io.to(socketId).emit("call_ended", payload);
+  }
+  return true;
+}
+
 function registerCallHandlers(socket, deps) {
   const {
     resolveChatTargetForUser,
@@ -67,10 +86,17 @@ function registerCallHandlers(socket, deps) {
     }
 
     const me = users.get(userKey);
+    if (me?.callsEnabled === false) {
+      socket.emit("call_ended", {
+        callId,
+        reason: "Calls are disabled in your current status mode.",
+      });
+      return;
+    }
     const friendKey = normalizeName(to);
     const target = users.get(friendKey);
     const areFriends = Boolean(me?.friends?.has(friendKey));
-    if (usersAreBlocked?.(userKey, friendKey) || !target || target.callPrivacy === "nobody" || (target.callPrivacy !== "everyone" && !areFriends)) {
+    if (usersAreBlocked?.(userKey, friendKey) || !target || target.callsEnabled === false || target.callPrivacy === "nobody" || (target.callPrivacy !== "everyone" && !areFriends)) {
       socket.emit("call_ended", { callId, reason: "This user is not accepting calls from you." });
       return;
     }
@@ -147,9 +173,15 @@ function registerCallHandlers(socket, deps) {
     if (!to || !callId) return;
 
     const friendKey = normalizeName(to);
-    const friendSocketId = onlineUsers.get(friendKey);
     const active = activeCalls.get(userKey);
     if (!active || active.peerKey !== friendKey || active.callId !== callId) return;
+    const me = users.get(userKey);
+    const caller = users.get(friendKey);
+    if (me?.callsEnabled === false || caller?.callsEnabled === false) {
+      cancelCallForUser(userKey, deps, "Calls are disabled in this status mode.");
+      return;
+    }
+    const friendSocketId = onlineUsers.get(friendKey);
     if (!friendSocketId && active.status === "ringing") {
       expireRingingCall(friendKey, userKey, callId, active.type === "video");
       socket.emit("call_ended", { callId, reason: "Caller is unavailable" });
@@ -282,4 +314,4 @@ function registerCallHandlers(socket, deps) {
 
 }
 
-module.exports = { registerCallHandlers };
+module.exports = { registerCallHandlers, cancelCallForUser };

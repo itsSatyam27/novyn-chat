@@ -90,15 +90,34 @@ class NovynApp extends StatelessWidget {
         }),
         ChangeNotifierProvider<AuthService>(create: (ctx) {
           final socket = ctx.read<SocketService>();
+          final preferences = ctx.read<SettingsService>();
           final auth = AuthService(
             savePresence: socket.updatePresence,
+            presencePolicy: preferences.smartPresencePolicyFor,
+            savePresencePolicy: (mode, policy) async {
+              final result = await socket.updateAccountSettings({
+                ...SettingsService.smartPresenceServerFields(policy),
+                'presenceMode': mode,
+              });
+              if (result['ok'] != true) throw StateError(
+                result['message']?.toString() ?? 'The Smart Presence policy could not be saved.');
+              await preferences.applySmartPresenceLocalPolicy(mode, policy: policy);
+            },
             savePassword: socket.changePassword,
             clearNotificationsToken: NotificationService.clearToken,
             onAccountReset: () async { socket.disconnect(); },
             onSessionRefreshed: socket.reconnectWithCurrentSession,
           );
           socket.onProfileData = auth.applyProfileUpdate;
-          // Respect both the user's global notification switch and Busy presence.
+          auth.addListener(() {
+            final mode = auth.user?.presenceMode;
+            if (mode == null) return;
+            final normalized = SettingsService.normalizeSmartPresenceMode(mode);
+            if (preferences.activeSmartPresenceMode != normalized) {
+              unawaited(preferences.applySmartPresenceLocalPolicy(normalized));
+            }
+          });
+          // Respect the active mode's saved notification, sound and vibration policy.
           // Settings are loaded before runApp and provided above AuthService.
           socket.notificationsMuted = ([String? sender]) {
             final preferences = ctx.read<SettingsService>();
@@ -106,7 +125,6 @@ class NovynApp extends StatelessWidget {
                 .contains(sender.trim().toLowerCase());
             return !preferences.notificationsOn ||
                 !preferences.inAppSounds ||
-                auth.user?.presenceMode == 'busy' ||
                 (preferences.doNotDisturbEnabled && !favorite);
           };
           socket.notificationsVibrate = ([String? sender]) async {
@@ -115,7 +133,6 @@ class NovynApp extends StatelessWidget {
                 .contains(sender.trim().toLowerCase());
             if (preferences.notificationsOn &&
                 preferences.inAppVibration &&
-                auth.user?.presenceMode != 'busy' &&
                 (!preferences.doNotDisturbEnabled || favorite)) {
               await HapticService.vibrateNotification();
             }

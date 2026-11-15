@@ -127,7 +127,12 @@ test('localhost discovery, requests, reconnect state, and private media', { time
     const updated = event(bob.socket, 'profile_updated', value => value.presenceMode === mode);
     const statusChanged = event(alice.socket, 'user_status', value => value.username === 'bob' && value.presence === (mode === 'invisible' ? 'offline' : mode));
     const summary = event(alice.socket, 'friend_list_updated', value => value.friends.some(friend => friend.username === 'bob' && friend.presence === (mode === 'invisible' ? 'offline' : mode)));
-    bob.socket.emit('update_profile', { presenceMode: mode });
+    bob.socket.emit('update_profile', {
+      presenceMode: mode,
+      // Exercise the actual Smart Presence payload: Invisible defaults to
+      // hidden typing, while the other modes keep typing enabled.
+      typingIndicatorsEnabled: mode !== 'invisible',
+    });
     assert.equal((await updated).presenceMode, mode);
     const status = await statusChanged;
     assert.equal(status.online, mode !== 'invisible');
