@@ -216,7 +216,7 @@ class _DevicePairingScannerScreenState
                     MobileScanner(
                       controller: _controller,
                       onDetect: _handleCapture,
-                      errorBuilder: (context, error) => Container(
+                      errorBuilder: (context, error, child) => Container(
                         color: colors.surfaceContainerHighest,
                         alignment: Alignment.center,
                         padding: const EdgeInsets.all(24),
