@@ -396,7 +396,7 @@ class SettingsService extends ChangeNotifier {
         };
       case 'busy':
         return {
-          'callsEnabled': false, 'callPrivacy': 'nobody', 'messagePrivacy': 'friends',
+          'callsEnabled': true, 'callPrivacy': 'nobody', 'messagePrivacy': 'friends',
           'profilePhotoPrivacy': 'friends', 'presencePrivacy': 'friends',
           'discoverPrivacy': 'friends', 'groupInvitePrivacy': 'friends',
           'friendRequestPrivacy': 'mutuals',
