@@ -2323,7 +2323,10 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                       if (options.length > 2)
                         IconButton(
                           tooltip: 'Remove option',
-                          onPressed: () => refresh(() => options.removeAt(index)),
+                          onPressed: () => refresh(() {
+                  final removed = options.removeAt(index);
+                  removed.dispose();
+                }),
                           icon: Icon(Icons.close_rounded),
                         ),
                     ],
@@ -2350,7 +2353,20 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
               onPressed: () {
                 final cleanQuestion = question.text.trim();
                 final cleanOptions = options.map((item) => item.text.trim()).where((item) => item.isNotEmpty).toList();
-                if (cleanQuestion.isEmpty || cleanOptions.length < 2) return;
+                if (cleanQuestion.isEmpty || cleanOptions.length < 2) {
+                  ScaffoldMessenger.of(dialogContext).showSnackBar(const SnackBar(
+                    content: Text('Add a question and at least two options.'),
+                    behavior: SnackBarBehavior.floating,
+                  ));
+                  return;
+                }
+                if (cleanOptions.toSet().length != cleanOptions.length) {
+                  ScaffoldMessenger.of(dialogContext).showSnackBar(const SnackBar(
+                    content: Text('Poll options must be unique.'),
+                    behavior: SnackBarBehavior.floating,
+                  ));
+                  return;
+                }
                 context.read<SocketService>().createPoll(
                   cleanQuestion,
                   cleanOptions,
@@ -4589,6 +4605,7 @@ class _AttachmentButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final messenger = ScaffoldMessenger.of(context);
     return Material(
       color: scheme.primary.withValues(alpha: .10), shape: const CircleBorder(),
       child: InkWell(
@@ -4638,7 +4655,7 @@ class _AttachmentButton extends StatelessWidget {
                           onTap: () {
                             Navigator.pop(sheetContext);
                             if (!item.enabled) {
-                              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                              messenger.showSnackBar(SnackBar(
                                 content: Text('${item.label} sharing is not available yet.'),
                                 behavior: SnackBarBehavior.floating));
                               return;
