@@ -139,7 +139,9 @@ class AppUpdateService extends ChangeNotifier {
       throw const FormatException('The latest release metadata is invalid.');
     }
     final tag = (decoded['tag_name'] ?? '').toString();
-    final match = RegExp(r'^novyn-arm64-build-(\d+)(?:-\d+)*
+    final match = RegExp(r'^novyn-arm64-build-(\\d+)(?:-\\d+)*$')
+        .firstMatch(tag);
+    if (match == null) {
       throw const FormatException(
         'The latest release is not a supported ARM64 build.',
       );
