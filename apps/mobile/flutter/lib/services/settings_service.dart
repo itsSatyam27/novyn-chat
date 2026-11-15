@@ -117,6 +117,8 @@ class SettingsService extends ChangeNotifier {
     'in_app_sounds',
     'in_app_vibration',
     'group_notifications',
+    'dark_mode',
+    'stealth_mode',
   };
 
   late SharedPreferences _prefs;
