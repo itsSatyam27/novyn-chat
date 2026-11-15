@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'dart:async';
+import 'dart:collection';
 import '../models/chat_models.dart';
 import '../models/chat_preview.dart';
 import '../models/user_model.dart';
@@ -111,6 +112,8 @@ class SocketService extends ChangeNotifier {
 
   // Messages for the currently open chat (immutable list — replaced on update)
   List<Message> _messages = [];
+  List<Message>? _messagesViewSource;
+  UnmodifiableListView<Message>? _messagesView;
   String? _currentChatWith; // username for DMs or group ID for group chats
   bool _currentChatIsGroup = false;
   bool _activeChatCaptureProtected = false;
@@ -152,7 +155,16 @@ class SocketService extends ChangeNotifier {
   Function(String sender, String body)? onIncomingMessage;
   VoidCallback? onConnected;
 
-  List<Message> get messages => List.unmodifiable(_messages);
+  // Cache the read-only view while the immutable backing list is unchanged.
+  // List.unmodifiable(_messages) copied the entire history on every read,
+  // which became expensive as conversations grew.
+  List<Message> get messages {
+    if (!identical(_messagesViewSource, _messages)) {
+      _messagesViewSource = _messages;
+      _messagesView = UnmodifiableListView<Message>(_messages);
+    }
+    return _messagesView!;
+  }
   bool get isConnected => _isConnected;
   bool get isAuthenticated => _isAuthenticated;
   bool get hasLoadedConversations => _hasLoadedConversations;
