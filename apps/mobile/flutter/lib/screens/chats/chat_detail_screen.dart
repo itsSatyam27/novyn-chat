@@ -3039,6 +3039,9 @@ class _MessageBubble extends StatelessWidget {
                   ),
                 // ── Bubble with long-press ──────────────────────────────
                 GestureDetector(
+                  // Double-tap a bubble to apply the familiar quick ❤️ reaction.
+                  // Long-press still opens the full message actions and reaction sheet.
+                  onDoubleTap: () => _toggleReaction(context, '❤️'),
                   onLongPress: () => _showReactionPicker(context),
                   child: Container(
                     padding: const EdgeInsets.symmetric(
