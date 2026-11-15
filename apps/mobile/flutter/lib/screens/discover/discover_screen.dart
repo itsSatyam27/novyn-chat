@@ -428,7 +428,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => DiscoverPeopleScreen(myUid: myUid, initialTab: 0),
+                        builder: (_) => DiscoverPeopleScreen(myUid: myUid, initialTab: 2),
                       ),
                     );
                   },
