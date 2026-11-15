@@ -518,15 +518,13 @@ class NovynDock extends StatelessWidget {
               final itemWidth = constraints.maxWidth / labels.length;
               return Stack(
                 children: [
-                  Positioned.fill(
-                    child: _LiquidStretchIndicator(
+                  _LiquidStretchIndicator(
                       itemWidth: itemWidth,
                       index: selected,
                       reduceMotion: reduceMotion,
                       color: accent,
                       radius: 21,
                     ),
-                  ),
                   Row(
                     children: List.generate(
                       labels.length,
@@ -910,16 +908,12 @@ class _LiquidStretchIndicatorState extends State<_LiquidStretchIndicator>
   @override
   Widget build(BuildContext context) {
     if (widget.reduceMotion) {
-      return Align(
-        alignment: Alignment.centerLeft,
-        child: Transform.translate(
-          offset: Offset(widget.index * widget.itemWidth, 0),
-          child: SizedBox(
-            width: widget.itemWidth,
-            height: double.infinity,
-            child: _indicator(),
-          ),
-        ),
+      return Positioned(
+        left: widget.index * widget.itemWidth,
+        top: 0,
+        bottom: 0,
+        width: widget.itemWidth,
+        child: _indicator(),
       );
     }
 
@@ -943,7 +937,7 @@ class _LiquidStretchIndicatorState extends State<_LiquidStretchIndicator>
           left: left,
           top: 0,
           bottom: 0,
-          width: math.max(0, right - left),
+          width: math.max(0.0, right - left),
           child: _indicator(),
         );
       },
