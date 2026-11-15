@@ -829,6 +829,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
           _ChatHeaderButton(
             icon: Icons.search_rounded,
             iconSize: 18,
+            compact: true,
             filled: true,
             tooltip: 'Search messages',
             onTap: () => showSearch<String>(
@@ -5289,6 +5290,7 @@ class _ChatHeaderButton extends StatelessWidget {
     this.iconSize = 20,
     this.tooltip,
     this.filled = false,
+    this.compact = false,
   });
 
   final IconData icon;
@@ -5297,6 +5299,7 @@ class _ChatHeaderButton extends StatelessWidget {
   final double iconSize;
   final String? tooltip;
   final bool filled;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -5310,7 +5313,7 @@ class _ChatHeaderButton extends StatelessWidget {
         child: Material(
           color: filled ? scheme.primary.withValues(alpha: 0.10) : Colors.transparent,
           shape: const CircleBorder(),
-          child: SizedBox(width: 40, height: 40,
+          child: SizedBox(width: compact ? 34 : 40, height: compact ? 36 : 40,
             child: Center(child: Icon(icon, size: iconSize, color: color ?? scheme.primary)),
           ),
         ),
