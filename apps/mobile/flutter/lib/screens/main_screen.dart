@@ -34,6 +34,7 @@ class MainScreen extends StatefulWidget {
 
 class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   int _selectedIndex = 0;
+  double _horizontalDragDistance = 0;
   AuthService? _authService;
   String? _activeUsername;
   Timer? _updateCheckTimer;
@@ -180,6 +181,33 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     });
   }
 
+  void _onMainSwipeStart(DragStartDetails details) {
+    _horizontalDragDistance = 0;
+  }
+
+  void _onMainSwipeUpdate(DragUpdateDetails details) {
+    _horizontalDragDistance += details.delta.dx;
+  }
+
+  void _onMainSwipeEnd(DragEndDetails details) {
+    final distance = _horizontalDragDistance;
+    final velocity = details.primaryVelocity ?? 0;
+    _horizontalDragDistance = 0;
+
+    // Swipe left -> next tab; swipe right -> previous tab.
+    // Requiring either a deliberate drag distance or a clear fling keeps
+    // small horizontal movements from unexpectedly changing screens.
+    final isSwipeLeft = distance <= -60 || velocity <= -350;
+    final isSwipeRight = distance >= 60 || velocity >= 350;
+    if (!isSwipeLeft && !isSwipeRight) return;
+
+    final nextIndex = (_selectedIndex + (isSwipeLeft ? 1 : -1))
+        .clamp(0, _screens.length - 1);
+    if (nextIndex != _selectedIndex) {
+      setState(() => _selectedIndex = nextIndex);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final socket = context.read<SocketService>();
@@ -209,13 +237,19 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
           Column(
             children: [
               Expanded(
-                child: IndexedStack(
-                  index: _selectedIndex,
-                  children: List.generate(
-                      _screens.length,
-                      (index) => TickerMode(
-                          enabled: index == _selectedIndex,
-                          child: RepaintBoundary(child: _screens[index]))),
+                child: GestureDetector(
+                  behavior: HitTestBehavior.translucent,
+                  onHorizontalDragStart: _onMainSwipeStart,
+                  onHorizontalDragUpdate: _onMainSwipeUpdate,
+                  onHorizontalDragEnd: _onMainSwipeEnd,
+                  child: IndexedStack(
+                    index: _selectedIndex,
+                    children: List.generate(
+                        _screens.length,
+                        (index) => TickerMode(
+                            enabled: index == _selectedIndex,
+                            child: RepaintBoundary(child: _screens[index]))),
+                  ),
                 ),
               ),
             ],
