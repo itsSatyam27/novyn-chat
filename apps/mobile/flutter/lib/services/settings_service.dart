@@ -538,7 +538,7 @@ class SettingsService extends ChangeNotifier {
     _chatLinkPreviews = _prefs.getBool(_kChatLinkPreviews) ?? true;
     _readReceipts = _prefs.getBool(_kReadReceipts) ?? true;
     _onlineStatus = _prefs.getBool(_kOnlineStatus) ?? true;
-    _themeMode = ThemeMode.values[_prefs.getInt(_kThemeMode) ?? ThemeMode.dark.index];
+    _themeMode = ThemeMode.values[_prefs.getInt(_kThemeMode) ?? ThemeMode.light.index];
     _displayName = _prefs.getString(_kDisplayName) ?? '';
     _bio = _prefs.getString(_kBio) ?? '';
     
