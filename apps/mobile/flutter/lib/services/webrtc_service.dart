@@ -2,6 +2,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'socket_service.dart';
+import 'api_service.dart';
+import 'rtc_ice_configuration.dart';
 
 class WebRTCService extends ChangeNotifier {
   RTCPeerConnection? _peerConnection;
@@ -51,30 +53,27 @@ class WebRTCService extends ChangeNotifier {
   String _networkQuality = 'good'; // excellent, good, poor
   String get networkQuality => _networkQuality;
 
-  // ICE servers — STUN + free TURN servers for better connectivity
-  static const _iceServers = {
-    'iceServers': [
-      // Google STUN servers
-      {'urls': 'stun:stun.l.google.com:19302'},
-      {'urls': 'stun:stun1.l.google.com:19302'},
-      // Free TURN servers (relay for restrictive networks)
-      {
-        'urls': 'turn:openrelay.metered.ca:80',
-        'username': 'openrelayproject',
-        'credential': 'openrelayproject',
-      },
-      {
-        'urls': 'turn:openrelay.metered.ca:443',
-        'username': 'openrelayproject',
-        'credential': 'openrelayproject',
-      },
-      {
-        'urls': 'turn:openrelay.metered.ca:443?transport=tcp',
-        'username': 'openrelayproject',
-        'credential': 'openrelayproject',
-      },
-    ],
-  };
+  // Local fallback remains available when the backend or network is unavailable.
+  // Production TURN credentials are fetched from the authenticated backend endpoint.
+  static const List<Map<String, dynamic>> _fallbackIceServers = [
+    {'urls': 'stun:stun.l.google.com:19302'},
+    {'urls': 'stun:stun1.l.google.com:19302'},
+    {
+      'urls': 'turn:openrelay.metered.ca:80',
+      'username': 'openrelayproject',
+      'credential': 'openrelayproject',
+    },
+    {
+      'urls': 'turn:openrelay.metered.ca:443',
+      'username': 'openrelayproject',
+      'credential': 'openrelayproject',
+    },
+    {
+      'urls': 'turn:openrelay.metered.ca:443?transport=tcp',
+      'username': 'openrelayproject',
+      'credential': 'openrelayproject',
+    },
+  ];
 
   // ── Initialize renderers ─────────────────────────────────────────────────
   Future<void> init() async {
@@ -129,8 +128,25 @@ class WebRTCService extends ChangeNotifier {
     _activeSocket = socket;
     _activePeerId = peerId;
     _activeCallId = callId;
+    // Fetch current TURN/STUN servers for every new call. The API returns
+    // relay credentials only when the mobile session is authenticated.
+    final dynamicIcePayload = await ApiService.getRtcIceConfiguration();
+    final iceConfiguration = RtcIceConfiguration.resolve(
+      dynamicIcePayload,
+      fallbackServers: _fallbackIceServers,
+    );
+    final icePayload = dynamicIcePayload ?? const <String, dynamic>{};
+    final usingDynamicIce = icePayload['authenticated'] == true &&
+        RtcIceConfiguration.normalizeServers(
+          icePayload['iceServers'],
+          allowCredentials: true,
+        ).isNotEmpty;
+    debugPrint(usingDynamicIce
+        ? '[NovynWebRTC] Using authenticated backend ICE configuration.'
+        : '[NovynWebRTC] Using local ICE fallback configuration.');
+
     _peerConnection = await createPeerConnectionWithConfig(
-      _iceServers,
+      iceConfiguration,
       config,
     );
 
