@@ -21,7 +21,6 @@ import '../security/setup_pin_screen.dart';
 import 'widgets/profile_widgets.dart';
 import 'settings/notification_settings_screen.dart';
 import 'settings/security_privacy_screen.dart';
-import 'settings/smart_presence_screen.dart';
 import 'settings/data_storage_screen.dart';
 import 'settings/language_region_screen.dart';
 import 'settings/accessibility_screen.dart';
@@ -137,15 +136,6 @@ class ProfileScreen extends StatelessWidget {
                 ),
                 NovynSectionLabel('ACCOUNT', padding: const EdgeInsets.fromLTRB(4, 18, 4, 8)),
                 _NovynSettingsGroup(children: [
-                  _NovynSettingsTile(
-                    icon: Icons.tune_rounded,
-                    title: 'Smart Presence',
-                    subtitle: 'Status modes, privacy and notification presets',
-                    accent: const Color(0xFF7C6CF2),
-                    onTap: () => Navigator.push(context, MaterialPageRoute(
-                      builder: (_) => const SmartPresenceScreen(),
-                    )),
-                  ),
                   _NovynSettingsTile(
                     icon: Icons.shield_outlined,
                     title: 'Security & Privacy',
