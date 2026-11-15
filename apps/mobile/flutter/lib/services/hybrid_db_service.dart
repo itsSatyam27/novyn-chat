@@ -5,6 +5,7 @@ import '../models/chat_models.dart';
 import '../models/chat_preview.dart';
 import '../models/user_model.dart';
 import '../screens/chats/chats_screen.dart';
+import '../utils/message_pagination.dart';
 
 /// Hybrid database service that uses:
 /// - Drift (SQLite) for fast indexed queries (messages, chats)
@@ -82,11 +83,7 @@ class HybridDbService {
         for (final message in indexed) message.id: message,
         for (final message in complete) message.id: message,
       };
-      final result = merged.values.toList()
-        ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
-      return result.length > limit
-          ? result.sublist(result.length - limit)
-          : result;
+      return latestMessagesPage(merged.values, limit: limit);
     } catch (e) {
       print('Error getting messages: $e');
       return [];
@@ -96,15 +93,26 @@ class HybridDbService {
   /// Get older messages (pagination) - FAST with Drift indexes
   static Future<List<Message>> getOlderMessages(
     String chatId,
-    DateTime before,
-    {int limit = 30}
-  ) async {
+    DateTime before, {
+    String? beforeId,
+    int limit = 30,
+  }) async {
     await _ensureInit();
     try {
-      // FastDbService already returns models.Message (converted in fast_db_service.dart)
+      // Both stores use the same composite cursor and ascending output order.
       final reads = await Future.wait<List<Message>>([
-        _fastDb!.getOlderMessages(chatId, before, limit: limit),
-        LocalDbService.getOlderMessages(chatId, before, limit: limit),
+        _fastDb!.getOlderMessages(
+          chatId,
+          before,
+          beforeId: beforeId,
+          limit: limit,
+        ),
+        LocalDbService.getOlderMessages(
+          chatId,
+          before,
+          beforeId: beforeId,
+          limit: limit,
+        ),
       ]);
       final indexed = reads[0];
       final complete = reads[1];
@@ -112,11 +120,7 @@ class HybridDbService {
         for (final message in indexed) message.id: message,
         for (final message in complete) message.id: message,
       };
-      final result = merged.values.toList()
-        ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
-      return result.length > limit
-          ? result.sublist(result.length - limit)
-          : result;
+      return latestMessagesPage(merged.values, limit: limit);
     } catch (e) {
       print('Error getting older messages: $e');
       return [];

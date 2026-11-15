@@ -11,6 +11,7 @@ import 'api_service.dart';
 import 'media_storage_service.dart';
 import 'backend_contacts.dart';
 import 'message_encryption_service.dart';
+import '../utils/message_pagination.dart';
 import 'security_service.dart';
 import 'sync_service.dart';
 
@@ -774,7 +775,7 @@ class SocketService extends ChangeNotifier {
           if (message.id.isNotEmpty) merged[message.id] = message;
         }
         final timeline = merged.values.toList()
-          ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+          ..sort(compareMessagesChronologically);
         _messages = _resolveReplyPreviews(timeline);
         HybridDbService.saveMessages(_messages);
         final olderRequest = _olderHistoryCompleter;
@@ -1563,7 +1564,7 @@ class SocketService extends ChangeNotifier {
       if (message.id.isNotEmpty) merged[message.id] = message;
     }
     final timeline = merged.values.toList()
-      ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+      ..sort(compareMessagesChronologically);
     _messages = _resolveReplyPreviews(timeline);
     notifyListeners();
   }
@@ -1574,7 +1575,7 @@ class SocketService extends ChangeNotifier {
       if (message.id.isNotEmpty) merged[message.id] = message;
     }
     final timeline = merged.values.toList()
-      ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+      ..sort(compareMessagesChronologically);
     _messages = _resolveReplyPreviews(timeline);
     notifyListeners();
   }
