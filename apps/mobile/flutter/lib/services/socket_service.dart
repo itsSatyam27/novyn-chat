@@ -74,6 +74,8 @@ class SocketService extends ChangeNotifier {
   bool _hasLoadedConversations = false;
   Completer<void>? _authenticationReady;
   Completer<bool>? _olderHistoryCompleter;
+  Completer<List<Message>>? _chatHistoryCompleter;
+  String? _chatHistoryTarget;
   VoidCallback? onAuthenticated;
   final Map<String, String> _peerKeys = {};
   final BackendContacts contacts = BackendContacts();
@@ -783,6 +785,12 @@ class SocketService extends ChangeNotifier {
           olderRequest.complete(data['hasMore'] == true);
         }
         notifyListeners();
+        final pendingHistory = _chatHistoryCompleter;
+        if (pendingHistory != null &&
+            !pendingHistory.isCompleted &&
+            _chatHistoryTarget == withUser.trim().toLowerCase()) {
+          pendingHistory.complete(List<Message>.unmodifiable(_messages));
+        }
       }
     });
 
@@ -1462,7 +1470,23 @@ class SocketService extends ChangeNotifier {
   }
 
   // ── Open a chat ────────────────────────────────────────────────────────────
-  void openChat(String peerUsername, List<Message> cachedHistory, {bool isGroup = false}) {
+  /// Opens the conversation and completes when the authenticated server has
+  /// returned its history (including a legitimate empty-history response).
+  /// This avoids treating a delayed socket response as an empty conversation.
+  Future<List<Message>> openChat(
+    String peerUsername,
+    List<Message> cachedHistory, {
+    bool isGroup = false,
+  }) {
+    final previousRequest = _chatHistoryCompleter;
+    if (previousRequest != null && !previousRequest.isCompleted) {
+      previousRequest.complete(const <Message>[]);
+    }
+
+    final historyRequest = Completer<List<Message>>();
+    _chatHistoryCompleter = historyRequest;
+    _chatHistoryTarget = peerUsername.trim().toLowerCase();
+
     if (_typingTargetKey != null) _stopActiveTyping();
     _currentChatWith = peerUsername;
     _currentChatIsGroup = isGroup;
@@ -1493,6 +1517,18 @@ class SocketService extends ChangeNotifier {
     }
     connection?.emit('get_history', {'to': peerUsername, 'kind': isGroup ? 'group' : 'friend'});
     connection?.emit('get_chat_wallpaper', {'to': peerUsername, 'toType': isGroup ? 'group' : 'friend'});
+
+    return historyRequest.future
+        .timeout(
+          const Duration(seconds: 12),
+          onTimeout: () => List<Message>.unmodifiable(_messages),
+        )
+        .whenComplete(() {
+          if (identical(_chatHistoryCompleter, historyRequest)) {
+            _chatHistoryCompleter = null;
+            _chatHistoryTarget = null;
+          }
+        });
   }
 
   Future<void> _syncStealthModePreference() async {
@@ -1532,6 +1568,12 @@ class SocketService extends ChangeNotifier {
 
   void closeChat() {
     if (_typingTargetKey != null) _stopActiveTyping();
+    final pendingHistory = _chatHistoryCompleter;
+    if (pendingHistory != null && !pendingHistory.isCompleted) {
+      pendingHistory.complete(const <Message>[]);
+    }
+    _chatHistoryCompleter = null;
+    _chatHistoryTarget = null;
     _currentChatWith = null;
     _currentChatIsGroup = false;
     _activeChatCaptureProtected = false;
