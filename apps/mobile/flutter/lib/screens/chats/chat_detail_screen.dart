@@ -416,7 +416,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
 
   void _syncTypingAnimation() {
     if (!mounted) return;
-    final shouldAnimate = _appIsForeground && _socketService.peerIsTyping;
+    final shouldAnimate = _appIsForeground &&
+        (_socketService.peerIsTyping || _isRecordingVoice);
     if (shouldAnimate) {
       if (!_typingAnimation.isAnimating) _typingAnimation.repeat();
     } else if (_typingAnimation.isAnimating) {
@@ -1541,21 +1542,78 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
           const LinearProgressIndicator(minHeight: 2),
         if (_isRecordingVoice)
           Container(
-            margin: const EdgeInsets.fromLTRB(14, 8, 14, 0),
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            margin: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+            padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
             decoration: BoxDecoration(
-              color: const Color(0xFFEF4444).withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: const Color(0xFFEF4444).withValues(alpha: 0.25)),
+              color: theme.colorScheme.primary.withValues(alpha: isDark ? .15 : .07),
+              borderRadius: BorderRadius.circular(17),
+              border: Border.all(color: theme.colorScheme.primary.withValues(alpha: .20)),
             ),
             child: Row(
               children: [
-                Icon(Icons.fiber_manual_record, color: Color(0xFFEF4444), size: 13),
-                const SizedBox(width: 9),
-                Text('Recording  ${_formatVoiceDuration(_voiceSeconds)}',
-                  style: TextStyle(fontFamily: 'PlusJakartaSans', fontWeight: FontWeight.w600, color: Color(0xFFEF4444))),
-                const Spacer(),
-                const Text('Tap to send', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 11, color: Color(0xFF94A3B8))),
+                AnimatedBuilder(
+                  animation: _typingAnimation,
+                  builder: (context, child) => Transform.scale(
+                    scale: .94 + (_typingAnimation.value * .12),
+                    child: Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.primary.withValues(alpha: .14),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(Icons.mic_rounded, color: theme.colorScheme.primary, size: 19),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 11),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(
+                        children: [
+                          Text('Recording voice', style: TextStyle(
+                            fontFamily: 'PlusJakartaSans', fontSize: 12,
+                            fontWeight: FontWeight.w700, color: theme.colorScheme.onSurface,
+                          )),
+                          const SizedBox(width: 8),
+                          Text(_formatVoiceDuration(_voiceSeconds), style: TextStyle(
+                            fontFamily: 'PlusJakartaSans', fontSize: 11,
+                            fontWeight: FontWeight.w700, color: theme.colorScheme.primary,
+                          )),
+                        ],
+                      ),
+                      const SizedBox(height: 7),
+                      AnimatedBuilder(
+                        animation: _typingAnimation,
+                        builder: (context, child) => Row(
+                          children: List.generate(18, (index) {
+                            final wave = math.sin(
+                              (_typingAnimation.value * math.pi * 2) + (index * .58),
+                            ).abs();
+                            return Expanded(
+                              child: Container(
+                                height: 4 + (wave * 11),
+                                margin: const EdgeInsets.symmetric(horizontal: 1.2),
+                                decoration: BoxDecoration(
+                                  color: theme.colorScheme.primary.withValues(alpha: .30 + (wave * .65)),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                              ),
+                            );
+                          }),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text('Tap mic to send', style: TextStyle(
+                  fontFamily: 'PlusJakartaSans', fontSize: 10,
+                  fontWeight: FontWeight.w600, color: theme.colorScheme.onSurfaceVariant,
+                )),
               ],
             ),
           ),
@@ -1634,7 +1692,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
           ),
           padding: EdgeInsets.fromLTRB(12, 10, 12, MediaQuery.of(context).viewInsets.bottom > 0 ? 10 : 12),
           child: Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
+            // Anchor side actions while the multiline field grows.
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Attachment action is intentionally separate from the text field.
               Container(
@@ -1745,19 +1804,15 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                     gradient: LinearGradient(
                       colors: hasText
                           ? [Theme.of(context).colorScheme.primary, Color.lerp(Theme.of(context).colorScheme.primary, Colors.black, 0.14)!]
-                          : _isRecordingVoice
-                              ? [const Color(0xFFDC2626), const Color(0xFFEF4444)]
-                              : [Theme.of(context).colorScheme.primary, Color.lerp(Theme.of(context).colorScheme.primary, Colors.black, 0.14)!],
+                          : [Theme.of(context).colorScheme.primary, Color.lerp(Theme.of(context).colorScheme.primary, Colors.black, 0.10)!],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                     ),
                     shape: BoxShape.circle,
                     boxShadow: [
                       BoxShadow(
-                        color: (_isRecordingVoice
-                                ? const Color(0xFFEF4444)
-                                : Theme.of(context).colorScheme.primary)
-                            .withValues(alpha: 0.4),
+                        color: Theme.of(context).colorScheme.primary
+                            .withValues(alpha: _isRecordingVoice ? 0.28 : 0.20),
                         blurRadius: 10,
                         offset: const Offset(0, 4),
                       ),
