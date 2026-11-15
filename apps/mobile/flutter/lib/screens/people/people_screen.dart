@@ -23,11 +23,6 @@ class PeopleScreen extends StatefulWidget {
 }
 
 class _PeopleScreenState extends State<PeopleScreen> {
-  static const _alphabet = <String>[
-    'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K',
-    'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W',
-    'X', 'Y', 'Z',
-  ];
   static const _avatarPalette = <Color>[
     Color(0xFF6D4CF5),
     Color(0xFFC03F72),
@@ -47,7 +42,6 @@ class _PeopleScreenState extends State<PeopleScreen> {
   bool _favouritesLoaded = false;
   bool _favouriteLoading = false;
   final ScrollController _scrollController = ScrollController();
-  final Map<String, GlobalKey> _letterKeys = <String, GlobalKey>{};
 
   @override
   void initState() {
@@ -155,23 +149,6 @@ class _PeopleScreenState extends State<PeopleScreen> {
       MaterialPageRoute(
         builder: (_) => ReceivedFriendRequestsScreen(myUid: myUid),
       ),
-    );
-  }
-
-  void _scrollToLetter(String letter, List<String> availableLetters) {
-    if (availableLetters.isEmpty) return;
-    var target = letter;
-    if (!availableLetters.contains(target)) {
-      final next = availableLetters.where((value) => value.compareTo(letter) >= 0);
-      target = next.isNotEmpty ? next.first : availableLetters.last;
-    }
-    final targetContext = _letterKeys[target]?.currentContext;
-    if (targetContext == null) return;
-    Scrollable.ensureVisible(
-      targetContext,
-      duration: const Duration(milliseconds: 180),
-      curve: Curves.easeOutCubic,
-      alignment: .08,
     );
   }
 
