@@ -1,4 +1,4 @@
-import 'dart:async';
+import 'dart:async';\nimport 'dart:io';
 import 'package:flutter/material.dart';
 import 'dart:ui' show PlatformDispatcher;
 import 'package:flutter/foundation.dart';
@@ -11,7 +11,7 @@ import 'services/auth_service.dart';
 import 'services/settings_service.dart';
 import 'services/friend_service.dart';
 import 'services/socket_service.dart';
-import 'services/notification_service.dart';
+import 'services/notification_service.dart';\nimport 'services/app_update_service.dart';
 import 'services/api_service.dart';
 import 'services/sync_service.dart';
 import 'services/haptic_service.dart';
@@ -26,6 +26,16 @@ import 'l10n/app_localizations.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Android WorkManager performs periodic release checks even when Novyn is
+  // not currently open. Failures must never block normal app startup.
+  if (Platform.isAndroid) {
+    try {
+      await AppUpdateService.initializeBackgroundChecks();
+    } catch (error) {
+      debugPrint('[NovynUpdates] Background scheduler setup failed: ' + error.toString());
+    }
+  }
 
   // Capture uncaught framework and asynchronous Dart errors from devices that
   // may exercise different Android/plugin code paths. Keep diagnostics in the

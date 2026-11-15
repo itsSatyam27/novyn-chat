@@ -9,6 +9,7 @@ import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
 import '../../../theme/novyn_theme.dart';
 import '../../../services/api_service.dart';
+import '../../../services/app_update_service.dart';
 
 const _releasesApi = 'https://api.github.com/repos/itsSatyam27/novyn-chat/releases/latest';
 const _arm64ApkName = 'Novyn-Android-ARM64.apk';
@@ -26,7 +27,8 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
   int? _apkSize;
   int _installedBuild = 0, _latestBuild = 0;
   double _downloadProgress = 0;
-  String _appVersion = '—', _buildNumber = '0';
+  String _appVersion = AppUpdateService.displayVersion, _buildNumber = '0';
+  final AppUpdateService _updateService = AppUpdateService.instance;
 
   @override
   void initState() {
@@ -36,116 +38,63 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
     });
   }
 
-  Future<void> _checkForUpdates() async {
-    final installedInfo = await PackageInfo.fromPlatform();
+  void _handleDownloadStateChanged() {
     if (!mounted) return;
-    _installedBuild = int.tryParse(installedInfo.buildNumber) ?? 0;
-    _appVersion = installedInfo.version;
-    _buildNumber = installedInfo.buildNumber;
     setState(() {
-      _latestBuild = 0;
-      _checking = true;
-      _status = null;
-      _apkUrl = null;
-      _expectedSha256 = null;
-      _downloadedApkPath = null;
-      _apkSize = null;
+      _downloading = _updateService.isDownloading;
+      _downloadProgress = _updateService.downloadProgress;
+      _downloadedApkPath = _updateService.downloadedApkPath;
+      if (_updateService.downloadError != null) {
+        _status = _updateService.downloadError;
+      } else if (_downloadedApkPath != null) {
+        _status = 'ARM64 APK downloaded and verified. Ready to install.';
+      } else if (_downloading) {
+        _status = 'Downloading ARM64 update…';
+      }
     });
+  }
+
+  Future<void> _checkForUpdates() async {
+    if (mounted) {
+      setState(() {
+        _checking = true;
+        _status = null;
+        _latestBuild = 0;
+        _apkUrl = null;
+        _expectedSha256 = null;
+        _apkSize = null;
+      });
+    }
     try {
-      final response = await http.get(Uri.parse(_releasesApi),
-          headers: const {'Accept': 'application/vnd.github+json'})
-          .timeout(const Duration(seconds: 20));
-      if (response.statusCode == 404) {
-        setState(() => _status = 'No public Android release is available yet.');
-        return;
-      }
-      if (response.statusCode != 200) throw Exception('Update service unavailable.');
-      final data = jsonDecode(response.body);
-      if (data is! Map || data['draft'] == true) throw const FormatException('Invalid release.');
-      final tag = (data['tag_name'] ?? '').toString();
-      final match = RegExp(r'^novyn-arm64-build-(\d+)(?:-\d+)?$').firstMatch(tag);
-      if (match == null) throw const FormatException('Latest release is not a supported ARM64 build.');
-      final build = int.parse(match.group(1)!);
-      final assets = data['assets'];
-      if (assets is! List) throw const FormatException('Release assets are missing.');
-      Map? asset;
-      for (final item in assets) {
-        if (item is Map && item['name'] == _arm64ApkName) { asset = item; break; }
-      }
-      if (asset == null) throw const FormatException('ARM64 APK is missing.');
-      final url = Uri.tryParse((asset['browser_download_url'] ?? '').toString());
-      final digest = (asset['digest'] ?? '').toString();
-      final size = int.tryParse((asset['size'] ?? '').toString());
-      if (url == null || url.host != 'github.com' ||
-          !url.path.contains('/itsSatyam27/novyn-chat/releases/download/') ||
-          !url.path.endsWith('/' + _arm64ApkName) ||
-          !RegExp(r'^sha256:[a-fA-F0-9]{64}$').hasMatch(digest) ||
-          size == null || size < 10 * 1024 * 1024 || size > 100 * 1024 * 1024) {
-        throw const FormatException('ARM64 APK metadata failed validation.');
+      final result = await _updateService.checkForUpdates();
+      if (!mounted) return;
+      _installedBuild = result.installedBuild;
+      _appVersion = AppUpdateService.displayVersion;
+      _buildNumber = result.buildNumber;
+      final release = result.release;
+      if (release != null) {
+        _latestBuild = release.build;
+        _apkUrl = release.url;
+        _expectedSha256 = release.sha256;
+        _apkSize = release.size;
       }
       setState(() {
-        _latestBuild = build;
-        _apkUrl = url.toString();
-        _expectedSha256 = digest.substring(7).toLowerCase();
-        _apkSize = size;
-        _status = build > _installedBuild
-            ? 'A new ARM64 update is available.'
-            : 'You are up to date. Novyn is running the latest ARM64 release.';
+        _status = result.message;
+        _checking = false;
       });
+      _handleDownloadStateChanged();
     } catch (_) {
-      if (mounted) setState(() => _status = 'Could not verify updates. Check your connection and try again.');
-    } finally {
-      if (mounted) setState(() => _checking = false);
+      if (mounted) {
+        setState(() {
+          _status = 'Could not verify updates. Check your connection and try again.';
+          _checking = false;
+        });
+      }
     }
   }
 
   Future<void> _downloadUpdate() async {
-    final url = _apkUrl, hash = _expectedSha256;
-    final size = _apkSize;
-    if (url == null || hash == null || size == null) return;
-    setState(() { _downloading = true; _downloadProgress = 0; _status = 'Downloading ARM64 update…'; });
-    final client = http.Client();
-    String? path;
-    try {
-      final response = await client.send(http.Request('GET', Uri.parse(url)))
-          .timeout(const Duration(seconds: 30));
-      if (response.statusCode != 200 || (response.contentLength ?? size) != size) {
-        throw const FormatException('APK download response is invalid.');
-      }
-      final dir = await getTemporaryDirectory();
-      final file = File(dir.path + '/' + _arm64ApkName);
-      path = file.path;
-      if (await file.exists()) await file.delete();
-      final sink = file.openWrite();
-      var received = 0;
-      try {
-        await for (final chunk in response.stream) {
-          received += chunk.length;
-          if (received > size) throw const FormatException('APK exceeds expected size.');
-          sink.add(chunk);
-          if (mounted) setState(() => _downloadProgress = received / size);
-        }
-      } finally {
-        await sink.flush();
-        await sink.close();
-      }
-      final actualDigest = await sha256.bind(file.openRead()).first;
-      if (received != size || actualDigest.toString() != hash) {
-        await file.delete();
-        throw const FormatException('APK checksum verification failed.');
-      }
-      if (!mounted) return;
-      setState(() { _downloadedApkPath = file.path; _status = 'ARM64 APK downloaded and verified. Ready to install.'; });
-    } catch (_) {
-      if (path != null) {
-        final partial = File(path);
-        if (await partial.exists()) await partial.delete();
-      }
-      if (mounted) setState(() => _status = 'Download or verification failed. Please try again.');
-    } finally {
-      client.close();
-      if (mounted) setState(() => _downloading = false);
-    }
+    await _updateService.downloadUpdate();
   }
 
   Future<void> _installUpdate() async {
@@ -245,7 +194,7 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
                       borderRadius: BorderRadius.circular(24),
                       border: Border.all(color: border),
                     ),
-                    child: Text('Version $_appVersion ($_buildNumber)',
+                    child: Text('Version $_appVersion (build $_buildNumber)',
                       style: TextStyle(color: ink, fontSize: 14, fontWeight: FontWeight.w700)),
                   ),
                 ]),
@@ -320,7 +269,7 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
                         surface, ink, border),
                       _updateChip('ARM64-v8a', surface, ink, border),
                     ]),
-                    if (_downloading) ...[
+                    if (_downloading || _updateService.hasPartialDownload) ...[
                       const SizedBox(height: 14),
                       ClipRRect(
                         borderRadius: BorderRadius.circular(8),
@@ -368,7 +317,7 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
                               Text(
                                 _downloading ? 'Downloading update' :
                                   _installing ? 'Opening installer' :
-                                    _downloadedApkPath == null ? 'Download update' : 'Install update',
+                                    _downloadedApkPath == null\n                                        ? (_updateService.hasPartialDownload ? 'Resume download' : 'Download update')\n                                        : 'Install update',
                                 style: const TextStyle(color: Colors.white,
                                   fontSize: 15.5, fontWeight: FontWeight.w800)),
                             ]),
@@ -411,7 +360,7 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
               ),
               const SizedBox(height: 15),
               _infoCard(context, [
-                _InfoRow(label: 'App version', value: '$_appVersion ($_buildNumber)'),
+                _InfoRow(label: 'App version', value: '$_appVersion (build $_buildNumber)'),
                 Divider(height: 1, color: border.withValues(alpha: .8)),
                 const _InfoRow(label: 'Platform', value: 'Flutter · Android ARM64'),
               ]),

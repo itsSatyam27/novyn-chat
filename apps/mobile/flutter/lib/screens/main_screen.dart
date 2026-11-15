@@ -16,6 +16,8 @@ import '../services/friend_service.dart';
 import '../models/user_model.dart';
 import '../widgets/novyn_dock.dart';
 import '../services/settings_service.dart';
+import '../services/app_update_service.dart';
+import 'profile/settings/support_screens.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({
@@ -30,7 +32,7 @@ class MainScreen extends StatefulWidget {
   State<MainScreen> createState() => _MainScreenState();
 }
 
-class _MainScreenState extends State<MainScreen> {
+class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   int _selectedIndex = 0;
   AuthService? _authService;
   String? _activeUsername;
@@ -57,6 +59,36 @@ class _MainScreenState extends State<MainScreen> {
       _authService!.addListener(_handleAuthChanged);
       _handleAuthChanged();
     });
+  }
+
+  void _openAboutNovyn(BuildContext hostContext) {
+    if (!hostContext.mounted) return;
+    Navigator.of(hostContext).push(
+      MaterialPageRoute(builder: (_) => const AboutNovynScreen()),
+    );
+  }
+
+  Future<void> _runUpdateCheck({bool force = false}) async {
+    if (!mounted) return;
+    final now = DateTime.now();
+    if (!force &&
+        _lastUpdateCheck != null &&
+        now.difference(_lastUpdateCheck!) < const Duration(minutes: 15)) {
+      return;
+    }
+    _lastUpdateCheck = now;
+    try {
+      await AppUpdateService.instance.checkForUpdates(notifyIfAvailable: true);
+    } catch (error) {
+      debugPrint('[NovynUpdates] Foreground check failed: ' + error.toString());
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      unawaited(_runUpdateCheck());
+    }
   }
 
   void _handleAuthChanged() {

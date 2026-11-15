@@ -241,6 +241,57 @@ class NotificationService {
   static bool? _lastSoundEnabled;
   static ValueChanged<String>? _activeCallActionHandler;
   static const int _activeCallNotificationId = 781204;
+  static const int _appUpdateNotificationId = 781205;
+  static ValueChanged<BuildContext>? _appUpdateTapHandler;
+
+  static void setAppUpdateTapHandler(ValueChanged<BuildContext>? handler) {
+    _appUpdateTapHandler = handler;
+  }
+
+  static Future<void> showAppUpdateAvailable() async {
+    if (!_localNotificationsReady) {
+      await _localNotifications.initialize(
+        const InitializationSettings(
+          android: AndroidInitializationSettings('@drawable/novyn_wings_icon'),
+          iOS: DarwinInitializationSettings(),
+        ),
+      );
+    }
+    final android = _localNotifications.resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin>();
+    await android?.createNotificationChannel(
+      const AndroidNotificationChannel(
+        'novyn_app_updates',
+        'App updates',
+        description: 'Notifications when a new Novyn version is available',
+        importance: Importance.high,
+        playSound: true,
+        enableVibration: true,
+      ),
+    );
+    await _localNotifications.show(
+      _appUpdateNotificationId,
+      'A new Novyn version is available',
+      'Tap to open About Novyn and check for updates.',
+      const NotificationDetails(
+        android: AndroidNotificationDetails(
+          'novyn_app_updates',
+          'App updates',
+          channelDescription: 'Notifications when a new Novyn version is available',
+          importance: Importance.high,
+          priority: Priority.high,
+          icon: '@drawable/novyn_wings_icon',
+          autoCancel: true,
+        ),
+        iOS: DarwinNotificationDetails(
+          presentAlert: true,
+          presentBadge: true,
+          presentSound: true,
+        ),
+      ),
+      payload: 'app_update',
+    );
+  }
 
   /// Registers the currently visible call screen as the owner of notification
   /// actions. The notification itself stays ongoing while the call is active.
