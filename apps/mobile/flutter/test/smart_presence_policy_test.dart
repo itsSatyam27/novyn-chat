@@ -19,9 +19,9 @@ void main() {
     expect(p['callPrivacy'], 'friends');
     expect(p['notificationsEnabled'], isTrue);
   });
-  test('Busy blocks calls and alerts but preserves messaging', () {
+  test('Busy blocks incoming calls and alerts but preserves messaging', () {
     final p = SettingsService.smartPresenceDefaults('busy');
-    expect(p['callsEnabled'], isFalse);
+    expect(p['callsEnabled'], isTrue);
     expect(p['callPrivacy'], 'nobody');
     expect(p['messagePrivacy'], 'friends');
     expect(p['notificationsEnabled'], isFalse);
