@@ -1,6 +1,11 @@
 name: Novyn Optimized ARM64 APK
 
 on:
+  push:
+    branches: [phase-2]
+    paths:
+      - "apps/mobile/flutter/**"
+      - ".github/workflows/optimized-arm64-apk.yml"
   workflow_dispatch:
 
 permissions:
