@@ -3893,10 +3893,32 @@ class _MessageBubble extends StatelessWidget {
     );
   }
 
-  void _deleteMessage(BuildContext context, {required bool forEveryone}) {
+  Future<void> _deleteMessage(BuildContext context, {required bool forEveryone}) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(forEveryone ? 'Delete for everyone?' : 'Delete for me?'),
+        content: Text(forEveryone
+            ? 'This message will be removed for everyone in this chat.'
+            : 'This message will be removed only from your chat.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            style: TextButton.styleFrom(foregroundColor: const Color(0xFFEF4444)),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
     context.read<SocketService>().deleteMessage(
           message.id as String,
-          peer.uid,
+          peer.uid.isNotEmpty ? peer.uid : peer.username,
           forEveryone: forEveryone,
         );
   }
