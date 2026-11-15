@@ -236,7 +236,7 @@ class NovynDock extends StatelessWidget {
                         curve: Curves.easeOutCubic,
                         height: 60,
                         padding: EdgeInsets.symmetric(
-                          horizontal: active ? 9 : 3,
+                          horizontal: active ? 4 : 3,
                         ),
                         decoration: BoxDecoration(
                           color: active
@@ -267,14 +267,14 @@ class NovynDock extends StatelessWidget {
                                 curve: Curves.easeOutCubic,
                                 widthFactor: active ? 1 : 0,
                                 child: Padding(
-                                  padding: const EdgeInsets.only(left: 6),
+                                  padding: const EdgeInsets.only(left: 4),
                                   child: Text(
                                     labels[index],
                                     maxLines: 1,
                                     softWrap: false,
                                     overflow: TextOverflow.clip,
                                     style: TextStyle(
-                                      fontSize: 11,
+                                      fontSize: 10.5,
                                       fontWeight: FontWeight.w800,
                                       color: accent,
                                     ),
