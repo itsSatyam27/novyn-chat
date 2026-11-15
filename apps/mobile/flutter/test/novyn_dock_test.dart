@@ -4,14 +4,14 @@ import 'package:novyn/widgets/novyn_dock.dart';
 
 void main() {
   const styles = [
-    'floating_pill',
-    'rounded_bar',
-    'minimal',
-    'glass',
-    'sliding',
-    'elevated',
-    'full_width',
-    'glow',
+    'slide_pill',
+    'expand_capsule',
+    'edge_to_edge',
+    'dot_minimal',
+    'soft_glow_glass',
+    'liquid_stretch',
+    'flip_tiles',
+    'draw_ring',
   ];
 
   testWidgets('dock keeps a stable footprint across all styles',
@@ -62,7 +62,7 @@ void main() {
             unreadCount: 3,
             requestCount: 1,
             onSelected: (index) => setState(() => selected = index),
-            style: 'sliding',
+            style: 'slide_pill',
           ),
         ),
       ),

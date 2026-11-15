@@ -741,14 +741,14 @@ class _DockStyleTile extends StatelessWidget {
   final VoidCallback onTap;
 
   static const _labels = {
-    'floating_pill': 'Floating Pill',
-    'rounded_bar': 'Rounded Bar',
-    'minimal': 'Minimal',
-    'glass': 'Glass',
-    'sliding': 'Sliding Indicator',
-    'elevated': 'Elevated Center',
-    'full_width': 'Full Width',
-    'glow': 'Accent Glow',
+    'slide_pill': 'Slide Pill',
+    'expand_capsule': 'Expand Capsule',
+    'edge_to_edge': 'Edge to Edge',
+    'dot_minimal': 'Dot Minimal',
+    'soft_glow_glass': 'Soft Glow Glass',
+    'liquid_stretch': 'Liquid Stretch',
+    'flip_tiles': 'Flip Tiles',
+    'draw_ring': 'Draw Ring',
   };
 
   @override
@@ -786,7 +786,7 @@ class _DockStyleTile extends StatelessWidget {
                   children: [
                     Text('Dock style', style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800)),
                     const SizedBox(height: 3),
-                    Text(_labels[settings.dockStyle] ?? 'Floating Pill',
+                    Text(_labels[settings.dockStyle] ?? 'Slide Pill',
                       style: theme.textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant)),
                   ],
                 ),
