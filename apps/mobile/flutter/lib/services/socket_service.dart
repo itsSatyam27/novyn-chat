@@ -12,6 +12,7 @@ import 'media_storage_service.dart';
 import 'backend_contacts.dart';
 import 'message_encryption_service.dart';
 import 'security_service.dart';
+import 'sync_service.dart';
 
 /// Socket service for the shared novyn-chat backend (server.js).
 ///
@@ -66,6 +67,7 @@ class SocketService extends ChangeNotifier {
   // Uses the same ECDH P-256 + AES-GCM-256 wire format as the web client.
   final encryption = MessageEncryptionService();
   Future<void>? _identityRegistration;
+  Future<void>? _outboxActivation;
   String? _registeredIdentityAccount;
   bool _isAuthenticated = false;
   bool _hasLoadedConversations = false;
@@ -86,6 +88,7 @@ class SocketService extends ChangeNotifier {
   int _messageStatusRevision = 0;
   final Map<String, DateTime> _messageDeliveredAt = {};
   final Map<String, DateTime> _messageSeenAt = {};
+  final Set<String> _recentOwnMessageEchoIds = <String>{};
   int get messageStatusRevision => _messageStatusRevision;
   String messageStatusFor(String messageId) => _messageStatuses[messageId] ?? 'sent';
   DateTime? messageDeliveredAtFor(String messageId) => _messageDeliveredAt[messageId];
@@ -101,6 +104,7 @@ class SocketService extends ChangeNotifier {
   // Reconnection state
   String? _serverUrl;
   Timer? _reconnectTimer;
+  Timer? _pendingOutboxRetryTimer;
 
   // Messages for the currently open chat (immutable list — replaced on update)
   List<Message> _messages = [];
@@ -200,9 +204,257 @@ class SocketService extends ChangeNotifier {
     }
     _serverUrl = serverUrl;
     _myUsername = username;
+    _outboxActivation = _activatePendingMessageOutbox(username);
+    unawaited(_outboxActivation!.catchError((error) {
+      debugPrint('[NovynOutbox] Could not restore pending messages: $error');
+    }));
     if ((_socket != null && _socket!.connected && _isConnected) ||
         _isConnecting) return;
     _doConnect();
+  }
+
+  Future<void> _activatePendingMessageOutbox(String username) async {
+    await SyncService().activateAccount(username);
+    if (_myUsername?.toLowerCase() != username.trim().toLowerCase()) return;
+    for (final pending in SyncService().pendingMessages) {
+      _messageStatuses[pending.tempId] = 'sending';
+    }
+    _restorePendingMessagesForOpenChat();
+    notifyListeners();
+  }
+
+  /// Rebuild optimistic bubbles from the durable queue after process restart.
+  void _restorePendingMessagesForOpenChat() {
+    final peer = _currentChatWith;
+    if (peer == null) return;
+
+    final existingIds = _messages.map((message) => message.id).toSet();
+    final restored = SyncService().pendingMessages
+        .where((pending) =>
+            pending.isGroup == _currentChatIsGroup &&
+            pending.chatId.toLowerCase() == peer.toLowerCase() &&
+            !existingIds.contains(pending.tempId))
+        .map((pending) {
+          _messageStatuses[pending.tempId] = 'sending';
+          return pending.toLocalMessage();
+        })
+        .toList(growable: false);
+    if (restored.isEmpty) return;
+
+    _messages = [..._messages, ...restored]
+      ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+    unawaited(HybridDbService.saveMessages(restored));
+    notifyListeners();
+  }
+
+  Future<void> _flushPendingMessageOutbox() async {
+    final account = _myUsername;
+    if (account == null || !_isConnected || !_isAuthenticated) return;
+    try {
+      await (_outboxActivation ?? SyncService().activateAccount(account));
+      if (_myUsername != account || !_isConnected || !_isAuthenticated) return;
+      await SyncService().flushPendingMessages(
+        _sendPendingMessage,
+        onRejected: (pending, reason) {
+          _messageStatuses[pending.tempId] = 'failed';
+          _messageStatusRevision++;
+          debugPrint('[NovynOutbox] Message ${pending.tempId} rejected: $reason');
+          notifyListeners();
+        },
+      );
+    } catch (error) {
+      debugPrint('[NovynOutbox] Flush deferred: $error');
+    }
+  }
+
+  void _startPendingOutboxRetry() {
+    _pendingOutboxRetryTimer?.cancel();
+    _pendingOutboxRetryTimer = Timer.periodic(
+      const Duration(seconds: 20),
+      (_) {
+        if (!_isConnected ||
+            !_isAuthenticated ||
+            SyncService().pendingMessages.isEmpty) {
+          return;
+        }
+        unawaited(_flushPendingMessageOutbox());
+      },
+    );
+  }
+
+  void _stopPendingOutboxRetry() {
+    _pendingOutboxRetryTimer?.cancel();
+    _pendingOutboxRetryTimer = null;
+  }
+
+  Future<void> _sendPendingMessage(PendingMessage pending) async {
+    final account = _myUsername;
+    if (account == null ||
+        pending.accountId != account.trim().toLowerCase()) {
+      throw const PendingMessageRejectedException(
+        'The signed-in account changed before this message could be sent.',
+      );
+    }
+
+    await _waitForSocketAuthentication();
+    _requireConnection();
+    final connection = _socket;
+    if (connection == null || !_isConnected || !_isAuthenticated) {
+      throw StateError('Novyn is reconnecting. The message remains queued.');
+    }
+
+    final payload = <String, dynamic>{
+      'to': pending.receiverId,
+      'toType': pending.isGroup ? 'group' : 'friend',
+      'text': pending.text,
+      'attachment': pending.attachment,
+      'replyTo': pending.replyToId == null
+          ? null
+          : {
+              'id': pending.replyToId,
+              'text': pending.replyToText ?? '',
+              'from': pending.replyToSender ?? '',
+            },
+      'clientTempId': pending.tempId,
+    };
+
+    if (!pending.isGroup) {
+      if (pending.attachment != null) {
+        throw const PendingMessageRejectedException(
+          'Secure media sharing is not enabled yet. Send text-only messages.',
+        );
+      }
+
+      await _registerEncryptionIdentity();
+      if (_registeredIdentityAccount != account.toLowerCase()) {
+        throw StateError('Secure identity registration is pending.');
+      }
+
+      var peerPublicKey = _peerKeys[pending.receiverId.toLowerCase()] ?? '';
+      if (peerPublicKey.isEmpty) {
+        final keyReply = Completer<Map<String, dynamic>>();
+        connection.emitWithAck(
+          'get_public_key',
+          {'username': pending.receiverId},
+          ack: (dynamic result) {
+            if (!keyReply.isCompleted) {
+              keyReply.complete(result is Map
+                  ? Map<String, dynamic>.from(result)
+                  : <String, dynamic>{});
+            }
+          },
+        );
+        final keyResult = await keyReply.future.timeout(
+          const Duration(seconds: 8),
+          onTimeout: () => <String, dynamic>{},
+        );
+        peerPublicKey = keyResult['publicKey']?.toString() ?? '';
+        if (peerPublicKey.isNotEmpty) {
+          _peerKeys[pending.receiverId.toLowerCase()] = peerPublicKey;
+        }
+      }
+      if (peerPublicKey.isEmpty) {
+        throw const PendingMessageDeferredException(
+          'The contact encryption key is not available yet.',
+        );
+      }
+
+      final encrypted = await encryption.encrypt(
+        pending.text,
+        account,
+        pending.receiverId,
+        peerPublicKey,
+      );
+      if (encrypted == null || encrypted['isEncrypted'] != true) {
+        throw const PendingMessageDeferredException(
+          'Message encryption could not complete with the current contact key.',
+        );
+      }
+      payload
+        ..['text'] = '🔒 Encrypted message'
+        ..['isEncrypted'] = true
+        ..['ciphertext'] = encrypted['ciphertext']
+        ..['iv'] = encrypted['iv']
+        ..['senderPublicKey'] = encrypted['senderPublicKey'];
+      if (payload['replyTo'] is Map) {
+        (payload['replyTo'] as Map)['text'] = '🔒 Encrypted message';
+      }
+    }
+
+    final acknowledgement = Completer<Map<String, dynamic>>();
+    connection.emitWithAck('private_message', payload, ack: (dynamic result) {
+      if (acknowledgement.isCompleted) return;
+      acknowledgement.complete(
+        result is Map
+            ? Map<String, dynamic>.from(result)
+            : <String, dynamic>{'ok': false, 'message': 'Unexpected server response.'},
+      );
+    });
+
+    final result = await acknowledgement.future.timeout(
+      const Duration(seconds: 15),
+      onTimeout: () => throw TimeoutException(
+        'Delivery was not confirmed. Message remains queued for a safe retry.',
+      ),
+    );
+    if (result['ok'] != true) {
+      final rejection =
+          result['message']?.toString() ?? 'The server rejected this message.';
+      final normalizedRejection = rejection.toLowerCase();
+      // Rate limits and expired sessions are temporary server conditions.
+      // Keep these records queued rather than losing user text.
+      if (normalizedRejection.contains('rate limit') ||
+          normalizedRejection.contains('sign in again') ||
+          normalizedRejection.contains('try again') ||
+          normalizedRejection.contains('temporarily unavailable')) {
+        throw StateError(rejection);
+      }
+      throw PendingMessageRejectedException(rejection);
+    }
+
+    final messageId = result['id']?.toString() ?? '';
+    if (messageId.isEmpty) {
+      throw StateError(
+        'The server acknowledged the send without a message ID. Retrying safely.',
+      );
+    }
+    if (_myUsername != account || _socket != connection) {
+      throw StateError('The account or connection changed after send acknowledgement.');
+    }
+
+    final acknowledged = Message(
+      id: messageId,
+      chatId: pending.chatId,
+      text: pending.text,
+      senderId: account,
+      isFromMe: true,
+      createdAt: pending.createdAt,
+      replyToId: pending.replyToId,
+      replyToText: pending.replyToText,
+      replyToSender: pending.replyToSender,
+      attachment: pending.attachment,
+      isEncrypted: !pending.isGroup,
+      ciphertext: payload['ciphertext']?.toString(),
+      iv: payload['iv']?.toString(),
+      senderPublicKey: payload['senderPublicKey']?.toString(),
+    );
+    final echoAlreadyReceived = _recentOwnMessageEchoIds.remove(messageId);
+    if (!echoAlreadyReceived) {
+      final optimisticIndex = _messages.indexWhere(
+        (message) => message.id == pending.tempId,
+      );
+      if (optimisticIndex >= 0) {
+        final updated = List<Message>.from(_messages);
+        updated[optimisticIndex] = acknowledged;
+        _messages = updated;
+      }
+      await HybridDbService.deleteMessage(pending.tempId);
+      await HybridDbService.saveMessage(acknowledged);
+    }
+    _messageStatuses.remove(pending.tempId);
+    _messageStatuses.putIfAbsent(messageId, () => 'sent');
+    _messageStatusRevision++;
+    notifyListeners();
   }
 
   void _doConnect() {
@@ -245,6 +497,7 @@ class SocketService extends ChangeNotifier {
     _socket!.onConnect((_) {
       _isConnecting = false;
       _isConnected = true;
+      SyncService().setOnlineStatus(true);
       _isAuthenticated = false;
       _stealthPreferenceSynced = false;
       _authenticationReady = Completer<void>();
@@ -262,8 +515,10 @@ class SocketService extends ChangeNotifier {
     });
 
     _socket!.onDisconnect((_) {
+      _stopPendingOutboxRetry();
       _isConnecting = false;
       _isConnected = false;
+      SyncService().setOnlineStatus(false);
       _isAuthenticated = false;
       // A completed future from an old socket must never authenticate a new one.
       _authenticationReady = null;
@@ -273,8 +528,10 @@ class SocketService extends ChangeNotifier {
     });
 
     _socket!.onConnectError((_) {
+      _stopPendingOutboxRetry();
       _isConnecting = false;
       _isConnected = false;
+      SyncService().setOnlineStatus(false);
       _isAuthenticated = false;
       _authenticationReady = null;
       _registeredIdentityAccount = null;
@@ -284,7 +541,9 @@ class SocketService extends ChangeNotifier {
 
     _registerEventHandlers();
     _socket!.on('auth_failed', (data) {
+      _stopPendingOutboxRetry();
       _isAuthenticated = false;
+      SyncService().setOnlineStatus(false);
       notifyListeners();
       // A stale access cookie can leave a newly connected socket without a
       // userKey. Refresh the HTTP session once, then rebuild the socket
@@ -324,6 +583,7 @@ class SocketService extends ChangeNotifier {
     }
     if (_isConnected && _isAuthenticated) {
       _requestActiveChatRefresh();
+      unawaited(_flushPendingMessageOutbox());
     }
   }
 
@@ -368,7 +628,7 @@ class SocketService extends ChangeNotifier {
     _socket!.on('register_success', (data) {
       if (data is Map) _handleFriendList(data['friends']);
       _markSocketAuthenticated();
-      unawaited(_registerEncryptionIdentity());
+      unawaited(_registerEncryptionIdentity().then((_) => _flushPendingMessageOutbox()));
     });
     // ── Initial data + friend list ────────────────────────────────────────
     _socket!.on('init', (data) {
@@ -376,7 +636,9 @@ class SocketService extends ChangeNotifier {
         _handleFriendList(data['friends']);
       }
       _markSocketAuthenticated();
-      unawaited(_registerEncryptionIdentity());
+      unawaited(
+        _registerEncryptionIdentity().then((_) => _flushPendingMessageOutbox()),
+      );
     });
 
     _socket!.on('friend_list', (data) => _handleFriendList(data));
@@ -425,6 +687,7 @@ class SocketService extends ChangeNotifier {
         if (_currentChatWith?.toLowerCase() == username.toLowerCase()) {
           unawaited(decryptCurrentMessages());
         }
+        unawaited(_flushPendingMessageOutbox());
       }
     });
 
@@ -578,6 +841,10 @@ class SocketService extends ChangeNotifier {
         msg = await encryption.decrypt(msg, account, peerKey);
       }
       if (isOwn) {
+        _recentOwnMessageEchoIds.add(msgId);
+        if (_recentOwnMessageEchoIds.length > 200) {
+          _recentOwnMessageEchoIds.remove(_recentOwnMessageEchoIds.first);
+        }
         _captureMessageStatusTimes(msgId, data);
         final explicit = data['status']?.toString().toLowerCase();
         _messageStatuses[msgId] = data['seenAt'] != null || explicit == 'seen'
@@ -589,8 +856,20 @@ class SocketService extends ChangeNotifier {
       }
       if (_myUsername != account) return;
 
+      // Reconcile the durable local outbox with the server echo. The same
+      // clientTempId makes a late echo safe after an acknowledged retry.
+      if (isOwn && clientTempId != null && clientTempId.isNotEmpty) {
+        try {
+          await SyncService().removePendingMessage(clientTempId);
+        } catch (error) {
+          // Keep local history rendering even if persisting the outbox removal
+          // fails. The stable clientTempId makes a later retry idempotent.
+          debugPrint('[NovynOutbox] Could not persist queue removal: $error');
+        }
+        await HybridDbService.deleteMessage(clientTempId);
+      }
       // Save to local DB
-      HybridDbService.saveMessage(msg);
+      await HybridDbService.saveMessage(msg);
       if (!isOwn && msg.attachment != null) {
         unawaited(MediaStorageService.handleIncomingAttachment(
           msg.attachment, msg.id));
@@ -934,6 +1213,8 @@ class SocketService extends ChangeNotifier {
   void _markSocketAuthenticated() {
     if (!_isConnected) return;
     _isAuthenticated = true;
+    SyncService().setOnlineStatus(true);
+    _startPendingOutboxRetry();
     if (!_stealthPreferenceSynced) {
       _stealthPreferenceSynced = true;
       unawaited(_syncStealthModePreference());
@@ -1176,6 +1457,7 @@ class SocketService extends ChangeNotifier {
     _chatWallpaper = '';
     _messages = List<Message>.from(cachedHistory);
     _peerIsTyping = false;
+    _restorePendingMessagesForOpenChat();
     notifyListeners();
 
     unawaited(decryptCurrentMessages());
@@ -1313,135 +1595,68 @@ class SocketService extends ChangeNotifier {
     if (trimmedText.isEmpty && attachment == null) {
       throw StateError('Write a message or attach a file first.');
     }
+    if (!isGroup && attachment != null) {
+      throw StateError(
+        'Secure media sharing is being prepared. Please send text-only messages for now.',
+      );
+    }
 
     final clientTempId = 'tmp_${DateTime.now().microsecondsSinceEpoch}';
-    final toType = isGroup ? 'group' : 'friend';
     final rawText = trimmedText.isNotEmpty
         ? trimmedText
         : (attachment?['kind'] == 'image' ? '[Image]' : '[File]');
-
-    // Render the outgoing bubble immediately. Android may suspend the socket
-    // while the app is backgrounded; reconnection/authentication happens after
-    // the local message is visible, not before the user sees any response.
-    _messageStatuses[clientTempId] = 'sending';
-    _messageStatusRevision++;
+    final createdAt = DateTime.now();
     final tempMsg = Message(
       id: clientTempId,
       chatId: toPeerUsername,
       text: rawText,
       senderId: account,
       isFromMe: true,
-      createdAt: DateTime.now(),
+      createdAt: createdAt,
       replyToId: replyToId,
       replyToText: replyToText,
       replyToSender: replyToSender,
       attachment: attachment,
       isEncrypted: false,
     );
+
+    _messageStatuses[clientTempId] = 'sending';
+    _messageStatusRevision++;
     _messages = [..._messages, tempMsg];
     notifyListeners();
 
     try {
-      if (!_isConnected && !_manualDisconnect) {
-        _scheduleReconnect(1);
+      await (_outboxActivation ?? SyncService().activateAccount(account));
+      if (_myUsername != account) {
+        throw StateError('Your account changed before this message was queued.');
       }
-      await _waitForSocketAuthentication();
-      _requireConnection();
+      // Persist the retry record before mirroring the optimistic bubble. If the
+      // process stops immediately after queueing, openChat rebuilds the bubble.
+      await SyncService().addPendingMessage(PendingMessage(
+        accountId: account.trim().toLowerCase(),
+        tempId: clientTempId,
+        text: rawText,
+        receiverId: toPeerUsername,
+        chatId: toPeerUsername,
+        createdAt: createdAt,
+        replyToId: replyToId,
+        replyToText: replyToText,
+        replyToSender: replyToSender,
+        isGroup: isGroup,
+        attachment: attachment,
+      ));
+      await HybridDbService.saveMessage(tempMsg);
 
-      final payload = <String, dynamic>{
-        'to': toPeerUsername,
-        'toType': toType,
-        'text': rawText,
-        'attachment': attachment,
-        'replyTo': replyToId == null
-            ? null
-            : {
-                'id': replyToId,
-                'text': replyToText ?? '',
-                'from': replyToSender ?? '',
-              },
-        'clientTempId': clientTempId,
-      };
-
-      // Phase 1 secures direct text messages. Group key distribution and
-      // encrypted media are deliberately handled as separate protocol work.
-      if (!isGroup) {
-        if (attachment != null) {
-          throw StateError('Secure media sharing is being prepared. Please send text-only messages for now.');
-        }
-        await _registerEncryptionIdentity();
-        var peerPublicKey = _peerKeys[toPeerUsername.toLowerCase()] ?? '';
-        if (peerPublicKey.isEmpty) {
-          final keyReply = Completer<Map<String, dynamic>>();
-          _socket!.emitWithAck('get_public_key', {'username': toPeerUsername},
-              ack: (dynamic result) {
-            if (!keyReply.isCompleted) {
-              keyReply.complete(result is Map
-                  ? Map<String, dynamic>.from(result)
-                  : <String, dynamic>{});
-            }
-          });
-          final keyResult = await keyReply.future.timeout(
-            const Duration(seconds: 8),
-            onTimeout: () => <String, dynamic>{},
-          );
-          peerPublicKey = keyResult['publicKey']?.toString() ?? '';
-          if (peerPublicKey.isNotEmpty) {
-            _peerKeys[toPeerUsername.toLowerCase()] = peerPublicKey;
-          }
-        }
-        if (peerPublicKey.isEmpty) {
-          throw StateError('Secure messaging is not set up for this contact yet. Ask them to open Novyn and try again.');
-        }
-        final encrypted = await encryption.encrypt(
-          rawText, account, toPeerUsername, peerPublicKey,
-        );
-        if (encrypted == null || encrypted['isEncrypted'] != true) {
-          throw StateError('Message encryption failed. Your message was not sent.');
-        }
-        payload
-          ..['text'] = '🔒 Encrypted message'
-          ..['isEncrypted'] = true
-          ..['ciphertext'] = encrypted['ciphertext']
-          ..['iv'] = encrypted['iv']
-          ..['senderPublicKey'] = encrypted['senderPublicKey'];
-        if (payload['replyTo'] is Map) {
-          (payload['replyTo'] as Map)['text'] = '🔒 Encrypted message';
-        }
+      // Offline sends are accepted into the durable outbox immediately.
+      // Authenticated reconnect and key registration trigger the actual send.
+      if (_isConnected && _isAuthenticated) {
+        if (!isGroup) await _registerEncryptionIdentity();
+        await _flushPendingMessageOutbox();
       }
-
-      final connection = _socket!;
-      final acknowledgement = Completer<Map<String, dynamic>>();
-      connection.emitWithAck('private_message', payload, ack: (dynamic result) {
-        if (acknowledgement.isCompleted) return;
-        acknowledgement.complete(
-          result is Map
-              ? Map<String, dynamic>.from(result)
-              : <String, dynamic>{'ok': false, 'message': 'Unexpected server response.'},
-        );
-      });
-
-      final result = await acknowledgement.future.timeout(
-        const Duration(seconds: 15),
-        onTimeout: () => throw TimeoutException(
-          'Delivery was not confirmed. Check your connection before retrying.',
-        ),
-      );
-      if (result['ok'] != true) {
-        throw StateError(
-          result['message']?.toString() ?? 'The server could not send this message.',
-        );
-      }
-      // The server's private_message echo replaces this optimistic message.
-    } catch (_) {
-      // Keep the optimistic bubble visible with a failed state so the user can
-      // distinguish a delayed connection from a successfully delivered message.
-      final index = _messages.indexWhere((message) => message.id == clientTempId);
-      if (index >= 0) {
-        _messageStatuses[clientTempId] = 'failed';
-        _messageStatusRevision++;
-        notifyListeners();
-      }
+    } catch (error) {
+      _messageStatuses[clientTempId] = 'failed';
+      _messageStatusRevision++;
+      notifyListeners();
       rethrow;
     }
   }
@@ -2487,8 +2702,12 @@ class SocketService extends ChangeNotifier {
 
   // ── Disconnect ────────────────────────────────────────────────────────────
   void disconnect() {
+    _stopPendingOutboxRetry();
     _manualDisconnect = true;
+    SyncService().setOnlineStatus(false);
+    unawaited(SyncService().deactivateAccount());
     _myUsername = null;
+    _outboxActivation = null;
     _isAuthenticated = false;
     _hasLoadedConversations = false;
     _registeredIdentityAccount = null;

@@ -392,6 +392,47 @@ class LocalDbService {
     await _metaBox?.put('account_scope', username.trim().toLowerCase());
   }
 
+  static const String _pendingMessagesKey = 'pending_messages_v1';
+
+  /// Read the durable outbox from the active account's Hive metadata box.
+  static Future<List<Map<String, dynamic>>> getPendingMessages(String username) async {
+    await _ensureInit();
+    final account = username.trim().toLowerCase();
+    if (_metaBox?.get('account_scope')?.toString().trim().toLowerCase() != account) {
+      return <Map<String, dynamic>>[];
+    }
+    try {
+      final raw = _metaBox?.get(_pendingMessagesKey);
+      if (raw is! List) return <Map<String, dynamic>>[];
+      return raw
+          .whereType<Map>()
+          .map((entry) => Map<String, dynamic>.from(entry))
+          .toList(growable: false);
+    } catch (error) {
+      print('Error reading pending messages: $error');
+      return <Map<String, dynamic>>[];
+    }
+  }
+
+  /// Atomically replace the active account's durable outbox snapshot.
+  static Future<void> savePendingMessages(
+    String username,
+    List<Map<String, dynamic>> messages,
+  ) async {
+    await _ensureInit();
+    final account = username.trim().toLowerCase();
+    if (_metaBox?.get('account_scope')?.toString().trim().toLowerCase() != account) {
+      throw StateError('The active local database belongs to another account.');
+    }
+    if (messages.length > 1000) {
+      throw StateError('The pending message queue is full.');
+    }
+    final snapshot = messages
+        .map((entry) => Map<String, dynamic>.from(entry))
+        .toList(growable: false);
+    await _metaBox?.put(_pendingMessagesKey, snapshot);
+  }
+
   /// Set last sync time for a chat
   static Future<void> setLastSync(String chatId, DateTime time) async {
     await _ensureInit();
