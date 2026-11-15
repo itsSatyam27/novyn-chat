@@ -10,6 +10,7 @@ import '../../../widgets/novyn_alert.dart';
 import '../../../widgets/import_message_keys_dialog.dart';
 import '../../security/setup_pin_screen.dart';
 import 'active_sessions_screen.dart';
+import 'device_pairing_scanner_screen.dart';
 import 'email_password_screen.dart';
 import 'blocked_users_screen.dart';
 import '../../../theme/novyn_theme.dart';
@@ -43,30 +44,36 @@ class SecurityPrivacyScreen extends StatelessWidget {
     Widget nav(IconData icon, Color color, String title, String subtitle, VoidCallback onTap, {Widget? trailing}) => _SecurityPrivacyTile(icon: icon, accent: color, title: title, subtitle: subtitle, onTap: onTap, trailing: trailing);
 
     return Scaffold(
-      backgroundColor: NovynTheme.pageBg(context),
+      backgroundColor: category == 'privacy' && !dark
+          ? const Color(0xFFF4F0FB)
+          : NovynTheme.pageBg(context),
       body: SafeArea(child: ListView(
         physics: const BouncingScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 30),
+        padding: EdgeInsets.fromLTRB(20, category == 'privacy' ? 5 : 12, 20, 30),
         children: [
-          SettingsPageHeader(
-            title: category == null ? 'Security & Privacy' : switch (category) {
-              'security' => 'Account Security',
-              'privacy' => 'Privacy Controls',
-              'device' => 'Device & Account',
-              'danger' => 'Danger Zone',
-              _ => 'Security & Privacy',
-            },
-            subtitle: category == null
-                ? 'Keep your account and chats safe'
-                : switch (category) {
-                    'security' => 'Manage sign-in and device protection',
-                    'privacy' => 'Control your visibility and interactions',
-                    'device' => 'Device privacy and account actions',
-                    'danger' => 'Manage permanent account actions',
-                    _ => 'Keep your account and chats safe',
-                  },
-          ),
-          const SizedBox(height: 20),
+          if (category == 'privacy')
+            const _PrivacyPageHeader(
+              title: 'Privacy Controls',
+              subtitle: 'Control your visibility and interactions',
+            )
+          else
+            SettingsPageHeader(
+              title: category == null ? 'Security & Privacy' : switch (category) {
+                'security' => 'Account Security',
+                'device' => 'Device & Account',
+                'danger' => 'Danger Zone',
+                _ => 'Security & Privacy',
+              },
+              subtitle: category == null
+                  ? 'Keep your account and chats safe'
+                  : switch (category) {
+                      'security' => 'Manage sign-in and device protection',
+                      'device' => 'Device privacy and account actions',
+                      'danger' => 'Manage permanent account actions',
+                      _ => 'Keep your account and chats safe',
+                    },
+            ),
+          SizedBox(height: category == 'privacy' ? 8 : 20),
           if (category == null) ...[
             Container(
               padding: const EdgeInsets.all(17),
@@ -132,6 +139,11 @@ class SecurityPrivacyScreen extends StatelessWidget {
             nav(Icons.devices_rounded, const Color(0xFF2A78B8),
               'Active Sessions', 'Sign out of other devices remotely',
               () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ActiveSessionsScreen()))),
+            nav(Icons.qr_code_scanner_rounded, const Color(0xFF0D9488),
+              'Link a web device', 'Scan the QR shown in Novyn Web and approve secure key sync',
+              () => Navigator.push(context, MaterialPageRoute(
+                builder: (_) => const DevicePairingScannerScreen(),
+              ))),
             nav(Icons.key_rounded, const Color(0xFF8B5CF6),
               'Import message keys', 'Sync encrypted chat history from your Novyn web browser',
               () => showImportMessageKeys(context)),
@@ -181,64 +193,18 @@ class SecurityPrivacyScreen extends StatelessWidget {
               onTap: () => _showDeleteAccount(context),
             ),
           ], color: const Color(0xFFB3261E)),
-          if (category == 'privacy') ...[
-            const SettingsIntroCard(
-              title: 'Your privacy at a glance',
-              subtitle: 'Review what others can see and how they can reach you.',
-              icon: Icons.shield_outlined,
+          if (category == 'privacy')
+            _PrivacyDashboard(
+              lastSeen: settings.lastSeenVisibility,
+              profilePhoto: settings.profilePhotoVisibility,
+              readReceipts: settings.readReceipts,
+              socket: socket,
+              settings: settings,
+              onBlocked: () => _showBlockedUsers(context, socket),
+              onStealthModeChanged: (enabled) =>
+                  _setStealthMode(context, settings, enabled),
+              onDndChanged: settings.setDoNotDisturbEnabled,
             ),
-            const SizedBox(height: 12),
-          ],
-          if (category == 'privacy') section('Chat protection', [
-            _SecurityPrivacyToggleTile(
-              icon: Icons.visibility_off_outlined,
-              accent: const Color(0xFFC2540F),
-              title: 'Stealth Mode',
-              subtitle: 'Prevent screenshots of your conversations on supported Novyn Android devices',
-              value: settings.stealthModeEnabled,
-              onChanged: (v) => _setStealthMode(context, settings, v),
-            ),
-            if (settings.stealthModeEnabled)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                child: Text(
-                  'Your Stealth Mode setting protects your conversations on the other person’s supported Novyn Android app.',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: muted,
-                    height: 1.4,
-                  ),
-                ),
-              ),
-          ], color: const Color(0xFFC2540F)),
-          if (category == 'privacy') section('Notification privacy', [
-            _SecurityPrivacyToggleTile(
-              icon: Icons.do_not_disturb_on_outlined,
-              accent: const Color(0xFF8B5CF6),
-              title: 'Do Not Disturb',
-              subtitle: 'Only messages and call alerts from your favourite contacts will notify you',
-              value: settings.doNotDisturbEnabled,
-              onChanged: settings.setDoNotDisturbEnabled,
-            ),
-            if (settings.doNotDisturbEnabled)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                child: Text(
-                  'Manage your favourites from the Chats screen. DND does not change your online presence or block incoming calls.',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: muted,
-                    height: 1.4,
-                  ),
-                ),
-              ),
-          ], color: const Color(0xFF8B5CF6)),
-          if (category == 'privacy') _PrivacyDashboard(
-            lastSeen: settings.lastSeenVisibility,
-            profilePhoto: settings.profilePhotoVisibility,
-            readReceipts: settings.readReceipts,
-            socket: socket,
-            settings: settings,
-            onBlocked: () => _showBlockedUsers(context, socket),
-          ),
           const SizedBox(height: 4),
           Center(child: Text('NOVYN · YOUR SPACE, YOUR PEOPLE',
             style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800,
@@ -1442,6 +1408,8 @@ class _PrivacyDashboard extends StatefulWidget {
     required this.socket,
     required this.settings,
     required this.onBlocked,
+    required this.onStealthModeChanged,
+    required this.onDndChanged,
   });
 
   final String lastSeen;
@@ -1450,6 +1418,8 @@ class _PrivacyDashboard extends StatefulWidget {
   final SocketService socket;
   final SettingsService settings;
   final VoidCallback onBlocked;
+  final ValueChanged<bool> onStealthModeChanged;
+  final ValueChanged<bool> onDndChanged;
 
   @override
   State<_PrivacyDashboard> createState() => _PrivacyDashboardState();
@@ -1612,6 +1582,7 @@ class _PrivacyDashboardState extends State<_PrivacyDashboard> {
   String _label(String value) => switch (value) {
     'everyone' => 'Everyone',
     'friends' => 'Friends',
+    'contacts' => 'Friends',
     'mutuals' => 'Mutuals',
     'nobody' => 'No one',
     _ => 'Everyone',
@@ -1620,6 +1591,8 @@ class _PrivacyDashboardState extends State<_PrivacyDashboard> {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final muted = colors.onSurfaceVariant;
     final presence = _values['presencePrivacy']!;
     final photo = _values['profilePhotoPrivacy']!;
     final visibility = [
@@ -1629,27 +1602,129 @@ class _PrivacyDashboardState extends State<_PrivacyDashboard> {
         Icons.visibility_outlined, 'Choose who can see when you are online or last active'),
     ];
     Widget heading(String title, String subtitle) => Padding(
-      padding: const EdgeInsets.only(left: 2, bottom: 10),
+      padding: const EdgeInsets.only(left: 6, bottom: 10),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text(title.toUpperCase(), style: Theme.of(context).textTheme.labelLarge?.copyWith(
-          color: colors.primary, fontWeight: FontWeight.w900, letterSpacing: 1.05)),
-        const SizedBox(height: 3),
+          color: colors.onSurfaceVariant, fontSize: 11.5,
+          fontWeight: FontWeight.w900, letterSpacing: 1.25)),
         Text(subtitle, style: Theme.of(context).textTheme.bodySmall?.copyWith(
-          color: colors.onSurfaceVariant)),
+          color: colors.onSurfaceVariant, fontSize: 13, height: 1.3)),
       ]),
     );
     Widget card(List<Widget> children) => Container(
       decoration: BoxDecoration(
         color: NovynTheme.cardBg(context),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: colors.outlineVariant),
+        borderRadius: BorderRadius.circular(26),
+        border: Border.all(color: colors.outlineVariant.withValues(alpha: dark ? .55 : .45)),
+        boxShadow: dark ? const [] : [
+          BoxShadow(color: const Color(0xFF6550B4).withValues(alpha: .055),
+            blurRadius: 22, offset: const Offset(0, 8)),
+        ],
       ),
       clipBehavior: Clip.antiAlias,
       child: Column(children: children),
     );
     Widget divider() => Divider(height: 1, indent: 66,
       color: colors.outlineVariant.withValues(alpha: .7));
+    Widget summaryChip(String title, String value) => Container(
+      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
+      decoration: BoxDecoration(
+        color: dark ? colors.primary.withValues(alpha: .15) : const Color(0xFFF2EFFB),
+        borderRadius: BorderRadius.circular(22),
+      ),
+      child: RichText(text: TextSpan(
+        style: TextStyle(fontFamily: NovynTheme.fontFamily, color: muted,
+          fontSize: 12.5, fontWeight: FontWeight.w700),
+        children: [
+          TextSpan(text: '$title  '),
+          TextSpan(text: value, style: TextStyle(color: colors.primary, fontWeight: FontWeight.w900)),
+        ],
+      )),
+    );
+
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Container(
+        margin: const EdgeInsets.only(bottom: 22),
+        padding: const EdgeInsets.all(17),
+        decoration: BoxDecoration(
+          color: NovynTheme.cardBg(context),
+          borderRadius: BorderRadius.circular(26),
+          border: Border.all(color: colors.outlineVariant.withValues(alpha: dark ? .55 : .45)),
+          boxShadow: dark ? const [] : [
+            BoxShadow(color: const Color(0xFF6550B4).withValues(alpha: .055),
+              blurRadius: 22, offset: const Offset(0, 8)),
+          ],
+        ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Container(
+              width: 60, height: 60,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  begin: Alignment.topLeft, end: Alignment.bottomRight,
+                  colors: [Color(0xFF8157FF), Color(0xFF6847F5)],
+                ),
+                borderRadius: BorderRadius.circular(18),
+                boxShadow: [BoxShadow(color: colors.primary.withValues(alpha: .20),
+                  blurRadius: 16, offset: const Offset(0, 6))],
+              ),
+              child: const Icon(Icons.shield_outlined, color: Colors.white, size: 30),
+            ),
+            const SizedBox(width: 15),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('Your privacy at a glance',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontSize: 17.5, fontWeight: FontWeight.w900, letterSpacing: -.35)),
+              const SizedBox(height: 4),
+              Text('Review what others can see and how they can reach you.',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: muted, fontSize: 13.5, height: 1.35)),
+            ])),
+          ]),
+          const SizedBox(height: 15),
+          Wrap(spacing: 8, runSpacing: 8, children: [
+            summaryChip('Profile', _label(_values['profilePhotoPrivacy'] ?? 'everyone')),
+            summaryChip('Reach', _label(_values['messagePrivacy'] ?? 'friends')),
+            summaryChip('Read receipts', widget.readReceipts ? 'On' : 'Off'),
+          ]),
+        ]),
+      ),
+      Padding(
+        padding: const EdgeInsets.only(left: 6, bottom: 10),
+        child: Text('CHAT PROTECTION', style: Theme.of(context).textTheme.labelLarge?.copyWith(
+          color: colors.onSurfaceVariant, fontSize: 11.5, fontWeight: FontWeight.w900, letterSpacing: 1.25)),
+      ),
+      card([
+        _PrivacyControlToggleTile(
+          icon: Icons.visibility_off_outlined, accent: const Color(0xFFC86A16),
+          title: 'Stealth Mode',
+          subtitle: 'Prevent screenshots of your conversations on supported Novyn Android devices',
+          value: widget.settings.stealthModeEnabled, enabled: !_saving,
+          onChanged: widget.onStealthModeChanged,
+        ),
+      ]),
+      const SizedBox(height: 22),
+      Padding(
+        padding: const EdgeInsets.only(left: 6, bottom: 10),
+        child: Text('NOTIFICATION PRIVACY', style: Theme.of(context).textTheme.labelLarge?.copyWith(
+          color: colors.onSurfaceVariant, fontSize: 11.5, fontWeight: FontWeight.w900, letterSpacing: 1.25)),
+      ),
+      card([
+        _PrivacyControlToggleTile(
+          icon: Icons.do_not_disturb_on_outlined, accent: const Color(0xFF7654FF),
+          title: 'Do Not Disturb',
+          subtitle: 'Only messages and call alerts from your favourite contacts will notify you',
+          value: widget.settings.doNotDisturbEnabled, enabled: !_saving,
+          onChanged: widget.onDndChanged,
+        ),
+        if (widget.settings.doNotDisturbEnabled)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 15),
+            child: Text('Manage your favourites from the Chats screen. DND does not change your online presence or block incoming calls.',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(color: muted, height: 1.4)),
+          ),
+      ]),
+      const SizedBox(height: 22),
       heading('Profile visibility', 'Decide what people can see about you.'),
       card([
         for (var i = 0; i < visibility.length; i++) ...[
@@ -1698,12 +1773,12 @@ class _PrivacyDashboardState extends State<_PrivacyDashboard> {
       const SizedBox(height: 18),
       heading('Activity & read status', 'Choose what activity information is shared.'),
       card([
-        _PrivacyToggleTile(icon: Icons.done_all_rounded, title: 'Read receipts',
+        _PrivacyToggleTile(icon: Icons.done_all_rounded, accent: const Color(0xFF7654FF), title: 'Read receipts',
           subtitle: 'Let others know when you have read their messages',
           value: widget.readReceipts, enabled: !_saving,
           onChanged: (v) => _saveToggle('readReceiptsEnabled', v)),
         divider(),
-        _PrivacyToggleTile(icon: Icons.keyboard_alt_outlined, title: 'Typing status',
+        _PrivacyToggleTile(icon: Icons.keyboard_alt_outlined, accent: const Color(0xFF7654FF), title: 'Typing status',
           subtitle: 'Let others know when you are typing',
           value: _typing, enabled: !_saving,
           onChanged: (v) => _saveToggle('typingIndicatorsEnabled', v)),
@@ -1712,8 +1787,9 @@ class _PrivacyDashboardState extends State<_PrivacyDashboard> {
       card([
         ListTile(
           contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 3),
-          leading: CircleAvatar(backgroundColor: colors.errorContainer,
-            child: Icon(Icons.block_rounded, color: colors.error)),
+          leading: Container(width: 48, height: 48,
+            decoration: BoxDecoration(color: const Color(0xFFE34C56).withValues(alpha: .13), borderRadius: BorderRadius.circular(15)),
+            child: const Icon(Icons.block_rounded, color: Color(0xFFE34C56))),
           title: const Text('Blocked contacts',
             style: TextStyle(fontWeight: FontWeight.w800)),
           subtitle: const Text('View and manage people you have blocked'),
@@ -1729,8 +1805,9 @@ class _PrivacyDashboardState extends State<_PrivacyDashboard> {
       card([
         ListTile(
           contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 3),
-          leading: CircleAvatar(backgroundColor: colors.secondaryContainer,
-            child: Icon(Icons.history_rounded, color: colors.onSecondaryContainer)),
+          leading: Container(width: 48, height: 48,
+            decoration: BoxDecoration(color: const Color(0xFF0B938C).withValues(alpha: .13), borderRadius: BorderRadius.circular(15)),
+            child: const Icon(Icons.history_rounded, color: Color(0xFF0B938C))),
           title: const Text('Message retention',
             style: TextStyle(fontWeight: FontWeight.w800)),
           subtitle: const Text('Messages are kept until explicitly deleted'),
@@ -1801,10 +1878,86 @@ class _PrivacyDashboardState extends State<_PrivacyDashboard> {
   }
 }
 
-class _PrivacyOptionTile extends StatelessWidget {
-  const _PrivacyOptionTile({required this.icon, this.accent, required this.title,
+class _PrivacyPageHeader extends StatelessWidget {
+  const _PrivacyPageHeader({required this.title, required this.subtitle});
+  final String title;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(top: 5, bottom: 18),
+      child: Row(children: [
+        SizedBox(width: 42, height: 48, child: IconButton(
+          onPressed: () => Navigator.maybePop(context),
+          padding: EdgeInsets.zero,
+          visualDensity: VisualDensity.compact,
+          icon: Icon(Icons.arrow_back_rounded, size: 27, color: colors.onSurface),
+        )),
+        const SizedBox(width: 9),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(title, style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+            fontSize: 29, fontWeight: FontWeight.w900, letterSpacing: -.85, height: 1.12)),
+          const SizedBox(height: 3),
+          Text(subtitle, style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            color: colors.onSurfaceVariant, fontSize: 14.5, height: 1.25)),
+        ])),
+      ]),
+    );
+  }
+}
+
+class _PrivacyControlToggleTile extends StatelessWidget {
+  const _PrivacyControlToggleTile({
+    required this.icon, required this.accent, required this.title,
     required this.subtitle, required this.value, required this.enabled,
-    required this.onTap});
+    required this.onChanged,
+  });
+  final IconData icon;
+  final Color accent;
+  final String title;
+  final String subtitle;
+  final bool value;
+  final bool enabled;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final colors = Theme.of(context).colorScheme;
+    return Opacity(opacity: enabled ? 1 : .58, child: InkWell(
+      onTap: enabled ? () => onChanged(!value) : null,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 13),
+        child: Row(children: [
+          Container(width: 52, height: 52,
+            decoration: BoxDecoration(color: accent.withValues(alpha: dark ? .18 : .13),
+              borderRadius: BorderRadius.circular(16)),
+            child: Icon(icon, color: accent, size: 23)),
+          const SizedBox(width: 14),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(title, style: Theme.of(context).textTheme.titleSmall?.copyWith(
+              fontSize: 15.5, fontWeight: FontWeight.w900)),
+            const SizedBox(height: 3),
+            Text(subtitle, style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: colors.onSurfaceVariant, fontSize: 13.3, height: 1.32)),
+          ])),
+          const SizedBox(width: 8),
+          Switch.adaptive(value: value, onChanged: enabled ? onChanged : null,
+            activeTrackColor: colors.primary, activeColor: Colors.white,
+            inactiveTrackColor: dark ? const Color(0xFF454456) : const Color(0xFFA49DBB)),
+        ]),
+      ),
+    ));
+  }
+}
+
+class _PrivacyOptionTile extends StatelessWidget {
+  const _PrivacyOptionTile({
+    required this.icon, this.accent, required this.title, required this.subtitle,
+    required this.value, required this.enabled, required this.onTap,
+  });
   final IconData icon;
   final Color? accent;
   final String title;
@@ -1816,41 +1969,50 @@ class _PrivacyOptionTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
+    final dark = Theme.of(context).brightness == Brightness.dark;
     final tint = accent ?? colors.primary;
-    return Opacity(opacity: enabled ? 1 : .55,
-      child: InkWell(onTap: enabled ? onTap : null,
-        child: Padding(padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 13),
-          child: Row(children: [
-            CircleAvatar(radius: 21,
-              backgroundColor: tint.withValues(alpha: .12),
-              child: Icon(icon, color: tint, size: 20)),
-            const SizedBox(width: 12),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title, style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w800)),
-                const SizedBox(height: 3),
-                Text(subtitle, style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: colors.onSurfaceVariant)),
-              ])),
-            const SizedBox(width: 8),
-            Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-              Text(value, style: TextStyle(color: colors.primary,
-                fontSize: 11, fontWeight: FontWeight.w800)),
-              Icon(Icons.keyboard_arrow_down_rounded,
-                color: colors.onSurfaceVariant, size: 19),
+    return Opacity(opacity: enabled ? 1 : .55, child: InkWell(
+      onTap: enabled ? onTap : null,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 13),
+        child: Row(children: [
+          Container(width: 52, height: 52,
+            decoration: BoxDecoration(color: tint.withValues(alpha: dark ? .18 : .13),
+              borderRadius: BorderRadius.circular(16)),
+            child: Icon(icon, color: tint, size: 23)),
+          const SizedBox(width: 13),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(title, style: Theme.of(context).textTheme.titleSmall?.copyWith(
+              fontSize: 15.3, fontWeight: FontWeight.w900, height: 1.2)),
+            const SizedBox(height: 3),
+            Text(subtitle, style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: colors.onSurfaceVariant, fontSize: 13.2, height: 1.32)),
+          ])),
+          const SizedBox(width: 9),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: dark ? colors.primary.withValues(alpha: .15) : const Color(0xFFF3F0FB),
+              borderRadius: BorderRadius.circular(16)),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Text(value, style: TextStyle(color: colors.primary, fontSize: 12.5, fontWeight: FontWeight.w900)),
+              const SizedBox(width: 2),
+              Icon(Icons.keyboard_arrow_down_rounded, color: colors.primary, size: 18),
             ]),
-          ]),
-        )),
-    );
+          ),
+        ]),
+      ),
+    ));
   }
 }
 
 class _PrivacyToggleTile extends StatelessWidget {
-  const _PrivacyToggleTile({required this.icon, required this.title,
-    required this.subtitle, required this.value, required this.enabled,
-    required this.onChanged});
+  const _PrivacyToggleTile({
+    required this.icon, required this.accent, required this.title, required this.subtitle,
+    required this.value, required this.enabled, required this.onChanged,
+  });
   final IconData icon;
+  final Color accent;
   final String title;
   final String subtitle;
   final bool value;
@@ -1860,21 +2022,24 @@ class _PrivacyToggleTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    return Padding(padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 7),
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
       child: Row(children: [
-        CircleAvatar(radius: 21,
-          backgroundColor: colors.primary.withValues(alpha: .10),
-          child: Icon(icon, color: colors.primary, size: 20)),
-        const SizedBox(width: 12),
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(title, style: Theme.of(context).textTheme.titleSmall?.copyWith(
-              fontWeight: FontWeight.w800)),
-            const SizedBox(height: 3),
-            Text(subtitle, style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: colors.onSurfaceVariant)),
-          ])),
-        Switch.adaptive(value: value, onChanged: enabled ? onChanged : null),
+        Container(width: 52, height: 52,
+          decoration: BoxDecoration(color: accent.withValues(alpha: dark ? .18 : .13),
+            borderRadius: BorderRadius.circular(16)),
+          child: Icon(icon, color: accent, size: 23)),
+        const SizedBox(width: 13),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(title, style: Theme.of(context).textTheme.titleSmall?.copyWith(
+            fontSize: 15.3, fontWeight: FontWeight.w900)),
+          const SizedBox(height: 3),
+          Text(subtitle, style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: colors.onSurfaceVariant, fontSize: 13.2, height: 1.32)),
+        ])),
+        Switch.adaptive(value: value, onChanged: enabled ? onChanged : null,
+          activeTrackColor: colors.primary, activeColor: Colors.white),
       ]),
     );
   }
