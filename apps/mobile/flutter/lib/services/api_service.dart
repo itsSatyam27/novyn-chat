@@ -104,24 +104,91 @@ class ApiService {
   }
 
   static Future<Map<String, String>> _csrfHeaders() async {
+    // Multipart uploads can be the first authenticated request after app
+    // resume. Restore the secure cookie jar before building request headers.
+    await initializeSessionStorage();
+
     if (_csrfToken == null) {
+      // The CSRF bootstrap GET must carry the existing auth cookie too;
+      // otherwise a cold-start upload can obtain a CSRF token without the
+      // authenticated session cookie required by /upload-file and /upload-voice.
       final response = await http
-          .get(Uri.parse('$baseUrl/api/auth/session'))
-          .timeout(const Duration(seconds: 10));
+          .get(
+            Uri.parse('$baseUrl/api/auth/session'),
+            headers: _authHeaders,
+          )
+          .timeout(const Duration(seconds: 15));
       await _storeSessionCookie(response);
     }
 
     final token = _csrfToken;
-    if (token == null) {
+    if (token == null || token.isEmpty) {
       throw StateError(
-          'Could not initialize the authentication security token.');
+          'Could not initialize the authentication security token. Please reconnect and try again.');
     }
 
     return {
-      'Content-Type': 'application/json',
-      'Cookie': _cookieHeader,
+      if (_cookieHeader.isNotEmpty) 'Cookie': _cookieHeader,
       'x-novyn-csrf': token,
+      'Accept': 'application/json',
     };
+  }
+
+  static Future<http.Response> _sendMultipartUpload({
+    required String endpoint,
+    required String fieldName,
+    required List<int> bytes,
+    required String filename,
+    required String mimeType,
+  }) async {
+    await initializeSessionStorage();
+
+    for (var attempt = 0; attempt < 2; attempt++) {
+      final headers = await _csrfHeaders();
+      final request = http.MultipartRequest(
+        'POST',
+        Uri.parse('$baseUrl/$endpoint'),
+      )
+        ..headers.addAll(headers)
+        ..files.add(http.MultipartFile.fromBytes(
+          fieldName,
+          bytes,
+          filename: filename,
+          contentType: MediaType.parse(mimeType),
+        ));
+
+      final streamed = await request.send().timeout(
+        const Duration(seconds: 60),
+      );
+      final response = await http.Response.fromStream(streamed);
+
+      if (attempt == 0 && response.statusCode == 401) {
+        // A refreshable access cookie may have expired while the app was idle.
+        final refreshed = await refreshSessionStatus();
+        if (refreshed == 200) continue;
+      }
+
+      if (attempt == 0 &&
+          response.statusCode == 403 &&
+          (response.body.contains('CSRF') ||
+              response.body.contains('csrf'))) {
+        // Re-sync a stale CSRF token once, then rebuild the multipart body.
+        _csrfToken = null;
+        await _secureStorage.delete(key: _csrfTokenKey);
+        final bootstrap = await http
+            .get(
+              Uri.parse('$baseUrl/api/auth/session'),
+              headers: _authHeaders,
+            )
+            .timeout(const Duration(seconds: 15));
+        await _storeSessionCookie(bootstrap);
+        continue;
+      }
+
+      return response;
+    }
+
+    throw StateError('Upload could not be authenticated. Please sign in again.');
   }
 
   // ── Expose cookie for socket handshake ───────────────────────────────────
@@ -768,20 +835,18 @@ class ApiService {
   }
 
   // ── Upload media using the authenticated shared backend route ────────────
+  // ── Upload media using the authenticated shared backend route ────────────
   static Future<String?> uploadMedia(
       List<int> bytes, String filename, String mimeType) async {
     if (bytes.isEmpty) throw StateError('The selected file is empty.');
     try {
-      final headers = await _csrfHeaders();
-      headers.remove('Content-Type');
-      final request = http.MultipartRequest('POST', Uri.parse('$baseUrl/upload-file'))
-        ..headers.addAll(headers)
-        ..files.add(http.MultipartFile.fromBytes(
-          'file', bytes, filename: filename,
-          contentType: MediaType.parse(mimeType),
-        ));
-      final streamed = await request.send().timeout(const Duration(seconds: 45));
-      final response = await http.Response.fromStream(streamed);
+      final response = await _sendMultipartUpload(
+        endpoint: 'upload-file',
+        fieldName: 'file',
+        bytes: bytes,
+        filename: filename,
+        mimeType: mimeType,
+      );
       Map<String, dynamic> body = {};
       try {
         final decoded = jsonDecode(response.body);
@@ -790,38 +855,35 @@ class ApiService {
 
       if (response.statusCode != 200) {
         final message = body['error']?.toString() ??
-          body['message']?.toString() ?? 'Upload failed (\${response.statusCode}).';
+            body['message']?.toString() ??
+            'File upload failed (${response.statusCode}).';
         throw StateError(message);
       }
       final rawUrl = body['url']?.toString();
       if (rawUrl == null || rawUrl.isEmpty) {
-        throw StateError('The server did not return a photo URL.');
+        throw StateError('The server did not return a file URL.');
       }
       return Uri.parse(baseUrl).resolve(rawUrl).toString();
     } on StateError {
       rethrow;
     } on TimeoutException {
-      throw StateError('Photo upload timed out. Please try again.');
+      throw StateError('File upload timed out. Please try again.');
     } catch (error) {
-      throw StateError('Could not upload photo: \$error');
+      throw StateError('Could not upload file: $error');
     }
   }
 
   static Future<String?> uploadVoice(
       List<int> bytes, String filename, String mimeType) async {
-    final headers = await _csrfHeaders();
-    headers.remove('Content-Type');
-    final request = http.MultipartRequest('POST', Uri.parse('$baseUrl/upload-voice'))
-      ..headers.addAll(headers)
-      ..files.add(http.MultipartFile.fromBytes(
-        'voice',
-        bytes,
-        filename: filename,
-        contentType: MediaType.parse(mimeType),
-      ));
+    if (bytes.isEmpty) throw StateError('The voice recording is empty.');
     try {
-      final streamed = await request.send().timeout(const Duration(seconds: 45));
-      final response = await http.Response.fromStream(streamed);
+      final response = await _sendMultipartUpload(
+        endpoint: 'upload-voice',
+        fieldName: 'voice',
+        bytes: bytes,
+        filename: filename,
+        mimeType: mimeType,
+      );
       Map<String, dynamic> body = {};
       try {
         final decoded = jsonDecode(response.body);
@@ -829,6 +891,7 @@ class ApiService {
       } catch (_) {}
       if (response.statusCode != 200) {
         throw StateError(body['error']?.toString() ??
+            body['message']?.toString() ??
             'Voice upload failed (${response.statusCode}). Please try again.');
       }
       final rawUrl = body['url']?.toString();
