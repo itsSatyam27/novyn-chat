@@ -2,9 +2,9 @@ name: Novyn CI
 
 on:
   push:
-    branches: [main, "hardening/**"]
+    branches: [main, "hardening/**", "calls/**"]
   pull_request:
-    branches: [main]
+    branches: [main, "phase-2"]
 
 jobs:
   validate:
@@ -40,7 +40,7 @@ jobs:
         run: flutter test --no-pub test/novyn_dock_test.dart test/quick_toggle_preferences_test.dart test/quick_toggle_layout_test.dart test/message_encryption_test.dart
 
   android-release-compile:
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/heads/hardening/')
+    if: github.event_name == 'push' && (startsWith(github.ref, 'refs/heads/hardening/') || startsWith(github.ref, 'refs/heads/calls/'))
     name: Android release APK compile
     runs-on: ubuntu-latest
     steps:
