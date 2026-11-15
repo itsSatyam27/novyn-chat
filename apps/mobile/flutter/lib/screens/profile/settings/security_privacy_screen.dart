@@ -1582,6 +1582,7 @@ class _PrivacyDashboardState extends State<_PrivacyDashboard> {
   String _label(String value) => switch (value) {
     'everyone' => 'Everyone',
     'friends' => 'Friends',
+    'contacts' => 'Friends',
     'mutuals' => 'Mutuals',
     'nobody' => 'No one',
     _ => 'Everyone',
@@ -1590,6 +1591,8 @@ class _PrivacyDashboardState extends State<_PrivacyDashboard> {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final muted = colors.onSurfaceVariant;
     final presence = _values['presencePrivacy']!;
     final photo = _values['profilePhotoPrivacy']!;
     final visibility = [
