@@ -189,7 +189,7 @@ class SettingsService extends ChangeNotifier {
   double _chatLabelSize = 1.0;
   int _accentColorValue = 0xFF6D5DFC;
   bool _accentColorEnabled = true;
-  String _dockStyle = 'floating_pill';
+  String _dockStyle = 'slide_pill';
   bool _twoFactorAuth = false;
   String _lastSeenVisibility = 'everyone'; // 'everyone', 'contacts', 'nobody'
   String _profilePhotoVisibility = 'everyone'; // 'everyone', 'contacts', 'nobody'
@@ -559,9 +559,30 @@ class SettingsService extends ChangeNotifier {
     _chatLabelSize = (_prefs.getDouble(_kChatLabelSize) ?? 1.0).clamp(0.8, 1.4).toDouble();
     _accentColorValue = _prefs.getInt(_kAccentColor) ?? 0xFF6D5DFC;
     _accentColorEnabled = _prefs.getBool(_kAccentColorEnabled) ?? true;
-    const dockStyles = ['floating_pill','rounded_bar','minimal','glass','sliding','elevated','full_width','glow'];
-    final savedDockStyle = _prefs.getString(_kDockStyle) ?? 'floating_pill';
-    _dockStyle = dockStyles.contains(savedDockStyle) ? savedDockStyle : 'floating_pill';
+    const dockStyles = [
+      'slide_pill',
+      'expand_capsule',
+      'edge_to_edge',
+      'dot_minimal',
+      'soft_glow_glass',
+      'liquid_stretch',
+      'flip_tiles',
+      'draw_ring',
+    ];
+    const legacyDockStyles = <String, String>{
+      'floating_pill': 'slide_pill',
+      'rounded_bar': 'slide_pill',
+      'minimal': 'dot_minimal',
+      'glass': 'soft_glow_glass',
+      'sliding': 'slide_pill',
+      'elevated': 'expand_capsule',
+      'full_width': 'edge_to_edge',
+      'glow': 'soft_glow_glass',
+    };
+    final savedDockStyle = _prefs.getString(_kDockStyle) ?? 'slide_pill';
+    _dockStyle = dockStyles.contains(savedDockStyle)
+        ? savedDockStyle
+        : (legacyDockStyles[savedDockStyle] ?? 'slide_pill');
     _twoFactorAuth = _prefs.getBool(_kTwoFactorAuth) ?? false;
     _lastSeenVisibility = _prefs.getString(_kLastSeen) ?? 'everyone';
     _profilePhotoVisibility = _prefs.getString(_kProfilePhoto) ?? 'everyone';
@@ -812,8 +833,18 @@ class SettingsService extends ChangeNotifier {
   }
 
   Future<void> setDockStyle(String style) async {
-    const allowed = {'floating_pill','rounded_bar','minimal','glass','sliding','elevated','full_width','glow'};
+    const allowed = {
+      'slide_pill',
+      'expand_capsule',
+      'edge_to_edge',
+      'dot_minimal',
+      'soft_glow_glass',
+      'liquid_stretch',
+      'flip_tiles',
+      'draw_ring',
+    };
     if (!allowed.contains(style)) return;
+    if (_dockStyle == style) return;
     _dockStyle = style;
     await _prefs.setString(_kDockStyle, style);
     notifyListeners();
@@ -1220,7 +1251,7 @@ class SettingsService extends ChangeNotifier {
     _chatLabelSize = 1.0;
     _accentColorValue = 0xFF6D5DFC;
     _accentColorEnabled = true;
-    _dockStyle = 'floating_pill';
+    _dockStyle = 'slide_pill';
     _twoFactorAuth = false;
     _lastSeenVisibility = 'everyone';
     _profilePhotoVisibility = 'everyone';
