@@ -2190,39 +2190,95 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
     secret.dispose(); question.dispose(); answer.dispose(); hint.dispose();
   }
   Future<void> _showGameLauncher() async {
-    const games = <Map<String, String>>[
-      {'id': 'tictactoe', 'title': 'Tic-Tac-Toe', 'subtitle': 'Three in a row'},
-      {'id': 'rps', 'title': 'Rock, Paper, Scissors', 'subtitle': 'Secret pick showdown'},
-      {'id': 'connect4', 'title': 'Connect 4', 'subtitle': 'Line up four chips'},
-      {'id': 'doodle', 'title': 'Doodle Duel', 'subtitle': 'Draw and guess'},
-      {'id': 'numberclash', 'title': 'Number Clash', 'subtitle': 'Pick closest to the target'},
-      {'id': 'updown', 'title': 'Up or Down', 'subtitle': 'Predict the next card'},
+    final games = <Map<String, dynamic>>[
+      {'id': 'tictactoe', 'title': 'Tic-Tac-Toe', 'subtitle': 'Three in a row', 'icon': Icons.grid_3x3_rounded},
+      {'id': 'rps', 'title': 'Rock, Paper, Scissors', 'subtitle': 'A quick showdown', 'icon': Icons.back_hand_rounded},
+      {'id': 'connect4', 'title': 'Connect 4', 'subtitle': 'Line up four chips', 'icon': Icons.circle_rounded},
+      {'id': 'doodle', 'title': 'Doodle Duel', 'subtitle': 'Draw and guess', 'icon': Icons.draw_rounded},
+      {'id': 'numberclash', 'title': 'Number Clash', 'subtitle': 'Pick a number', 'icon': Icons.pin_rounded},
+      {'id': 'updown', 'title': 'Up or Down', 'subtitle': 'Predict the next card', 'icon': Icons.trending_up_rounded},
     ];
-    await showModalBottomSheet<void>(context: context, backgroundColor: Colors.transparent, builder: (sheetContext) => Container(
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 26),
-      decoration: BoxDecoration(color: Theme.of(context).colorScheme.surface, borderRadius: const BorderRadius.vertical(top: Radius.circular(24))),
-      child: Column(mainAxisSize: MainAxisSize.min, children: [
-        Container(width: 38, height: 4, decoration: BoxDecoration(color: Colors.grey.withValues(alpha: 0.4), borderRadius: BorderRadius.circular(4))),
-        const SizedBox(height: 14),
-        const Text('Play together', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 18, fontWeight: FontWeight.w700)),
-        const SizedBox(height: 12),
-        ...games.map((game) => ListTile(
-          leading: const CircleAvatar(child: Icon(Icons.sports_esports_rounded)),
-          title: Text(game['title']!, style: TextStyle(fontFamily: 'PlusJakartaSans', fontWeight: FontWeight.w600)),
-          subtitle: Text(game['subtitle']!, style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 12)),
-          trailing: Icon(Icons.arrow_forward_ios_rounded, size: 15),
-          onTap: () {
-            context.read<SocketService>().sendGameChallenge(
-              game['id']!,
-              widget.peer.uid.isNotEmpty ? widget.peer.uid : widget.peer.username,
-              isGroup: widget.isGroup,
-            );
-            Navigator.pop(sheetContext);
-          },
-        )),
-      ]),
-    ));
+    final socket = context.read<SocketService>();
+    await showModalBottomSheet<void>(
+      context: context, backgroundColor: Colors.transparent,
+      isScrollControlled: true, useSafeArea: true,
+      builder: (sheetContext) {
+        final theme = Theme.of(sheetContext);
+        final scheme = theme.colorScheme;
+        return Container(
+          margin: const EdgeInsets.fromLTRB(10, 0, 10, 10),
+          constraints: BoxConstraints(maxHeight: MediaQuery.of(sheetContext).size.height * .78),
+          padding: const EdgeInsets.fromLTRB(18, 12, 18, 18),
+          decoration: BoxDecoration(
+            color: scheme.surface, borderRadius: BorderRadius.circular(28),
+            border: Border.all(color: scheme.outlineVariant.withValues(alpha: .65)),
+            boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: .16), blurRadius: 24, offset: const Offset(0, -5))],
+          ),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Center(child: Container(width: 38, height: 4, decoration: BoxDecoration(
+              color: scheme.onSurfaceVariant.withValues(alpha: .32), borderRadius: BorderRadius.circular(8)))),
+            const SizedBox(height: 16),
+            Row(children: [
+              Container(width: 42, height: 42,
+                decoration: BoxDecoration(color: scheme.primaryContainer, borderRadius: BorderRadius.circular(14)),
+                child: Icon(Icons.sports_esports_rounded, color: scheme.onPrimaryContainer)),
+              const SizedBox(width: 12),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('Play together', style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
+                Text(widget.isGroup ? 'Choose a game for this group' : 'Challenge ${widget.peer.name}',
+                  style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
+              ])),
+              IconButton(onPressed: () => Navigator.pop(sheetContext), icon: const Icon(Icons.close_rounded)),
+            ]),
+            const SizedBox(height: 14),
+            Flexible(child: GridView.builder(
+              shrinkWrap: true, itemCount: games.length,
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2, mainAxisSpacing: 10, crossAxisSpacing: 10, childAspectRatio: 1.55),
+              itemBuilder: (context, index) {
+                final item = games[index];
+                final tint = index.isEven ? scheme.primary : scheme.tertiary;
+                return Material(
+                  color: scheme.surfaceContainerLow, borderRadius: BorderRadius.circular(18),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(18),
+                    onTap: () {
+                      try {
+                        socket.sendGameChallenge(item['id'] as String,
+                          widget.peer.uid.isNotEmpty ? widget.peer.uid : widget.peer.username,
+                          isGroup: widget.isGroup);
+                        Navigator.pop(sheetContext);
+                        ScaffoldMessenger.of(this.context).showSnackBar(SnackBar(
+                          content: Text('${item['title']} challenge sent'), behavior: SnackBarBehavior.floating));
+                      } catch (error) {
+                        ScaffoldMessenger.of(this.context).showSnackBar(SnackBar(
+                          content: Text(error is StateError ? error.message.toString() : 'Could not start the game.'),
+                          behavior: SnackBarBehavior.floating));
+                      }
+                    },
+                    child: Padding(padding: const EdgeInsets.all(12), child: Row(children: [
+                      Container(width: 42, height: 42,
+                        decoration: BoxDecoration(color: tint.withValues(alpha: .14), borderRadius: BorderRadius.circular(14)),
+                        child: Icon(item['icon'] as IconData, color: tint)),
+                      const SizedBox(width: 10),
+                      Expanded(child: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text(item['title'] as String, maxLines: 2, overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w800)),
+                        const SizedBox(height: 3),
+                        Text(item['subtitle'] as String, maxLines: 2, overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant, fontSize: 10)),
+                      ])),
+                    ])),
+                  ),
+                );
+              },
+            )),
+          ]),
+        );
+      },
+    );
   }
+
   Future<void> _showCreatePollDialog() async {
     final question = TextEditingController();
     final options = [TextEditingController(), TextEditingController()];
@@ -4512,169 +4568,103 @@ class _GifPickerSheetState extends State<_GifPickerSheet> {
   }
 }
 
-// ── Attachment Button with popup menu ─────────────────────────────────────
-class _AttachmentButton extends StatefulWidget {
+// ── Attachment Button with theme-aware share sheet ─────────────────────────
+class _AttachmentButton extends StatelessWidget {
   final ValueChanged<String> onSelected;
   const _AttachmentButton({required this.onSelected});
 
-  @override
-  State<_AttachmentButton> createState() => _AttachmentButtonState();
-}
-
-class _AttachmentButtonState extends State<_AttachmentButton>
-    with SingleTickerProviderStateMixin {
-  bool _open = false;
-  late AnimationController _ctrl;
-  late Animation<double> _scale;
-  late Animation<double> _fade;
-
   static const _items = [
-    _MenuItem(
-        icon: Icons.poll_rounded, label: 'Poll', color: Color(0xFF6D5DFC)),
-    _MenuItem(
-        icon: Icons.lock_outline_rounded, label: 'Riddle', color: Color(0xFF6D5DFC)),
-    _MenuItem(
-        icon: Icons.sports_esports_rounded, label: 'Games', color: Color(0xFFF97316)),
-    _MenuItem(
-        icon: Icons.gif_box_rounded, label: 'GIFs', color: Color(0xFF0EA5E9)),
-    _MenuItem(
-        icon: Icons.sticky_note_2_outlined, label: 'Stickers', color: Color(0xFFEC4899)),
-    _MenuItem(
-        icon: Icons.photo_library_rounded,
-        label: 'Media',
-        color: Color(0xFF0EA5E9)),
-    _MenuItem(
-        icon: Icons.insert_drive_file_rounded,
-        label: 'Document',
-        color: Color(0xFFF59E0B)),
-    _MenuItem(
-        icon: Icons.headphones_rounded,
-        label: 'Sound',
-        color: Color(0xFFEC4899)),
-    _MenuItem(
-        icon: Icons.location_on_rounded,
-        label: 'Location',
-        color: Color(0xFF10B981), enabled: false),
+    _MenuItem(icon: Icons.poll_rounded, label: 'Poll'),
+    _MenuItem(icon: Icons.lock_outline_rounded, label: 'Riddle'),
+    _MenuItem(icon: Icons.sports_esports_rounded, label: 'Games'),
+    _MenuItem(icon: Icons.gif_box_rounded, label: 'GIFs'),
+    _MenuItem(icon: Icons.sticky_note_2_outlined, label: 'Stickers'),
+    _MenuItem(icon: Icons.photo_library_rounded, label: 'Media'),
+    _MenuItem(icon: Icons.insert_drive_file_rounded, label: 'Document'),
+    _MenuItem(icon: Icons.headphones_rounded, label: 'Sound'),
+    _MenuItem(icon: Icons.location_on_rounded, label: 'Location', enabled: false),
   ];
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 180),
-    );
-    _scale = CurvedAnimation(parent: _ctrl, curve: Curves.easeOutBack);
-    _fade = CurvedAnimation(parent: _ctrl, curve: Curves.easeOut);
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  void _toggle() {
-    HapticService.vibrate(NovynHapticType.light, category: HapticCategory.chat);
-    setState(() => _open = !_open);
-    _open ? _ctrl.forward() : _ctrl.reverse();
-  }
-
-  void _close() {
-    setState(() => _open = false);
-    _ctrl.reverse();
-  }
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return Material(
-      color: scheme.primary.withValues(alpha: 0.10),
-      shape: const CircleBorder(),
+      color: scheme.primary.withValues(alpha: .10), shape: const CircleBorder(),
       child: InkWell(
         customBorder: const CircleBorder(),
         onTap: () {
           HapticService.vibrate(NovynHapticType.light, category: HapticCategory.chat);
           showModalBottomSheet<void>(
-            context: context,
-            backgroundColor: Colors.transparent,
-            isScrollControlled: true,
+            context: context, backgroundColor: Colors.transparent,
+            isScrollControlled: true, useSafeArea: true,
             builder: (sheetContext) {
-              final sheetScheme = Theme.of(sheetContext).colorScheme;
-              final dark = Theme.of(sheetContext).brightness == Brightness.dark;
-              return SafeArea(
-                child: Container(
-                  margin: const EdgeInsets.fromLTRB(10, 0, 10, 10),
-                  padding: const EdgeInsets.fromLTRB(18, 12, 18, 22),
-                  decoration: BoxDecoration(
-                    color: sheetScheme.surface,
-                    borderRadius: BorderRadius.circular(28),
-                    border: Border.all(color: sheetScheme.outlineVariant.withValues(alpha: 0.7)),
-                    boxShadow: [
-                      BoxShadow(color: Colors.black.withValues(alpha: dark ? 0.28 : 0.10),
-                        blurRadius: 24, offset: const Offset(0, -5)),
-                    ],
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(width: 38, height: 4,
-                        decoration: BoxDecoration(color: sheetScheme.onSurface.withValues(alpha: 0.18),
-                          borderRadius: BorderRadius.circular(4))),
-                      const SizedBox(height: 17),
-                      Row(children: [
-                        Expanded(child: Text('Share something',
-                          style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 17,
-                            fontWeight: FontWeight.w800, color: sheetScheme.onSurface))),
-                        IconButton(onPressed: () => Navigator.pop(sheetContext),
-                          icon: Icon(Icons.close_rounded, color: sheetScheme.onSurfaceVariant)),
-                      ]),
-                      Align(alignment: Alignment.centerLeft, child: Text('Send a little more than a message', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 11, color: sheetScheme.onSurfaceVariant))),
-                      const SizedBox(height: 12),
-                      GridView.builder(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        itemCount: _items.length,
-                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 3, mainAxisSpacing: 12,
-                          crossAxisSpacing: 10, childAspectRatio: 1.12),
-                        itemBuilder: (context, index) {
-                          final item = _items[index];
-                          return InkWell(
-                            borderRadius: BorderRadius.circular(18),
-                            onTap: () {
-                              Navigator.pop(sheetContext);
-                              if (!item.enabled) {
-                                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${item.label} is coming soon.')));
-                                return;
-                              }
-                              final type = item.label == 'Media' ? 'image' : item.label.toLowerCase();
-                              widget.onSelected(type);
-                            },
+              final theme = Theme.of(sheetContext);
+              final colors = theme.colorScheme;
+              final tints = <Color>[colors.primary, colors.secondary, colors.tertiary];
+              return Container(
+                margin: const EdgeInsets.fromLTRB(10, 0, 10, 10),
+                padding: const EdgeInsets.fromLTRB(18, 12, 18, 20),
+                decoration: BoxDecoration(
+                  color: colors.surface, borderRadius: BorderRadius.circular(28),
+                  border: Border.all(color: colors.outlineVariant.withValues(alpha: .65)),
+                  boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: .16), blurRadius: 24, offset: const Offset(0, -5))],
+                ),
+                child: Column(mainAxisSize: MainAxisSize.min, children: [
+                  Center(child: Container(width: 38, height: 4, decoration: BoxDecoration(
+                    color: colors.onSurfaceVariant.withValues(alpha: .32), borderRadius: BorderRadius.circular(8)))),
+                  const SizedBox(height: 15),
+                  Row(children: [
+                    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text('Share something', style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
+                      const SizedBox(height: 3),
+                      Text('Make the conversation more fun', style: theme.textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant)),
+                    ])),
+                    IconButton(tooltip: 'Close', onPressed: () => Navigator.pop(sheetContext), icon: const Icon(Icons.close_rounded)),
+                  ]),
+                  const SizedBox(height: 12),
+                  GridView.builder(
+                    shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), itemCount: _items.length,
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 3, mainAxisSpacing: 10, crossAxisSpacing: 10, childAspectRatio: 1.12),
+                    itemBuilder: (context, index) {
+                      final item = _items[index];
+                      final tint = tints[index % tints.length];
+                      return Material(
+                        color: item.enabled ? colors.surfaceContainerLow : colors.surfaceContainer,
+                        borderRadius: BorderRadius.circular(18),
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(18),
+                          onTap: () {
+                            Navigator.pop(sheetContext);
+                            if (!item.enabled) {
+                              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                                content: Text('${item.label} sharing is not available yet.'),
+                                behavior: SnackBarBehavior.floating));
+                              return;
+                            }
+                            onSelected(item.label == 'Media' ? 'image' : item.label.toLowerCase());
+                          },
+                          child: Opacity(opacity: item.enabled ? 1 : .48,
                             child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                              Container(
-                                width: 54, height: 54,
-                                decoration: BoxDecoration(
-                                  color: item.color.withValues(alpha: dark ? (item.enabled ? 0.18 : 0.07) : (item.enabled ? 0.13 : 0.06)),
-                                  borderRadius: BorderRadius.circular(17)),
-                                child: Icon(item.icon, color: item.color.withValues(alpha: item.enabled ? 1 : 0.42), size: 24)),
+                              Container(width: 48, height: 48,
+                                decoration: BoxDecoration(color: tint.withValues(alpha: .14), borderRadius: BorderRadius.circular(15)),
+                                child: Icon(item.icon, color: tint, size: 23)),
                               const SizedBox(height: 7),
                               Text(item.label, maxLines: 1, overflow: TextOverflow.ellipsis,
-                                style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 11,
-                                  fontWeight: FontWeight.w700, color: item.enabled ? sheetScheme.onSurface : sheetScheme.onSurfaceVariant.withValues(alpha: 0.55))),
-                            ]),
-                          );
-                        },
-                      ),
-                    ],
+                                style: theme.textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w700)),
+                              if (!item.enabled) Text('Coming soon',
+                                style: theme.textTheme.labelSmall?.copyWith(color: colors.onSurfaceVariant, fontSize: 8)),
+                            ])),
+                        ),
+                      );
+                    },
                   ),
-                ),
+                ]),
               );
             },
           );
         },
-        child: SizedBox(width: 40, height: 40,
-          child: Icon(Icons.grid_view_rounded, size: 20, color: scheme.primary)),
+        child: SizedBox(width: 40, height: 40, child: Icon(Icons.grid_view_rounded, size: 20, color: scheme.primary)),
       ),
     );
   }
@@ -4683,10 +4673,8 @@ class _AttachmentButtonState extends State<_AttachmentButton>
 class _MenuItem {
   final IconData icon;
   final String label;
-  final Color color;
   final bool enabled;
-  const _MenuItem(
-      {required this.icon, required this.label, required this.color, this.enabled = true});
+  const _MenuItem({required this.icon, required this.label, this.enabled = true});
 }
 
 // ── Spark Icon Painter ─────────────────────────────────────────────────────
