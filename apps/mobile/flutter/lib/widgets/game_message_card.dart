@@ -26,11 +26,15 @@ class _GameMessageCardState extends State<GameMessageCard> {
   final TextEditingController _number = TextEditingController();
   final TextEditingController _guess = TextEditingController();
   List<Map<String, dynamic>> _strokes = [];
+  Map<String, dynamic>? _optimisticData;
   bool _sendingMove = false;
 
   @override
   void didUpdateWidget(covariant GameMessageCard oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.game['data'] != widget.game['data']) {
+      _optimisticData = null;
+    }
     final oldStrokes = oldWidget.game['data'] is Map ? (oldWidget.game['data'] as Map)['strokes'] : null;
     final newStrokes = widget.game['data'] is Map ? (widget.game['data'] as Map)['strokes'] : null;
     if (oldStrokes != newStrokes && newStrokes is List) {
@@ -52,9 +56,10 @@ class _GameMessageCardState extends State<GameMessageCard> {
   String get _turn => widget.game['turn']?.toString() ?? '';
   String get _state => widget.game['state']?.toString() ?? 'in_progress';
   String get _winner => widget.game['winner']?.toString() ?? '';
-  Map<String, dynamic> get _data => widget.game['data'] is Map
-      ? Map<String, dynamic>.from(widget.game['data'])
-      : <String, dynamic>{};
+  Map<String, dynamic> get _data => _optimisticData ??
+      (widget.game['data'] is Map
+          ? Map<String, dynamic>.from(widget.game['data'])
+          : <String, dynamic>{});
   bool get _myTurn => _turn.toLowerCase() == widget.currentUsername.toLowerCase();
   bool get _finished => _state == 'finished';
   bool get _canJoinGroup => widget.isGroup &&
@@ -63,7 +68,11 @@ class _GameMessageCardState extends State<GameMessageCard> {
 
   Future<void> _move(Map<String, dynamic> data) async {
     if (_sendingMove || _finished) return;
-    setState(() => _sendingMove = true);
+    final previousData = _optimisticData;
+    setState(() {
+      _sendingMove = true;
+      _optimisticData = Map<String, dynamic>.from(data);
+    });
     try {
       await context.read<SocketService>().makeGameMove(
         widget.messageId,
@@ -73,6 +82,7 @@ class _GameMessageCardState extends State<GameMessageCard> {
       );
     } catch (error) {
       if (mounted) {
+        setState(() => _optimisticData = previousData);
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(error is StateError
               ? error.message.toString()
