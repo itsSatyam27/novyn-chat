@@ -1885,6 +1885,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
         mime = _mimeForFile(filename);
       }
       if (bytes == null || bytes.isEmpty) throw StateError('Could not read the selected file.');
+      final selectedBytes = bytes;
 
       // Preview the selected item before uploading so an accidental large
       // attachment can be cancelled without consuming data or storage.
@@ -1894,9 +1895,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
         context: context,
         builder: (previewContext) {
           final scheme = Theme.of(previewContext).colorScheme;
-          final sizeLabel = bytes!.length < 1024 * 1024
-              ? '${(bytes.length / 1024).toStringAsFixed(0)} KB'
-              : '${(bytes.length / (1024 * 1024)).toStringAsFixed(1)} MB';
+          final sizeLabel = selectedBytes.length < 1024 * 1024
+              ? '${(selectedBytes.length / 1024).toStringAsFixed(0)} KB'
+              : '${(selectedBytes.length / (1024 * 1024)).toStringAsFixed(1)} MB';
           return AlertDialog(
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
             title: const Text('Review attachment',
@@ -1908,7 +1909,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                 if (isImage)
                   ClipRRect(
                     borderRadius: BorderRadius.circular(14),
-                    child: Image.memory(bytes!, height: 190, width: double.infinity,
+                    child: Image.memory(selectedBytes, height: 190, width: double.infinity,
                       fit: BoxFit.cover,
                       errorBuilder: (_, __, ___) => Container(
                         height: 120, alignment: Alignment.center,
