@@ -4458,6 +4458,7 @@ class _GifPickerSheetState extends State<_GifPickerSheet> {
   @override
   Widget build(BuildContext context) {
     final bottom = MediaQuery.of(context).viewInsets.bottom;
+    final scheme = Theme.of(context).colorScheme;
     return Container(
       height: MediaQuery.of(context).size.height * 0.78,
       padding: EdgeInsets.fromLTRB(16, 12, 16, 12 + bottom),
@@ -4467,7 +4468,7 @@ class _GifPickerSheetState extends State<_GifPickerSheet> {
       ),
       child: Column(
         children: [
-          Container(width: 38, height: 4, decoration: BoxDecoration(color: Colors.grey.withValues(alpha: 0.4), borderRadius: BorderRadius.circular(4))),
+          Container(width: 38, height: 4, decoration: BoxDecoration(color: scheme.onSurfaceVariant.withValues(alpha: .32), borderRadius: BorderRadius.circular(4))),
           const SizedBox(height: 14),
           Row(
             children: [
@@ -4560,7 +4561,7 @@ class _GifPickerSheetState extends State<_GifPickerSheet> {
               onPressed: _loadingMore ? null : () => _load(append: true),
               child: Text(_loadingMore ? 'Loading…' : 'Load more'),
             ),
-          Text('Powered by GIPHY', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 10 * context.watch<SettingsService>().chatLabelSize, color: Color(0xFF94A3B8))),
+          Text('Powered by GIPHY', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 10 * context.watch<SettingsService>().chatLabelSize, color: scheme.onSurfaceVariant)),
         ],
       ),
     );
@@ -4577,8 +4578,8 @@ class _GifPickerSheetState extends State<_GifPickerSheet> {
         _load();
       },
       style: OutlinedButton.styleFrom(
-        backgroundColor: selected ? Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.08) : null,
-        foregroundColor: Theme.of(context).colorScheme.onSurface,
+        backgroundColor: selected ? Theme.of(context).colorScheme.primaryContainer : null,
+        foregroundColor: selected ? Theme.of(context).colorScheme.onPrimaryContainer : Theme.of(context).colorScheme.onSurface,
       ),
       child: Text(label),
     );
