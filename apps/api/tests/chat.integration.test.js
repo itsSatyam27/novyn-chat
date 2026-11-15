@@ -135,7 +135,11 @@ test('localhost discovery, requests, reconnect state, and private media', { time
   assert.equal(pairingPoll.status, 200);
   const approvedPayload = await pairingPoll.json();
   assert.equal(approvedPayload.status, 'approved');
-  assert.deepEqual(approvedPayload.response, encryptedEnvelope);
+  assert.deepEqual(approvedPayload.response, {
+    androidPublicKey: JSON.parse(encryptedEnvelope.androidPublicKey),
+    iv: encryptedEnvelope.iv,
+    ciphertext: encryptedEnvelope.ciphertext,
+  });
   assert.equal(JSON.stringify(approvedPayload).includes('privateKey'), false);
 
   const pairingConsume = await fetch(`${base}/api/device-pairing/${pairing.sessionId}/consume`, {
