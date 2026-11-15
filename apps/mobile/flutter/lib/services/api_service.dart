@@ -128,6 +128,7 @@ class ApiService {
     }
 
     return {
+      'Content-Type': 'application/json',
       if (_cookieHeader.isNotEmpty) 'Cookie': _cookieHeader,
       'x-novyn-csrf': token,
       'Accept': 'application/json',
@@ -145,6 +146,8 @@ class ApiService {
 
     for (var attempt = 0; attempt < 2; attempt++) {
       final headers = await _csrfHeaders();
+      // MultipartRequest supplies its own boundary-bearing Content-Type.
+      headers.remove('Content-Type');
       final request = http.MultipartRequest(
         'POST',
         Uri.parse('$baseUrl/$endpoint'),
