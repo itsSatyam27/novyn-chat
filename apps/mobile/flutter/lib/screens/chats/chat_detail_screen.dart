@@ -439,7 +439,13 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
     if (!_messageFocusNode.hasFocus) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || !_scroll.hasClients) return;
-      _scroll.jumpTo(_scroll.position.maxScrollExtent);
+      // Keyboard insets can change the viewport abruptly on Android. A short,
+      // bounded animation keeps the latest message visible without a harsh jump.
+      _scroll.animateTo(
+        _scroll.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOutCubic,
+      );
       _isNearLatest = true;
       if (_showJumpToLatest) setState(() => _showJumpToLatest = false);
     });
@@ -667,21 +673,30 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                     Positioned(
                       right: 18,
                       bottom: 18,
-                      child: Material(
-                        color: Theme.of(context).colorScheme.surface,
-                        elevation: 7,
-                        shape: const CircleBorder(),
-                        child: InkWell(
-                          customBorder: const CircleBorder(),
-                          onTap: _jumpToLatest,
-                          child: Container(
-                            width: 44, height: 44,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              border: Border.all(color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.18)),
+                      child: TweenAnimationBuilder<double>(
+                        tween: Tween(begin: 0.82, end: 1),
+                        duration: const Duration(milliseconds: 220),
+                        curve: Curves.easeOutBack,
+                        builder: (context, scale, child) => Transform.scale(
+                          scale: scale,
+                          child: child,
+                        ),
+                        child: Material(
+                          color: Theme.of(context).colorScheme.surface,
+                          elevation: 7,
+                          shape: const CircleBorder(),
+                          child: InkWell(
+                            customBorder: const CircleBorder(),
+                            onTap: _jumpToLatest,
+                            child: Container(
+                              width: 44, height: 44,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                border: Border.all(color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.18)),
+                              ),
+                              child: Icon(Icons.keyboard_double_arrow_down_rounded,
+                                color: Theme.of(context).colorScheme.primary, size: 23),
                             ),
-                            child: Icon(Icons.keyboard_double_arrow_down_rounded,
-                              color: Theme.of(context).colorScheme.primary, size: 23),
                           ),
                         ),
                       ),
@@ -1307,58 +1322,70 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
 
   Widget _buildTypingIndicator() {
     final scheme = Theme.of(context).colorScheme;
-    return Padding(
-      padding: const EdgeInsets.only(left: 4, top: 5, bottom: 8),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          UserAvatar(name: widget.peer.name, photoUrl: widget.peer.photoUrl, radius: 13),
-          const SizedBox(width: 8),
-          Container(
-            width: 58,
-            height: 38,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: scheme.surface,
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(17), topRight: Radius.circular(17),
-                bottomRight: Radius.circular(17), bottomLeft: Radius.circular(5),
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: const Duration(milliseconds: 200),
+      curve: Curves.easeOutCubic,
+      builder: (context, progress, child) => Opacity(
+        opacity: progress,
+        child: Transform.translate(
+          offset: Offset(0, 8 * (1 - progress)),
+          child: child,
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.only(left: 4, top: 5, bottom: 8),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            UserAvatar(name: widget.peer.name, photoUrl: widget.peer.photoUrl, radius: 13),
+            const SizedBox(width: 8),
+            Container(
+              width: 58,
+              height: 38,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: scheme.surface,
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(17), topRight: Radius.circular(17),
+                  bottomRight: Radius.circular(17), bottomLeft: Radius.circular(5),
+                ),
+                boxShadow: [
+                  BoxShadow(color: Colors.black.withValues(alpha: 0.05),
+                    blurRadius: 10, offset: const Offset(0, 3)),
+                ],
               ),
-              boxShadow: [
-                BoxShadow(color: Colors.black.withValues(alpha: 0.05),
-                  blurRadius: 10, offset: const Offset(0, 3)),
-              ],
-            ),
-            child: AnimatedBuilder(
-              animation: _typingAnimation,
-              builder: (context, _) => Row(
-                mainAxisSize: MainAxisSize.min,
-                children: List.generate(3, (index) {
-                  final phase = (_typingAnimation.value + index * .22) % 1.0;
-                  final wave = math.sin(phase * math.pi * 2);
-                  final lift = (wave + 1) / 2;
-                  return Padding(
-                    padding: EdgeInsets.only(right: index == 2 ? 0 : 5),
-                    child: Transform.translate(
-                      offset: Offset(0, -4 * lift),
-                      child: Opacity(
-                        opacity: .45 + .55 * lift,
-                        child: Container(
-                          width: 6,
-                          height: 6,
-                          decoration: BoxDecoration(
-                            color: scheme.primary,
-                            shape: BoxShape.circle,
+              child: AnimatedBuilder(
+                animation: _typingAnimation,
+                builder: (context, _) => Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: List.generate(3, (index) {
+                    final phase = (_typingAnimation.value + index * .22) % 1.0;
+                    final wave = math.sin(phase * math.pi * 2);
+                    final lift = (wave + 1) / 2;
+                    return Padding(
+                      padding: EdgeInsets.only(right: index == 2 ? 0 : 5),
+                      child: Transform.translate(
+                        offset: Offset(0, -4 * lift),
+                        child: Opacity(
+                          opacity: .45 + .55 * lift,
+                          child: Container(
+                            width: 6,
+                            height: 6,
+                            decoration: BoxDecoration(
+                              color: scheme.primary,
+                              shape: BoxShape.circle,
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                  );
-                }),
+                    );
+                  }),
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
