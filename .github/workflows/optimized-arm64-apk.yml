@@ -11,6 +11,11 @@ on:
 permissions:
   contents: write
 
+# Serialize main-branch releases so an older parallel build cannot publish last.
+concurrency:
+  group: novyn-arm64-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-arm64:
     name: Build optimized ARM64 release APK
@@ -86,6 +91,7 @@ jobs:
         run: flutter build apk --release --split-per-abi --build-number="${{ steps.build-meta.outputs.build_code }}"
 
       - name: Verify ARM64 APK package and signature
+        id: apk-verify
         run: |
           set -euo pipefail
           APK="apps/mobile/flutter/build/app/outputs/flutter-apk/app-arm64-v8a-release.apk"
@@ -98,6 +104,7 @@ jobs:
           test -n "${VERSION_CODE}"
           test "${VERSION_CODE}" -gt 0
           test "${VERSION_CODE}" -lt 2100000000
+          echo "apk_version_code=${VERSION_CODE}" >> "${GITHUB_OUTPUT}"
           unzip -t "${APK}" >/dev/null
           unzip -Z1 "${APK}" | grep -q '^lib/arm64-v8a/'
           echo "APK package, version, ARM64 payload, ZIP structure, and signature verified." >> "${GITHUB_STEP_SUMMARY}"
@@ -129,8 +136,10 @@ jobs:
           RELEASE_APK="${RELEASE_DIR}/Novyn-Android-ARM64.apk"
           mkdir -p "${RELEASE_DIR}"
           cp "${SOURCE_APK}" "${RELEASE_APK}"
-          BUILD_CODE="${{ steps.build-meta.outputs.build_code }}"
-          TAG="novyn-arm64-build-${BUILD_CODE}-${GITHUB_RUN_ATTEMPT}"
+          # Read the actual versionCode embedded in the signed APK. Never
+          # derive release metadata from a separate timestamp that can race.
+          BUILD_CODE="${{ steps.apk-verify.outputs.apk_version_code }}"
+          TAG="novyn-arm64-build-${BUILD_CODE}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           MB=$(awk -v bytes="$(stat -c%s "${RELEASE_APK}")" 'BEGIN { printf "%.1f", bytes / 1000000 }')
           if [ "${GITHUB_REF_NAME}" = "main" ]; then
             RELEASE_CHANNEL_ARGS=(--latest)
