@@ -2987,44 +2987,52 @@ class _MessageBubble extends StatelessWidget {
                   onLongPress: () => _showReactionPicker(context),
                   child: Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 11),
+                        horizontal: 15, vertical: 10),
                     constraints: BoxConstraints(
                       maxWidth: MediaQuery.of(context).size.width * 0.78,
                     ),
                     decoration: BoxDecoration(
+                      // Keep Novyn's purple identity without the heavy glow.
                       gradient: isMe
                           ? LinearGradient(
                               begin: Alignment.topLeft,
                               end: Alignment.bottomRight,
-                              colors: [Theme.of(context).colorScheme.primary, Color.lerp(Theme.of(context).colorScheme.primary, Colors.black, 0.14)!],
+                              colors: [
+                                Theme.of(context).colorScheme.primary,
+                                Color.lerp(
+                                  Theme.of(context).colorScheme.primary,
+                                  Colors.black,
+                                  0.08,
+                                )!,
+                              ],
                             )
                           : null,
                       color: isMe
                           ? null
                           : (Theme.of(context).brightness == Brightness.dark
-                              ? const Color(0xFF19182A)
+                              ? const Color(0xFF1D1C2A)
                               : Colors.white),
                       border: isMe
                           ? null
                           : Border.all(
                               color: Theme.of(context).brightness ==
                                       Brightness.dark
-                                  ? const Color(0x1FBEB8FF)
-                                  : const Color(0x216D5DFC),
+                                  ? const Color(0x18BEB8FF)
+                                  : const Color(0x166D5DFC),
                             ),
                       borderRadius: BorderRadius.only(
-                        topLeft: const Radius.circular(20),
-                        topRight: const Radius.circular(20),
-                        bottomLeft: Radius.circular(isMe ? 20 : 6),
-                        bottomRight: Radius.circular(isMe ? 6 : 20),
+                        topLeft: const Radius.circular(18),
+                        topRight: const Radius.circular(18),
+                        bottomLeft: Radius.circular(isMe ? 18 : 5),
+                        bottomRight: Radius.circular(isMe ? 5 : 18),
                       ),
                       boxShadow: [
                         BoxShadow(
-                          color: isMe
-                              ? const Color(0x4D6D5DFC)
-                              : Colors.black.withValues(alpha: 0.05),
-                          blurRadius: isMe ? 20 : 8,
-                          offset: Offset(0, isMe ? 6 : 2),
+                          color: Colors.black.withValues(
+                            alpha: isMe ? 0.12 : 0.025,
+                          ),
+                          blurRadius: isMe ? 8 : 5,
+                          offset: Offset(0, isMe ? 2 : 1),
                         ),
                       ],
                     ),
@@ -3136,6 +3144,7 @@ class _MessageBubble extends StatelessWidget {
                           style: TextStyle(
                             fontFamily: 'PlusJakartaSans',
                             fontSize: 15,
+                            height: 1.35,
                             color: isMe
                                 ? Colors.white
                                 : Theme.of(context).colorScheme.onSurface,
