@@ -5,6 +5,8 @@ void main() {
   group('Quick Toggle preferences', () {
     test('recommended defaults contain four supported shortcuts', () {
       expect(SettingsService.defaultQuickToggleIds, hasLength(4));
+      expect(SettingsService.defaultQuickToggleIds, contains('dark_mode'));
+      expect(SettingsService.defaultQuickToggleIds, contains('stealth_mode'));
       expect(
         SettingsService.defaultQuickToggleIds.every(
           SettingsService.supportedQuickToggleIds.contains,
@@ -22,6 +24,8 @@ void main() {
         'do_not_disturb',
         'in_app_sounds',
         'group_notifications',
+        'dark_mode',
+        'stealth_mode',
       ]);
 
       expect(

@@ -56,6 +56,18 @@ class _QuickToggleCustomizationScreenState
       description: 'Control group notifications',
       icon: Icons.groups_rounded,
     ),
+    _QuickToggleOption(
+      id: 'dark_mode',
+      title: 'Dark Mode',
+      description: 'Switch between light and dark appearance',
+      icon: Icons.dark_mode_rounded,
+    ),
+    _QuickToggleOption(
+      id: 'stealth_mode',
+      title: 'Stealth Mode',
+      description: 'Hide your presence and profile visibility',
+      icon: Icons.visibility_off_rounded,
+    ),
   ];
 
   late List<String> _selectedIds;

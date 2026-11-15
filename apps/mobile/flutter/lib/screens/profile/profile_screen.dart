@@ -311,6 +311,29 @@ class ProfileScreen extends StatelessWidget {
           ),
           expanded: expanded,
         );
+      case 'dark_mode':
+        final isDark = settings.themeMode == ThemeMode.dark;
+        return _SettingsQuickToggle(
+          title: 'Dark Mode',
+          activeIcon: Icons.dark_mode_rounded,
+          inactiveIcon: Icons.light_mode_rounded,
+          value: isDark,
+          accent: const Color(0xFF7C6CF2),
+          onChanged: (value) => settings.setThemeMode(
+            value ? ThemeMode.dark : ThemeMode.light,
+          ),
+          expanded: expanded,
+        );
+      case 'stealth_mode':
+        return _SettingsQuickToggle(
+          title: 'Stealth Mode',
+          activeIcon: Icons.visibility_off_rounded,
+          inactiveIcon: Icons.visibility_rounded,
+          value: settings.stealthModeEnabled,
+          accent: const Color(0xFF0F766E),
+          onChanged: (value) => _toggleStealthMode(context, settings, value),
+          expanded: expanded,
+        );
       default:
         return const SizedBox.shrink();
     }
@@ -335,6 +358,32 @@ class ProfileScreen extends StatelessWidget {
           SnackBar(content: Text('Could not save setting: $error')),
         );
       }
+    }
+  }
+
+  Future<void> _toggleStealthMode(
+    BuildContext context,
+    SettingsService settings,
+    bool enabled,
+  ) async {
+    final previous = settings.stealthModeEnabled;
+    try {
+      await settings.setStealthMode(enabled);
+      await context.read<SocketService>().updateStealthMode(enabled);
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(enabled
+              ? 'Stealth Mode enabled.'
+              : 'Stealth Mode disabled.'),
+        ),
+      );
+    } catch (error) {
+      await settings.setStealthMode(previous);
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not update Stealth Mode: $error')),
+      );
     }
   }
 
