@@ -1991,12 +1991,12 @@ class _NovynSettingsProfileCardState extends State<_NovynSettingsProfileCard> {
         border: Border.all(color: theme.colorScheme.outlineVariant),
       ),
       child: AnimatedSize(
-        duration: const Duration(milliseconds: 210),
-        curve: Curves.easeOutCubic,
+        duration: const Duration(milliseconds: 360),
+        curve: Curves.easeInOutCubic,
         alignment: Alignment.topCenter,
         child: AnimatedSwitcher(
-          duration: const Duration(milliseconds: 190),
-          reverseDuration: const Duration(milliseconds: 140),
+          duration: const Duration(milliseconds: 280),
+          reverseDuration: const Duration(milliseconds: 240),
           switchInCurve: Curves.easeOutCubic,
           switchOutCurve: Curves.easeInCubic,
           transitionBuilder: (child, animation) {
@@ -2117,130 +2117,288 @@ class _NovynSettingsProfileCardState extends State<_NovynSettingsProfileCard> {
     ],
   );
 
-  Widget _buildEditor(ThemeData theme) => Column(
-    key: const ValueKey('profile-inline-editor'),
-    crossAxisAlignment: CrossAxisAlignment.stretch,
-    children: [
-      Row(
-        children: [
-          SizedBox(
-            width: 76,
-            height: 76,
-            child: Stack(
-              clipBehavior: Clip.none,
-              children: [
-                ProfileAvatarWithOrbit(
-                  photoUrl: widget.photoUrl,
-                  localFile: _pendingPhoto,
-                  displayName: _nameController.text.trim().isEmpty
-                      ? widget.displayName
-                      : _nameController.text.trim(),
-                  status: widget.status,
-                ),
-                Positioned(
-                  right: -2,
-                  bottom: -2,
-                  child: Material(
-                    color: theme.colorScheme.primary,
-                    shape: const CircleBorder(),
-                    child: InkWell(
-                      customBorder: const CircleBorder(),
-                      onTap: _saving ? null : _choosePhoto,
-                      child: const Padding(
-                        padding: EdgeInsets.all(7),
-                        child: Icon(Icons.camera_alt_rounded, color: Colors.white, size: 15),
+  Widget _buildEditor(ThemeData theme) {
+    final scheme = theme.colorScheme;
+    final hasChanges = _hasChanges;
+    return Column(
+      key: const ValueKey('profile-inline-editor'),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              width: 88,
+              height: 88,
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  // Keep the existing animated orbit/status ring unchanged.
+                  ProfileAvatarWithOrbit(
+                    photoUrl: widget.photoUrl,
+                    localFile: _pendingPhoto,
+                    displayName: _nameController.text.trim().isEmpty
+                        ? widget.displayName
+                        : _nameController.text.trim(),
+                    status: widget.status,
+                  ),
+                  Positioned(
+                    right: -3,
+                    bottom: -3,
+                    child: Material(
+                      color: scheme.primary,
+                      shape: const CircleBorder(),
+                      elevation: 4,
+                      child: InkWell(
+                        customBorder: const CircleBorder(),
+                        onTap: _saving ? null : _choosePhoto,
+                        child: const Padding(
+                          padding: EdgeInsets.all(9),
+                          child: Icon(Icons.camera_alt_rounded,
+                              color: Colors.white, size: 17),
+                        ),
                       ),
                     ),
                   ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Edit profile',
-                  style: NovynText.display(17, weight: FontWeight.w700, color: theme.colorScheme.onSurface),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Update your profile details',
-                  style: NovynText.body(12, color: theme.colorScheme.onSurfaceVariant),
-                ),
-                const SizedBox(height: 5),
-                Text(
-                  '@${widget.username}',
-                  style: NovynText.body(11.5, weight: FontWeight.w600, color: theme.colorScheme.primary),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-      const SizedBox(height: 16),
-      Divider(color: theme.colorScheme.outlineVariant.withValues(alpha: .65), height: 1),
-      const SizedBox(height: 15),
-      Text(
-        'PROFILE DETAILS',
-        style: NovynText.body(10.5, weight: FontWeight.w600, color: theme.colorScheme.onSurfaceVariant)
-            .copyWith(letterSpacing: 1.0),
-      ),
-      const SizedBox(height: 10),
-      _inlineField(theme, 'Full name', _nameController, maxLines: 1),
-      const SizedBox(height: 10),
-      _inlineField(theme, 'Bio', _bioController, maxLines: 3),
-      const SizedBox(height: 14),
-      Row(
-        children: [
-          Expanded(
-            child: OutlinedButton(
-              onPressed: _saving ? null : _cancelEdit,
-              style: OutlinedButton.styleFrom(
-                minimumSize: const Size.fromHeight(44),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                ],
               ),
-              child: const Text('Cancel'),
             ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: FilledButton(
-              onPressed: (!_hasChanges || _saving) ? null : _save,
-              style: FilledButton.styleFrom(
-                minimumSize: const Size.fromHeight(44),
-                disabledBackgroundColor: theme.colorScheme.primary.withValues(alpha: .22),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Edit profile',
+                      style: NovynText.display(
+                        18,
+                        weight: FontWeight.w700,
+                        color: scheme.onSurface,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Update your profile details',
+                      style: NovynText.body(
+                        12.5,
+                        color: scheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 6,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        Text(
+                          '@${widget.username}',
+                          style: NovynText.body(
+                            13,
+                            weight: FontWeight.w700,
+                            color: scheme.primary,
+                          ),
+                        ),
+                        AnimatedContainer(
+                          duration: const Duration(milliseconds: 220),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 11, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: hasChanges
+                                ? const Color(0xFFFFEBD2)
+                                : const Color(0xFFE8F7EE),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                width: 7,
+                                height: 7,
+                                decoration: const BoxDecoration(
+                                  color: Color(0xFFD97706),
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                hasChanges ? 'Unsaved' : 'Saved',
+                                style: NovynText.body(
+                                  11.5,
+                                  weight: FontWeight.w700,
+                                  color: hasChanges
+                                      ? const Color(0xFF9A4D12)
+                                      : const Color(0xFF16834A),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
-              child: _saving
-                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                  : const Text('Save changes', style: TextStyle(fontWeight: FontWeight.w600)),
             ),
-          ),
-        ],
-      ),
-    ],
-  );
+            const SizedBox(width: 4),
+            Material(
+              color: scheme.primary.withValues(alpha: .10),
+              shape: const CircleBorder(),
+              child: InkWell(
+                customBorder: const CircleBorder(),
+                onTap: _saving ? null : _cancelEdit,
+                child: SizedBox(
+                  width: 42,
+                  height: 42,
+                  child: Icon(Icons.close_rounded,
+                      color: scheme.primary, size: 23),
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 20),
+        Divider(
+          color: scheme.outlineVariant.withValues(alpha: .7),
+          height: 1,
+        ),
+        const SizedBox(height: 18),
+        Text(
+          'PROFILE DETAILS',
+          style: NovynText.body(
+            11,
+            weight: FontWeight.w700,
+            color: scheme.onSurfaceVariant,
+          ).copyWith(letterSpacing: 1.2),
+        ),
+        const SizedBox(height: 14),
+        _inlineField(theme, 'Full name', _nameController, maxLines: 1),
+        const SizedBox(height: 16),
+        _inlineField(theme, 'Bio', _bioController, maxLines: 4),
+        const SizedBox(height: 18),
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton(
+                onPressed: _saving ? null : _cancelEdit,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: scheme.primary,
+                  side: BorderSide(
+                    color: scheme.primary.withValues(alpha: .24),
+                    width: 1.4,
+                  ),
+                  minimumSize: const Size.fromHeight(54),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(17),
+                  ),
+                ),
+                child: const Text(
+                  'Cancel',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: FilledButton(
+                onPressed: (!hasChanges || _saving) ? null : _save,
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size.fromHeight(54),
+                  disabledBackgroundColor:
+                      scheme.primary.withValues(alpha: .22),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(17),
+                  ),
+                ),
+                child: _saving
+                    ? const SizedBox(
+                        width: 19,
+                        height: 19,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Text(
+                        'Save changes',
+                        style: TextStyle(fontWeight: FontWeight.w700),
+                      ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
 
-  Widget _inlineField(ThemeData theme, String label, TextEditingController controller, {required int maxLines}) {
-    return TextField(
-      controller: controller,
-      enabled: !_saving,
-      maxLines: maxLines,
-      maxLength: label == 'Bio' ? 160 : 50,
-      onChanged: (_) => setState(() {}),
-      decoration: InputDecoration(
-        labelText: label,
-        filled: true,
-        fillColor: theme.colorScheme.surfaceContainerHighest.withValues(alpha: .38),
-        counterText: '',
-        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
-        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: theme.colorScheme.outlineVariant.withValues(alpha: .65))),
-        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: theme.colorScheme.primary, width: 1.4)),
-      ),
+  Widget _inlineField(ThemeData theme, String label,
+      TextEditingController controller, {required int maxLines}) {
+    final isBio = label == 'Bio';
+    final scheme = theme.colorScheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: NovynText.body(
+            13,
+            weight: FontWeight.w700,
+            color: scheme.onSurface,
+          ),
+        ),
+        const SizedBox(height: 8),
+        TextField(
+          controller: controller,
+          enabled: !_saving,
+          maxLines: maxLines,
+          minLines: isBio ? 4 : 1,
+          maxLength: isBio ? 120 : 50,
+          textCapitalization:
+              isBio ? TextCapitalization.sentences : TextCapitalization.words,
+          onChanged: (_) => setState(() {}),
+          style: NovynText.body(15, color: scheme.onSurface),
+          decoration: InputDecoration(
+            hintText: isBio ? 'Tell people a little about yourself...' : 'Your full name',
+            filled: true,
+            fillColor: scheme.surfaceContainerHighest.withValues(alpha: .42),
+            counterText: '',
+            contentPadding: EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: isBio ? 17 : 16,
+            ),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(18),
+              borderSide: BorderSide.none,
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(18),
+              borderSide: BorderSide(
+                color: scheme.outlineVariant.withValues(alpha: .65),
+              ),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(18),
+              borderSide: BorderSide(color: scheme.primary, width: 1.6),
+            ),
+          ),
+        ),
+        if (isBio)
+          Align(
+            alignment: Alignment.centerRight,
+            child: Padding(
+              padding: const EdgeInsets.only(top: 5, right: 8),
+              child: Text(
+                '${controller.text.length} / 120',
+                style: NovynText.body(
+                  11.5,
+                  weight: FontWeight.w600,
+                  color: scheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }
