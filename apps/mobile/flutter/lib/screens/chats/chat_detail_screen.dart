@@ -3637,7 +3637,7 @@ class _MessageBubble extends StatelessWidget {
     final sentAt = message.createdAt as DateTime;
 
     Widget statusLine(IconData icon, String label, DateTime? timestamp, {bool active = true}) {
-      final color = active ? scheme.primary : scheme.onSurfaceVariant.withValues(alpha: .55);
+      final color = active ? const Color(0xFF128C7E) : scheme.onSurfaceVariant.withValues(alpha: .55);
       return Padding(
         padding: const EdgeInsets.only(top: 7),
         child: Row(
@@ -3671,7 +3671,7 @@ class _MessageBubble extends StatelessWidget {
         return SafeArea(
           child: Container(
             margin: const EdgeInsets.fromLTRB(10, 0, 10, 10),
-            constraints: BoxConstraints(maxHeight: MediaQuery.of(sheetContext).size.height * .82),
+            constraints: BoxConstraints(maxHeight: MediaQuery.of(sheetContext).size.height * .90),
             decoration: BoxDecoration(
               color: sheetScheme.surface,
               borderRadius: BorderRadius.circular(28),
@@ -3697,7 +3697,7 @@ class _MessageBubble extends StatelessWidget {
                   const SizedBox(height: 15),
                   Row(children: [
                     Expanded(child: Text('Message options', style: TextStyle(
-                      fontFamily: 'PlusJakartaSans', fontSize: 17,
+                      fontFamily: 'PlusJakartaSans', fontSize: 19,
                       fontWeight: FontWeight.w800, color: sheetScheme.onSurface,
                     ))),
                     IconButton(
@@ -3741,9 +3741,9 @@ class _MessageBubble extends StatelessWidget {
                       width: double.infinity,
                       padding: const EdgeInsets.fromLTRB(13, 11, 13, 12),
                       decoration: BoxDecoration(
-                        color: sheetScheme.primary.withValues(alpha: .055),
+                        color: sheetScheme.surfaceContainerLow,
                         borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: sheetScheme.primary.withValues(alpha: .13)),
+                        border: Border.all(color: sheetScheme.outlineVariant.withValues(alpha: .55)),
                       ),
                       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                         Text('MESSAGE INFO', style: TextStyle(
@@ -4992,7 +4992,7 @@ class _ActionItem extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(12),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 11),
         child: Row(
           children: [
             Container(
