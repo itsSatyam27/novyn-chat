@@ -117,9 +117,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
   late final SocketService _socketService;
   bool _appIsForeground = true;
   final TextEditingController _ctrl = TextEditingController();
+  Timer? _draftSaveTimer;
   final FocusNode _messageFocusNode = FocusNode();
   final ScrollController _scroll = ScrollController();
   final AudioPlayer _audioPlayer = AudioPlayer();
+  Future<void>? _sentSoundTask;
   bool _loading = true;
   bool _initialPositionReady = false;
   bool _sending = false;
@@ -252,11 +254,17 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
     }
   }
 
-  // Auto-save draft (debounced)
+  // Debounce local writes so typing does not queue a Hive write per keystroke.
   void _saveDraft() {
-    if (_chatId != null) {
-      DraftService.saveDraft(_chatId!, _ctrl.text);
-    }
+    final chatId = _chatId;
+    if (chatId == null) return;
+
+    _draftSaveTimer?.cancel();
+    final draftText = _ctrl.text;
+    _draftSaveTimer = Timer(const Duration(milliseconds: 350), () {
+      _draftSaveTimer = null;
+      unawaited(DraftService.saveDraft(chatId, draftText));
+    });
   }
 
   // Load older messages when scrolled to top
@@ -455,8 +463,15 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
     _voiceTimer?.cancel();
     _presenceTransitionTimer?.cancel();
     _lastSeenRefreshTimer?.cancel();
-    if (_isRecordingVoice) unawaited(_voiceRecorder.stop());
-    unawaited(_voiceRecorder.dispose());
+    _draftSaveTimer?.cancel();
+    final draftChatId = _chatId;
+    if (draftChatId != null) {
+      // Flush the latest composer value on route exit; the queued writer keeps
+      // this ordered with an in-flight debounce or send-triggered deletion.
+      unawaited(DraftService.saveDraft(draftChatId, _ctrl.text));
+    }
+    final stopRecorderBeforeDispose = _isRecordingVoice;
+    unawaited(_disposeVoiceRecorderSafely(stopFirst: stopRecorderBeforeDispose));
     _socketService.removeListener(_syncTypingAnimation);
     _socketService.contacts.removeListener(_handlePeerPresenceChanged);
     _socketService.closeChat();
@@ -465,8 +480,36 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
     _ctrl.dispose();
     _messageFocusNode.dispose();
     _scroll.dispose();
-    _audioPlayer.dispose();
+    unawaited(_disposeAudioPlayerSafely());
     super.dispose();
+  }
+
+  Future<void> _disposeVoiceRecorderSafely({required bool stopFirst}) async {
+    if (stopFirst) {
+      try {
+        await _voiceRecorder.stop();
+      } catch (error) {
+        debugPrint('[NovynChat] Voice recorder stop during dispose failed: $error');
+      }
+    }
+    try {
+      await _voiceRecorder.dispose();
+    } catch (error) {
+      debugPrint('[NovynChat] Voice recorder dispose failed: $error');
+    }
+  }
+
+  Future<void> _disposeAudioPlayerSafely() async {
+    try {
+      await _sentSoundTask;
+    } catch (_) {
+      // A failed notification sound must not prevent native player cleanup.
+    }
+    try {
+      await _audioPlayer.dispose();
+    } catch (error) {
+      debugPrint('[NovynChat] Audio player dispose failed: $error');
+    }
   }
 
   void _startReply(dynamic message) {
@@ -481,8 +524,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
   }
 
   void _playSentSound() {
-    // Audio plugin setup must never hold the composer or the next send.
-    unawaited(() async {
+    // Keep the native player operation visible to dispose so it is not torn
+    // down while setAudioContext/play is still using its platform channel.
+    _sentSoundTask = () async {
       try {
         await _audioPlayer.setAudioContext(AudioContext(
           android: AudioContextAndroid(
@@ -495,7 +539,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
       } catch (error) {
         debugPrint('[NovynChat] Sent sound playback failed: $error');
       }
-    }());
+    }();
+    unawaited(_sentSoundTask);
   }
 
   void _send() async {

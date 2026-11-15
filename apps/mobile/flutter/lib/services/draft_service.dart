@@ -3,6 +3,16 @@ import 'package:hive_flutter/hive_flutter.dart';
 /// Service for saving and loading draft messages
 class DraftService {
   static Box? _draftsBox;
+  static Future<void> _writeQueue = Future<void>.value();
+
+  static Future<void> _enqueueWrite(Future<void> Function() operation) {
+    final next = _writeQueue.then((_) => operation());
+    _writeQueue = next.catchError((Object error) {
+      // Keep the queue usable after one failed disk write; return the original
+      // future to the caller so the failure is still observable there.
+    });
+    return next;
+  }
 
   /// Initialize drafts box
   static Future<void> init() async {
@@ -12,17 +22,19 @@ class DraftService {
   }
 
   /// Save draft for a chat
-  static Future<void> saveDraft(String chatId, String text) async {
-    await init();
-    if (text.trim().isEmpty) {
-      // Delete draft if empty
-      await _draftsBox?.delete(chatId);
-    } else {
-      await _draftsBox?.put(chatId, {
-        'text': text,
-        'timestamp': DateTime.now().toIso8601String(),
-      });
-    }
+  static Future<void> saveDraft(String chatId, String text) {
+    return _enqueueWrite(() async {
+      await init();
+      if (text.trim().isEmpty) {
+        // Delete draft if empty
+        await _draftsBox?.delete(chatId);
+      } else {
+        await _draftsBox?.put(chatId, {
+          'text': text,
+          'timestamp': DateTime.now().toIso8601String(),
+        });
+      }
+    });
   }
 
   /// Get draft for a chat
@@ -36,9 +48,11 @@ class DraftService {
   }
 
   /// Delete draft for a chat
-  static Future<void> deleteDraft(String chatId) async {
-    await init();
-    await _draftsBox?.delete(chatId);
+  static Future<void> deleteDraft(String chatId) {
+    return _enqueueWrite(() async {
+      await init();
+      await _draftsBox?.delete(chatId);
+    });
   }
 
   /// Get all drafts (for showing in chat list)
@@ -58,13 +72,17 @@ class DraftService {
   }
 
   /// Clear all drafts
-  static Future<void> clearAll() async {
-    await init();
-    await _draftsBox?.clear();
+  static Future<void> clearAll() {
+    return _enqueueWrite(() async {
+      await init();
+      await _draftsBox?.clear();
+    });
   }
 
   /// Close box
   static Future<void> close() async {
+    await _writeQueue;
     await _draftsBox?.close();
+    _draftsBox = null;
   }
 }

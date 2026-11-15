@@ -1568,6 +1568,7 @@ class SocketService extends ChangeNotifier {
 
   void closeChat() {
     if (_typingTargetKey != null) _stopActiveTyping();
+    final wasCaptureProtected = _activeChatCaptureProtected;
     final pendingHistory = _chatHistoryCompleter;
     if (pendingHistory != null && !pendingHistory.isCompleted) {
       pendingHistory.complete(const <Message>[]);
@@ -1577,7 +1578,9 @@ class SocketService extends ChangeNotifier {
     _currentChatWith = null;
     _currentChatIsGroup = false;
     _activeChatCaptureProtected = false;
-    unawaited(SecurityService.setSafeMode(false));
+    if (wasCaptureProtected) {
+      unawaited(SecurityService.setSafeMode(false));
+    }
     _messages = [];
     _peerIsTyping = false;
     notifyListeners();
