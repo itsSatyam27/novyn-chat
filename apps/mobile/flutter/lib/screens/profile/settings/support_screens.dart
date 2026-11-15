@@ -23,7 +23,7 @@ class AboutNovynScreen extends StatefulWidget {
 
 class _AboutNovynScreenState extends State<AboutNovynScreen> {
   bool _checking = false, _downloading = false, _installing = false;
-  String? _status, _releaseName, _apkUrl, _expectedSha256, _downloadedApkPath;
+  String? _status, _apkUrl, _expectedSha256, _downloadedApkPath;
   int? _apkSize;
   int _installedBuild = 0, _latestBuild = 0;
   double _downloadProgress = 0;
@@ -54,7 +54,6 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
       _apkUrl = null;
       _expectedSha256 = null;
       _downloadedApkPath = null;
-      _releaseName = null;
       _apkSize = null;
     });
     try {
@@ -91,7 +90,6 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
       }
       setState(() {
         _latestBuild = build;
-        _releaseName = (data['name'] ?? tag).toString();
         _apkUrl = url.toString();
         _expectedSha256 = digest.substring(7).toLowerCase();
         _apkSize = size;
@@ -231,21 +229,74 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
               const SizedBox(height: 12),
               Text(_status!, style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 color: available ? colors.primary : colors.onSurfaceVariant, height: 1.45)),
-              if (available && _releaseName != null) ...[
-                const SizedBox(height: 6),
-                Text(_releaseName! + ' · ' + ((_apkSize ?? 0) / 1000000).toStringAsFixed(1) + ' MB · ARM64-v8a',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w700)),
-                const SizedBox(height: 10),
-                if (_downloadedApkPath == null)
-                  SizedBox(width: double.infinity, child: FilledButton.icon(
-                    onPressed: _downloading ? null : _downloadUpdate,
-                    icon: const Icon(Icons.download_rounded), label: const Text('Download update')))
-                else
-                  SizedBox(width: double.infinity, child: FilledButton.icon(
-                    onPressed: _installing ? null : _installUpdate,
-                    icon: _installing ? const SizedBox(width: 17, height: 17, child: CircularProgressIndicator(strokeWidth: 2))
-                        : const Icon(Icons.install_mobile_rounded),
-                    label: Text(_installing ? 'Opening installer…' : 'Install update'))),
+              if (available) ...[
+                const SizedBox(height: 14),
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: colors.primaryContainer.withValues(alpha: .42),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: colors.primary.withValues(alpha: .18)),
+                  ),
+                  child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+                    Container(
+                      width: 44, height: 44,
+                      decoration: BoxDecoration(
+                        color: colors.primary.withValues(alpha: .12),
+                        borderRadius: BorderRadius.circular(13),
+                      ),
+                      child: Icon(Icons.android_rounded, color: colors.primary, size: 26),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Novyn Android APK',
+                          style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14)),
+                        const SizedBox(height: 5),
+                        Text(
+                          ((_apkSize ?? 0) / 1000000).toStringAsFixed(1) + ' MB · ARM64-v8a',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: colors.onSurfaceVariant, fontWeight: FontWeight.w600),
+                        ),
+                      ],
+                    )),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: colors.primary.withValues(alpha: .12),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text('UPDATE',
+                        style: TextStyle(color: colors.primary, fontSize: 10,
+                          fontWeight: FontWeight.w900, letterSpacing: .6)),
+                    ),
+                  ]),
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: _downloading || _installing
+                        ? null
+                        : (_downloadedApkPath == null ? _downloadUpdate : _installUpdate),
+                    icon: _downloading
+                        ? const SizedBox(width: 18, height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2))
+                        : Icon(_downloadedApkPath == null
+                            ? Icons.download_rounded
+                            : Icons.install_mobile_rounded),
+                    label: Text(
+                      _downloading
+                          ? 'Downloading…'
+                          : _installing
+                              ? 'Opening installer…'
+                              : _downloadedApkPath == null
+                                  ? 'Download update'
+                                  : 'Install update',
+                    ),
+                  ),
+                ),
               ],
             ],
           ])),
