@@ -1741,24 +1741,35 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
             // Anchor side actions while the multiline field grows.
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Attachment action is intentionally separate from the text field.
-              Container(
+              // Keep the attachment control anchored to the first composer
+              // line. Its fixed slot never participates in the text field's
+              // vertical growth, so long/multiline drafts cannot move it.
+              SizedBox(
                 width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: isDark
-                      ? const Color(0xFF191A27)
-                      : theme.colorScheme.primary.withValues(alpha: .09),
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: theme.colorScheme.primary.withValues(alpha: isDark ? 0.04 : 0.06),
-                      blurRadius: 12,
-                      offset: const Offset(0, 3),
+                height: 50,
+                child: Align(
+                  alignment: Alignment.topCenter,
+                  child: Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: isDark
+                          ? const Color(0xFF191A27)
+                          : theme.colorScheme.primary.withValues(alpha: .09),
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: theme.colorScheme.primary.withValues(alpha: isDark ? 0.04 : 0.06),
+                          blurRadius: 12,
+                          offset: const Offset(0, 3),
+                        ),
+                      ],
                     ),
-                  ],
+                    child: Center(
+                      child: _AttachmentButton(onSelected: _handleAttachment),
+                    ),
+                  ),
                 ),
-                child: _AttachmentButton(onSelected: _handleAttachment),
               ),
               const SizedBox(width: 8),
 
