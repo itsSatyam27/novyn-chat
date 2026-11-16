@@ -11,7 +11,13 @@ interface AuthContextType {
   isLoading: boolean;
   login: (payload: { identifier: string; password: string; remember?: boolean }) => Promise<{ ok: boolean; error?: string }>;
   signup: (payload: { name: string; username: string; email: string; password: string }) => Promise<{ ok: boolean; error?: string }>;
-  loginWithGoogle: () => Promise<{ ok: boolean; error?: string }>;
+  loginWithGoogle: (username?: string) => Promise<{
+    ok: boolean;
+    error?: string;
+    requiresUsername?: boolean;
+    suggestedUsername?: string;
+  }>;
+  cancelGoogleSignup: () => void;
   logout: () => Promise<void>;
   refreshSession: () => Promise<void>;
 }
@@ -21,6 +27,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [pendingGoogleToken, setPendingGoogleToken] = useState<string | null>(null);
 
   const applySessionUser = (data: any) => {
     setUser({
@@ -130,20 +137,38 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return { ok: false, error: res.data?.message || res.data?.error || 'Registration failed' };
   };
 
-  const loginWithGoogle = async () => {
+  const loginWithGoogle = async (username?: string) => {
     try {
-      const { loginWithGooglePopup } = await import('../services/firebase');
-      const googleData = await loginWithGooglePopup();
-      if (!googleData?.idToken) {
-        return { ok: false, error: 'Google sign-in token missing' };
+      let idToken = pendingGoogleToken;
+      if (!idToken) {
+        const { loginWithGooglePopup } = await import('../services/firebase');
+        const googleData = await loginWithGooglePopup();
+        if (!googleData?.idToken) {
+          return { ok: false, error: 'Google sign-in token missing' };
+        }
+        idToken = googleData.idToken;
+        setPendingGoogleToken(idToken);
       }
 
       const res = await apiRequest('/api/auth/google', {
         method: 'POST',
-        body: JSON.stringify({ idToken: googleData.idToken, remember: true }),
+        body: JSON.stringify({
+          idToken,
+          remember: true,
+          ...(username?.trim() ? { username: username.trim().toLowerCase() } : {}),
+        }),
       });
 
+      if (res.ok && res.data?.requiresUsername) {
+        return {
+          ok: false,
+          requiresUsername: true,
+          suggestedUsername: res.data.usernameSuggestion || 'novynuser',
+        };
+      }
+
       if (res.ok && res.data?.username) {
+        setPendingGoogleToken(null);
         setUser({
           username: res.data.username,
           displayName: res.data.displayName || res.data.username,
@@ -156,7 +181,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       triggerHaptic('error');
-      const errorMsg = res.data?.message || res.data?.error || (res.status === 503 ? 'Firebase Admin not configured on server' : `Google sign-in rejected (${res.status || 'server error'})`);
+      const errorMsg = res.data?.message || res.data?.error ||
+        (res.status === 503 ? 'Firebase Admin not configured on server' :
+          `Google sign-in rejected (${res.status || 'server error'})`);
+      if (username?.trim() && (res.status === 400 || res.status === 409)) {
+        return { ok: false, requiresUsername: true, error: errorMsg };
+      }
+      if (res.status === 401 || res.status === 403 || res.status === 503) {
+        setPendingGoogleToken(null);
+      }
       return { ok: false, error: errorMsg };
     } catch (err: any) {
       triggerHaptic('error');
@@ -164,7 +197,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const cancelGoogleSignup = () => setPendingGoogleToken(null);
+
   const logout = async () => {
+    setPendingGoogleToken(null);
     try {
       await apiRequest('/api/auth/logout', { method: 'POST' });
     } finally {
@@ -184,6 +220,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         login,
         signup,
         loginWithGoogle,
+        cancelGoogleSignup,
         logout,
         refreshSession,
       }}
