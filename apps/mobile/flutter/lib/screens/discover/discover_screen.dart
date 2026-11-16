@@ -87,7 +87,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (_) => DiscoverPeopleScreen(myUid: myUid, initialTab: 2),
+                              builder: (_) => DiscoverPeopleScreen(myUid: myUid, initialTab: 0),
                             ),
                           );
                         } else if (value == 'refresh') {
@@ -103,7 +103,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                           child: Row(children: [
                             Icon(Icons.mark_email_unread_outlined, color: Theme.of(menuContext).colorScheme.primary),
                             const SizedBox(width: 12),
-                            const Expanded(child: Text('Friend requests')),
+                            const Expanded(child: Text('Manage requests')),
                             if (count > 0)
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
