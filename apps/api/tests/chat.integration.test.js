@@ -129,6 +129,11 @@ test('localhost discovery, requests, reconnect state, and private media', { time
     'rotated refresh token must be removed from the persisted allow-list',
   );
   alice.cookie = rotatedCookie;
+  // Refresh rotation revokes the previous session id. Reconnect the test
+  // socket with the newly issued cookie before exercising authenticated events.
+  alice.socket.disconnect();
+  const rotatedAlice = await connect(alice.cookie);
+  alice.socket = rotatedAlice.socket;
   const restoredSession = await fetch(`${base}/api/auth/session`, {
     headers: { Cookie: alice.cookie },
   });
