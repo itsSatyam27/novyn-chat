@@ -15,6 +15,7 @@ import '../services/api_service.dart';
 import '../services/friend_service.dart';
 import '../models/user_model.dart';
 import '../widgets/novyn_dock.dart';
+import '../widgets/novyn_page_route.dart';
 import '../services/settings_service.dart';
 import '../services/app_update_service.dart';
 import 'profile/settings/support_screens.dart';
@@ -72,8 +73,8 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
 
   void _openAboutNovyn(BuildContext hostContext) {
     if (!hostContext.mounted) return;
-    Navigator.of(hostContext).push(
-      MaterialPageRoute(builder: (_) => const AboutNovynScreen()),
+    Navigator.of(hostContext).push<void>(
+      NovynPageRoute<void>(child: const AboutNovynScreen()),
     );
   }
 
@@ -146,10 +147,9 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
         createdAt: DateTime.now(),
       );
       if (!mounted) return;
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => CallScreen(
+      Navigator.of(context).push<void>(
+        NovynPageRoute<void>(
+          child: CallScreen(
             peer: caller,
             callType: callType,
             isIncoming: true,
@@ -242,13 +242,40 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
                   onHorizontalDragStart: _onMainSwipeStart,
                   onHorizontalDragUpdate: _onMainSwipeUpdate,
                   onHorizontalDragEnd: _onMainSwipeEnd,
-                  child: IndexedStack(
-                    index: _selectedIndex,
-                    children: List.generate(
-                        _screens.length,
-                        (index) => TickerMode(
-                            enabled: index == _selectedIndex,
-                            child: RepaintBoundary(child: _screens[index]))),
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: List.generate(_screens.length, (index) {
+                      final isSelected = index == _selectedIndex;
+                      final isPrevious = index < _selectedIndex;
+                      final slideOffset = isSelected
+                          ? Offset.zero
+                          : Offset(isPrevious ? -0.025 : 0.025, 0);
+
+                      return Positioned.fill(
+                        child: IgnorePointer(
+                          ignoring: !isSelected,
+                          child: ExcludeSemantics(
+                            excluding: !isSelected,
+                            child: TickerMode(
+                              enabled: isSelected,
+                              child: RepaintBoundary(
+                                child: AnimatedSlide(
+                                  offset: slideOffset,
+                                  duration: const Duration(milliseconds: 200),
+                                  curve: Curves.easeOutCubic,
+                                  child: AnimatedOpacity(
+                                    opacity: isSelected ? 1 : 0,
+                                    duration: const Duration(milliseconds: 180),
+                                    curve: Curves.easeOut,
+                                    child: _screens[index],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    }),
                   ),
                 ),
               ),
