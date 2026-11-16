@@ -850,13 +850,13 @@ class _DiscoverPersonRow extends StatelessWidget {
       onTap: onOpenProfile,
       borderRadius: BorderRadius.circular(18),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+        padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 11),
         child: Row(
           children: [
             UserAvatar(
               name: user.name,
               photoUrl: user.photoUrl,
-              radius: 44,
+              radius: 26,
               showOnlineIndicator: true,
               isOnline: isOnline,
               presence: user.status,
@@ -871,7 +871,7 @@ class _DiscoverPersonRow extends StatelessWidget {
                     user.name,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: NovynText.body(17, weight: FontWeight.w600, color: scheme.onSurface),
+                    style: NovynText.body(15, weight: FontWeight.w500, color: scheme.onSurface),
                   ),
                   const SizedBox(height: 4),
                   RichText(
@@ -892,8 +892,8 @@ class _DiscoverPersonRow extends StatelessWidget {
             ),
             const SizedBox(width: 10),
             SizedBox(
-              width: 90,
-              height: 48,
+              width: 84,
+              height: 40,
               child: FilledButton(
                 onPressed: (isPending || isSending) ? null : onAddFriend,
                 style: FilledButton.styleFrom(
@@ -904,11 +904,11 @@ class _DiscoverPersonRow extends StatelessWidget {
                   disabledBackgroundColor: scheme.surfaceContainerHighest,
                   disabledForegroundColor: scheme.onSurfaceVariant,
                   elevation: 0,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(17)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                 ),
                 child: Text(
                   isSending ? 'Sending' : isPending ? 'Requested' : 'Add',
-                  style: NovynText.body(13, weight: FontWeight.w600,
+                  style: NovynText.body(12, weight: FontWeight.w600,
                     color: isPending || isSending ? scheme.onSurfaceVariant : scheme.primary),
                 ),
               ),
