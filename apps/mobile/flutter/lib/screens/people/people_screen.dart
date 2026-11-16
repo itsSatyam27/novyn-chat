@@ -132,7 +132,8 @@ class _PeopleScreenState extends State<PeopleScreen> {
   }
 
   Future<void> _shareInvite(String myUid) async {
-    final profileUrl = 'https://novyn.app/user/$myUid';
+    final username = myUid.trim();
+    final profileUrl = Uri(scheme: 'https', host: 'novyn.app', pathSegments: ['user', username]).toString();
     try {
       await Share.share(
         'Connect with me on Novyn: $profileUrl',

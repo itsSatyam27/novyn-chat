@@ -23,11 +23,13 @@ import 'theme/novyn_theme.dart';
 import 'screens/splash/splash_screen_v2.dart';
 import 'widgets/app_lock_wrapper.dart';
 import 'services/call_overlay_service.dart';
+import 'services/profile_deep_link_service.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'l10n/app_localizations.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  unawaited(ProfileDeepLinkService.initialize());
 
   // Android WorkManager performs periodic release checks even when Novyn is
   // not currently open. Failures must never block normal app startup.

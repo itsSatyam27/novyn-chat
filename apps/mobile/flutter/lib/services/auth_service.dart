@@ -117,10 +117,17 @@ class AuthService extends ChangeNotifier {
   bool _authReady = false;
   String? _pendingTwoFactorChallenge;
   String? _pendingTwoFactorUsername;
+  String? _pendingGoogleIdToken;
+  String? _pendingGoogleUsernameSuggestion;
+  String? _pendingGoogleEmail;
   Timer? _sessionMaintenanceTimer;
   bool _sessionRestoreInProgress = false;
 
   bool get isTwoFactorPending => _pendingTwoFactorChallenge != null;
+  bool get isGoogleUsernamePending =>
+      _pendingGoogleIdToken?.isNotEmpty == true;
+  String get googleUsernameSuggestion =>
+      _pendingGoogleUsernameSuggestion ?? 'novynuser';
 
   NovynUser? get user => _user;
   bool get isLoggedIn => _user != null;
@@ -561,69 +568,40 @@ class AuthService extends ChangeNotifier {
   }
 
   // ── Google Sign-In ────────────────────────────────────────────────────────
-  // Returns null on success, an error message string on failure.
+  // New Google accounts choose a Novyn username before the backend creates them.
   Future<String?> signInWithGoogle() async {
     try {
-      // 1. Trigger Google account picker
       final googleUser = await _googleSignIn.signIn();
       if (googleUser == null) return 'Sign-in cancelled.';
 
-      // 2. Get Google auth tokens
       final googleAuth = await googleUser.authentication;
-
-      // 3. Sign into Firebase (needed to get a valid idToken for our server)
       final credential = GoogleAuthProvider.credential(
         accessToken: googleAuth.accessToken,
         idToken: googleAuth.idToken,
       );
       final userCred = await _firebaseAuth.signInWithCredential(credential);
-
-      // 4. Get the Firebase ID token
       final idToken = await userCred.user?.getIdToken();
       if (idToken == null) return 'Failed to retrieve authentication token.';
 
-      // 5. Send to novyn-chat backend — this creates/matches a username account
       final result = await ApiService.signInWithGoogle(
         idToken: idToken,
         remember: true,
       );
-
       if (result == null) return 'No response from server.';
-      if (result['requiresTwoFactor'] == true) {
-        _pendingTwoFactorChallenge = result['challengeToken']?.toString();
-        _pendingTwoFactorUsername = result['username']?.toString();
-        if (_pendingTwoFactorChallenge == null || _pendingTwoFactorChallenge!.isEmpty) {
-          return 'The server did not create a secure verification challenge.';
-        }
+
+      if (result['requiresUsername'] == true) {
+        _pendingGoogleIdToken = idToken;
+        _pendingGoogleEmail = googleUser.email;
+        _pendingGoogleUsernameSuggestion =
+            result['usernameSuggestion']?.toString() ?? 'novynuser';
         notifyListeners();
         return null;
       }
-      if (result['username'] == null) {
-        return result['message']?.toString() ?? 'Google sign-in failed.';
-      }
 
-      // 6. Load the full session profile
-      final session = await ApiService.getSession();
-      if (session != null && session['authenticated'] == true) {
-        final signedInUser = NovynUser.fromMap(session);
-        await _prepareAccount(signedInUser.username);
-        _user = signedInUser;
-        await _persistIdentity(signedInUser);
-      } else {
-        // Fallback from the google response itself
-        final signedInUser = NovynUser(
-          username: result['username'].toString(),
-          displayName: result['displayName']?.toString() ??
-              result['username'].toString(),
-          email: result['email']?.toString() ?? googleUser.email,
-        );
-        await _prepareAccount(signedInUser.username);
-        _user = signedInUser;
-        await _persistIdentity(signedInUser);
-      }
-
-      notifyListeners();
-      return null; // success
+      return await _completeGoogleSignInResult(
+        result,
+        fallbackEmail: googleUser.email,
+      );
     } on FirebaseAuthException catch (e) {
       return _friendlyFirebaseError(e.code);
     } on PlatformException catch (e) {
@@ -633,8 +611,99 @@ class AuthService extends ChangeNotifier {
     }
   }
 
-  // ── Email / Password Sign-In ──────────────────────────────────────────────
-  // Goes directly to novyn-chat's /api/auth/signin — Firebase not involved.
+  Future<String?> completeGoogleSignUp(String username) async {
+    final idToken = _pendingGoogleIdToken;
+    if (idToken == null || idToken.isEmpty) {
+      return 'Your Google signup has expired. Please try again.';
+    }
+
+    final normalized = username.trim().toLowerCase();
+    if (!RegExp(r'^[a-z0-9_]{3,24}$').hasMatch(normalized)) {
+      return 'Use 3–24 lowercase letters, numbers, or underscores.';
+    }
+
+    try {
+      final result = await ApiService.signInWithGoogle(
+        idToken: idToken,
+        username: normalized,
+        remember: true,
+      );
+      if (result == null) return 'No response from server.';
+      if (result['requiresUsername'] == true) {
+        return 'Choose a username to finish creating your account.';
+      }
+      if (result['username'] == null) {
+        return result['message']?.toString() ?? 'Google signup failed.';
+      }
+
+      final fallbackEmail = _pendingGoogleEmail ?? '';
+      _clearPendingGoogleSignup();
+      return await _completeGoogleSignInResult(
+        result,
+        fallbackEmail: fallbackEmail,
+      );
+    } catch (error) {
+      return 'Google signup failed: ${error.toString()}';
+    }
+  }
+
+  Future<void> cancelGoogleUsernameSelection() async {
+    _clearPendingGoogleSignup();
+    try {
+      await _firebaseAuth.signOut();
+    } catch (_) {}
+    try {
+      await _googleSignIn.signOut();
+    } catch (_) {}
+    notifyListeners();
+  }
+
+  void _clearPendingGoogleSignup() {
+    _pendingGoogleIdToken = null;
+    _pendingGoogleEmail = null;
+    _pendingGoogleUsernameSuggestion = null;
+  }
+
+  Future<String?> _completeGoogleSignInResult(
+    Map<String, dynamic> result, {
+    required String fallbackEmail,
+  }) async {
+    if (result['requiresTwoFactor'] == true) {
+      _pendingTwoFactorChallenge = result['challengeToken']?.toString();
+      _pendingTwoFactorUsername = result['username']?.toString();
+      if (_pendingTwoFactorChallenge == null ||
+          _pendingTwoFactorChallenge!.isEmpty) {
+        return 'The server did not create a secure verification challenge.';
+      }
+      notifyListeners();
+      return null;
+    }
+    if (result['username'] == null) {
+      return result['message']?.toString() ?? 'Google sign-in failed.';
+    }
+
+    final session = await ApiService.getSession();
+    if (session != null && session['authenticated'] == true) {
+      final signedInUser = NovynUser.fromMap(session);
+      await _prepareAccount(signedInUser.username);
+      _user = signedInUser;
+      await _persistIdentity(signedInUser);
+    } else {
+      final signedInUser = NovynUser(
+        username: result['username'].toString(),
+        displayName: result['displayName']?.toString() ??
+            result['username'].toString(),
+        email: result['email']?.toString() ?? fallbackEmail,
+      );
+      await _prepareAccount(signedInUser.username);
+      _user = signedInUser;
+      await _persistIdentity(signedInUser);
+    }
+
+    notifyListeners();
+    return null;
+  }
+
   Future<String?> login({
     required String identifier, // username or email
     required String password,

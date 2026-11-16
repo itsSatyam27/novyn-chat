@@ -6,6 +6,8 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../services/auth_service.dart';
+import '../../services/api_service.dart';
+import '../../services/profile_deep_link_service.dart';
 import '../../services/friend_service.dart';
 import '../../services/socket_service.dart';
 import '../../models/user_model.dart';
@@ -15,6 +17,7 @@ import '../../widgets/profile_preview_sheet.dart';
 import '../../widgets/user_avatar.dart';
 import '../people/received_friend_requests_screen.dart';
 import '../people/discover_people_screen.dart';
+import '../profile/public_profile_screen.dart';
 import 'package:novyn/services/haptic_service.dart';
 
 class DiscoverScreen extends StatefulWidget {
@@ -467,16 +470,19 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
 
   String? _usernameFromQr(String value) {
     final raw = value.trim();
-    final valid = RegExp(r'^[a-zA-Z0-9_.-]{1,30}$');
     final candidate = raw.startsWith('@') ? raw.substring(1) : raw;
-    if (valid.hasMatch(candidate)) return candidate;
-    final uri = Uri.tryParse(raw);
-    if (uri == null) return null;
-    final segments = uri.pathSegments;
-    final userIndex = segments.indexWhere((segment) => segment.toLowerCase() == 'user');
-    final fromPath = userIndex >= 0 && userIndex + 1 < segments.length ? segments[userIndex + 1] : null;
-    final username = fromPath ?? uri.queryParameters['user'];
-    return username != null && valid.hasMatch(username) ? username : null;
+    final validHandle = candidate.length >= 3 &&
+        candidate.length <= 24 &&
+        !RegExp(r'[^a-zA-Z0-9_]').hasMatch(candidate);
+    if (validHandle) return candidate.toLowerCase();
+
+    final linkedUsername = ProfileDeepLinkService.usernameFromLink(raw);
+    // Legacy Google-created usernames may contain spaces. They are valid
+    // only when supplied through an encoded Novyn profile link.
+    if (linkedUsername != null && linkedUsername.isNotEmpty) {
+      return linkedUsername.toLowerCase();
+    }
+    return null;
   }
 
   Future<void> _onQRScanned(String data) async {
@@ -493,22 +499,25 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
         return;
       }
 
-      final user = await context.read<FriendService>().getUser(username);
+      final profile = await ApiService.getPublicProfile(username);
       if (!mounted) return;
-      if (user == null) {
+      if (profile == null) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Novyn user not found.')),
         );
         return;
       }
 
-      // Close the scanner sheet before showing the matching profile.
+      // Resolve through the public profile API so privacy-limited Discover
+      // search results do not prevent a valid QR from opening a profile.
       Navigator.pop(context);
-      showModalBottomSheet(
-        context: context,
-        backgroundColor: Colors.transparent,
-        isScrollControlled: true,
-        builder: (_) => ProfilePreviewSheet(user: user),
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => PublicProfileScreen(
+            username: username,
+            initialProfile: profile,
+          ),
+        ),
       );
     } finally {
       _isResolvingQr = false;

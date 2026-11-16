@@ -346,6 +346,7 @@ class ApiService {
   // { username, email, linkedExisting, createdAccount }.
   static Future<Map<String, dynamic>?> signInWithGoogle({
     required String idToken,
+    String? username,
     bool remember = true,
   }) async {
     try {
@@ -353,7 +354,12 @@ class ApiService {
           .post(
             Uri.parse('$baseUrl/api/auth/google'),
             headers: await _csrfHeaders(),
-            body: jsonEncode({'idToken': idToken, 'remember': remember}),
+            body: jsonEncode({
+              'idToken': idToken,
+              'remember': remember,
+              if (username != null && username.trim().isNotEmpty)
+                'username': username.trim().toLowerCase(),
+            }),
           )
           .timeout(const Duration(seconds: 15));
 
@@ -823,6 +829,29 @@ class ApiService {
         .whereType<Map>()
         .map((item) => Map<String, dynamic>.from(item))
         .toList();
+  }
+
+  /// Fetch the deliberately limited public profile payload used by shared links.
+  /// This endpoint works without a signed-in session.
+  static Future<Map<String, dynamic>?> getPublicProfile(String username) async {
+    final normalized = username.trim().replaceFirst(RegExp(r'^@'), '');
+    if (normalized.isEmpty) return null;
+    final uri = Uri.parse(
+      '$baseUrl/api/public/profile/${Uri.encodeComponent(normalized)}',
+    );
+    final response = await http.get(
+      uri,
+      headers: const {'Accept': 'application/json'},
+    ).timeout(const Duration(seconds: 12));
+    if (response.statusCode == 404) return null;
+    if (response.statusCode != 200) {
+      throw StateError('Profile could not be loaded (${response.statusCode}).');
+    }
+    final decoded = jsonDecode(response.body);
+    if (decoded is! Map) {
+      throw const FormatException('Unexpected public profile response.');
+    }
+    return Map<String, dynamic>.from(decoded);
   }
 
   static Future<Map<String, dynamic>?> getLinkPreview(String url) async {

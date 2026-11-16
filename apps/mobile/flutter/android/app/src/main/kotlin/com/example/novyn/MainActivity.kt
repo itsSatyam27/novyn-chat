@@ -28,6 +28,10 @@ import android.view.WindowManager
 
 class MainActivity : FlutterFragmentActivity() {
 
+    private val DEEP_LINK_CHANNEL = "com.example.novyn/deep_links"
+    private var deepLinkChannel: MethodChannel? = null
+    private var pendingDeepLink: String? = null
+
     private val CHANNEL = "com.example.novyn/audio"
     private val SECURITY_CHANNEL = "com.example.novyn/security"
     private val CALL_PIP_CHANNEL = "com.example.novyn/call_pip"
@@ -42,6 +46,25 @@ class MainActivity : FlutterFragmentActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+
+        deepLinkChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, DEEP_LINK_CHANNEL)
+        deepLinkChannel?.setMethodCallHandler { call, result ->
+            when (call.method) {
+                "getInitialLink" -> {
+                    val link = pendingDeepLink ?: intent?.dataString
+                    pendingDeepLink = null
+                    // Avoid replaying the same cold-start URL after an activity
+                    // recreation once Flutter has consumed it.
+                    if (intent?.dataString != null) {
+                        setIntent(Intent(intent).setData(null))
+                    }
+                    result.success(link)
+                }
+                else -> result.notImplemented()
+            }
+        }
+        // Preserve a link delivered before Flutter finished configuring its channels.
+        intent?.dataString?.let { pendingDeepLink = it }
 
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "com.example.novyn/apk_installer")
             .setMethodCallHandler { call, result ->
@@ -297,6 +320,18 @@ class MainActivity : FlutterFragmentActivity() {
                 }
             }
         }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        val link = intent.dataString ?: return
+        val channel = deepLinkChannel
+        if (channel != null) {
+            channel.invokeMethod("onLink", link)
+        } else {
+            pendingDeepLink = link
+        }
+    }
 
     private fun getCallAudioRoutes(audioManager: AudioManager): List<Map<String, Any>> {
         val routes = mutableListOf<Map<String, Any>>()
