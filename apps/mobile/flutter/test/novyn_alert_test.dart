@@ -97,7 +97,7 @@ void main() {
           body: Center(
             child: ElevatedButton(
               onPressed: () {
-                ScaffoldMessenger.of(context).showNovynAlert(SnackBar(
+                context.showNovynAlert(SnackBar(
                   content: const Text('Message removed'),
                   duration: const Duration(seconds: 8),
                   action: SnackBarAction(
