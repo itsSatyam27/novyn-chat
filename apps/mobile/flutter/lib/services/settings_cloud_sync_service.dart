@@ -99,12 +99,12 @@ class SettingsCloudSyncService {
         await _applyRemote(settingsMap, updatedAt, generation);
       } else {
         _syncReady = true;
-        await _saveSnapshot(generation);
+        _scheduleSave();
       }
     } catch (error) {
       debugPrint('[NovynSettingsSync] Initial sync deferred: $error');
     } finally {
-      _requestInFlight = false;
+      if (_isCurrent(generation)) _requestInFlight = false;
     }
   }
 
