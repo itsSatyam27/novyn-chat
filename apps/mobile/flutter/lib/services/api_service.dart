@@ -596,7 +596,28 @@ class ApiService {
   }
 
   // ── Auth: Refresh token ───────────────────────────────────────────────────
-  static Future<int?> refreshSessionStatus() async {
+  // The refresh token is single-use: the server revokes it as soon as it
+  // rotates the cookie pair. Several independent app flows (resume checks,
+  // socket auth recovery, and authenticated requests) can notice an expired
+  // access cookie at nearly the same time. Share one in-flight refresh so a
+  // second request cannot submit the now-revoked refresh token and clear the
+  // newly issued cookies.
+  static Future<int?>? _sessionRefreshInFlight;
+
+  static Future<int?> refreshSessionStatus() {
+    final pending = _sessionRefreshInFlight;
+    if (pending != null) return pending;
+
+    final refresh = _performSessionRefresh();
+    _sessionRefreshInFlight = refresh;
+    return refresh.whenComplete(() {
+      if (identical(_sessionRefreshInFlight, refresh)) {
+        _sessionRefreshInFlight = null;
+      }
+    });
+  }
+
+  static Future<int?> _performSessionRefresh() async {
     try {
       final res = await http
           .post(
@@ -606,7 +627,8 @@ class ApiService {
           .timeout(const Duration(seconds: 10));
       await _storeSessionCookie(res);
       return res.statusCode;
-    } catch (_) {
+    } catch (error) {
+      debugPrint('[NovynSession] Session refresh deferred: $error');
       return null;
     }
   }
