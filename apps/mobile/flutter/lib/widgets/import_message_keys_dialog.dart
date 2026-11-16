@@ -67,10 +67,9 @@ class _ImportMessageKeysDialogState extends State<ImportMessageKeysDialog> {
           .read<SocketService>()
           .importMessageKeys(_file!, _password.text);
       if (!mounted) return;
-      final messenger = ScaffoldMessenger.of(context);
-      Navigator.pop(context);
-      messenger.showNovynAlert(SnackBar(
+      context.showNovynAlert(SnackBar(
           content: Text('Message keys imported for $count conversations.')));
+      Navigator.pop(context);
     } catch (error) {
       if (mounted) {
         setState(() {
