@@ -75,6 +75,29 @@ test('localhost discovery, requests, reconnect state, and private media', { time
     const state = await ready;
     return { socket, state };
   };
+  const refreshTokenId = (cookie) => {
+    const token = cookie.split(';').map((part) => part.trim())
+      .find((part) => part.startsWith('novyn_rt='))?.slice('novyn_rt='.length);
+    assert.ok(token, 'refresh cookie must be present');
+    const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString('utf8'));
+    assert.ok(payload.jti, 'refresh token must contain a session id');
+    return payload.jti;
+  };
+  const assertRefreshSessionPersisted = async (cookie, username) => {
+    const jti = refreshTokenId(cookie);
+    const accountState = JSON.parse(await fs.readFile(path.join(directory, 'data', 'chat-state.json'), 'utf8'));
+    assert.ok(
+      accountState.users.some((entry) =>
+        (entry.key || entry.username || '').toLowerCase() === username.toLowerCase()),
+      'account data must be durably persisted before its cookie is returned',
+    );
+    const persisted = JSON.parse(await fs.readFile(path.join(directory, 'data', 'auth-state.json'), 'utf8'));
+    assert.ok(
+      persisted.refreshSessions.some((entry) => entry.tokenId === jti),
+      'refresh session must be durably persisted before its cookie is returned',
+    );
+    return { jti, persisted };
+  };
   const signup = async (username) => {
     const response = await fetch(`${base}/api/auth/signup`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -82,11 +105,39 @@ test('localhost discovery, requests, reconnect state, and private media', { time
     });
     assert.equal(response.status, 200, await response.clone().text());
     const cookie = response.headers.getSetCookie().map((item) => item.split(';')[0]).join('; ');
+    await assertRefreshSessionPersisted(cookie, username);
     return { cookie, ...(await connect(cookie)) };
   };
   const alice = await signup('alice');
   const bob = await signup('bob');
   const eve = await signup('eve');
+
+  // A refresh response must not expose the rotated cookie until its new
+  // allow-list entry is durably persisted and the old one is revoked.
+  const oldRefreshJti = refreshTokenId(alice.cookie);
+  const refreshResponse = await fetch(`${base}/api/auth/refresh`, {
+    method: 'POST',
+    headers: { Cookie: alice.cookie, Origin: origin },
+  });
+  assert.equal(refreshResponse.status, 200, await refreshResponse.clone().text());
+  const rotatedCookie = refreshResponse.headers.getSetCookie()
+    .map((item) => item.split(';')[0]).join('; ');
+  const rotated = await assertRefreshSessionPersisted(rotatedCookie, 'alice');
+  assert.notEqual(rotated.jti, oldRefreshJti);
+  assert.ok(
+    !rotated.persisted.refreshSessions.some((entry) => entry.tokenId === oldRefreshJti),
+    'rotated refresh token must be removed from the persisted allow-list',
+  );
+  alice.cookie = rotatedCookie;
+  // Refresh rotation revokes the previous session id. Reconnect the test
+  // socket with the newly issued cookie before exercising authenticated events.
+  alice.socket.disconnect();
+  const rotatedAlice = await connect(alice.cookie);
+  alice.socket = rotatedAlice.socket;
+  const restoredSession = await fetch(`${base}/api/auth/session`, {
+    headers: { Cookie: alice.cookie },
+  });
+  assert.equal(restoredSession.status, 200, await restoredSession.clone().text());
   const legacyLogin = await fetch(`${base}/api/auth/signin`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ identifier: 'legacy', password: 'arbitrary-password' }),
@@ -305,15 +356,16 @@ test('localhost discovery, requests, reconnect state, and private media', { time
     .find((part) => part.startsWith('novyn_csrf='))
     ?.slice('novyn_csrf='.length);
   assert.ok(csrfCookie, 'signup must issue the CSRF cookie');
-  const refreshResponse = await fetch(`${base}/api/auth/refresh`, {
+  // Keep this response name distinct from the earlier Alice token-rotation check.
+  const staleRefreshResponse = await fetch(`${base}/api/auth/refresh`, {
     method: 'POST',
     headers: {
       Cookie: staleEveCookie,
       'x-novyn-csrf': decodeURIComponent(csrfCookie),
     },
   });
-  assert.equal(refreshResponse.status, 200, await refreshResponse.clone().text());
-  const refreshedEveCookie = refreshResponse.headers.getSetCookie()
+  assert.equal(staleRefreshResponse.status, 200, await staleRefreshResponse.clone().text());
+  const refreshedEveCookie = staleRefreshResponse.headers.getSetCookie()
     .map((item) => item.split(';')[0]).join('; ');
   assert.ok(refreshedEveCookie.includes('novyn_at='));
   assert.ok(refreshedEveCookie.includes('novyn_rt='));
