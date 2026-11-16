@@ -295,6 +295,9 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
     if (account == null || account.isEmpty || peer.isEmpty) return;
     final next = Set<String>.from(_lockedChatUsernames);
     final locked = !next.contains(peer);
+    if (!locked && !_showingLockedChats) {
+      if (!await _requireChatUnlock() || !mounted) return;
+    }
     if (locked) {
       next.add(peer);
     } else {
@@ -957,7 +960,7 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
 
   void _openChat(ChatPreview chat) async {
     final peer = chat.peer.username.trim().toLowerCase();
-    if (_lockedChatUsernames.contains(peer)) {
+    if (_lockedChatUsernames.contains(peer) && !_showingLockedChats) {
       if (!await _requireChatUnlock() || !mounted) return;
     }
     await Navigator.of(context).push<void>(
@@ -996,7 +999,7 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
               if (!isArchived) return false;
             } else if (_showingLockedChats) {
               if (!isLocked) return false;
-            } else if (isArchived) {
+            } else if (isArchived || isLocked) {
               return false;
             }
             if (blockedUids.contains(chat.peerUid) ||
