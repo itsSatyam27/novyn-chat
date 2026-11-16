@@ -351,15 +351,15 @@ test('localhost discovery, requests, reconnect state, and private media', { time
     .find((part) => part.startsWith('novyn_csrf='))
     ?.slice('novyn_csrf='.length);
   assert.ok(csrfCookie, 'signup must issue the CSRF cookie');
-  const refreshResponse = await fetch(`${base}/api/auth/refresh`, {
+  const staleRefreshResponse = await fetch(`${base}/api/auth/refresh`, {
     method: 'POST',
     headers: {
       Cookie: staleEveCookie,
       'x-novyn-csrf': decodeURIComponent(csrfCookie),
     },
   });
-  assert.equal(refreshResponse.status, 200, await refreshResponse.clone().text());
-  const refreshedEveCookie = refreshResponse.headers.getSetCookie()
+  assert.equal(staleRefreshResponse.status, 200, await staleRefreshResponse.clone().text());
+  const refreshedEveCookie = staleRefreshResponse.headers.getSetCookie()
     .map((item) => item.split(';')[0]).join('; ');
   assert.ok(refreshedEveCookie.includes('novyn_at='));
   assert.ok(refreshedEveCookie.includes('novyn_rt='));
