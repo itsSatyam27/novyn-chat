@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
@@ -10,6 +11,7 @@ import '../../services/api_service.dart';
 import '../../models/user_model.dart';
 import '../../widgets/user_avatar.dart';
 import '../../widgets/novyn_shimmer.dart';
+import '../../widgets/novyn_page_route.dart';
 import '../../widgets/novyn_empty_state.dart';
 import '../../widgets/novyn_ui.dart';
 import '../../theme/novyn_theme.dart';
@@ -23,7 +25,7 @@ class CallsScreen extends StatefulWidget {
   State<CallsScreen> createState() => _CallsScreenState();
 }
 
-class _CallsScreenState extends State<CallsScreen> {
+class _CallsScreenState extends State<CallsScreen> with WidgetsBindingObserver {
   List<_CallEntry> _calls = [];
   bool _loading = true;
   String _filter = 'All'; // All | Missed | Incoming | Outgoing
@@ -34,9 +36,13 @@ class _CallsScreenState extends State<CallsScreen> {
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
   bool _searchOpen = false;
+  int _callLoadGeneration = 0;
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    ApiService.callLogsRevision.removeListener(_handleCallLogsChanged);
+    _callLoadGeneration++;
     _searchController.dispose();
     _searchFocusNode.dispose();
     super.dispose();
@@ -45,8 +51,22 @@ class _CallsScreenState extends State<CallsScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    ApiService.callLogsRevision.addListener(_handleCallLogsChanged);
     _loadFavorites();
     _loadCalls();
+  }
+
+  void _handleCallLogsChanged() {
+    if (!mounted) return;
+    unawaited(_loadCalls());
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      unawaited(_loadCalls());
+    }
   }
 
   Future<void> _loadFavorites() async {
@@ -140,18 +160,23 @@ class _CallsScreenState extends State<CallsScreen> {
     );
   }
 
-  Future<void> _loadCalls() async {
+  Future<void> _loadCalls({bool showLoading = false}) async {
+    final generation = ++_callLoadGeneration;
+    if (showLoading && mounted) setState(() => _loading = true);
+
     final auth = context.read<AuthService>();
     final myUsername = auth.user?.username;
     if (myUsername == null) {
-      setState(() => _loading = false);
+      if (mounted && generation == _callLoadGeneration) {
+        setState(() => _loading = false);
+      }
       return;
     }
 
     final results = await Future.wait([ApiService.getCallLogs(), ApiService.getSession()]);
     final rawLogs = results[0] as List<Map<String, dynamic>>;
     final profile = results[1] as Map<String, dynamic>?;
-    if (!mounted) return;
+    if (!mounted || generation != _callLoadGeneration) return;
 
     final entriesMap = <String, _CallEntry>{};
     final resolvedPeers = <String, UserModel>{};
@@ -181,6 +206,7 @@ class _CallsScreenState extends State<CallsScreen> {
           final peerKey = peerUsername.toLowerCase();
           var peer = resolvedPeers[peerKey] ?? context.read<SocketService>().contacts.findUser(peerUsername);
           peer ??= await context.read<FriendService>().getUser(peerUsername);
+          if (!mounted || generation != _callLoadGeneration) return;
           peer ??= UserModel(
             uid: peerUsername,
             name: peerUsername,
@@ -218,7 +244,7 @@ class _CallsScreenState extends State<CallsScreen> {
     final entries = entriesMap.values.toList()
       ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
-    if (!mounted) return;
+    if (!mounted || generation != _callLoadGeneration) return;
     setState(() {
       _calls   = entries;
       _callPrivacy = ['everyone', 'friends', 'nobody'].contains(profile?['callPrivacy']) ? profile!['callPrivacy'].toString() : _callPrivacy;
@@ -423,8 +449,8 @@ class _CallsScreenState extends State<CallsScreen> {
                     child: GestureDetector(
                       onTap: () => Navigator.push(
                         context,
-                        MaterialPageRoute(
-                          builder: (_) => CallScreen(peer: peer, callType: 'voice'),
+                        NovynPageRoute<void>(
+                          child: CallScreen(peer: peer, callType: 'voice'),
                         ),
                       ),
                       onLongPress: () => _toggleFavorite(peer),
@@ -634,9 +660,12 @@ class _CallsScreenState extends State<CallsScreen> {
                             ),
                             onTap: () {
                               Navigator.pop(sheetContext);
-                              Navigator.push(context, MaterialPageRoute(
-                                builder: (_) => CallScreen(peer: peer, callType: 'voice'),
-                              ));
+                              Navigator.push(
+                                context,
+                                NovynPageRoute<void>(
+                                  child: CallScreen(peer: peer, callType: 'voice'),
+                                ),
+                              );
                             },
                           );
                         },
@@ -978,8 +1007,8 @@ class _CallCard extends StatelessWidget {
                     HapticService.vibrate(NovynHapticType.light, category: HapticCategory.calls);
                     Navigator.push(
                       context,
-                      MaterialPageRoute(
-                        builder: (_) => CallScreen(peer: entry.peer, callType: isVideo ? 'video' : 'voice'),
+                      NovynPageRoute<void>(
+                        child: CallScreen(peer: entry.peer, callType: isVideo ? 'video' : 'voice'),
                       ),
                     );
                   },

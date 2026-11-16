@@ -10,6 +10,7 @@ import '../../services/socket_service.dart';
 import '../../services/hybrid_db_service.dart';
 import '../../widgets/user_avatar.dart';
 import '../../widgets/novyn_empty_state.dart';
+import '../../widgets/novyn_page_route.dart';
 import '../../theme/novyn_theme.dart';
 import '../../widgets/novyn_ui.dart';
 import '../../models/chat_preview.dart';
@@ -484,15 +485,9 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
   }
 
   void _openChat(ChatPreview chat) async {
-    await Navigator.push(
-      context,
-      PageRouteBuilder(
-        transitionDuration: const Duration(milliseconds: 300),
-        pageBuilder: (context, animation, secondaryAnimation) =>
-            ChatDetailScreen(peer: chat.peer, isGroup: chat.isGroup),
-        transitionsBuilder: (context, animation, secondaryAnimation, child) {
-          return FadeTransition(opacity: animation, child: child);
-        },
+    await Navigator.of(context).push<void>(
+      NovynPageRoute<void>(
+        child: ChatDetailScreen(peer: chat.peer, isGroup: chat.isGroup),
       ),
     );
     // The socket listener keeps this screen's conversation snapshot current
@@ -645,9 +640,12 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
                       if (value == 1) {
                         final myUid = context.read<AuthService>().user?.username;
                         if (myUid == null || myUid.isEmpty) return;
-                        Navigator.push(context, MaterialPageRoute(
-                          builder: (_) => CreateGroupScreen(myUid: myUid),
-                        ));
+                        Navigator.push(
+                          context,
+                          NovynPageRoute<void>(
+                            child: CreateGroupScreen(myUid: myUid),
+                          ),
+                        );
                       }
                     },
                     itemBuilder: (_) => const [
@@ -1232,21 +1230,7 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
       preview: preview,
       isFavorite: context.watch<SettingsService>().favoriteChatIds.contains(preview.chatId),
       onOptions: (tileContext) => _showChatOptions(preview, tileContext),
-      onTap: () async {
-        await Navigator.push(
-          context,
-          PageRouteBuilder(
-            transitionDuration: const Duration(milliseconds: 300),
-            pageBuilder: (context, animation, secondaryAnimation) =>
-                ChatDetailScreen(peer: preview.peer, isGroup: preview.isGroup),
-            transitionsBuilder:
-                (context, animation, secondaryAnimation, child) {
-              return FadeTransition(opacity: animation, child: child);
-            },
-          ),
-        );
-        // Live conversation updates are already applied by _handleSocketUpdate.
-      },
+      onTap: () => _openChat(preview),
     );
   }
 

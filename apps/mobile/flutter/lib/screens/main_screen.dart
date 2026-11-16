@@ -15,6 +15,7 @@ import '../services/api_service.dart';
 import '../services/friend_service.dart';
 import '../models/user_model.dart';
 import '../widgets/novyn_dock.dart';
+import '../widgets/novyn_page_route.dart';
 import '../services/settings_service.dart';
 import '../services/app_update_service.dart';
 import 'profile/settings/support_screens.dart';
@@ -34,6 +35,8 @@ class MainScreen extends StatefulWidget {
 
 class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   int _selectedIndex = 0;
+  int _previousSelectedIndex = 0;
+  int _tabTransitionDirection = 1;
   double _horizontalDragDistance = 0;
   AuthService? _authService;
   String? _activeUsername;
@@ -72,8 +75,8 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
 
   void _openAboutNovyn(BuildContext hostContext) {
     if (!hostContext.mounted) return;
-    Navigator.of(hostContext).push(
-      MaterialPageRoute(builder: (_) => const AboutNovynScreen()),
+    Navigator.of(hostContext).push<void>(
+      NovynPageRoute<void>(child: const AboutNovynScreen()),
     );
   }
 
@@ -146,10 +149,9 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
         createdAt: DateTime.now(),
       );
       if (!mounted) return;
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => CallScreen(
+      Navigator.of(context).push<void>(
+        NovynPageRoute<void>(
+          child: CallScreen(
             peer: caller,
             callType: callType,
             isIncoming: true,
@@ -174,12 +176,16 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     super.dispose();
   }
 
-  void _onTabTap(int index) {
+  void _setSelectedTab(int index) {
     if (index == _selectedIndex) return;
     setState(() {
+      _previousSelectedIndex = _selectedIndex;
+      _tabTransitionDirection = index > _selectedIndex ? 1 : -1;
       _selectedIndex = index;
     });
   }
+
+  void _onTabTap(int index) => _setSelectedTab(index);
 
   void _onMainSwipeStart(DragStartDetails details) {
     _horizontalDragDistance = 0;
@@ -204,7 +210,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     final nextIndex = (_selectedIndex + (isSwipeLeft ? 1 : -1))
         .clamp(0, _screens.length - 1);
     if (nextIndex != _selectedIndex) {
-      setState(() => _selectedIndex = nextIndex);
+      _setSelectedTab(nextIndex);
     }
   }
 
@@ -221,7 +227,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
       canPop: _selectedIndex == 0,
       onPopInvokedWithResult: (didPop, result) {
         if (didPop || _selectedIndex == 0 || !mounted) return;
-        setState(() => _selectedIndex = 0);
+        _setSelectedTab(0);
       },
       child: Scaffold(
       backgroundColor: NovynTheme.pageBg(context),
@@ -242,13 +248,44 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
                   onHorizontalDragStart: _onMainSwipeStart,
                   onHorizontalDragUpdate: _onMainSwipeUpdate,
                   onHorizontalDragEnd: _onMainSwipeEnd,
-                  child: IndexedStack(
-                    index: _selectedIndex,
-                    children: List.generate(
-                        _screens.length,
-                        (index) => TickerMode(
-                            enabled: index == _selectedIndex,
-                            child: RepaintBoundary(child: _screens[index]))),
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: List.generate(_screens.length, (index) {
+                      final isSelected = index == _selectedIndex;
+                      final isOutgoing =
+                          index == _previousSelectedIndex && !isSelected;
+                      final slideDirection = isOutgoing
+                          ? -_tabTransitionDirection
+                          : _tabTransitionDirection;
+                      final slideOffset = isSelected
+                          ? Offset.zero
+                          : Offset(slideDirection * 0.025, 0);
+
+                      return Positioned.fill(
+                        child: IgnorePointer(
+                          ignoring: !isSelected,
+                          child: ExcludeSemantics(
+                            excluding: !isSelected,
+                            child: RepaintBoundary(
+                              child: AnimatedSlide(
+                                offset: slideOffset,
+                                duration: const Duration(milliseconds: 200),
+                                curve: Curves.easeOutCubic,
+                                child: AnimatedOpacity(
+                                  opacity: isSelected ? 1 : 0,
+                                  duration: const Duration(milliseconds: 180),
+                                  curve: Curves.easeOut,
+                                  child: TickerMode(
+                                    enabled: isSelected,
+                                    child: _screens[index],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    }),
                   ),
                 ),
               ),

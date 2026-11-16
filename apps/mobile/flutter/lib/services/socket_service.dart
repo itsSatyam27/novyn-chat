@@ -1578,7 +1578,7 @@ class SocketService extends ChangeNotifier {
     _stealthModePreference = enabled;
   }
 
-  void closeChat() {
+  void closeChat({bool notify = true}) {
     if (_typingTargetKey != null) _stopActiveTyping();
     final pendingHistory = _chatHistoryCompleter;
     if (pendingHistory != null && !pendingHistory.isCompleted) {
@@ -1592,7 +1592,11 @@ class SocketService extends ChangeNotifier {
     unawaited(SecurityService.setSafeMode(false));
     _messages = [];
     _peerIsTyping = false;
-    notifyListeners();
+
+    // ChatDetailScreen calls closeChat while its own Provider subscription is
+    // being disposed. Notifying listeners during that unmount pass causes an
+    // unnecessary rebuild of the route that is already leaving.
+    if (notify) notifyListeners();
   }
 
   Future<bool> loadOlderHistory(String peerUsername, String beforeMessageId, {bool isGroup = false}) async {

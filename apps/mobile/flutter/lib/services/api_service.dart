@@ -16,6 +16,10 @@ import '../models/chat_models.dart';
 /// by the browser on web; on mobile we forward the Set-Cookie header manually
 /// using [_sessionCookie]).
 class ApiService {
+  /// Incremented after the backend confirms a call-log write.
+  /// Screens can listen without polling or depending on route ownership.
+  static final ValueNotifier<int> callLogsRevision = ValueNotifier<int>(0);
+
   // ── Server URL ─────────────────────────────────────────────────────────────
   /// The production backend used by release APKs.
   ///
@@ -998,7 +1002,7 @@ class ApiService {
     String? callId,
   }) async {
     try {
-      await http
+      final response = await http
           .post(
             Uri.parse('$baseUrl/api/calls'),
             headers: await _csrfHeaders(),
@@ -1012,6 +1016,13 @@ class ApiService {
             }),
           )
           .timeout(const Duration(seconds: 5));
+
+      if (response.statusCode == 200) {
+        final body = jsonDecode(response.body);
+        if (body is Map && body['ok'] == true) {
+          callLogsRevision.value++;
+        }
+      }
     } catch (_) {}
   }
 
