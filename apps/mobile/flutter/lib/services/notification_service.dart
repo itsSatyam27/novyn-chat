@@ -30,6 +30,12 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.reload();
     final callStatus = data['callStatus']?.toString() ?? 'missed';
+    final recipient = data['recipient']?.toString().trim().toLowerCase() ?? '';
+    final notificationAccount = (prefs.getString('novyn_notification_account') ?? '').trim().toLowerCase();
+    if (recipient.isNotEmpty && recipient != notificationAccount) {
+      debugPrint('[NovynNotifications] Ignored call alert for another account.');
+      return;
+    }
     final isIncoming = callStatus == 'incoming';
     final plugin = FlutterLocalNotificationsPlugin();
     await plugin.initialize(const InitializationSettings(
@@ -991,6 +997,12 @@ class NotificationService {
     final type = message.data['type'];
     if (type == 'call') {
       final callStatus = message.data['callStatus']?.toString() ?? 'missed';
+      final recipient = message.data['recipient']?.toString().trim().toLowerCase() ?? '';
+      final notificationAccount = (_presenceAuth?.user?.username ?? _activeUsername ?? '').trim().toLowerCase();
+      if (recipient.isNotEmpty && recipient != notificationAccount) {
+        debugPrint('[NovynNotifications] Ignored foreground call alert for another account.');
+        return;
+      }
       final callId = message.data['callId']?.toString() ?? '';
       if (callStatus == 'ended') {
         if (callId.isNotEmpty) unawaited(_localNotifications.cancel(callId.hashCode));
