@@ -414,7 +414,7 @@ class _DiscoverPeopleScreenState extends State<DiscoverPeopleScreen> {
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)),
             child: QrImageView(
-              data: Uri.https('novyn.app', '/user/${Uri.encodeComponent(widget.myUid.trim())}').toString(),
+              data: Uri(scheme: 'https', host: 'novyn.app', pathSegments: ['user', widget.myUid.trim()]).toString(),
               size: 210,
               backgroundColor: Colors.white,
             ),
