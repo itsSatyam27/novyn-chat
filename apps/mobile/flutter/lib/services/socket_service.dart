@@ -1430,6 +1430,15 @@ class SocketService extends ChangeNotifier {
         // The relay keeps the encrypted envelope in lastMessageData. The
         // legacy lastMessage field may not contain the ciphertext/IV.
         final lastMsg = item['lastMessageData'] ?? item['lastMessage'];
+        final hasConversationActivity =
+            (item['lastTimestamp']?.toString().trim().isNotEmpty ?? false) ||
+            (lastMsg is Map && lastMsg.isNotEmpty) ||
+            (lastMsg != null && lastMsg.toString().trim().isNotEmpty);
+        // The server friend list also contains accepted contacts. Keep those
+        // in Contacts/Discover, but do not create a Chats row until a first
+        // message has actually started the conversation.
+        if (!hasConversationActivity) continue;
+
         if (item['publicKey'] != null) {
           _peerKeys[username.toLowerCase()] = item['publicKey'].toString();
         }
@@ -1458,33 +1467,44 @@ class SocketService extends ChangeNotifier {
                   ? '🔒 Encrypted message'
                   : lastMsg['text']?.toString() ?? '')
               : lastMsg?.toString() ?? '',
+          // Conversations without a message have no activity time.
+          // Keep a stable old sentinel for sorting; the UI hides this value.
           lastTime:
               DateTime.tryParse(item['lastTimestamp']?.toString() ?? '') ??
-                  DateTime.now(),
+                  DateTime(2000),
           unreadCount: (item['unreadCount'] as num?)?.toInt() ?? 0,
         ));
       }
 
-      // Publish the authenticated server snapshot immediately. UI rendering
-      // must not wait for Hive/Drift writes; slow local storage previously made
-      // conversations appear empty or load unpredictably.
-      _conversations = previews;
-      _hasLoadedConversations = true;
-      notifyListeners();
-
-      // Persist in the background so the next app launch can hydrate instantly.
-      await Future.wait([
-        HybridDbService.saveUsers(peers),
-        HybridDbService.saveChats(previews),
-      ]);
-      if (_myUsername != account) return;
-
+      // Decrypt the latest encrypted previews before publishing the snapshot.
+      // Publishing the placeholder first caused the Chats list to flash
+      // "Encrypted message" while each preview was decrypted asynchronously.
       for (final item in list) {
         try {
           final raw = item['lastMessageData'] ?? item['lastMessage'];
           if (raw is! Map || raw['isEncrypted'] != true) continue;
           final peer = item['username']?.toString() ?? '';
           if (peer.isEmpty) continue;
+
+          final previewIndex = previews.indexWhere(
+            (chat) => chat.peerUid.toLowerCase() == peer.toLowerCase(),
+          );
+          if (previewIndex < 0) continue;
+
+          final previousIndex = _conversations.indexWhere(
+            (chat) => chat.peerUid.toLowerCase() == peer.toLowerCase(),
+          );
+          final incomingTime = previews[previewIndex].lastTime;
+          // Keep an already-decrypted preview visible for the same activity
+          // while refreshing the snapshot; never flash the placeholder again.
+          if (previousIndex >= 0 &&
+              _conversations[previousIndex].lastTime.isAtSameMomentAs(incomingTime) &&
+              _conversations[previousIndex].lastMessage.isNotEmpty &&
+              _conversations[previousIndex].lastMessage != '🔒 Encrypted message') {
+            previews[previewIndex] = previews[previewIndex].copyWith(
+              lastMessage: _conversations[previousIndex].lastMessage,
+            );
+          }
 
           final decrypted = await encryption.decrypt(
             Message(
@@ -1505,26 +1525,30 @@ class SocketService extends ChangeNotifier {
                     : _peerKeys[peer.toLowerCase()]),
           );
           if (_myUsername != account) return;
-          if (decrypted.needsMessageKey) continue;
-
-          final index = _conversations.indexWhere(
-            (chat) => chat.peerUid.toLowerCase() == peer.toLowerCase(),
-          );
-          // Do not replace a newer live preview with an older snapshot.
-          if (index >= 0 &&
-              (_conversations[index].lastMessage == '🔒 Encrypted message' ||
-                  _conversations[index].lastMessage == raw['text'])) {
-            final updated = List<ChatPreview>.from(_conversations);
-            updated[index] =
-                updated[index].copyWith(lastMessage: decrypted.text);
-            _conversations = updated;
-            unawaited(HybridDbService.saveChat(updated[index]));
-            notifyListeners();
+          if (!decrypted.needsMessageKey) {
+            previews[previewIndex] = previews[previewIndex].copyWith(
+              lastMessage: decrypted.text,
+            );
           }
         } catch (error) {
           debugPrint('[NovynSocket] Could not decrypt chat preview: $error');
         }
       }
+
+      if (_myUsername != account) return;
+
+      // Publish one stable snapshot only after preview decryption has settled.
+      // Local persistence remains asynchronous and does not block first render.
+      _conversations = previews;
+      _hasLoadedConversations = true;
+      notifyListeners();
+
+      unawaited(() async {
+        await Future.wait([
+          HybridDbService.saveUsers(peers),
+          HybridDbService.saveChats(previews),
+        ]);
+      }());
     } catch (error, stackTrace) {
       debugPrint('[NovynSocket] Friend list refresh failed: $error');
       debugPrintStack(stackTrace: stackTrace);
