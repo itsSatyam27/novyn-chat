@@ -285,7 +285,7 @@ class _DataStorageScreenState extends State<DataStorageScreen> {
         _clearingCache = false;
         _usageRefreshKey++;
       });
-      ScaffoldMessenger.of(context).showNovynAlert(
+      context.showNovynAlert(
         const SnackBar(
           content: Text('Temporary cache cleared. Your chats are safe.'),
           behavior: SnackBarBehavior.floating,
@@ -294,7 +294,7 @@ class _DataStorageScreenState extends State<DataStorageScreen> {
     } catch (error) {
       if (!mounted) return;
       setState(() => _clearingCache = false);
-      ScaffoldMessenger.of(context).showNovynAlert(
+      context.showNovynAlert(
         SnackBar(
           content: Text('Could not clear cache: $error'),
           behavior: SnackBarBehavior.floating,
@@ -550,13 +550,13 @@ class _YourDownloadsScreenState extends State<YourDownloadsScreen> {
         mode: LaunchMode.externalApplication,
       );
       if (!opened && mounted) {
-        ScaffoldMessenger.of(context).showNovynAlert(
+        context.showNovynAlert(
           const SnackBar(content: Text('No app can open this file type.')),
         );
       }
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showNovynAlert(
+        context.showNovynAlert(
           const SnackBar(content: Text('Could not open this file.')),
         );
       }
@@ -586,13 +586,13 @@ class _YourDownloadsScreenState extends State<YourDownloadsScreen> {
       await file.delete();
       if (mounted) {
         setState(() => _refreshKey++);
-        ScaffoldMessenger.of(context).showNovynAlert(
+        context.showNovynAlert(
           const SnackBar(content: Text('Download deleted.')),
         );
       }
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showNovynAlert(
+        context.showNovynAlert(
           const SnackBar(content: Text('Could not delete this file.')),
         );
       }
