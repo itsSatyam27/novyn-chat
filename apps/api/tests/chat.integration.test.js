@@ -342,11 +342,11 @@ test('localhost discovery, requests, reconnect state, and private media', { time
   const refreshedEve = await connect(refreshedEveCookie);
   eve.cookie = refreshedEveCookie;
   eve.socket = refreshedEve.socket;
-  const acceptedAfterRefresh = await eve.socket.timeout(3000).emitWithAck(
-    'private_message',
-    { to: 'eve', text: 'authenticated again after refresh' },
+  const settingsAfterRefresh = await eve.socket.timeout(3000).emitWithAck(
+    'get_account_settings',
+    {},
   );
-  assert.equal(acceptedAfterRefresh.ok, true);
+  assert.equal(settingsAfterRefresh.ok, true);
 
   assert.equal((await fetch(`${base}/api/auth/logout`, { method: 'POST', headers: { Cookie: eve.cookie } })).status, 200);
   assert.equal((await fetch(`${base}/api/auth/session`, { headers: { Cookie: eve.cookie } })).status, 401);
