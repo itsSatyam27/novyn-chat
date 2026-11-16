@@ -16,6 +16,7 @@ import android.content.pm.PackageManager
 import android.content.ComponentName
 import android.os.Vibrator
 import android.os.VibrationEffect
+import android.os.VibratorManager
 import android.os.Build
 import android.content.res.Configuration
 import android.app.PictureInPictureParams
@@ -294,7 +295,7 @@ class MainActivity : FlutterFragmentActivity() {
                         .map { it.toLong().coerceAtLeast(0L) }.toLongArray()
                     val amplitudes = (call.argument<List<Number>>("amplitudes") ?: emptyList())
                         .map { it.toInt().coerceIn(0, 255) }.toIntArray()
-                    val vibrator = getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+                    val vibrator = getDefaultVibrator()
                     if (vibrator.hasVibrator() && timings.isNotEmpty() && timings.size == amplitudes.size) {
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                             vibrator.vibrate(VibrationEffect.createWaveform(timings, amplitudes, -1))
@@ -306,7 +307,7 @@ class MainActivity : FlutterFragmentActivity() {
                 } else if (call.method == "vibrate") {
                     val duration = (call.argument<Int>("duration") ?: 50).coerceIn(1, 5000)
                     val amplitude = (call.argument<Int>("amplitude") ?: 255).coerceIn(1, 255)
-                    val vibrator = getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+                    val vibrator = getDefaultVibrator()
                     if (vibrator.hasVibrator()) {
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                             vibrator.vibrate(VibrationEffect.createOneShot(duration.toLong(), amplitude))
@@ -320,6 +321,16 @@ class MainActivity : FlutterFragmentActivity() {
                 }
             }
         }
+
+    @Suppress("DEPRECATION")
+    private fun getDefaultVibrator(): Vibrator {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val manager = getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager
+            manager.defaultVibrator
+        } else {
+            getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+        }
+    }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)

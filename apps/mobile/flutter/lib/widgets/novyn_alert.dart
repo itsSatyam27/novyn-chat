@@ -1,10 +1,10 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../services/settings_service.dart';
+import '../services/haptic_service.dart';
 
 enum NovynAlertTone { success, danger, violet, neutral, warning }
 
@@ -350,11 +350,17 @@ class NovynAlert {
     overlay.insert(entry);
 
     if (haptic) {
-      if (event.tone == NovynAlertTone.danger) {
-        HapticFeedback.mediumImpact();
-      } else {
-        HapticFeedback.lightImpact();
-      }
+      final hapticType = switch (event.tone) {
+        NovynAlertTone.success => NovynHapticType.success,
+        NovynAlertTone.danger => NovynHapticType.error,
+        NovynAlertTone.warning => NovynHapticType.warning,
+        NovynAlertTone.violet => NovynHapticType.selection,
+        NovynAlertTone.neutral => NovynHapticType.light,
+      };
+      unawaited(HapticService.vibrate(
+        hapticType,
+        category: HapticCategory.notifications,
+      ));
     }
   }
 
