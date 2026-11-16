@@ -173,7 +173,7 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
                 Text('About Novyn', style: TextStyle(color: ink, fontSize: 26,
                   letterSpacing: -.7, fontWeight: FontWeight.w800)),
               ]),
-              const SizedBox(height: 22),
+              const SizedBox(height: 16),
               Center(
                 child: Column(children: [
                   Container(
@@ -203,7 +203,7 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
                     padding: const EdgeInsets.symmetric(horizontal: 17, vertical: 8),
                     decoration: BoxDecoration(
                       color: surface,
-                      borderRadius: BorderRadius.circular(24),
+                      borderRadius: BorderRadius.circular(19),
                       border: Border.all(color: border),
                     ),
                     child: Text('Version $_appVersion (build $_buildNumber)',
@@ -295,7 +295,7 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
                         style: TextStyle(color: muted, fontSize: 12, fontWeight: FontWeight.w600)),
                     ],
                     if (_updateService.downloadError != null) ...[
-                      const SizedBox(height: 10),
+                      const SizedBox(height: 8),
                       Text(
                         _updateService.downloadError!,
                         style: TextStyle(color: muted, fontSize: 12.5, height: 1.35),
@@ -354,7 +354,7 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
                       child: const Text('Check again'))),
                   ] else ...[
                     if (error) ...[
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 8),
                       Text('$_status', style: TextStyle(color: muted, fontSize: 12.5, height: 1.4)),
                     ],
                     const SizedBox(height: 17),
@@ -405,7 +405,7 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
       decoration: BoxDecoration(
         color: surface,
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(18),
         border: Border.all(color: border),
       ),
       child: Text(text, style: TextStyle(color: ink, fontSize: 13,
@@ -417,7 +417,7 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
     padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 4),
     decoration: BoxDecoration(
       color: NovynTheme.cardBg(context),
-      borderRadius: BorderRadius.circular(25),
+      borderRadius: BorderRadius.circular(20),
       border: Border.all(color: Theme.of(context).brightness == Brightness.dark
         ? const Color(0xFF39345F) : const Color(0xFFDDD8FF)),
     ),
@@ -614,8 +614,8 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
         borderRadius: BorderRadius.circular(19),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 160),
-          height: 76,
-          padding: const EdgeInsets.symmetric(horizontal: 12),
+          height: 62,
+          padding: const EdgeInsets.symmetric(horizontal: 9),
           decoration: BoxDecoration(
             color: NovynTheme.cardBg(context),
             borderRadius: BorderRadius.circular(19),
@@ -627,31 +627,31 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
           child: Row(
             children: [
               Container(
-                width: 48,
-                height: 48,
+                width: 38,
+                height: 38,
                 decoration: BoxDecoration(
                   color: item.$4.withValues(alpha: .11),
-                  borderRadius: BorderRadius.circular(15),
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(item.$3, color: item.$4, size: 23),
+                child: Icon(item.$3, color: item.$4, size: 19),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   item.$2,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    fontSize: 13.5,
-                    height: 1.2,
+                    fontSize: 12.5,
+                    height: 1.15,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
               ),
               if (selected)
                 Container(
-                  width: 22,
-                  height: 22,
+                  width: 19,
+                  height: 19,
                   decoration: BoxDecoration(
                     color: colors.primary,
                     shape: BoxShape.circle,
@@ -781,10 +781,10 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
       ),
       body: ListView(
         keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 36),
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
         children: [
           Container(
-            padding: const EdgeInsets.all(18),
+            padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
               color: colors.primary.withValues(alpha: isDark ? .17 : .09),
               borderRadius: BorderRadius.circular(25),
@@ -792,38 +792,38 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
             child: Row(
               children: [
                 Container(
-                  width: 72,
-                  height: 72,
+                  width: 54,
+                  height: 54,
                   decoration: BoxDecoration(
                     color: colors.primary,
-                    borderRadius: BorderRadius.circular(21),
+                    borderRadius: BorderRadius.circular(16),
                     boxShadow: [
                       BoxShadow(
                         color: colors.primary.withValues(alpha: .25),
-                        blurRadius: 18,
-                        offset: const Offset(0, 7),
+                        blurRadius: 14,
+                        offset: const Offset(0, 5),
                       ),
                     ],
                   ),
                   child: Icon(
                     Icons.chat_bubble_rounded,
                     color: colors.onPrimary,
-                    size: 30,
+                    size: 24,
                   ),
                 ),
-                const SizedBox(width: 16),
+                const SizedBox(width: 12),
                 const Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         'Help us improve Novyn',
-                        style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900, letterSpacing: -.3),
+                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, letterSpacing: -.3),
                       ),
                       SizedBox(height: 5),
                       Text(
                         'Share an idea, report a bug, or tell us what you love.',
-                        style: TextStyle(fontSize: 13.5, height: 1.4),
+                        style: TextStyle(fontSize: 12.5, height: 1.3),
                       ),
                     ],
                   ),
@@ -831,7 +831,7 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
               ],
             ),
           ),
-          const SizedBox(height: 27),
+          const SizedBox(height: 18),
           _sectionTitle('What would you like to share?'),
           const SizedBox(height: 12),
           Row(
@@ -853,7 +853,7 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
           _sectionTitle('Rate your experience', optionalLabel: 'Optional'),
           const SizedBox(height: 10),
           Container(
-            padding: const EdgeInsets.fromLTRB(14, 16, 14, 13),
+            padding: const EdgeInsets.fromLTRB(10, 10, 10, 9),
             decoration: BoxDecoration(
               color: NovynTheme.cardBg(context),
               borderRadius: BorderRadius.circular(24),
@@ -874,19 +874,19 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
                     final selected = value <= _rating;
                     return IconButton(
                       padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(minWidth: 44, minHeight: 46),
+                      constraints: const BoxConstraints(minWidth: 38, minHeight: 38),
                       onPressed: _sending
                           ? null
                           : () => setState(() => _rating = _rating == value ? 0 : value),
                       icon: Icon(
                         selected ? Icons.star_rounded : Icons.star_outline_rounded,
-                        size: 39,
+                        size: 31,
                         color: selected ? const Color(0xFFF4A51C) : colors.onSurfaceVariant.withValues(alpha: .42),
                       ),
                     );
                   }),
                 ),
-                const SizedBox(height: 2),
+                const SizedBox(height: 1),
                 Text(
                   _rating == 0
                       ? 'Tap a star to rate (optional)'
@@ -917,8 +917,8 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
             child: TextField(
               controller: _messageController,
               enabled: !_sending,
-              minLines: 6,
-              maxLines: 8,
+              minLines: 4,
+              maxLines: 6,
               maxLength: 2000,
               textCapitalization: TextCapitalization.sentences,
               buildCounter: (context, {required currentLength, required isFocused, maxLength}) =>
@@ -934,7 +934,7 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
                 alignLabelWithHint: true,
                 filled: true,
                 fillColor: Colors.transparent,
-                contentPadding: const EdgeInsets.fromLTRB(20, 18, 20, 12),
+                contentPadding: const EdgeInsets.fromLTRB(15, 13, 15, 9),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(24),
                   borderSide: BorderSide.none,
@@ -964,7 +964,7 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
               prefixIcon: const Icon(Icons.mail_outline_rounded),
               filled: true,
               fillColor: NovynTheme.cardBg(context),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 17),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 13),
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(22), borderSide: BorderSide.none),
               enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(22), borderSide: BorderSide.none),
               focusedBorder: OutlineInputBorder(
@@ -975,11 +975,11 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
           ),
           const SizedBox(height: 22),
           SizedBox(
-            height: 62,
+            height: 52,
             child: DecoratedBox(
               decoration: BoxDecoration(
                 color: colors.primary,
-                borderRadius: BorderRadius.circular(23),
+                borderRadius: BorderRadius.circular(18),
                 boxShadow: [
                   BoxShadow(
                     color: colors.primary.withValues(alpha: .25),
@@ -1007,7 +1007,7 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
               ),
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
           Center(
             child: Text(
               'Your feedback is securely saved for the Novyn team.',
