@@ -329,7 +329,7 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
 
       if (mounted) {
         Navigator.pop(context); // Close loading
-        ScaffoldMessenger.of(context).showNovynAlert(
+        context.showNovynAlert(
           SnackBar(
             content: Text('Group "${_nameController.text.trim()}" created successfully!'),
             backgroundColor: const Color(0xFF10B981),
@@ -340,7 +340,7 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
     } catch (e) {
       if (mounted) {
         Navigator.pop(context); // Close loading
-        ScaffoldMessenger.of(context).showNovynAlert(
+        context.showNovynAlert(
           SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
         );
       }
