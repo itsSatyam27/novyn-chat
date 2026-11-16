@@ -1093,6 +1093,51 @@ class ApiService {
     } catch (_) {}
   }
 
+  /// Fetch the signed-in account's cloud-backed preference snapshot.
+  static Future<Map<String, dynamic>?> getAccountSettings() async {
+    await initializeSessionStorage();
+    try {
+      Future<http.Response> request() => http.get(
+            Uri.parse('$baseUrl/api/settings/account'),
+            headers: _authHeaders,
+          ).timeout(const Duration(seconds: 8));
+
+      var response = await request();
+      if (response.statusCode == 401) {
+        final refreshed = await refreshSessionStatus();
+        if (refreshed == 200) response = await request();
+      }
+      if (response.statusCode != 200) return null;
+      final decoded = jsonDecode(response.body);
+      if (decoded is! Map) return null;
+      return Map<String, dynamic>.from(decoded);
+    } catch (error) {
+      debugPrint('[NovynSettings] Cloud settings read deferred: $error');
+      return null;
+    }
+  }
+
+  /// Save the complete account preference snapshot. This is called only after
+  /// the local UI/cache has already updated, so cloud latency never blocks UI.
+  static Future<Map<String, dynamic>?> saveAccountSettings(
+    Map<String, dynamic> settings,
+  ) async {
+    try {
+      final response = await http.put(
+        Uri.parse('$baseUrl/api/settings/account'),
+        headers: await _csrfHeaders(),
+        body: jsonEncode({'settings': settings}),
+      ).timeout(const Duration(seconds: 8));
+      if (response.statusCode != 200) return null;
+      final decoded = jsonDecode(response.body);
+      if (decoded is! Map) return null;
+      return Map<String, dynamic>.from(decoded);
+    } catch (error) {
+      debugPrint('[NovynSettings] Cloud settings write deferred: $error');
+      return null;
+    }
+  }
+
   // Update profile fields
   static Future<Map<String, dynamic>?> updateProfile({
     required String name,
