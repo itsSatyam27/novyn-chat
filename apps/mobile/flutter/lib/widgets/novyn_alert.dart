@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
+import '../services/settings_service.dart';
 
 /// Semantic tone used by every in-app status and action alert.
 enum NovynAlertTone { success, danger, violet, neutral, warning }
@@ -173,6 +175,8 @@ class NovynAlert {
   }) {
     _active?.removeImmediately();
 
+    String styleId = 'snackbar';
+    try { styleId = Provider.of<SettingsService>(context, listen: false).alertStyle; } catch (_) {}
     final overlay = Overlay.of(context, rootOverlay: true);
     late final OverlayEntry entry;
     final session = _AlertSession();
@@ -180,6 +184,7 @@ class NovynAlert {
       builder: (_) => _NovynToast(
         event: event,
         duration: duration,
+        styleId: styleId,
         onRemove: () {
           if (identical(_active, session)) _active = null;
           session.removeImmediately();
@@ -221,11 +226,14 @@ class _NovynToast extends StatefulWidget {
     required this.event,
     required this.duration,
     required this.onRemove,
+    required this.styleId,
   });
 
   final NovynAlertEvent event;
   final Duration duration;
+  final String styleId;
   final VoidCallback onRemove;
+  final String styleId;
 
   @override
   State<_NovynToast> createState() => _NovynToastState();
@@ -276,13 +284,24 @@ class _NovynToastState extends State<_NovynToast>
   @override
   Widget build(BuildContext context) {
     final event = widget.event;
-    final style = _alertStyles[event.tone]!;
+    final tone = _alertStyles[event.tone]!;
     final colors = Theme.of(context).colorScheme;
+    final styleId = widget.styleId;
+    final isCentre = styleId == 'centre_hud';
+    final isBottom = styleId == 'snackbar' || styleId == 'switch_card' || styleId == 'countdown_card';
+    final isCapsule = styleId == 'capsule';
+    final bg = styleId == 'snackbar' ? const Color(0xFF1C1B29) : colors.surface;
+    final fg = styleId == 'snackbar' ? Colors.white : colors.onSurface;
+    final subtitleColor = styleId == 'snackbar' ? Colors.white70 : colors.onSurfaceVariant;
+    final radius = styleId == 'capsule' ? 28.0 : (styleId == 'centre_hud' ? 34.0 : 22.0);
+    final content = _buildAlertContent(event, tone, colors, styleId, fg, subtitleColor);
     return Positioned(
-      top: 0,
-      left: 16,
-      right: 16,
+      top: isBottom ? null : 0,
+      bottom: isBottom ? 14 : null,
+      left: styleId == 'capsule' ? null : 12,
+      right: styleId == 'capsule' ? null : 12,
       child: SafeArea(
+        top: !isBottom,
         bottom: false,
         child: Semantics(
           liveRegion: true,
@@ -293,83 +312,40 @@ class _NovynToastState extends State<_NovynToast>
               opacity: _controller,
               child: ScaleTransition(
                 scale: _scale,
-                child: Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 520),
-                    child: Material(
-                      color: colors.surface,
-                      elevation: 12,
-                      shadowColor: Colors.black.withValues(alpha: .16),
-                      borderRadius: BorderRadius.circular(18),
-                      child: Container(
-                        padding: const EdgeInsets.fromLTRB(12, 11, 7, 11),
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(18),
-                          border: Border.all(color: colors.outlineVariant),
+                child: isCentre
+                    ? Center(
+                        child: Material(
+                          color: Colors.white.withValues(alpha: .96),
+                          elevation: 20,
+                          borderRadius: BorderRadius.circular(radius),
+                          child: SizedBox(
+                            width: 166,
+                            height: 166,
+                            child: content,
+                          ),
                         ),
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 42,
-                              height: 42,
+                      )
+                    : Center(
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(maxWidth: 520, minWidth: isCapsule ? 46 : 0),
+                          child: Material(
+                            color: bg,
+                            elevation: 12,
+                            shadowColor: Colors.black.withValues(alpha: .20),
+                            borderRadius: BorderRadius.circular(radius),
+                            child: Container(
+                              padding: EdgeInsets.fromLTRB(isCapsule ? 0 : 12, 10, 8, 10),
                               decoration: BoxDecoration(
-                                color: style.background,
-                                borderRadius: BorderRadius.circular(14),
+                                borderRadius: BorderRadius.circular(radius),
+                                border: styleId == 'snackbar' || isCapsule
+                                    ? null
+                                    : Border.all(color: colors.outlineVariant.withValues(alpha: .7)),
                               ),
-                              alignment: Alignment.center,
-                              child: Icon(event.icon, color: style.foreground, size: 22),
+                              child: content,
                             ),
-                            const SizedBox(width: 11),
-                            Expanded(
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    event.title,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      fontSize: 13.5,
-                                      fontWeight: FontWeight.w800,
-                                      color: colors.onSurface,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    event.subtitle,
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      height: 1.3,
-                                      color: colors.onSurfaceVariant,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            if (event.actionLabel != null && event.onAction != null)
-                              TextButton(
-                                onPressed: () {
-                                  event.onAction!();
-                                  _dismiss();
-                                },
-                                child: Text(event.actionLabel!, style: TextStyle(fontSize: 12, color: style.foreground)),
-                              )
-                            else
-                              IconButton(
-                                tooltip: 'Dismiss',
-                                visualDensity: VisualDensity.compact,
-                                onPressed: _dismiss,
-                                icon: Icon(Icons.close_rounded, size: 18, color: colors.onSurfaceVariant),
-                              ),
-                          ],
+                          ),
                         ),
                       ),
-                    ),
-                  ),
-                ),
               ),
             ),
           ),
@@ -377,4 +353,103 @@ class _NovynToastState extends State<_NovynToast>
       ),
     );
   }
+
+  Widget _buildAlertContent(
+    NovynAlertEvent event,
+    _AlertStyle tone,
+    ColorScheme colors,
+    String styleId,
+    Color foreground,
+    Color subtitleColor,
+  ) {
+    final iconColor = styleId == 'snackbar' ? Colors.white : tone.foreground;
+    final iconBg = styleId == 'snackbar'
+        ? Colors.white.withValues(alpha: .14)
+        : tone.background;
+    final iconSize = styleId == 'centre_hud' ? 36.0 : 22.0;
+    final iconTile = Container(
+      width: styleId == 'centre_hud' ? 66 : 42,
+      height: styleId == 'centre_hud' ? 66 : 42,
+      decoration: BoxDecoration(color: iconBg, borderRadius: BorderRadius.circular(styleId == 'centre_hud' ? 22 : 14)),
+      alignment: Alignment.center,
+      child: Icon(event.icon, color: iconColor, size: iconSize),
+    );
+    final titleAndSubtitle = Expanded(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: styleId == 'centre_hud' ? CrossAxisAlignment.center : CrossAxisAlignment.start,
+        children: [
+          Text(event.title, maxLines: 1, overflow: TextOverflow.ellipsis,
+            style: TextStyle(fontSize: styleId == 'centre_hud' ? 15 : 13.5, fontWeight: FontWeight.w800, color: foreground)),
+          if (styleId != 'capsule') ...[
+            const SizedBox(height: 2),
+            Text(event.subtitle, maxLines: 2, overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: 12, height: 1.3, color: subtitleColor)),
+          ] else
+            Text(event.subtitle, maxLines: 1, overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: 12, color: subtitleColor)),
+        ],
+      ),
+    );
+    Widget? action;
+    if (event.actionLabel != null && event.onAction != null) {
+      action = TextButton(
+        onPressed: () { event.onAction!(); _dismiss(); },
+        child: Text(event.actionLabel!, style: TextStyle(fontSize: 12, color: tone.foreground)),
+      );
+    }
+    if (styleId == 'centre_hud') {
+      return Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+        iconTile, const SizedBox(height: 8),
+        Text(event.title, maxLines: 1, overflow: TextOverflow.ellipsis,
+          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: foreground)),
+        const SizedBox(height: 3),
+        Text(event.subtitle, maxLines: 2, textAlign: TextAlign.center, overflow: TextOverflow.ellipsis,
+          style: TextStyle(fontSize: 11.5, color: subtitleColor)),
+      ]);
+    }
+    if (styleId == 'capsule') {
+      return Row(mainAxisSize: MainAxisSize.min, children: [
+        SizedBox(width: 46, height: 46, child: Center(child: Icon(event.icon, color: Colors.white, size: 21))),
+        Padding(padding: const EdgeInsets.only(right: 16), child: Text(
+          '${event.title} · ${event.subtitle}', maxLines: 1, overflow: TextOverflow.ellipsis,
+          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13))),
+      ]);
+    }
+    if (styleId == 'switch_card') {
+      return Row(children: [
+        iconTile, const SizedBox(width: 11), titleAndSubtitle,
+        Container(width: 46, height: 28, decoration: BoxDecoration(
+          color: tone.foreground, borderRadius: BorderRadius.circular(16)),
+          alignment: Alignment.centerRight,
+          padding: const EdgeInsets.all(3),
+          child: Container(width: 22, height: 22, decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle))),
+      ]);
+    }
+    if (styleId == 'countdown_card') {
+      return Row(children: [
+        SizedBox(width: 46, height: 46, child: Stack(alignment: Alignment.center, children: [
+          SizedBox.expand(child: CircularProgressIndicator(value: 1, strokeWidth: 3, color: colors.outlineVariant)),
+          SizedBox.expand(child: TweenAnimationBuilder<double>(tween: Tween(begin: 1, end: 0), duration: widget.duration,
+            builder: (_, value, __) => CircularProgressIndicator(value: value, strokeWidth: 3, color: tone.foreground))),
+          Icon(event.icon, size: 20, color: tone.foreground),
+        ])),
+        const SizedBox(width: 11), titleAndSubtitle,
+        if (action != null) action,
+      ]);
+    }
+    return Row(children: [
+      iconTile, const SizedBox(width: 11), titleAndSubtitle,
+      if (styleId == 'top_banner')
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(color: tone.background, borderRadius: BorderRadius.circular(14)),
+          child: Text('OK', style: TextStyle(color: tone.foreground, fontSize: 10, fontWeight: FontWeight.w800)),
+        )
+      else if (action != null) action
+      else IconButton(tooltip: 'Dismiss', visualDensity: VisualDensity.compact, onPressed: _dismiss,
+        icon: Icon(Icons.close_rounded, size: 18, color: subtitleColor)),
+    ]);
+  }
+}
 }
