@@ -134,7 +134,7 @@ class ChatOverflowMenu extends StatelessWidget {
                   borderRadius: BorderRadius.circular(29),
                   clipBehavior: Clip.antiAlias,
                   child: SizedBox(
-                    width: (media.size.width - 28).clamp(280.0, 350.0),
+                    width: (media.size.width - 28).clamp(240.0, 350.0).toDouble(),
                     child: ConstrainedBox(
                       constraints: BoxConstraints(maxHeight: media.size.height * .76),
                       child: SingleChildScrollView(
