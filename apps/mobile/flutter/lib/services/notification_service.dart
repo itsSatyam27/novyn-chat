@@ -36,6 +36,12 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
       debugPrint('[NovynNotifications] Ignored call alert for another account.');
       return;
     }
+    final alertCaller = data['chat']?.toString().trim().toLowerCase() ?? '';
+    if (callStatus == 'missed' && notificationAccount.isNotEmpty &&
+        alertCaller == notificationAccount) {
+      debugPrint('[NovynNotifications] Ignored a missed-call alert for the caller account.');
+      return;
+    }
     final isIncoming = callStatus == 'incoming';
     final plugin = FlutterLocalNotificationsPlugin();
     await plugin.initialize(const InitializationSettings(
@@ -1001,6 +1007,12 @@ class NotificationService {
       final notificationAccount = (_presenceAuth?.user?.username ?? _activeUsername ?? '').trim().toLowerCase();
       if (recipient.isNotEmpty && recipient != notificationAccount) {
         debugPrint('[NovynNotifications] Ignored foreground call alert for another account.');
+        return;
+      }
+      final alertCaller = message.data['chat']?.toString().trim().toLowerCase() ?? '';
+      if (callStatus == 'missed' && notificationAccount.isNotEmpty &&
+          alertCaller == notificationAccount) {
+        debugPrint('[NovynNotifications] Ignored a missed-call alert for the caller account.');
         return;
       }
       final callId = message.data['callId']?.toString() ?? '';
