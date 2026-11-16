@@ -740,7 +740,7 @@ class NovynDock extends StatelessWidget {
               value: unreadCount > 99 ? '99+' : '$unreadCount',
             ),
           ),
-        if (index == 2 && requestCount > 0)
+        if (index == 3 && requestCount > 0)
           const Positioned(
             top: -5,
             right: -8,

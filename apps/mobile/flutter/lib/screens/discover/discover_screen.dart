@@ -13,7 +13,7 @@ import '../../widgets/novyn_shimmer.dart';
 import '../../widgets/novyn_ui.dart';
 import '../../widgets/profile_preview_sheet.dart';
 import '../../widgets/user_avatar.dart';
-import '../people/discover_people_screen.dart';
+import '../people/received_friend_requests_screen.dart';
 import 'package:novyn/services/haptic_service.dart';
 
 class DiscoverScreen extends StatefulWidget {
@@ -87,7 +87,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (_) => DiscoverPeopleScreen(myUid: myUid, initialTab: 2),
+                              builder: (_) => ReceivedFriendRequestsScreen(myUid: myUid),
                             ),
                           );
                         } else if (value == 'refresh') {
@@ -103,7 +103,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                           child: Row(children: [
                             Icon(Icons.mark_email_unread_outlined, color: Theme.of(menuContext).colorScheme.primary),
                             const SizedBox(width: 12),
-                            const Expanded(child: Text('Friend requests')),
+                            const Expanded(child: Text('Manage requests')),
                             if (count > 0)
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
