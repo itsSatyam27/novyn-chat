@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:novyn/widgets/novyn_alert.dart';
 import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -120,7 +121,7 @@ class _CallScreenState extends State<CallScreen>
     _webrtc.onNetworkRecovered = () {
       if (mounted) {
         SystemSound.play(SystemSoundType.alert);
-        ScaffoldMessenger.of(context).showSnackBar(
+        ScaffoldMessenger.of(context).showNovynAlert(
           const SnackBar(content: Text('Call reconnected'), duration: Duration(seconds: 2)),
         );
       }
@@ -128,7 +129,7 @@ class _CallScreenState extends State<CallScreen>
     _webrtc.onAutomaticVideoFallback = (audioOnly) {
       if (!mounted) return;
       setState(() => _networkAudioOnly = audioOnly);
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context).showNovynAlert(
         SnackBar(
           content: Text(audioOnly
               ? 'Weak network: switched to audio-only to keep your call connected'
@@ -315,7 +316,7 @@ class _CallScreenState extends State<CallScreen>
     if (changed) {
       await _refreshAudioRoutes();
     } else if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context).showNovynAlert(
         const SnackBar(content: Text('Could not switch call audio device.')),
       );
     }
@@ -450,7 +451,7 @@ class _CallScreenState extends State<CallScreen>
         } catch (error) {
           consentGranted = false;
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
+            ScaffoldMessenger.of(context).showNovynAlert(
               SnackBar(content: Text('Camera could not start: $error')),
             );
           }
@@ -474,7 +475,7 @@ class _CallScreenState extends State<CallScreen>
         if (mounted) setState(() => _isVideo = true);
       } catch (error) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
+          ScaffoldMessenger.of(context).showNovynAlert(
             SnackBar(content: Text('Could not start video: $error')),
           );
         }
@@ -593,7 +594,7 @@ class _CallScreenState extends State<CallScreen>
     });
     _refreshMiniOverlay();
     if (reason != null && reason.isNotEmpty && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context).showNovynAlert(
         SnackBar(content: Text(reason), duration: const Duration(seconds: 2)),
       );
     }
@@ -692,7 +693,7 @@ class _CallScreenState extends State<CallScreen>
       _requestVideoUpgrade();
     } else if (_state == CallState.calling && !widget.isIncoming) {
       setState(() => _videoUpgradeQueued = !_videoUpgradeQueued);
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context).showNovynAlert(
         SnackBar(content: Text(_videoUpgradeQueued
           ? 'Video will be requested when the call connects.'
           : 'Video request removed.'), behavior: SnackBarBehavior.floating),
@@ -703,7 +704,7 @@ class _CallScreenState extends State<CallScreen>
   void _requestVideoUpgrade() {
     if (_isVideo || _state != CallState.connected) return;
     context.read<SocketService>().requestCallMediaUpgrade(_peerId, _callId);
-    ScaffoldMessenger.of(context).showSnackBar(
+    ScaffoldMessenger.of(context).showNovynAlert(
       const SnackBar(content: Text('Video request sent')),
     );
   }
@@ -727,7 +728,7 @@ class _CallScreenState extends State<CallScreen>
       }
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        ScaffoldMessenger.of(context).showNovynAlert(
           SnackBar(content: Text('Could not share screen: $error')),
         );
       }
@@ -859,7 +860,7 @@ class _CallScreenState extends State<CallScreen>
     } catch (_) {
       if (!mounted) return;
       setState(() => _mediaError = 'Microphone/camera permission is required to answer this call.');
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_mediaError!)));
+      ScaffoldMessenger.of(context).showNovynAlert(SnackBar(content: Text(_mediaError!)));
     }
   }
 
