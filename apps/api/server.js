@@ -1260,7 +1260,7 @@ function readRememberFlag(value) {
   return ["1", "true", "yes", "on"].includes(toDisplayName(value).toLowerCase());
 }
 
-function issueAuthTokensForUser(userKey, remember) {
+async function issueAuthTokensForUser(userKey, remember) {
   const key = normalizeName(userKey);
   if (!key) return null;
   const persistent = Boolean(remember);
@@ -1272,6 +1272,23 @@ function issueAuthTokensForUser(userKey, remember) {
     remember: persistent ? 1 : 0,
   });
   authSessions.trackRefreshSession(key, refreshTokenId, Date.now() + refreshTtl, persistent);
+
+  // Persist the server-side allow-list entry before exposing its refresh cookie.
+  // A process restart during the debounce window must not invalidate a newly
+  // issued token pair on the next app launch.
+  try {
+    await flushAuthStatePersistNow();
+  } catch (error) {
+    revokeRefreshSession(refreshTokenId);
+    try {
+      await flushAuthStatePersistNow();
+    } catch (rollbackError) {
+      console.error("[NovynAuth] Could not persist session rollback:", rollbackError);
+    }
+    console.error("[NovynAuth] Could not persist a newly issued session:", error);
+    return null;
+  }
+
   return { accessToken, refreshToken, remember: persistent };
 }
 
@@ -1936,6 +1953,21 @@ function scheduleAuthStatePersist() {
         console.error("Failed to persist auth session state:", err);
       });
   }, 120);
+}
+
+// Flush pending auth persistence through the same promise chain as the
+// debounced writer, avoiding concurrent file/database writes.
+async function flushAuthStatePersistNow() {
+  if (authPersistTimer) {
+    clearTimeout(authPersistTimer);
+    authPersistTimer = null;
+  }
+
+  const write = authPersistInFlight.then(() => persistAuthStateNow());
+  authPersistInFlight = write.catch((error) => {
+    console.error("Failed to persist auth session state:", error);
+  });
+  await write;
 }
 
 function createResetToken() {
@@ -5051,7 +5083,7 @@ app.post(
   }
 );
 
-app.post("/api/auth/signin", createIpRateLimiter({ getStore: () => httpRateLimits }, "auth-signin", 25, 15 * 60 * 1000), requireCsrf, (req, res) => {
+app.post("/api/auth/signin", createIpRateLimiter({ getStore: () => httpRateLimits }, "auth-signin", 25, 15 * 60 * 1000), requireCsrf, async (req, res) => {
   const result = authenticateSigninPayload(req.body || {});
   if (!result.ok) {
     res.status(result.status || 401).json({
@@ -5075,7 +5107,7 @@ app.post("/api/auth/signin", createIpRateLimiter({ getStore: () => httpRateLimit
     });
     return;
   }
-  const tokens = issueAuthTokensForUser(userKey, remember);
+  const tokens = await issueAuthTokensForUser(userKey, remember);
   if (!tokens) {
     res.status(500).json({ message: "Unable to create session." });
     return;
@@ -5091,7 +5123,7 @@ app.post(
   "/api/auth/signup",
   createIpRateLimiter({ getStore: () => httpRateLimits }, "auth-signup", 20, 15 * 60 * 1000),
   requireCsrf,
-  (req, res) => {
+  async (req, res) => {
     const result = authenticateSignupPayload(req.body || {});
     if (!result.ok) {
       res.status(result.status || 400).json({ message: result.message || "Unable to sign up." });
@@ -5099,7 +5131,7 @@ app.post(
     }
     const remember = readRememberFlag(req.body?.remember);
     const userKey = normalizeName(result.user.username);
-    const tokens = issueAuthTokensForUser(userKey, remember);
+    const tokens = await issueAuthTokensForUser(userKey, remember);
     if (!tokens) {
       res.status(500).json({ message: "Unable to create session." });
       return;
@@ -5270,7 +5302,7 @@ app.post(
       return;
     }
 
-    const tokens = issueAuthTokensForUser(user.username, remember);
+    const tokens = await issueAuthTokensForUser(user.username, remember);
     if (!tokens) {
       res.status(500).json({ message: "Unable to create session." });
       return;
@@ -5289,7 +5321,7 @@ app.post(
   "/api/auth/2fa/verify",
   createIpRateLimiter({ getStore: () => httpRateLimits }, "auth-2fa-verify", 10, 5 * 60 * 1000),
   requireCsrf,
-  (req, res) => {
+  async (req, res) => {
     const challengeToken = toDisplayName(req.body?.challengeToken);
     const code = toDisplayName(req.body?.code).replace(/\s+/g, "");
     const challenge = verifyAuthToken(challengeToken, "2fa_challenge");
@@ -5327,7 +5359,7 @@ app.post(
     }
 
     const remember = challenge.remember === 1;
-    const tokens = issueAuthTokensForUser(userKey, remember);
+    const tokens = await issueAuthTokensForUser(userKey, remember);
     if (!tokens) {
       res.status(500).json({ message: "Unable to create session." });
       return;
@@ -5443,7 +5475,7 @@ app.put("/api/settings/account", requireUser, requireCsrf, async (req, res) => {
   }
 });
 
-app.get("/api/auth/session", (req, res) => {
+app.get("/api/auth/session", async (req, res) => {
   const auth = resolveUserFromAuthCookies(getAuthCookiesFromHeader(req.headers.cookie), {
     allowRefreshFallback: true,
   });
@@ -5458,8 +5490,15 @@ app.get("/api/auth/session", (req, res) => {
     return;
   }
   if (auth.via === "refresh") {
-    const tokens = issueAuthTokensForUser(auth.userKey, true);
-    if (tokens) applyAuthCookies(res, tokens);
+    const tokens = await issueAuthTokensForUser(
+      auth.userKey,
+      Boolean(auth.remember),
+    );
+    if (!tokens) {
+      res.status(503).json({ message: "Session service is temporarily unavailable." });
+      return;
+    }
+    applyAuthCookies(res, tokens);
   }
   res.json({
     authenticated: true,
@@ -5482,7 +5521,7 @@ app.get("/api/auth/session", (req, res) => {
   });
 });
 
-app.post("/api/auth/refresh", createIpRateLimiter({ getStore: () => httpRateLimits }, "auth-refresh", 120, 15 * 60 * 1000), requireCsrf, (req, res) => {
+app.post("/api/auth/refresh", createIpRateLimiter({ getStore: () => httpRateLimits }, "auth-refresh", 120, 15 * 60 * 1000), requireCsrf, async (req, res) => {
   const cookies = getAuthCookiesFromHeader(req.headers.cookie);
   const refreshPayload = verifyAuthToken(cookies.refreshToken, "refresh");
   if (!refreshPayload?.jti) {
@@ -5507,11 +5546,24 @@ app.post("/api/auth/refresh", createIpRateLimiter({ getStore: () => httpRateLimi
   }
 
   const remember = Boolean(session.remember);
+  const previousSession = { ...session };
   revokeRefreshSession(refreshPayload.jti);
-  const tokens = issueAuthTokensForUser(userKey, remember);
+  const tokens = await issueAuthTokensForUser(userKey, remember);
   if (!tokens) {
-    clearAuthCookies(res);
-    res.status(500).json({ message: "Unable to refresh session." });
+    // Do not strand the user on a failed persistence write: restore the
+    // previous refresh entry and keep the existing client cookie pair valid.
+    authSessions.trackRefreshSession(
+      userKey,
+      refreshPayload.jti,
+      previousSession.expiresAt,
+      previousSession.remember,
+    );
+    try {
+      await flushAuthStatePersistNow();
+    } catch (error) {
+      console.error("[NovynAuth] Could not restore previous refresh session:", error);
+    }
+    res.status(503).json({ message: "Session refresh is temporarily unavailable. Please retry." });
     return;
   }
   applyAuthCookies(res, tokens);
