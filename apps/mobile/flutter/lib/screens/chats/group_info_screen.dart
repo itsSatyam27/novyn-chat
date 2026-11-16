@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:novyn/widgets/novyn_alert.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
@@ -59,7 +60,7 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
   }
 
   void _showMessage(Object message) {
-    ScaffoldMessenger.of(context).showSnackBar(
+    ScaffoldMessenger.of(context).showNovynAlert(
       SnackBar(content: Text(message.toString()), behavior: SnackBarBehavior.floating),
     );
   }
