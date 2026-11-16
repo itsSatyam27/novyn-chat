@@ -640,12 +640,12 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
     return Scaffold(
       backgroundColor: Theme.of(context).colorScheme.surface,
       appBar: _buildAppBar(socket),
-      body: Column(
-        children: [
-          const ConnectionBanner(),
-          Expanded(
-            child: Container(
-              decoration: _wallpaperDecoration(snapshot.chatWallpaper),
+      body: Container(
+        decoration: _wallpaperDecoration(snapshot.chatWallpaper),
+        child: Column(
+          children: [
+            const ConnectionBanner(),
+            Expanded(
               child: Stack(
                 children: [
                   Positioned.fill(
@@ -701,9 +701,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                 ],
               ),
             ),
-          ),
-          _buildInputBar(socket),
-        ],
+            _buildInputBar(socket),
+          ],
+        ),
       ),
     );
   }
@@ -1733,15 +1733,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
 
         // ── Main input row ─────────────────────────────────────────
         Container(
-          decoration: BoxDecoration(
-            color: theme.colorScheme.surface,
-            border: Border(
-              top: BorderSide(
-                color: theme.colorScheme.outlineVariant.withValues(alpha: .45),
-                width: .7,
-              ),
-            ),
-          ),
+          // Keep the composer surface transparent so the chat wallpaper
+          // continues behind it instead of painting a full-width opaque strip.
+          decoration: const BoxDecoration(color: Colors.transparent),
           padding: EdgeInsets.fromLTRB(12, 10, 12, MediaQuery.of(context).viewInsets.bottom > 0 ? 10 : 12),
           child: Row(
             // Anchor side actions while the multiline field grows.
