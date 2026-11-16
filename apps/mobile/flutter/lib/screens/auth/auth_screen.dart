@@ -281,7 +281,8 @@ class _LoginTabState extends State<_LoginTab> {
 
     while (error == null && auth.isGoogleUsernamePending) {
       if (!mounted) return;
-      final username = await _showGoogleUsernameDialog(
+      final username = await _promptForGoogleUsername(
+        context,
         auth,
         errorMessage: selectionError,
       );
@@ -321,122 +322,6 @@ class _LoginTabState extends State<_LoginTab> {
     } else {
       setState(() => _loading = false);
     }
-  }
-
-  Future<String?> _showGoogleUsernameDialog(
-    AuthService auth, {
-    String? errorMessage,
-  }) async {
-    final controller = TextEditingController(
-      text: auth.googleUsernameSuggestion,
-    );
-    String? validationMessage = errorMessage;
-    bool checking = false;
-
-    bool isValidUsername(String value) {
-      final username = value.trim().toLowerCase();
-      return username.length >= 3 &&
-          username.length <= 24 &&
-          !RegExp(r'[^a-z0-9_]').hasMatch(username);
-    }
-
-    Future<void> validateAndSubmit(
-      BuildContext dialogContext,
-      StateSetter setDialogState,
-    ) async {
-      final username = controller.text.trim().toLowerCase();
-      if (!isValidUsername(username)) {
-        setDialogState(() {
-          checking = false;
-          validationMessage =
-              'Use 3–24 lowercase letters, numbers, or underscores.';
-        });
-        return;
-      }
-
-      setDialogState(() {
-        checking = true;
-        validationMessage = null;
-      });
-      final available = await auth.isUsernameAvailable(username);
-      if (!dialogContext.mounted) return;
-      setDialogState(() => checking = false);
-      if (!available) {
-        setDialogState(() {
-          validationMessage =
-              'That username is taken or could not be checked.';
-        });
-        return;
-      }
-      Navigator.pop(dialogContext, username);
-    }
-
-    final selected = await showDialog<String>(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (dialogContext, setDialogState) => AlertDialog(
-          title: const Text('Choose your Novyn username'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Your Google name stays as your display name. Choose a unique handle people can use to find you.',
-                style: TextStyle(fontSize: 13, height: 1.45, color: _kSub),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: controller,
-                autofocus: true,
-                textCapitalization: TextCapitalization.none,
-                autocorrect: false,
-                enableSuggestions: false,
-                inputFormatters: [
-                  FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9_]')),
-                  LengthLimitingTextInputFormatter(24),
-                ],
-                decoration: InputDecoration(
-                  prefixText: '@',
-                  hintText: 'your_username',
-                  helperText: '3–24 characters · letters, numbers, underscores',
-                  errorText: validationMessage,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                ),
-                onChanged: (_) =>
-                    setDialogState(() => validationMessage = null),
-                onSubmitted: (_) =>
-                    validateAndSubmit(dialogContext, setDialogState),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: checking
-                  ? null
-                  : () => Navigator.pop(dialogContext),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: checking
-                  ? null
-                  : () => validateAndSubmit(dialogContext, setDialogState),
-              child: checking
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Text('Continue'),
-            ),
-          ],
-        ),
-      ),
-    );
-    controller.dispose();
-    return selected;
   }
 
   @override
@@ -1098,9 +983,37 @@ class _RegisterTabState extends State<_RegisterTab> {
     });
 
     final auth = context.read<AuthService>();
-    final error = await auth.signInWithGoogle();
-    if (!mounted) return;
+    var error = await auth.signInWithGoogle();
+    String? selectionError;
 
+    while (error == null && auth.isGoogleUsernamePending) {
+      if (!mounted) return;
+      final username = await _promptForGoogleUsername(
+        context,
+        auth,
+        initialUsername: _usernameCtrl.text,
+        errorMessage: selectionError,
+      );
+      if (!mounted) return;
+      if (username == null) {
+        await auth.cancelGoogleUsernameSelection();
+        if (mounted) setState(() => _loading = false);
+        return;
+      }
+
+      final signupError = await auth.completeGoogleSignUp(username);
+      if (signupError == null) {
+        error = null;
+        break;
+      }
+      if (auth.isGoogleUsernamePending) {
+        selectionError = signupError;
+        continue;
+      }
+      error = signupError;
+    }
+
+    if (!mounted) return;
     if (error != null && error != 'Sign-in cancelled.') {
       setState(() {
         _error = error;
@@ -1148,6 +1061,7 @@ class _RegisterTabState extends State<_RegisterTab> {
       setState(() => _loading = false);
     }
   }
+
 
   void _showSuccess() {
     showDialog(
@@ -1858,4 +1772,125 @@ class _SavedAccountTile extends StatelessWidget {
           ],
         ),
       );
+}
+
+
+/// Shared first-time Google signup username chooser for both auth tabs.
+Future<String?> _promptForGoogleUsername(
+  BuildContext context,
+  AuthService auth, {
+  String? initialUsername,
+  String? errorMessage,
+}) async {
+  final initial = initialUsername?.trim() ?? '';
+  final controller = TextEditingController(
+    text: initial.isNotEmpty ? initial : auth.googleUsernameSuggestion,
+  );
+  String? validationMessage = errorMessage;
+  bool checking = false;
+
+  bool isValidUsername(String value) {
+    final username = value.trim().toLowerCase();
+    return username.length >= 3 &&
+        username.length <= 24 &&
+        !RegExp(r'[^a-z0-9_]').hasMatch(username);
+  }
+
+  Future<void> validateAndSubmit(
+    BuildContext dialogContext,
+    StateSetter setDialogState,
+  ) async {
+    final username = controller.text.trim().toLowerCase();
+    if (!isValidUsername(username)) {
+      setDialogState(() {
+        checking = false;
+        validationMessage =
+            'Use 3–24 lowercase letters, numbers, or underscores.';
+      });
+      return;
+    }
+
+    setDialogState(() {
+      checking = true;
+      validationMessage = null;
+    });
+    final available = await auth.isUsernameAvailable(username);
+    if (!dialogContext.mounted) return;
+    setDialogState(() => checking = false);
+    if (!available) {
+      setDialogState(() {
+        validationMessage =
+            'That username is taken or could not be checked.';
+      });
+      return;
+    }
+    Navigator.pop(dialogContext, username);
+  }
+
+  final selected = await showDialog<String>(
+    context: context,
+    barrierDismissible: false,
+    builder: (dialogContext) => StatefulBuilder(
+      builder: (dialogContext, setDialogState) => AlertDialog(
+        title: const Text('Choose your Novyn username'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Your Google name stays as your display name. Choose a unique handle people can use to find you.',
+              style: TextStyle(fontSize: 13, height: 1.45, color: _kSub),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: controller,
+              autofocus: true,
+              textCapitalization: TextCapitalization.none,
+              autocorrect: false,
+              enableSuggestions: false,
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9_]')),
+                LengthLimitingTextInputFormatter(24),
+              ],
+              decoration: InputDecoration(
+                prefixText: '@',
+                hintText: 'your_username',
+                helperText: '3–24 characters · letters, numbers, underscores',
+                errorText: validationMessage,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
+              onChanged: (_) =>
+                  setDialogState(() => validationMessage = null),
+              onSubmitted: (_) =>
+                  validateAndSubmit(dialogContext, setDialogState),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: checking
+                ? null
+                : () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: checking
+                ? null
+                : () => validateAndSubmit(dialogContext, setDialogState),
+            child: checking
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Text('Continue'),
+          ),
+        ],
+      ),
+    ),
+  );
+  controller.dispose();
+  return selected;
 }
