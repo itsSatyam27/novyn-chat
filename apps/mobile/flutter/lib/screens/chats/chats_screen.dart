@@ -1060,9 +1060,31 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
+                  if (_selectionMode || _showingArchivedChats || _showingLockedChats) ...[
+                    Material(
+                      color: Theme.of(context).colorScheme.surface,
+                      borderRadius: BorderRadius.circular(17),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(17),
+                        onTap: _selectionMode ? _toggleSelectionMode : _returnToAllChats,
+                        child: const SizedBox(
+                          width: 46,
+                          height: 46,
+                          child: Icon(Icons.arrow_back_rounded, size: 22),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                  ],
                   Expanded(
                     child: Text(
-                      'Chats',
+                      _selectionMode
+                          ? 'Select chats'
+                          : _showingArchivedChats
+                              ? 'Archived chats'
+                              : _showingLockedChats
+                                  ? 'Locked chats'
+                                  : 'Chats',
                       maxLines: 1,
                       style: TextStyle(
                         fontFamily: 'PlusJakartaSans',
@@ -1074,84 +1096,66 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
                       ),
                     ),
                   ),
-                  Material(
-                    color: Theme.of(context).colorScheme.surface,
-                    borderRadius: BorderRadius.circular(18),
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(18),
-                      onTap: () {
-                        setState(() => _isSearchVisible = !_isSearchVisible);
-                        if (_isSearchVisible) {
-                          WidgetsBinding.instance.addPostFrameCallback((_) {
-                            if (mounted) _searchFocusNode.requestFocus();
-                          });
-                        } else {
-                          _searchFocusNode.unfocus();
-                          _searchController.clear();
-                          _onSearch('');
-                        }
-                      },
-                      child: SizedBox(
-                        width: 46,
-                        height: 46,
-                        child: Icon(
-                          _isSearchVisible
-                              ? Icons.close_rounded
-                              : Icons.search_rounded,
-                          color: Theme.of(context).colorScheme.onSurface,
-                          size: 23,
+                  if (_selectionMode)
+                    Material(
+                      color: Theme.of(context).colorScheme.surface,
+                      borderRadius: BorderRadius.circular(17),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(17),
+                        onTap: _selectAllVisibleChats,
+                        child: const SizedBox(
+                          width: 46,
+                          height: 46,
+                          child: Icon(Icons.select_all_rounded, size: 23),
                         ),
                       ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  PopupMenuButton<int>(
-                    tooltip: 'More actions',
-                    position: PopupMenuPosition.under,
-                    offset: const Offset(0, 10),
-                    elevation: 14,
-                    color: Theme.of(context).colorScheme.surface,
-                    surfaceTintColor: Colors.transparent,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(18),
-                    ),
-                    onSelected: (value) {
-                      if (value == 1) {
-                        final myUid = context.read<AuthService>().user?.username;
-                        if (myUid == null || myUid.isEmpty) return;
-                        Navigator.push(
-                          context,
-                          NovynPageRoute<void>(
-                            child: CreateGroupScreen(myUid: myUid),
+                    )
+                  else
+                    Material(
+                      color: Theme.of(context).colorScheme.surface,
+                      borderRadius: BorderRadius.circular(17),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(17),
+                        onTap: () {
+                          setState(() => _isSearchVisible = !_isSearchVisible);
+                          if (_isSearchVisible) {
+                            WidgetsBinding.instance.addPostFrameCallback((_) {
+                              if (mounted) _searchFocusNode.requestFocus();
+                            });
+                          } else {
+                            _searchFocusNode.unfocus();
+                            _searchController.clear();
+                            _onSearch('');
+                          }
+                        },
+                        child: SizedBox(
+                          width: 46,
+                          height: 46,
+                          child: Icon(
+                            _isSearchVisible
+                                ? Icons.close_rounded
+                                : Icons.search_rounded,
+                            color: Theme.of(context).colorScheme.onSurface,
+                            size: 23,
                           ),
-                        );
-                      }
-                    },
-                    itemBuilder: (_) => const [
-                      PopupMenuItem<int>(
-                        value: 1,
-                        child: ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          leading: Icon(Icons.group_add_rounded),
-                          title: Text('Create group'),
-                          subtitle: Text('Start a group conversation'),
                         ),
                       ),
-                    ],
-                    child: Container(
-                      width: 46,
-                      height: 46,
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.surface,
-                        borderRadius: BorderRadius.circular(18),
-                      ),
-                      child: Icon(
-                        Icons.more_horiz_rounded,
-                        color: Theme.of(context).colorScheme.onSurface,
-                        size: 23,
-                      ),
                     ),
-                  ),
+                  if (!_selectionMode && !_showingArchivedChats && !_showingLockedChats) ...[
+                    const SizedBox(width: 8),
+                    ChatOverflowMenu(
+                      archivedCount: _archivedChatUsernames.length,
+                      lockedCount: _lockedChatUsernames.length,
+                      onCreateGroup: _openCreateGroup,
+                      onInviteFriends: _inviteFriends,
+                      onArchivedChats: _showArchivedChats,
+                      onLockedChats: _showLockedChats,
+                      onStarredMessages: _openStarredMessages,
+                      onSelectChats: _toggleSelectionMode,
+                      onMarkAllRead: _markAllChatsRead,
+                      onChatSettings: _openChatSettings,
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -1170,7 +1174,9 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
                     )
                   : const SizedBox(width: double.infinity, height: 0),
             ),
-            _buildFilterCards(),
+            if (!_selectionMode && !_showingArchivedChats && !_showingLockedChats)
+              _buildFilterCards(),
+            if (_selectionMode) _buildSelectionToolbar(),
             Expanded(
               child: _loading
                   ? Center(child: CircularProgressIndicator(
@@ -1243,6 +1249,41 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
         ),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
+    );
+  }
+
+  Widget _buildSelectionToolbar() {
+    final selectedCount = _selectedChatIds.length;
+    final colors = Theme.of(context).colorScheme;
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+      padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 11),
+      decoration: BoxDecoration(
+        color: colors.primary.withValues(alpha: .09),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: colors.primary.withValues(alpha: .18)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              '$selectedCount selected',
+              style: TextStyle(
+                color: colors.onSurface,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: selectedCount == 0 ? null : _archiveSelectedChats,
+            child: const Text('Archive'),
+          ),
+          TextButton(
+            onPressed: _toggleSelectionMode,
+            child: const Text('Cancel'),
+          ),
+        ],
+      ),
     );
   }
 
