@@ -882,6 +882,17 @@ app.get(
 );
 
 app.get(
+  "/api/users/check-username",
+  createIpRateLimiter({ getStore: () => httpRateLimits }, "username-check", 60, 60 * 1000),
+  (req, res) => {
+    const username = normalizeHandleInput(toDisplayName(req.query?.username || ""));
+    const valid = username.length >= 3 && username.length <= 24 &&
+      !/[^a-z0-9_]/.test(username);
+    res.set("Cache-Control", "no-store, max-age=0");
+    res.json({ available: valid && !isUsernameTaken(username) });
+  },
+);
+app.get(
   "/api/users/search",
   requireUser,
   createIpRateLimiter({ getStore: () => httpRateLimits }, "user-search", 60, 60 * 1000),
