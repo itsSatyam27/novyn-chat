@@ -349,3 +349,59 @@ a:focus-visible { outline: 3px solid rgba(22, 124, 99, .35); outline-offset: 4px
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
 }
+
+
+/* Invite landing state */
+.invite-banner {
+  width: min(100% - 48px, 1160px);
+  margin: 18px auto 0;
+  padding: 22px 26px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  border: 1px solid var(--line-strong);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, .88);
+  box-shadow: var(--shadow-sm);
+}
+.invite-banner-copy { min-width: 0; }
+.invite-eyebrow {
+  display: block;
+  margin-bottom: 7px;
+  color: var(--accent-dark);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+}
+.invite-banner h2 {
+  margin: 0;
+  color: var(--ink);
+  font-family: var(--display);
+  font-size: clamp(20px, 3vw, 27px);
+  letter-spacing: -.04em;
+}
+.invite-banner p {
+  margin: 7px 0 0;
+  color: var(--muted-dark);
+  font-size: 13px;
+  line-height: 1.6;
+}
+.invite-banner-actions {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+@media (max-width: 700px) {
+  .invite-banner {
+    width: calc(100% - 36px);
+    margin-top: 12px;
+    padding: 19px;
+    align-items: stretch;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .invite-banner-actions { width: 100%; }
+  .invite-banner-actions .button { flex: 1 1 145px; justify-content: center; }
+}
