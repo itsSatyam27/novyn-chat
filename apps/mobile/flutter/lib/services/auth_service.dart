@@ -598,7 +598,7 @@ class AuthService extends ChangeNotifier {
         return null;
       }
 
-      return _completeGoogleSignInResult(
+      return await _completeGoogleSignInResult(
         result,
         fallbackEmail: googleUser.email,
       );
@@ -638,7 +638,7 @@ class AuthService extends ChangeNotifier {
 
       final fallbackEmail = _pendingGoogleEmail ?? '';
       _clearPendingGoogleSignup();
-      return _completeGoogleSignInResult(
+      return await _completeGoogleSignInResult(
         result,
         fallbackEmail: fallbackEmail,
       );
