@@ -148,9 +148,9 @@ class _CallsScreenState extends State<CallsScreen> with WidgetsBindingObserver {
                   if (!mounted) return;
                   setState(() => _callPrivacy = selected);
                   Navigator.pop(dialogContext);
-                  ScaffoldMessenger.of(this.context).showNovynAlert(const SnackBar(content: Text('Call privacy updated.')));
+                  this.context.showNovynAlert(const SnackBar(content: Text('Call privacy updated.')));
                 } catch (error) {
-                  if (mounted) ScaffoldMessenger.of(this.context).showNovynAlert(SnackBar(content: Text(error is StateError ? error.message.toString() : 'Could not update call privacy.')));
+                  if (mounted) this.context.showNovynAlert(SnackBar(content: Text(error is StateError ? error.message.toString() : 'Could not update call privacy.')));
                 }
               },
               child: const Text('Save'),
