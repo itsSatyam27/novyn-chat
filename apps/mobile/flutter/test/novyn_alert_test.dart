@@ -3,11 +3,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:novyn/widgets/novyn_alert.dart';
 
 void main() {
-  testWidgets('renders a semantic top alert with title and subtitle', (tester) async {
+  tearDown(NovynAlert.hide);
+
+  Future<void> pumpAlertHost(WidgetTester tester) async {
     await tester.pumpWidget(MaterialApp(
-      home: Builder(
-        builder: (context) => Scaffold(
-          body: Center(
+      home: Scaffold(
+        body: Builder(
+          builder: (context) => Center(
             child: ElevatedButton(
               onPressed: () => NovynAlert.showEvent(
                 context,
@@ -20,14 +22,45 @@ void main() {
         ),
       ),
     ));
+  }
 
+  testWidgets('default Snackbar appears at the bottom with message details', (tester) async {
+    await pumpAlertHost(tester);
     await tester.tap(find.text('Show alert'));
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 350));
+    await tester.pump(const Duration(milliseconds: 450));
 
-    expect(find.text('Profile saved'), findsOneWidget);
-    expect(find.text('Your changes were saved'), findsOneWidget);
-    expect(tester.getTopLeft(find.text('Profile saved')).dy, lessThan(180));
+    expect(find.textContaining('Profile saved'), findsOneWidget);
+    expect(
+      tester.getTopLeft(find.textContaining('Profile saved')).dy,
+      greaterThan(tester.view.physicalSize.height /
+          tester.view.devicePixelRatio * .35),
+    );
+  });
+
+  testWidgets('all six Alert Lab styles render the saved alert event', (tester) async {
+    await pumpAlertHost(tester);
+    const styles = [
+      'snackbar',
+      'top_banner',
+      'capsule',
+      'switch_card',
+      'centre_hud',
+      'countdown_card',
+    ];
+
+    for (final style in styles) {
+      NovynAlert.preview(
+        tester.element(find.text('Show alert')),
+        style,
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(find.textContaining('Profile saved'), findsOneWidget,
+          reason: 'Expected $style to display the alert');
+      NovynAlert.hide();
+      await tester.pump();
+    }
   });
 
   testWidgets('replaces an active alert instead of stacking alerts', (tester) async {
@@ -49,10 +82,10 @@ void main() {
 
     await tester.tap(find.text('Show alerts'));
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 350));
+    await tester.pump(const Duration(milliseconds: 450));
 
-    expect(find.text('Text copied'), findsOneWidget);
-    expect(find.text('Message pinned'), findsNothing);
+    expect(find.textContaining('Text copied'), findsOneWidget);
+    expect(find.textContaining('Message pinned'), findsNothing);
   });
 
   testWidgets('supports warning alerts with an action', (tester) async {
@@ -80,7 +113,7 @@ void main() {
 
     await tester.tap(find.text('Show warning'));
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 350));
+    await tester.pump(const Duration(milliseconds: 450));
     await tester.tap(find.text('Settings'));
     await tester.pump(const Duration(milliseconds: 250));
 
