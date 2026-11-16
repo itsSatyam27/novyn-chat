@@ -85,6 +85,7 @@ class _CallScreenState extends State<CallScreen>
   bool _networkAudioOnly = false;
   bool get _showVideo => _isVideo && !_networkAudioOnly;
   bool _isScreenSharingLocal = false;
+  bool _screenShareTransitioning = false;
   bool _showSharedScreenFirst = true;
   bool _videoUpgradeQueued = false;
   String? _remoteScreenStreamId;
@@ -707,7 +708,8 @@ class _CallScreenState extends State<CallScreen>
   }
 
   Future<void> _toggleScreenShare() async {
-    if (_state != CallState.connected) return;
+    if (_state != CallState.connected || _screenShareTransitioning) return;
+    setState(() => _screenShareTransitioning = true);
     final socket = context.read<SocketService>();
     try {
       if (_isScreenSharingLocal) {
@@ -728,6 +730,8 @@ class _CallScreenState extends State<CallScreen>
           SnackBar(content: Text('Could not share screen: $error')),
         );
       }
+    } finally {
+      if (mounted) setState(() => _screenShareTransitioning = false);
     }
   }
 
