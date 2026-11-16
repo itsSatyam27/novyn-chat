@@ -524,7 +524,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     final status = await Permission.camera.request();
     if (status.isDenied || status.isPermanentlyDenied) {
       if (mounted) {
-        NovynAlert.show(context, 'Camera permission is required to scan QR codes. Enable it in app settings.', isError: true, title: 'Camera permission needed', icon: Icons.camera_alt_rounded);
+        NovynAlert.show(context, 'Camera permission is required to scan QR codes.', isError: true, title: 'Camera permission needed', icon: Icons.camera_alt_rounded, actionLabel: 'Settings', onAction: () => openAppSettings());
       }
       return;
     }
