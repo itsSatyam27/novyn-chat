@@ -347,6 +347,11 @@ class ProfileInfoScreen extends StatelessWidget {
   }
 
   void _showContactQr(BuildContext context) {
+    final profileUrl = Uri(
+      scheme: 'https',
+      host: 'novyn.app',
+      pathSegments: ['user', user.username.trim()],
+    ).toString();
     showDialog<void>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -354,7 +359,7 @@ class ProfileInfoScreen extends StatelessWidget {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            QrImageView(data: Uri(scheme: 'novyn', host: 'user', pathSegments: [user.username.trim()]).toString(), size: 220, backgroundColor: Colors.white),
+            QrImageView(data: profileUrl, size: 220, backgroundColor: Colors.white),
             const SizedBox(height: 12),
             Text('@${user.username}', style: const TextStyle(fontWeight: FontWeight.w700)),
             const SizedBox(height: 5),
@@ -364,7 +369,7 @@ class ProfileInfoScreen extends StatelessWidget {
         actions: [
           TextButton(
             onPressed: () async {
-              await Clipboard.setData(ClipboardData(text: 'novyn://user/${user.username}'));
+              await Clipboard.setData(ClipboardData(text: profileUrl));
               if (dialogContext.mounted) Navigator.pop(dialogContext);
             },
             child: const Text('Copy profile link'),
