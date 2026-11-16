@@ -60,7 +60,7 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
   }
 
   void _showMessage(Object message) {
-    ScaffoldMessenger.of(context).showNovynAlert(
+    context.showNovynAlert(
       SnackBar(content: Text(message.toString()), behavior: SnackBarBehavior.floating),
     );
   }
