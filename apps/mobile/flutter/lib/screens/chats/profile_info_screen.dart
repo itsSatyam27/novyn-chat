@@ -348,9 +348,9 @@ class ProfileInfoScreen extends StatelessWidget {
 
   void _showContactQr(BuildContext context) {
     final profileUrl = Uri(
-      scheme: 'https',
-      host: 'novyn.app',
-      pathSegments: ['user', user.username.trim()],
+      scheme: 'novyn',
+      host: 'user',
+      pathSegments: [user.username.trim()],
     ).toString();
     showDialog<void>(
       context: context,
