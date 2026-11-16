@@ -17,6 +17,11 @@ import '../../widgets/novyn_ui.dart';
 import '../../models/chat_preview.dart';
 import 'chat_detail_screen.dart';
 import '../people/create_group_screen.dart';
+import '../security/app_lock_screen.dart';
+import '../profile/settings/chat_settings_screen.dart';
+import 'starred_messages_screen.dart';
+import '../../widgets/chat_overflow_menu.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:novyn/services/haptic_service.dart';
 
 class ChatsScreen extends StatefulWidget {
@@ -49,6 +54,12 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
   bool _isSearchVisible = false;
   Set<String> _pinnedChatUsernames = <String>{};
   Set<String> _hiddenChatUsernames = <String>{};
+  Set<String> _archivedChatUsernames = <String>{};
+  Set<String> _lockedChatUsernames = <String>{};
+  bool _showingArchivedChats = false;
+  bool _showingLockedChats = false;
+  bool _selectionMode = false;
+  final Set<String> _selectedChatIds = <String>{};
   String? _hiddenChatsOwner;
   bool _pinPreferencesLoaded = false;
   String? _pinPreferencesOwner;
@@ -122,6 +133,12 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
       setState(() {
         _pinnedChatUsernames = <String>{};
         _hiddenChatUsernames = <String>{};
+        _archivedChatUsernames = <String>{};
+        _lockedChatUsernames = <String>{};
+        _showingArchivedChats = false;
+        _showingLockedChats = false;
+        _selectionMode = false;
+        _selectedChatIds.clear();
         _hiddenChatsOwner = null;
         _pinPreferencesLoaded = false;
         _pinPreferencesOwner = null;
@@ -135,6 +152,12 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
     setState(() {
       _pinnedChatUsernames = <String>{};
       _hiddenChatUsernames = <String>{};
+      _archivedChatUsernames = <String>{};
+      _lockedChatUsernames = <String>{};
+      _showingArchivedChats = false;
+      _showingLockedChats = false;
+      _selectionMode = false;
+      _selectedChatIds.clear();
       _hiddenChatsOwner = null;
       _pinPreferencesLoaded = false;
       _pinPreferencesOwner = null;
@@ -144,6 +167,7 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
     });
     _loadPinnedChatPreferences(username);
     _loadHiddenChatPreferences(username);
+    _loadArchiveAndLockPreferences(username);
     // Non-silent load first restores this account's username-scoped local DB.
     // The authenticated friend_list event will replace it with server state.
     _loadChats();
@@ -177,6 +201,121 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
       _applyFilters();
     } catch (error) {
       debugPrint('Could not load pinned chats: $error');
+    }
+  }
+
+  String _archivedChatsPreferenceKey(String username) =>
+      'novyn_archived_${username.trim().toLowerCase()}';
+
+  String _lockedChatsPreferenceKey(String username) =>
+      'novyn_locked_chats_${username.trim().toLowerCase()}';
+
+  Future<void> _loadArchiveAndLockPreferences(String username) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final archived = prefs.getStringList(_archivedChatsPreferenceKey(username)) ?? [];
+      final locked = prefs.getStringList(_lockedChatsPreferenceKey(username)) ?? [];
+      if (!mounted ||
+          context.read<AuthService>().user?.username.trim().toLowerCase() !=
+              username.trim().toLowerCase()) {
+        return;
+      }
+      setState(() {
+        _archivedChatUsernames = archived
+            .map((value) => value.trim().toLowerCase())
+            .where((value) => value.isNotEmpty)
+            .toSet();
+        _lockedChatUsernames = locked
+            .map((value) => value.trim().toLowerCase())
+            .where((value) => value.isNotEmpty)
+            .toSet();
+        _chats = _withPinnedPreferences(_chats);
+      });
+      ChatsScreen.cachedChats = List<ChatPreview>.from(_chats);
+      ChatsScreen.cachedChatsOwner = username.trim().toLowerCase();
+      _applyFilters();
+    } catch (error) {
+      debugPrint('Could not load archived/locked chats: $error');
+    }
+  }
+
+  Future<void> _toggleArchiveChat(ChatPreview chat) async {
+    final account = context.read<AuthService>().user?.username.trim().toLowerCase();
+    final peer = chat.peer.username.trim().toLowerCase();
+    if (account == null || account.isEmpty || peer.isEmpty) return;
+
+    final next = Set<String>.from(_archivedChatUsernames);
+    final archived = !next.contains(peer);
+    if (archived) {
+      next.add(peer);
+    } else {
+      next.remove(peer);
+    }
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final saved = await prefs.setStringList(
+        _archivedChatsPreferenceKey(account),
+        next.toList(),
+      );
+      if (!saved) throw StateError('Could not save archive preference.');
+      if (!mounted ||
+          context.read<AuthService>().user?.username.trim().toLowerCase() != account) {
+        return;
+      }
+      final updated = _chats.map((item) => item.peer.username.trim().toLowerCase() == peer
+          ? item.copyWith(isArchived: archived)
+          : item).toList();
+      setState(() {
+        _archivedChatUsernames = next;
+        _chats = _withPinnedPreferences(updated);
+      });
+      ChatsScreen.cachedChats = List<ChatPreview>.from(_chats);
+      ChatsScreen.cachedChatsOwner = account;
+      await HybridDbService.saveChat(chat.copyWith(isArchived: archived));
+      _applyFilters();
+      _showNovynAlert(archived ? 'Chat archived' : 'Chat unarchived');
+    } catch (error) {
+      _showNovynAlert('Could not update archive: $error');
+    }
+  }
+
+  Future<void> _toggleLockedChat(ChatPreview chat) async {
+    final settings = context.read<SettingsService>();
+    if (!settings.appLockEnabled ||
+        settings.appLockPin == null ||
+        settings.appLockPin!.isEmpty) {
+      _showNovynAlert('Enable App Lock and set a secure PIN in Settings → Security & Privacy before locking chats.');
+      return;
+    }
+
+    final account = context.read<AuthService>().user?.username.trim().toLowerCase();
+    final peer = chat.peer.username.trim().toLowerCase();
+    if (account == null || account.isEmpty || peer.isEmpty) return;
+    final next = Set<String>.from(_lockedChatUsernames);
+    final locked = !next.contains(peer);
+    if (locked) {
+      next.add(peer);
+    } else {
+      next.remove(peer);
+    }
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final saved = await prefs.setStringList(
+        _lockedChatsPreferenceKey(account),
+        next.toList(),
+      );
+      if (!saved) throw StateError('Could not save chat lock preference.');
+      if (!mounted ||
+          context.read<AuthService>().user?.username.trim().toLowerCase() != account) {
+        return;
+      }
+      setState(() => _lockedChatUsernames = next);
+      _applyFilters();
+      _showNovynAlert(locked ? 'Chat locked' : 'Chat unlocked');
+    } catch (error) {
+      _showNovynAlert('Could not update chat lock: $error');
     }
   }
 
@@ -303,9 +442,13 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
   }) {
     final pins = pinnedUsernames ?? _pinnedChatUsernames;
     final previews = chats
-        .map((chat) => chat.copyWith(
-              isPinned: pins.contains(chat.peer.username.trim().toLowerCase()),
-            ))
+        .map((chat) {
+          final peer = chat.peer.username.trim().toLowerCase();
+          return chat.copyWith(
+            isPinned: pins.contains(peer),
+            isArchived: _archivedChatUsernames.contains(peer),
+          );
+        })
         .toList();
     previews.sort((a, b) {
       if (a.isPinned != b.isPinned) return a.isPinned ? -1 : 1;
