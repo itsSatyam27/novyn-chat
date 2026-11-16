@@ -1534,10 +1534,12 @@ class SocketService extends ChangeNotifier {
       _hasLoadedConversations = true;
       notifyListeners();
 
-      unawaited(Future.wait([
-        HybridDbService.saveUsers(peers),
-        HybridDbService.saveChats(previews),
-      ]));
+      unawaited(() async {
+        await Future.wait([
+          HybridDbService.saveUsers(peers),
+          HybridDbService.saveChats(previews),
+        ]);
+      }());
     } catch (error, stackTrace) {
       debugPrint('[NovynSocket] Friend list refresh failed: $error');
       debugPrintStack(stackTrace: stackTrace);
