@@ -1740,11 +1740,20 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
   }
 
   Widget _buildChatCard(ChatPreview preview) {
+    final selected = _selectedChatIds.contains(preview.chatId);
     return _ChatCard(
       preview: preview,
       isFavorite: context.watch<SettingsService>().favoriteChatIds.contains(preview.chatId),
-      onOptions: (tileContext) => _showChatOptions(preview, tileContext),
-      onTap: () => _openChat(preview),
+      isSelected: selected,
+      selectionMode: _selectionMode,
+      onOptions: _selectionMode ? null : (tileContext) => _showChatOptions(preview, tileContext),
+      onTap: () {
+        if (_selectionMode) {
+          _toggleChatSelection(preview);
+        } else {
+          _openChat(preview);
+        }
+      },
     );
   }
 
@@ -1769,7 +1778,16 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
           return RepaintBoundary(
             child: _ChatCard(
               preview: _filtered[i],
-              onTap: () => _openChat(_filtered[i]),
+              isSelected: _selectedChatIds.contains(_filtered[i].chatId),
+              selectionMode: _selectionMode,
+              onOptions: _selectionMode ? null : (tileContext) => _showChatOptions(_filtered[i], tileContext),
+              onTap: () {
+                if (_selectionMode) {
+                  _toggleChatSelection(_filtered[i]);
+                } else {
+                  _openChat(_filtered[i]);
+                }
+              },
             ),
           );
         },
@@ -1868,12 +1886,16 @@ class _ChatCard extends StatelessWidget {
   final ChatPreview preview;
   final VoidCallback onTap;
   final bool isFavorite;
+  final bool isSelected;
+  final bool selectionMode;
   final ValueChanged<BuildContext>? onOptions;
 
   const _ChatCard({
     required this.preview,
     required this.onTap,
     this.isFavorite = false,
+    this.isSelected = false,
+    this.selectionMode = false,
     this.onOptions,
   });
 
@@ -1949,6 +1971,25 @@ class _ChatCard extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
         child: Row(
           children: [
+            if (selectionMode) ...[
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 140),
+                width: 23,
+                height: 23,
+                margin: const EdgeInsets.only(right: 12),
+                decoration: BoxDecoration(
+                  color: isSelected ? colors.primary : Colors.transparent,
+                  borderRadius: BorderRadius.circular(7),
+                  border: Border.all(
+                    color: isSelected ? colors.primary : colors.outlineVariant,
+                    width: 1.5,
+                  ),
+                ),
+                child: isSelected
+                    ? Icon(Icons.check_rounded, color: colors.onPrimary, size: 17)
+                    : null,
+              ),
+            ],
             _buildAvatar(context),
             const SizedBox(width: 14),
             Expanded(
