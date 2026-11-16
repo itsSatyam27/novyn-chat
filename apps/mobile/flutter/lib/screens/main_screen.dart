@@ -266,17 +266,17 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
                           ignoring: !isSelected,
                           child: ExcludeSemantics(
                             excluding: !isSelected,
-                            child: TickerMode(
-                              enabled: isSelected,
-                              child: RepaintBoundary(
-                                child: AnimatedSlide(
-                                  offset: slideOffset,
-                                  duration: const Duration(milliseconds: 200),
-                                  curve: Curves.easeOutCubic,
-                                  child: AnimatedOpacity(
-                                    opacity: isSelected ? 1 : 0,
-                                    duration: const Duration(milliseconds: 180),
-                                    curve: Curves.easeOut,
+                            child: RepaintBoundary(
+                              child: AnimatedSlide(
+                                offset: slideOffset,
+                                duration: const Duration(milliseconds: 200),
+                                curve: Curves.easeOutCubic,
+                                child: AnimatedOpacity(
+                                  opacity: isSelected ? 1 : 0,
+                                  duration: const Duration(milliseconds: 180),
+                                  curve: Curves.easeOut,
+                                  child: TickerMode(
+                                    enabled: isSelected,
                                     child: _screens[index],
                                   ),
                                 ),
