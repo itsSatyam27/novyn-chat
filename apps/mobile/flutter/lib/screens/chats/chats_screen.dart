@@ -1,4 +1,5 @@
 import 'dart:async';
+import '../../widgets/novyn_alert.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
@@ -621,13 +622,14 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
   }
 
   void _showSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        margin: const EdgeInsets.fromLTRB(20, 0, 20, 100),
-      ),
+    if (!mounted) return;
+    final lower = message.toLowerCase();
+    NovynAlert.show(
+      context,
+      message,
+      isError: lower.startsWith('could not') || lower.contains('still loading'),
+      title: lower.contains('pinned') ? 'Chat updated' : null,
+      icon: lower.contains('pinned') ? Icons.push_pin_rounded : null,
     );
   }
 
