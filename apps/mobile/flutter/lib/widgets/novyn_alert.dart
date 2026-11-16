@@ -374,9 +374,9 @@ class NovynAlert {
   }
 }
 
-extension NovynAlertScaffoldMessenger on ScaffoldMessengerState {
+extension NovynAlertContext on BuildContext {
   void showNovynAlert(SnackBar snackBar) {
-    NovynAlert.showLegacy(context, snackBar);
+    NovynAlert.showLegacy(this, snackBar);
   }
 }
 
