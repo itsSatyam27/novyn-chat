@@ -90,62 +90,71 @@ class HapticService {
     final intensity = settings.hapticIntensity.clamp(0.0, 1.0);
     if (intensity <= 0) return;
 
-    // Android's HapticFeedback channel follows the device-wide touch-feedback
-    // switch. Use the app's vibrator channel for deliberate in-app haptics so
-    // Novyn's own vibration toggle/intensity remain authoritative. Notification
-    // vibration stays on its separate pattern and preference path.
+    // Android's framework HapticFeedback follows the device-wide touch-feedback
+    // switch. Use a direct Vibrator effect instead, so the user's Novyn haptic
+    // preferences remain in control even when system touch haptics are disabled.
+    // Keep these pulses long/strong enough to be perceptible across common
+    // Android vibration motors. Incoming-notification rhythms use their own
+    // separate preference and pattern above.
     if (defaultTargetPlatform == TargetPlatform.android) {
+      final peakAmplitude = (90 + 165 * intensity)
+          .round()
+          .clamp(1, 255)
+          .toInt();
+      int scaledAmplitude(double strength) =>
+          (peakAmplitude * strength).round().clamp(1, 255).toInt();
+
       switch (type) {
         case NovynHapticType.light:
           await SecurityService.vibrate(
-            duration: 12,
-            amplitude: (65 * intensity).round().clamp(1, 255).toInt(),
+            duration: 24,
+            amplitude: scaledAmplitude(0.68),
           );
           break;
         case NovynHapticType.medium:
           await SecurityService.vibrate(
-            duration: 22,
-            amplitude: (135 * intensity).round().clamp(1, 255).toInt(),
+            duration: 36,
+            amplitude: scaledAmplitude(0.84),
           );
           break;
         case NovynHapticType.heavy:
           await SecurityService.vibrate(
-            duration: 36,
-            amplitude: (220 * intensity).round().clamp(1, 255).toInt(),
+            duration: 56,
+            amplitude: peakAmplitude,
           );
           break;
         case NovynHapticType.selection:
           await SecurityService.vibrate(
-            duration: 8,
-            amplitude: (55 * intensity).round().clamp(1, 255).toInt(),
+            duration: 20,
+            amplitude: scaledAmplitude(0.52),
           );
           break;
         case NovynHapticType.success:
           await SecurityService.vibrate(
-            duration: 18,
-            amplitude: (110 * intensity).round().clamp(1, 255).toInt(),
-          );
-          await Future.delayed(const Duration(milliseconds: 65));
-          await SecurityService.vibrate(
             duration: 24,
-            amplitude: (155 * intensity).round().clamp(1, 255).toInt(),
+            amplitude: scaledAmplitude(0.68),
+          );
+          await Future.delayed(const Duration(milliseconds: 58));
+          await SecurityService.vibrate(
+            duration: 32,
+            amplitude: scaledAmplitude(0.78),
           );
           break;
         case NovynHapticType.error:
           await SecurityService.vibrate(
-            duration: 90,
-            amplitude: (190 * intensity).round().clamp(1, 255).toInt(),
+            duration: 64,
+            amplitude: scaledAmplitude(0.94),
           );
           break;
         case NovynHapticType.warning:
           await SecurityService.vibrate(
-            duration: 28,
-            amplitude: (150 * intensity).round().clamp(1, 255).toInt(),
+            duration: 26,
+            amplitude: scaledAmplitude(0.76),
           );
-          await Future.delayed(const Duration(milliseconds: 75));
+          await Future.delayed(const Duration(milliseconds: 70));
           await SecurityService.vibrate(
-            duration: 28,
-            amplitude: (150 * intensity).round().clamp(1, 255).toInt(),
+            duration: 26,
+            amplitude: scaledAmplitude(0.76),
           );
           break;
       }
