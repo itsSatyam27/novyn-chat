@@ -790,6 +790,7 @@ app.options("/api/public/profile/:username/avatar", (req, res) => {
 
 app.get(
   "/api/public/profile/:username",
+  (req, res, next) => { setPublicProfileCors(req, res); next(); },
   createIpRateLimiter({ getStore: () => httpRateLimits }, "public-profile", 60, 60 * 1000),
   (req, res) => {
     setPublicProfileCors(req, res);
@@ -823,6 +824,7 @@ app.get(
 
 app.get(
   "/api/public/profile/:username/avatar",
+  (req, res, next) => { setPublicProfileCors(req, res); next(); },
   createIpRateLimiter({ getStore: () => httpRateLimits }, "public-profile-avatar", 90, 60 * 1000),
   (req, res) => {
     setPublicProfileCors(req, res);
