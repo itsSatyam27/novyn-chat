@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:novyn/widgets/novyn_alert.dart';
 import 'package:provider/provider.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/settings_service.dart';
@@ -75,7 +76,7 @@ class _SmartPresenceScreenState extends State<SmartPresenceScreen> {
     try {
       await context.read<AuthService>().updateStatus(SettingsService.presenceStatusForSmartMode(editingMode));
     } catch (error) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not activate mode: $error')));
+      if (mounted) context.showNovynAlert(SnackBar(content: Text('Could not activate mode: $error')));
     } finally {
       if (mounted) setState(() => saving = false);
     }
@@ -96,7 +97,7 @@ class _SmartPresenceScreenState extends State<SmartPresenceScreen> {
       await settings.saveSmartPresenceOverride(editingMode, key, value);
       if (editingMode == active) await settings.applySmartPresenceLocalPolicy(editingMode, policy: next);
     } catch (error) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not save setting: $error')));
+      if (mounted) context.showNovynAlert(SnackBar(content: Text('Could not save setting: $error')));
     } finally {
       if (mounted) setState(() => saving = false);
     }
@@ -117,7 +118,7 @@ class _SmartPresenceScreenState extends State<SmartPresenceScreen> {
       }
       await settings.resetSmartPresenceOverrides(editingMode);
     } catch (error) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not reset mode: $error')));
+      if (mounted) context.showNovynAlert(SnackBar(content: Text('Could not reset mode: $error')));
     } finally {
       if (mounted) setState(() => saving = false);
     }

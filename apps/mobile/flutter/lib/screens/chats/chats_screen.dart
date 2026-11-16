@@ -1,4 +1,5 @@
 import 'dart:async';
+import '../../widgets/novyn_alert.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
@@ -209,7 +210,7 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
         context.read<AuthService>().user?.username.trim().toLowerCase();
     final peerUsername = chat.peer.username.trim().toLowerCase();
     if (username == null || username.isEmpty || peerUsername.isEmpty) {
-      _showSnackBar('Could not delete this chat.');
+      _showNovynAlert('Could not delete this chat.');
       return;
     }
 
@@ -248,9 +249,9 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
       ChatsScreen.totalUnread =
           updated.fold(0, (total, item) => total + item.unreadCount);
       _applyFilters();
-      _showSnackBar('Chat deleted. Friend is still in your contacts.');
+      _showNovynAlert('Chat deleted. Friend is still in your contacts.');
     } catch (error) {
-      _showSnackBar('Could not delete chat: ${error.toString()}');
+      _showNovynAlert('Could not delete chat: ${error.toString()}');
     }
   }
 
@@ -318,7 +319,7 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
         context.read<AuthService>().user?.username.trim().toLowerCase();
     final peerUsername = chat.peer.username.trim().toLowerCase();
     if (username == null || username.isEmpty || peerUsername.isEmpty) {
-      _showSnackBar('Could not update this chat pin.');
+      _showNovynAlert('Could not update this chat pin.');
       return;
     }
 
@@ -326,7 +327,7 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
       await _loadPinnedChatPreferences(username);
     }
     if (!_pinPreferencesLoaded || _pinPreferencesOwner != username) {
-      _showSnackBar('Pinned chats are still loading. Please try again.');
+      _showNovynAlert('Pinned chats are still loading. Please try again.');
       return;
     }
 
@@ -334,7 +335,7 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
     final next = Set<String>.from(_pinnedChatUsernames);
     if (shouldPin) {
       if (next.length >= 5) {
-        _showSnackBar('You can pin up to 5 chats. Unpin one to add another.');
+        _showNovynAlert('You can pin up to 5 chats. Unpin one to add another.');
         return;
       }
       next.add(peerUsername);
@@ -379,12 +380,12 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
         NovynHapticType.selection,
         category: HapticCategory.chat,
       );
-      _showSnackBar(
+      _showNovynAlert(
         shouldPin ? '${chat.peer.name} pinned' : '${chat.peer.name} unpinned',
       );
     } catch (error) {
       if (mounted) {
-        _showSnackBar('Could not update pin: ${error.toString()}');
+        _showNovynAlert('Could not update pin: ${error.toString()}');
       }
     }
   }
@@ -620,14 +621,15 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
     // while the chat route is open; reopening both local databases is redundant.
   }
 
-  void _showSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        margin: const EdgeInsets.fromLTRB(20, 0, 20, 100),
-      ),
+  void _showNovynAlert(String message) {
+    if (!mounted) return;
+    final lower = message.toLowerCase();
+    NovynAlert.show(
+      context,
+      message,
+      isError: lower.startsWith('could not') || lower.contains('still loading'),
+      title: lower.contains('pinned') ? 'Chat updated' : null,
+      icon: lower.contains('pinned') ? Icons.push_pin_rounded : null,
     );
   }
 
@@ -1235,9 +1237,9 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
       case 'mute':
         try {
           socket.setMute(chat.peer.username, muted: true);
-          _showSnackBar('Notifications muted');
+          _showNovynAlert('Notifications muted');
         } catch (error) {
-          _showSnackBar(error.toString());
+          _showNovynAlert(error.toString());
         }
         break;
       case 'clear':
@@ -1259,16 +1261,16 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
         if (confirmed == true && mounted) {
           try {
             socket.clearChat(chat.peer.username);
-            _showSnackBar('Chat cleared');
+            _showNovynAlert('Chat cleared');
             await _loadChats(silent: true);
           } catch (error) {
-            _showSnackBar(error.toString());
+            _showNovynAlert(error.toString());
           }
         }
         break;
       case 'delete':
         if (chat.isGroup) {
-          _showSnackBar('Exit group is not yet supported in the mobile client.');
+          _showNovynAlert('Exit group is not yet supported in the mobile client.');
           break;
         }
         final confirmed = await showDialog<bool>(
@@ -1293,7 +1295,7 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
       case 'read':
       case 'archive':
       case 'block':
-        _showSnackBar('This chat action is not yet available in the mobile client.');
+        _showNovynAlert('This chat action is not yet available in the mobile client.');
         break;
     }
   }

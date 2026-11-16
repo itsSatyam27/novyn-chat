@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import '../../widgets/novyn_alert.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
@@ -36,9 +37,9 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     try {
       await context.read<FriendService>().sendRequest(myUid, user.uid);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Friend request sent to @${user.username}.')));
+      NovynAlert.showEvent(context, NovynAlertEvent.requestSent('@${user.username}'));
     } catch (_) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not send request to @${user.username}.')));
+      if (mounted) NovynAlert.show(context, 'Could not send request to @${user.username}.', isError: true);
     } finally {
       if (mounted) setState(() => _sendingRequests.remove(user.uid));
     }
@@ -492,9 +493,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
       final username = _usernameFromQr(data);
       if (username == null) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('This QR code is not a valid Novyn profile.')),
-          );
+          NovynAlert.show(context, 'This QR code is not a valid Novyn profile.', isError: true, title: 'Invalid QR code', icon: Icons.qr_code_rounded);
         }
         return;
       }
@@ -502,9 +501,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
       final profile = await ApiService.getPublicProfile(username);
       if (!mounted) return;
       if (profile == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Novyn user not found.')),
-        );
+        NovynAlert.show(context, 'Novyn user not found.', isError: true, title: 'User not found', icon: Icons.person_search_rounded);
         return;
       }
 
@@ -527,15 +524,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     final status = await Permission.camera.request();
     if (status.isDenied || status.isPermanentlyDenied) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('Camera permission is required to scan QR codes'),
-            action: SnackBarAction(
-              label: 'Settings',
-              onPressed: () => openAppSettings(),
-            ),
-          ),
-        );
+        NovynAlert.show(context, 'Camera permission is required to scan QR codes.', isError: true, title: 'Camera permission needed', icon: Icons.camera_alt_rounded, actionLabel: 'Settings', onAction: () => openAppSettings());
       }
       return;
     }

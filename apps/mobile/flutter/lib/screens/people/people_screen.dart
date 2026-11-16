@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../widgets/novyn_alert.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:share_plus/share_plus.dart';
@@ -123,12 +124,12 @@ class _PeopleScreenState extends State<PeopleScreen> {
 
   void _showMessage(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(
-        content: Text(message),
-        behavior: SnackBarBehavior.floating,
-      ));
+    NovynAlert.show(
+      context,
+      message,
+      isError: message.toLowerCase().contains('could not') ||
+          message.toLowerCase().contains('failed'),
+    );
   }
 
   Future<void> _shareInvite(String myUid) async {

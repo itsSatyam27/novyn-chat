@@ -3,7 +3,9 @@ import 'package:provider/provider.dart';
 import '../../../services/settings_service.dart';
 import '../../../services/auth_service.dart';
 import '../../../theme/novyn_theme.dart';
+import '../../../widgets/novyn_alert.dart';
 import 'dock_customization_screen.dart';
+import 'alert_customization_screen.dart';
 import 'quick_toggle_customization_screen.dart';
 
 class AppearanceScreen extends StatelessWidget {
@@ -235,6 +237,18 @@ class AppearanceScreen extends StatelessWidget {
             onTap: () => Navigator.push(
               context,
               MaterialPageRoute(builder: (_) => const DockCustomizationScreen()),
+            ),
+          ),
+          const SizedBox(height: 24),
+          _SectionHeading(
+            title: 'Alerts',
+            subtitle: 'Choose how in-app notifications and confirmations appear',
+          ),
+          const SizedBox(height: 12),
+          _AlertStyleTile(
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const AlertCustomizationScreen()),
             ),
           ),
           const SizedBox(height: 18),
@@ -730,6 +744,60 @@ class _AccentChoice extends StatelessWidget {
               color: selected ? colors.onSurface : colors.onSurfaceVariant,
               fontWeight: selected ? FontWeight.w800 : FontWeight.w600)),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _AlertStyleTile extends StatelessWidget {
+  const _AlertStyleTile({required this.onTap});
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final settings = context.watch<SettingsService>();
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final selected = NovynAlertStyles.byId(settings.alertStyle);
+    return Material(
+      color: colors.surface,
+      borderRadius: BorderRadius.circular(19),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(19),
+        child: Container(
+          padding: const EdgeInsets.all(15),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(19),
+            border: Border.all(color: colors.outlineVariant),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  color: colors.primary.withValues(alpha: .11),
+                  borderRadius: BorderRadius.circular(15),
+                ),
+                child: Icon(Icons.notifications_active_rounded, color: colors.primary),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Alert style', style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800)),
+                    const SizedBox(height: 3),
+                    Text(selected.name,
+                      style: theme.textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant)),
+                  ],
+                ),
+              ),
+              Icon(Icons.chevron_right_rounded, color: colors.onSurfaceVariant),
+            ],
+          ),
         ),
       ),
     );

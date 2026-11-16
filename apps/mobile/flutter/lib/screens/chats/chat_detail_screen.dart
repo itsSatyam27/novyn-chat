@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import '../../widgets/novyn_alert.dart';
 import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
@@ -534,13 +535,18 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
         // Restore the failed text only when the user has not started another
         // draft; never overwrite newer text typed during reconnection.
         if (_ctrl.text.trim().isEmpty) _ctrl.text = text;
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(error is StateError
+        NovynAlert.show(
+          context,
+          error is StateError
               ? error.message.toString()
               : error is TimeoutException
                   ? (error.message ?? 'Message delivery was not confirmed. Check your connection.')
-                  : 'Could not send message: $error'),
-        ));
+                  : 'Could not send message: $error',
+          isError: true,
+          title: 'Message not sent',
+          icon: Icons.send_rounded,
+          tone: NovynAlertTone.warning,
+        );
       }
     } finally {
       _sending = false;
@@ -1544,7 +1550,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                               } else if (selected.length < 8) {
                                 selected.add(emoji);
                               } else {
-                                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('You can select up to 8 quick emojis.')));
+                                NovynAlert.show(context, 'You can select up to 8 quick emojis.', isError: true, title: 'Emoji limit reached', icon: Icons.emoji_emotions_rounded, tone: NovynAlertTone.warning);
                               }
                             }),
                             child: Stack(alignment: Alignment.center, children: [
@@ -2055,10 +2061,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
       if (mounted) setState(() => _replyingTo = null);
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(error is StateError ? error.message.toString() : 'Could not attach this file.'),
-          behavior: SnackBarBehavior.floating,
-        ));
+        NovynAlert.show(context, error is StateError ? error.message.toString() : 'Could not attach this file.', isError: true, title: 'Attachment failed', icon: Icons.attach_file_rounded);
       }
     } finally {
       if (mounted) setState(() => _uploadingAttachment = false);
@@ -2134,9 +2137,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                                   isGroup: chat.isGroup,
                                 );
                                 Navigator.pop(sheetContext);
-                                ScaffoldMessenger.of(this.context).showSnackBar(
-                                  SnackBar(content: Text('Forwarded to ${chat.peer.name}')),
-                                );
+                                NovynAlert.show(this.context, 'Forwarded to ${chat.peer.name}.', title: 'Message forwarded', icon: Icons.forward_rounded, tone: NovynAlertTone.success);
                               },
                             );
                           },
@@ -2153,9 +2154,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
 
   Future<void> _showCreateRiddleDialog() async {
     if (widget.isGroup) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Riddle Lock is currently available in direct chats only.')),
-      );
+      NovynAlert.show(context, 'Riddle Lock is currently available in direct chats only.', isError: true, title: 'Direct chats only', icon: Icons.lock_rounded, tone: NovynAlertTone.warning);
       return;
     }
     final secret = TextEditingController();
@@ -2191,7 +2190,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
               if (result['ok'] == true) {
                 Navigator.pop(dialogContext);
               } else {
-                ScaffoldMessenger.of(this.context).showSnackBar(SnackBar(content: Text(result['message']?.toString() ?? 'Could not send riddle.')));
+                NovynAlert.show(this.context, result['message']?.toString() ?? 'Could not send riddle.', isError: true, title: 'Could not send riddle', icon: Icons.lock_rounded);
               }
             },
             icon: Icon(Icons.lock_rounded, size: 17), label: const Text('Lock & send'),
@@ -2260,12 +2259,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                           widget.peer.uid.isNotEmpty ? widget.peer.uid : widget.peer.username,
                           isGroup: widget.isGroup);
                         Navigator.pop(sheetContext);
-                        ScaffoldMessenger.of(this.context).showSnackBar(SnackBar(
-                          content: Text('${item['title']} challenge sent'), behavior: SnackBarBehavior.floating));
+                        NovynAlert.show(this.context, '${item['title']} challenge sent.', title: 'Challenge sent', icon: Icons.sports_esports_rounded, tone: NovynAlertTone.success);
                       } catch (error) {
-                        ScaffoldMessenger.of(this.context).showSnackBar(SnackBar(
-                          content: Text(error is StateError ? error.message.toString() : 'Could not start the game.'),
-                          behavior: SnackBarBehavior.floating));
+                        NovynAlert.show(this.context, error is StateError ? error.message.toString() : 'Could not start the game.', isError: true, title: 'Could not start game', icon: Icons.sports_esports_rounded);
                       }
                     },
                     child: Padding(
@@ -2388,17 +2384,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                 final cleanQuestion = question.text.trim();
                 final cleanOptions = options.map((item) => item.text.trim()).where((item) => item.isNotEmpty).toList();
                 if (cleanQuestion.isEmpty || cleanOptions.length < 2) {
-                  ScaffoldMessenger.of(dialogContext).showSnackBar(const SnackBar(
-                    content: Text('Add a question and at least two options.'),
-                    behavior: SnackBarBehavior.floating,
-                  ));
+                  NovynAlert.show(dialogContext, 'Add a question and at least two options.', isError: true, title: 'Incomplete poll', icon: Icons.poll_rounded);
                   return;
                 }
                 if (cleanOptions.toSet().length != cleanOptions.length) {
-                  ScaffoldMessenger.of(dialogContext).showSnackBar(const SnackBar(
-                    content: Text('Poll options must be unique.'),
-                    behavior: SnackBarBehavior.floating,
-                  ));
+                  NovynAlert.show(dialogContext, 'Poll options must be unique.', isError: true, title: 'Duplicate options', icon: Icons.poll_rounded);
                   return;
                 }
                 context.read<SocketService>().createPoll(
@@ -2463,9 +2453,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
       final allowed = await _voiceRecorder.hasPermission();
       if (!allowed) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Microphone permission is required to record voice notes.')),
-          );
+          NovynAlert.show(context, 'Microphone permission is required to record voice notes.', isError: true, title: 'Microphone permission needed', icon: Icons.mic_off_rounded, tone: NovynAlertTone.warning);
         }
         return;
       }
@@ -2498,9 +2486,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
       });
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not start recording: $error')),
-        );
+        NovynAlert.show(context, 'Could not start recording: $error', isError: true, title: 'Recording failed', icon: Icons.mic_off_rounded);
       }
     }
   }
@@ -2549,9 +2535,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
       await file.delete();
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(error is StateError ? error.message.toString() : 'Could not send voice note.')),
-        );
+        NovynAlert.show(context, error is StateError ? error.message.toString() : 'Could not send voice note.', isError: true, title: 'Voice message not sent', icon: Icons.mic_off_rounded);
       }
     } finally {
       if (mounted) {
@@ -2673,9 +2657,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                                     );
                                     refreshPinned(() => pinned.removeAt(index));
                                   } catch (error) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(content: Text(error is StateError ? error.message : 'Could not unpin message.')),
-                                    );
+                                    NovynAlert.show(context, error is StateError ? error.message : 'Could not unpin message.', isError: true, title: 'Could not unpin message', icon: Icons.push_pin_rounded);
                                   }
                                 },
                               ),
@@ -3015,11 +2997,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                               Navigator.pop(sheetContext);
                             } catch (error) {
                               if (mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                                  content: Text(error is StateError
-                                      ? error.message.toString()
-                                      : 'Could not upload wallpaper. Please try again.'),
-                                ));
+                                NovynAlert.show(context, error is StateError ? error.message.toString() : 'Could not upload wallpaper. Please try again.', isError: true, title: 'Wallpaper upload failed', icon: Icons.wallpaper_rounded);
                               }
                             } finally {
                               if (mounted) setState(() => _uploadingAttachment = false);
@@ -3138,11 +3116,13 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
             );
             final result = await socket.setBlockedUser(widget.peer.username, blocked: !blocked);
             if (!mounted) return;
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(result['ok'] == true
-                ? (blocked ? 'Contact unblocked' : 'Contact blocked')
-                : (result['message']?.toString() ?? 'Could not update block status'))),
-            );
+            if (result['ok'] == true) {
+              NovynAlert.showEvent(context, blocked
+                  ? NovynAlertEvent.userUnblocked(widget.peer.name)
+                  : NovynAlertEvent.userBlocked(widget.peer.name));
+            } else {
+              NovynAlert.show(context, result['message']?.toString() ?? 'Could not update block status', isError: true);
+            }
             if (result['ok'] == true) Navigator.pop(context);
           },
           onClearChat: () async {
@@ -3154,9 +3134,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
             }
             await HybridDbService.setLastSync(widget.peer.username, DateTime.now());
             if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Chat history cleared')),
-              );
+              NovynAlert.showEvent(context, NovynAlertEvent.chatCleared);
             }
           },
           onRemoveFriend: () async {
@@ -3268,9 +3246,7 @@ ${htmlMessages}
               );
             } catch (error) {
               if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Could not export chat: $error')),
-                );
+                NovynAlert.show(context, 'Could not export chat: $error', isError: true, title: 'Chat export failed', icon: Icons.ios_share_rounded);
               }
             }
           },
@@ -3806,7 +3782,7 @@ class _MessageBubble extends StatelessWidget {
                         await Clipboard.setData(ClipboardData(text: message.text.toString()));
                         if (!sheetContext.mounted) return;
                         Navigator.pop(sheetContext);
-                        NovynToast.show(context, 'Message copied');
+                        NovynAlert.showEvent(context, NovynAlertEvent.textCopied);
                       },
                     ),
                   _ActionItem(
@@ -3836,8 +3812,10 @@ class _MessageBubble extends StatelessWidget {
                       Navigator.pop(sheetContext);
                       if (message.pinnedAt?.toString().isNotEmpty ?? false) {
                         socket.unpinMessage(message.id.toString(), peer.uid.isNotEmpty ? peer.uid : peer.username);
+                        NovynAlert.show(context, 'Removed from the top of this chat.', title: 'Message unpinned', icon: Icons.push_pin_outlined, tone: NovynAlertTone.neutral);
                       } else {
                         socket.pinMessage(message.id.toString(), peer.uid.isNotEmpty ? peer.uid : peer.username);
+                        NovynAlert.showEvent(context, NovynAlertEvent.messagePinned);
                       }
                     },
                   ),
@@ -3964,22 +3942,15 @@ class _MessageBubble extends StatelessWidget {
   }
 
   Future<void> _downloadAttachment(BuildContext context, String url, String name) async {
-    final messenger = ScaffoldMessenger.of(context);
     try {
       final file = await ApiService.downloadMedia(url, name);
       final kind = _mimeForFile(name).startsWith('image/') ? 'image' : _mimeForFile(name).startsWith('video/') ? 'video' : 'file';
       final saved = await MediaStorageService.exportToDevice(file, kind);
       if (!context.mounted || !saved) return;
-      messenger.showSnackBar(SnackBar(
-        content: Text(kind == 'image' || kind == 'video' ? 'Saved to your Gallery and Novyn Downloads.' : 'Saved using the system Files picker.'),
-        behavior: SnackBarBehavior.floating,
-      ));
+      NovynAlert.show(context, kind == 'image' || kind == 'video' ? 'Saved to your Gallery and Novyn Downloads.' : 'Saved using the system Files picker.', title: 'Saved', icon: Icons.download_done_rounded, tone: NovynAlertTone.success);
     } catch (error) {
       if (!context.mounted) return;
-      messenger.showSnackBar(SnackBar(
-        content: Text('Download failed: ' + error.toString()),
-        behavior: SnackBarBehavior.floating,
-      ));
+      NovynAlert.show(context, 'Download failed: ' + error.toString(), isError: true, title: 'Download failed', icon: Icons.download_rounded);
     }
   }
 
@@ -4699,7 +4670,6 @@ class _AttachmentButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final messenger = ScaffoldMessenger.of(context);
     return Material(
       color: scheme.primary.withValues(alpha: .10), shape: const CircleBorder(),
       child: InkWell(
@@ -4749,9 +4719,7 @@ class _AttachmentButton extends StatelessWidget {
                           onTap: () {
                             Navigator.pop(sheetContext);
                             if (!item.enabled) {
-                              messenger.showSnackBar(SnackBar(
-                                content: Text('${item.label} sharing is not available yet.'),
-                                behavior: SnackBarBehavior.floating));
+                              NovynAlert.show(context, '${item.label} sharing is not available yet.', title: 'Coming soon', icon: Icons.hourglass_top_rounded, tone: NovynAlertTone.neutral);
                               return;
                             }
                             onSelected(item.label == 'Media' ? 'image' : item.label.toLowerCase());

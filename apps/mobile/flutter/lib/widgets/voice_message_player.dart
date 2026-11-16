@@ -1,5 +1,6 @@
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
+import 'package:novyn/widgets/novyn_alert.dart';
 
 class VoiceMessagePlayer extends StatefulWidget {
   final String url;
@@ -62,7 +63,7 @@ class _VoiceMessagePlayerState extends State<VoiceMessagePlayer> {
         await _player.play(UrlSource(widget.url));
       }
     } catch (_) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted) context.showNovynAlert(
         const SnackBar(content: Text('Could not play this voice message.')),
       );
     } finally {

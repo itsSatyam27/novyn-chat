@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:novyn/widgets/novyn_alert.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../services/friend_service.dart';
@@ -328,7 +329,7 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
 
       if (mounted) {
         Navigator.pop(context); // Close loading
-        ScaffoldMessenger.of(context).showSnackBar(
+        context.showNovynAlert(
           SnackBar(
             content: Text('Group "${_nameController.text.trim()}" created successfully!'),
             backgroundColor: const Color(0xFF10B981),
@@ -339,7 +340,7 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
     } catch (e) {
       if (mounted) {
         Navigator.pop(context); // Close loading
-        ScaffoldMessenger.of(context).showSnackBar(
+        context.showNovynAlert(
           SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
         );
       }

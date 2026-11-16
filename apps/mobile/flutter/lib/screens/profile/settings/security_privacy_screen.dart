@@ -220,7 +220,7 @@ class SecurityPrivacyScreen extends StatelessWidget {
       await socket.updateStealthMode(enabled);
 
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      context.showNovynAlert(
         SnackBar(
           content: Text(enabled
               ? 'Stealth Mode enabled. Your chats are now protected on friends’ Novyn Android devices.'
@@ -231,7 +231,7 @@ class SecurityPrivacyScreen extends StatelessWidget {
     } catch (error) {
       await settings.setStealthMode(previous);
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      context.showNovynAlert(
         SnackBar(
           content: Text('Could not sync Stealth Mode: $error'),
           behavior: SnackBarBehavior.floating,
@@ -333,7 +333,7 @@ class SecurityPrivacyScreen extends StatelessWidget {
                 HapticService.vibrate(NovynHapticType.heavy, category: HapticCategory.buttons);
                 Navigator.pop(context);
                 settings.setTwoFactorAuth(false);
-                ScaffoldMessenger.of(context).showSnackBar(
+                context.showNovynAlert(
                   const SnackBar(
                     content: Text('Two-factor authentication disabled'),
                     behavior: SnackBarBehavior.floating,
@@ -367,7 +367,7 @@ class SecurityPrivacyScreen extends StatelessWidget {
     final socket = context.read<SocketService>();
     final username = auth.user?.username ?? '';
     if (username.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      context.showNovynAlert(
         const SnackBar(content: Text('Please sign in again before deleting your account.')),
       );
       return;
@@ -476,7 +476,7 @@ class SecurityPrivacyScreen extends StatelessWidget {
       await auth.logout();
       if (context.mounted) {
         Navigator.of(context).popUntil((route) => route.isFirst);
-        ScaffoldMessenger.of(context).showSnackBar(
+        context.showNovynAlert(
           const SnackBar(content: Text('Your Novyn account has been deleted.')),
         );
       }
@@ -972,13 +972,13 @@ class _ChangePasswordDialogState extends State<_ChangePasswordDialog> {
                   child: ElevatedButton(
                     onPressed: _isLoading ? null : () async {
                       if (_newPasswordController.text.isEmpty || _currentPasswordController.text.isEmpty) {
-                        ScaffoldMessenger.of(context).showSnackBar(
+                        context.showNovynAlert(
                           const SnackBar(content: Text('Please fill all fields'), behavior: SnackBarBehavior.floating),
                         );
                         return;
                       }
                       if (_newPasswordController.text != _confirmPasswordController.text) {
-                        ScaffoldMessenger.of(context).showSnackBar(
+                        context.showNovynAlert(
                           const SnackBar(
                             content: Text('Passwords do not match'),
                             backgroundColor: Color(0xFFEF4444),
@@ -998,15 +998,14 @@ class _ChangePasswordDialogState extends State<_ChangePasswordDialog> {
 
                       if (mounted && context.mounted) {
                         setState(() => _isLoading = false);
-                        final messenger = ScaffoldMessenger.of(context);
                         if (error == null) {
                           // The backend revokes every refresh session after a password
                           // change. Clear this device's local auth state as well so the
                           // user is explicitly required to sign in with the new password.
                           await auth.logout();
                           if (!mounted) return;
-                          Navigator.pop(context);
-                          messenger.showSnackBar(
+                          context.showNovynAlert(
+
                             const SnackBar(
                               content: Text('Password updated. Please sign in again.'),
                               behavior: SnackBarBehavior.floating,
@@ -1014,7 +1013,7 @@ class _ChangePasswordDialogState extends State<_ChangePasswordDialog> {
                             ),
                           );
                         } else {
-                          messenger.showSnackBar(
+                          context.showNovynAlert(
                             SnackBar(
                               content: Text(error),
                               backgroundColor: const Color(0xFFEF4444),
@@ -1360,7 +1359,7 @@ class _TwoFactorSetupDialogState extends State<_TwoFactorSetupDialog> {
     
     if (mounted) {
       Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(
+      context.showNovynAlert(
         const SnackBar(
           content: Text('Security Node Established Successfully'),
           backgroundColor: Color(0xFF10B981),

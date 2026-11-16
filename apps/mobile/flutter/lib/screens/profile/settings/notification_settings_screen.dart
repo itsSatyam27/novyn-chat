@@ -2,6 +2,7 @@ import 'dart:ui';
 import 'package:novyn/services/haptic_service.dart';
 
 import 'package:flutter/material.dart';
+import 'package:novyn/widgets/novyn_alert.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
@@ -19,7 +20,7 @@ class NotificationSettingsScreen extends StatelessWidget {
       if (result['ok'] != true) throw StateError(result['message']?.toString() ?? 'Setting update was not confirmed.');
       await saveLocal(value);
     } catch (error) {
-      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (context.mounted) context.showNovynAlert(
         SnackBar(content: Text('Could not save notification setting: $error')));
     }
   }

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:novyn/widgets/novyn_alert.dart';
 import 'package:provider/provider.dart';
 import '../services/socket_service.dart';
 
@@ -66,10 +67,9 @@ class _ImportMessageKeysDialogState extends State<ImportMessageKeysDialog> {
           .read<SocketService>()
           .importMessageKeys(_file!, _password.text);
       if (!mounted) return;
-      final messenger = ScaffoldMessenger.of(context);
-      Navigator.pop(context);
-      messenger.showSnackBar(SnackBar(
+      context.showNovynAlert(SnackBar(
           content: Text('Message keys imported for $count conversations.')));
+      Navigator.pop(context);
     } catch (error) {
       if (mounted) {
         setState(() {
