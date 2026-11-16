@@ -140,7 +140,7 @@ class SettingsCloudSyncService {
     } catch (error) {
       debugPrint('[NovynSettingsSync] Remote refresh deferred: $error');
     } finally {
-      _requestInFlight = false;
+      if (_isCurrent(generation)) _requestInFlight = false;
     }
   }
 
@@ -201,7 +201,7 @@ class SettingsCloudSyncService {
         unawaited(_saveSnapshot(generation));
       });
     } finally {
-      _requestInFlight = false;
+      if (_isCurrent(generation)) _requestInFlight = false;
     }
   }
 
