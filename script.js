@@ -3,7 +3,7 @@ document.getElementById('year').textContent = new Date().getFullYear();
 (() => {
   const params = new URLSearchParams(window.location.search);
   const rawInvite = (params.get('invite') || '').trim().replace(/^@/, '');
-  const validUsername = /^[A-Za-z0-9_.-]{1,40}$/.test(rawInvite);
+  const validUsername = /^[A-Za-z0-9_. -]{1,40}$/.test(rawInvite);
   if (!validUsername) return;
 
   const username = rawInvite;
