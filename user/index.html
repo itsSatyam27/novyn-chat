@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#f7faf8">
+  <meta name="description" content="View a public Novyn profile and connect.">
+  <meta property="og:site_name" content="Novyn">
+  <meta property="og:type" content="profile">
+  <title>Novyn profile</title>
+  <style>
+    :root{color-scheme:light;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#f5f8f6;color:#172c29}
+    *{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px;background:radial-gradient(ellipse at 15% 5%,#def5ec 0,transparent 42%),radial-gradient(ellipse at 90% 95%,#e8e4fb 0,transparent 40%),#f7faf8}
+    .card{width:min(100%,440px);padding:36px 30px 28px;border:1px solid #e5ece8;border-radius:30px;background:rgba(255,255,255,.92);box-shadow:0 24px 80px rgba(24,55,46,.10);text-align:center}
+    .brand{display:flex;align-items:center;justify-content:center;gap:9px;margin-bottom:34px;font-size:20px;font-weight:800;letter-spacing:-.7px}.mark{display:grid;place-items:center;width:31px;height:31px;border-radius:11px;background:#147f6b;color:white;font-family:Georgia,serif;font-size:23px}
+    .avatar{width:112px;height:112px;margin:0 auto 19px;border:5px solid #eff8f4;border-radius:50%;display:grid;place-items:center;background:linear-gradient(135deg,#d7f1e6,#e8e5fb);color:#176e5d;font-size:34px;font-weight:800;overflow:hidden}.avatar img{width:100%;height:100%;object-fit:cover}
+    h1{margin:0;font-size:27px;letter-spacing:-1px}.handle{margin:7px 0 0;color:#147f6b;font-size:14px;font-weight:750}.bio{margin:20px auto 0;max-width:330px;color:#64736f;font-size:15px;line-height:1.6;white-space:pre-wrap}
+    .actions{display:grid;gap:10px;margin-top:28px}.button{display:flex;min-height:49px;align-items:center;justify-content:center;border-radius:15px;text-decoration:none;font-size:14px;font-weight:750}.primary{background:#147f6b;color:white}.secondary{border:1px solid #dce8e2;color:#22574c;background:white}
+    .foot{margin:25px 0 0;color:#94a39e;font-size:11px}.state{padding:24px 0;color:#667771;line-height:1.55}.hidden{display:none!important}
+  </style>
+</head>
+<body>
+  <main class="card">
+    <div class="brand"><span class="mark">n</span><span>novyn<span style="color:#159579">.</span></span></div>
+    <div id="loading" class="state">Loading profile…</div>
+    <section id="profile" class="hidden">
+      <div class="avatar" id="avatar"><span id="initials">N</span></div>
+      <h1 id="name"></h1>
+      <div class="handle" id="handle"></div>
+      <p class="bio" id="bio"></p>
+      <div class="actions">
+        <a class="button primary" id="openApp" href="#">Open in Novyn</a>
+        <a class="button secondary" href="https://github.com/itsSatyam27/novyn-chat/releases/latest/download/Novyn-Android-ARM64.apk">Get Novyn for Android</a>
+      </div>
+    </section>
+    <div id="error" class="state hidden"></div>
+    <p class="foot">A more thoughtful space for conversations.</p>
+  </main>
+  <script>
+    (() => {
+      const text = (id, value) => { document.getElementById(id).textContent = value; };
+      const show = (id) => document.getElementById(id).classList.remove('hidden');
+      const hide = (id) => document.getElementById(id).classList.add('hidden');
+      const parts = location.pathname.split('/').filter(Boolean);
+      let username = '';
+      try { username = decodeURIComponent(parts[1] || '').trim().replace(/^@/, ''); } catch (_) {}
+      const valid = parts.length === 2 && parts[0] === 'user' && username.length > 0 && username.length <= 40 && !/[\\/]/.test(username);
+      const fail = (message) => { hide('loading'); text('error', message); show('error'); };
+      const initials = (name) => name.trim().split(/\s+/).filter(Boolean).slice(0,2).map(x => x[0]).join('').toUpperCase() || 'N';
+      if (!valid) { fail('This profile link is invalid.'); return; }
+      document.title = '@' + username + ' · Novyn';
+      fetch('https://novyn-live.onrender.com/api/public/profile/' + encodeURIComponent(username), {headers:{Accept:'application/json'}})
+        .then(async response => {
+          const body = await response.json().catch(() => ({}));
+          if (response.status === 404) throw new Error('Profile not found. The username may have changed or the account may no longer exist.');
+          if (!response.ok) throw new Error(body.error || 'Could not load this profile. Please try again.');
+          return body;
+        })
+        .then(profile => {
+          const displayName = String(profile.displayName || profile.username || username);
+          const handle = String(profile.username || username);
+          text('name', displayName);
+          text('handle', '@' + handle);
+          text('bio', String(profile.bio || ''));
+          text('initials', initials(displayName));
+          const avatar = document.getElementById('avatar');
+          if (profile.avatarUrl) {
+            const image = document.createElement('img');
+            image.src = profile.avatarUrl;
+            image.alt = displayName + ' profile photo';
+            image.referrerPolicy = 'no-referrer';
+            image.onerror = () => image.remove();
+            avatar.appendChild(image);
+          }
+          document.getElementById('openApp').href = 'novyn://user/' + encodeURIComponent(handle);
+          document.querySelector('meta[property="og:title"]').content = displayName + ' · Novyn';
+          document.querySelector('meta[property="og:description"]').content = String(profile.bio || 'Connect with ' + displayName + ' on Novyn.');
+          hide('loading'); show('profile');
+        })
+        .catch(error => fail(error.message || 'Could not load this profile.'));
+    })();
+  </script>
+</body>
+</html>
