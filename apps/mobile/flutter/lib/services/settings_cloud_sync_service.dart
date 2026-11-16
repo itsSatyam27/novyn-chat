@@ -123,10 +123,17 @@ class SettingsCloudSyncService {
     }
 
     _requestInFlight = true;
+    final revisionAtStart = _localRevision;
     try {
       final response = await ApiService.getAccountSettings();
       if (!_isCurrent(generation) || response == null) return;
       if (response['exists'] != true) return;
+      // A preference edited while this refresh was in flight must not be
+      // overwritten by the snapshot that the request just returned.
+      if (_localRevision != revisionAtStart) {
+        _scheduleSave();
+        return;
+      }
 
       final updatedAt = _asTimestamp(response['updatedAt']);
       if (updatedAt <= _lastRemoteUpdatedAt) return;
