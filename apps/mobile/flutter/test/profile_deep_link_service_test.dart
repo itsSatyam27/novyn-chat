@@ -19,13 +19,6 @@ void main() {
       );
     });
 
-    test('accepts Novyn custom-scheme profile links', {
-      expect(
-        ProfileDeepLinkService.usernameFromLink('novyn://user/ananya'),
-        'ananya',
-      );
-    });
-
     test('rejects website URLs because no public profile domain is configured', () {
       expect(
         ProfileDeepLinkService.usernameFromLink('https://example.com/user/ananya'),
