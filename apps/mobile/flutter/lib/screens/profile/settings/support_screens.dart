@@ -455,7 +455,7 @@ class HelpSupportScreen extends StatelessWidget {
   Future<void> _openIssues(BuildContext context) async {
     final uri = Uri.parse('https://github.com/itsSatyam27/novyn-chat/issues');
     if (!await launchUrl(uri, mode: LaunchMode.externalApplication) && context.mounted) {
-      ScaffoldMessenger.of(context).showNovynAlert(const SnackBar(content: Text('Could not open support page.')));
+      context.showNovynAlert(const SnackBar(content: Text('Could not open support page.')));
     }
   }
 
@@ -558,7 +558,7 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
   Future<void> _submit() async {
     final message = _messageController.text.trim();
     if (message.length < 5) {
-      ScaffoldMessenger.of(context).showNovynAlert(const SnackBar(content: Text('Please write at least 5 characters.')));
+      context.showNovynAlert(const SnackBar(content: Text('Please write at least 5 characters.')));
       return;
     }
     setState(() => _sending = true);
@@ -588,7 +588,7 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
     } catch (error) {
       if (!mounted) return;
       final errorMessage = error.toString().replaceFirst('Exception: ', '');
-      ScaffoldMessenger.of(context).showNovynAlert(SnackBar(content: Text(errorMessage), behavior: SnackBarBehavior.floating));
+      context.showNovynAlert(SnackBar(content: Text(errorMessage), behavior: SnackBarBehavior.floating));
     } finally {
       if (mounted) setState(() => _sending = false);
     }
