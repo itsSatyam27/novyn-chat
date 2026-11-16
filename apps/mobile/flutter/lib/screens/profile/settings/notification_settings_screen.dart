@@ -20,7 +20,7 @@ class NotificationSettingsScreen extends StatelessWidget {
       if (result['ok'] != true) throw StateError(result['message']?.toString() ?? 'Setting update was not confirmed.');
       await saveLocal(value);
     } catch (error) {
-      if (context.mounted) ScaffoldMessenger.of(context).showNovynAlert(
+      if (context.mounted) context.showNovynAlert(
         SnackBar(content: Text('Could not save notification setting: $error')));
     }
   }
