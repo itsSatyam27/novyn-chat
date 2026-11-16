@@ -10,6 +10,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'services/firebase_configuration.dart';
 import 'services/auth_service.dart';
 import 'services/settings_service.dart';
+import 'services/settings_cloud_sync_service.dart';
 import 'services/friend_service.dart';
 import 'services/socket_service.dart';
 import 'services/notification_service.dart';
@@ -102,6 +103,12 @@ class NovynApp extends StatelessWidget {
           // Connect once auth is ready via post-frame callback
           return socket;
         }),
+        Provider<SettingsCloudSyncService>(
+          create: (ctx) => SettingsCloudSyncService(
+            ctx.read<SettingsService>(),
+          ),
+          dispose: (_, service) => service.dispose(),
+        ),
         ChangeNotifierProvider<AuthService>(create: (ctx) {
           final socket = ctx.read<SocketService>();
           final preferences = ctx.read<SettingsService>();
@@ -124,7 +131,15 @@ class NovynApp extends StatelessWidget {
           );
           socket.onProfileData = auth.applyProfileUpdate;
           auth.addListener(() {
-            final mode = auth.user?.presenceMode;
+            final signedInUser = auth.user;
+            final cloudSettings = ctx.read<SettingsCloudSyncService>();
+            if (signedInUser == null) {
+              cloudSettings.stop();
+            } else {
+              unawaited(cloudSettings.startForAccount(signedInUser.username));
+            }
+
+            final mode = signedInUser?.presenceMode;
             if (mode == null) return;
             final normalized = SettingsService.normalizeSmartPresenceMode(mode);
             if (preferences.activeSmartPresenceMode != normalized) {
