@@ -1449,6 +1449,7 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
     final settings = context.read<SettingsService>();
     final socket = context.read<SocketService>();
     final isFavorite = settings.favoriteChatIds.contains(chat.chatId);
+    final isLocked = _lockedChatUsernames.contains(chat.peer.username.trim().toLowerCase());
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
     final tileBox = tileContext.findRenderObject() as RenderBox?;
@@ -1578,17 +1579,22 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
           'favorite',
           color: isFavorite ? const Color(0xFFFFB300) : null,
         ),
-        option(
-          chat.unreadCount > 0
-              ? Icons.mark_chat_read_outlined
-              : Icons.mark_chat_unread_outlined,
-          chat.unreadCount > 0 ? 'Mark as read' : 'Mark as unread',
-          'read',
-        ),
+        if (chat.unreadCount > 0)
+          option(
+            Icons.mark_chat_read_outlined,
+            'Mark as read',
+            'read',
+          ),
         option(
           chat.isArchived ? Icons.unarchive_outlined : Icons.archive_outlined,
           chat.isArchived ? 'Unarchive chat' : 'Archive chat',
           'archive',
+        ),
+        option(
+          isLocked ? Icons.lock_open_rounded : Icons.lock_outline_rounded,
+          isLocked ? 'Unlock chat' : 'Lock chat',
+          'lock',
+          color: isLocked ? colors.primary : null,
         ),
         const PopupMenuDivider(height: 1),
         if (!chat.isGroup)
@@ -1629,6 +1635,38 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
         } catch (error) {
           _showNovynAlert(error.toString());
         }
+        break;
+      case 'read':
+        try {
+          final result = await socket.markConversationAsRead(
+            chat.peer.username,
+            isGroup: chat.isGroup,
+          );
+          if (result['ok'] != true) {
+            _showNovynAlert(result['message']?.toString() ?? 'Could not mark this chat as read.');
+            break;
+          }
+          final updated = _chats.map((item) => item.chatId == chat.chatId
+              ? item.copyWith(unreadCount: 0)
+              : item).toList();
+          setState(() {
+            _chats = updated;
+            _filtered = _filtered.map((item) => item.chatId == chat.chatId
+                ? item.copyWith(unreadCount: 0)
+                : item).toList();
+          });
+          ChatsScreen.cachedChats = List<ChatPreview>.from(updated);
+          ChatsScreen.totalUnread = updated.fold(0, (total, item) => total + item.unreadCount);
+          _showNovynAlert('Chat marked as read');
+        } catch (error) {
+          _showNovynAlert('Could not mark chat as read: $error');
+        }
+        break;
+      case 'archive':
+        await _toggleArchiveChat(chat);
+        break;
+      case 'lock':
+        await _toggleLockedChat(chat);
         break;
       case 'clear':
         final confirmed = await showDialog<bool>(
@@ -1680,10 +1718,8 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
           await _hideChatLocally(chat);
         }
         break;
-      case 'read':
-      case 'archive':
       case 'block':
-        _showNovynAlert('This chat action is not yet available in the mobile client.');
+        _showNovynAlert('Blocking is managed from Contacts and Security settings.');
         break;
     }
   }
