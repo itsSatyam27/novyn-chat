@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../widgets/novyn_alert.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../../services/socket_service.dart';
@@ -34,18 +35,13 @@ class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
       if (!mounted) return;
       if (result['ok'] == true) {
         _usernameController.clear();
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('@$username has been blocked.'), behavior: SnackBarBehavior.floating));
+        NovynAlert.showEvent(context, NovynAlertEvent.userBlocked('@$username'));
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(result['message']?.toString() ?? 'Could not block this user.'),
-          behavior: SnackBarBehavior.floating));
+        NovynAlert.show(context, result['message']?.toString() ?? 'Could not block this user.', isError: true);
       }
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(error.toString().replaceFirst('Bad state: ', '')),
-        behavior: SnackBarBehavior.floating));
+      NovynAlert.show(context, error.toString().replaceFirst('Bad state: ', ''), isError: true);
     } finally {
       if (mounted) setState(() => _adding = false);
     }
@@ -68,11 +64,11 @@ class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
     try {
       final result = await socket.setBlockedUser(username, blocked: false);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(result['ok'] == true
-            ? '@$username has been unblocked.'
-            : result['message']?.toString() ?? 'Could not unblock this user.'),
-        behavior: SnackBarBehavior.floating));
+      if (result['ok'] == true) {
+        NovynAlert.showEvent(context, NovynAlertEvent.userUnblocked('@$username'));
+      } else {
+        NovynAlert.show(context, result['message']?.toString() ?? 'Could not unblock this user.', isError: true);
+      }
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
