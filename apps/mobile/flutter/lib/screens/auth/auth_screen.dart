@@ -291,10 +291,17 @@ class _LoginTabState extends State<_LoginTab> {
         if (mounted) setState(() => _loading = false);
         return;
       }
-      error = await auth.completeGoogleSignUp(username);
-      selectionError = error;
-      if (error != null && !auth.isGoogleUsernamePending) break;
-      if (error != null) error = null;
+
+      final signupError = await auth.completeGoogleSignUp(username);
+      if (signupError == null) {
+        error = null;
+        break;
+      }
+      if (auth.isGoogleUsernamePending) {
+        selectionError = signupError;
+        continue;
+      }
+      error = signupError;
     }
 
     if (!mounted) return;
