@@ -85,6 +85,13 @@ test('localhost discovery, requests, reconnect state, and private media', { time
   };
   const assertRefreshSessionPersisted = async (cookie) => {
     const jti = refreshTokenId(cookie);
+    const accountState = JSON.parse(await fs.readFile(path.join(directory, 'data', 'chat-state.json'), 'utf8'));
+    assert.ok(
+      accountState.users.some((entry) => entry.key === 'alice' || entry.username === 'alice' ||
+        entry.key === 'bob' || entry.username === 'bob' ||
+        entry.key === 'eve' || entry.username === 'eve'),
+      'account data must be durably persisted before its cookie is returned',
+    );
     const persisted = JSON.parse(await fs.readFile(path.join(directory, 'data', 'auth-state.json'), 'utf8'));
     assert.ok(
       persisted.refreshSessions.some((entry) => entry.tokenId === jti),
