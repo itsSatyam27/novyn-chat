@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../widgets/novyn_alert.dart';
 import '../../l10n/app_localizations.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -354,9 +355,7 @@ class ProfileScreen extends StatelessWidget {
       await saveLocal(value);
     } catch (error) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not save setting: $error')),
-        );
+        NovynAlert.show(context, 'Could not save setting: $error', isError: true);
       }
     }
   }
@@ -371,19 +370,17 @@ class ProfileScreen extends StatelessWidget {
       await settings.setStealthMode(enabled);
       await context.read<SocketService>().updateStealthMode(enabled);
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(enabled
-              ? 'Stealth Mode enabled.'
-              : 'Stealth Mode disabled.'),
-        ),
+      NovynAlert.show(
+        context,
+        enabled ? 'Screenshots are blocked in chats.' : 'Screenshots are allowed in chats again.',
+        title: enabled ? 'Stealth Mode on' : 'Stealth Mode off',
+        icon: Icons.visibility_off_rounded,
+        tone: NovynAlertTone.violet,
       );
     } catch (error) {
       await settings.setStealthMode(previous);
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not update Stealth Mode: $error')),
-      );
+      NovynAlert.show(context, 'Could not update Stealth Mode: $error', isError: true);
     }
   }
 
@@ -403,23 +400,17 @@ class ProfileScreen extends StatelessWidget {
       try {
         await settings.setAppLockEnabled(true);
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('App Lock enabled.')),
-          );
+          NovynAlert.show(context, 'Your app is now protected with a PIN.', title: 'App Lock enabled', icon: Icons.lock_rounded, tone: NovynAlertTone.success);
         }
       } catch (error) {
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Could not enable App Lock: $error')),
-          );
+          NovynAlert.show(context, 'Could not enable App Lock: $error', isError: true);
         }
       }
     } else {
       await settings.setAppLockEnabled(false);
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('App Lock disabled.')),
-        );
+        NovynAlert.show(context, 'App Lock disabled.', title: 'App Lock off', icon: Icons.lock_open_rounded, tone: NovynAlertTone.neutral);
       }
     }
   }
