@@ -1544,6 +1544,8 @@ function createUserRecord(username) {
     lastSeenAt: "",
     presenceMode: "online",
     publicKey: "",
+    e2eeIdentityBackup: "",
+    e2eeIdentityBackupPublicKey: "",
     retentionDays: 0,
     callsEnabled: true,
     callPrivacy: "friends",
@@ -1594,6 +1596,8 @@ function serializeState() {
       lastSeenAt: toDisplayName(user.lastSeenAt),
       presenceMode: normalizePresenceMode(user.presenceMode),
       publicKey: toDisplayName(user.publicKey),
+      e2eeIdentityBackup: toDisplayName(user.e2eeIdentityBackup),
+      e2eeIdentityBackupPublicKey: toDisplayName(user.e2eeIdentityBackupPublicKey),
       retentionDays: 0,
       callsEnabled: user.callsEnabled !== false,
         callPrivacy: user.callPrivacy || "friends", messagePrivacy: user.messagePrivacy || "friends",
@@ -1810,6 +1814,8 @@ async function persistMongoNow() {
               lastSeenAt: toDisplayName(entry.lastSeenAt),
               presenceMode: normalizePresenceMode(entry.presenceMode),
               publicKey: toDisplayName(entry.publicKey),
+              e2eeIdentityBackup: toDisplayName(entry.e2eeIdentityBackup),
+              e2eeIdentityBackupPublicKey: toDisplayName(entry.e2eeIdentityBackupPublicKey),
               callsEnabled: entry.callsEnabled !== false,
               callPrivacy: entry.callPrivacy || "friends",
               messagePrivacy: entry.messagePrivacy || "friends",
@@ -2574,6 +2580,8 @@ function applyLoadedState(parsed) {
     user.lastSeenAt = toDisplayName(entry.lastSeenAt);
     user.presenceMode = normalizePresenceMode(entry.presenceMode);
     user.publicKey = toDisplayName(entry.publicKey);
+    user.e2eeIdentityBackup = toDisplayName(entry.e2eeIdentityBackup);
+    user.e2eeIdentityBackupPublicKey = toDisplayName(entry.e2eeIdentityBackupPublicKey);
     user.retentionDays = 0;
     user.callPrivacy = ["everyone", "friends", "nobody"].includes(entry.callPrivacy) ? entry.callPrivacy : "friends";
     user.messagePrivacy = ["everyone", "friends", "nobody"].includes(entry.messagePrivacy) ? entry.messagePrivacy : "friends";
@@ -2799,6 +2807,8 @@ function toSerializedUserEntry(doc) {
     lastSeenAt: toDisplayName(doc?.lastSeenAt),
     presenceMode: normalizePresenceMode(doc?.presenceMode),
     publicKey: toDisplayName(doc?.publicKey),
+    e2eeIdentityBackup: toDisplayName(doc?.e2eeIdentityBackup),
+    e2eeIdentityBackupPublicKey: toDisplayName(doc?.e2eeIdentityBackupPublicKey),
     callsEnabled: doc?.callsEnabled !== false,
     callPrivacy: doc?.callPrivacy || "friends", messagePrivacy: doc?.messagePrivacy || "friends",
     profilePhotoPrivacy: doc?.profilePhotoPrivacy || "everyone", presencePrivacy: doc?.presencePrivacy || "everyone", discoverPrivacy: doc?.discoverPrivacy || "everyone",
@@ -8419,6 +8429,74 @@ io.on("connection", (socket) => {
     const target = users.get(targetKey);
     const publicKey = target?.publicKey || "";
     respond({ username: target?.username || targetName, publicKey });
+  });
+
+  socket.on("save_e2ee_identity_backup", (payload, callback) => {
+    const respond = typeof callback === "function" ? callback : (data) => socket.emit("e2ee_identity_backup_saved", data);
+    const userKey = socket.data.userKey;
+    const user = userKey ? users.get(userKey) : null;
+    if (!user) {
+      respond({ ok: false, message: "Unauthorized" });
+      return;
+    }
+    const backup = payload?.backup;
+    const publicKey = toDisplayName(payload?.publicKey);
+    if (!backup || typeof backup !== "object" || Array.isArray(backup)) {
+      respond({ ok: false, message: "A valid encrypted identity backup is required." });
+      return;
+    }
+    if (
+      backup.format !== "novyn-e2ee-identity" ||
+      backup.version !== 1 ||
+      normalizeName(backup.username) !== userKey ||
+      backup.publicKey !== publicKey ||
+      !publicKey ||
+      user.publicKey !== publicKey
+    ) {
+      respond({ ok: false, message: "The backup does not match this account's active encryption identity." });
+      return;
+    }
+    let serialized = "";
+    try {
+      serialized = JSON.stringify(backup);
+    } catch (_) {
+      respond({ ok: false, message: "The encrypted identity backup is invalid." });
+      return;
+    }
+    if (serialized.length > 12000) {
+      respond({ ok: false, message: "The encrypted identity backup is too large." });
+      return;
+    }
+    user.e2eeIdentityBackup = serialized;
+    user.e2eeIdentityBackupPublicKey = publicKey;
+    schedulePersist();
+    respond({ ok: true });
+  });
+
+  socket.on("get_e2ee_identity_backup", (_payload, callback) => {
+    const respond = typeof callback === "function" ? callback : (data) => socket.emit("e2ee_identity_backup", data);
+    const userKey = socket.data.userKey;
+    const user = userKey ? users.get(userKey) : null;
+    if (!user) {
+      respond({ ok: false, message: "Unauthorized" });
+      return;
+    }
+    let backup = null;
+    if (user.e2eeIdentityBackup) {
+      try {
+        const parsed = JSON.parse(user.e2eeIdentityBackup);
+        if (parsed && parsed.format === "novyn-e2ee-identity" && normalizeName(parsed.username) === userKey) {
+          backup = parsed;
+        }
+      } catch (_) {
+        backup = null;
+      }
+    }
+    respond({
+      ok: true,
+      backup,
+      publicKey: backup ? toDisplayName(user.e2eeIdentityBackupPublicKey) : "",
+    });
   });
 
   socket.on("schedule_message", (payload) => {
