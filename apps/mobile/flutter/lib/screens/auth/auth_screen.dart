@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:novyn/widgets/novyn_alert.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -767,7 +768,7 @@ class _ForgotPasswordDialogState extends State<_ForgotPasswordDialog> {
     setState(() => _loading = false);
     if (result['ok'] == true) {
       Navigator.of(context).pop();
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context).showNovynAlert(
         SnackBar(
           content: Text(result['message']?.toString() ?? 'Password updated. Please sign in.'),
           behavior: SnackBarBehavior.floating,
