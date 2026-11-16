@@ -151,6 +151,11 @@ class MessageEncryptionService {
     });
   }
 
+  Future<bool> hasLocalIdentity(String username) async {
+    final raw = await _read('novyn_e2ee_identity_${_account(username)}');
+    return raw != null && raw.isNotEmpty;
+  }
+
   /// Creates an account-syncable identity backup. The server only receives
   /// this authenticated ciphertext; the recovery password never leaves device.
   Future<Map<String, dynamic>> exportIdentityRecoveryBackup(
