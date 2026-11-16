@@ -2231,6 +2231,33 @@ class SocketService extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<Map<String, dynamic>> markConversationAsRead(
+    String username, {
+    bool isGroup = false,
+  }) async {
+    await _requireAuthenticatedConnection();
+    final completer = Completer<Map<String, dynamic>>();
+    _socket!.emitWithAck('mark_chat_read', {
+      'to': username,
+      'kind': isGroup ? 'group' : 'friend',
+    }, ack: (dynamic result) {
+      if (completer.isCompleted) return;
+      completer.complete(result is Map
+          ? Map<String, dynamic>.from(result)
+          : <String, dynamic>{
+              'ok': false,
+              'message': 'The server did not confirm the read update.',
+            });
+    });
+    return completer.future.timeout(
+      const Duration(seconds: 12),
+      onTimeout: () => <String, dynamic>{
+        'ok': false,
+        'message': 'Marking this chat as read timed out.',
+      },
+    );
+  }
+
   Future<Map<String, dynamic>> markAllConversationsAsRead() async {
     await _requireAuthenticatedConnection();
     final completer = Completer<Map<String, dynamic>>();
