@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import '../../widgets/novyn_alert.dart';
 import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
@@ -534,13 +535,18 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
         // Restore the failed text only when the user has not started another
         // draft; never overwrite newer text typed during reconnection.
         if (_ctrl.text.trim().isEmpty) _ctrl.text = text;
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(error is StateError
+        NovynAlert.show(
+          context,
+          error is StateError
               ? error.message.toString()
               : error is TimeoutException
                   ? (error.message ?? 'Message delivery was not confirmed. Check your connection.')
-                  : 'Could not send message: $error'),
-        ));
+                  : 'Could not send message: $error',
+          isError: true,
+          title: 'Message not sent',
+          icon: Icons.send_rounded,
+          tone: NovynAlertTone.warning,
+        );
       }
     } finally {
       _sending = false;
@@ -2055,10 +2061,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
       if (mounted) setState(() => _replyingTo = null);
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(error is StateError ? error.message.toString() : 'Could not attach this file.'),
-          behavior: SnackBarBehavior.floating,
-        ));
+        NovynAlert.show(context, error is StateError ? error.message.toString() : 'Could not attach this file.', isError: true, title: 'Attachment failed', icon: Icons.attach_file_rounded);
       }
     } finally {
       if (mounted) setState(() => _uploadingAttachment = false);
@@ -3154,9 +3157,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
             }
             await HybridDbService.setLastSync(widget.peer.username, DateTime.now());
             if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Chat history cleared')),
-              );
+              NovynAlert.showEvent(context, NovynAlertEvent.chatCleared);
             }
           },
           onRemoveFriend: () async {
@@ -3806,7 +3807,7 @@ class _MessageBubble extends StatelessWidget {
                         await Clipboard.setData(ClipboardData(text: message.text.toString()));
                         if (!sheetContext.mounted) return;
                         Navigator.pop(sheetContext);
-                        NovynToast.show(context, 'Message copied');
+                        NovynAlert.showEvent(context, NovynAlertEvent.textCopied);
                       },
                     ),
                   _ActionItem(
@@ -3836,8 +3837,10 @@ class _MessageBubble extends StatelessWidget {
                       Navigator.pop(sheetContext);
                       if (message.pinnedAt?.toString().isNotEmpty ?? false) {
                         socket.unpinMessage(message.id.toString(), peer.uid.isNotEmpty ? peer.uid : peer.username);
+                        NovynAlert.show(context, 'Removed from the top of this chat.', title: 'Message unpinned', icon: Icons.push_pin_outlined, tone: NovynAlertTone.neutral);
                       } else {
                         socket.pinMessage(message.id.toString(), peer.uid.isNotEmpty ? peer.uid : peer.username);
+                        NovynAlert.showEvent(context, NovynAlertEvent.messagePinned);
                       }
                     },
                   ),
