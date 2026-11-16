@@ -333,6 +333,44 @@ class _LoginTabState extends State<_LoginTab> {
     String? validationMessage = errorMessage;
     bool checking = false;
 
+    bool isValidUsername(String value) {
+      final username = value.trim().toLowerCase();
+      return username.length >= 3 &&
+          username.length <= 24 &&
+          !RegExp(r'[^a-z0-9_]').hasMatch(username);
+    }
+
+    Future<void> validateAndSubmit(
+      BuildContext dialogContext,
+      void Function(void Function()) setDialogState,
+    ) async {
+      final username = controller.text.trim().toLowerCase();
+      if (!isValidUsername(username)) {
+        setDialogState(() {
+          checking = false;
+          validationMessage =
+              'Use 3–24 lowercase letters, numbers, or underscores.';
+        });
+        return;
+      }
+
+      setDialogState(() {
+        checking = true;
+        validationMessage = null;
+      });
+      final available = await auth.isUsernameAvailable(username);
+      if (!dialogContext.mounted) return;
+      setDialogState(() => checking = false);
+      if (!available) {
+        setDialogState(() {
+          validationMessage =
+              'That username is taken or could not be checked.';
+        });
+        return;
+      }
+      Navigator.pop(dialogContext, username);
+    }
+
     final selected = await showDialog<String>(
       context: context,
       barrierDismissible: false,
@@ -367,10 +405,39 @@ class _LoginTabState extends State<_LoginTab> {
                     borderRadius: BorderRadius.circular(14),
                   ),
                 ),
-                onChanged: (_) => setDialogState(() => validationMessage = null),
-                onSubmitted: (_) async {
-                  final username = controller.text.trim().toLowerCase();
-                  if (!RegExp(r'^[a-z0-9_]{3,24}
+                onChanged: (_) =>
+                    setDialogState(() => validationMessage = null),
+                onSubmitted: (_) =>
+                    validateAndSubmit(dialogContext, setDialogState),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: checking
+                  ? null
+                  : () => Navigator.pop(dialogContext),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: checking
+                  ? null
+                  : () => validateAndSubmit(dialogContext, setDialogState),
+              child: checking
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('Continue'),
+            ),
+          ],
+        ),
+      ),
+    );
+    controller.dispose();
+    return selected;
+  }
 
   @override
   Widget build(BuildContext context) {
