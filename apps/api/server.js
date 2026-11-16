@@ -828,7 +828,7 @@ app.get(
   createIpRateLimiter({ getStore: () => httpRateLimits }, "public-profile-avatar", 90, 60 * 1000),
   (req, res) => {
     setPublicProfileCors(req, res);
-    res.set("Cache-Control", "private, max-age=60");
+    res.set("Cache-Control", "private, no-store");
     res.set("Referrer-Policy", "no-referrer");
 
     const found = findPublicProfileUser(req.params.username);
