@@ -481,15 +481,30 @@ class _DiscoverPeopleScreenState extends State<DiscoverPeopleScreen> {
                 ],
               ),
             ),
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 28),
-                children: [
-                  _addFriend(service),
-                  const SizedBox(height: 18),
-                  _sentSection(service),
-                ],
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+              child: Container(
+                padding: const EdgeInsets.all(5),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: .55),
+                  borderRadius: BorderRadius.circular(17),
+                ),
+                child: Row(children: [
+                  _tab('Received', 0, service),
+                  _tab('Sent', 1, service),
+                  _tab('Add friend', 2, service),
+                ]),
               ),
+            ),
+            Expanded(
+              child: _activeTab == 0
+                  ? _received(service)
+                  : _activeTab == 1
+                      ? _sent(service)
+                      : ListView(
+                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 28),
+                          children: [_addFriend(service)],
+                        ),
             ),
           ],
         ),
@@ -631,7 +646,7 @@ class _DiscoverPeopleScreenState extends State<DiscoverPeopleScreen> {
               icon: _sendingRequest
                   ? const SizedBox(width: 17, height: 17, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                   : const Icon(Icons.send_rounded, size: 18),
-              label: Text(_sendingRequest ? 'Sending request...' : 'Send friend request'),
+              label: Text(_sendingRequest ? 'Adding friend...' : 'Add friend'),
               style: FilledButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(17)),
