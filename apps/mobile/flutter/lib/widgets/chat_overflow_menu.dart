@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
-/// The Chats overflow sheet follows the Novyn reference layout while keeping
-/// each entry as a real, explicit action supplied by ChatsScreen.
+/// Compact Chats overflow menu with actions supplied by ChatsScreen.
 class ChatOverflowMenu extends StatelessWidget {
   const ChatOverflowMenu({
     super.key,
@@ -53,25 +52,25 @@ class ChatOverflowMenu extends StatelessWidget {
           return Material(
             color: Colors.transparent,
             child: InkWell(
-              borderRadius: BorderRadius.circular(17),
+              borderRadius: BorderRadius.circular(14),
               onTap: () {
                 Navigator.of(dialogContext).pop();
                 action();
               },
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 17, vertical: 9),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
                 child: Row(
                   children: [
                     Container(
-                      width: 46,
-                      height: 46,
+                      width: 40,
+                      height: 40,
                       decoration: BoxDecoration(
                         color: tint.withValues(alpha: isDark ? .17 : .12),
-                        borderRadius: BorderRadius.circular(15),
+                        borderRadius: BorderRadius.circular(13),
                       ),
-                      child: Icon(icon, color: tint, size: 23),
+                      child: Icon(icon, color: tint, size: 21),
                     ),
-                    const SizedBox(width: 14),
+                    const SizedBox(width: 11),
                     Expanded(
                       child: Text(
                         title,
@@ -79,14 +78,14 @@ class ChatOverflowMenu extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           color: isDark ? Colors.white : const Color(0xFF20213E),
-                          fontSize: 15.5,
+                          fontSize: 14.5,
                           fontWeight: FontWeight.w700,
                           letterSpacing: -.15,
                         ),
                       ),
                     ),
                     if (trailing != null) ...[
-                      const SizedBox(width: 10),
+                      const SizedBox(width: 8),
                       trailing,
                     ],
                   ],
@@ -97,13 +96,13 @@ class ChatOverflowMenu extends StatelessWidget {
         }
 
         Widget divider() => Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 17, vertical: 3),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
           child: Divider(height: 1, color: lineColor),
         );
 
         Widget countBadge(int count, Color color) => Container(
-          constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
-          padding: const EdgeInsets.symmetric(horizontal: 9),
+          constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
+          padding: const EdgeInsets.symmetric(horizontal: 7),
           alignment: Alignment.center,
           decoration: BoxDecoration(
             color: color.withValues(alpha: .11),
@@ -111,7 +110,7 @@ class ChatOverflowMenu extends StatelessWidget {
           ),
           child: Text(
             count > 99 ? '99+' : '$count',
-            style: TextStyle(color: color, fontWeight: FontWeight.w900, fontSize: 13),
+            style: TextStyle(color: color, fontWeight: FontWeight.w900, fontSize: 12),
           ),
         );
 
@@ -131,14 +130,14 @@ class ChatOverflowMenu extends StatelessWidget {
                   color: panelColor,
                   elevation: 18,
                   shadowColor: Colors.black.withValues(alpha: .18),
-                  borderRadius: BorderRadius.circular(29),
+                  borderRadius: BorderRadius.circular(24),
                   clipBehavior: Clip.antiAlias,
                   child: SizedBox(
-                    width: (media.size.width - 28).clamp(240.0, 350.0).toDouble(),
+                    width: (media.size.width - 48).clamp(240.0, 300.0).toDouble(),
                     child: ConstrainedBox(
-                      constraints: BoxConstraints(maxHeight: media.size.height * .76),
+                      constraints: BoxConstraints(maxHeight: media.size.height * .68),
                       child: SingleChildScrollView(
-                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        padding: const EdgeInsets.symmetric(vertical: 7),
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
@@ -172,7 +171,7 @@ class ChatOverflowMenu extends StatelessWidget {
                               trailing: const Icon(
                                 Icons.lock_outline_rounded,
                                 color: Color(0xFF77718F),
-                                size: 21,
+                                size: 19,
                               ),
                             ),
                             item(
