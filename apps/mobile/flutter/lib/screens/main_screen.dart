@@ -75,6 +75,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
 
   void _openAboutNovyn(BuildContext hostContext) {
     if (!hostContext.mounted) return;
+    unawaited(AppUpdateService.instance.markUpdateNotificationOpened());
     Navigator.of(hostContext).push<void>(
       NovynPageRoute<void>(child: const AboutNovynScreen()),
     );
