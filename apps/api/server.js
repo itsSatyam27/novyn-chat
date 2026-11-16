@@ -5420,9 +5420,21 @@ app.put("/api/settings/account", requireUser, requireCsrf, async (req, res) => {
   try {
     const updatedAt = Date.now();
     const db = admin.firestore(firebaseAdmin);
-    await db.collection("accountSettings").doc(req.userKey).set({
-      settings,
-      updatedAt,
+    const ref = db.collection("accountSettings").doc(req.userKey);
+    await db.runTransaction(async (transaction) => {
+      const snapshot = await transaction.get(ref);
+      const existing = snapshot.exists ? (snapshot.data() || {}) : {};
+      const previousSettings = existing.settings &&
+        typeof existing.settings === "object" &&
+        !Array.isArray(existing.settings)
+          ? existing.settings
+          : {};
+      // Merge only changed preference keys so simultaneous edits to different
+      // settings on separate devices do not overwrite each other.
+      transaction.set(ref, {
+        settings: { ...previousSettings, ...settings },
+        updatedAt,
+      });
     });
     return res.json({ ok: true, updatedAt });
   } catch (error) {
