@@ -220,4 +220,50 @@ void main() {
     );
     expect((await bob.decrypt(tampered, 'bob', alicePublicKey)).needsMessageKey, isTrue);
   });
+
+  test('encrypted account recovery backup restores the same E2EE identity on a fresh device', () async {
+    final originalStorage = <String, String>{};
+    final restoredStorage = <String, String>{};
+
+    MessageEncryptionService service(Map<String, String> storage) =>
+        MessageEncryptionService(
+          read: (key) async => storage[key],
+          write: (key, value) async { storage[key] = value; },
+        );
+
+    final original = service(originalStorage);
+    final originalPublicKey = await original.initializeIdentity('recover-me');
+    const recoveryPassword = 'a-long-recovery-password-2026';
+    final cloudEnvelope = await original.exportIdentityRecoveryBackup(
+      'recover-me',
+      recoveryPassword,
+    );
+
+    // The new service has no local identity, just like a cleared/reinstalled app.
+    final restored = service(restoredStorage);
+    expect(await restored.hasLocalIdentity('recover-me'), isFalse);
+    final restoredPublicKey = await restored.restoreIdentityRecoveryBackup(
+      cloudEnvelope,
+      'recover-me',
+      recoveryPassword,
+    );
+    expect(restoredPublicKey, originalPublicKey);
+    expect(await restored.hasLocalIdentity('recover-me'), isTrue);
+
+    final restarted = service(restoredStorage);
+    expect(await restarted.initializeIdentity('recover-me'), originalPublicKey);
+
+    await expectLater(
+      restored.restoreIdentityRecoveryBackup(
+        cloudEnvelope,
+        'recover-me',
+        'incorrect-recovery-password',
+      ),
+      throwsFormatException,
+    );
+    await expectLater(
+      restored.exportIdentityRecoveryBackup('recover-me', 'too-short'),
+      throwsFormatException,
+    );
+  });
 }
