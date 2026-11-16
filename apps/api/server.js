@@ -3038,6 +3038,14 @@ function buildUsernameSuggestions(requestedName, count = 5) {
   return suggestions;
 }
 
+function buildGoogleUsernameSuggestion(seed) {
+  let base = normalizeName(seed).replace(/[^a-z0-9_]/g, "").slice(0, 24);
+  if (base.length < 3) base = `${base}user`.slice(0, 24);
+  if (!base) base = "novynuser";
+  if (!isUsernameTaken(base)) return base;
+  return buildUsernameSuggestions(base, 1)[0] || `novyn${Date.now().toString().slice(-6)}`;
+}
+
 function buildFriendSearchSuggestions(query, me, limit = 6) {
   const needle = normalizeName(query).replace(/[^a-z0-9_]/g, "");
   if (!needle) return [];
@@ -5168,8 +5176,29 @@ app.post(
 
     let createdAccount = false;
     if (!user) {
-      const username = pickAvailableUsername(decoded.name || email.split("@")[0] || `user${Date.now()}`);
-      user = getOrCreateUser(username);
+      const requestedUsername = normalizeHandleInput(req.body?.username || "");
+      if (!requestedUsername) {
+        res.json({
+          requiresUsername: true,
+          usernameSuggestion: buildGoogleUsernameSuggestion(
+            googleDisplayName || email.split("@")[0] || "novynuser",
+          ),
+        });
+        return;
+      }
+      if (!/^[a-z0-9_]{3,24}$/.test(requestedUsername)) {
+        res.status(400).json({
+          message: "Choose a username with 3–24 lowercase letters, numbers, or underscores.",
+        });
+        return;
+      }
+      if (isUsernameTaken(requestedUsername)) {
+        res.status(409).json({
+          message: "That username is already taken. Choose another one.",
+        });
+        return;
+      }
+      user = getOrCreateUser(requestedUsername);
       createdAccount = true;
     }
 
