@@ -660,9 +660,12 @@ class _CallsScreenState extends State<CallsScreen> with WidgetsBindingObserver {
                             ),
                             onTap: () {
                               Navigator.pop(sheetContext);
-                              Navigator.push(context, MaterialPageRoute(
-                                builder: (_) => CallScreen(peer: peer, callType: 'voice'),
-                              ));
+                              Navigator.push(
+                                context,
+                                NovynPageRoute<void>(
+                                  child: CallScreen(peer: peer, callType: 'voice'),
+                                ),
+                              );
                             },
                           );
                         },
