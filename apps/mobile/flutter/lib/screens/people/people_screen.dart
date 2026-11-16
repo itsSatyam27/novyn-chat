@@ -133,7 +133,7 @@ class _PeopleScreenState extends State<PeopleScreen> {
 
   Future<void> _shareInvite(String myUid) async {
     final username = myUid.trim();
-    const downloadUrl = 'https://github.com/itsSatyam27/novyn-chat';
+    const downloadUrl = 'https://itssatyam27.github.io/novyn-chat/';
     try {
       await Share.share(
         'Connect with me on Novyn: @$username. Download the app: $downloadUrl',
