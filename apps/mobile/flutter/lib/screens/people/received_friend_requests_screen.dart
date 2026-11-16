@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../widgets/novyn_alert.dart';
 import 'package:provider/provider.dart';
 
 import '../../services/friend_service.dart';
@@ -55,12 +56,13 @@ class _ReceivedFriendRequestsScreenState
 
   void _message(String value) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(
-        content: Text(value),
-        behavior: SnackBarBehavior.floating,
-      ));
+    NovynAlert.show(
+      context,
+      value,
+      isError: value.toLowerCase().contains('could not'),
+      title: value.startsWith('You are now friends') ? 'Request accepted' : null,
+      icon: value.startsWith('You are now friends') ? Icons.how_to_reg_rounded : null,
+    );
   }
 
   @override
