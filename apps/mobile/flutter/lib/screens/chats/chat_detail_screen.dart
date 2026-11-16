@@ -186,7 +186,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
   }
 
   Future<void> _initializeChatAccess() async {
-    if (!widget.chatLockAlreadyVerified && !widget.isGroup) {
+    if (!widget.chatLockAlreadyVerified) {
       final username =
           context.read<AuthService>().user?.username.trim().toLowerCase() ?? '';
       final peerUsername = widget.peer.username.trim().toLowerCase();
