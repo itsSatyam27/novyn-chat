@@ -266,7 +266,10 @@ class NovynAlert {
     }
   }
 
-  static void hide() => _active?.removeImmediately();
+  static void hide() {
+    _active?.removeImmediately();
+    _active = null;
+  }
 
   static void preview(BuildContext context, String styleId) {
     showEvent(
@@ -571,7 +574,7 @@ class _NovynToastState extends State<_NovynToast>
                     if (expansion > .08)
                       Expanded(
                         child: Opacity(
-                          opacity: expansion.clamp(0, 1),
+                          opacity: expansion.clamp(0, 1).toDouble(),
                           child: Padding(
                             padding: const EdgeInsets.only(right: 16),
                             child: Text(
