@@ -53,7 +53,7 @@ export function ProfileDashboard({ onBack, onSelectSection }: {
     if (!user?.username) return;
     let cancelled = false;
     setQr(''); setQrFailed(false);
-    import('qrcode').then(module => module.toDataURL('https://novyn.app/user/' + encodeURIComponent(user.username), {
+    import('qrcode').then(module => module.toDataURL('novyn://user/' + encodeURIComponent(user.username), {
       width: 280, margin: 2, errorCorrectionLevel: 'M', color: { dark: '#18152d', light: '#ffffff' },
     })).then(value => { if (!cancelled) setQr(value); })
       .catch(() => { if (!cancelled) setQrFailed(true); });
