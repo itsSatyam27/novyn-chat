@@ -36,6 +36,12 @@ class ApiService {
   // so we store and forward them manually.
   static String? _sessionCookie;
   static String? _csrfToken;
+  // Widgets with session-protected media can retry when the cookie jar changes.
+  static final ValueNotifier<int> sessionRevision = ValueNotifier<int>(0);
+
+  static void _notifySessionRevision() {
+    sessionRevision.value++;
+  }
   static bool _sessionStorageInitialized = false;
   static Future<bool>? _sessionStorageLoad;
   static bool get sessionStorageInitialized => _sessionStorageInitialized;
@@ -70,9 +76,11 @@ class ApiService {
       // must never replace a previously valid in-memory session with nulls.
       final cookie = await _secureStorage.read(key: _sessionCookieKey);
       final csrf = await _secureStorage.read(key: _csrfTokenKey);
+      final sessionChanged = cookie != _sessionCookie || csrf != _csrfToken;
       _sessionCookie = cookie;
       _csrfToken = csrf;
       _sessionStorageInitialized = true;
+      if (sessionChanged) _notifySessionRevision();
       return true;
     } catch (error) {
       // A transient Android Keystore failure is not a logout. Preserve any
@@ -205,6 +213,8 @@ class ApiService {
   static Future<void> _storeSessionCookie(http.Response res) async {
     final raw = res.headers['set-cookie'];
     if (raw == null || raw.isEmpty) return;
+    final previousSessionCookie = _sessionCookie;
+    final previousCsrfToken = _csrfToken;
 
     // Only persist Novyn cookies. A combined Set-Cookie header also contains
     // Domain/Expires/Max-Age attributes, which must never become request cookies.
@@ -258,12 +268,18 @@ class ApiService {
       await _secureStorage.write(key: _sessionCookieKey, value: _sessionCookie!);
     }
     _sessionStorageInitialized = true;
+    if (previousSessionCookie != _sessionCookie ||
+        previousCsrfToken != _csrfToken) {
+      _notifySessionRevision();
+    }
   }
 
   // ── Clear session (on logout) ─────────────────────────────────────────────
   static Future<void> clearSession() async {
+    final hadSession = _sessionCookie != null || _csrfToken != null;
     _sessionCookie = null;
     _csrfToken = null;
+    if (hadSession) _notifySessionRevision();
     try {
       await _secureStorage.delete(key: _sessionCookieKey);
       await _secureStorage.delete(key: _csrfTokenKey);

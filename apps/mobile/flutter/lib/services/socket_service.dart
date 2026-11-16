@@ -85,6 +85,8 @@ class SocketService extends ChangeNotifier {
   bool _isConnecting = false;
   bool _manualDisconnect = false;
   bool _refreshingSocketSession = false;
+  Timer? _socketAuthRetryTimer;
+  int _socketAuthRetryAttempt = 0;
   bool _appForeground = true;
   String? _myUsername; // novyn-chat username (not Firebase UID)
   final AudioPlayer _audioPlayer = AudioPlayer();
@@ -185,6 +187,9 @@ class SocketService extends ChangeNotifier {
     }
     // Refresh only the transport. Keep the in-memory chat, contacts and
     // active-conversation state intact while the session cookie is rotated.
+    _socketAuthRetryTimer?.cancel();
+    _socketAuthRetryTimer = null;
+    _socketAuthRetryAttempt = 0;
     _reconnectTimer?.cancel();
     _isConnected = false;
     _isConnecting = false;
@@ -195,19 +200,58 @@ class SocketService extends ChangeNotifier {
     _doConnect();
   }
 
+  Duration _nextSocketAuthRetryDelay() {
+    const delays = <Duration>[
+      Duration(seconds: 3),
+      Duration(seconds: 8),
+      Duration(seconds: 20),
+      Duration(seconds: 45),
+    ];
+    final index = _socketAuthRetryAttempt < delays.length
+        ? _socketAuthRetryAttempt
+        : delays.length - 1;
+    if (_socketAuthRetryAttempt < delays.length - 1) {
+      _socketAuthRetryAttempt++;
+    }
+    return delays[index];
+  }
+
+  void _scheduleSocketAuthRecovery({Duration delay = Duration.zero}) {
+    if (_manualDisconnect || _isAuthenticated || _refreshingSocketSession) return;
+    if (_socketAuthRetryTimer?.isActive == true) return;
+    _socketAuthRetryTimer = Timer(delay, () {
+      _socketAuthRetryTimer = null;
+      unawaited(_refreshAfterSocketAuthFailure());
+    });
+  }
+
   Future<void> _refreshAfterSocketAuthFailure() async {
-    if (_refreshingSocketSession) return;
+    if (_refreshingSocketSession || _manualDisconnect || _isAuthenticated) return;
     _refreshingSocketSession = true;
+    var retryAfterTransientFailure = false;
     try {
       final status = await ApiService.refreshSessionStatus()
           .timeout(const Duration(seconds: 12), onTimeout: () => null);
-      if (status == 200 && !_manualDisconnect) {
+      if (_manualDisconnect || _isAuthenticated) return;
+      if (status == 200) {
         await reconnectWithCurrentSession();
+        return;
       }
+
+      // A rejected refresh token is a definitive sign-in requirement. Network,
+      // rate-limit and server failures are not: keep the local account and
+      // retry with bounded backoff rather than leaving a connected dead socket.
+      retryAfterTransientFailure =
+          status == null || status == 429 || (status != null && status >= 500);
     } catch (error) {
       debugPrint('[NovynSocket] Session refresh after auth failure failed: $error');
+      retryAfterTransientFailure = true;
     } finally {
       _refreshingSocketSession = false;
+    }
+
+    if (retryAfterTransientFailure && !_manualDisconnect && !_isAuthenticated) {
+      _scheduleSocketAuthRecovery(delay: _nextSocketAuthRetryDelay());
     }
   }
 
@@ -560,12 +604,10 @@ class SocketService extends ChangeNotifier {
       _isAuthenticated = false;
       SyncService().setOnlineStatus(false);
       notifyListeners();
-      // A stale access cookie can leave a newly connected socket without a
-      // userKey. Refresh the HTTP session once, then rebuild the socket
-      // handshake with the rotated cookie. Never clear the local account here.
-      if (!_refreshingSocketSession && !_manualDisconnect) {
-        unawaited(_refreshAfterSocketAuthFailure());
-      }
+      // Socket.IO may stay transport-connected after resume_session fails.
+      // Recover the HTTP session, then replace that unauthenticated transport.
+      // Never clear the local account for a socket-only authentication failure.
+      _scheduleSocketAuthRecovery();
     });
     _isConnecting = true;
     _socket!.connect();
@@ -593,7 +635,14 @@ class SocketService extends ChangeNotifier {
       return;
     }
 
-    if (changed && _isConnected) {
+    // A transport can be connected while resume_session is still rejected.
+    // Do not treat that as healthy or emit account actions on it.
+    if (_isConnected && !_isAuthenticated) {
+      _scheduleSocketAuthRecovery();
+      return;
+    }
+
+    if (changed && _isConnected && _isAuthenticated) {
       _socket?.emit('app_visibility', {'foreground': true});
     }
     if (_isConnected && _isAuthenticated) {
@@ -1243,6 +1292,9 @@ class SocketService extends ChangeNotifier {
 
   void _markSocketAuthenticated() {
     if (!_isConnected) return;
+    _socketAuthRetryTimer?.cancel();
+    _socketAuthRetryTimer = null;
+    _socketAuthRetryAttempt = 0;
     _isAuthenticated = true;
     SyncService().setOnlineStatus(true);
     _startPendingOutboxRetry();
@@ -2189,6 +2241,9 @@ class SocketService extends ChangeNotifier {
     if (!_isConnected || _socket == null) {
       throw StateError('Connect to Novyn before sending messages or changing contacts.');
     }
+    if (!_isAuthenticated) {
+      throw StateError('Novyn is verifying your session. Please wait and try again.');
+    }
   }
 
   // ── Call signaling ────────────────────────────────────────────────────────
@@ -2773,6 +2828,9 @@ class SocketService extends ChangeNotifier {
   // ── Disconnect ────────────────────────────────────────────────────────────
   void disconnect() {
     _stopPendingOutboxRetry();
+    _socketAuthRetryTimer?.cancel();
+    _socketAuthRetryTimer = null;
+    _socketAuthRetryAttempt = 0;
     _manualDisconnect = true;
     SyncService().setOnlineStatus(false);
     unawaited(SyncService().deactivateAccount());

@@ -48,6 +48,7 @@ class UserAvatar extends StatefulWidget {
 class _UserAvatarState extends State<UserAvatar> {
   Uint8List? _cachedImage;
   static Box? _avatarCache;
+  int _loadGeneration = 0;
 
   // Initialize cache box (call once in app startup)
   static Future<void> initCache() async {
@@ -59,75 +60,157 @@ class _UserAvatarState extends State<UserAvatar> {
   @override
   void initState() {
     super.initState();
+    // Remote avatar URLs are protected by the current Novyn session. Retry
+    // when the app restores or rotates that session, even if the URL is stable.
+    ApiService.sessionRevision.addListener(_handleSessionRevision);
     _loadImage();
   }
 
   @override
   void didUpdateWidget(UserAvatar oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // Reload if photoUrl changed
     if (oldWidget.photoUrl != widget.photoUrl) {
-      _loadImage();
+      // Never leave the previous person's photo visible while a new URL loads.
+      setState(() => _cachedImage = null);
+      _loadImage(forceNetwork: true);
     }
   }
 
-  Future<void> _loadImage() async {
-    if (widget.photoUrl.isEmpty) {
-      setState(() => _cachedImage = null);
+  @override
+  void dispose() {
+    _loadGeneration++;
+    ApiService.sessionRevision.removeListener(_handleSessionRevision);
+    super.dispose();
+  }
+
+  void _handleSessionRevision() {
+    final source = widget.photoUrl;
+    if (source.startsWith('https://') || source.startsWith('http://')) {
+      _loadImage(forceNetwork: true);
+    }
+  }
+
+  Future<void> _loadImage({bool forceNetwork = false}) async {
+    final generation = ++_loadGeneration;
+    final photoUrl = widget.photoUrl;
+    bool isCurrentLoad() =>
+        mounted && generation == _loadGeneration && widget.photoUrl == photoUrl;
+
+    if (photoUrl.isEmpty) {
+      if (mounted) setState(() => _cachedImage = null);
       return;
     }
 
     try {
-      // Ensure cache is initialized
       await _UserAvatarState.initCache();
+      if (!isCurrentLoad()) return;
 
       // Hash the complete URL: using only its first 20 characters made every
       // photo on the same Novyn host collide in the avatar cache.
-      final cacheKey = 'avatar_${widget.photoUrl.hashCode}';
-
-      // 1. Try to load from Hive cache (instant)
+      final cacheKey = 'avatar_' + photoUrl.hashCode.toString();
       final cached = _avatarCache?.get(cacheKey);
+      Uint8List? cachedBytes;
       if (cached != null && cached is List) {
-        final bytes = Uint8List.fromList(cached.cast<int>());
-        if (mounted) {
-          setState(() => _cachedImage = bytes);
+        cachedBytes = Uint8List.fromList(cached.cast<int>());
+        if (isCurrentLoad()) {
+          setState(() => _cachedImage = cachedBytes);
         }
-        return;
+        if (!forceNetwork) return;
       }
 
-      // 2. Protected Novyn media URLs require the signed-in session cookie.
-      // Fetch them with authenticated headers rather than treating them as base64.
-      if (widget.photoUrl.startsWith('https://') ||
-          widget.photoUrl.startsWith('http://')) {
-        final response = await http.get(
-          Uri.parse(widget.photoUrl),
-          headers: ApiService.imageHeaders,
-        ).timeout(const Duration(seconds: 20));
-        if (response.statusCode == 200 && response.bodyBytes.isNotEmpty) {
-          final bytes = response.bodyBytes;
+      // Protected Novyn media URLs require the viewer's current session cookie.
+      // Restore the cookie jar before the first request; a widget can otherwise
+      // make an anonymous request during app startup and never retry that URL.
+      if (photoUrl.startsWith('https://') ||
+          photoUrl.startsWith('http://')) {
+        await ApiService.initializeSessionStorage();
+        if (!isCurrentLoad()) return;
+
+        final imageUri = Uri.tryParse(photoUrl);
+        final backendUri = Uri.tryParse(ApiService.baseUrl);
+        final isNovynMedia = imageUri != null &&
+            backendUri != null &&
+            imageUri.host.toLowerCase() == backendUri.host.toLowerCase();
+
+        final requestHeaders = isNovynMedia
+            ? ApiService.imageHeaders
+            : const <String, String>{};
+        http.Response? response;
+        for (var attempt = 0; attempt < 3; attempt++) {
+          if (!isCurrentLoad()) return;
+          try {
+            response = await http.get(
+              Uri.parse(photoUrl),
+              headers: requestHeaders,
+            ).timeout(const Duration(seconds: 20));
+          } catch (_) {
+            if (attempt == 2) break;
+            await Future<void>.delayed(
+              Duration(milliseconds: 500 * (attempt + 1)),
+            );
+            continue;
+          }
+
+          if (!isCurrentLoad()) return;
+
+          // A rotated/expired access cookie is recoverable. Refresh it once,
+          // then retry with the newly persisted cookie pair. A 403 is a real
+          // media-permission denial and must not be bypassed.
+          if (response.statusCode == 401 && isNovynMedia && attempt == 0) {
+            final refreshed = await ApiService.refreshSessionStatus()
+                .timeout(const Duration(seconds: 12), onTimeout: () => null);
+            if (!isCurrentLoad()) return;
+            if (refreshed == 200) {
+              await ApiService.initializeSessionStorage();
+              continue;
+            }
+          }
+
+          if (response.statusCode == 200 && response.bodyBytes.isNotEmpty) {
+            break;
+          }
+
+          if (response.statusCode >= 500 && attempt < 2) {
+            await Future<void>.delayed(
+              Duration(milliseconds: 500 * (attempt + 1)),
+            );
+            continue;
+          }
+          break;
+        }
+
+        if (!isCurrentLoad()) return;
+        final successfulResponse = response;
+        if (successfulResponse != null &&
+            successfulResponse.statusCode == 200 &&
+            successfulResponse.bodyBytes.isNotEmpty) {
+          final bytes = successfulResponse.bodyBytes;
           await _avatarCache?.put(cacheKey, bytes.toList());
-          if (mounted) setState(() => _cachedImage = bytes);
+          if (isCurrentLoad()) setState(() => _cachedImage = bytes);
           return;
         }
-        if (mounted) setState(() => _cachedImage = null);
+
+        // Keep an existing cached image on transient transport/server errors,
+        // but respect an authenticated 403 when the owner has hidden the photo.
+        if (response?.statusCode == 403 ||
+            (response?.statusCode == 401 && cachedBytes == null)) {
+          if (isCurrentLoad()) setState(() => _cachedImage = null);
+        } else if (cachedBytes == null && isCurrentLoad()) {
+          setState(() => _cachedImage = null);
+        }
         return;
       }
 
-      // 3. Decode legacy base64 avatars and cache them.
-      final decoded = _safeBase64Decode(widget.photoUrl);
+      // Decode legacy base64 avatars and cache them.
+      final decoded = _safeBase64Decode(photoUrl);
       if (decoded.isNotEmpty) {
-        // Save to cache for next time (async, don't await)
-        _avatarCache?.put(cacheKey, decoded.toList());
-        if (mounted) {
-          setState(() => _cachedImage = decoded);
-        }
-      } else {
-        if (mounted) {
-          setState(() => _cachedImage = null);
-        }
+        await _avatarCache?.put(cacheKey, decoded.toList());
+        if (isCurrentLoad()) setState(() => _cachedImage = decoded);
+      } else if (isCurrentLoad()) {
+        setState(() => _cachedImage = null);
       }
-    } catch (e) {
-      if (mounted) {
+    } catch (_) {
+      if (isCurrentLoad() && _cachedImage == null) {
         setState(() => _cachedImage = null);
       }
     }

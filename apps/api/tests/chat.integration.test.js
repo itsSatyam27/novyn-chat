@@ -122,6 +122,76 @@ test('localhost discovery, requests, reconnect state, and private media', { time
   bob.socket.emit('accept_friend', 'alice');
   assert.equal((await accepted).by, 'bob');
 
+  // Profile photos are private media too: Everyone must be viewable by a
+  // non-friend, while Friends must allow Bob but deny Eve.
+  const avatarForm = new FormData();
+  avatarForm.append('file', new Blob(['alice avatar bytes'], { type: 'image/png' }), 'avatar.png');
+  const avatarUpload = await fetch(`${base}/upload-file`, {
+    method: 'POST', headers: { Cookie: alice.cookie }, body: avatarForm,
+  });
+  assert.equal(avatarUpload.status, 200, await avatarUpload.clone().text());
+  const avatarMedia = await avatarUpload.json();
+
+  const bobAvatarUpdated = event(
+    bob.socket,
+    'user_profile_updated',
+    (profile) => profile.username === 'alice' && profile.avatarId === avatarMedia.url,
+  );
+  const saveAvatar = await fetch(`${base}/api/profile/update`, {
+    method: 'POST',
+    headers: { Cookie: alice.cookie, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ displayName: 'alice', bio: '', avatarId: avatarMedia.url }),
+  });
+  assert.equal(saveAvatar.status, 200, await saveAvatar.clone().text());
+  assert.equal((await bobAvatarUpdated).avatarId, avatarMedia.url);
+  const bobAvatar = await fetch(base + avatarMedia.url, { headers: { Cookie: bob.cookie } });
+  assert.equal(bobAvatar.status, 200, await bobAvatar.clone().text());
+  assert.equal(await bobAvatar.text(), 'alice avatar bytes');
+
+  const ownFriendsPrivacy = event(
+    alice.socket,
+    'profile_updated',
+    (profile) => profile.profilePhotoPrivacy === 'friends',
+  );
+  const bobStillSeesAvatar = event(
+    bob.socket,
+    'user_profile_updated',
+    (profile) => profile.username === 'alice' && profile.avatarId === avatarMedia.url,
+  );
+  const friendsPrivacy = await alice.socket.timeout(3000).emitWithAck(
+    'update_profile',
+    { profilePhotoPrivacy: 'friends' },
+  );
+  assert.equal(friendsPrivacy.ok, true);
+  assert.equal((await ownFriendsPrivacy).profilePhotoPrivacy, 'friends');
+  assert.equal((await bobStillSeesAvatar).avatarId, avatarMedia.url);
+  assert.equal(
+    (await fetch(base + avatarMedia.url, { headers: { Cookie: bob.cookie } })).status,
+    200,
+  );
+  assert.equal(
+    (await fetch(base + avatarMedia.url, { headers: { Cookie: eve.cookie } })).status,
+    403,
+    'a non-friend must not read a Friends-only profile photo',
+  );
+
+  const ownEveryonePrivacy = event(
+    alice.socket,
+    'profile_updated',
+    (profile) => profile.profilePhotoPrivacy === 'everyone',
+  );
+  const everyonePrivacy = await alice.socket.timeout(3000).emitWithAck(
+    'update_profile',
+    { profilePhotoPrivacy: 'everyone' },
+  );
+  assert.equal(everyonePrivacy.ok, true);
+  assert.equal((await ownEveryonePrivacy).profilePhotoPrivacy, 'everyone');
+  assert.equal(
+    (await fetch(base + avatarMedia.url, { headers: { Cookie: eve.cookie } })).status,
+    200,
+    'Everyone must allow a non-friend to read the profile photo',
+  );
+
   // Visibility is independent of the connection used to receive messages.
   for (const mode of ['busy', 'invisible', 'away', 'online']) {
     const updated = event(bob.socket, 'profile_updated', value => value.presenceMode === mode);
@@ -226,6 +296,58 @@ test('localhost discovery, requests, reconnect state, and private media', { time
   assert.match((await rejected).message, /access/);
   assert.equal((await fetch(`${base}/api/push/public-key`)).status, 503);
   assert.ok(!logs.includes('VAPID_PRIVATE_KEY='));
+
+  // A stale refresh cookie may let the WebSocket transport connect, but the
+  // socket must remain unauthenticated and reject message actions until the
+  // client reconnects using the rotated cookie pair.
+  const staleEveCookie = eve.cookie;
+  const csrfCookie = staleEveCookie.split('; ')
+    .find((part) => part.startsWith('novyn_csrf='))
+    ?.slice('novyn_csrf='.length);
+  assert.ok(csrfCookie, 'signup must issue the CSRF cookie');
+  const refreshResponse = await fetch(`${base}/api/auth/refresh`, {
+    method: 'POST',
+    headers: {
+      Cookie: staleEveCookie,
+      'x-novyn-csrf': decodeURIComponent(csrfCookie),
+    },
+  });
+  assert.equal(refreshResponse.status, 200, await refreshResponse.clone().text());
+  const refreshedEveCookie = refreshResponse.headers.getSetCookie()
+    .map((item) => item.split(';')[0]).join('; ');
+  assert.ok(refreshedEveCookie.includes('novyn_at='));
+  assert.ok(refreshedEveCookie.includes('novyn_rt='));
+
+  const staleSocket = io(base, {
+    autoConnect: false,
+    transports: ['websocket'],
+    extraHeaders: { Cookie: staleEveCookie, Origin: origin },
+    reconnection: false,
+  });
+  sockets.push(staleSocket);
+  const staleConnected = event(staleSocket, 'connect');
+  staleSocket.connect();
+  await staleConnected;
+  const staleAuthFailed = event(staleSocket, 'auth_failed');
+  staleSocket.emit('resume_session');
+  assert.match((await staleAuthFailed).message, /Session expired/);
+  const rejectedStaleMessage = await staleSocket.timeout(3000).emitWithAck(
+    'private_message',
+    { to: 'eve', text: 'must not send from an unauthenticated socket' },
+  );
+  assert.equal(rejectedStaleMessage.ok, false);
+  assert.match(rejectedStaleMessage.message, /sign in again/i);
+  staleSocket.disconnect();
+
+  const refreshedEve = await connect(refreshedEveCookie);
+  eve.cookie = refreshedEveCookie;
+  eve.socket = refreshedEve.socket;
+  const settingsAfterRefresh = await eve.socket.timeout(3000).emitWithAck(
+    'get_account_settings',
+    {},
+  );
+  assert.equal(settingsAfterRefresh.ok, true);
+
   assert.equal((await fetch(`${base}/api/auth/logout`, { method: 'POST', headers: { Cookie: eve.cookie } })).status, 200);
   assert.equal((await fetch(`${base}/api/auth/session`, { headers: { Cookie: eve.cookie } })).status, 401);
   assert.equal((await fetch(`${base}/api/import-wallpaper-url`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: 'https://example.test/photo.png' }) })).status, 401);
