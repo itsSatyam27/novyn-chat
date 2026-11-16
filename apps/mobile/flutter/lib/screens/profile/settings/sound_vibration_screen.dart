@@ -45,7 +45,7 @@ class _SoundVibrationScreenState extends State<SoundVibrationScreen> {
       if (mounted) setState(() => _playing = 'message');
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showNovynAlert(
+        context.showNovynAlert(
           const SnackBar(content: Text('Sound preview is unavailable right now.')),
         );
       }
@@ -69,7 +69,7 @@ class _SoundVibrationScreenState extends State<SoundVibrationScreen> {
       if (mounted) setState(() => _playing = 'call');
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showNovynAlert(
+        context.showNovynAlert(
           const SnackBar(content: Text('Call sound preview is unavailable right now.')),
         );
       }
