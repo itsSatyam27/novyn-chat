@@ -5,8 +5,13 @@ import '../../services/auth_service.dart';
 import '../../services/friend_service.dart';
 
 class PublicProfileScreen extends StatefulWidget {
-  const PublicProfileScreen({super.key, required this.username});
+  const PublicProfileScreen({
+    super.key,
+    required this.username,
+    this.initialProfile,
+  });
   final String username;
+  final Map<String, dynamic>? initialProfile;
 
   @override
   State<PublicProfileScreen> createState() => _PublicProfileScreenState();
@@ -21,7 +26,9 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
   @override
   void initState() {
     super.initState();
-    _profileFuture = ApiService.getPublicProfile(widget.username);
+    _profileFuture = widget.initialProfile != null
+        ? Future.value(widget.initialProfile)
+        : ApiService.getPublicProfile(widget.username);
   }
 
   Future<void> _sendRequest() async {
