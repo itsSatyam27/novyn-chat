@@ -85,9 +85,7 @@ class _TwoFactorScreenState extends State<TwoFactorScreen> {
     if (key == null || key.isEmpty) return;
     await Clipboard.setData(ClipboardData(text: key));
     if (!mounted) return;
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showNovynAlert(const SnackBar(
+    context.showNovynAlert(const SnackBar(
         content: Text('Setup key copied. Paste it into your authenticator app.'),
         behavior: SnackBarBehavior.floating,
       ));
