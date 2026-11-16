@@ -5842,93 +5842,202 @@ app.post(
 );
 
 // ── Feedback Endpoint ─────────────────────────────────────────────────────
-// Accepts feedback from any visitor (auth optional).
-// Persists to MongoDB feedback collection + emails admin via SMTP.
+// Persist every accepted submission and report email delivery separately.
+// Email is sent to the configured Novyn inbox and, when supplied, a receipt is
+// sent to the submitter. The optional reply address is never treated as a
+// delivery destination unless the user explicitly supplied it.
 {
   const FEEDBACK_TO_EMAIL = toDisplayName(process.env.FEEDBACK_TO_EMAIL || "");
+  const allowedTypes = new Set(["general", "bug", "feature", "praise"]);
+  const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;",
+  })[character]);
 
-  app.post("/api/feedback", createIpRateLimiter({ getStore: () => httpRateLimits }, "feedback", 5, 60 * 60 * 1000), async (req, res) => {
-    const type    = toDisplayName(req.body?.type    || "general").slice(0, 50);
-    const message = toDisplayName(req.body?.message || "").slice(0, 2000);
-    const email   = toDisplayName(req.body?.email   || "").slice(0, 200);
-    const rating  = Number.isFinite(Number(req.body?.rating))
-      ? Math.min(5, Math.max(1, Math.floor(Number(req.body.rating))))
-      : null;
+  app.post(
+    "/api/feedback",
+    createIpRateLimiter({ getStore: () => httpRateLimits }, "feedback", 5, 60 * 60 * 1000),
+    async (req, res) => {
+      const requestedType = toDisplayName(req.body?.type || "general").toLowerCase();
+      const type = allowedTypes.has(requestedType) ? requestedType : "general";
+      const message = toDisplayName(req.body?.message || "").slice(0, 2000);
+      const suppliedEmail = toDisplayName(req.body?.email || "").slice(0, 200).toLowerCase();
+      const ratingValue = Number(req.body?.rating);
+      const rating = Number.isFinite(ratingValue) && ratingValue > 0
+        ? Math.min(5, Math.max(1, Math.floor(ratingValue)))
+        : null;
 
-    if (!message || message.length < 5) {
-      res.status(400).json({ error: "Message is too short." });
-      return;
-    }
-
-    // Resolve sender — logged-in user or anonymous
-    const cookieAuth = resolveUserFromAuthCookies(
-      getAuthCookiesFromHeader(req.headers.cookie),
-      { allowRefreshFallback: true }
-    );
-    const userKey  = cookieAuth.userKey || null;
-    const user     = userKey ? users.get(userKey) : null;
-    const fromUser = user ? (user.username || userKey) : "anonymous";
-
-    const entry = {
-      id:        `fb_${Date.now().toString(36)}_${crypto.randomBytes(3).toString("hex")}`,
-      type,
-      message,
-      rating,
-      email:     email || user?.email || "",
-      fromUser,
-      userKey,
-      ip:        req.ip || "",
-      createdAt: nowIso(),
-    };
-
-    // 1. Persist to MongoDB or flat-file fallback
-    try {
-      const feedbackCollection = mongoStorage?.getCollection("feedback");
-      if (hasMongoStorage() && feedbackCollection) {
-        await feedbackCollection.insertOne(entry);
-      } else {
-        const feedbackFile = path.join(DATA_DIR, "feedback.log");
-        await fsp.mkdir(DATA_DIR, { recursive: true });
-        await fsp.appendFile(feedbackFile, `${JSON.stringify(entry)}\n`, "utf8");
+      if (!message || message.length < 5) {
+        return res.status(400).json({ ok: false, error: "Please write at least 5 characters." });
       }
-    } catch (err) {
-      console.warn("Failed to save feedback:", err?.message || err);
-    }
+      if (suppliedEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(suppliedEmail)) {
+        return res.status(400).json({ ok: false, error: "Enter a valid email address or leave it blank." });
+      }
 
-    // 2. Email notification to admin
-    if (passwordResetMailer && FEEDBACK_TO_EMAIL) {
-      const stars    = rating ? `${"★".repeat(rating)}${"☆".repeat(5 - rating)} (${rating}/5)` : "Not rated";
-      const replyTo  = entry.email || null;
-      const typeLabel = type.charAt(0).toUpperCase() + type.slice(1);
+      const cookieAuth = resolveUserFromAuthCookies(
+        getAuthCookiesFromHeader(req.headers.cookie),
+        { allowRefreshFallback: true }
+      );
+      const userKey = cookieAuth.userKey || null;
+      const user = userKey ? users.get(userKey) : null;
+      const fromUser = user ? (user.username || userKey) : "anonymous";
+      const replyEmail = suppliedEmail || normalizeEmail(user?.email || "");
+
+      const entry = {
+        id: `fb_${Date.now().toString(36)}_${crypto.randomBytes(3).toString("hex")}`,
+        type,
+        message,
+        rating,
+        email: replyEmail,
+        fromUser,
+        userKey,
+        ip: req.ip || "",
+        createdAt: nowIso(),
+      };
+
+      // Do not report success unless the submission has actually been stored.
       try {
-        await passwordResetMailer.sendMail({
-          from:    process.env.SMTP_FROM,
-          to:      FEEDBACK_TO_EMAIL,
-          replyTo: replyTo || undefined,
-          subject: `[Novyn Feedback] ${typeLabel} from ${fromUser}`,
-          html: `
-            <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px;background:#0d1117;color:#e2e8f0;border-radius:12px;">
-              <h2 style="color:#10b981;margin:0 0 20px;font-size:1.3rem;">📬 New Feedback — Novyn</h2>
-              <table style="width:100%;border-collapse:collapse;font-size:14px;margin-bottom:20px;">
-                <tr><td style="padding:6px 0;color:#94a3b8;width:110px;">Type</td><td style="padding:6px 0;font-weight:700;color:#38bdf8;text-transform:capitalize;">${typeLabel}</td></tr>
-                <tr><td style="padding:6px 0;color:#94a3b8;">From</td><td style="padding:6px 0;">${fromUser}${entry.email ? ` &lt;${entry.email}&gt;` : ""}</td></tr>
-                <tr><td style="padding:6px 0;color:#94a3b8;">Rating</td><td style="padding:6px 0;">${stars}</td></tr>
-                <tr><td style="padding:6px 0;color:#94a3b8;">Time</td><td style="padding:6px 0;">${entry.createdAt}</td></tr>
-              </table>
-              <div style="padding:16px 20px;background:#1e293b;border-radius:10px;border-left:4px solid #10b981;">
-                <p style="margin:0;line-height:1.7;white-space:pre-wrap;font-size:14px;">${message.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")}</p>
-              </div>
-              <p style="margin-top:20px;font-size:11px;color:#475569;">ID: ${entry.id}</p>
-            </div>
-          `,
-        });
+        const feedbackCollection = mongoStorage?.getCollection("feedback");
+        if (hasMongoStorage() && feedbackCollection) {
+          await feedbackCollection.insertOne(entry);
+        } else {
+          const feedbackFile = path.join(DATA_DIR, "feedback.log");
+          await fsp.mkdir(DATA_DIR, { recursive: true });
+          await fsp.appendFile(feedbackFile, `${JSON.stringify(entry)}\n`, "utf8");
+        }
       } catch (err) {
-        console.warn("Failed to email feedback:", err?.message || err);
+        console.warn("[NovynFeedback] Failed to persist submission:", err?.message || err);
+        return res.status(503).json({
+          ok: false,
+          error: "Your feedback could not be saved right now. Please try again.",
+        });
       }
-    }
 
-    res.json({ ok: true, id: entry.id });
-  });
+      const mailConfigured = Boolean(passwordResetMailer);
+      const adminRecipientConfigured = Boolean(FEEDBACK_TO_EMAIL);
+      const typeLabels = {
+        general: "General",
+        bug: "Bug report",
+        feature: "Feature request",
+        praise: "Praise",
+      };
+      const typeLabel = typeLabels[type];
+      const stars = rating
+        ? `${"★".repeat(rating)}${"☆".repeat(5 - rating)} (${rating}/5)`
+        : "Not rated";
+      const safeMessage = escapeHtml(message).replace(/\r?\n/g, "<br>");
+      const safeUser = escapeHtml(fromUser);
+      const safeEmail = escapeHtml(replyEmail);
+      const safeTime = escapeHtml(entry.createdAt);
+      const safeId = escapeHtml(entry.id);
+
+      let adminEmailSent = false;
+      let receiptEmailSent = false;
+
+      if (passwordResetMailer && FEEDBACK_TO_EMAIL) {
+        try {
+          await passwordResetMailer.sendMail({
+            from: process.env.SMTP_FROM,
+            to: FEEDBACK_TO_EMAIL,
+            ...(replyEmail ? { replyTo: replyEmail } : {}),
+            subject: `[Novyn Feedback] ${typeLabel} from ${fromUser}`,
+            text: [
+              "New feedback for Novyn",
+              `Type: ${typeLabel}`,
+              `From: ${fromUser}`,
+              `Reply email: ${replyEmail || "Not provided"}`,
+              `Rating: ${stars}`,
+              `Submitted: ${entry.createdAt}`,
+              "",
+              message,
+              "",
+              `Feedback ID: ${entry.id}`,
+            ].join("\n"),
+            html: `
+              <div style="font-family:Arial,sans-serif;max-width:620px;margin:0 auto;padding:28px;background:#f5f3ff;color:#171936;border-radius:20px;">
+                <div style="padding:22px;background:#ffffff;border-radius:16px;">
+                  <h2 style="margin:0 0 18px;color:#6048e8;">New feedback - Novyn</h2>
+                  <table style="width:100%;border-collapse:collapse;font-size:14px;">
+                    <tr><td style="padding:8px 0;color:#68708a;">Type</td><td style="padding:8px 0;font-weight:700;">${escapeHtml(typeLabel)}</td></tr>
+                    <tr><td style="padding:8px 0;color:#68708a;">From</td><td style="padding:8px 0;">${safeUser}</td></tr>
+                    <tr><td style="padding:8px 0;color:#68708a;">Reply email</td><td style="padding:8px 0;">${safeEmail || "Not provided"}</td></tr>
+                    <tr><td style="padding:8px 0;color:#68708a;">Rating</td><td style="padding:8px 0;">${escapeHtml(stars)}</td></tr>
+                    <tr><td style="padding:8px 0;color:#68708a;">Submitted</td><td style="padding:8px 0;">${safeTime}</td></tr>
+                  </table>
+                  <div style="margin-top:18px;padding:18px;background:#f4f1ff;border-radius:12px;line-height:1.7;">${safeMessage}</div>
+                  <p style="margin:18px 0 0;color:#8790a8;font-size:11px;">Feedback ID: ${safeId}</p>
+                </div>
+              </div>
+            `,
+          });
+          adminEmailSent = true;
+        } catch (err) {
+          console.warn("[NovynFeedback] Admin email delivery failed:", err?.message || err);
+        }
+      }
+
+      if (passwordResetMailer && replyEmail) {
+        try {
+          await passwordResetMailer.sendMail({
+            from: process.env.SMTP_FROM,
+            to: replyEmail,
+            ...(SMTP_REPLY_TO ? { replyTo: SMTP_REPLY_TO } : {}),
+            subject: "We received your feedback - Novyn",
+            text: [
+              `Hi ${fromUser === "anonymous" ? "there" : fromUser},`,
+              "",
+              "Thanks for taking the time to share feedback with Novyn.",
+              "Your submission has been received by our team. If we need more details, we may reply to this email.",
+              "",
+              `Category: ${typeLabel}`,
+              `Rating: ${stars}`,
+              "",
+              "Your message:",
+              message,
+              "",
+              `Reference: ${entry.id}`,
+              "",
+              "The Novyn team",
+            ].join("\n"),
+            html: `
+              <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:28px;background:#f5f3ff;color:#171936;border-radius:20px;">
+                <div style="padding:26px;background:#ffffff;border-radius:16px;">
+                  <div style="width:46px;height:46px;border-radius:14px;background:#eee9ff;color:#6048e8;display:flex;align-items:center;justify-content:center;font-size:24px;">✓</div>
+                  <h2 style="margin:18px 0 8px;color:#171936;">Thanks for helping us improve Novyn.</h2>
+                  <p style="color:#66708a;line-height:1.6;">We have received your feedback and it has been recorded for the Novyn team.</p>
+                  <div style="margin:18px 0;padding:16px;background:#f5f2ff;border-radius:12px;">
+                    <p style="margin:0 0 8px;color:#6048e8;font-weight:700;">${escapeHtml(typeLabel)} · ${escapeHtml(stars)}</p>
+                    <div style="line-height:1.7;white-space:normal;">${safeMessage}</div>
+                  </div>
+                  <p style="color:#8991a6;font-size:12px;">Reference: ${safeId}</p>
+                  <p style="color:#66708a;font-size:13px;">- The Novyn team</p>
+                </div>
+              </div>
+            `,
+          });
+          receiptEmailSent = true;
+        } catch (err) {
+          console.warn("[NovynFeedback] Submitter receipt email failed:", err?.message || err);
+        }
+      }
+
+      return res.json({
+        ok: true,
+        id: entry.id,
+        saved: true,
+        email: {
+          configured: mailConfigured,
+          adminRecipientConfigured,
+          adminSent: adminEmailSent,
+          receiptSent: receiptEmailSent,
+          receiptAddress: replyEmail || null,
+        },
+      });
+    }
+  );
 }
 
 const distDir = path.resolve(__dirname, "../web/dist");
@@ -7263,6 +7372,62 @@ io.on("connection", (socket) => {
       if (group?.members?.has(userKey)) addConversationFiles(getGroupConversationKey(group.id), group.id, group.name || group.id, "group");
     }
     respond({ ok: true, files });
+  });
+
+  socket.on("mark_all_read", (payload, ack) => {
+    const userKey = socket.data.userKey;
+    const respond = typeof ack === "function" ? ack : () => {};
+    if (!userKey || !users.has(userKey)) {
+      respond({ ok: false, message: "Sign in to mark chats as read." });
+      return;
+    }
+    if (!allowSocketAction(socket, "mark_all_read", 8, 60 * 1000)) {
+      respond({ ok: false, message: "Please wait before marking all chats as read again." });
+      return;
+    }
+
+    const account = users.get(userKey);
+    let conversationsProcessed = 0;
+    const friendKeys = account?.friends
+      ? Array.from(account.friends)
+      : [];
+    for (const friendKey of friendKeys) {
+      const normalizedFriend = normalizeName(friendKey);
+      if (!normalizedFriend || !users.has(normalizedFriend)) continue;
+      markConversationAsSeen(userKey, normalizedFriend, "friend");
+      conversationsProcessed += 1;
+    }
+    for (const group of groups.values()) {
+      if (!group || !isGroupMember(group, userKey)) continue;
+      markConversationAsSeen(userKey, group.id, "group");
+      conversationsProcessed += 1;
+    }
+
+    respond({ ok: true, conversationsProcessed });
+  });
+
+  socket.on("mark_chat_read", (payload, ack) => {
+    const userKey = socket.data.userKey;
+    const respond = typeof ack === "function" ? ack : () => {};
+    if (!userKey || !users.has(userKey)) {
+      respond({ ok: false, message: "Sign in to mark this chat as read." });
+      return;
+    }
+    if (!allowSocketAction(socket, "mark_chat_read", 30, 60 * 1000)) {
+      respond({ ok: false, message: "Please wait before updating read status again." });
+      return;
+    }
+
+    const targetName = payload?.to || payload?.username || payload?.groupId || "";
+    const targetType = payload?.kind || payload?.type || payload?.toType || "friend";
+    const resolved = resolveChatTargetForUser(userKey, targetName, targetType, { inferGroup: true });
+    if (!resolved.ok) {
+      respond({ ok: false, message: resolved.message || "This conversation is unavailable." });
+      return;
+    }
+
+    markConversationAsSeen(userKey, resolved.targetKey, resolved.type);
+    respond({ ok: true });
   });
 
   socket.on("get_history", (rawTarget) => {

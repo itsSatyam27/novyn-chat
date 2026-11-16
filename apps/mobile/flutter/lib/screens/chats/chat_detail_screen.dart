@@ -21,6 +21,7 @@ import '../../widgets/voice_message_player.dart';
 import '../../models/user_model.dart';
 import '../../models/chat_models.dart';
 import '../../services/auth_service.dart';
+import '../security/app_lock_screen.dart';
 import '../../services/socket_service.dart';
 import '../../services/api_service.dart';
 import '../../services/hybrid_db_service.dart';
@@ -100,11 +101,13 @@ class _ChatContentSnapshot {
 class ChatDetailScreen extends StatefulWidget {
   final UserModel peer;
   final bool isGroup;
+  final bool chatLockAlreadyVerified;
 
   const ChatDetailScreen({
     super.key,
     required this.peer,
     this.isGroup = false,
+    this.chatLockAlreadyVerified = false,
   });
 
   @override
@@ -165,7 +168,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
     _peerLastSeen = widget.peer.lastSeen;
     _schedulePeerLastSeenReveal();
     _loadQuickEmojis();
-    _init();
+    _initializeChatAccess();
     _scroll.addListener(_onScroll);
 
     // Load draft message
@@ -180,6 +183,60 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _handlePeerPresenceChanged();
     });
+  }
+
+  Future<void> _initializeChatAccess() async {
+    if (!widget.chatLockAlreadyVerified) {
+      final username =
+          context.read<AuthService>().user?.username.trim().toLowerCase() ?? '';
+      final peerUsername = widget.peer.username.trim().toLowerCase();
+      if (username.isNotEmpty && peerUsername.isNotEmpty) {
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          final lockedChats =
+              prefs.getStringList('novyn_locked_chats_$username') ?? const <String>[];
+          if (lockedChats.map((value) => value.trim().toLowerCase()).contains(peerUsername)) {
+            final settings = context.read<SettingsService>();
+            if (!settings.appLockEnabled ||
+                settings.appLockPin == null ||
+                settings.appLockPin!.isEmpty ||
+                !settings.secureStorageAvailable) {
+              if (mounted) {
+                context.showNovynAlert(const SnackBar(
+                  content: Text('This chat is locked. Restore App Lock in Security & Privacy to unlock it.'),
+                  behavior: SnackBarBehavior.floating,
+                ));
+                Navigator.of(context).pop();
+              }
+              return;
+            }
+
+            final unlocked = await Navigator.of(context).push<bool>(
+              MaterialPageRoute<bool>(
+                builder: (lockContext) => AppLockScreen(
+                  onUnlocked: () => Navigator.of(lockContext).pop(true),
+                ),
+              ),
+            );
+            if (unlocked != true || !mounted) {
+              if (mounted) Navigator.of(context).pop();
+              return;
+            }
+          }
+        } catch (error) {
+          debugPrint('[NovynChatLock] Could not verify chat access: $error');
+          if (mounted) {
+            context.showNovynAlert(const SnackBar(
+              content: Text('Could not verify this chat lock. Please try again.'),
+              behavior: SnackBarBehavior.floating,
+            ));
+            Navigator.of(context).pop();
+          }
+          return;
+        }
+      }
+    }
+    if (mounted) await _init();
   }
 
   bool _isOfflinePresenceState() =>

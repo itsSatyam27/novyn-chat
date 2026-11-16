@@ -17,6 +17,11 @@ import '../../widgets/novyn_ui.dart';
 import '../../models/chat_preview.dart';
 import 'chat_detail_screen.dart';
 import '../people/create_group_screen.dart';
+import '../security/app_lock_screen.dart';
+import '../profile/settings/chat_settings_screen.dart';
+import 'starred_messages_screen.dart';
+import '../../widgets/chat_overflow_menu.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:novyn/services/haptic_service.dart';
 
 class ChatsScreen extends StatefulWidget {
@@ -49,6 +54,12 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
   bool _isSearchVisible = false;
   Set<String> _pinnedChatUsernames = <String>{};
   Set<String> _hiddenChatUsernames = <String>{};
+  Set<String> _archivedChatUsernames = <String>{};
+  Set<String> _lockedChatUsernames = <String>{};
+  bool _showingArchivedChats = false;
+  bool _showingLockedChats = false;
+  bool _selectionMode = false;
+  final Set<String> _selectedChatIds = <String>{};
   String? _hiddenChatsOwner;
   bool _pinPreferencesLoaded = false;
   String? _pinPreferencesOwner;
@@ -78,6 +89,7 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
     if (initialUsername != null && initialUsername.isNotEmpty) {
       _loadPinnedChatPreferences(initialUsername);
       _loadHiddenChatPreferences(initialUsername);
+      _loadArchiveAndLockPreferences(initialUsername);
     }
 
     // Never hydrate from a previous signed-in account's in-memory previews.
@@ -122,6 +134,12 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
       setState(() {
         _pinnedChatUsernames = <String>{};
         _hiddenChatUsernames = <String>{};
+        _archivedChatUsernames = <String>{};
+        _lockedChatUsernames = <String>{};
+        _showingArchivedChats = false;
+        _showingLockedChats = false;
+        _selectionMode = false;
+        _selectedChatIds.clear();
         _hiddenChatsOwner = null;
         _pinPreferencesLoaded = false;
         _pinPreferencesOwner = null;
@@ -135,6 +153,12 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
     setState(() {
       _pinnedChatUsernames = <String>{};
       _hiddenChatUsernames = <String>{};
+      _archivedChatUsernames = <String>{};
+      _lockedChatUsernames = <String>{};
+      _showingArchivedChats = false;
+      _showingLockedChats = false;
+      _selectionMode = false;
+      _selectedChatIds.clear();
       _hiddenChatsOwner = null;
       _pinPreferencesLoaded = false;
       _pinPreferencesOwner = null;
@@ -144,6 +168,7 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
     });
     _loadPinnedChatPreferences(username);
     _loadHiddenChatPreferences(username);
+    _loadArchiveAndLockPreferences(username);
     // Non-silent load first restores this account's username-scoped local DB.
     // The authenticated friend_list event will replace it with server state.
     _loadChats();
@@ -177,6 +202,125 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
       _applyFilters();
     } catch (error) {
       debugPrint('Could not load pinned chats: $error');
+    }
+  }
+
+  String _archivedChatsPreferenceKey(String username) =>
+      'novyn_archived_${username.trim().toLowerCase()}';
+
+  String _lockedChatsPreferenceKey(String username) =>
+      'novyn_locked_chats_${username.trim().toLowerCase()}';
+
+  Future<void> _loadArchiveAndLockPreferences(String username) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final archived = prefs.getStringList(_archivedChatsPreferenceKey(username)) ?? [];
+      final locked = prefs.getStringList(_lockedChatsPreferenceKey(username)) ?? [];
+      if (!mounted ||
+          context.read<AuthService>().user?.username.trim().toLowerCase() !=
+              username.trim().toLowerCase()) {
+        return;
+      }
+      setState(() {
+        _archivedChatUsernames = archived
+            .map((value) => value.trim().toLowerCase())
+            .where((value) => value.isNotEmpty)
+            .toSet();
+        _lockedChatUsernames = locked
+            .map((value) => value.trim().toLowerCase())
+            .where((value) => value.isNotEmpty)
+            .toSet();
+        _chats = _withPinnedPreferences(_chats);
+      });
+      ChatsScreen.cachedChats = List<ChatPreview>.from(_chats);
+      ChatsScreen.cachedChatsOwner = username.trim().toLowerCase();
+      _applyFilters();
+    } catch (error) {
+      debugPrint('Could not load archived/locked chats: $error');
+    }
+  }
+
+  Future<void> _toggleArchiveChat(ChatPreview chat) async {
+    final account = context.read<AuthService>().user?.username.trim().toLowerCase();
+    final peer = chat.peer.username.trim().toLowerCase();
+    if (account == null || account.isEmpty || peer.isEmpty) return;
+
+    final next = Set<String>.from(_archivedChatUsernames);
+    final archived = !next.contains(peer);
+    if (archived) {
+      next.add(peer);
+    } else {
+      next.remove(peer);
+    }
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final saved = await prefs.setStringList(
+        _archivedChatsPreferenceKey(account),
+        next.toList(),
+      );
+      if (!saved) throw StateError('Could not save archive preference.');
+      if (!mounted ||
+          context.read<AuthService>().user?.username.trim().toLowerCase() != account) {
+        return;
+      }
+      final updated = _chats.map((item) => item.peer.username.trim().toLowerCase() == peer
+          ? item.copyWith(isArchived: archived)
+          : item).toList();
+      setState(() {
+        _archivedChatUsernames = next;
+        _chats = _withPinnedPreferences(updated);
+      });
+      ChatsScreen.cachedChats = List<ChatPreview>.from(_chats);
+      ChatsScreen.cachedChatsOwner = account;
+      await HybridDbService.saveChat(chat.copyWith(isArchived: archived));
+      _applyFilters();
+      _showNovynAlert(archived ? 'Chat archived' : 'Chat unarchived');
+    } catch (error) {
+      _showNovynAlert('Could not update archive: $error');
+    }
+  }
+
+  Future<void> _toggleLockedChat(ChatPreview chat) async {
+    final settings = context.read<SettingsService>();
+    if (!settings.appLockEnabled ||
+        settings.appLockPin == null ||
+        settings.appLockPin!.isEmpty ||
+        !settings.secureStorageAvailable) {
+      _showNovynAlert('Enable App Lock, set a secure PIN and make sure secure storage is available before locking chats.');
+      return;
+    }
+
+    final account = context.read<AuthService>().user?.username.trim().toLowerCase();
+    final peer = chat.peer.username.trim().toLowerCase();
+    if (account == null || account.isEmpty || peer.isEmpty) return;
+    final next = Set<String>.from(_lockedChatUsernames);
+    final locked = !next.contains(peer);
+    if (!locked && !_showingLockedChats) {
+      if (!await _requireChatUnlock() || !mounted) return;
+    }
+    if (locked) {
+      next.add(peer);
+    } else {
+      next.remove(peer);
+    }
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final saved = await prefs.setStringList(
+        _lockedChatsPreferenceKey(account),
+        next.toList(),
+      );
+      if (!saved) throw StateError('Could not save chat lock preference.');
+      if (!mounted ||
+          context.read<AuthService>().user?.username.trim().toLowerCase() != account) {
+        return;
+      }
+      setState(() => _lockedChatUsernames = next);
+      _applyFilters();
+      _showNovynAlert(locked ? 'Chat locked' : 'Chat unlocked');
+    } catch (error) {
+      _showNovynAlert('Could not update chat lock: $error');
     }
   }
 
@@ -303,9 +447,13 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
   }) {
     final pins = pinnedUsernames ?? _pinnedChatUsernames;
     final previews = chats
-        .map((chat) => chat.copyWith(
-              isPinned: pins.contains(chat.peer.username.trim().toLowerCase()),
-            ))
+        .map((chat) {
+          final peer = chat.peer.username.trim().toLowerCase();
+          return chat.copyWith(
+            isPinned: pins.contains(peer),
+            isArchived: _archivedChatUsernames.contains(peer),
+          );
+        })
         .toList();
     previews.sort((a, b) {
       if (a.isPinned != b.isPinned) return a.isPinned ? -1 : 1;
@@ -611,10 +759,215 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
     super.dispose();
   }
 
+  Future<bool> _requireChatUnlock() async {
+    final settings = context.read<SettingsService>();
+    if (!settings.appLockEnabled ||
+        settings.appLockPin == null ||
+        settings.appLockPin!.isEmpty ||
+        !settings.secureStorageAvailable) {
+      _showNovynAlert('Chat Lock needs App Lock enabled, a secure PIN and available secure storage.');
+      return false;
+    }
+    final unlocked = await Navigator.of(context).push<bool>(
+      NovynPageRoute<bool>(
+        child: AppLockScreen(
+          onUnlocked: () => Navigator.of(context).pop(true),
+        ),
+      ),
+    );
+    return unlocked == true && mounted;
+  }
+
+  Future<void> _showArchivedChats() async {
+    _searchController.clear();
+    _search = '';
+    _searchFocusNode.unfocus();
+    setState(() {
+      _showingArchivedChats = true;
+      _showingLockedChats = false;
+      _selectionMode = false;
+      _selectedChatIds.clear();
+      _selectedTab = 'all';
+      _isSearchVisible = false;
+    });
+    _applyFilters();
+  }
+
+  Future<void> _showLockedChats() async {
+    if (_lockedChatUsernames.isEmpty) {
+      _showNovynAlert('No locked chats yet. Lock a conversation from its chat menu.');
+      return;
+    }
+    if (!await _requireChatUnlock() || !mounted) return;
+    _searchController.clear();
+    _search = '';
+    _searchFocusNode.unfocus();
+    setState(() {
+      _showingLockedChats = true;
+      _showingArchivedChats = false;
+      _selectionMode = false;
+      _selectedChatIds.clear();
+      _selectedTab = 'all';
+      _isSearchVisible = false;
+    });
+    _applyFilters();
+  }
+
+  void _returnToAllChats() {
+    setState(() {
+      _showingArchivedChats = false;
+      _showingLockedChats = false;
+      _selectionMode = false;
+      _selectedChatIds.clear();
+      _selectedTab = 'all';
+    });
+    _applyFilters();
+  }
+
+  void _toggleSelectionMode() {
+    setState(() {
+      _selectionMode = !_selectionMode;
+      _selectedChatIds.clear();
+      _showingArchivedChats = false;
+      _showingLockedChats = false;
+    });
+    _applyFilters();
+  }
+
+  void _toggleChatSelection(ChatPreview chat) {
+    setState(() {
+      if (!_selectionMode) _selectionMode = true;
+      if (!_selectedChatIds.add(chat.chatId)) {
+        _selectedChatIds.remove(chat.chatId);
+      }
+    });
+  }
+
+  void _selectAllVisibleChats() {
+    setState(() {
+      _selectedChatIds
+        ..clear()
+        ..addAll(_filtered.map((chat) => chat.chatId));
+    });
+  }
+
+  Future<void> _archiveSelectedChats() async {
+    final account = context.read<AuthService>().user?.username.trim().toLowerCase();
+    if (account == null || account.isEmpty || _selectedChatIds.isEmpty) return;
+    final selected = _chats.where((chat) => _selectedChatIds.contains(chat.chatId)).toList();
+    final next = Set<String>.from(_archivedChatUsernames);
+    for (final chat in selected) {
+      next.add(chat.peer.username.trim().toLowerCase());
+    }
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final saved = await prefs.setStringList(
+        _archivedChatsPreferenceKey(account),
+        next.toList(),
+      );
+      if (!saved) throw StateError('Could not save archived chats.');
+      if (!mounted ||
+          context.read<AuthService>().user?.username.trim().toLowerCase() != account) {
+        return;
+      }
+      final updated = _chats.map((chat) {
+        final archived = next.contains(chat.peer.username.trim().toLowerCase());
+        return chat.copyWith(isArchived: archived);
+      }).toList();
+      setState(() {
+        _archivedChatUsernames = next;
+        _chats = _withPinnedPreferences(updated);
+        _selectionMode = false;
+        _selectedChatIds.clear();
+      });
+      ChatsScreen.cachedChats = List<ChatPreview>.from(_chats);
+      ChatsScreen.cachedChatsOwner = account;
+      await Future.wait(selected.map(
+        (chat) => HybridDbService.saveChat(chat.copyWith(isArchived: true)),
+      ));
+      _applyFilters();
+      _showNovynAlert('${selected.length} chat${selected.length == 1 ? '' : 's'} archived');
+    } catch (error) {
+      _showNovynAlert('Could not archive selected chats: $error');
+    }
+  }
+
+  Future<void> _markAllChatsRead() async {
+    try {
+      final result = await context.read<SocketService>().markAllConversationsAsRead();
+      if (result['ok'] != true) {
+        _showNovynAlert(result['message']?.toString() ?? 'Could not mark chats as read.');
+        return;
+      }
+      if (!mounted) return;
+      final updated = _chats
+          .map((chat) => chat.copyWith(unreadCount: 0))
+          .toList();
+      setState(() {
+        _chats = updated;
+        _filtered = _filtered
+            .map((chat) => chat.copyWith(unreadCount: 0))
+            .toList();
+      });
+      ChatsScreen.cachedChats = List<ChatPreview>.from(updated);
+      ChatsScreen.totalUnread = 0;
+      _showNovynAlert('All chats marked as read');
+    } catch (error) {
+      _showNovynAlert('Could not mark chats as read: $error');
+    }
+  }
+
+  Future<void> _inviteFriends() async {
+    final username = context.read<AuthService>().user?.username.trim() ?? '';
+    final invite = [
+      'Join me on Novyn!',
+      if (username.isNotEmpty) 'Find me as @$username.',
+      'https://itssatyam27.github.io/novyn-chat/',
+    ].join(' ');
+    try {
+      await Share.share(invite, subject: 'Join me on Novyn');
+    } catch (error) {
+      _showNovynAlert('Could not open the share sheet: $error');
+    }
+  }
+
+  Future<void> _openStarredMessages() async {
+    await Navigator.of(context).push<void>(
+      NovynPageRoute<void>(
+        child: StarredMessagesScreen(
+          chats: List<ChatPreview>.from(_chats),
+          onOpenChat: _openChat,
+        ),
+      ),
+    );
+  }
+
+  void _openCreateGroup() {
+    final myUid = context.read<AuthService>().user?.username;
+    if (myUid == null || myUid.isEmpty) return;
+    Navigator.push(
+      context,
+      NovynPageRoute<void>(
+        child: CreateGroupScreen(myUid: myUid),
+      ),
+    );
+  }
+
+  void _openChatSettings() {
+    Navigator.push(
+      context,
+      NovynPageRoute<void>(child: const ChatSettingsScreen()),
+    );
+  }
+
   void _openChat(ChatPreview chat) async {
     await Navigator.of(context).push<void>(
       NovynPageRoute<void>(
-        child: ChatDetailScreen(peer: chat.peer, isGroup: chat.isGroup),
+        child: ChatDetailScreen(
+          peer: chat.peer,
+          isGroup: chat.isGroup,
+          chatLockAlreadyVerified: _showingLockedChats,
+        ),
       ),
     );
     // The socket listener keeps this screen's conversation snapshot current
@@ -641,17 +994,24 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
     final next = isDecoy
         ? <ChatPreview>[]
         : _chats.where((chat) {
-            if (chat.isArchived ||
-                blockedUids.contains(chat.peerUid) ||
-                _hiddenChatUsernames.contains(
-                  chat.peer.username.trim().toLowerCase(),
-                )) {
+            final peer = chat.peer.username.trim().toLowerCase();
+            final isArchived = _archivedChatUsernames.contains(peer) || chat.isArchived;
+            final isLocked = _lockedChatUsernames.contains(peer);
+            if (_showingArchivedChats) {
+              if (!isArchived) return false;
+            } else if (_showingLockedChats) {
+              if (!isLocked) return false;
+            } else if (isArchived || isLocked) {
+              return false;
+            }
+            if (blockedUids.contains(chat.peerUid) ||
+                _hiddenChatUsernames.contains(peer)) {
               return false;
             }
             if (_search.isEmpty) return true;
             final query = _search.trim().toLowerCase();
             return chat.peer.name.toLowerCase().contains(query) ||
-                chat.peer.username.toLowerCase().contains(query);
+                peer.contains(query);
           }).toList()
       ..sort((a, b) {
         if (a.isPinned != b.isPinned) return a.isPinned ? -1 : 1;
@@ -690,6 +1050,8 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
     final recentChats = activeChats.where((chat) => !chat.isPinned).toList();
 
     final pageBackground = NovynTheme.pageBg(context);
+    final canShowNewChatFab = _showNewChatFab && !_selectionMode &&
+        !_showingArchivedChats && !_showingLockedChats;
 
     return Scaffold(
       backgroundColor: pageBackground,
@@ -705,9 +1067,31 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
+                  if (_selectionMode || _showingArchivedChats || _showingLockedChats) ...[
+                    Material(
+                      color: Theme.of(context).colorScheme.surface,
+                      borderRadius: BorderRadius.circular(17),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(17),
+                        onTap: _selectionMode ? _toggleSelectionMode : _returnToAllChats,
+                        child: const SizedBox(
+                          width: 46,
+                          height: 46,
+                          child: Icon(Icons.arrow_back_rounded, size: 22),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                  ],
                   Expanded(
                     child: Text(
-                      'Chats',
+                      _selectionMode
+                          ? 'Select chats'
+                          : _showingArchivedChats
+                              ? 'Archived chats'
+                              : _showingLockedChats
+                                  ? 'Locked chats'
+                                  : 'Chats',
                       maxLines: 1,
                       style: TextStyle(
                         fontFamily: 'PlusJakartaSans',
@@ -719,84 +1103,66 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
                       ),
                     ),
                   ),
-                  Material(
-                    color: Theme.of(context).colorScheme.surface,
-                    borderRadius: BorderRadius.circular(18),
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(18),
-                      onTap: () {
-                        setState(() => _isSearchVisible = !_isSearchVisible);
-                        if (_isSearchVisible) {
-                          WidgetsBinding.instance.addPostFrameCallback((_) {
-                            if (mounted) _searchFocusNode.requestFocus();
-                          });
-                        } else {
-                          _searchFocusNode.unfocus();
-                          _searchController.clear();
-                          _onSearch('');
-                        }
-                      },
-                      child: SizedBox(
-                        width: 46,
-                        height: 46,
-                        child: Icon(
-                          _isSearchVisible
-                              ? Icons.close_rounded
-                              : Icons.search_rounded,
-                          color: Theme.of(context).colorScheme.onSurface,
-                          size: 23,
+                  if (_selectionMode)
+                    Material(
+                      color: Theme.of(context).colorScheme.surface,
+                      borderRadius: BorderRadius.circular(17),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(17),
+                        onTap: _selectAllVisibleChats,
+                        child: const SizedBox(
+                          width: 46,
+                          height: 46,
+                          child: Icon(Icons.select_all_rounded, size: 23),
                         ),
                       ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  PopupMenuButton<int>(
-                    tooltip: 'More actions',
-                    position: PopupMenuPosition.under,
-                    offset: const Offset(0, 10),
-                    elevation: 14,
-                    color: Theme.of(context).colorScheme.surface,
-                    surfaceTintColor: Colors.transparent,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(18),
-                    ),
-                    onSelected: (value) {
-                      if (value == 1) {
-                        final myUid = context.read<AuthService>().user?.username;
-                        if (myUid == null || myUid.isEmpty) return;
-                        Navigator.push(
-                          context,
-                          NovynPageRoute<void>(
-                            child: CreateGroupScreen(myUid: myUid),
+                    )
+                  else
+                    Material(
+                      color: Theme.of(context).colorScheme.surface,
+                      borderRadius: BorderRadius.circular(17),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(17),
+                        onTap: () {
+                          setState(() => _isSearchVisible = !_isSearchVisible);
+                          if (_isSearchVisible) {
+                            WidgetsBinding.instance.addPostFrameCallback((_) {
+                              if (mounted) _searchFocusNode.requestFocus();
+                            });
+                          } else {
+                            _searchFocusNode.unfocus();
+                            _searchController.clear();
+                            _onSearch('');
+                          }
+                        },
+                        child: SizedBox(
+                          width: 46,
+                          height: 46,
+                          child: Icon(
+                            _isSearchVisible
+                                ? Icons.close_rounded
+                                : Icons.search_rounded,
+                            color: Theme.of(context).colorScheme.onSurface,
+                            size: 23,
                           ),
-                        );
-                      }
-                    },
-                    itemBuilder: (_) => const [
-                      PopupMenuItem<int>(
-                        value: 1,
-                        child: ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          leading: Icon(Icons.group_add_rounded),
-                          title: Text('Create group'),
-                          subtitle: Text('Start a group conversation'),
                         ),
                       ),
-                    ],
-                    child: Container(
-                      width: 46,
-                      height: 46,
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.surface,
-                        borderRadius: BorderRadius.circular(18),
-                      ),
-                      child: Icon(
-                        Icons.more_horiz_rounded,
-                        color: Theme.of(context).colorScheme.onSurface,
-                        size: 23,
-                      ),
                     ),
-                  ),
+                  if (!_selectionMode && !_showingArchivedChats && !_showingLockedChats) ...[
+                    const SizedBox(width: 8),
+                    ChatOverflowMenu(
+                      archivedCount: _archivedChatUsernames.length,
+                      lockedCount: _lockedChatUsernames.length,
+                      onCreateGroup: _openCreateGroup,
+                      onInviteFriends: _inviteFriends,
+                      onArchivedChats: _showArchivedChats,
+                      onLockedChats: _showLockedChats,
+                      onStarredMessages: _openStarredMessages,
+                      onSelectChats: _toggleSelectionMode,
+                      onMarkAllRead: _markAllChatsRead,
+                      onChatSettings: _openChatSettings,
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -815,7 +1181,9 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
                     )
                   : const SizedBox(width: double.infinity, height: 0),
             ),
-            _buildFilterCards(),
+            if (!_selectionMode && !_showingArchivedChats && !_showingLockedChats)
+              _buildFilterCards(),
+            if (_selectionMode) _buildSelectionToolbar(),
             Expanded(
               child: _loading
                   ? Center(child: CircularProgressIndicator(
@@ -860,14 +1228,14 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
         ),
       ),
       floatingActionButton: AnimatedSlide(
-        offset: _showNewChatFab ? Offset.zero : const Offset(1.35, 0),
+        offset: canShowNewChatFab ? Offset.zero : const Offset(1.35, 0),
         duration: const Duration(milliseconds: 220),
         curve: Curves.easeOutCubic,
         child: AnimatedOpacity(
-          opacity: _showNewChatFab ? 1 : 0,
+          opacity: canShowNewChatFab ? 1 : 0,
           duration: const Duration(milliseconds: 180),
           child: IgnorePointer(
-            ignoring: !_showNewChatFab,
+            ignoring: !canShowNewChatFab,
             child: Padding(
               padding: const EdgeInsets.only(bottom: 100),
               child: FloatingActionButton(
@@ -888,6 +1256,41 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
         ),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
+    );
+  }
+
+  Widget _buildSelectionToolbar() {
+    final selectedCount = _selectedChatIds.length;
+    final colors = Theme.of(context).colorScheme;
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+      padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 11),
+      decoration: BoxDecoration(
+        color: colors.primary.withValues(alpha: .09),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: colors.primary.withValues(alpha: .18)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              '$selectedCount selected',
+              style: TextStyle(
+                color: colors.onSurface,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: selectedCount == 0 ? null : _archiveSelectedChats,
+            child: const Text('Archive'),
+          ),
+          TextButton(
+            onPressed: _toggleSelectionMode,
+            child: const Text('Cancel'),
+          ),
+        ],
+      ),
     );
   }
 
@@ -1053,6 +1456,7 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
     final settings = context.read<SettingsService>();
     final socket = context.read<SocketService>();
     final isFavorite = settings.favoriteChatIds.contains(chat.chatId);
+    final isLocked = _lockedChatUsernames.contains(chat.peer.username.trim().toLowerCase());
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
     final tileBox = tileContext.findRenderObject() as RenderBox?;
@@ -1182,17 +1586,22 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
           'favorite',
           color: isFavorite ? const Color(0xFFFFB300) : null,
         ),
-        option(
-          chat.unreadCount > 0
-              ? Icons.mark_chat_read_outlined
-              : Icons.mark_chat_unread_outlined,
-          chat.unreadCount > 0 ? 'Mark as read' : 'Mark as unread',
-          'read',
-        ),
+        if (chat.unreadCount > 0)
+          option(
+            Icons.mark_chat_read_outlined,
+            'Mark as read',
+            'read',
+          ),
         option(
           chat.isArchived ? Icons.unarchive_outlined : Icons.archive_outlined,
           chat.isArchived ? 'Unarchive chat' : 'Archive chat',
           'archive',
+        ),
+        option(
+          isLocked ? Icons.lock_open_rounded : Icons.lock_outline_rounded,
+          isLocked ? 'Unlock chat' : 'Lock chat',
+          'lock',
+          color: isLocked ? colors.primary : null,
         ),
         const PopupMenuDivider(height: 1),
         if (!chat.isGroup)
@@ -1233,6 +1642,38 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
         } catch (error) {
           _showNovynAlert(error.toString());
         }
+        break;
+      case 'read':
+        try {
+          final result = await socket.markConversationAsRead(
+            chat.isGroup ? chat.peer.uid : chat.peer.username,
+            isGroup: chat.isGroup,
+          );
+          if (result['ok'] != true) {
+            _showNovynAlert(result['message']?.toString() ?? 'Could not mark this chat as read.');
+            break;
+          }
+          final updated = _chats.map((item) => item.chatId == chat.chatId
+              ? item.copyWith(unreadCount: 0)
+              : item).toList();
+          setState(() {
+            _chats = updated;
+            _filtered = _filtered.map((item) => item.chatId == chat.chatId
+                ? item.copyWith(unreadCount: 0)
+                : item).toList();
+          });
+          ChatsScreen.cachedChats = List<ChatPreview>.from(updated);
+          ChatsScreen.totalUnread = updated.fold(0, (total, item) => total + item.unreadCount);
+          _showNovynAlert('Chat marked as read');
+        } catch (error) {
+          _showNovynAlert('Could not mark chat as read: $error');
+        }
+        break;
+      case 'archive':
+        await _toggleArchiveChat(chat);
+        break;
+      case 'lock':
+        await _toggleLockedChat(chat);
         break;
       case 'clear':
         final confirmed = await showDialog<bool>(
@@ -1284,10 +1725,8 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
           await _hideChatLocally(chat);
         }
         break;
-      case 'read':
-      case 'archive':
       case 'block':
-        _showNovynAlert('This chat action is not yet available in the mobile client.');
+        _showNovynAlert('Blocking is managed from Contacts and Security settings.');
         break;
     }
   }
@@ -1344,11 +1783,20 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
   }
 
   Widget _buildChatCard(ChatPreview preview) {
+    final selected = _selectedChatIds.contains(preview.chatId);
     return _ChatCard(
       preview: preview,
       isFavorite: context.watch<SettingsService>().favoriteChatIds.contains(preview.chatId),
-      onOptions: (tileContext) => _showChatOptions(preview, tileContext),
-      onTap: () => _openChat(preview),
+      isSelected: selected,
+      selectionMode: _selectionMode,
+      onOptions: _selectionMode ? null : (tileContext) => _showChatOptions(preview, tileContext),
+      onTap: () {
+        if (_selectionMode) {
+          _toggleChatSelection(preview);
+        } else {
+          _openChat(preview);
+        }
+      },
     );
   }
 
@@ -1373,7 +1821,16 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
           return RepaintBoundary(
             child: _ChatCard(
               preview: _filtered[i],
-              onTap: () => _openChat(_filtered[i]),
+              isSelected: _selectedChatIds.contains(_filtered[i].chatId),
+              selectionMode: _selectionMode,
+              onOptions: _selectionMode ? null : (tileContext) => _showChatOptions(_filtered[i], tileContext),
+              onTap: () {
+                if (_selectionMode) {
+                  _toggleChatSelection(_filtered[i]);
+                } else {
+                  _openChat(_filtered[i]);
+                }
+              },
             ),
           );
         },
@@ -1391,6 +1848,27 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
   }
 
   Widget _buildEmpty() {
+    if (_showingArchivedChats) {
+      return const NovynEmptyState(
+        icon: Icons.archive_outlined,
+        title: 'No archived chats',
+        description: 'Chats you archive will appear here.',
+      );
+    }
+    if (_showingLockedChats) {
+      return const NovynEmptyState(
+        icon: Icons.lock_outline_rounded,
+        title: 'No locked chats',
+        description: 'Lock a conversation from its chat menu to keep it protected.',
+      );
+    }
+    if (_selectionMode) {
+      return const NovynEmptyState(
+        icon: Icons.check_box_outlined,
+        title: 'No chats to select',
+        description: 'There are no conversations in this view.',
+      );
+    }
     return const NovynEmptyState(
       icon: Icons.chat_bubble_outline_rounded,
       title: 'No chats yet',
@@ -1472,12 +1950,16 @@ class _ChatCard extends StatelessWidget {
   final ChatPreview preview;
   final VoidCallback onTap;
   final bool isFavorite;
+  final bool isSelected;
+  final bool selectionMode;
   final ValueChanged<BuildContext>? onOptions;
 
   const _ChatCard({
     required this.preview,
     required this.onTap,
     this.isFavorite = false,
+    this.isSelected = false,
+    this.selectionMode = false,
     this.onOptions,
   });
 
@@ -1553,6 +2035,25 @@ class _ChatCard extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
         child: Row(
           children: [
+            if (selectionMode) ...[
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 140),
+                width: 23,
+                height: 23,
+                margin: const EdgeInsets.only(right: 12),
+                decoration: BoxDecoration(
+                  color: isSelected ? colors.primary : Colors.transparent,
+                  borderRadius: BorderRadius.circular(7),
+                  border: Border.all(
+                    color: isSelected ? colors.primary : colors.outlineVariant,
+                    width: 1.5,
+                  ),
+                ),
+                child: isSelected
+                    ? Icon(Icons.check_rounded, color: colors.onPrimary, size: 17)
+                    : null,
+              ),
+            ],
             _buildAvatar(context),
             const SizedBox(width: 14),
             Expanded(
