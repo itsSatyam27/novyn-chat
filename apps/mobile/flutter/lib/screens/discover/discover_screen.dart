@@ -1035,9 +1035,9 @@ class _DiscoverEmptyPainter extends CustomPainter {
     if (valid.hasMatch(candidate)) return candidate.toLowerCase();
 
     final linkedUsername = ProfileDeepLinkService.usernameFromLink(raw);
-    if (linkedUsername != null && valid.hasMatch(linkedUsername)) {
-      return linkedUsername.toLowerCase();
-    }
+    // Older Google-created handles may contain spaces. Keep those encoded
+    // URLs working while newly-created handles follow the stricter policy.
+    if (linkedUsername != null) return linkedUsername.toLowerCase();
     return null;
   }
 
