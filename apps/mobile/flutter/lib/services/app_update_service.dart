@@ -20,6 +20,8 @@ const String _releasesApi =
 const String _arm64ApkName = 'Novyn-Android-ARM64.apk';
 const String _updateTaskName = 'novyn_periodic_update_check';
 const String _lastNotifiedBuildKey = 'novyn_last_notified_update_build';
+const String _lastUpdateNotificationAtKey = 'novyn_last_update_notification_at_ms';
+const String _handledUpdateBuildKey = 'novyn_handled_update_build';
 
 @pragma('vm:entry-point')
 void novynUpdateCallbackDispatcher() {
@@ -219,24 +221,55 @@ class AppUpdateService extends ChangeNotifier {
     );
   }
 
+  static const Duration updateReminderInterval = Duration(hours: 24);
+
   Future<void> _notifyIfNewBuild(AppUpdateInfo release, {required bool isBackgroundCheck}) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.reload();
-    final lastNotified = prefs.getInt(_lastNotifiedBuildKey) ?? 0;
-    if (release.build <= lastNotified) return;
 
-    // Persist first so foreground/resume and WorkManager checks do not race
-    // and show duplicate alerts for the same release.
-    await prefs.setInt(_lastNotifiedBuildKey, release.build);
+    final lastNotifiedBuild = prefs.getInt(_lastNotifiedBuildKey) ?? 0;
+    final handledBuild = prefs.getInt(_handledUpdateBuildKey) ?? 0;
+    if (handledBuild >= release.build) return;
+
+    final now = DateTime.now();
+    final lastNotificationAtMs = prefs.getInt(_lastUpdateNotificationAtKey);
+    final isNewBuild = release.build > lastNotifiedBuild;
+    if (!isNewBuild) {
+      // Older app installs may already have the old one-shot marker but no
+      // timestamp. Start the reminder clock now instead of notifying twice.
+      if (lastNotificationAtMs == null) {
+        await prefs.setInt(_lastUpdateNotificationAtKey, now.millisecondsSinceEpoch);
+        return;
+      }
+      final elapsed = now.difference(
+        DateTime.fromMillisecondsSinceEpoch(lastNotificationAtMs),
+      );
+      if (elapsed < updateReminderInterval) return;
+    }
+
     try {
       if (isBackgroundCheck) {
         await _showBackgroundUpdateNotification();
       } else {
         await NotificationService.showAppUpdateAvailable();
       }
+      // Store only after the notification API succeeds. The same notification
+      // ID is reused, so a dismissed alert can be shown again after 24 hours.
+      await prefs.setInt(_lastNotifiedBuildKey, release.build);
+      await prefs.setInt(_lastUpdateNotificationAtKey, now.millisecondsSinceEpoch);
     } catch (error) {
-      await prefs.setInt(_lastNotifiedBuildKey, lastNotified);
       debugPrint('[NovynUpdates] Could not show update notification: ' + error.toString());
+    }
+  }
+
+  /// Called when the user taps the update alert. This acknowledges the
+  /// current build so periodic checks do not keep reminding them about it.
+  Future<void> markUpdateNotificationOpened() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.reload();
+    final build = prefs.getInt(_lastNotifiedBuildKey) ?? 0;
+    if (build > 0) {
+      await prefs.setInt(_handledUpdateBuildKey, build);
     }
   }
 
