@@ -1743,17 +1743,17 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
           decoration: const BoxDecoration(color: Colors.transparent),
           padding: EdgeInsets.fromLTRB(12, 10, 12, MediaQuery.of(context).viewInsets.bottom > 0 ? 10 : 12),
           child: Row(
-            // Anchor side actions while the multiline field grows.
-            crossAxisAlignment: CrossAxisAlignment.start,
+            // Keep the action buttons pinned to the bottom typing baseline.
+            // The multiline field grows upward without moving either button.
+            crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              // Keep the attachment control anchored to the first composer
-              // line. Its fixed slot never participates in the text field's
-              // vertical growth, so long/multiline drafts cannot move it.
+              // Keep the attachment control pinned to the same bottom
+              // baseline as the send button while the text field grows upward.
               SizedBox(
                 width: 48,
                 height: 50,
                 child: Align(
-                  alignment: Alignment.topCenter,
+                  alignment: Alignment.bottomCenter,
                   child: Container(
                     width: 48,
                     height: 48,
