@@ -18,6 +18,8 @@ import '../widgets/novyn_dock.dart';
 import '../widgets/novyn_page_route.dart';
 import '../services/settings_service.dart';
 import '../services/app_update_service.dart';
+import '../services/profile_deep_link_service.dart';
+import 'profile/public_profile_screen.dart';
 import 'profile/settings/support_screens.dart';
 
 class MainScreen extends StatefulWidget {
@@ -42,6 +44,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   String? _activeUsername;
   Timer? _updateCheckTimer;
   DateTime? _lastUpdateCheck;
+  StreamSubscription<String>? _profileLinkSubscription;
 
   late final List<Widget> _screens;
 
@@ -49,6 +52,8 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _profileLinkSubscription = ProfileDeepLinkService.links.listen(_openProfileLink);
+    unawaited(ProfileDeepLinkService.initialize());
     NotificationService.setAppUpdateTapHandler(_openAboutNovyn);
     _updateCheckTimer = Timer.periodic(
       AppUpdateService.backgroundCheckFrequency,
@@ -70,6 +75,17 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
       _authService = context.read<AuthService>();
       _authService!.addListener(_handleAuthChanged);
       _handleAuthChanged();
+    });
+  }
+
+  void _openProfileLink(String rawLink) {
+    final username = ProfileDeepLinkService.usernameFromLink(rawLink);
+    if (username == null || !mounted) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      Navigator.of(context).push<void>(
+        NovynPageRoute<void>(child: PublicProfileScreen(username: username)),
+      );
     });
   }
 
@@ -167,6 +183,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _profileLinkSubscription?.cancel();
     _updateCheckTimer?.cancel();
     NotificationService.setAppUpdateTapHandler(null);
     _authService?.removeListener(_handleAuthChanged);
