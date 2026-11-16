@@ -53,7 +53,10 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _profileLinkSubscription = ProfileDeepLinkService.links.listen(_openProfileLink);
-    unawaited(ProfileDeepLinkService.initialize());
+    unawaited(ProfileDeepLinkService.initialize().then((_) {
+      final pendingLink = ProfileDeepLinkService.takePendingLink();
+      if (pendingLink != null) _openProfileLink(pendingLink);
+    }));
     NotificationService.setAppUpdateTapHandler(_openAboutNovyn);
     _updateCheckTimer = Timer.periodic(
       AppUpdateService.backgroundCheckFrequency,
