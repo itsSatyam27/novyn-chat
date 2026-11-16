@@ -484,15 +484,9 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
   }
 
   void _openChat(ChatPreview chat) async {
-    await Navigator.push(
-      context,
-      PageRouteBuilder(
-        transitionDuration: const Duration(milliseconds: 300),
-        pageBuilder: (context, animation, secondaryAnimation) =>
-            ChatDetailScreen(peer: chat.peer, isGroup: chat.isGroup),
-        transitionsBuilder: (context, animation, secondaryAnimation, child) {
-          return FadeTransition(opacity: animation, child: child);
-        },
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => ChatDetailScreen(peer: chat.peer, isGroup: chat.isGroup),
       ),
     );
     // The socket listener keeps this screen's conversation snapshot current
@@ -1232,21 +1226,7 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
       preview: preview,
       isFavorite: context.watch<SettingsService>().favoriteChatIds.contains(preview.chatId),
       onOptions: (tileContext) => _showChatOptions(preview, tileContext),
-      onTap: () async {
-        await Navigator.push(
-          context,
-          PageRouteBuilder(
-            transitionDuration: const Duration(milliseconds: 300),
-            pageBuilder: (context, animation, secondaryAnimation) =>
-                ChatDetailScreen(peer: preview.peer, isGroup: preview.isGroup),
-            transitionsBuilder:
-                (context, animation, secondaryAnimation, child) {
-              return FadeTransition(opacity: animation, child: child);
-            },
-          ),
-        );
-        // Live conversation updates are already applied by _handleSocketUpdate.
-      },
+      onTap: () => _openChat(preview),
     );
   }
 
