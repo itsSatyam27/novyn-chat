@@ -71,9 +71,7 @@ class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
       }
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(error.toString().replaceFirst('Bad state: ', '')),
-        behavior: SnackBarBehavior.floating));
+      NovynAlert.show(context, error.toString().replaceFirst('Bad state: ', ''), isError: true);
     }
   }
 
