@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:novyn/widgets/novyn_alert.dart';
 import 'package:flutter/services.dart';
 import '../../../services/api_service.dart';
 import '../../../theme/novyn_theme.dart';
@@ -49,7 +50,7 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
     });
 
     final success = result['ok'] == true;
-    ScaffoldMessenger.of(context).showSnackBar(
+    ScaffoldMessenger.of(context).showNovynAlert(
       SnackBar(
         behavior: SnackBarBehavior.floating,
         content: Text(
