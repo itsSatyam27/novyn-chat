@@ -58,6 +58,7 @@ class SettingsService extends ChangeNotifier {
   static const _kAccentColor = 'appearance_accent_color';
   static const _kAccentColorEnabled = 'appearance_accent_color_enabled';
   static const _kDockStyle = 'dock_style';
+  static const _kAlertStyle = 'alert_style';
   static const _kTwoFactorAuth = 'two_factor_auth';
   static const _kLastSeen = 'last_seen_visibility';
   static const _kProfilePhoto = 'profile_photo_visibility';
@@ -190,6 +191,7 @@ class SettingsService extends ChangeNotifier {
   int _accentColorValue = 0xFF6D5DFC;
   bool _accentColorEnabled = true;
   String _dockStyle = 'slide_pill';
+  String _alertStyle = 'snackbar';
   bool _twoFactorAuth = false;
   String _lastSeenVisibility = 'everyone'; // 'everyone', 'contacts', 'nobody'
   String _profilePhotoVisibility = 'everyone'; // 'everyone', 'contacts', 'nobody'
@@ -335,6 +337,7 @@ class SettingsService extends ChangeNotifier {
   int get accentColorValue => _accentColorValue;
   bool get accentColorEnabled => _accentColorEnabled;
   String get dockStyle => _dockStyle;
+  String get alertStyle => _alertStyle;
   bool get twoFactorAuth => _twoFactorAuth;
   String get lastSeenVisibility => _stealthModeEnabled ? 'nobody' : _lastSeenVisibility;
   String get profilePhotoVisibility => _stealthModeEnabled ? 'nobody' : _profilePhotoVisibility;
@@ -559,6 +562,10 @@ class SettingsService extends ChangeNotifier {
     _chatLabelSize = (_prefs.getDouble(_kChatLabelSize) ?? 1.0).clamp(0.8, 1.4).toDouble();
     _accentColorValue = _prefs.getInt(_kAccentColor) ?? 0xFF6D5DFC;
     _accentColorEnabled = _prefs.getBool(_kAccentColorEnabled) ?? true;
+    const alertStyles = {'snackbar', 'top_banner', 'capsule', 'switch_card', 'centre_hud', 'countdown_card'};
+    final savedAlertStyle = _prefs.getString(_kAlertStyle) ?? 'snackbar';
+    _alertStyle = alertStyles.contains(savedAlertStyle) ? savedAlertStyle : 'snackbar';
+    if (_alertStyle != savedAlertStyle) await _prefs.setString(_kAlertStyle, _alertStyle);
     const dockStyles = [
       'slide_pill',
       'expand_capsule',
@@ -832,6 +839,14 @@ class SettingsService extends ChangeNotifier {
   Future<void> setAccentColorEnabled(bool enabled) async {
     _accentColorEnabled = enabled;
     await _prefs.setBool(_kAccentColorEnabled, enabled);
+    notifyListeners();
+  }
+
+  Future<void> setAlertStyle(String style) async {
+    const allowed = {'snackbar', 'top_banner', 'capsule', 'switch_card', 'centre_hud', 'countdown_card'};
+    if (!allowed.contains(style) || _alertStyle == style) return;
+    _alertStyle = style;
+    await _prefs.setString(_kAlertStyle, style);
     notifyListeners();
   }
 
@@ -1255,6 +1270,7 @@ class SettingsService extends ChangeNotifier {
     _accentColorValue = 0xFF6D5DFC;
     _accentColorEnabled = true;
     _dockStyle = 'slide_pill';
+    _alertStyle = 'snackbar';
     _twoFactorAuth = false;
     _lastSeenVisibility = 'everyone';
     _profilePhotoVisibility = 'everyone';
