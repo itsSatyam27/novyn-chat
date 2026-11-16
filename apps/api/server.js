@@ -2335,6 +2335,8 @@ async function sendPushToUser(userKey, payload) {
             previewEnabled: previewEnabled ? "1" : "0",
           } : {}),
           ...(isCallPush ? {
+            // Bind every call alert to the account whose token received it.
+            recipient: toDisplayName(user.username) || userKey,
             callStatus: toDisplayName(safePayload.callStatus) || "missed",
             callId: toDisplayName(safePayload.callId),
             isVideo: safePayload.isVideo ? "1" : "0",
