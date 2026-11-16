@@ -300,7 +300,7 @@ class NovynAlert {
           .where((part) => part.trim().isNotEmpty)
           .join(' · ');
     }
-    if (widget is Padding) return _legacySnackBarText(widget.child);
+    if (widget is Padding) return widget.child == null ? '' : _legacySnackBarText(widget.child!);
     if (widget is Center) return widget.child == null ? '' : _legacySnackBarText(widget.child!);
     if (widget is Align) return widget.child == null ? '' : _legacySnackBarText(widget.child!);
     if (widget is Container && widget.child != null) {
@@ -310,10 +310,10 @@ class NovynAlert {
       return _legacySnackBarText(widget.child!);
     }
     if (widget is DefaultTextStyle) return _legacySnackBarText(widget.child);
-    if (widget is Tooltip) return _legacySnackBarText(widget.child);
+    if (widget is Tooltip) return widget.child == null ? '' : _legacySnackBarText(widget.child!);
     return '';
   }
-    static void showEvent(
+  static void showEvent(
     BuildContext context,
     NovynAlertEvent event, {
     Duration duration = const Duration(milliseconds: 2800),
@@ -685,7 +685,7 @@ class _NovynToastState extends State<_NovynToast>
                           child: Padding(
                             padding: const EdgeInsets.only(right: 8),
                             child: Text(
-                              '${event.subtitle.isEmpty ? event.title : '${event.title} · ${event.subtitle}'}',
+                              event.subtitle.isEmpty ? event.title : '${event.title} · ${event.subtitle}',
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(color: Colors.white, fontSize: 12.5, fontWeight: FontWeight.w700),
