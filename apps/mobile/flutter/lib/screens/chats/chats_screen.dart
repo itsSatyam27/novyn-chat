@@ -618,7 +618,7 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
           final peerUid = chat['peerUid'] as String?;
           if (peerUid == null) continue;
           final lastTime =
-              DateTime.tryParse(chat['lastTime'] ?? '') ?? DateTime.now();
+              DateTime.tryParse(chat['lastTime'] ?? '') ?? DateTime(2000);
           // Older app versions stored chat rows without persisting peer
           // profiles. Rebuild a usable row from the username until the server
           // refresh supplies the full display name and avatar.
@@ -2119,20 +2119,21 @@ class _ChatCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.end,
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text(
-                    _formatTime(
-                      preview.lastTime,
-                      context.watch<SettingsService>().timeFormat,
+                  if (preview.lastMessage.trim().isNotEmpty)
+                    Text(
+                      _formatTime(
+                        preview.lastTime,
+                        context.watch<SettingsService>().timeFormat,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontFamily: 'PlusJakartaSans',
+                        fontSize: 12.5,
+                        fontWeight: hasUnread ? FontWeight.w500 : FontWeight.w400,
+                        color: hasUnread ? colors.primary : metaColor,
+                      ),
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontFamily: 'PlusJakartaSans',
-                      fontSize: 12.5,
-                      fontWeight: hasUnread ? FontWeight.w500 : FontWeight.w400,
-                      color: hasUnread ? colors.primary : metaColor,
-                    ),
-                  ),
                   if (hasUnread) ...[
                     const SizedBox(height: 7),
                     Container(
