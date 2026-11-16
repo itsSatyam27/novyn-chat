@@ -2231,6 +2231,27 @@ class SocketService extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<Map<String, dynamic>> markAllConversationsAsRead() async {
+    await _requireAuthenticatedConnection();
+    final completer = Completer<Map<String, dynamic>>();
+    _socket!.emitWithAck('mark_all_read', <String, dynamic>{}, ack: (dynamic result) {
+      if (completer.isCompleted) return;
+      completer.complete(result is Map
+          ? Map<String, dynamic>.from(result)
+          : <String, dynamic>{
+              'ok': false,
+              'message': 'The server did not confirm the read update.',
+            });
+    });
+    return completer.future.timeout(
+      const Duration(seconds: 12),
+      onTimeout: () => <String, dynamic>{
+        'ok': false,
+        'message': 'Marking chats as read timed out. Try again.',
+      },
+    );
+  }
+
   void requestDiscover() {
     if (_isConnected && _isAuthenticated && _socket != null) {
       _socket!.emit('discover_online');
