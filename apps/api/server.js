@@ -807,7 +807,7 @@ app.get(
       displayName: user.displayName || user.username,
       bio: String(user.bio || "").slice(0, 160),
       avatarUrl: "",
-      canReceiveRequests: (user.friendRequestPrivacy || "everyone") === "everyone",
+      canReceiveRequests: (user.friendRequestPrivacy || "everyone") !== "nobody",
     };
 
     // Only expose a photo when the owner explicitly allows public visibility.
