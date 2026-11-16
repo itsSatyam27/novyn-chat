@@ -470,7 +470,18 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
 
   String? _usernameFromQr(String value) {
     final raw = value.trim();
-    final valid = RegExp(r'^[a-zA-Z0-9_]{3,24}
+    final candidate = raw.startsWith('@') ? raw.substring(1) : raw;
+    final isSimpleHandle = candidate.length >= 3 &&
+        candidate.length <= 24 &&
+        !RegExp(r'[^a-zA-Z0-9_]').hasMatch(candidate);
+    if (isSimpleHandle) return candidate.toLowerCase();
+
+    final linkedUsername = ProfileDeepLinkService.usernameFromLink(raw);
+    if (linkedUsername == null || linkedUsername.isEmpty) return null;
+    // Older Google-created handles may contain spaces. The HTTPS path is
+    // URI-decoded by ProfileDeepLinkService and can still resolve that user.
+    return linkedUsername.toLowerCase();
+  }
 
   Future<void> _onQRScanned(String data) async {
     if (_isResolvingQr) return;
