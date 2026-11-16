@@ -85,6 +85,7 @@ class _CallScreenState extends State<CallScreen>
   bool _networkAudioOnly = false;
   bool get _showVideo => _isVideo && !_networkAudioOnly;
   bool _isScreenSharingLocal = false;
+  bool _controlsExpanded = false;
   bool _screenShareTransitioning = false;
   bool _showSharedScreenFirst = true;
   bool _videoUpgradeQueued = false;
@@ -1003,6 +1004,134 @@ class _CallScreenState extends State<CallScreen>
     );
   }
 
+  void _toggleControlsTray() {
+    HapticService.vibrate(NovynHapticType.selection, category: HapticCategory.calls);
+    setState(() => _controlsExpanded = !_controlsExpanded);
+  }
+
+  Widget _buildSwipeCallTray() {
+    final expanded = _controlsExpanded;
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onVerticalDragEnd: (details) {
+        final velocity = details.primaryVelocity ?? 0;
+        if (velocity < -140 && !_controlsExpanded) {
+          HapticService.vibrate(NovynHapticType.selection, category: HapticCategory.calls);
+          setState(() => _controlsExpanded = true);
+        } else if (velocity > 140 && _controlsExpanded) {
+          HapticService.vibrate(NovynHapticType.selection, category: HapticCategory.calls);
+          setState(() => _controlsExpanded = false);
+        }
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 240),
+        curve: Curves.easeOutCubic,
+        width: double.infinity,
+        padding: const EdgeInsets.fromLTRB(16, 9, 16, 13),
+        decoration: BoxDecoration(
+          color: const Color(0xE8171628),
+          borderRadius: BorderRadius.circular(34),
+          border: Border.all(color: Colors.white.withValues(alpha: .12)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: .22),
+              blurRadius: 24,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: _toggleControlsTray,
+              child: SizedBox(
+                width: double.infinity,
+                height: 18,
+                child: Center(
+                  child: Container(
+                    width: 48,
+                    height: 5,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: .48),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            AnimatedSize(
+              duration: const Duration(milliseconds: 220),
+              curve: Curves.easeOutCubic,
+              alignment: Alignment.topCenter,
+              child: expanded
+                  ? Padding(
+                      padding: const EdgeInsets.only(top: 9, bottom: 13),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: _CallTrayActionTile(
+                              icon: Icons.flip_camera_android_rounded,
+                              label: 'Flip camera',
+                              onTap: () async {
+                                HapticService.vibrate(NovynHapticType.selection, category: HapticCategory.calls);
+                                await _webrtc.switchCamera();
+                                if (mounted) setState(() => _frontCamera = !_frontCamera);
+                              },
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: _CallTrayActionTile(
+                              icon: _isScreenSharingLocal
+                                  ? Icons.stop_screen_share_rounded
+                                  : Icons.screen_share_rounded,
+                              label: _isScreenSharingLocal ? 'Stop sharing' : 'Share screen',
+                              active: _isScreenSharingLocal,
+                              onTap: _toggleScreenShare,
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  : const SizedBox(width: double.infinity, height: 0),
+            ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _CallDockButton(
+                  icon: _muted ? Icons.mic_off_rounded : Icons.mic_rounded,
+                  onTap: _toggleMute,
+                  active: _muted,
+                ),
+                _CallDockButton(
+                  icon: _cameraOff ? Icons.videocam_off_rounded : Icons.videocam_rounded,
+                  onTap: () {
+                    HapticService.vibrate(NovynHapticType.selection, category: HapticCategory.calls);
+                    setState(() => _cameraOff = !_cameraOff);
+                    _webrtc.toggleCamera(_cameraOff);
+                  },
+                  active: _cameraOff,
+                ),
+                _CallDockButton(
+                  icon: _speakerOn ? Icons.volume_up_rounded : Icons.volume_down_rounded,
+                  onTap: _toggleSpeaker,
+                  active: _speakerOn,
+                ),
+                _CallDockButton(
+                  icon: Icons.call_end_rounded,
+                  onTap: _endCall,
+                  danger: true,
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   // ── Video call UI ──────────────────────────────────────────────────────
   Widget _buildVideoCall() {
     final connected = _state == CallState.connected;
@@ -1135,26 +1264,7 @@ class _CallScreenState extends State<CallScreen>
               else if (_state == CallState.calling)
                 _buildCallingControls()
               else
-                Container(
-                  margin: const EdgeInsets.fromLTRB(18, 0, 18, 18),
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 13),
-                  decoration: BoxDecoration(
-                    color: const Color(0xCC151525),
-                    borderRadius: BorderRadius.circular(38),
-                    border: Border.all(color: Colors.white.withValues(alpha: .12)),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      _CallDockButton(icon: Icons.flip_camera_android_rounded, onTap: () async { await _webrtc.switchCamera(); if (mounted) setState(() => _frontCamera = !_frontCamera); }),
-                      _CallDockButton(icon: _cameraOff ? Icons.videocam_off_rounded : Icons.videocam_rounded, onTap: () { setState(() => _cameraOff = !_cameraOff); _webrtc.toggleCamera(_cameraOff); }),
-                      _CallDockButton(icon: _muted ? Icons.mic_off_rounded : Icons.mic_rounded, onTap: _toggleMute, active: _muted),
-                      _CallDockButton(icon: _speakerOn ? Icons.volume_up_rounded : Icons.volume_down_rounded, onTap: _toggleSpeaker, active: _speakerOn),
-                      _CallDockButton(icon: _isScreenSharingLocal ? Icons.stop_screen_share_rounded : Icons.screen_share_rounded, onTap: _toggleScreenShare, active: _isScreenSharingLocal),
-                      _CallDockButton(icon: Icons.call_end_rounded, onTap: _endCall, danger: true),
-                    ],
-                  ),
-                ),
+                _buildSwipeCallTray(),
             ],
           ),
         ),
