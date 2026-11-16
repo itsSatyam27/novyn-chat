@@ -50,7 +50,7 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
     });
 
     final success = result['ok'] == true;
-    ScaffoldMessenger.of(context).showNovynAlert(
+    context.showNovynAlert(
       SnackBar(
         behavior: SnackBarBehavior.floating,
         content: Text(
