@@ -717,14 +717,6 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
                       ),
                     ),
                   ),
-                  NovynIconButton(
-                    icon: Icons.qr_code_scanner_rounded,
-                    size: 46,
-                    radius: 18,
-                    iconSize: 22,
-                    onTap: widget.onNavigateToPeople,
-                  ),
-                  const SizedBox(width: 8),
                   Material(
                     color: Theme.of(context).colorScheme.surface,
                     borderRadius: BorderRadius.circular(18),
@@ -1487,12 +1479,16 @@ class _ChatCard extends StatelessWidget {
     this.onOptions,
   });
 
+  // Keep contact and chat-list avatars visually consistent. People always
+  // use UserAvatar so both profile photos and the soft pastel initials fallback
+  // match the Contacts screen. Photo-less group chats keep their group icon.
   static const List<Color> _avatarPalette = [
-    Color(0xFF2F65E8),
-    Color(0xFF087F75),
-    Color(0xFFB65308),
-    Color(0xFFC23870),
-    Color(0xFF7652F6),
+    Color(0xFF6D4CF5),
+    Color(0xFFC03F72),
+    Color(0xFF287A70),
+    Color(0xFFB85A0A),
+    Color(0xFF2865E8),
+    Color(0xFF8054C9),
   ];
 
   Color _avatarColor() {
@@ -1504,69 +1500,33 @@ class _ChatCard extends StatelessWidget {
     return _avatarPalette[index];
   }
 
-  Color _presenceColor() {
-    final status = preview.peer.status.trim().toLowerCase();
-    if (status == 'away') return const Color(0xFFF59E0B);
-    if (status == 'busy' || status == 'dnd') return const Color(0xFFEC4899);
-    return const Color(0xFF20C979);
-  }
-
   Widget _buildAvatar(BuildContext context) {
     final color = _avatarColor();
-    final initial = preview.peer.name.trim().isEmpty
-        ? '?'
-        : preview.peer.name.trim().substring(0, 1).toUpperCase();
 
-    if (preview.peer.photoUrl.isNotEmpty) {
+    if (!preview.isGroup || preview.peer.photoUrl.isNotEmpty) {
+      final displayName = preview.peer.name.trim().isNotEmpty
+          ? preview.peer.name.trim()
+          : preview.peer.username.trim();
       return UserAvatar(
-        name: preview.peer.name,
-        photoUrl: preview.peer.photoUrl,
+        name: displayName,
+        photoUrl: preview.peer.photoUrl.trim(),
         radius: 26,
         fallbackColor: color,
-        showOnlineIndicator: preview.peer.isOnline,
+        showOnlineIndicator: !preview.isGroup && preview.peer.isOnline,
         isOnline: preview.peer.isOnline,
         presence: preview.peer.status,
       );
     }
 
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        Container(
-          width: 52,
-          height: 52,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: color,
-            shape: BoxShape.circle,
-          ),
-          child: preview.isGroup
-              ? const Icon(Icons.groups_rounded, color: Colors.white, size: 27)
-              : Text(
-                  initial,
-                  style: const TextStyle(
-                    fontFamily: 'PlusJakartaSans',
-                    color: Colors.white,
-                    fontSize: 21,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-        ),
-        if (!preview.isGroup && preview.peer.isOnline)
-          Positioned(
-            right: -1,
-            bottom: -1,
-            child: Container(
-              width: 14,
-              height: 14,
-              decoration: BoxDecoration(
-                color: _presenceColor(),
-                shape: BoxShape.circle,
-                border: Border.all(color: Colors.white, width: 2),
-              ),
-            ),
-          ),
-      ],
+    return Container(
+      width: 52,
+      height: 52,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: color,
+        shape: BoxShape.circle,
+      ),
+      child: const Icon(Icons.groups_rounded, color: Colors.white, size: 27),
     );
   }
 
