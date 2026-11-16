@@ -63,7 +63,7 @@ class _VoiceMessagePlayerState extends State<VoiceMessagePlayer> {
         await _player.play(UrlSource(widget.url));
       }
     } catch (_) {
-      if (mounted) ScaffoldMessenger.of(context).showNovynAlert(
+      if (mounted) context.showNovynAlert(
         const SnackBar(content: Text('Could not play this voice message.')),
       );
     } finally {
