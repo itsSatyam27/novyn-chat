@@ -13,7 +13,6 @@ import '../../widgets/novyn_ui.dart';
 import '../../theme/novyn_theme.dart';
 import '../chats/chat_detail_screen.dart';
 import 'received_friend_requests_screen.dart';
-import 'discover_people_screen.dart';
 import 'package:novyn/services/haptic_service.dart';
 
 class PeopleScreen extends StatefulWidget {
@@ -583,25 +582,6 @@ class _PeopleScreenState extends State<PeopleScreen> {
                     onTap: () => _showReceivedRequests(myUid),
                   );
                 },
-              ),
-              Divider(
-                height: 1,
-                thickness: 1,
-                indent: 70,
-                color: theme.brightness == Brightness.dark
-                    ? Colors.white.withValues(alpha: .07)
-                    : const Color(0xFFF0ECF6),
-              ),
-              _ContactActionTile(
-                icon: Icons.send_rounded,
-                title: 'Send a friend request',
-                subtitle: 'Find people and view requests you have sent.',
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => DiscoverPeopleScreen(myUid: myUid),
-                  ),
-                ),
               ),
               Divider(
                 height: 1,
