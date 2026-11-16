@@ -640,9 +640,12 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
                       if (value == 1) {
                         final myUid = context.read<AuthService>().user?.username;
                         if (myUid == null || myUid.isEmpty) return;
-                        Navigator.push(context, MaterialPageRoute(
-                          builder: (_) => CreateGroupScreen(myUid: myUid),
-                        ));
+                        Navigator.push(
+                          context,
+                          NovynPageRoute<void>(
+                            child: CreateGroupScreen(myUid: myUid),
+                          ),
+                        );
                       }
                     },
                     itemBuilder: (_) => const [
