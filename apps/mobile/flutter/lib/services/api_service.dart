@@ -346,6 +346,7 @@ class ApiService {
   // { username, email, linkedExisting, createdAccount }.
   static Future<Map<String, dynamic>?> signInWithGoogle({
     required String idToken,
+    String? username,
     bool remember = true,
   }) async {
     try {
@@ -353,7 +354,12 @@ class ApiService {
           .post(
             Uri.parse('$baseUrl/api/auth/google'),
             headers: await _csrfHeaders(),
-            body: jsonEncode({'idToken': idToken, 'remember': remember}),
+            body: jsonEncode({
+              'idToken': idToken,
+              'remember': remember,
+              if (username != null && username.trim().isNotEmpty)
+                'username': username.trim().toLowerCase(),
+            }),
           )
           .timeout(const Duration(seconds: 15));
 
