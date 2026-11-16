@@ -53,6 +53,11 @@ class MainActivity : FlutterFragmentActivity() {
                 "getInitialLink" -> {
                     val link = pendingDeepLink ?: intent?.dataString
                     pendingDeepLink = null
+                    // Avoid replaying the same cold-start URL after an activity
+                    // recreation once Flutter has consumed it.
+                    if (intent?.dataString != null) {
+                        setIntent(Intent(intent).setData(null))
+                    }
                     result.success(link)
                 }
                 else -> result.notImplemented()
