@@ -10,6 +10,7 @@ import '../../services/socket_service.dart';
 import '../../services/hybrid_db_service.dart';
 import '../../widgets/user_avatar.dart';
 import '../../widgets/novyn_empty_state.dart';
+import '../../widgets/novyn_page_route.dart';
 import '../../theme/novyn_theme.dart';
 import '../../widgets/novyn_ui.dart';
 import '../../models/chat_preview.dart';
@@ -485,8 +486,8 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
 
   void _openChat(ChatPreview chat) async {
     await Navigator.of(context).push<void>(
-      MaterialPageRoute<void>(
-        builder: (_) => ChatDetailScreen(peer: chat.peer, isGroup: chat.isGroup),
+      NovynPageRoute<void>(
+        child: ChatDetailScreen(peer: chat.peer, isGroup: chat.isGroup),
       ),
     );
     // The socket listener keeps this screen's conversation snapshot current
