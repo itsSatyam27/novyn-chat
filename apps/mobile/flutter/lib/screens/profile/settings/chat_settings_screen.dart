@@ -359,7 +359,7 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
               onPressed: () {
                 final password = controller.text;
                 if (password.length < 8 || (!restore && password != confirm.text)) {
-                  ScaffoldMessenger.of(dialogContext).showNovynAlert(SnackBar(
+                  dialogContext.showNovynAlert(SnackBar(
                     content: Text(password.length < 8 ? 'Password must be at least 8 characters.' : 'Passwords do not match.'),
                   ));
                   return;
@@ -378,7 +378,7 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
   }
 
   void _message(String message) {
-    ScaffoldMessenger.of(context).showNovynAlert(SnackBar(
+    context.showNovynAlert(SnackBar(
       content: Text(message),
       behavior: SnackBarBehavior.floating,
     ));
