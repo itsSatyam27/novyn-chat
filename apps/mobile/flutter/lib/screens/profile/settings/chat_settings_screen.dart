@@ -125,6 +125,47 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
             subtitle: 'Import a Novyn backup for this account',
             onTap: _working ? null : () => _runBackup(restore: true),
           ),
+          const SizedBox(height: 22),
+          _section('E2EE ACCOUNT RECOVERY'),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: colors.primary.withValues(alpha: .08),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: colors.primary.withValues(alpha: .16)),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.enhanced_encryption_rounded, color: colors.primary),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Save your message identity to your Novyn account as an encrypted backup. Only your recovery password can unlock it; Novyn cannot read your private key. Use the same password after reinstalling or moving to a new phone. This is separate from your Novyn sign-in password.',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      height: 1.45,
+                      color: colors.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          _backupAction(
+            context,
+            icon: Icons.cloud_upload_outlined,
+            title: 'Back up encryption key',
+            subtitle: 'Securely sync this device identity to your account',
+            onTap: _working ? null : () => _runE2eeRecovery(restore: false),
+          ),
+          _backupAction(
+            context,
+            icon: Icons.key_rounded,
+            title: 'Restore encryption key',
+            subtitle: 'Recover your previous identity on this device',
+            onTap: _working ? null : () => _runE2eeRecovery(restore: true),
+          ),
           if (_working) ...[
             const SizedBox(height: 16),
             const Center(child: CircularProgressIndicator()),
@@ -319,6 +360,100 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
     } finally {
       if (mounted) setState(() => _working = false);
     }
+  }
+
+  Future<void> _runE2eeRecovery({required bool restore}) async {
+    final username = context.read<AuthService>().user?.username.trim() ?? '';
+    if (username.isEmpty) {
+      _message('Sign in to a Novyn account before using E2EE recovery.');
+      return;
+    }
+    final password = await _askE2eeRecoveryPassword(restore: restore);
+    if (password == null || !mounted) return;
+    setState(() => _working = true);
+    try {
+      final socket = context.read<SocketService>();
+      if (restore) {
+        await socket.restoreE2eeIdentityBackup(password);
+        if (!mounted) return;
+        _message('Your E2EE identity has been restored and re-registered. Reopen chats to decrypt messages.');
+      } else {
+        await socket.saveE2eeIdentityBackup(password);
+        if (!mounted) return;
+        _message('Encrypted E2EE identity backup saved to your Novyn account.');
+      }
+    } catch (error) {
+      if (!mounted) return;
+      _message(error.toString().replaceFirst('FormatException: ', '').replaceFirst('Bad state: ', ''));
+    } finally {
+      if (mounted) setState(() => _working = false);
+    }
+  }
+
+  Future<String?> _askE2eeRecoveryPassword({required bool restore}) async {
+    final controller = TextEditingController();
+    final confirm = TextEditingController();
+    var obscure = true;
+    final result = await showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => AlertDialog(
+          title: Text(restore ? 'Restore encryption identity' : 'Protect encryption identity'),
+          content: Column(mainAxisSize: MainAxisSize.min, children: [
+            Text(restore
+              ? 'Enter the recovery password you used when backing up this account’s E2EE identity.'
+              : 'Create a recovery password with at least 12 characters. You will need this same password after reinstalling or changing phones.'),
+            const SizedBox(height: 14),
+            TextField(
+              controller: controller,
+              obscureText: obscure,
+              autofocus: true,
+              decoration: InputDecoration(
+                labelText: 'E2EE recovery password',
+                suffixIcon: IconButton(
+                  icon: Icon(obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined),
+                  onPressed: () => setDialogState(() => obscure = !obscure),
+                ),
+              ),
+            ),
+            if (!restore) ...[
+              const SizedBox(height: 10),
+              TextField(
+                controller: confirm,
+                obscureText: obscure,
+                decoration: const InputDecoration(labelText: 'Confirm recovery password'),
+              ),
+            ],
+          ]),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () {
+                final password = controller.text;
+                if (password.trim().length < 12 ||
+                    (!restore && password != confirm.text)) {
+                  dialogContext.showNovynAlert(SnackBar(
+                    content: Text(password.trim().length < 12
+                      ? 'Recovery password must be at least 12 characters.'
+                      : 'Recovery passwords do not match.'),
+                  ));
+                  return;
+                }
+                Navigator.pop(dialogContext, password);
+              },
+              child: Text(restore ? 'Restore' : 'Save recovery backup'),
+            ),
+          ],
+        ),
+      ),
+    );
+    controller.dispose();
+    confirm.dispose();
+    return result;
   }
 
   Future<String?> _askBackupPassword({required bool restore}) async {
