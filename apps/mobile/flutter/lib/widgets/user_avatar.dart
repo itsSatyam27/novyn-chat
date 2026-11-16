@@ -132,13 +132,16 @@ class _UserAvatarState extends State<UserAvatar> {
             backendUri != null &&
             imageUri.host.toLowerCase() == backendUri.host.toLowerCase();
 
+        final requestHeaders = isNovynMedia
+            ? ApiService.imageHeaders
+            : const <String, String>{};
         http.Response? response;
         for (var attempt = 0; attempt < 3; attempt++) {
           if (!isCurrentLoad()) return;
           try {
             response = await http.get(
               Uri.parse(photoUrl),
-              headers: ApiService.imageHeaders,
+              headers: requestHeaders,
             ).timeout(const Duration(seconds: 20));
           } catch (_) {
             if (attempt == 2) break;
@@ -177,9 +180,11 @@ class _UserAvatarState extends State<UserAvatar> {
         }
 
         if (!isCurrentLoad()) return;
-        if (response?.statusCode == 200 &&
-            response!.bodyBytes.isNotEmpty) {
-          final bytes = response.bodyBytes;
+        final successfulResponse = response;
+        if (successfulResponse != null &&
+            successfulResponse.statusCode == 200 &&
+            successfulResponse.bodyBytes.isNotEmpty) {
+          final bytes = successfulResponse.bodyBytes;
           await _avatarCache?.put(cacheKey, bytes.toList());
           if (isCurrentLoad()) setState(() => _cachedImage = bytes);
           return;
