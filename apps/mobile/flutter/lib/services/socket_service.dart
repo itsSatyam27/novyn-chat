@@ -1392,6 +1392,101 @@ class SocketService extends ChangeNotifier {
     }
   }
 
+  Future<void> saveE2eeIdentityBackup(String recoveryPassword) async {
+    await _waitForSocketAuthentication();
+    final account = _myUsername;
+    final connection = _socket;
+    if (account == null || connection == null) {
+      throw StateError('Sign in to Novyn before backing up your encryption key.');
+    }
+    await _registerEncryptionIdentity();
+    if (_registeredIdentityAccount != account.toLowerCase()) {
+      throw StateError('Novyn could not verify the active encryption identity.');
+    }
+    final publicKey = await encryption.initializeIdentity(account);
+    final backup = await encryption.exportIdentityRecoveryBackup(
+      account,
+      recoveryPassword,
+    );
+    final completer = Completer<Map<String, dynamic>>();
+    connection.emitWithAck(
+      'save_e2ee_identity_backup',
+      {'publicKey': publicKey, 'backup': backup},
+      ack: (dynamic result) {
+        if (!completer.isCompleted) {
+          completer.complete(result is Map
+              ? Map<String, dynamic>.from(result)
+              : <String, dynamic>{'ok': false});
+        }
+      },
+    );
+    final result = await completer.future.timeout(
+      const Duration(seconds: 12),
+      onTimeout: () => <String, dynamic>{'ok': false},
+    );
+    if (result['ok'] != true) {
+      throw StateError(
+        result['message']?.toString() ?? 'The encrypted recovery backup could not be saved.',
+      );
+    }
+  }
+
+  Future<void> restoreE2eeIdentityBackup(String recoveryPassword) async {
+    await _waitForSocketAuthentication();
+    final account = _myUsername;
+    final connection = _socket;
+    if (account == null || connection == null) {
+      throw StateError('Sign in to Novyn before restoring your encryption key.');
+    }
+    final completer = Completer<Map<String, dynamic>>();
+    connection.emitWithAck(
+      'get_e2ee_identity_backup',
+      const <String, dynamic>{},
+      ack: (dynamic result) {
+        if (!completer.isCompleted) {
+          completer.complete(result is Map
+              ? Map<String, dynamic>.from(result)
+              : <String, dynamic>{'ok': false});
+        }
+      },
+    );
+    final result = await completer.future.timeout(
+      const Duration(seconds: 12),
+      onTimeout: () => <String, dynamic>{'ok': false},
+    );
+    if (result['ok'] != true || result['backup'] is! Map) {
+      throw StateError(
+        result['message']?.toString() ?? 'No E2EE recovery backup exists for this account yet.',
+      );
+    }
+    final backup = Map<String, dynamic>.from(result['backup'] as Map);
+    final restoredPublicKey = await encryption.restoreIdentityRecoveryBackup(
+      backup,
+      account,
+      recoveryPassword,
+    );
+    final serverPublicKey = result['publicKey']?.toString() ?? '';
+    if (!MessageEncryptionService.samePublicKey(restoredPublicKey, serverPublicKey)) {
+      throw StateError('The account recovery backup does not match its registered identity.');
+    }
+
+    // Re-publish the recovered identity and discard peer keys cached against
+    // the temporary identity created on this device before restore.
+    _registeredIdentityAccount = null;
+    _peerKeys.clear();
+    await _registerEncryptionIdentity();
+    if (_registeredIdentityAccount != account.toLowerCase()) {
+      throw StateError('The recovered encryption identity could not be registered.');
+    }
+    if (_currentChatWith != null) {
+      connection.emit('get_history', {
+        'to': _currentChatWith,
+        'kind': _currentChatIsGroup ? 'group' : 'friend',
+      });
+      unawaited(decryptCurrentMessages());
+    }
+  }
+
   // ── Parse friend_list payload into ChatPreview list ───────────────────────
   void _handleFriendList(dynamic data) {
     // Socket.IO callbacks do not await async handlers. Keep failures contained
