@@ -151,6 +151,128 @@ class MessageEncryptionService {
     });
   }
 
+  /// Creates an account-syncable identity backup. The server only receives
+  /// this authenticated ciphertext; the recovery password never leaves device.
+  Future<Map<String, dynamic>> exportIdentityRecoveryBackup(
+      String username, String password) async {
+    if (password.trim().length < 12) {
+      throw const FormatException('Use a recovery password with at least 12 characters.');
+    }
+    final account = _account(username);
+    final identity = await _identity(account);
+    final publicKey = await initializeIdentity(account);
+    final plaintext = jsonEncode({
+      'username': account,
+      'identity': {
+        'd': _b64url(identity.d),
+        'x': _b64url(identity.x),
+        'y': _b64url(identity.y),
+      },
+    });
+    final random = Random.secure();
+    final salt = List<int>.generate(16, (_) => random.nextInt(256));
+    final nonce = List<int>.generate(12, (_) => random.nextInt(256));
+    final key = await Pbkdf2(
+      macAlgorithm: Hmac.sha256(),
+      iterations: 210000,
+      bits: 256,
+    ).deriveKey(secretKey: SecretKey(utf8.encode(password)), nonce: salt);
+    final box = await _aes.encrypt(
+      utf8.encode(plaintext),
+      secretKey: key,
+      nonce: nonce,
+    );
+    return {
+      'format': 'novyn-e2ee-identity',
+      'version': 1,
+      'iterations': 210000,
+      'username': account,
+      'publicKey': publicKey,
+      'salt': base64Encode(salt),
+      'iv': base64Encode(nonce),
+      'ciphertext': base64Encode([...box.cipherText, ...box.mac.bytes]),
+    };
+  }
+
+  /// Restores the account's original ECDH identity from its encrypted cloud
+  /// envelope and returns its public JWK for re-registration with friends.
+  Future<String> restoreIdentityRecoveryBackup(
+      Map<String, dynamic> backup, String username, String password) async {
+    final account = _account(username);
+    if (password.trim().length < 12 ||
+        backup['format'] != 'novyn-e2ee-identity' ||
+        backup['version'] != 1 ||
+        backup['iterations'] != 210000 ||
+        backup['username']?.toString().toLowerCase() != account) {
+      throw const FormatException('This E2EE recovery backup is invalid or belongs to another account.');
+    }
+    final salt = base64Decode(backup['salt']?.toString() ?? '');
+    final nonce = base64Decode(backup['iv']?.toString() ?? '');
+    final ciphertext = base64Decode(backup['ciphertext']?.toString() ?? '');
+    if (salt.length != 16 || nonce.length != 12 || ciphertext.length < 16) {
+      throw const FormatException('The E2EE recovery backup is damaged.');
+    }
+    final opened = await compute(_openKeyFile, {
+      'envelope': backup,
+      'password': password,
+    });
+    if (opened['username']?.toString().toLowerCase() != account ||
+        opened['identity'] is! Map) {
+      throw const FormatException('The E2EE recovery backup contents are invalid.');
+    }
+    final rawIdentity = Map<String, dynamic>.from(opened['identity'] as Map);
+    final d = _decodeB64url(rawIdentity['d']?.toString() ?? '');
+    final x = _decodeB64url(rawIdentity['x']?.toString() ?? '');
+    final y = _decodeB64url(rawIdentity['y']?.toString() ?? '');
+    if (d.length != 32 || x.length != 32 || y.length != 32) {
+      throw const FormatException('The E2EE recovery identity has invalid key material.');
+    }
+    final scalar = _bytesBigInt(d);
+    if (scalar <= BigInt.zero || scalar >= _domain.n) {
+      throw const FormatException('The E2EE recovery private key is invalid.');
+    }
+    final point = _domain.G * scalar;
+    if (point == null ||
+        point.x!.toBigInteger() != _bytesBigInt(x) ||
+        point.y!.toBigInteger() != _bytesBigInt(y)) {
+      throw const FormatException('The E2EE recovery key pair failed validation.');
+    }
+
+    final recovered = _EcdhIdentity(
+      pc.ECPrivateKey(scalar, _domain),
+      d,
+      x,
+      y,
+    );
+    final expectedPublicKey = jsonEncode({
+      'kty': 'EC',
+      'crv': 'P-256',
+      'x': _b64url(x),
+      'y': _b64url(y),
+      'ext': true,
+      'key_ops': <String>[],
+    });
+    final backupPublicKey = backup['publicKey']?.toString() ?? '';
+    if (!samePublicKey(expectedPublicKey, backupPublicKey)) {
+      throw const FormatException('The E2EE recovery public key does not match its private key.');
+    }
+
+    // Only replace the local identity after the password and key pair have
+    // both been fully validated. Then evict stale in-memory identity caches.
+    await _write('novyn_e2ee_identity_$account', jsonEncode({
+      'd': _b64url(recovered.d),
+      'x': _b64url(recovered.x),
+      'y': _b64url(recovered.y),
+    }));
+    _identities.remove(account);
+    _identityLoads.remove(account);
+    final restoredPublicKey = await initializeIdentity(account);
+    if (!samePublicKey(restoredPublicKey, backupPublicKey)) {
+      throw StateError('The restored Novyn identity could not be verified.');
+    }
+    return restoredPublicKey;
+  }
+
   Future<SecretKey> _sharedKey(String username, String peerPublicKeyJwk, {bool requireExistingIdentity = false}) async {
     final identity = await _identity(username, createIfMissing: !requireExistingIdentity);
     final decoded = jsonDecode(peerPublicKeyJwk);
