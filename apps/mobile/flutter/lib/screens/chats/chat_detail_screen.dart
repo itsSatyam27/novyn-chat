@@ -1733,15 +1733,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
 
         // ── Main input row ─────────────────────────────────────────
         Container(
-          decoration: BoxDecoration(
-            color: theme.colorScheme.surface,
-            border: Border(
-              top: BorderSide(
-                color: theme.colorScheme.outlineVariant.withValues(alpha: .45),
-                width: .7,
-              ),
-            ),
-          ),
+          // Keep the composer controls floating over the chat wallpaper instead
+          // of painting a full-width opaque footer behind them.
+          color: Colors.transparent,
           padding: EdgeInsets.fromLTRB(12, 10, 12, MediaQuery.of(context).viewInsets.bottom > 0 ? 10 : 12),
           child: Row(
             // Anchor side actions while the multiline field grows.
