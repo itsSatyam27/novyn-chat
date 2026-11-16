@@ -203,7 +203,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
                 child: Column(
                   children: [
                     SizedBox(
-                      height: 140,
+                      height: 150,
                       child: Stack(
                         clipBehavior: Clip.none,
                         children: [
@@ -521,7 +521,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
   static String _initials(String value) {
     final words = value
         .trim()
-        .split(' ')
+        .split(RegExp(r'\s+'))
         .where((part) => part.isNotEmpty)
         .toList();
     if (words.isEmpty) return 'N';
