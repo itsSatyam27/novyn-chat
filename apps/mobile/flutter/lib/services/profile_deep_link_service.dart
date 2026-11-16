@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:flutter/services.dart';
 
-/// Receives HTTPS public-profile links and the legacy novyn://user/ links.
+/// Receives Novyn in-app profile links (`novyn://user/<username>`).
 class ProfileDeepLinkService {
   ProfileDeepLinkService._();
 
@@ -51,12 +51,6 @@ class ProfileDeepLinkService {
   static String? usernameFromLink(String raw) {
     try {
       final uri = Uri.parse(raw);
-      if (uri.scheme == 'https' &&
-          (uri.host == 'novyn.app' || uri.host == 'www.novyn.app') &&
-          uri.pathSegments.length == 2 &&
-          uri.pathSegments.first == 'user') {
-        return _validUsername(uri.pathSegments[1]);
-      }
       if (uri.scheme == 'novyn' &&
           uri.host == 'user' &&
           uri.pathSegments.length == 1) {
