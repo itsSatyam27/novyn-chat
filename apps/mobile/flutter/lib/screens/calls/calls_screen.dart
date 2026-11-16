@@ -11,6 +11,7 @@ import '../../services/api_service.dart';
 import '../../models/user_model.dart';
 import '../../widgets/user_avatar.dart';
 import '../../widgets/novyn_shimmer.dart';
+import '../../widgets/novyn_page_route.dart';
 import '../../widgets/novyn_empty_state.dart';
 import '../../widgets/novyn_ui.dart';
 import '../../theme/novyn_theme.dart';
@@ -448,8 +449,8 @@ class _CallsScreenState extends State<CallsScreen> with WidgetsBindingObserver {
                     child: GestureDetector(
                       onTap: () => Navigator.push(
                         context,
-                        MaterialPageRoute(
-                          builder: (_) => CallScreen(peer: peer, callType: 'voice'),
+                        NovynPageRoute<void>(
+                          child: CallScreen(peer: peer, callType: 'voice'),
                         ),
                       ),
                       onLongPress: () => _toggleFavorite(peer),
@@ -1003,8 +1004,8 @@ class _CallCard extends StatelessWidget {
                     HapticService.vibrate(NovynHapticType.light, category: HapticCategory.calls);
                     Navigator.push(
                       context,
-                      MaterialPageRoute(
-                        builder: (_) => CallScreen(peer: entry.peer, callType: isVideo ? 'video' : 'voice'),
+                      NovynPageRoute<void>(
+                        child: CallScreen(peer: entry.peer, callType: isVideo ? 'video' : 'voice'),
                       ),
                     );
                   },
