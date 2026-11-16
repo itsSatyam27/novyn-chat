@@ -563,7 +563,8 @@ class _NovynToastState extends State<_NovynToast>
               borderRadius: BorderRadius.circular(28),
               child: SizedBox(
                 height: 46,
-                width: 46 + (210 * expansion),
+                width: 46 + (210 * expansion) +
+                    (event.actionLabel != null && event.onAction != null ? 54 : 0),
                 child: Row(
                   children: [
                     SizedBox(
@@ -576,7 +577,7 @@ class _NovynToastState extends State<_NovynToast>
                         child: Opacity(
                           opacity: expansion.clamp(0, 1).toDouble(),
                           child: Padding(
-                            padding: const EdgeInsets.only(right: 16),
+                            padding: const EdgeInsets.only(right: 8),
                             child: Text(
                               '${event.title} · ${event.subtitle}',
                               maxLines: 1,
@@ -584,6 +585,18 @@ class _NovynToastState extends State<_NovynToast>
                               style: const TextStyle(color: Colors.white, fontSize: 12.5, fontWeight: FontWeight.w700),
                             ),
                           ),
+                        ),
+                      ),
+                    if (event.actionLabel != null && event.onAction != null && expansion > .5)
+                      GestureDetector(
+                        onTap: () {
+                          event.onAction!();
+                          _dismiss();
+                        },
+                        child: Padding(
+                          padding: const EdgeInsets.only(right: 12),
+                          child: Text(event.actionLabel!,
+                            style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w900)),
                         ),
                       ),
                   ],
@@ -625,6 +638,8 @@ class _NovynToastState extends State<_NovynToast>
                       decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
                     ),
                   ),
+                  if (event.actionLabel != null && event.onAction != null)
+                    actionButton(color: tone.foreground),
                 ],
               ),
             ),
@@ -644,22 +659,39 @@ class _NovynToastState extends State<_NovynToast>
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  iconTile(size: 64, iconSize: 34),
-                  const SizedBox(height: 8),
+                  iconTile(size: event.actionLabel != null ? 50 : 64, iconSize: event.actionLabel != null ? 27 : 34),
+                  const SizedBox(height: 6),
                   Text(
                     event.title,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: Color(0xFF1C1B29)),
+                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: Color(0xFF1C1B29)),
                   ),
-                  const SizedBox(height: 3),
+                  const SizedBox(height: 2),
                   Text(
                     event.subtitle,
                     maxLines: 2,
                     textAlign: TextAlign.center,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 11, height: 1.25, color: Color(0xFF6B6880)),
+                    style: const TextStyle(fontSize: 10.5, height: 1.2, color: Color(0xFF6B6880)),
                   ),
+                  if (event.actionLabel != null && event.onAction != null)
+                    SizedBox(
+                      height: 25,
+                      child: TextButton(
+                        onPressed: () {
+                          event.onAction!();
+                          _dismiss();
+                        },
+                        style: TextButton.styleFrom(
+                          foregroundColor: tone.foreground,
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                        child: Text(event.actionLabel!, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800)),
+                      ),
+                    ),
                 ],
               ),
             ),
