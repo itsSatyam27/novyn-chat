@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:novyn/widgets/novyn_alert.dart';
 import 'package:provider/provider.dart';
 import 'package:audioplayers/audioplayers.dart';
 
@@ -44,7 +45,7 @@ class _SoundVibrationScreenState extends State<SoundVibrationScreen> {
       if (mounted) setState(() => _playing = 'message');
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        ScaffoldMessenger.of(context).showNovynAlert(
           const SnackBar(content: Text('Sound preview is unavailable right now.')),
         );
       }
@@ -68,7 +69,7 @@ class _SoundVibrationScreenState extends State<SoundVibrationScreen> {
       if (mounted) setState(() => _playing = 'call');
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        ScaffoldMessenger.of(context).showNovynAlert(
           const SnackBar(content: Text('Call sound preview is unavailable right now.')),
         );
       }
