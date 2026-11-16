@@ -221,7 +221,99 @@ class NovynAlert {
     );
   }
 
-  static void showEvent(
+
+  /// Adapts legacy Flutter SnackBars to the user's selected Novyn alert style.
+  /// Keeps the original message, duration and action while replacing the old UI.
+  static void showLegacy(BuildContext context, SnackBar snackBar) {
+    final message = _legacySnackBarText(snackBar.content).trim();
+    final tone = _legacySnackBarTone(snackBar.backgroundColor, message);
+    final action = snackBar.action;
+    showEvent(
+      context,
+      NovynAlertEvent(
+        title: message.isEmpty ? 'Notification' : message,
+        subtitle: '',
+        icon: switch (tone) {
+          NovynAlertTone.success => Icons.check_circle_outline_rounded,
+          NovynAlertTone.danger => Icons.error_outline_rounded,
+          NovynAlertTone.warning => Icons.warning_amber_rounded,
+          NovynAlertTone.violet => Icons.notifications_active_outlined,
+          NovynAlertTone.neutral => Icons.info_outline_rounded,
+        },
+        tone: tone,
+        actionLabel: action?.label,
+        onAction: action?.onPressed,
+      ),
+      duration: snackBar.duration,
+      haptic: false,
+    );
+  }
+
+  static NovynAlertTone _legacySnackBarTone(Color? background, String message) {
+    if (background != null) {
+      final red = background.red;
+      final green = background.green;
+      final blue = background.blue;
+      if (red > green * 1.25 && red > blue * 1.1) {
+        return NovynAlertTone.danger;
+      }
+      if (green > red * 1.25 && green > blue * .9) {
+        return NovynAlertTone.success;
+      }
+    }
+
+    final value = message.toLowerCase();
+    if (RegExp(r'\b(error|failed|failure|could not|cannot|unable|wrong|denied|invalid)\b')
+        .hasMatch(value)) {
+      return NovynAlertTone.danger;
+    }
+    if (RegExp(r'\b(warning|weak network|limited|retry)\b').hasMatch(value)) {
+      return NovynAlertTone.warning;
+    }
+    if (RegExp(r'\b(successfully|saved|updated|copied|reconnected|created|sent|imported|cleared)\b')
+        .hasMatch(value)) {
+      return NovynAlertTone.success;
+    }
+    return NovynAlertTone.neutral;
+  }
+
+  static String _legacySnackBarText(Widget widget) {
+    if (widget is Text) {
+      return widget.data ?? widget.textSpan?.toPlainText() ?? '';
+    }
+    if (widget is RichText) return widget.text.toPlainText();
+    if (widget is ListTile) {
+      return [
+        if (widget.title != null) _legacySnackBarText(widget.title!),
+        if (widget.subtitle != null) _legacySnackBarText(widget.subtitle!),
+      ].where((part) => part.trim().isNotEmpty).join(' · ');
+    }
+    if (widget is Flex) {
+      return widget.children
+          .map(_legacySnackBarText)
+          .where((part) => part.trim().isNotEmpty)
+          .join(' · ');
+    }
+    if (widget is Wrap) {
+      return widget.children
+          .map(_legacySnackBarText)
+          .where((part) => part.trim().isNotEmpty)
+          .join(' · ');
+    }
+    if (widget is Padding) return _legacySnackBarText(widget.child);
+    if (widget is Center) return widget.child == null ? '' : _legacySnackBarText(widget.child!);
+    if (widget is Align) return widget.child == null ? '' : _legacySnackBarText(widget.child!);
+    if (widget is Container && widget.child != null) {
+      return _legacySnackBarText(widget.child!);
+    }
+    if (widget is SizedBox && widget.child != null) {
+      return _legacySnackBarText(widget.child!);
+    }
+    if (widget is DefaultTextStyle) return _legacySnackBarText(widget.child);
+    if (widget is Tooltip) return _legacySnackBarText(widget.child);
+    return '';
+  }
+    static void showEvent(
     BuildContext context,
     NovynAlertEvent event, {
     Duration duration = const Duration(milliseconds: 2800),
@@ -279,6 +371,12 @@ class NovynAlert {
       duration: const Duration(milliseconds: 2400),
       haptic: false,
     );
+  }
+}
+
+extension NovynAlertScaffoldMessenger on ScaffoldMessengerState {
+  void showNovynAlert(SnackBar snackBar) {
+    NovynAlert.showLegacy(context, snackBar);
   }
 }
 
@@ -440,14 +538,16 @@ class _NovynToastState extends State<_NovynToast>
               overflow: TextOverflow.ellipsis,
               style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: foreground),
             ),
-            const SizedBox(height: 2),
-            Text(
-              event.subtitle,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              textAlign: centered ? TextAlign.center : TextAlign.start,
-              style: TextStyle(fontSize: 12, height: 1.3, color: secondary),
-            ),
+            if (event.subtitle.isNotEmpty) ...[
+              const SizedBox(height: 2),
+              Text(
+                event.subtitle,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                textAlign: centered ? TextAlign.center : TextAlign.start,
+                style: TextStyle(fontSize: 12, height: 1.3, color: secondary),
+              ),
+            ],
           ],
         );
 
@@ -498,7 +598,7 @@ class _NovynToastState extends State<_NovynToast>
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      '${event.title} · ${event.subtitle}',
+                      '${event.subtitle.isEmpty ? event.title : '${event.title} · ${event.subtitle}'}',
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
@@ -585,7 +685,7 @@ class _NovynToastState extends State<_NovynToast>
                           child: Padding(
                             padding: const EdgeInsets.only(right: 8),
                             child: Text(
-                              '${event.title} · ${event.subtitle}',
+                              '${event.subtitle.isEmpty ? event.title : '${event.title} · ${event.subtitle}'}',
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(color: Colors.white, fontSize: 12.5, fontWeight: FontWeight.w700),
