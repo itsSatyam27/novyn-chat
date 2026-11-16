@@ -321,13 +321,13 @@ class _ProfilePreviewSheetState extends State<ProfilePreviewSheet> {
       );
       if (!context.mounted) return;
       if (result['ok'] == true) {
-        ScaffoldMessenger.of(context).showNovynAlert(
+        context.showNovynAlert(
           SnackBar(content: Text(currentlyBlocked
               ? 'User unblocked successfully.'
               : 'User blocked successfully.')),
         );
       } else {
-        ScaffoldMessenger.of(context).showNovynAlert(
+        context.showNovynAlert(
           SnackBar(content: Text(
             result['message']?.toString() ?? 'Could not update block settings.',
           )),
@@ -335,7 +335,7 @@ class _ProfilePreviewSheetState extends State<ProfilePreviewSheet> {
       }
     } catch (error) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showNovynAlert(
+      context.showNovynAlert(
         SnackBar(content: Text(error.toString().replaceFirst('Bad state: ', ''))),
       );
     }
