@@ -768,7 +768,7 @@ class _ForgotPasswordDialogState extends State<_ForgotPasswordDialog> {
     setState(() => _loading = false);
     if (result['ok'] == true) {
       Navigator.of(context).pop();
-      ScaffoldMessenger.of(context).showNovynAlert(
+      context.showNovynAlert(
         SnackBar(
           content: Text(result['message']?.toString() ?? 'Password updated. Please sign in.'),
           behavior: SnackBarBehavior.floating,
