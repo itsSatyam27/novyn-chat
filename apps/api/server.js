@@ -5937,6 +5937,22 @@ app.post(
       let adminEmailSent = false;
       let receiptEmailSent = false;
 
+      // A feedback submission is successful once it is durably stored.
+      // Do not make the mobile request wait for slow SMTP round trips.
+      res.json({
+        ok: true,
+        id: entry.id,
+        saved: true,
+        email: {
+          configured: mailConfigured,
+          adminRecipientConfigured,
+          adminSent: false,
+          receiptSent: false,
+          receiptAddress: replyEmail || null,
+          deliveryPending: Boolean(passwordResetMailer && (FEEDBACK_TO_EMAIL || replyEmail)),
+        },
+      });
+
       if (passwordResetMailer && FEEDBACK_TO_EMAIL) {
         try {
           await passwordResetMailer.sendMail({
@@ -6024,18 +6040,8 @@ app.post(
         }
       }
 
-      return res.json({
-        ok: true,
-        id: entry.id,
-        saved: true,
-        email: {
-          configured: mailConfigured,
-          adminRecipientConfigured,
-          adminSent: adminEmailSent,
-          receiptSent: receiptEmailSent,
-          receiptAddress: replyEmail || null,
-        },
-      });
+      // SMTP delivery is best-effort after the saved response has been sent.
+      // Delivery failures are logged above and do not turn a saved submission into a timeout.
     }
   );
 }
