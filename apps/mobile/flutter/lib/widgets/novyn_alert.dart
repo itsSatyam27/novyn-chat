@@ -11,12 +11,16 @@ class NovynAlertEvent {
     required this.subtitle,
     required this.icon,
     this.tone = NovynAlertTone.neutral,
+    this.actionLabel,
+    this.onAction,
   });
 
   final String title;
   final String subtitle;
   final IconData icon;
   final NovynAlertTone tone;
+  final String? actionLabel;
+  final VoidCallback? onAction;
 
   // Safety
   static NovynAlertEvent userBlocked(String name) => NovynAlertEvent(
@@ -143,6 +147,8 @@ class NovynAlert {
     IconData? icon,
     NovynAlertTone? tone,
     bool haptic = true,
+    String? actionLabel,
+    VoidCallback? onAction,
   }) {
     showEvent(
       context,
@@ -151,6 +157,8 @@ class NovynAlert {
         subtitle: message,
         icon: icon ?? (isError ? Icons.error_outline_rounded : Icons.check_circle_outline_rounded),
         tone: tone ?? (isError ? NovynAlertTone.danger : NovynAlertTone.success),
+        actionLabel: actionLabel,
+        onAction: onAction,
       ),
       duration: duration,
       haptic: haptic,
@@ -341,12 +349,21 @@ class _NovynToastState extends State<_NovynToast>
                                 ],
                               ),
                             ),
-                            IconButton(
-                              tooltip: 'Dismiss',
-                              visualDensity: VisualDensity.compact,
-                              onPressed: _dismiss,
-                              icon: Icon(Icons.close_rounded, size: 18, color: colors.onSurfaceVariant),
-                            ),
+                            if (event.actionLabel != null && event.onAction != null)
+                              TextButton(
+                                onPressed: () {
+                                  event.onAction!();
+                                  _dismiss();
+                                },
+                                child: Text(event.actionLabel!, style: TextStyle(fontSize: 12, color: style.foreground)),
+                              )
+                            else
+                              IconButton(
+                                tooltip: 'Dismiss',
+                                visualDensity: VisualDensity.compact,
+                                onPressed: _dismiss,
+                                icon: Icon(Icons.close_rounded, size: 18, color: colors.onSurfaceVariant),
+                              ),
                           ],
                         ),
                       ),
