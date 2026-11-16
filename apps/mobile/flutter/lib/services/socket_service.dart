@@ -389,28 +389,32 @@ class SocketService extends ChangeNotifier {
         throw StateError('Secure identity registration is pending.');
       }
 
-      var peerPublicKey = _peerKeys[pending.receiverId.toLowerCase()] ?? '';
-      if (peerPublicKey.isEmpty) {
-        final keyReply = Completer<Map<String, dynamic>>();
-        connection.emitWithAck(
-          'get_public_key',
-          {'username': pending.receiverId},
-          ack: (dynamic result) {
-            if (!keyReply.isCompleted) {
-              keyReply.complete(result is Map
-                  ? Map<String, dynamic>.from(result)
-                  : <String, dynamic>{});
-            }
-          },
-        );
-        final keyResult = await keyReply.future.timeout(
-          const Duration(seconds: 8),
-          onTimeout: () => <String, dynamic>{},
-        );
-        peerPublicKey = keyResult['publicKey']?.toString() ?? '';
-        if (peerPublicKey.isNotEmpty) {
-          _peerKeys[pending.receiverId.toLowerCase()] = peerPublicKey;
-        }
+      // A contact may have re-created their E2EE identity while this
+      // device was offline. The in-memory peer-key cache can then point to
+      // the old public key, producing ciphertext the recipient can no longer
+      // decrypt. Resolve the authoritative key for every send; never fall
+      // back to a stale cached key when the server has no current key.
+      final keyReply = Completer<Map<String, dynamic>>();
+      connection.emitWithAck(
+        'get_public_key',
+        {'username': pending.receiverId},
+        ack: (dynamic result) {
+          if (!keyReply.isCompleted) {
+            keyReply.complete(result is Map
+                ? Map<String, dynamic>.from(result)
+                : <String, dynamic>{});
+          }
+        },
+      );
+      final keyResult = await keyReply.future.timeout(
+        const Duration(seconds: 8),
+        onTimeout: () => <String, dynamic>{},
+      );
+      final peerPublicKey = keyResult['publicKey']?.toString() ?? '';
+      if (peerPublicKey.isNotEmpty) {
+        _peerKeys[pending.receiverId.toLowerCase()] = peerPublicKey;
+      } else {
+        _peerKeys.remove(pending.receiverId.toLowerCase());
       }
       if (peerPublicKey.isEmpty) {
         throw const PendingMessageDeferredException(
