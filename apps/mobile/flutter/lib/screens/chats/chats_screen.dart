@@ -1644,7 +1644,7 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
       case 'read':
         try {
           final result = await socket.markConversationAsRead(
-            chat.peer.username,
+            chat.isGroup ? chat.peer.uid : chat.peer.username,
             isGroup: chat.isGroup,
           );
           if (result['ok'] != true) {
