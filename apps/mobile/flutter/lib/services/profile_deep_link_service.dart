@@ -10,6 +10,21 @@ class ProfileDeepLinkService {
   static final StreamController<String> _links =
       StreamController<String>.broadcast();
   static Future<void>? _initialization;
+  static String? _pendingLink;
+
+  static void _publish(String raw) {
+    if (_links.hasListener) {
+      _links.add(raw);
+    } else {
+      _pendingLink = raw;
+    }
+  }
+
+  static String? takePendingLink() {
+    final value = _pendingLink;
+    _pendingLink = null;
+    return value;
+  }
 
   static Stream<String> get links => _links.stream;
 
@@ -20,12 +35,12 @@ class ProfileDeepLinkService {
   static Future<void> _initialize() async {
     _channel.setMethodCallHandler((call) async {
       if (call.method == 'onLink' && call.arguments is String) {
-        _links.add(call.arguments as String);
+        _publish(call.arguments as String);
       }
     });
     try {
       final initial = await _channel.invokeMethod<String>('getInitialLink');
-      if (initial != null && initial.isNotEmpty) _links.add(initial);
+      if (initial != null && initial.isNotEmpty) _publish(initial);
     } on PlatformException {
       // The Android platform channel may be unavailable in widget tests.
     } on MissingPluginException {
