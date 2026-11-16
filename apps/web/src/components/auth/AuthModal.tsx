@@ -33,7 +33,18 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     setMode(initialMode);
     setRecovering(false);
     setError('');
+    if (!isOpen) {
+      setGoogleUsernameRequired(false);
+      setGoogleUsername('');
+    }
   }, [initialMode, isOpen]);
+
+  const closeAuthModal = () => {
+    if (googleUsernameRequired) cancelGoogleSignup();
+    setGoogleUsernameRequired(false);
+    setGoogleUsername('');
+    onClose();
+  };
 
   if (!isOpen) return null;
 
@@ -95,7 +106,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
   return (
     <AnimatePresence>
-      <div className="modal-backdrop auth-modal-backdrop" onClick={onClose}>
+      <div className="modal-backdrop auth-modal-backdrop" onClick={closeAuthModal}>
         <motion.div
           initial={{ opacity: 0, scale: 0.94, y: 15 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -112,7 +123,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             type="button"
             onClick={() => {
               triggerHaptic('light');
-              onClose();
+              closeAuthModal();
             }}
             className="modal-close-btn"
             aria-label="Close"
