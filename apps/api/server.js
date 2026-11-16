@@ -5345,9 +5345,8 @@ app.post(
 // Novyn session. The Admin SDK bypasses client rules, so users can only access
 // the document selected from the server-verified req.userKey.
 const ACCOUNT_SETTINGS_ALLOWED_KEYS = new Set([
-  "notificationsOn", "messagePreview", "chatLinkPreviews", "readReceipts",
-  "onlineStatus", "themeMode", "inAppSounds", "chatEnterToSend",
-  "inAppVibration", "groupNotifications", "autoDownloadWifi",
+    "onlineStatus", "themeMode", "chatEnterToSend",
+  "autoDownloadWifi",
   "autoDownloadMobile", "photoQuality", "language", "timeFormat",
   "fontSize", "chatLabelSize", "accentColorValue", "accentColorEnabled",
   "dockStyle", "alertStyle", "notificationTone", "callRingtone",
