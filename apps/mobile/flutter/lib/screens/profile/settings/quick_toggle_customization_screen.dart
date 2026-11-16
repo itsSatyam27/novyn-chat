@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:novyn/widgets/novyn_alert.dart';
 import 'package:provider/provider.dart';
 
 import '../../../services/settings_service.dart';
@@ -90,7 +91,7 @@ class _QuickToggleCustomizationScreenState
           .setQuickToggleIdsFor(widget.accountKey, ids);
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context).showNovynAlert(
         SnackBar(
           content: Text('Could not save Quick Toggles: $error'),
           behavior: SnackBarBehavior.floating,
@@ -140,7 +141,7 @@ class _QuickToggleCustomizationScreenState
   void _showMessage(String message) {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
-      ..showSnackBar(
+      ..showNovynAlert(
         SnackBar(
           content: Text(message),
           behavior: SnackBarBehavior.floating,
