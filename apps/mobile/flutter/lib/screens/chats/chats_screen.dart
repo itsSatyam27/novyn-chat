@@ -763,8 +763,9 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
     final settings = context.read<SettingsService>();
     if (!settings.appLockEnabled ||
         settings.appLockPin == null ||
-        settings.appLockPin!.isEmpty) {
-      _showNovynAlert('Chat Lock needs App Lock enabled with a secure PIN.');
+        settings.appLockPin!.isEmpty ||
+        !settings.secureStorageAvailable) {
+      _showNovynAlert('Chat Lock needs App Lock enabled, a secure PIN and available secure storage.');
       return false;
     }
     final unlocked = await Navigator.of(context).push<bool>(
