@@ -17,7 +17,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   initialMode = 'signin',
   onClose,
 }) => {
-  const { login, signup, loginWithGoogle } = useAuth();
+  const { login, signup, loginWithGoogle, cancelGoogleSignup } = useAuth();
   const [mode, setMode] = useState<'signin' | 'signup'>(initialMode);
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
@@ -26,6 +26,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [recovering, setRecovering] = useState(false);
+  const [googleUsernameRequired, setGoogleUsernameRequired] = useState(false);
+  const [googleUsername, setGoogleUsername] = useState('');
 
   useEffect(() => {
     setMode(initialMode);
@@ -58,7 +60,34 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     setLoading(true);
     try {
       const res = await loginWithGoogle();
+      if (res.requiresUsername) {
+        setGoogleUsernameRequired(true);
+        setGoogleUsername(res.suggestedUsername || 'novynuser');
+        return;
+      }
       if (!res.ok) setError(res.error || 'Google login failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGoogleUsername = async () => {
+    const username = googleUsername.trim().toLowerCase();
+    if (!/^[a-z0-9_]{3,24}$/.test(username)) {
+      setError('Use 3–24 lowercase letters, numbers, or underscores.');
+      return;
+    }
+    setError('');
+    setLoading(true);
+    try {
+      const res = await loginWithGoogle(username);
+      if (res.ok) {
+        setGoogleUsernameRequired(false);
+      } else if (res.requiresUsername) {
+        setError(res.error || 'That username is unavailable. Try another.');
+      } else {
+        setError(res.error || 'Google signup failed.');
+      }
     } finally {
       setLoading(false);
     }
@@ -147,6 +176,37 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           </div>
 
           {/* Google Sign-in */}
+          {googleUsernameRequired && (
+            <div style={{ margin: '14px 0', padding: '16px', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '16px', background: 'var(--surface-secondary, #f8fafc)' }}>
+              <strong style={{ display: 'block', marginBottom: '6px' }}>Choose your Novyn username</strong>
+              <p style={{ margin: '0 0 12px', fontSize: '0.82rem', lineHeight: 1.45, color: 'var(--text-muted, #64748b)' }}>
+                Your Google name remains your display name. Choose a unique @username.
+              </p>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontWeight: 700, color: 'var(--text-muted, #64748b)' }}>@</span>
+                <input
+                  type="text"
+                  value={googleUsername}
+                  maxLength={24}
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  onChange={(event) => setGoogleUsername(event.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
+                  placeholder="your_username"
+                  className="input-field"
+                  style={{ flex: 1, minWidth: 0 }}
+                  aria-label="Choose Novyn username"
+                />
+              </div>
+              <small style={{ display: 'block', marginTop: '7px', color: 'var(--text-muted, #64748b)' }}>3–24 characters · letters, numbers, underscores</small>
+              <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
+                <button type="button" className="btn btn-secondary" disabled={loading} onClick={() => { cancelGoogleSignup(); setGoogleUsernameRequired(false); setError(''); }}>Cancel</button>
+                <button type="button" className="btn btn-primary" disabled={loading || !/^[a-z0-9_]{3,24}$/.test(googleUsername)} onClick={handleGoogleUsername}>
+                  {loading ? 'Checking…' : 'Continue'}
+                </button>
+              </div>
+            </div>
+          )}
           <button
             type="button"
             onClick={handleGoogle}
