@@ -284,11 +284,17 @@ class NovynAlert {
 
 class _AlertSession {
   OverlayEntry? entry;
+  bool _removed = false;
 
   void removeImmediately() {
+    if (_removed) return;
+    _removed = true;
     final current = entry;
     entry = null;
-    if (current?.mounted ?? false) current!.remove();
+    // OverlayEntry.remove must also be called before the entry's first build.
+    // Checking mounted here would leave two alerts stacked when several
+    // notifications are emitted during the same frame.
+    current?.remove();
   }
 }
 
