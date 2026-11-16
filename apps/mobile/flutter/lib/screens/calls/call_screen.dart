@@ -2270,6 +2270,52 @@ class _CallGlassButton extends StatelessWidget {
   );
 }
 
+class _CallTrayActionTile extends StatelessWidget {
+  const _CallTrayActionTile({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.active = false,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final bool active;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: active ? const Color(0xFF514A78) : const Color(0x3DFFFFFF),
+      borderRadius: BorderRadius.circular(23),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(23),
+        onTap: onTap,
+        child: SizedBox(
+          height: 86,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, color: Colors.white, size: 25),
+              const SizedBox(height: 8),
+              Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _CallDockButton extends StatelessWidget {
   const _CallDockButton({
     required this.icon,
