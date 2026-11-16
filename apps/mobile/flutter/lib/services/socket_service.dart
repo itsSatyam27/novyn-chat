@@ -1357,6 +1357,34 @@ class SocketService extends ChangeNotifier {
 
     final task = () async {
       try {
+        // After reinstall or Clear Storage, do not silently generate and
+        // publish a replacement identity when this account already has a
+        // recoverable key. That would strand new messages on the temporary
+        // identity before the user has a chance to restore the original.
+        if (!await encryption.hasLocalIdentity(account)) {
+          final recoveryReply = Completer<Map<String, dynamic>>();
+          connection.emitWithAck(
+            'get_e2ee_identity_backup',
+            const <String, dynamic>{},
+            ack: (dynamic result) {
+              if (!recoveryReply.isCompleted) {
+                recoveryReply.complete(result is Map
+                    ? Map<String, dynamic>.from(result)
+                    : <String, dynamic>{'ok': false});
+              }
+            },
+          );
+          final recoveryState = await recoveryReply.future.timeout(
+            const Duration(seconds: 8),
+            onTimeout: () => <String, dynamic>{'ok': false},
+          );
+          if (recoveryState['ok'] != true) {
+            throw StateError('Could not verify this account’s E2EE recovery state. Reconnect and try again.');
+          }
+          if (recoveryState['backup'] is Map) {
+            throw StateError('This account has an E2EE recovery backup. Restore it from Settings → Chat Settings before sending messages.');
+          }
+        }
         final publicKey = await encryption.initializeIdentity(account);
         if (publicKey.isEmpty || _myUsername != account ||
             _socket != connection || !_isConnected) return;
