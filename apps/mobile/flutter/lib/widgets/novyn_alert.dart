@@ -598,7 +598,7 @@ class _NovynToastState extends State<_NovynToast>
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      '${event.subtitle.isEmpty ? event.title : '${event.title} · ${event.subtitle}'}',
+                      event.subtitle.isEmpty ? event.title : '${event.title} · ${event.subtitle}',
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
