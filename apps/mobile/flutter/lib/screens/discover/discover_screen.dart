@@ -15,7 +15,6 @@ import '../../widgets/novyn_shimmer.dart';
 import '../../widgets/novyn_ui.dart';
 import '../../widgets/profile_preview_sheet.dart';
 import '../../widgets/user_avatar.dart';
-import '../people/received_friend_requests_screen.dart';
 import '../people/discover_people_screen.dart';
 import '../profile/public_profile_screen.dart';
 import 'package:novyn/services/haptic_service.dart';
@@ -61,11 +60,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // ── Header ──────────────────────────────────────────────
-            StreamBuilder<int>(
-              stream: friends.pendingRequestsCountStream(myUid),
-              builder: (context, snap) {
-                final count = snap.data ?? 0;
-                return NovynHeader(
+            NovynHeader(
                   title: 'Discover',
                   subtitle: 'Find people and grow your circle',
                   titleSize: 36,
@@ -87,35 +82,13 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
                       elevation: 10,
                       onSelected: (value) {
-                        if (value == 'requests') {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => ReceivedFriendRequestsScreen(myUid: myUid),
-                            ),
-                          );
-                        } else if (value == 'refresh') {
+                        if (value == 'refresh') {
                           context.read<SocketService>().requestDiscover();
                         } else if (value == 'scan') {
                           _showScanPlaceholder(context);
                         }
                       },
                       itemBuilder: (menuContext) => [
-                        PopupMenuItem(
-                          value: 'requests',
-                          height: 54,
-                          child: Row(children: [
-                            Icon(Icons.mark_email_unread_outlined, color: Theme.of(menuContext).colorScheme.primary),
-                            const SizedBox(width: 12),
-                            const Expanded(child: Text('Manage requests')),
-                            if (count > 0)
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                decoration: BoxDecoration(color: NovynColors.danger, borderRadius: BorderRadius.circular(20)),
-                                child: Text('$count', style: NovynText.body(10, weight: FontWeight.w800, color: Colors.white)),
-                              ),
-                          ]),
-                        ),
                         const PopupMenuItem(
                           value: 'refresh',
                           height: 52,
@@ -139,9 +112,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                       ],
                     ),
                   ],
-                );
-              },
-            ),
+                ),
 
             // Keep the whole Discover content in one scroll view. The previous
             // fixed-height column squeezed the people list on normal phone screens.
