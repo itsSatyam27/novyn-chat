@@ -351,6 +351,7 @@ test('localhost discovery, requests, reconnect state, and private media', { time
     .find((part) => part.startsWith('novyn_csrf='))
     ?.slice('novyn_csrf='.length);
   assert.ok(csrfCookie, 'signup must issue the CSRF cookie');
+  // Keep this response name distinct from the earlier Alice token-rotation check.
   const staleRefreshResponse = await fetch(`${base}/api/auth/refresh`, {
     method: 'POST',
     headers: {
