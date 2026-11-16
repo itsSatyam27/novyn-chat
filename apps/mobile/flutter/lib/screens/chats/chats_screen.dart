@@ -1053,7 +1053,19 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
     final canShowNewChatFab = _showNewChatFab && !_selectionMode &&
         !_showingArchivedChats && !_showingLockedChats;
 
-    return Scaffold(
+    return WillPopScope(
+      onWillPop: () async {
+        if (_selectionMode || _showingArchivedChats || _showingLockedChats) {
+          if (_selectionMode) {
+            _toggleSelectionMode();
+          } else {
+            _returnToAllChats();
+          }
+          return false;
+        }
+        return true;
+      },
+      child: Scaffold(
       backgroundColor: pageBackground,
       body: Listener(
         behavior: HitTestBehavior.translucent,
@@ -1256,6 +1268,7 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
         ),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
+      ),
     );
   }
 
