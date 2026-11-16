@@ -108,7 +108,7 @@ export const DiscoverWorkspace: React.FC = () => {
       return;
     }
     let cancelled = false;
-    const profileUrl = `${window.location.origin}/user/${encodeURIComponent(user.username)}`;
+    const profileUrl = `novyn://user/${encodeURIComponent(user.username)}`;
     import('qrcode')
       .then(module => module.toDataURL(profileUrl, {
         width: 180,

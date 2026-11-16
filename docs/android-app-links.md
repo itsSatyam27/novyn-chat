@@ -1,63 +1,51 @@
-# Android App Links for Novyn profiles
+# Novyn profile QR and invite links
 
-The Android manifest registers `https://novyn.app/user/*` for package
-`com.example.novyn`. Android will only verify and automatically open those
-links after the website publishes a matching Digital Asset Links document.
+## In-app profile QR
 
-## Get the production signing fingerprint
+Profile QR codes encode the app-specific URI:
 
-Use the certificate that actually signs the APK distributed to users. The
-repository stores the release keystore in GitHub Actions secrets, so its
-fingerprint is intentionally not committed to source.
-
-For a local copy of the same release keystore:
-
-```sh
-printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > novyn-release.jks
-keytool -list -v -keystore novyn-release.jks \
-  -alias "$ANDROID_KEY_ALIAS" \
-  -storepass "$ANDROID_KEYSTORE_PASSWORD" | grep -i 'SHA256:'
-rm -f novyn-release.jks
+```text
+novyn://user/<username>
 ```
 
-Do not commit the keystore, passwords, or private key. Only the SHA-256
-certificate fingerprint is public. When distributing through Google Play with
-Play App Signing enabled, use the **App signing certificate** fingerprint
-from Play Console rather than the upload-key fingerprint.
+The Android manifest registers the `novyn` scheme with the `user` host.
+The Flutter deep-link service validates the username and opens the matching
+public profile inside Novyn. The Android activity supports both cold starts
+and new intents while the app is already running.
 
-## Publish Digital Asset Links
+## Shareable invite links
 
-Create `.well-known/assetlinks.json` in the Firebase Hosting public directory
-with the exact fingerprint from the production signing certificate:
+Mobile invite actions share the GitHub Pages promotional URL with the inviter's
+username in the query string:
 
-```json
-[
-  {
-    "relation": ["delegate_permission/common.handle_all_urls"],
-    "target": {
-      "namespace": "android_app",
-      "package_name": "com.example.novyn",
-      "sha256_cert_fingerprints": [
-        "REPLACE_WITH_PRODUCTION_SHA256_FINGERPRINT"
-      ]
-    }
-  }
-]
+```text
+https://itssatyam27.github.io/novyn-chat/?invite=<username>
 ```
 
-Replace the placeholder with the colon-separated SHA-256 fingerprint. Never
-publish a placeholder or a debug-key fingerprint for a production APK.
+On Android, the landing-page script attempts to open an Android `intent://`
+link addressed to package `com.example.novyn`. The intent resolves to
+`novyn://user/<username>`, which the app routes to the inviter's profile.
+When Novyn is not installed, Android Chrome uses the intent's
+`browser_fallback_url` to return to the same promotional site with
+`appOpen=0`; the page then displays the inviter's handle and an APK download
+button without retrying the app launch. A visible **Open Novyn** button is
+also provided in case the browser blocks automatic app launching.
 
-After deploying Firebase Hosting, verify that
-`https://novyn.app/.well-known/assetlinks.json` returns the JSON document
-with HTTP 200 and `Content-Type: application/json`. Then install the matching
-signed APK and verify Android reports the host as verified, for example with:
+## Verification boundary
 
-```sh
-adb shell pm get-app-links com.example.novyn
-```
+This is an Android intent-based deep link with a website fallback, **not** a
+verified Android App Link. The promotional URL is a GitHub Pages project site
+under `/novyn-chat/`; verified App Links would require a Digital Asset Links
+file at the domain root (`/.well-known/assetlinks.json`) and the SHA-256
+fingerprint of the production APK signing certificate. Do not claim verified
+App Links until that root-host file is available and Android reports the
+domain as verified.
 
-The app-link manifest and Flutter deep-link handler are already in place in
-this branch. Until the real certificate fingerprint is published at that URL,
-Android may offer the app as an unverified handler or keep the link in the
-browser; automatic verified opening is not complete.
+Test both cases on an Android device:
+1. With Novyn installed, open an invite URL and confirm the app opens the
+   inviter's profile.
+2. Without Novyn installed, open the same URL and confirm the promotional
+   website stays open with the inviter handle and ARM64 APK download action.
+
+The promotional website is:
+https://itssatyam27.github.io/novyn-chat/

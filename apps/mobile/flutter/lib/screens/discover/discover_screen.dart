@@ -393,7 +393,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
             child: FilledButton.icon(
               onPressed: () async {
                 await Share.share(
-                  'Join me on Novyn! Find me as @$myUid. https://novyn.app',
+                  'Join me on Novyn! Find me as @$myUid. Open my profile in Novyn: $replacement',
                   subject: 'Join me on Novyn',
                 );
               },

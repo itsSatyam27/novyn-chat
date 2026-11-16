@@ -756,10 +756,9 @@ app.get("/api/stats", (req, res) => {
 // Public profile previews intentionally expose only profile fields that the
 // account owner has made visible to everyone. No email, presence, contacts,
 // relationship graph, or account/security data is returned here.
-const PUBLIC_PROFILE_ORIGINS = new Set([
-  "https://novyn.app",
-  "https://www.novyn.app",
-]);
+// No public profile website is configured. In-app profile QR codes use
+// the novyn:// scheme, so no website origin is allowed here.
+const PUBLIC_PROFILE_ORIGINS = new Set();
 const PUBLIC_PROFILE_API_ORIGIN = "https://novyn-live.onrender.com";
 
 function setPublicProfileCors(req, res) {

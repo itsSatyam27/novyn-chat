@@ -62,7 +62,6 @@ class NovynDock extends StatelessWidget {
     final safeStyle = styleIds.contains(style) ? style : 'slide_pill';
     final selected = selectedIndex.clamp(0, labels.length - 1).toInt();
     final theme = Theme.of(context);
-    final colors = theme.colorScheme;
     final reduceMotion = MediaQuery.disableAnimationsOf(context);
     final duration = Duration(milliseconds: reduceMotion ? 0 : 420);
     final user = context.watch<AuthService?>()?.user;

@@ -28,7 +28,7 @@ export const QRCodeModal: React.FC<QRCodeModalProps> = ({
     let cancelled = false;
     setQr('');
     setQrFailed(false);
-    const profileUrl = `${window.location.origin}/user/${encodeURIComponent(username)}`;
+    const profileUrl = `novyn://user/${encodeURIComponent(username)}`;
     import('qrcode').then((module) => module.toDataURL(profileUrl, {
       width: 240,
       margin: 2,
@@ -44,7 +44,7 @@ export const QRCodeModal: React.FC<QRCodeModalProps> = ({
 
   if (!isOpen) return null;
 
-  const profileUrl = `${window.location.origin}/user/${encodeURIComponent(username)}`;
+  const profileUrl = `novyn://user/${encodeURIComponent(username)}`;
 
   const handleCopyLink = async () => {
     try {

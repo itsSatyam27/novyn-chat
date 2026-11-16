@@ -133,10 +133,12 @@ class _PeopleScreenState extends State<PeopleScreen> {
 
   Future<void> _shareInvite(String myUid) async {
     final username = myUid.trim();
-    final profileUrl = Uri(scheme: 'https', host: 'novyn.app', pathSegments: ['user', username]).toString();
+    final inviteUrl = Uri.parse('https://itssatyam27.github.io/novyn-chat/')
+        .replace(queryParameters: {'invite': username})
+        .toString();
     try {
       await Share.share(
-        'Connect with me on Novyn: $profileUrl',
+        'Connect with me on Novyn: @$username. Open my profile or download the app: $inviteUrl',
         subject: 'Join me on Novyn',
       );
     } catch (_) {

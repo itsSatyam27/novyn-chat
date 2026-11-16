@@ -3,9 +3,9 @@ import 'package:novyn/services/profile_deep_link_service.dart';
 
 void main() {
   group('ProfileDeepLinkService.usernameFromLink', () {
-    test('parses an ordinary HTTPS profile URL', () {
+    test('parses a Novyn in-app profile link', () {
       expect(
-        ProfileDeepLinkService.usernameFromLink('https://novyn.app/user/ananya'),
+        ProfileDeepLinkService.usernameFromLink('novyn://user/ananya'),
         'ananya',
       );
     });
@@ -13,29 +13,26 @@ void main() {
     test('decodes usernames that were URL encoded in the path', () {
       expect(
         ProfileDeepLinkService.usernameFromLink(
-          'https://novyn.app/user/ananya%20sonkar',
+          'novyn://user/ananya%20sonkar',
         ),
         'ananya sonkar',
       );
     });
 
-    test('continues to accept the legacy Novyn custom scheme', () {
-      expect(
-        ProfileDeepLinkService.usernameFromLink('novyn://user/ananya'),
-        'ananya',
-      );
-    });
-
-    test('rejects profile URLs from unrelated hosts', () {
+    test('rejects website URLs because no public profile domain is configured', () {
       expect(
         ProfileDeepLinkService.usernameFromLink('https://example.com/user/ananya'),
+        isNull,
+      );
+      expect(
+        ProfileDeepLinkService.usernameFromLink('https://novyn.app/user/ananya'),
         isNull,
       );
     });
 
     test('rejects malformed and incomplete profile paths', () {
-      expect(ProfileDeepLinkService.usernameFromLink('https://novyn.app/user/'), isNull);
-      expect(ProfileDeepLinkService.usernameFromLink('https://novyn.app/chats/ananya'), isNull);
+      expect(ProfileDeepLinkService.usernameFromLink('novyn://user/'), isNull);
+      expect(ProfileDeepLinkService.usernameFromLink('novyn://chats/ananya'), isNull);
       expect(ProfileDeepLinkService.usernameFromLink('not a URL'), isNull);
     });
   });

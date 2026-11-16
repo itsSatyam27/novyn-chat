@@ -17,10 +17,9 @@ function getNovynUsername(value: string): string | null {
 
   try {
     const url = new URL(raw);
-    const pathMatch = url.pathname.match(/^\/user\/([\w.-]{1,30})\/?$/i);
-    const queryUsername = url.searchParams.get('user');
-    const username = pathMatch?.[1] || queryUsername;
-    return username && /^[\w.-]{1,30}$/.test(username) ? username : null;
+    if (url.protocol !== 'novyn:' || url.hostname.toLowerCase() !== 'user') return null;
+    const username = decodeURIComponent(url.pathname.replace(/^\//, ''));
+    return /^[\w.-]{1,30}$/.test(username) ? username : null;
   } catch {
     return null;
   }
