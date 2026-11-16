@@ -47,6 +47,9 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
   bool _loading = true;
   bool _isSearchVisible = false;
   Set<String> _pinnedChatUsernames = <String>{};
+  Set<String> _hiddenChatUsernames = <String>{};
+  bool _hiddenChatsLoaded = false;
+  String? _hiddenChatsOwner;
   bool _pinPreferencesLoaded = false;
   String? _pinPreferencesOwner;
   String _search = '';
@@ -74,6 +77,7 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
     final initialUsername = _observedUsername;
     if (initialUsername != null && initialUsername.isNotEmpty) {
       _loadPinnedChatPreferences(initialUsername);
+      _loadHiddenChatPreferences(initialUsername);
     }
 
     // Never hydrate from a previous signed-in account's in-memory previews.
@@ -117,6 +121,9 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
       ChatsScreen.resetAccountCache();
       setState(() {
         _pinnedChatUsernames = <String>{};
+        _hiddenChatUsernames = <String>{};
+        _hiddenChatsLoaded = false;
+        _hiddenChatsOwner = null;
         _pinPreferencesLoaded = false;
         _pinPreferencesOwner = null;
         _chats = [];
@@ -128,6 +135,9 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
 
     setState(() {
       _pinnedChatUsernames = <String>{};
+      _hiddenChatUsernames = <String>{};
+      _hiddenChatsLoaded = false;
+      _hiddenChatsOwner = null;
       _pinPreferencesLoaded = false;
       _pinPreferencesOwner = null;
       _chats = [];
@@ -135,6 +145,7 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
       _loading = true;
     });
     _loadPinnedChatPreferences(username);
+    _loadHiddenChatPreferences(username);
     // Non-silent load first restores this account's username-scoped local DB.
     // The authenticated friend_list event will replace it with server state.
     _loadChats();
@@ -168,6 +179,122 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
       _applyFilters();
     } catch (error) {
       debugPrint('Could not load pinned chats: $error');
+    }
+  }
+
+  String _hiddenChatsPreferenceKey(String username) =>
+      'novyn_hidden_chats_${username.trim().toLowerCase()}';
+
+  Future<void> _loadHiddenChatPreferences(String username) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final stored = prefs.getStringList(_hiddenChatsPreferenceKey(username)) ?? [];
+      if (!mounted ||
+          context.read<AuthService>().user?.username.trim().toLowerCase() !=
+              username.trim().toLowerCase()) {
+        return;
+      }
+      setState(() {
+        _hiddenChatUsernames = stored
+            .map((value) => value.trim().toLowerCase())
+            .where((value) => value.isNotEmpty)
+            .toSet();
+        _hiddenChatsLoaded = true;
+        _hiddenChatsOwner = username.trim().toLowerCase();
+      });
+      _applyFilters();
+    } catch (error) {
+      debugPrint('Could not load hidden chats: $error');
+    }
+  }
+
+  Future<void> _hideChatLocally(ChatPreview chat) async {
+    final username =
+        context.read<AuthService>().user?.username.trim().toLowerCase();
+    final peerUsername = chat.peer.username.trim().toLowerCase();
+    if (username == null || username.isEmpty || peerUsername.isEmpty) {
+      _showSnackBar('Could not delete this chat.');
+      return;
+    }
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final next = Set<String>.from(_hiddenChatUsernames)..add(peerUsername);
+      final saved = await prefs.setStringList(
+        _hiddenChatsPreferenceKey(username),
+        next.toList(),
+      );
+      if (!saved) throw StateError('Could not save the deleted chat.');
+
+      // Remove only this device's cached conversation. The server-side
+      // friendship and the other person's chat history remain untouched.
+      await HybridDbService.deleteChat(chat.peer.username);
+      if (!mounted ||
+          context.read<AuthService>().user?.username.trim().toLowerCase() !=
+              username) {
+        return;
+      }
+
+      final updated = _chats
+          .where((item) =>
+              item.peer.username.trim().toLowerCase() != peerUsername)
+          .toList();
+      setState(() {
+        _hiddenChatUsernames = next;
+        _hiddenChatsLoaded = true;
+        _hiddenChatsOwner = username;
+        _chats = updated;
+      });
+      ChatsScreen.cachedChats = List<ChatPreview>.from(updated);
+      ChatsScreen.cachedChatsOwner = username;
+      ChatsScreen.totalUnread =
+          updated.fold(0, (total, item) => total + item.unreadCount);
+      _applyFilters();
+      _showSnackBar('Chat deleted. Friend is still in your contacts.');
+    } catch (error) {
+      _showSnackBar('Could not delete chat: ${error.toString()}');
+    }
+  }
+
+  Future<void> _unhideChatsWithNewMessages(
+    List<ChatPreview> conversations,
+  ) async {
+    final username =
+        context.read<AuthService>().user?.username.trim().toLowerCase();
+    if (username == null || username.isEmpty ||
+        _hiddenChatsOwner != username || _hiddenChatUsernames.isEmpty) {
+      return;
+    }
+    final previousByPeer = {
+      for (final chat in _lastSocketConversations)
+        chat.peer.username.trim().toLowerCase(): chat,
+    };
+    final newlyMessaged = <String>{};
+    for (final chat in conversations) {
+      final peer = chat.peer.username.trim().toLowerCase();
+      final previous = previousByPeer[peer];
+      if (_hiddenChatUsernames.contains(peer) && previous != null &&
+          chat.lastTime.isAfter(previous.lastTime)) {
+        newlyMessaged.add(peer);
+      }
+    }
+    if (newlyMessaged.isEmpty) return;
+
+    final next = Set<String>.from(_hiddenChatUsernames)
+      ..removeAll(newlyMessaged);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setStringList(
+        _hiddenChatsPreferenceKey(username),
+        next.toList(),
+      );
+      if (!mounted ||
+          context.read<AuthService>().user?.username.trim().toLowerCase() !=
+              username) return;
+      setState(() => _hiddenChatUsernames = next);
+      _applyFilters();
+    } catch (error) {
+      debugPrint('Could not restore chat after a new message: $error');
     }
   }
 
@@ -287,6 +414,7 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
         socket.myUsername?.toLowerCase() != owner) return;
 
     final conversations = socket.conversations;
+    unawaited(_unhideChatsWithNewMessages(conversations));
     if (_sameConversationReferences(_lastSocketConversations, conversations)) {
       return;
     }
@@ -513,7 +641,11 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
     final next = isDecoy
         ? <ChatPreview>[]
         : _chats.where((chat) {
-            if (chat.isArchived || blockedUids.contains(chat.peerUid)) {
+            if (chat.isArchived ||
+                blockedUids.contains(chat.peerUid) ||
+                _hiddenChatUsernames.contains(
+                  chat.peer.username.trim().toLowerCase(),
+                )) {
               return false;
             }
             if (_search.isEmpty) return true;
@@ -1145,7 +1277,7 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
           context: context,
           builder: (dialogContext) => AlertDialog(
             title: const Text('Delete chat?'),
-            content: Text('Remove ${chat.peer.name} from your contacts and delete this chat?'),
+            content: Text('Remove this conversation from your chat list? ${chat.peer.name} will remain your friend, and new messages will bring the chat back.'),
             actions: [
               TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancel')),
               FilledButton(
@@ -1157,13 +1289,7 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
           ),
         );
         if (confirmed == true && mounted) {
-          try {
-            socket.removeFriend(chat.peer.username);
-            await _loadChats(silent: true);
-            _showSnackBar('Chat deleted');
-          } catch (error) {
-            _showSnackBar(error.toString());
-          }
+          await _hideChatLocally(chat);
         }
         break;
       case 'read':
