@@ -242,7 +242,7 @@ class SocketService extends ChangeNotifier {
       // rate-limit and server failures are not: keep the local account and
       // retry with bounded backoff rather than leaving a connected dead socket.
       retryAfterTransientFailure =
-          status == null || status == 429 || (status >= 500);
+          status == null || status == 429 || (status != null && status >= 500);
     } catch (error) {
       debugPrint('[NovynSocket] Session refresh after auth failure failed: $error');
       retryAfterTransientFailure = true;
