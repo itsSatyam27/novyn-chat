@@ -736,7 +736,7 @@ class ProfileScreen extends StatelessWidget {
   void _showQRCode(BuildContext context) {
     final auth = context.read<AuthService>();
     final username = auth.user?.username ?? 'user';
-    final profileUrl = 'https://novyn.app/user/$username';
+    final profileUrl = Uri.https('novyn.app', '/user/${Uri.encodeComponent(username.trim())}').toString();
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final foreground = isDark ? const Color(0xFFF7F8FC) : const Color(0xFF172033);
     final muted = isDark ? const Color(0xFFA8B1C4) : const Color(0xFF647087);
