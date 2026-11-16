@@ -88,6 +88,44 @@ void main() {
     expect(find.textContaining('Message pinned'), findsNothing);
   });
 
+
+  testWidgets('legacy SnackBar API renders through Novyn styles and keeps actions', (tester) async {
+    var undoCalled = false;
+    await tester.pumpWidget(MaterialApp(
+      home: Builder(
+        builder: (context) => Scaffold(
+          body: Center(
+            child: ElevatedButton(
+              onPressed: () {
+                ScaffoldMessenger.of(context).showNovynAlert(SnackBar(
+                  content: const Text('Message removed'),
+                  duration: const Duration(seconds: 8),
+                  action: SnackBarAction(
+                    label: 'Undo',
+                    onPressed: () => undoCalled = true,
+                  ),
+                ));
+              },
+              child: const Text('Show legacy alert'),
+            ),
+          ),
+        ),
+      ),
+    ));
+
+    await tester.tap(find.text('Show legacy alert'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 450));
+
+    expect(find.text('Message removed'), findsOneWidget);
+    expect(find.text('Undo'), findsOneWidget);
+    expect(find.byType(SnackBar), findsNothing);
+
+    await tester.tap(find.text('Undo'));
+    await tester.pump(const Duration(milliseconds: 250));
+    expect(undoCalled, isTrue);
+  });
+
   testWidgets('supports warning alerts with an action', (tester) async {
     var actionCalled = false;
     await tester.pumpWidget(MaterialApp(
