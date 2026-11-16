@@ -1430,6 +1430,15 @@ class SocketService extends ChangeNotifier {
         // The relay keeps the encrypted envelope in lastMessageData. The
         // legacy lastMessage field may not contain the ciphertext/IV.
         final lastMsg = item['lastMessageData'] ?? item['lastMessage'];
+        final hasConversationActivity =
+            (item['lastTimestamp']?.toString().trim().isNotEmpty ?? false) ||
+            (lastMsg is Map && lastMsg.isNotEmpty) ||
+            (lastMsg != null && lastMsg.toString().trim().isNotEmpty);
+        // The server friend list also contains accepted contacts. Keep those
+        // in Contacts/Discover, but do not create a Chats row until a first
+        // message has actually started the conversation.
+        if (!hasConversationActivity) continue;
+
         if (item['publicKey'] != null) {
           _peerKeys[username.toLowerCase()] = item['publicKey'].toString();
         }
