@@ -5341,6 +5341,97 @@ app.post(
   }
 );
 
+// Account-wide preferences are stored in Firestore through the authenticated
+// Novyn session. The Admin SDK bypasses client rules, so users can only access
+// the document selected from the server-verified req.userKey.
+const ACCOUNT_SETTINGS_ALLOWED_KEYS = new Set([
+  "notificationsOn", "messagePreview", "chatLinkPreviews", "readReceipts",
+  "onlineStatus", "themeMode", "inAppSounds", "chatEnterToSend",
+  "inAppVibration", "groupNotifications", "autoDownloadWifi",
+  "autoDownloadMobile", "photoQuality", "language", "timeFormat",
+  "fontSize", "chatLabelSize", "accentColorValue", "accentColorEnabled",
+  "dockStyle", "alertStyle", "notificationTone", "callRingtone",
+  "vibrationPattern", "hapticIntensity", "hapticNavigation", "hapticTyping",
+  "hapticChat", "hapticButtons", "hapticNotifications", "hapticCalls",
+  "messageVolume", "callVolume", "region", "highContrast", "reduceMotion",
+  "doNotDisturbEnabled", "quickToggleIds",
+]);
+
+app.get("/api/settings/account", requireUser, async (req, res) => {
+  if (!firebaseAdmin) {
+    return res.status(503).json({ ok: false, message: "Cloud settings are temporarily unavailable." });
+  }
+  try {
+    const db = admin.firestore(firebaseAdmin);
+    const snapshot = await db.collection("accountSettings").doc(req.userKey).get();
+    const data = snapshot.exists ? (snapshot.data() || {}) : {};
+    return res.json({
+      ok: true,
+      exists: snapshot.exists,
+      settings: data.settings && typeof data.settings === "object" && !Array.isArray(data.settings)
+        ? data.settings
+        : {},
+      updatedAt: Number(data.updatedAt) || 0,
+    });
+  } catch (error) {
+    console.warn("[NovynSettings] Firestore read failed:", error?.message || error);
+    return res.status(503).json({ ok: false, message: "Cloud settings could not be loaded." });
+  }
+});
+
+app.put("/api/settings/account", requireUser, requireCsrf, async (req, res) => {
+  if (!firebaseAdmin) {
+    return res.status(503).json({ ok: false, message: "Cloud settings are temporarily unavailable." });
+  }
+  const incoming = req.body?.settings;
+  if (!incoming || typeof incoming !== "object" || Array.isArray(incoming)) {
+    return res.status(400).json({ ok: false, message: "A settings object is required." });
+  }
+  let encodedSize = 0;
+  try {
+    encodedSize = Buffer.byteLength(JSON.stringify(incoming), "utf8");
+  } catch (_) {
+    return res.status(400).json({ ok: false, message: "Settings payload is invalid." });
+  }
+  if (encodedSize > 16 * 1024) {
+    return res.status(413).json({ ok: false, message: "Settings payload is too large." });
+  }
+
+  const settings = {};
+  for (const [key, value] of Object.entries(incoming)) {
+    if (!ACCOUNT_SETTINGS_ALLOWED_KEYS.has(key)) continue;
+    if (key === "quickToggleIds") {
+      if (Array.isArray(value)) {
+        settings[key] = [...new Set(value.filter((id) =>
+          typeof id === "string" && [
+            "app_lock", "do_not_disturb", "dark_mode", "stealth_mode",
+            "read_receipts", "in_app_sounds", "in_app_vibration",
+            "group_notifications",
+          ].includes(id)
+        ))].slice(0, 4);
+      }
+      continue;
+    }
+    if (typeof value === "boolean" || typeof value === "string" ||
+        (typeof value === "number" && Number.isFinite(value))) {
+      settings[key] = value;
+    }
+  }
+
+  try {
+    const updatedAt = Date.now();
+    const db = admin.firestore(firebaseAdmin);
+    await db.collection("accountSettings").doc(req.userKey).set({
+      settings,
+      updatedAt,
+    });
+    return res.json({ ok: true, updatedAt });
+  } catch (error) {
+    console.warn("[NovynSettings] Firestore write failed:", error?.message || error);
+    return res.status(503).json({ ok: false, message: "Cloud settings could not be saved." });
+  }
+});
+
 app.get("/api/auth/session", (req, res) => {
   const auth = resolveUserFromAuthCookies(getAuthCookiesFromHeader(req.headers.cookie), {
     allowRefreshFallback: true,
