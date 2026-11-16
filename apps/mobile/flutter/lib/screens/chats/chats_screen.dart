@@ -89,6 +89,7 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
     if (initialUsername != null && initialUsername.isNotEmpty) {
       _loadPinnedChatPreferences(initialUsername);
       _loadHiddenChatPreferences(initialUsername);
+      _loadArchiveAndLockPreferences(initialUsername);
     }
 
     // Never hydrate from a previous signed-in account's in-memory previews.
@@ -754,7 +755,211 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
     super.dispose();
   }
 
+  Future<bool> _requireChatUnlock() async {
+    final settings = context.read<SettingsService>();
+    if (!settings.appLockEnabled ||
+        settings.appLockPin == null ||
+        settings.appLockPin!.isEmpty) {
+      _showNovynAlert('Chat Lock needs App Lock enabled with a secure PIN.');
+      return false;
+    }
+    final unlocked = await Navigator.of(context).push<bool>(
+      NovynPageRoute<bool>(
+        child: AppLockScreen(
+          onUnlocked: () => Navigator.of(context).pop(true),
+        ),
+      ),
+    );
+    return unlocked == true && mounted;
+  }
+
+  Future<void> _showArchivedChats() async {
+    _searchController.clear();
+    _search = '';
+    _searchFocusNode.unfocus();
+    setState(() {
+      _showingArchivedChats = true;
+      _showingLockedChats = false;
+      _selectionMode = false;
+      _selectedChatIds.clear();
+      _selectedTab = 'all';
+      _isSearchVisible = false;
+    });
+    _applyFilters();
+  }
+
+  Future<void> _showLockedChats() async {
+    if (_lockedChatUsernames.isEmpty) {
+      _showNovynAlert('No locked chats yet. Lock a conversation from its chat menu.');
+      return;
+    }
+    if (!await _requireChatUnlock() || !mounted) return;
+    _searchController.clear();
+    _search = '';
+    _searchFocusNode.unfocus();
+    setState(() {
+      _showingLockedChats = true;
+      _showingArchivedChats = false;
+      _selectionMode = false;
+      _selectedChatIds.clear();
+      _selectedTab = 'all';
+      _isSearchVisible = false;
+    });
+    _applyFilters();
+  }
+
+  void _returnToAllChats() {
+    setState(() {
+      _showingArchivedChats = false;
+      _showingLockedChats = false;
+      _selectionMode = false;
+      _selectedChatIds.clear();
+      _selectedTab = 'all';
+    });
+    _applyFilters();
+  }
+
+  void _toggleSelectionMode() {
+    setState(() {
+      _selectionMode = !_selectionMode;
+      _selectedChatIds.clear();
+      _showingArchivedChats = false;
+      _showingLockedChats = false;
+    });
+    _applyFilters();
+  }
+
+  void _toggleChatSelection(ChatPreview chat) {
+    setState(() {
+      if (!_selectionMode) _selectionMode = true;
+      if (!_selectedChatIds.add(chat.chatId)) {
+        _selectedChatIds.remove(chat.chatId);
+      }
+    });
+  }
+
+  void _selectAllVisibleChats() {
+    setState(() {
+      _selectedChatIds
+        ..clear()
+        ..addAll(_filtered.map((chat) => chat.chatId));
+    });
+  }
+
+  Future<void> _archiveSelectedChats() async {
+    final account = context.read<AuthService>().user?.username.trim().toLowerCase();
+    if (account == null || account.isEmpty || _selectedChatIds.isEmpty) return;
+    final selected = _chats.where((chat) => _selectedChatIds.contains(chat.chatId)).toList();
+    final next = Set<String>.from(_archivedChatUsernames);
+    for (final chat in selected) {
+      next.add(chat.peer.username.trim().toLowerCase());
+    }
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final saved = await prefs.setStringList(
+        _archivedChatsPreferenceKey(account),
+        next.toList(),
+      );
+      if (!saved) throw StateError('Could not save archived chats.');
+      if (!mounted ||
+          context.read<AuthService>().user?.username.trim().toLowerCase() != account) {
+        return;
+      }
+      final updated = _chats.map((chat) {
+        final archived = next.contains(chat.peer.username.trim().toLowerCase());
+        return chat.copyWith(isArchived: archived);
+      }).toList();
+      setState(() {
+        _archivedChatUsernames = next;
+        _chats = _withPinnedPreferences(updated);
+        _selectionMode = false;
+        _selectedChatIds.clear();
+      });
+      ChatsScreen.cachedChats = List<ChatPreview>.from(_chats);
+      ChatsScreen.cachedChatsOwner = account;
+      await Future.wait(selected.map(
+        (chat) => HybridDbService.saveChat(chat.copyWith(isArchived: true)),
+      ));
+      _applyFilters();
+      _showNovynAlert('${selected.length} chat${selected.length == 1 ? '' : 's'} archived');
+    } catch (error) {
+      _showNovynAlert('Could not archive selected chats: $error');
+    }
+  }
+
+  Future<void> _markAllChatsRead() async {
+    try {
+      final result = await context.read<SocketService>().markAllConversationsAsRead();
+      if (result['ok'] != true) {
+        _showNovynAlert(result['message']?.toString() ?? 'Could not mark chats as read.');
+        return;
+      }
+      if (!mounted) return;
+      final updated = _chats
+          .map((chat) => chat.copyWith(unreadCount: 0))
+          .toList();
+      setState(() {
+        _chats = updated;
+        _filtered = _filtered
+            .map((chat) => chat.copyWith(unreadCount: 0))
+            .toList();
+      });
+      ChatsScreen.cachedChats = List<ChatPreview>.from(updated);
+      ChatsScreen.totalUnread = 0;
+      _showNovynAlert('All chats marked as read');
+    } catch (error) {
+      _showNovynAlert('Could not mark chats as read: $error');
+    }
+  }
+
+  Future<void> _inviteFriends() async {
+    final username = context.read<AuthService>().user?.username.trim() ?? '';
+    final invite = [
+      'Join me on Novyn!',
+      if (username.isNotEmpty) 'Find me as @$username.',
+      'https://itssatyam27.github.io/novyn-chat/',
+    ].join(' ');
+    try {
+      await Share.share(invite, subject: 'Join me on Novyn');
+    } catch (error) {
+      _showNovynAlert('Could not open the share sheet: $error');
+    }
+  }
+
+  Future<void> _openStarredMessages() async {
+    await Navigator.of(context).push<void>(
+      NovynPageRoute<void>(
+        child: StarredMessagesScreen(
+          chats: List<ChatPreview>.from(_chats),
+          onOpenChat: _openChat,
+        ),
+      ),
+    );
+  }
+
+  void _openCreateGroup() {
+    final myUid = context.read<AuthService>().user?.username;
+    if (myUid == null || myUid.isEmpty) return;
+    Navigator.push(
+      context,
+      NovynPageRoute<void>(
+        child: CreateGroupScreen(myUid: myUid),
+      ),
+    );
+  }
+
+  void _openChatSettings() {
+    Navigator.push(
+      context,
+      NovynPageRoute<void>(child: const ChatSettingsScreen()),
+    );
+  }
+
   void _openChat(ChatPreview chat) async {
+    final peer = chat.peer.username.trim().toLowerCase();
+    if (_lockedChatUsernames.contains(peer)) {
+      if (!await _requireChatUnlock() || !mounted) return;
+    }
     await Navigator.of(context).push<void>(
       NovynPageRoute<void>(
         child: ChatDetailScreen(peer: chat.peer, isGroup: chat.isGroup),
@@ -784,17 +989,24 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
     final next = isDecoy
         ? <ChatPreview>[]
         : _chats.where((chat) {
-            if (chat.isArchived ||
-                blockedUids.contains(chat.peerUid) ||
-                _hiddenChatUsernames.contains(
-                  chat.peer.username.trim().toLowerCase(),
-                )) {
+            final peer = chat.peer.username.trim().toLowerCase();
+            final isArchived = _archivedChatUsernames.contains(peer) || chat.isArchived;
+            final isLocked = _lockedChatUsernames.contains(peer);
+            if (_showingArchivedChats) {
+              if (!isArchived) return false;
+            } else if (_showingLockedChats) {
+              if (!isLocked) return false;
+            } else if (isArchived) {
+              return false;
+            }
+            if (blockedUids.contains(chat.peerUid) ||
+                _hiddenChatUsernames.contains(peer)) {
               return false;
             }
             if (_search.isEmpty) return true;
             final query = _search.trim().toLowerCase();
             return chat.peer.name.toLowerCase().contains(query) ||
-                chat.peer.username.toLowerCase().contains(query);
+                peer.contains(query);
           }).toList()
       ..sort((a, b) {
         if (a.isPinned != b.isPinned) return a.isPinned ? -1 : 1;
