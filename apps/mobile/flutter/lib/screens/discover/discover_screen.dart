@@ -328,6 +328,8 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
   }
 
   Widget _buildEmpty(String myUid) {
+    final inviteUrl = Uri.parse('https://itssatyam27.github.io/novyn-chat/')
+        .replace(queryParameters: {'invite': myUid});
     final theme = Theme.of(context);
     final dark = theme.brightness == Brightness.dark;
     final muted = theme.colorScheme.onSurfaceVariant;
@@ -393,7 +395,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
             child: FilledButton.icon(
               onPressed: () async {
                 await Share.share(
-                  'Join me on Novyn! Find me as @$myUid. Open my profile in Novyn: $replacement',
+                  'Join me on Novyn! Find me as @$myUid. Open my profile in Novyn: $inviteUrl',
                   subject: 'Join me on Novyn',
                 );
               },
