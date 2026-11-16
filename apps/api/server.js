@@ -7272,6 +7272,38 @@ io.on("connection", (socket) => {
     respond({ ok: true, files });
   });
 
+  socket.on("mark_all_read", (ack) => {
+    const userKey = socket.data.userKey;
+    const respond = typeof ack === "function" ? ack : () => {};
+    if (!userKey || !users.has(userKey)) {
+      respond({ ok: false, message: "Sign in to mark chats as read." });
+      return;
+    }
+    if (!allowSocketAction(socket, "mark_all_read", 8, 60 * 1000)) {
+      respond({ ok: false, message: "Please wait before marking all chats as read again." });
+      return;
+    }
+
+    const account = users.get(userKey);
+    let conversationsProcessed = 0;
+    const friendKeys = account?.friends
+      ? Array.from(account.friends)
+      : [];
+    for (const friendKey of friendKeys) {
+      const normalizedFriend = normalizeName(friendKey);
+      if (!normalizedFriend || !users.has(normalizedFriend)) continue;
+      markConversationAsSeen(userKey, normalizedFriend, "friend");
+      conversationsProcessed += 1;
+    }
+    for (const group of groups.values()) {
+      if (!group || !isGroupMember(group, userKey)) continue;
+      markConversationAsSeen(userKey, group.id, "group");
+      conversationsProcessed += 1;
+    }
+
+    respond({ ok: true, conversationsProcessed });
+  });
+
   socket.on("get_history", (rawTarget) => {
     const userKey = socket.data.userKey;
     if (!userKey) return;
