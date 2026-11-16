@@ -420,9 +420,7 @@ class ProfileScreen extends StatelessWidget {
       await auth.updateStatus(mode);
     } catch (error) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Status could not be saved: ${error.toString()}'),
-      ));
+      NovynAlert.show(context, 'Status could not be saved: ${error.toString()}', isError: true);
     }
   }
 
@@ -531,13 +529,7 @@ class ProfileScreen extends StatelessWidget {
   }
 
   void _showComingSoon(BuildContext context, String feature) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('$feature — coming soon!'),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ),
-    );
+    NovynAlert.show(context, '$feature — coming soon!', title: 'Coming soon', icon: Icons.hourglass_top_rounded, tone: NovynAlertTone.neutral);
   }
 
   void _showHelpSupport(BuildContext context) {
@@ -736,9 +728,7 @@ class ProfileScreen extends StatelessWidget {
 
     Future<void> showFeedback(String message) async {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(SnackBar(content: Text(message), behavior: SnackBarBehavior.floating));
+      NovynAlert.show(context, message, isError: message.toLowerCase().contains('could not') || message.toLowerCase().contains('failed'));
     }
 
     showDialog<void>(
@@ -2014,9 +2004,7 @@ class _NovynSettingsProfileCardState extends State<_NovynSettingsProfileCard> {
 
   void _showMessage(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
-    );
+    NovynAlert.show(context, message, isError: message.toLowerCase().contains('could not') || message.toLowerCase().contains('failed'));
   }
 
   @override
