@@ -143,8 +143,12 @@ class _StarredMessagesScreenState extends State<StarredMessagesScreen> {
                         child: InkWell(
                           borderRadius: BorderRadius.circular(20),
                           onTap: () {
+                            final selectedChat = item.chat;
+                            final openChat = widget.onOpenChat;
                             Navigator.of(context).pop();
-                            widget.onOpenChat(item.chat);
+                            Future<void>.delayed(Duration.zero, () {
+                              openChat(selectedChat);
+                            });
                           },
                           child: Padding(
                             padding: const EdgeInsets.all(14),
