@@ -5804,7 +5804,7 @@ app.post(
         } else {
           const feedbackFile = path.join(DATA_DIR, "feedback.log");
           await fsp.mkdir(DATA_DIR, { recursive: true });
-          await fsp.appendFile(DATA_DIR ? feedbackFile : "feedback.log", `${JSON.stringify(entry)}\n`, "utf8");
+          await fsp.appendFile(feedbackFile, `${JSON.stringify(entry)}\n`, "utf8");
         }
       } catch (err) {
         console.warn("[NovynFeedback] Failed to persist submission:", err?.message || err);
@@ -7272,7 +7272,7 @@ io.on("connection", (socket) => {
     respond({ ok: true, files });
   });
 
-  socket.on("mark_all_read", (ack) => {
+  socket.on("mark_all_read", (payload, ack) => {
     const userKey = socket.data.userKey;
     const respond = typeof ack === "function" ? ack : () => {};
     if (!userKey || !users.has(userKey)) {
