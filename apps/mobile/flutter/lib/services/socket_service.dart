@@ -1409,6 +1409,10 @@ class SocketService extends ChangeNotifier {
         }
       } catch (error) {
         debugPrint('[NovynE2EE] Identity setup failed: $error');
+        if (error is StateError &&
+            error.message.toString().contains('E2EE recovery backup')) {
+          rethrow;
+        }
       }
     }();
 
