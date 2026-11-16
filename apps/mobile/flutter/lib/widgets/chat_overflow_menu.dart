@@ -133,7 +133,7 @@ class ChatOverflowMenu extends StatelessWidget {
                   borderRadius: BorderRadius.circular(24),
                   clipBehavior: Clip.antiAlias,
                   child: SizedBox(
-                    width: (media.size.width - 48).clamp(240.0, 300.0).toDouble(),
+                    width: (media.size.width - 48).clamp(220.0, 252.0).toDouble(),
                     child: ConstrainedBox(
                       constraints: BoxConstraints(maxHeight: media.size.height * .68),
                       child: SingleChildScrollView(
@@ -168,11 +168,6 @@ class ChatOverflowMenu extends StatelessWidget {
                               title: 'Locked chats',
                               tint: const Color(0xFFC04B77),
                               action: onLockedChats,
-                              trailing: const Icon(
-                                Icons.lock_outline_rounded,
-                                color: Color(0xFF77718F),
-                                size: 19,
-                              ),
                             ),
                             item(
                               icon: Icons.star_outline_rounded,
