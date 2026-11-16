@@ -1048,6 +1048,8 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
     final recentChats = activeChats.where((chat) => !chat.isPinned).toList();
 
     final pageBackground = NovynTheme.pageBg(context);
+    final canShowNewChatFab = _showNewChatFab && !_selectionMode &&
+        !_showingArchivedChats && !_showingLockedChats;
 
     return Scaffold(
       backgroundColor: pageBackground,
@@ -1224,14 +1226,14 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
         ),
       ),
       floatingActionButton: AnimatedSlide(
-        offset: _showNewChatFab ? Offset.zero : const Offset(1.35, 0),
+        offset: canShowNewChatFab ? Offset.zero : const Offset(1.35, 0),
         duration: const Duration(milliseconds: 220),
         curve: Curves.easeOutCubic,
         child: AnimatedOpacity(
-          opacity: _showNewChatFab ? 1 : 0,
+          opacity: canShowNewChatFab ? 1 : 0,
           duration: const Duration(milliseconds: 180),
           child: IgnorePointer(
-            ignoring: !_showNewChatFab,
+            ignoring: !canShowNewChatFab,
             child: Padding(
               padding: const EdgeInsets.only(bottom: 100),
               child: FloatingActionButton(
