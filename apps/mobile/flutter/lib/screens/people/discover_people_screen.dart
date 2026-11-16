@@ -631,7 +631,7 @@ class _DiscoverPeopleScreenState extends State<DiscoverPeopleScreen> {
               icon: _sendingRequest
                   ? const SizedBox(width: 17, height: 17, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                   : const Icon(Icons.send_rounded, size: 18),
-              label: Text(_sendingRequest ? 'Sending request...' : 'Send friend request'),
+              label: Text(_sendingRequest ? 'Sending request...' : 'Add friend'),
               style: FilledButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(17)),
