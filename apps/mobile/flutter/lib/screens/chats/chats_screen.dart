@@ -215,7 +215,10 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
 
     try {
       final prefs = await SharedPreferences.getInstance();
-      final next = Set<String>.from(_hiddenChatUsernames)..add(peerUsername);
+      final next = Set<String>.from(
+        prefs.getStringList(_hiddenChatsPreferenceKey(username)) ??
+            _hiddenChatUsernames,
+      )..add(peerUsername);
       final saved = await prefs.setStringList(
         _hiddenChatsPreferenceKey(username),
         next.toList(),
@@ -237,7 +240,7 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
           .toList();
       setState(() {
         _hiddenChatUsernames = next;
-          _hiddenChatsOwner = username;
+        _hiddenChatsOwner = username;
         _chats = updated;
       });
       ChatsScreen.cachedChats = List<ChatPreview>.from(updated);
