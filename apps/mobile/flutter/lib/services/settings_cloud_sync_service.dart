@@ -27,6 +27,7 @@ class SettingsCloudSyncService {
   bool _localChangedBeforeInitialSync = false;
   int _lastLocalEditAt = 0;
   int _lastRemoteUpdatedAt = 0;
+  Map<String, dynamic> _lastSyncedSnapshot = {};
 
   bool get isActive => _accountKey != null;
 
@@ -41,6 +42,7 @@ class SettingsCloudSyncService {
     _localChangedBeforeInitialSync = false;
     _lastLocalEditAt = 0;
     _lastRemoteUpdatedAt = 0;
+    _lastSyncedSnapshot = {};
     _syncReady = false;
     _settings.addListener(_onLocalSettingsChanged);
 
@@ -67,6 +69,7 @@ class SettingsCloudSyncService {
     _localChangedBeforeInitialSync = false;
     _lastLocalEditAt = 0;
     _lastRemoteUpdatedAt = 0;
+    _lastSyncedSnapshot = {};
   }
 
   void _onLocalSettingsChanged() {
@@ -161,8 +164,13 @@ class SettingsCloudSyncService {
         accountKey: _accountKey,
       );
       _lastRemoteUpdatedAt = updatedAt;
+      _lastSyncedSnapshot = Map<String, dynamic>.from(values);
       _lastLocalEditAt = 0;
       _syncReady = true;
+      final current = _settings.cloudSyncSnapshot(accountKey: _accountKey);
+      if (current.keys.any((key) => !_lastSyncedSnapshot.containsKey(key))) {
+        _scheduleSave();
+      }
     } finally {
       _isApplyingRemote = false;
     }
@@ -185,7 +193,17 @@ class SettingsCloudSyncService {
     final revisionAtStart = _localRevision;
     try {
       final snapshot = _settings.cloudSyncSnapshot(accountKey: _accountKey);
-      final response = await ApiService.saveAccountSettings(snapshot);
+      final patch = <String, dynamic>{
+        for (final entry in snapshot.entries)
+          if (!_lastSyncedSnapshot.containsKey(entry.key) ||
+              !_sameValue(_lastSyncedSnapshot[entry.key], entry.value))
+            entry.key: entry.value,
+      };
+      if (patch.isEmpty) {
+        _lastLocalEditAt = 0;
+        return;
+      }
+      final response = await ApiService.saveAccountSettings(patch);
       if (!_isCurrent(generation)) return;
       if (response == null) {
         // Keep the local change and retry on the next short poll interval.
@@ -196,6 +214,7 @@ class SettingsCloudSyncService {
         return;
       }
       _lastRemoteUpdatedAt = _asTimestamp(response['updatedAt']);
+      _lastSyncedSnapshot = {..._lastSyncedSnapshot, ...patch};
       _lastLocalEditAt = _lastRemoteUpdatedAt;
       if (_localRevision != revisionAtStart) _scheduleSave();
     } catch (error) {
@@ -207,6 +226,11 @@ class SettingsCloudSyncService {
     } finally {
       if (_isCurrent(generation)) _requestInFlight = false;
     }
+  }
+
+  bool _sameValue(dynamic left, dynamic right) {
+    if (left is List && right is List) return listEquals(left, right);
+    return left == right;
   }
 
   int _asTimestamp(dynamic value) =>
