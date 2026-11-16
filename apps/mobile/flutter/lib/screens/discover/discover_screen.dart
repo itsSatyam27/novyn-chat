@@ -14,6 +14,7 @@ import '../../widgets/novyn_ui.dart';
 import '../../widgets/profile_preview_sheet.dart';
 import '../../widgets/user_avatar.dart';
 import '../people/received_friend_requests_screen.dart';
+import '../people/discover_people_screen.dart';
 import 'package:novyn/services/haptic_service.dart';
 
 class DiscoverScreen extends StatefulWidget {
