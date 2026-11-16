@@ -1841,6 +1841,27 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
   }
 
   Widget _buildEmpty() {
+    if (_showingArchivedChats) {
+      return const NovynEmptyState(
+        icon: Icons.archive_outlined,
+        title: 'No archived chats',
+        description: 'Chats you archive will appear here.',
+      );
+    }
+    if (_showingLockedChats) {
+      return const NovynEmptyState(
+        icon: Icons.lock_outline_rounded,
+        title: 'No locked chats',
+        description: 'Lock a conversation from its chat menu to keep it protected.',
+      );
+    }
+    if (_selectionMode) {
+      return const NovynEmptyState(
+        icon: Icons.check_box_outlined,
+        title: 'No chats to select',
+        description: 'There are no conversations in this view.',
+      );
+    }
     return const NovynEmptyState(
       icon: Icons.chat_bubble_outline_rounded,
       title: 'No chats yet',
