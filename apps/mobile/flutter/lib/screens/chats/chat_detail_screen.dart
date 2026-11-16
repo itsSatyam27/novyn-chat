@@ -3942,7 +3942,6 @@ class _MessageBubble extends StatelessWidget {
   }
 
   Future<void> _downloadAttachment(BuildContext context, String url, String name) async {
-    final messenger = ScaffoldMessenger.of(context);
     try {
       final file = await ApiService.downloadMedia(url, name);
       final kind = _mimeForFile(name).startsWith('image/') ? 'image' : _mimeForFile(name).startsWith('video/') ? 'video' : 'file';
@@ -4671,7 +4670,6 @@ class _AttachmentButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final messenger = ScaffoldMessenger.of(context);
     return Material(
       color: scheme.primary.withValues(alpha: .10), shape: const CircleBorder(),
       child: InkWell(
