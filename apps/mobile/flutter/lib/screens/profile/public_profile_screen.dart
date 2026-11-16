@@ -140,7 +140,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
   }
 
   static String _initials(String value) {
-    final words = value.trim().split(RegExp(r'\\s+')).where((part) => part.isNotEmpty).toList();
+    final words = value.trim().split(RegExp(r'\s+')).where((part) => part.isNotEmpty).toList();
     if (words.isEmpty) return 'N';
     return words.length > 1
         ? '${words.first[0]}${words.last[0]}'.toUpperCase()
