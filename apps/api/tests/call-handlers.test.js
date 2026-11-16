@@ -34,6 +34,7 @@ function makeDeps({ aliceCalls = true, bobCalls = true } = {}) {
   const activeCalls = new Map();
   const onlineUsers = new Map([['alice', 'alice-socket'], ['bob', 'bob-socket']]);
   const delivered = [];
+  const pushes = [];
   const deps = {
     resolveChatTargetForUser: () => null,
     toDisplayName: (value) => String(value ?? '').trim(),
@@ -58,9 +59,13 @@ function makeDeps({ aliceCalls = true, bobCalls = true } = {}) {
       },
     },
     usersAreBlocked: () => false,
-    sendPushToUser: () => Promise.resolve(),
+    sendPushToUser: (userKey, payload) => {
+      pushes.push({ userKey, payload });
+      return Promise.resolve();
+    },
     recordCallLog: () => {},
     delivered,
+    pushes,
   };
   return deps;
 }
@@ -95,4 +100,20 @@ test('callsEnabled change while ringing cancels the call for both peers', () => 
 
   assert.equal(deps.activeCalls.size, 0);
   assert.equal(deps.delivered.filter((event) => event.name === 'call_ended').length, 2);
+});
+
+
+test('unanswered outgoing calls send a missed-call push only to the receiver', () => {
+  const deps = makeDeps();
+  const caller = makeSocket('alice');
+  registerCallHandlers(caller, deps);
+
+  caller.handlers.get('call_start')({ to: 'bob', callId: 'unanswered-call' });
+  caller.handlers.get('call_end')({ to: 'bob', callId: 'unanswered-call' });
+
+  assert.equal(deps.pushes.length, 1);
+  assert.equal(deps.pushes[0].userKey, 'bob');
+  assert.equal(deps.pushes[0].payload.callStatus, 'missed');
+  assert.match(deps.pushes[0].payload.body, /alice/i);
+  assert.equal(deps.activeCalls.size, 0);
 });
