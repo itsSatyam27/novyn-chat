@@ -998,15 +998,14 @@ class _ChangePasswordDialogState extends State<_ChangePasswordDialog> {
 
                       if (mounted && context.mounted) {
                         setState(() => _isLoading = false);
-                        final messenger = ScaffoldMessenger.of(context);
                         if (error == null) {
                           // The backend revokes every refresh session after a password
                           // change. Clear this device's local auth state as well so the
                           // user is explicitly required to sign in with the new password.
                           await auth.logout();
                           if (!mounted) return;
-                          Navigator.pop(context);
-                          messenger.showNovynAlert(
+                          context.showNovynAlert(
+
                             const SnackBar(
                               content: Text('Password updated. Please sign in again.'),
                               behavior: SnackBarBehavior.floating,
@@ -1014,7 +1013,7 @@ class _ChangePasswordDialogState extends State<_ChangePasswordDialog> {
                             ),
                           );
                         } else {
-                          messenger.showNovynAlert(
+                          context.showNovynAlert(
                             SnackBar(
                               content: Text(error),
                               backgroundColor: const Color(0xFFEF4444),
