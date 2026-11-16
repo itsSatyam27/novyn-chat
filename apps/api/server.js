@@ -7304,6 +7304,30 @@ io.on("connection", (socket) => {
     respond({ ok: true, conversationsProcessed });
   });
 
+  socket.on("mark_chat_read", (payload, ack) => {
+    const userKey = socket.data.userKey;
+    const respond = typeof ack === "function" ? ack : () => {};
+    if (!userKey || !users.has(userKey)) {
+      respond({ ok: false, message: "Sign in to mark this chat as read." });
+      return;
+    }
+    if (!allowSocketAction(socket, "mark_chat_read", 30, 60 * 1000)) {
+      respond({ ok: false, message: "Please wait before updating read status again." });
+      return;
+    }
+
+    const targetName = payload?.to || payload?.username || payload?.groupId || "";
+    const targetType = payload?.kind || payload?.type || payload?.toType || "friend";
+    const resolved = resolveChatTargetForUser(userKey, targetName, targetType, { inferGroup: true });
+    if (!resolved.ok) {
+      respond({ ok: false, message: resolved.message || "This conversation is unavailable." });
+      return;
+    }
+
+    markConversationAsSeen(userKey, resolved.targetKey, resolved.type);
+    respond({ ok: true });
+  });
+
   socket.on("get_history", (rawTarget) => {
     const userKey = socket.data.userKey;
     if (!userKey) return;
