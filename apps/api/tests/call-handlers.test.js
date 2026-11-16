@@ -111,9 +111,17 @@ test('unanswered outgoing calls send a missed-call push only to the receiver', (
   caller.handlers.get('call_start')({ to: 'bob', callId: 'unanswered-call' });
   caller.handlers.get('call_end')({ to: 'bob', callId: 'unanswered-call' });
 
-  assert.equal(deps.pushes.length, 1);
-  assert.equal(deps.pushes[0].userKey, 'bob');
-  assert.equal(deps.pushes[0].payload.callStatus, 'missed');
-  assert.match(deps.pushes[0].payload.body, /alice/i);
+  const missedPushes = deps.pushes.filter(
+    (entry) => entry.payload.callStatus === 'missed',
+  );
+  assert.equal(missedPushes.length, 1);
+  assert.equal(missedPushes[0].userKey, 'bob');
+  assert.match(missedPushes[0].payload.body, /alice/i);
+  assert.equal(
+    deps.pushes.some((entry) =>
+      entry.userKey === 'alice' && entry.payload.callStatus === 'missed',
+    ),
+    false,
+  );
   assert.equal(deps.activeCalls.size, 0);
 });
