@@ -1242,6 +1242,186 @@ class SettingsService extends ChangeNotifier {
     await _prefs.setString(_kSavedSessions, encoded);
   }
 
+  /// Export only account-level preferences. Device secrets, local file paths,
+  /// biometric/app-lock state and transient runtime flags are intentionally
+  /// excluded from cloud sync.
+  Map<String, dynamic> cloudSyncSnapshot({String? accountKey}) => {
+        'notificationsOn': _notificationsOn,
+        'messagePreview': _messagePreview,
+        'chatLinkPreviews': _chatLinkPreviews,
+        'readReceipts': _readReceipts,
+        'onlineStatus': _onlineStatus,
+        'themeMode': _themeMode.name,
+        'inAppSounds': _inAppSounds,
+        'chatEnterToSend': _chatEnterToSend,
+        'inAppVibration': _inAppVibration,
+        'groupNotifications': _groupNotifications,
+        'autoDownloadWifi': _autoDownloadWifi,
+        'autoDownloadMobile': _autoDownloadMobile,
+        'photoQuality': _photoQuality,
+        'language': _language,
+        'timeFormat': _timeFormat,
+        'fontSize': _fontSize,
+        'chatLabelSize': _chatLabelSize,
+        'accentColorValue': _accentColorValue,
+        'accentColorEnabled': _accentColorEnabled,
+        'dockStyle': _dockStyle,
+        'alertStyle': _alertStyle,
+        'notificationTone': _notificationTone,
+        'callRingtone': _callRingtone,
+        'vibrationPattern': _vibrationPattern,
+        'hapticIntensity': _hapticIntensity,
+        'hapticNavigation': _hapticNavigation,
+        'hapticTyping': _hapticTyping,
+        'hapticChat': _hapticChat,
+        'hapticButtons': _hapticButtons,
+        'hapticNotifications': _hapticNotifications,
+        'hapticCalls': _hapticCalls,
+        'messageVolume': _messageVolume,
+        'callVolume': _callVolume,
+        'region': _region,
+        'highContrast': _highContrast,
+        'reduceMotion': _reduceMotion,
+        'doNotDisturbEnabled': _doNotDisturbEnabled,
+        if (accountKey != null && accountKey.trim().isNotEmpty)
+          'quickToggleIds': quickToggleIdsFor(accountKey),
+      };
+
+  /// Apply an account snapshot without invoking each public setter (and
+  /// therefore without causing a burst of listener notifications/network work).
+  /// The UI receives one notification after the local cache has been updated.
+  Future<void> applyCloudSyncSnapshot(
+    Map<String, dynamic> values, {
+    String? accountKey,
+  }) async {
+    if (!_loaded) {
+      throw StateError('Settings must be loaded before applying cloud settings.');
+    }
+
+    bool boolValue(String key, bool fallback) =>
+        values[key] is bool ? values[key] as bool : fallback;
+    String stringValue(String key, String fallback) =>
+        values[key] is String ? (values[key] as String) : fallback;
+    double doubleValue(String key, double fallback, double min, double max) {
+      final raw = values[key];
+      final value = raw is num ? raw.toDouble() : fallback;
+      return value.clamp(min, max).toDouble();
+    }
+
+    _notificationsOn = boolValue('notificationsOn', _notificationsOn);
+    _messagePreview = boolValue('messagePreview', _messagePreview);
+    _chatLinkPreviews = boolValue('chatLinkPreviews', _chatLinkPreviews);
+    _readReceipts = boolValue('readReceipts', _readReceipts);
+    _onlineStatus = boolValue('onlineStatus', _onlineStatus);
+    final themeName = stringValue('themeMode', _themeMode.name);
+    _themeMode = ThemeMode.values.firstWhere(
+      (mode) => mode.name == themeName,
+      orElse: () => _themeMode,
+    );
+    _inAppSounds = boolValue('inAppSounds', _inAppSounds);
+    _chatEnterToSend = boolValue('chatEnterToSend', _chatEnterToSend);
+    _inAppVibration = boolValue('inAppVibration', _inAppVibration);
+    _groupNotifications = boolValue('groupNotifications', _groupNotifications);
+    _autoDownloadWifi = stringValue('autoDownloadWifi', _autoDownloadWifi);
+    _autoDownloadMobile = stringValue('autoDownloadMobile', _autoDownloadMobile);
+    _photoQuality = stringValue('photoQuality', _photoQuality);
+    _language = stringValue('language', _language);
+    _timeFormat = stringValue('timeFormat', _timeFormat) == '24h' ? '24h' : '12h';
+    _fontSize = doubleValue('fontSize', _fontSize, 0.85, 1.25);
+    _chatLabelSize = doubleValue('chatLabelSize', _chatLabelSize, 0.8, 1.4);
+    final accent = values['accentColorValue'];
+    if (accent is num && accent.toInt() >= 0 && accent.toInt() <= 0xFFFFFFFF) {
+      _accentColorValue = accent.toInt();
+    }
+    _accentColorEnabled = boolValue('accentColorEnabled', _accentColorEnabled);
+
+    const dockStyles = {
+      'slide_pill', 'expand_capsule', 'edge_to_edge', 'dot_minimal',
+      'soft_glow_glass', 'liquid_stretch', 'flip_tiles', 'draw_ring',
+    };
+    final dockStyle = stringValue('dockStyle', _dockStyle);
+    if (dockStyles.contains(dockStyle)) _dockStyle = dockStyle;
+    const alertStyles = {
+      'snackbar', 'top_banner', 'capsule', 'switch_card',
+      'centre_hud', 'countdown_card',
+    };
+    final alertStyle = stringValue('alertStyle', _alertStyle);
+    if (alertStyles.contains(alertStyle)) _alertStyle = alertStyle;
+
+    _notificationTone = stringValue('notificationTone', _notificationTone);
+    _callRingtone = stringValue('callRingtone', _callRingtone);
+    _vibrationPattern = stringValue('vibrationPattern', _vibrationPattern);
+    _hapticIntensity = doubleValue('hapticIntensity', _hapticIntensity, 0, 1);
+    _hapticNavigation = boolValue('hapticNavigation', _hapticNavigation);
+    _hapticTyping = boolValue('hapticTyping', _hapticTyping);
+    _hapticChat = boolValue('hapticChat', _hapticChat);
+    _hapticButtons = boolValue('hapticButtons', _hapticButtons);
+    _hapticNotifications = boolValue('hapticNotifications', _hapticNotifications);
+    _hapticCalls = boolValue('hapticCalls', _hapticCalls);
+    _messageVolume = doubleValue('messageVolume', _messageVolume, 0, 1);
+    _callVolume = doubleValue('callVolume', _callVolume, 0, 1);
+    _region = stringValue('region', _region);
+    _highContrast = boolValue('highContrast', _highContrast);
+    _reduceMotion = boolValue('reduceMotion', _reduceMotion);
+    _doNotDisturbEnabled = boolValue('doNotDisturbEnabled', _doNotDisturbEnabled);
+
+    final writes = <Future<bool>>[
+      _prefs.setBool(_kNotifications, _notificationsOn),
+      _prefs.setBool(_kMessagePreview, _messagePreview),
+      _prefs.setBool(_kChatLinkPreviews, _chatLinkPreviews),
+      _prefs.setBool(_kReadReceipts, _readReceipts),
+      _prefs.setBool(_kOnlineStatus, _onlineStatus),
+      _prefs.setInt(_kThemeMode, _themeMode.index),
+      _prefs.setBool(_kInAppSounds, _inAppSounds),
+      _prefs.setBool('chat_enter_to_send', _chatEnterToSend),
+      _prefs.setBool(_kInAppVibration, _inAppVibration),
+      _prefs.setBool(_kGroupNotifications, _groupNotifications),
+      _prefs.setString(_kAutoDownloadWifi, _autoDownloadWifi),
+      _prefs.setString(_kAutoDownloadMobile, _autoDownloadMobile),
+      _prefs.setString(_kPhotoQuality, _photoQuality),
+      _prefs.setString(_kLanguage, _language),
+      _prefs.setString(_kTimeFormat, _timeFormat),
+      _prefs.setDouble(_kFontSize, _fontSize),
+      _prefs.setDouble(_kChatLabelSize, _chatLabelSize),
+      _prefs.setInt(_kAccentColor, _accentColorValue),
+      _prefs.setBool(_kAccentColorEnabled, _accentColorEnabled),
+      _prefs.setString(_kDockStyle, _dockStyle),
+      _prefs.setString(_kAlertStyle, _alertStyle),
+      _prefs.setString(_kNotificationTone, _notificationTone),
+      _prefs.setString(_kCallRingtone, _callRingtone),
+      _prefs.setString(_kVibrationPattern, _vibrationPattern),
+      _prefs.setDouble(_kHapticIntensity, _hapticIntensity),
+      _prefs.setBool(_kHapticNavigation, _hapticNavigation),
+      _prefs.setBool(_kHapticTyping, _hapticTyping),
+      _prefs.setBool(_kHapticChat, _hapticChat),
+      _prefs.setBool(_kHapticButtons, _hapticButtons),
+      _prefs.setBool(_kHapticNotifications, _hapticNotifications),
+      _prefs.setBool(_kHapticCalls, _hapticCalls),
+      _prefs.setDouble('novyn_message_volume', _messageVolume),
+      _prefs.setDouble('novyn_call_volume', _callVolume),
+      _prefs.setString(_kRegion, _region),
+      _prefs.setBool(_kHighContrast, _highContrast),
+      _prefs.setBool(_kReduceMotion, _reduceMotion),
+      _prefs.setBool(_kDoNotDisturb, _doNotDisturbEnabled),
+    ];
+    final quickIds = values['quickToggleIds'];
+    if (accountKey != null &&
+        accountKey.trim().isNotEmpty &&
+        quickIds is List) {
+      final cleaned = sanitizeQuickToggleIds(
+        quickIds.whereType<String>(),
+      );
+      if (cleaned.isNotEmpty) {
+        writes.add(_prefs.setStringList(
+          _quickToggleStorageKey(accountKey),
+          cleaned,
+        ));
+      }
+    }
+    await Future.wait(writes);
+    notifyListeners();
+  }
+
   Future<void> clearAll() async {
     await _prefs.clear();
     await _deleteSecureValue(_secureAppLockPin);
