@@ -48,7 +48,6 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
   bool _isSearchVisible = false;
   Set<String> _pinnedChatUsernames = <String>{};
   Set<String> _hiddenChatUsernames = <String>{};
-  bool _hiddenChatsLoaded = false;
   String? _hiddenChatsOwner;
   bool _pinPreferencesLoaded = false;
   String? _pinPreferencesOwner;
@@ -122,7 +121,6 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
       setState(() {
         _pinnedChatUsernames = <String>{};
         _hiddenChatUsernames = <String>{};
-        _hiddenChatsLoaded = false;
         _hiddenChatsOwner = null;
         _pinPreferencesLoaded = false;
         _pinPreferencesOwner = null;
@@ -136,7 +134,6 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
     setState(() {
       _pinnedChatUsernames = <String>{};
       _hiddenChatUsernames = <String>{};
-      _hiddenChatsLoaded = false;
       _hiddenChatsOwner = null;
       _pinPreferencesLoaded = false;
       _pinPreferencesOwner = null;
@@ -199,7 +196,6 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
             .map((value) => value.trim().toLowerCase())
             .where((value) => value.isNotEmpty)
             .toSet();
-        _hiddenChatsLoaded = true;
         _hiddenChatsOwner = username.trim().toLowerCase();
       });
       _applyFilters();
@@ -241,8 +237,7 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
           .toList();
       setState(() {
         _hiddenChatUsernames = next;
-        _hiddenChatsLoaded = true;
-        _hiddenChatsOwner = username;
+          _hiddenChatsOwner = username;
         _chats = updated;
       });
       ChatsScreen.cachedChats = List<ChatPreview>.from(updated);
