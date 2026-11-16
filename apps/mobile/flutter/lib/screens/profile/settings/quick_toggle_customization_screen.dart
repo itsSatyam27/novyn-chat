@@ -139,9 +139,7 @@ class _QuickToggleCustomizationScreenState
   }
 
   void _showMessage(String message) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showNovynAlert(
+    context.showNovynAlert(
         SnackBar(
           content: Text(message),
           behavior: SnackBarBehavior.floating,
