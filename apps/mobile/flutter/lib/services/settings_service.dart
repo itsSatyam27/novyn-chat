@@ -1246,16 +1246,10 @@ class SettingsService extends ChangeNotifier {
   /// biometric/app-lock state and transient runtime flags are intentionally
   /// excluded from cloud sync.
   Map<String, dynamic> cloudSyncSnapshot({String? accountKey}) => {
-        'notificationsOn': _notificationsOn,
-        'messagePreview': _messagePreview,
         'chatLinkPreviews': _chatLinkPreviews,
-        'readReceipts': _readReceipts,
         'onlineStatus': _onlineStatus,
         'themeMode': _themeMode.name,
-        'inAppSounds': _inAppSounds,
         'chatEnterToSend': _chatEnterToSend,
-        'inAppVibration': _inAppVibration,
-        'groupNotifications': _groupNotifications,
         'autoDownloadWifi': _autoDownloadWifi,
         'autoDownloadMobile': _autoDownloadMobile,
         'photoQuality': _photoQuality,
