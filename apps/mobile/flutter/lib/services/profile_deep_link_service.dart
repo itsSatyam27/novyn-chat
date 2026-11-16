@@ -71,7 +71,7 @@ class ProfileDeepLinkService {
   static String? _validUsername(String value) {
     final username = value.trim().replaceFirst(RegExp(r'^@'), '');
     if (username.isEmpty || username.length > 40 ||
-        username.contains('/') || username.contains(r'\\')) {
+        username.contains('/') || username.contains(String.fromCharCode(92))) {
       return null;
     }
     return username;
