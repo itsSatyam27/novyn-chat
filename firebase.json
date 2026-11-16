@@ -4,7 +4,6 @@
     "ignore": [
       "firebase.json",
       ".firebaserc",
-      "**/.*",
       "**/node_modules/**",
       "apps/**",
       "backend/**",
@@ -32,7 +31,10 @@
       "*.sh",
       "*.txt",
       "*.lock",
-      "*.toml"
+      "*.toml",
+      "**/.*",
+      "!**/.well-known/**",
+      "!.well-known/**"
     ],
     "headers": [
       {
@@ -43,6 +45,12 @@
             "value": "public,max-age=3600"
           }
         ]
+      }
+    ],
+    "rewrites": [
+      {
+        "source": "/user/**",
+        "destination": "/user/index.html"
       }
     ]
   }
