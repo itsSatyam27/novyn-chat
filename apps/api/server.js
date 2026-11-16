@@ -753,6 +753,132 @@ app.get("/api/stats", (req, res) => {
   });
 });
 
+// Public profile previews intentionally expose only profile fields that the
+// account owner has made visible to everyone. No email, presence, contacts,
+// relationship graph, or account/security data is returned here.
+const PUBLIC_PROFILE_ORIGINS = new Set([
+  "https://novyn.app",
+  "https://www.novyn.app",
+]);
+const PUBLIC_PROFILE_API_ORIGIN = "https://novyn-live.onrender.com";
+
+function setPublicProfileCors(req, res) {
+  const origin = String(req.headers.origin || "");
+  if (PUBLIC_PROFILE_ORIGINS.has(origin)) {
+    res.set("Access-Control-Allow-Origin", origin);
+  }
+  res.set("Vary", "Origin");
+  res.set("Access-Control-Allow-Methods", "GET, OPTIONS");
+  res.set("Access-Control-Allow-Headers", "Accept, Content-Type");
+}
+
+function findPublicProfileUser(username) {
+  const key = normalizeName(toDisplayName(username).replace(/^@/, ""));
+  const user = key ? users.get(key) : null;
+  return user?.isRegistered ? { key, user } : null;
+}
+
+app.options("/api/public/profile/:username", (req, res) => {
+  setPublicProfileCors(req, res);
+  res.sendStatus(204);
+});
+
+app.options("/api/public/profile/:username/avatar", (req, res) => {
+  setPublicProfileCors(req, res);
+  res.sendStatus(204);
+});
+
+app.get(
+  "/api/public/profile/:username",
+  createIpRateLimiter({ getStore: () => httpRateLimits }, "public-profile", 60, 60 * 1000),
+  (req, res) => {
+    setPublicProfileCors(req, res);
+    res.set("Cache-Control", "public, max-age=60, stale-while-revalidate=120");
+
+    const found = findPublicProfileUser(req.params.username);
+    if (!found) {
+      res.status(404).json({ error: "Profile not found." });
+      return;
+    }
+
+    const { key, user } = found;
+    const profile = {
+      username: user.username,
+      displayName: user.displayName || user.username,
+      bio: String(user.bio || "").slice(0, 160),
+      avatarUrl: "",
+      canReceiveRequests: (user.friendRequestPrivacy || "everyone") === "everyone",
+    };
+
+    // Only expose a photo when the owner explicitly allows public visibility.
+    // The avatar endpoint independently verifies media ownership on every read.
+    if ((user.profilePhotoPrivacy || "everyone") === "everyone" &&
+        mediaNames(user.avatarId || "").length) {
+      profile.avatarUrl = `${PUBLIC_PROFILE_API_ORIGIN}/api/public/profile/${encodeURIComponent(user.username)}/avatar`;
+    }
+
+    res.json(profile);
+  },
+);
+
+app.get(
+  "/api/public/profile/:username/avatar",
+  createIpRateLimiter({ getStore: () => httpRateLimits }, "public-profile-avatar", 90, 60 * 1000),
+  (req, res) => {
+    setPublicProfileCors(req, res);
+    res.set("Cache-Control", "private, max-age=60");
+    res.set("Referrer-Policy", "no-referrer");
+
+    const found = findPublicProfileUser(req.params.username);
+    if (!found) {
+      res.status(404).end();
+      return;
+    }
+
+    const { key, user } = found;
+    if ((user.profilePhotoPrivacy || "everyone") !== "everyone") {
+      res.status(404).end();
+      return;
+    }
+
+    const filename = mediaNames(user.avatarId || "")[0];
+    if (!filename) {
+      res.status(404).end();
+      return;
+    }
+
+    const metadata = mediaMetadata(filename);
+    if (!metadata || resolveCurrentUserKey(metadata.ownerKey) !== key) {
+      res.status(404).end();
+      return;
+    }
+
+    if (metadata.remote) {
+      try {
+        return res.redirect(302, cloudinary.utils.private_download_url(
+          metadata.remote.publicId,
+          metadata.remote.format,
+          {
+            resource_type: metadata.remote.resourceType,
+            type: "authenticated",
+            expires_at: Math.floor(Date.now() / 1000) + 60,
+          },
+        ));
+      } catch (_) {
+        res.status(404).end();
+        return;
+      }
+    }
+
+    const filePath = path.join(uploadsDir, filename);
+    if (!fs.existsSync(filePath)) {
+      res.status(404).end();
+      return;
+    }
+    res.sendFile(filePath);
+  },
+);
+
 app.get(
   "/api/users/search",
   requireUser,
