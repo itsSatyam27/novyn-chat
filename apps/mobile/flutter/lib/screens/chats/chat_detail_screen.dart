@@ -701,7 +701,12 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                 ],
               ),
             ),
-            _buildInputBar(socket),
+            SafeArea(
+              top: false,
+              left: false,
+              right: false,
+              child: _buildInputBar(socket),
+            ),
           ],
         ),
       ),
