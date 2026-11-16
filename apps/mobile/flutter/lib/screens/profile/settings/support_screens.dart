@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:novyn/widgets/novyn_alert.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import '../../../theme/novyn_theme.dart';
 import '../../../services/api_service.dart';
+import '../../../services/auth_service.dart';
 import '../../../services/app_update_service.dart';
 
 const _installerChannel = MethodChannel('com.example.novyn/apk_installer');
@@ -536,17 +538,30 @@ class FeedbackScreen extends StatefulWidget {
 }
 
 class _FeedbackScreenState extends State<FeedbackScreen> {
-  static const _types = <(String, String, IconData)>[
-    ('general', 'General', Icons.chat_bubble_outline_rounded),
-    ('bug', 'Bug report', Icons.bug_report_outlined),
-    ('feature', 'Feature request', Icons.lightbulb_outline_rounded),
-    ('praise', 'Praise', Icons.favorite_border_rounded),
+  static const _types = <(String, String, IconData, Color)>[
+    ('general', 'General', Icons.chat_bubble_outline_rounded, Color(0xFF7257F4)),
+    ('bug', 'Bug report', Icons.bug_report_outlined, Color(0xFFD7473E)),
+    ('feature', 'Feature request', Icons.lightbulb_outline_rounded, Color(0xFFB86A17)),
+    ('praise', 'Praise', Icons.favorite_border_rounded, Color(0xFFB83E70)),
   ];
+
   final _messageController = TextEditingController();
   final _emailController = TextEditingController();
   String _type = 'general';
   int _rating = 0;
   bool _sending = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _emailController.text.trim().isNotEmpty) return;
+      final accountEmail = context.read<AuthService>().user?.email.trim() ?? '';
+      if (accountEmail.isNotEmpty) {
+        setState(() => _emailController.text = accountEmail);
+      }
+    });
+  }
 
   @override
   void dispose() {
@@ -555,40 +570,180 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
     super.dispose();
   }
 
+  Widget _sectionTitle(
+    String title, {
+    String? optionalLabel,
+  }) {
+    final theme = Theme.of(context);
+    return Row(
+      children: [
+        Text(
+          title,
+          style: theme.textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w900,
+            letterSpacing: -.25,
+          ),
+        ),
+        if (optionalLabel != null) ...[
+          const SizedBox(width: 9),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 5),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.primary.withValues(alpha: .08),
+              borderRadius: BorderRadius.circular(99),
+            ),
+            child: Text(
+              optionalLabel,
+              style: theme.textTheme.labelSmall?.copyWith(
+                fontWeight: FontWeight.w700,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _categoryCard((String, String, IconData, Color) item) {
+    final colors = Theme.of(context).colorScheme;
+    final selected = _type == item.$1;
+    return Expanded(
+      child: InkWell(
+        onTap: _sending ? null : () => setState(() => _type = item.$1),
+        borderRadius: BorderRadius.circular(19),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          height: 76,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            color: NovynTheme.cardBg(context),
+            borderRadius: BorderRadius.circular(19),
+            border: Border.all(
+              color: selected ? colors.primary : colors.outlineVariant.withValues(alpha: .75),
+              width: selected ? 2 : 1.2,
+            ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: item.$4.withValues(alpha: .11),
+                  borderRadius: BorderRadius.circular(15),
+                ),
+                child: Icon(item.$3, color: item.$4, size: 23),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  item.$2,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 13.5,
+                    height: 1.2,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              if (selected)
+                Container(
+                  width: 22,
+                  height: 22,
+                  decoration: BoxDecoration(
+                    color: colors.primary,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(Icons.check_rounded, color: colors.onPrimary, size: 15),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Future<void> _submit() async {
     final message = _messageController.text.trim();
+    final email = _emailController.text.trim();
     if (message.length < 5) {
-      context.showNovynAlert(const SnackBar(content: Text('Please write at least 5 characters.')));
+      context.showNovynAlert(const SnackBar(
+        content: Text('Please write at least 5 characters.'),
+        behavior: SnackBarBehavior.floating,
+      ));
       return;
     }
+    if (email.isNotEmpty &&
+        !RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(email)) {
+      context.showNovynAlert(const SnackBar(
+        content: Text('Enter a valid email address or leave it blank.'),
+        behavior: SnackBarBehavior.floating,
+      ));
+      return;
+    }
+
     setState(() => _sending = true);
     try {
-      await ApiService.submitFeedback(
+      final result = await ApiService.submitFeedback(
         type: _type,
         message: message,
-        email: _emailController.text,
+        email: email,
         rating: _rating == 0 ? null : _rating,
       );
       if (!mounted) return;
+
+      final delivery = result['email'] is Map
+          ? Map<String, dynamic>.from(result['email'] as Map)
+          : <String, dynamic>{};
+      final adminSent = delivery['adminSent'] == true;
+      final receiptSent = delivery['receiptSent'] == true;
+      final reference = result['id']?.toString() ?? 'saved';
+
+      String statusText;
+      if (adminSent && receiptSent) {
+        statusText = 'Your feedback was saved and delivered to the Novyn team. A receipt was sent to $email.';
+      } else if (adminSent) {
+        statusText = 'Your feedback was saved and delivered to the Novyn team. No email receipt was sent.';
+      } else if (receiptSent) {
+        statusText = 'Your feedback was saved. A receipt was sent to $email, but the team email could not be delivered right now.';
+      } else {
+        statusText = 'Your feedback was saved (reference: $reference), but email delivery is not confirmed. The team can still review your submission.';
+      }
+
       await showDialog<void>(
         context: context,
         builder: (dialogContext) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
-          icon: Icon(Icons.check_circle_rounded, color: Theme.of(context).colorScheme.primary, size: 42),
-          title: const Text('Thanks for your feedback!'),
-          content: const Text('We read every submission and use it to make Novyn better.'),
-          actions: [FilledButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Done'))],
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          icon: Icon(
+            Icons.check_circle_rounded,
+            color: Theme.of(context).colorScheme.primary,
+            size: 46,
+          ),
+          title: const Text('Feedback received'),
+          content: Text(statusText),
+          actions: [
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Done'),
+            ),
+          ],
         ),
       );
+
       if (mounted) {
         _messageController.clear();
-        _emailController.clear();
-        setState(() => _rating = 0);
+        _rating = 0;
+        setState(() => _type = 'general');
       }
     } catch (error) {
       if (!mounted) return;
       final errorMessage = error.toString().replaceFirst('Exception: ', '');
-      context.showNovynAlert(SnackBar(content: Text(errorMessage), behavior: SnackBarBehavior.floating));
+      context.showNovynAlert(SnackBar(
+        content: Text(errorMessage),
+        behavior: SnackBarBehavior.floating,
+      ));
     } finally {
       if (mounted) setState(() => _sending = false);
     }
@@ -596,96 +751,270 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+
     return Scaffold(
       backgroundColor: NovynTheme.pageBg(context),
       appBar: AppBar(
         backgroundColor: NovynTheme.pageBg(context),
         elevation: 0,
-        title: const Text('Send Feedback', style: TextStyle(fontWeight: FontWeight.w800)),
+        centerTitle: true,
+        leadingWidth: 66,
+        title: const Text(
+          'Send Feedback',
+          style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: -.35),
+        ),
+        leading: Padding(
+          padding: const EdgeInsets.only(left: 12, top: 6, bottom: 6),
+          child: Material(
+            color: NovynTheme.cardBg(context),
+            borderRadius: BorderRadius.circular(16),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(16),
+              onTap: () => Navigator.maybePop(context),
+              child: const Icon(Icons.arrow_back_rounded, size: 21),
+            ),
+          ),
+        ),
       ),
       body: ListView(
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 36),
         children: [
           Container(
             padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(
-              color: colors.primaryContainer.withValues(alpha: .48),
-              borderRadius: BorderRadius.circular(22),
-              border: Border.all(color: colors.primary.withValues(alpha: .16)),
+              color: colors.primary.withValues(alpha: isDark ? .17 : .09),
+              borderRadius: BorderRadius.circular(25),
             ),
-            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Icon(Icons.mark_chat_unread_rounded, color: colors.primary, size: 28),
-              const SizedBox(width: 13),
-              const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('Help us improve Novyn', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
-                SizedBox(height: 5),
-                Text('Share an idea, report a bug, or tell us what you love.', style: TextStyle(height: 1.4)),
-              ])),
-            ]),
+            child: Row(
+              children: [
+                Container(
+                  width: 72,
+                  height: 72,
+                  decoration: BoxDecoration(
+                    color: colors.primary,
+                    borderRadius: BorderRadius.circular(21),
+                    boxShadow: [
+                      BoxShadow(
+                        color: colors.primary.withValues(alpha: .25),
+                        blurRadius: 18,
+                        offset: const Offset(0, 7),
+                      ),
+                    ],
+                  ),
+                  child: Icon(
+                    Icons.chat_bubble_rounded,
+                    color: colors.onPrimary,
+                    size: 30,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Help us improve Novyn',
+                        style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900, letterSpacing: -.3),
+                      ),
+                      SizedBox(height: 5),
+                      Text(
+                        'Share an idea, report a bug, or tell us what you love.',
+                        style: TextStyle(fontSize: 13.5, height: 1.4),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
-          const SizedBox(height: 24),
-          Text('What would you like to share?', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800)),
+          const SizedBox(height: 27),
+          _sectionTitle('What would you like to share?'),
           const SizedBox(height: 12),
-          Wrap(spacing: 9, runSpacing: 9, children: _types.map((item) {
-            final selected = _type == item.$1;
-            return ChoiceChip(
-              avatar: Icon(item.$3, size: 17, color: selected ? colors.onPrimary : colors.onSurfaceVariant),
-              label: Text(item.$2),
-              selected: selected,
-              onSelected: _sending ? null : (_) => setState(() => _type = item.$1),
-              showCheckmark: false,
-            );
-          }).toList()),
-          const SizedBox(height: 24),
-          Text('Rate your experience (optional)', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800)),
-          const SizedBox(height: 8),
-          Row(children: [
-            ...List.generate(5, (index) {
-              final value = index + 1;
-              return IconButton(
-                tooltip: '$value star${value == 1 ? '' : 's'}',
-                onPressed: _sending ? null : () => setState(() => _rating = _rating == value ? 0 : value),
-                icon: Icon(value <= _rating ? Icons.star_rounded : Icons.star_outline_rounded,
-                  color: value <= _rating ? const Color(0xFFF59E0B) : colors.onSurfaceVariant, size: 30),
-              );
-            }),
-            if (_rating > 0) Text(['', 'Poor', 'Fair', 'Good', 'Great', 'Excellent'][_rating],
-              style: TextStyle(color: colors.onSurfaceVariant, fontWeight: FontWeight.w700)),
-          ]),
-          const SizedBox(height: 18),
-          Text('Your feedback', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800)),
-          const SizedBox(height: 9),
-          TextField(
-            controller: _messageController, enabled: !_sending, minLines: 5, maxLines: 7, maxLength: 2000,
-            textCapitalization: TextCapitalization.sentences,
-            decoration: InputDecoration(
-              hintText: 'Tell us what is on your mind…', alignLabelWithHint: true, filled: true,
-              fillColor: NovynTheme.cardBg(context), border: OutlineInputBorder(borderRadius: BorderRadius.circular(17)),
-              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(17), borderSide: BorderSide(color: colors.outlineVariant)),
+          Row(
+            children: [
+              _categoryCard(_types[0]),
+              const SizedBox(width: 12),
+              _categoryCard(_types[1]),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              _categoryCard(_types[2]),
+              const SizedBox(width: 12),
+              _categoryCard(_types[3]),
+            ],
+          ),
+          const SizedBox(height: 27),
+          _sectionTitle('Rate your experience', optionalLabel: 'Optional'),
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.fromLTRB(14, 16, 14, 13),
+            decoration: BoxDecoration(
+              color: NovynTheme.cardBg(context),
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: isDark ? const [] : [
+                BoxShadow(
+                  color: const Color(0xFF6D55C7).withValues(alpha: .06),
+                  blurRadius: 18,
+                  offset: const Offset(0, 5),
+                ),
+              ],
+            ),
+            child: Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: List.generate(5, (index) {
+                    final value = index + 1;
+                    final selected = value <= _rating;
+                    return IconButton(
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(minWidth: 44, minHeight: 46),
+                      onPressed: _sending
+                          ? null
+                          : () => setState(() => _rating = _rating == value ? 0 : value),
+                      icon: Icon(
+                        selected ? Icons.star_rounded : Icons.star_outline_rounded,
+                        size: 39,
+                        color: selected ? const Color(0xFFF4A51C) : colors.onSurfaceVariant.withValues(alpha: .42),
+                      ),
+                    );
+                  }),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  _rating == 0
+                      ? 'Tap a star to rate (optional)'
+                      : ['', 'Needs work', 'Fair', 'Good', 'Great', 'Loving it'][_rating],
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    color: _rating > 0 ? const Color(0xFFB96A17) : colors.onSurfaceVariant,
+                  ),
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 8),
-          Text('Email for a reply (optional)', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800)),
-          const SizedBox(height: 9),
-          TextField(
-            controller: _emailController, enabled: !_sending, keyboardType: TextInputType.emailAddress,
-            textInputAction: TextInputAction.done,
-            decoration: InputDecoration(
-              hintText: 'you@example.com', prefixIcon: const Icon(Icons.mail_outline_rounded), filled: true,
-              fillColor: NovynTheme.cardBg(context), border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
-              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: colors.outlineVariant)),
+          const SizedBox(height: 27),
+          _sectionTitle('Your feedback'),
+          const SizedBox(height: 10),
+          Container(
+            decoration: BoxDecoration(
+              color: NovynTheme.cardBg(context),
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: isDark ? const [] : [
+                BoxShadow(
+                  color: const Color(0xFF6D55C7).withValues(alpha: .05),
+                  blurRadius: 17,
+                  offset: const Offset(0, 5),
+                ),
+              ],
+            ),
+            child: TextField(
+              controller: _messageController,
+              enabled: !_sending,
+              minLines: 6,
+              maxLines: 8,
+              maxLength: 2000,
+              textCapitalization: TextCapitalization.sentences,
+              buildCounter: (context, {required currentLength, required isFocused, maxLength}) =>
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8, bottom: 5),
+                    child: Text(
+                      '$currentLength / 2000',
+                      style: TextStyle(color: colors.onSurfaceVariant, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+              decoration: InputDecoration(
+                hintText: 'Tell us what is on your mind...',
+                alignLabelWithHint: true,
+                filled: true,
+                fillColor: Colors.transparent,
+                contentPadding: const EdgeInsets.fromLTRB(20, 18, 20, 12),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(24),
+                  borderSide: BorderSide.none,
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(24),
+                  borderSide: BorderSide.none,
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(24),
+                  borderSide: BorderSide(color: colors.primary.withValues(alpha: .45), width: 1.5),
+                ),
+              ),
             ),
           ),
           const SizedBox(height: 22),
-          SizedBox(height: 54, child: FilledButton.icon(
-            onPressed: _sending ? null : _submit,
-            icon: _sending ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.send_rounded),
-            label: Text(_sending ? 'Sending…' : 'Send feedback', style: const TextStyle(fontWeight: FontWeight.w800)),
-          )),
+          _sectionTitle('Email for a reply', optionalLabel: 'Optional'),
           const SizedBox(height: 10),
-          Center(child: Text('Your feedback is sent securely to the Novyn team.',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant))),
+          TextField(
+            controller: _emailController,
+            enabled: !_sending,
+            keyboardType: TextInputType.emailAddress,
+            textInputAction: TextInputAction.done,
+            autofillHints: const [AutofillHints.email],
+            decoration: InputDecoration(
+              hintText: 'you@example.com',
+              prefixIcon: const Icon(Icons.mail_outline_rounded),
+              filled: true,
+              fillColor: NovynTheme.cardBg(context),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 17),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(22), borderSide: BorderSide.none),
+              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(22), borderSide: BorderSide.none),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(22),
+                borderSide: BorderSide(color: colors.primary.withValues(alpha: .45), width: 1.5),
+              ),
+            ),
+          ),
+          const SizedBox(height: 22),
+          SizedBox(
+            height: 62,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: colors.primary,
+                borderRadius: BorderRadius.circular(23),
+                boxShadow: [
+                  BoxShadow(
+                    color: colors.primary.withValues(alpha: .25),
+                    blurRadius: 19,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: FilledButton.icon(
+                onPressed: _sending ? null : _submit,
+                style: FilledButton.styleFrom(
+                  backgroundColor: Colors.transparent,
+                  foregroundColor: colors.onPrimary,
+                  disabledBackgroundColor: colors.primary.withValues(alpha: .55),
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(23)),
+                ),
+                icon: _sending
+                    ? const SizedBox(width: 19, height: 19, child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Icon(Icons.send_rounded),
+                label: Text(
+                  _sending ? 'Sending...' : 'Send feedback',
+                  style: const TextStyle(fontSize: 15.5, fontWeight: FontWeight.w900),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Center(
+            child: Text(
+              'Your feedback is securely saved for the Novyn team.',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant),
+            ),
+          ),
         ],
       ),
     );
