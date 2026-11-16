@@ -905,7 +905,14 @@ class _DiscoverPeopleScreenState extends State<DiscoverPeopleScreen> {
 
   void _message(String value) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(value)));
+    NovynAlert.show(context, value,
+      isError: value.toLowerCase().contains('could not') ||
+          value.toLowerCase().contains('cannot') ||
+          value.toLowerCase().contains('no novyn user'),
+      title: value.startsWith('Friend request sent') ? 'Request sent' : null,
+      icon: value.startsWith('Friend request sent') ? Icons.send_rounded : null,
+      tone: value.startsWith('Friend request sent') ? NovynAlertTone.violet : null,
+    );
   }
 }
 
