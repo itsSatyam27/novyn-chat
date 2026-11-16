@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:novyn/widgets/novyn_alert.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
@@ -86,7 +87,7 @@ class _TwoFactorScreenState extends State<TwoFactorScreen> {
     if (!mounted) return;
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
-      ..showSnackBar(const SnackBar(
+      ..showNovynAlert(const SnackBar(
         content: Text('Setup key copied. Paste it into your authenticator app.'),
         behavior: SnackBarBehavior.floating,
       ));
