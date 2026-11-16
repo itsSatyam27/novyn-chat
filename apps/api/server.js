@@ -1277,6 +1277,9 @@ async function issueAuthTokensForUser(userKey, remember) {
   // A process restart during the debounce window must not invalidate a newly
   // issued token pair on the next app launch.
   try {
+    // Newly registered/linked accounts and one-time security changes (such as
+    // consumed backup codes) must be committed before a usable cookie is sent.
+    await flushStatePersistNow();
     await flushAuthStatePersistNow();
   } catch (error) {
     revokeRefreshSession(refreshTokenId);
@@ -1940,6 +1943,19 @@ function schedulePersist() {
         console.error("Failed to persist chat state:", err);
       });
   }, 180);
+}
+
+async function flushStatePersistNow() {
+  if (persistTimer) {
+    clearTimeout(persistTimer);
+    persistTimer = null;
+  }
+
+  const write = persistInFlight.then(() => persistNow());
+  persistInFlight = write.catch((error) => {
+    console.error("Failed to persist chat state:", error);
+  });
+  await write;
 }
 
 function scheduleAuthStatePersist() {
