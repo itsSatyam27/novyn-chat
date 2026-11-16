@@ -103,7 +103,7 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    'Your backup is encrypted with a password you choose. Keep that password safe—Novyn cannot recover it. Restore merges locally cached messages, contacts and conversation encryption keys into this account without deleting newer local data. Keep the backup password private because it protects both your chats and E2EE keys.',
+                    'Your chat backup is encrypted with a password you choose. It restores locally cached messages, contacts and conversation keys. It does not include the account’s private E2EE identity; use E2EE Account Recovery below for that. Keep both recovery passwords safe—Novyn cannot recover them.',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(height: 1.45, color: colors.onSurfaceVariant),
                   ),
                 ),
