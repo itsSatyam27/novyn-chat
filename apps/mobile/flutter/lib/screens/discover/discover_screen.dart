@@ -82,13 +82,40 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
                       elevation: 10,
                       onSelected: (value) {
-                        if (value == 'refresh') {
+                        if (value == 'send' || value == 'sent') {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => DiscoverPeopleScreen(myUid: myUid),
+                            ),
+                          );
+                        } else if (value == 'refresh') {
                           context.read<SocketService>().requestDiscover();
                         } else if (value == 'scan') {
                           _showScanPlaceholder(context);
                         }
                       },
                       itemBuilder: (menuContext) => [
+                        const PopupMenuItem(
+                          value: 'send',
+                          height: 52,
+                          child: ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            leading: Icon(Icons.person_add_alt_1_rounded),
+                            title: Text('Send friend request'),
+                            dense: true,
+                          ),
+                        ),
+                        const PopupMenuItem(
+                          value: 'sent',
+                          height: 52,
+                          child: ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            leading: Icon(Icons.send_rounded),
+                            title: Text('Sent requests'),
+                            dense: true,
+                          ),
+                        ),
                         const PopupMenuItem(
                           value: 'refresh',
                           height: 52,
