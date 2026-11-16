@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'novyn_alert.dart';
 import 'package:provider/provider.dart';
 import '../services/socket_service.dart';
 
@@ -83,12 +84,16 @@ class _GameMessageCardState extends State<GameMessageCard> {
     } catch (error) {
       if (mounted) {
         setState(() => _optimisticData = previousData);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(error is StateError
+        NovynAlert.show(
+          context,
+          error is StateError
               ? error.message.toString()
-              : 'Move could not be sent. Check your connection and try again.'),
-          behavior: SnackBarBehavior.floating,
-        ));
+              : 'Move could not be sent. Check your connection and try again.',
+          isError: true,
+          title: 'Move not sent',
+          icon: Icons.sync_problem_rounded,
+          tone: NovynAlertTone.warning,
+        );
       }
     } finally {
       if (mounted) setState(() => _sendingMove = false);
