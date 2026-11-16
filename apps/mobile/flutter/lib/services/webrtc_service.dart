@@ -1,11 +1,13 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter_background/flutter_background.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'socket_service.dart';
 import 'api_service.dart';
 import 'rtc_ice_configuration.dart';
 
 class WebRTCService extends ChangeNotifier {
+  static bool _screenShareBackgroundInitialized = false;
   RTCPeerConnection? _peerConnection;
   MediaStream? _localStream;
   MediaStream? _remoteStream;
@@ -434,38 +436,120 @@ class WebRTCService extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> _startScreenShareForegroundExecution() async {
+    if (!WebRTC.platformIsAndroid) return;
+
+    // Obtain the one-time MediaProjection consent before starting the
+    // mediaProjection foreground service (required by Android 14+).
+    final permissionGranted = await Helper.requestCapturePermission();
+    if (!permissionGranted) {
+      throw StateError('Screen sharing permission was not granted.');
+    }
+
+    if (!_screenShareBackgroundInitialized) {
+      final initialized = await FlutterBackground.initialize(
+        androidConfig: const FlutterBackgroundAndroidConfig(
+          notificationTitle: 'Novyn screen sharing',
+          notificationText: 'Your screen is being shared during a call.',
+          notificationImportance: AndroidNotificationImportance.normal,
+          notificationIcon: AndroidResource(
+            name: 'novyn_wings_icon',
+            defType: 'drawable',
+          ),
+          shouldRequestBatteryOptimizationsOff: false,
+        ),
+      );
+      if (!initialized) {
+        throw StateError('Android could not prepare screen sharing.');
+      }
+      _screenShareBackgroundInitialized = true;
+    }
+
+    if (!FlutterBackground.isBackgroundExecutionEnabled) {
+      final enabled = await FlutterBackground.enableBackgroundExecution();
+      if (!enabled) {
+        throw StateError('Android could not start the screen-sharing service.');
+      }
+    }
+  }
+
+  Future<void> _stopScreenShareForegroundExecution() async {
+    if (!WebRTC.platformIsAndroid ||
+        !FlutterBackground.isBackgroundExecutionEnabled) {
+      return;
+    }
+    try {
+      await FlutterBackground.disableBackgroundExecution();
+    } catch (error) {
+      debugPrint('[NovynWebRTC] Could not stop screen-share service: $error');
+    }
+  }
+
   Future<void> startScreenShare(SocketService socket, String peerId, String callId) async {
     final connection = _peerConnection;
     if (connection == null) throw StateError('Call connection is not ready.');
     if (_screenStream != null) return;
-    final screen = await navigator.mediaDevices.getDisplayMedia({
-      'audio': false,
-      'video': {
-        'frameRate': {'ideal': 12, 'max': 15},
-        'width': {'ideal': 1280, 'max': 1600},
-        'height': {'ideal': 720, 'max': 900},
-      },
-    });
-    final track = screen.getVideoTracks().firstOrNull;
-    if (track == null) {
-      await screen.dispose();
-      throw StateError('Screen capture did not return a video track.');
+
+    MediaStream? screen;
+    RTCRtpSender? sender;
+    await _startScreenShareForegroundExecution();
+    try {
+      screen = await navigator.mediaDevices.getDisplayMedia({
+        'audio': false,
+        'video': {
+          'frameRate': {'ideal': 12, 'max': 15},
+          'width': {'ideal': 1280, 'max': 1600},
+          'height': {'ideal': 720, 'max': 900},
+        },
+      });
+      if (_peerConnection != connection) {
+        throw StateError('The call ended before screen sharing could start.');
+      }
+
+      final track = screen.getVideoTracks().firstOrNull;
+      if (track == null) {
+        throw StateError('Screen capture did not return a video track.');
+      }
+
+      sender = await connection.addTrack(track, screen);
+      _screenStream = screen;
+      _screenSender = sender;
+      localScreenRenderer.srcObject = screen;
+      _remoteScreenStreamId = screen.id;
+      socket.updateCallScreenShare(peerId, callId, screen.id);
+      track.onEnded = () {
+        unawaited(stopScreenShare(
+          socket, peerId, callId, renegotiate: true,
+        ).catchError((Object error) {
+          debugPrint('[NovynWebRTC] Screen-share stop after system dismissal failed: $error');
+        }));
+      };
+
+      final offer = await connection.createOffer({
+        'offerToReceiveAudio': true,
+        'offerToReceiveVideo': true,
+      });
+      await connection.setLocalDescription(offer);
+      socket.sendOffer(peerId, callId, {'sdp': offer.sdp, 'type': offer.type});
+      notifyListeners();
+    } catch (error) {
+      if (sender != null) {
+        try { await connection.removeTrack(sender); } catch (_) {}
+      }
+      _screenStream = null;
+      _screenSender = null;
+      _remoteScreenStreamId = null;
+      localScreenRenderer.srcObject = null;
+      socket.updateCallScreenShare(peerId, callId, null);
+      for (final track in screen?.getTracks() ?? <MediaStreamTrack>[]) {
+        track.onEnded = null;
+        try { await track.stop(); } catch (_) {}
+      }
+      try { await screen?.dispose(); } catch (_) {}
+      await _stopScreenShareForegroundExecution();
+      notifyListeners();
+      rethrow;
     }
-    _screenStream = screen;
-    localScreenRenderer.srcObject = screen;
-    _screenSender = await connection.addTrack(track, screen);
-    _remoteScreenStreamId = screen.id;
-    socket.updateCallScreenShare(peerId, callId, screen.id);
-    track.onEnded = () {
-      stopScreenShare(socket, peerId, callId, renegotiate: true);
-    };
-    final offer = await connection.createOffer({
-      'offerToReceiveAudio': true,
-      'offerToReceiveVideo': true,
-    });
-    await connection.setLocalDescription(offer);
-    socket.sendOffer(peerId, callId, {'sdp': offer.sdp, 'type': offer.type});
-    notifyListeners();
   }
 
   Future<void> stopScreenShare(
@@ -478,23 +562,29 @@ class WebRTCService extends ChangeNotifier {
     _screenSender = null;
     _remoteScreenStreamId = null;
     socket.updateCallScreenShare(peerId, callId, null);
-    if (sender != null && _peerConnection != null) {
-      try { await _peerConnection!.removeTrack(sender); } catch (_) {}
+
+    try {
+      if (sender != null && _peerConnection != null) {
+        try { await _peerConnection!.removeTrack(sender); } catch (_) {}
+      }
+      for (final track in screen?.getTracks() ?? <MediaStreamTrack>[]) {
+        track.onEnded = null;
+        try { await track.stop(); } catch (_) {}
+      }
+      try { await screen?.dispose(); } catch (_) {}
+
+      if (renegotiate && _peerConnection != null) {
+        final offer = await _peerConnection!.createOffer({
+          'offerToReceiveAudio': true,
+          'offerToReceiveVideo': true,
+        });
+        await _peerConnection!.setLocalDescription(offer);
+        socket.sendOffer(peerId, callId, {'sdp': offer.sdp, 'type': offer.type});
+      }
+    } finally {
+      await _stopScreenShareForegroundExecution();
+      notifyListeners();
     }
-    for (final track in screen?.getTracks() ?? <MediaStreamTrack>[]) {
-      track.onEnded = null;
-      await track.stop();
-    }
-    await screen?.dispose();
-    if (renegotiate && _peerConnection != null) {
-      final offer = await _peerConnection!.createOffer({
-        'offerToReceiveAudio': true,
-        'offerToReceiveVideo': true,
-      });
-      await _peerConnection!.setLocalDescription(offer);
-      socket.sendOffer(peerId, callId, {'sdp': offer.sdp, 'type': offer.type});
-    }
-    notifyListeners();
   }
 
   void setRemoteScreenShare(String? streamId) {
@@ -615,6 +705,7 @@ class WebRTCService extends ChangeNotifier {
   // ── Cleanup ──────────────────────────────────────────────────────────────
   @override
   Future<void> dispose() async {
+    await _stopScreenShareForegroundExecution();
     await _localStream?.dispose();
     await _remoteStream?.dispose();
     await _peerConnection?.close();
