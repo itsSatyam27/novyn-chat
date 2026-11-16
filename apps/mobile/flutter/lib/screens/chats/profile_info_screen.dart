@@ -354,7 +354,7 @@ class ProfileInfoScreen extends StatelessWidget {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            QrImageView(data: 'novyn://user/${Uri.encodeComponent(user.username.trim())}', size: 220, backgroundColor: Colors.white),
+            QrImageView(data: Uri(scheme: 'novyn', host: 'user', pathSegments: [user.username.trim()]).toString(), size: 220, backgroundColor: Colors.white),
             const SizedBox(height: 12),
             Text('@${user.username}', style: const TextStyle(fontWeight: FontWeight.w700)),
             const SizedBox(height: 5),
