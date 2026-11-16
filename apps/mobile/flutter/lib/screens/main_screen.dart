@@ -35,6 +35,8 @@ class MainScreen extends StatefulWidget {
 
 class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   int _selectedIndex = 0;
+  int _previousSelectedIndex = 0;
+  int _tabTransitionDirection = 1;
   double _horizontalDragDistance = 0;
   AuthService? _authService;
   String? _activeUsername;
@@ -174,12 +176,16 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     super.dispose();
   }
 
-  void _onTabTap(int index) {
+  void _setSelectedTab(int index) {
     if (index == _selectedIndex) return;
     setState(() {
+      _previousSelectedIndex = _selectedIndex;
+      _tabTransitionDirection = index > _selectedIndex ? 1 : -1;
       _selectedIndex = index;
     });
   }
+
+  void _onTabTap(int index) => _setSelectedTab(index);
 
   void _onMainSwipeStart(DragStartDetails details) {
     _horizontalDragDistance = 0;
@@ -204,7 +210,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     final nextIndex = (_selectedIndex + (isSwipeLeft ? 1 : -1))
         .clamp(0, _screens.length - 1);
     if (nextIndex != _selectedIndex) {
-      setState(() => _selectedIndex = nextIndex);
+      _setSelectedTab(nextIndex);
     }
   }
 
@@ -221,7 +227,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
       canPop: _selectedIndex == 0,
       onPopInvokedWithResult: (didPop, result) {
         if (didPop || _selectedIndex == 0 || !mounted) return;
-        setState(() => _selectedIndex = 0);
+        _setSelectedTab(0);
       },
       child: Scaffold(
       backgroundColor: NovynTheme.pageBg(context),
@@ -246,10 +252,14 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
                     fit: StackFit.expand,
                     children: List.generate(_screens.length, (index) {
                       final isSelected = index == _selectedIndex;
-                      final isPrevious = index < _selectedIndex;
+                      final isOutgoing =
+                          index == _previousSelectedIndex && !isSelected;
+                      final slideDirection = isOutgoing
+                          ? -_tabTransitionDirection
+                          : _tabTransitionDirection;
                       final slideOffset = isSelected
                           ? Offset.zero
-                          : Offset(isPrevious ? -0.025 : 0.025, 0);
+                          : Offset(slideDirection * 0.025, 0);
 
                       return Positioned.fill(
                         child: IgnorePointer(
