@@ -705,6 +705,15 @@ class WebRTCService extends ChangeNotifier {
   // ── Cleanup ──────────────────────────────────────────────────────────────
   @override
   Future<void> dispose() async {
+    final screen = _screenStream;
+    _screenStream = null;
+    _screenSender = null;
+    localScreenRenderer.srcObject = null;
+    for (final track in screen?.getTracks() ?? <MediaStreamTrack>[]) {
+      track.onEnded = null;
+      try { await track.stop(); } catch (_) {}
+    }
+    try { await screen?.dispose(); } catch (_) {}
     await _stopScreenShareForegroundExecution();
     await _localStream?.dispose();
     await _remoteStream?.dispose();
@@ -713,7 +722,6 @@ class WebRTCService extends ChangeNotifier {
     await remoteRenderer.dispose();
     await remoteScreenRenderer.dispose();
     await localScreenRenderer.dispose();
-    await _screenStream?.dispose();
     _localStream = null;
     _remoteStream = null;
     _peerConnection = null;
