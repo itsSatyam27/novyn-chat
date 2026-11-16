@@ -890,7 +890,7 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
                 Text(
                   _rating == 0
                       ? 'Tap a star to rate (optional)'
-                      : ['', 'Needs work', 'Fair', 'Good', 'Great', 'Loving it'][_rating],
+                      : ['', 'Needs work', 'Fair', 'Good', 'Loving it', 'Excellent'][_rating],
                   style: TextStyle(
                     fontWeight: FontWeight.w800,
                     color: _rating > 0 ? const Color(0xFFB96A17) : colors.onSurfaceVariant,
