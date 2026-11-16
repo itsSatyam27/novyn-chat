@@ -50,7 +50,7 @@ export function WebSettings({ section, privacyGroup }: { section: SettingsSubSec
   useEffect(() => {
     if (section !== 'profile-qr' || !user) return;
     let cancelled = false;
-    import('qrcode').then(module => module.toDataURL('https://novyn.app/user/' + encodeURIComponent(user.username), {
+    import('qrcode').then(module => module.toDataURL('novyn://user/' + encodeURIComponent(user.username), {
       width: 280, margin: 3, errorCorrectionLevel: 'M', color: { dark: '#18152d', light: '#ffffff' },
     })).then(value => { if (!cancelled) setQr(value); })
       .catch(() => { if (!cancelled) setResult({ text: 'Could not generate your QR code.', error: true }); });
