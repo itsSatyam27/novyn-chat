@@ -12,9 +12,11 @@ The Flutter deep-link service validates the username and routes the scanned
 profile into the app. The in-app QR scanner uses the same URI format.
 
 For invitations that need to help a new person find or install Novyn, share
-the GitHub repository instead:
+the Novyn promotional website instead:
 
-https://github.com/itsSatyam27/novyn-chat
+https://itssatyam27.github.io/novyn-chat/
+
+The website can link visitors to the GitHub repository and the latest Android APK.
 
 Do not generate `https://novyn.app` profile links or configure Android HTTPS
 App Links until a real public domain is owned, hosted, and configured with
