@@ -91,7 +91,7 @@ class _QuickToggleCustomizationScreenState
           .setQuickToggleIdsFor(widget.accountKey, ids);
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showNovynAlert(
+      context.showNovynAlert(
         SnackBar(
           content: Text('Could not save Quick Toggles: $error'),
           behavior: SnackBarBehavior.floating,
