@@ -24,6 +24,7 @@ class SettingsCloudSyncService {
   bool _requestInFlight = false;
   int _generation = 0;
   int _localRevision = 0;
+  bool _localChangedBeforeInitialSync = false;
   int _lastLocalEditAt = 0;
   int _lastRemoteUpdatedAt = 0;
 
@@ -37,6 +38,7 @@ class SettingsCloudSyncService {
     _accountKey = normalized;
     final generation = ++_generation;
     _localRevision = 0;
+    _localChangedBeforeInitialSync = false;
     _lastLocalEditAt = 0;
     _lastRemoteUpdatedAt = 0;
     _syncReady = false;
@@ -62,6 +64,7 @@ class SettingsCloudSyncService {
     _requestInFlight = false;
     _isApplyingRemote = false;
     _localRevision = 0;
+    _localChangedBeforeInitialSync = false;
     _lastLocalEditAt = 0;
     _lastRemoteUpdatedAt = 0;
   }
@@ -69,6 +72,7 @@ class SettingsCloudSyncService {
   void _onLocalSettingsChanged() {
     if (_accountKey == null || _isApplyingRemote) return;
     _localRevision++;
+    if (!_syncReady) _localChangedBeforeInitialSync = true;
     _lastLocalEditAt = DateTime.now().millisecondsSinceEpoch;
     if (_syncReady) _scheduleSave();
   }
@@ -89,7 +93,7 @@ class SettingsCloudSyncService {
 
       // A user change made while the initial cloud read was in flight wins
       // locally and is uploaded after the read completes.
-      if (_localRevision != revisionAtStart) {
+      if (_localChangedBeforeInitialSync || _localRevision != revisionAtStart) {
         _syncReady = true;
         _scheduleSave();
         return;
