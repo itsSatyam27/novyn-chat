@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 import '../../services/api_service.dart';
 import '../../services/auth_service.dart';
 import '../../services/friend_service.dart';
-import '../../widgets/novyn_page_route.dart';
 
 class PublicProfileScreen extends StatefulWidget {
   const PublicProfileScreen({super.key, required this.username});
@@ -49,8 +48,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
+    final scheme = Theme.of(context).colorScheme;
     final currentUsername = context.watch<AuthService>().user?.username ?? '';
     final isSelf = currentUsername.toLowerCase() == widget.username.toLowerCase();
 
