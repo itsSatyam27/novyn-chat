@@ -959,13 +959,13 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
   }
 
   void _openChat(ChatPreview chat) async {
-    final peer = chat.peer.username.trim().toLowerCase();
-    if (_lockedChatUsernames.contains(peer) && !_showingLockedChats) {
-      if (!await _requireChatUnlock() || !mounted) return;
-    }
     await Navigator.of(context).push<void>(
       NovynPageRoute<void>(
-        child: ChatDetailScreen(peer: chat.peer, isGroup: chat.isGroup),
+        child: ChatDetailScreen(
+          peer: chat.peer,
+          isGroup: chat.isGroup,
+          chatLockAlreadyVerified: _showingLockedChats,
+        ),
       ),
     );
     // The socket listener keeps this screen's conversation snapshot current
