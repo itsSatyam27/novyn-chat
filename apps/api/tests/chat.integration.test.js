@@ -83,13 +83,12 @@ test('localhost discovery, requests, reconnect state, and private media', { time
     assert.ok(payload.jti, 'refresh token must contain a session id');
     return payload.jti;
   };
-  const assertRefreshSessionPersisted = async (cookie) => {
+  const assertRefreshSessionPersisted = async (cookie, username) => {
     const jti = refreshTokenId(cookie);
     const accountState = JSON.parse(await fs.readFile(path.join(directory, 'data', 'chat-state.json'), 'utf8'));
     assert.ok(
-      accountState.users.some((entry) => entry.key === 'alice' || entry.username === 'alice' ||
-        entry.key === 'bob' || entry.username === 'bob' ||
-        entry.key === 'eve' || entry.username === 'eve'),
+      accountState.users.some((entry) =>
+        (entry.key || entry.username || '').toLowerCase() === username.toLowerCase()),
       'account data must be durably persisted before its cookie is returned',
     );
     const persisted = JSON.parse(await fs.readFile(path.join(directory, 'data', 'auth-state.json'), 'utf8'));
@@ -106,7 +105,7 @@ test('localhost discovery, requests, reconnect state, and private media', { time
     });
     assert.equal(response.status, 200, await response.clone().text());
     const cookie = response.headers.getSetCookie().map((item) => item.split(';')[0]).join('; ');
-    await assertRefreshSessionPersisted(cookie);
+    await assertRefreshSessionPersisted(cookie, username);
     return { cookie, ...(await connect(cookie)) };
   };
   const alice = await signup('alice');
@@ -123,7 +122,7 @@ test('localhost discovery, requests, reconnect state, and private media', { time
   assert.equal(refreshResponse.status, 200, await refreshResponse.clone().text());
   const rotatedCookie = refreshResponse.headers.getSetCookie()
     .map((item) => item.split(';')[0]).join('; ');
-  const rotated = await assertRefreshSessionPersisted(rotatedCookie);
+  const rotated = await assertRefreshSessionPersisted(rotatedCookie, 'alice');
   assert.notEqual(rotated.jti, oldRefreshJti);
   assert.ok(
     !rotated.persisted.refreshSessions.some((entry) => entry.tokenId === oldRefreshJti),
