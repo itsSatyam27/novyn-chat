@@ -8684,6 +8684,18 @@ io.on("connection", (socket) => {
       setUnreadCount(member, group.id, 0);
       emitFriendList(memberKey);
       emitGroupInfoToMember(memberKey, group);
+      if (memberKey !== userKey) {
+        void sendPushToUser(memberKey, {
+          type: "group_invite",
+          eventId: `group-invite:${group.id}:${userKey}:${memberKey}`,
+          title: `Added to ${group.name}`,
+          body: `${me.displayName || me.username} added you to the group ${group.name}.`,
+          from: me.username,
+          displayName: me.displayName || me.username,
+          chat: group.id,
+          groupId: group.id,
+        });
+      }
       const memberSocket = onlineUsers.get(memberKey);
       if (memberSocket) {
         io.to(memberSocket).emit("group_created", {
@@ -8725,6 +8737,7 @@ io.on("connection", (socket) => {
 
     const requestedMembers = Array.isArray(payload?.members) ? payload.members : [];
     const added = [];
+    const addedKeys = [];
     for (const rawMember of requestedMembers) {
       const memberKey = normalizeName(rawMember);
       if (!memberKey || group.members.has(memberKey)) continue;
@@ -8739,6 +8752,7 @@ io.on("connection", (socket) => {
       member.groups.add(group.id);
       setUnreadCount(member, group.id, 0);
       added.push(member.username || memberKey);
+      addedKeys.push(memberKey);
     }
 
     if (!added.length) {
@@ -8746,6 +8760,18 @@ io.on("connection", (socket) => {
     }
 
     group.updatedAt = nowIso();
+    for (const memberKey of addedKeys) {
+      void sendPushToUser(memberKey, {
+        type: "group_invite",
+        eventId: `group-invite:${group.id}:${userKey}:${memberKey}`,
+        title: `Added to ${group.name}`,
+        body: `${me.displayName || me.username} added you to the group ${group.name}.`,
+        from: me.username,
+        displayName: me.displayName || me.username,
+        chat: group.id,
+        groupId: group.id,
+      });
+    }
     const allMembers = Array.from(group.members);
     for (const memberKey of allMembers) {
       emitFriendList(memberKey);
