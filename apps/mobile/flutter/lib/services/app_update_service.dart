@@ -434,12 +434,18 @@ class AppUpdateService extends ChangeNotifier {
       final partial = _partialFile(directory.path, release);
       if (await partial.exists()) await partial.delete();
     }
+    final completedPath = downloadedApkPath;
+    if (completedPath != null) {
+      final completedFile = File(completedPath);
+      if (await completedFile.exists()) await completedFile.delete();
+    }
 
     isDownloading = false;
     isPaused = false;
     downloadProgress = 0;
     downloadedBytes = 0;
     hasPartialDownload = false;
+    downloadedApkPath = null;
     downloadError = null;
     _pauseRequested = false;
     _cancelRequested = false;
@@ -667,6 +673,7 @@ class AppUpdateService extends ChangeNotifier {
     downloadedBytes = release.size;
     downloadProgress = 1;
     hasPartialDownload = false;
+    isPaused = false;
     downloadError = null;
   }
 
