@@ -1,4 +1,8 @@
+import 'dart:async';
+import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/user_model.dart';
 import 'api_service.dart';
 import 'backend_contacts.dart';
@@ -40,10 +44,104 @@ class FriendSearchResult {
 class FriendService {
   final SocketService _socket;
   List<UserModel>? _cachedFriends;
+  String? _cacheOwner;
+  bool _cacheLoaded = false;
 
-  FriendService(this._socket);
+  FriendService(this._socket) {
+    _socket.contacts.addListener(_handleContactsChanged);
+  }
 
   List<UserModel>? get cachedFriends => _cachedFriends;
+
+  static String _cacheKey(String username) =>
+      'novyn_contacts_cache_v1_${username.trim().toLowerCase()}';
+
+  void _activateCacheOwner(String username) {
+    final owner = username.trim().toLowerCase();
+    if (owner.isEmpty || owner == _cacheOwner) return;
+    _cacheOwner = owner;
+    _cachedFriends = null;
+    _cacheLoaded = false;
+  }
+
+  Future<void> _loadCachedFriends(String owner) async {
+    _activateCacheOwner(owner);
+    if (_cacheLoaded || _cacheOwner != owner) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_cacheKey(owner));
+      final decoded = raw == null ? const <dynamic>[] : jsonDecode(raw);
+      final restored = decoded is List
+          ? decoded.whereType<Map>().map(_userFromCache).whereType<UserModel>().toList()
+          : <UserModel>[];
+      if (_cacheOwner == owner && !_socket.contacts.hasAuthoritativeFriendSnapshot) {
+        _cachedFriends = restored;
+      }
+    } catch (error) {
+      debugPrint('[NovynContacts] Offline cache read failed: $error');
+      if (_cacheOwner == owner && !_socket.contacts.hasAuthoritativeFriendSnapshot) {
+        _cachedFriends ??= <UserModel>[];
+      }
+    } finally {
+      if (_cacheOwner == owner) _cacheLoaded = true;
+    }
+  }
+
+  UserModel? _userFromCache(Map value) {
+    final username = value['username']?.toString().trim() ?? '';
+    if (username.isEmpty) return null;
+    final name = value['name']?.toString() ?? username;
+    final createdAt = DateTime.tryParse(value['createdAt']?.toString() ?? '') ??
+        DateTime.fromMillisecondsSinceEpoch(0);
+    return UserModel(
+      uid: value['uid']?.toString().isNotEmpty == true
+          ? value['uid'].toString()
+          : username,
+      username: username,
+      name: name,
+      email: '',
+      bio: value['bio']?.toString() ?? '',
+      age: value['age'] is num ? (value['age'] as num).toInt() : null,
+      gender: value['gender']?.toString() ?? '',
+      createdAt: createdAt,
+      isOnline: false,
+      status: 'offline',
+      lastSeen: DateTime.tryParse(value['lastSeen']?.toString() ?? ''),
+      photoUrl: value['photoUrl']?.toString() ?? '',
+    );
+  }
+
+  void _handleContactsChanged() {
+    final owner = _cacheOwner;
+    if (owner == null || !_socket.contacts.hasAuthoritativeFriendSnapshot) return;
+    _cachedFriends = List<UserModel>.from(_socket.contacts.friends);
+    unawaited(_persistFriends(owner, _cachedFriends!));
+  }
+
+  Future<void> _persistFriends(String owner, List<UserModel> friends) async {
+    if (_cacheOwner != owner) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final payload = friends.map((user) => <String, dynamic>{
+        'uid': user.uid,
+        'username': user.username,
+        'name': user.name,
+        'bio': user.bio,
+        'age': user.age,
+        'gender': user.gender,
+        'createdAt': user.createdAt.toIso8601String(),
+        'lastSeen': user.lastSeen?.toIso8601String(),
+        'photoUrl': user.photoUrl,
+      }).toList();
+      await prefs.setString(_cacheKey(owner), jsonEncode(payload));
+    } catch (error) {
+      debugPrint('[NovynContacts] Offline cache write failed: $error');
+    }
+  }
+
+  void dispose() {
+    _socket.contacts.removeListener(_handleContactsChanged);
+  }
 
   Stream<T> _watch<T>(T Function() read, {VoidCallback? onListen}) {
     return Stream<T>.multi((controller) {
@@ -56,9 +154,25 @@ class FriendService {
   }
 
   Stream<List<UserModel>> friendsStream(String myUid) {
-    return _watch(() {
-      _cachedFriends = List<UserModel>.from(_socket.contacts.friends);
-      return List<UserModel>.from(_cachedFriends!);
+    final owner = myUid.trim().toLowerCase();
+    _activateCacheOwner(owner);
+    return Stream<List<UserModel>>.multi((controller) {
+      void emit() {
+        final hasLiveSnapshot = _socket.contacts.hasAuthoritativeFriendSnapshot;
+        if (hasLiveSnapshot) {
+          _cachedFriends = List<UserModel>.from(_socket.contacts.friends);
+          unawaited(_persistFriends(owner, _cachedFriends!));
+        }
+        final source = hasLiveSnapshot
+            ? _socket.contacts.friends
+            : (_cachedFriends ?? _socket.contacts.friends);
+        controller.add(List<UserModel>.from(source));
+      }
+
+      _socket.contacts.addListener(emit);
+      controller.onCancel = () => _socket.contacts.removeListener(emit);
+      emit();
+      unawaited(_loadCachedFriends(owner).then((_) => emit()));
     });
   }
 
@@ -126,6 +240,10 @@ class FriendService {
   Future<void> removeFriend(String myUid, String otherUid) async {
     _socket.removeFriend(otherUid);
     _cachedFriends?.removeWhere((user) => user.username == otherUid);
+    final owner = _cacheOwner;
+    if (owner != null && _cachedFriends != null) {
+      unawaited(_persistFriends(owner, _cachedFriends!));
+    }
   }
 
   void updateCachedStatus(String username, bool isOnline) {
