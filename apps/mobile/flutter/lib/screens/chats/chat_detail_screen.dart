@@ -3374,11 +3374,11 @@ class _LinkifiedMessageText extends StatefulWidget {
 }
 
 class _LinkifiedMessageTextState extends State<_LinkifiedMessageText> {
-  List<TapGestureRecognizer> _recognizers = [];
+  final Map<String, TapGestureRecognizer> _recognizers = {};
 
   @override
   void dispose() {
-    for (final recognizer in _recognizers) {
+    for (final recognizer in _recognizers.values) {
       recognizer.dispose();
     }
     super.dispose();
@@ -3391,7 +3391,6 @@ class _LinkifiedMessageTextState extends State<_LinkifiedMessageText> {
       caseSensitive: false,
     );
     final spans = <TextSpan>[];
-    final nextRecognizers = <TapGestureRecognizer>[];
     var cursor = 0;
 
     for (final match in pattern.allMatches(widget.text)) {
@@ -3404,24 +3403,25 @@ class _LinkifiedMessageTextState extends State<_LinkifiedMessageText> {
         spans.add(TextSpan(text: widget.text.substring(cursor, match.start)));
       }
 
-      final recognizer = TapGestureRecognizer()
-        ..onTap = () async {
-          final candidate = url.toLowerCase().startsWith('http')
-              ? url
-              : 'https://$url';
-          final uri = Uri.tryParse(candidate);
-          if (uri == null ||
-              (uri.scheme != 'http' && uri.scheme != 'https') ||
-              uri.host.isEmpty) {
-            return;
-          }
-          try {
-            await launchUrl(uri, mode: LaunchMode.externalApplication);
-          } catch (error) {
-            debugPrint('[NovynChat] Could not open message link: $error');
-          }
-        };
-      nextRecognizers.add(recognizer);
+      final recognizer = _recognizers.putIfAbsent(url, () {
+        return TapGestureRecognizer()
+          ..onTap = () async {
+            final candidate = url.toLowerCase().startsWith('http')
+                ? url
+                : 'https://$url';
+            final uri = Uri.tryParse(candidate);
+            if (uri == null ||
+                (uri.scheme != 'http' && uri.scheme != 'https') ||
+                uri.host.isEmpty) {
+              return;
+            }
+            try {
+              await launchUrl(uri, mode: LaunchMode.externalApplication);
+            } catch (error) {
+              debugPrint('[NovynChat] Could not open message link: $error');
+            }
+          };
+      });
       spans.add(TextSpan(
         text: url,
         style: TextStyle(
@@ -3440,12 +3440,6 @@ class _LinkifiedMessageTextState extends State<_LinkifiedMessageText> {
 
     if (cursor < widget.text.length) {
       spans.add(TextSpan(text: widget.text.substring(cursor)));
-    }
-
-    final oldRecognizers = _recognizers;
-    _recognizers = nextRecognizers;
-    for (final recognizer in oldRecognizers) {
-      recognizer.dispose();
     }
 
     return RichText(text: TextSpan(style: widget.style, children: spans));
