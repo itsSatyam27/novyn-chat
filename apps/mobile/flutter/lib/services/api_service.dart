@@ -388,7 +388,7 @@ class ApiService {
                 'username': username.trim().toLowerCase(),
             }),
           )
-          .timeout(const Duration(seconds: 15));
+          .timeout(const Duration(seconds: 30));
 
       if (res.statusCode == 200) {
         await _storeSessionCookie(res);
@@ -423,7 +423,7 @@ class ApiService {
               'remember': remember,
             }),
           )
-          .timeout(const Duration(seconds: 15));
+          .timeout(const Duration(seconds: 30));
 
       if (res.statusCode == 200) {
         await _storeSessionCookie(res);
