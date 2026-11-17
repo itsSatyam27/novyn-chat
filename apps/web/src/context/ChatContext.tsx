@@ -869,7 +869,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
           poll: m.poll || null,
           game: m.game || null,
           riddle: m.riddle || null,
-          isEncrypted: Boolean(m.isEncrypted && !m.deletedAt),
+          isEncrypted: Boolean((m.isEncrypted || m.text === LEGACY_MESSAGE_UNAVAILABLE) && !m.deletedAt),
         }));
 
         const targetKey = target.toLowerCase();
@@ -882,11 +882,11 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const cached = existingById.get(incoming.id);
           const sameEncryptedPayload = Boolean(
             cached?.isEncrypted &&
-            incoming.isEncrypted &&
+            (incoming.isEncrypted || incoming.text === LEGACY_MESSAGE_UNAVAILABLE) &&
           );
           return sameEncryptedPayload &&
             cached!.text !== 'Previous encrypted message unavailable'
-            ? { ...incoming, text: cached!.text }
+            ? { ...incoming, text: cached!.text, isEncrypted: true }
             : incoming;
         });
         const pendingMessages = existing.filter((message) => pendingSendsRef.current.has(message.id));
