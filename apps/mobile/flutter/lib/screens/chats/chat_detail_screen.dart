@@ -133,7 +133,6 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
       false; // true while both local cache and server history are unresolved
   bool _cacheReadComplete = false;
   bool _secondaryCacheReadComplete = false;
-  bool _serverHistoryComplete = false;
   String? _chatId;
   String? _myUid;
   bool _peerIsOnline = false;
@@ -393,7 +392,6 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
     final chatId = _chatId!;
     _cacheReadComplete = false;
     _secondaryCacheReadComplete = false;
-    _serverHistoryComplete = false;
 
     // Start the socket request immediately instead of waiting for Hive to scan
     // the local message box. The screen can now paint its header, composer and
@@ -438,7 +436,6 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
       debugPrint('[NovynChat] Conversation history load failed: $error');
       // Initial positioning is coordinated after both cache and server finish.
     } finally {
-      _serverHistoryComplete = true;
       _refreshInitialHistoryLoadingState(socket);
     }
   }
@@ -482,8 +479,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
 
   void _refreshInitialHistoryLoadingState(SocketService socket) {
     if (!mounted) return;
+    // The primary local cache is enough to reveal the timeline. The secondary
+    // index is bounded separately, and network history must never keep the
+    // first screen covered: it hydrates the visible timeline in the background.
     final initialHistoryComplete = _cacheReadComplete &&
-        _secondaryCacheReadComplete && _serverHistoryComplete;
+        _secondaryCacheReadComplete;
     final waiting = socket.messages.isEmpty && !initialHistoryComplete;
     if (_fetchingFromServer != waiting) {
       setState(() => _fetchingFromServer = waiting);
@@ -507,7 +507,10 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
   Future<void> _hydrateIndexedCache(String chatId, SocketService socket) async {
     final watch = Stopwatch()..start();
     try {
-      final merged = await HybridDbService.getMessages(chatId);
+      final merged = await HybridDbService.getMessages(chatId).timeout(
+        const Duration(milliseconds: 2500),
+        onTimeout: () => <Message>[],
+      );
       if (!mounted || _chatId != chatId || merged.isEmpty) return;
       // Do not let a late, potentially stale disk mirror overwrite newer
       // socket/server message state; only backfill IDs missing from memory.
