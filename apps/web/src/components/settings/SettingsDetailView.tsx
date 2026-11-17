@@ -55,7 +55,7 @@ export const SettingsDetailView: React.FC<SettingsDetailViewProps> = ({ activeSu
   ].includes(activeSubSection);
 
   const detailSubtitle = (() => {
-    if (security) return 'Protect your account and access to encrypted messages.';
+    if (security) return 'Protect your account and signed-in devices.';
     if (activeSubSection === 'privacy-password') return 'Choose a strong password or manage your Novyn master password.';
     if (activeSubSection === 'privacy-two-factor') return 'Set up TOTP authenticator protection and emergency backup codes.';
     if (activeSubSection === 'privacy-app-lock') return 'Protect your screen with a 4-digit PIN code when inactive.';
