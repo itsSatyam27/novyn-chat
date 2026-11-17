@@ -269,7 +269,7 @@ class SocketService extends ChangeNotifier {
     await SyncService().activateAccount(username);
     if (_myUsername?.toLowerCase() != username.trim().toLowerCase()) return;
     for (final pending in SyncService().pendingMessages) {
-      _messageStatuses[pending.tempId] = 'sending';
+      _messageStatuses[pending.tempId] = _isConnected && _isAuthenticated ? 'sending' : 'queued';
     }
     _restorePendingMessagesForOpenChat();
     notifyListeners();
@@ -313,6 +313,11 @@ class SocketService extends ChangeNotifier {
           debugPrint('[NovynOutbox] Message ${pending.tempId} rejected: $reason');
           notifyListeners();
         },
+        onDeferred: (pending) {
+          _messageStatuses[pending.tempId] = 'queued';
+          _messageStatusRevision++;
+          notifyListeners();
+        },
       );
     } catch (error) {
       debugPrint('[NovynOutbox] Flush deferred: $error');
@@ -322,7 +327,7 @@ class SocketService extends ChangeNotifier {
   void _startPendingOutboxRetry() {
     _pendingOutboxRetryTimer?.cancel();
     _pendingOutboxRetryTimer = Timer.periodic(
-      const Duration(seconds: 20),
+      const Duration(seconds: 5),
       (_) {
         if (!_isConnected ||
             !_isAuthenticated ||
@@ -354,6 +359,10 @@ class SocketService extends ChangeNotifier {
     if (connection == null || !_isConnected || !_isAuthenticated) {
       throw StateError('Novyn is reconnecting. The message remains queued.');
     }
+
+    _messageStatuses[pending.tempId] = 'sending';
+    _messageStatusRevision++;
+    notifyListeners();
 
     final payload = <String, dynamic>{
       'to': pending.receiverId,
@@ -1549,7 +1558,7 @@ class SocketService extends ChangeNotifier {
       isEncrypted: false,
     );
 
-    _messageStatuses[clientTempId] = 'sending';
+    _messageStatuses[clientTempId] = 'queued';
     _messageStatusRevision++;
     _messages = [..._messages, tempMsg];
     notifyListeners();
@@ -1576,13 +1585,13 @@ class SocketService extends ChangeNotifier {
       ));
       await HybridDbService.saveMessage(tempMsg);
 
-      // Offline sends are accepted into the durable outbox immediately.
-      // Authenticated reconnect triggers the actual send.
+      // The durable outbox is the source of truth. Never make the composer
+      // wait for a slow/weak network acknowledgement; flush in the background.
       if (_isConnected && _isAuthenticated) {
-        await _flushPendingMessageOutbox();
+        unawaited(_flushPendingMessageOutbox());
       }
     } catch (error) {
-      _messageStatuses[clientTempId] = 'failed';
+      _messageStatuses[clientTempId] = SyncService().pendingMessages.any((item) => item.tempId == clientTempId) ? 'queued' : 'failed';
       _messageStatusRevision++;
       notifyListeners();
       rethrow;
