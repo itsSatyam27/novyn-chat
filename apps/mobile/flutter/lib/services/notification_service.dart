@@ -219,7 +219,8 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   }
 
   if (type != 'message') return;
-  final isGroup = data['kind'] == 'group';
+  final isGroup = data['kind'] == 'group' ||
+      data['group'] == true || data['group'] == 'true' || data['group'] == '1';
   if (isGroup && !(prefs.getBool('group_notifications') ?? true)) return;
 
   final sender = (data['chat'] ?? '').toString().trim();
@@ -1622,7 +1623,8 @@ class NotificationService {
       return;
     }
     if (type == 'message') {
-      final isGroup = message.data['kind'] == 'group';
+      final isGroup = message.data['kind'] == 'group' ||
+          message.data['group'] == 'true' || message.data['group'] == '1';
       final peer = isGroup
           ? (message.data['groupId'] ?? message.data['chat'] ?? '').toString()
           : (message.data['chat'] ?? '').toString();
@@ -1647,7 +1649,8 @@ class NotificationService {
       return;
     }
 
-    if (type != 'message' || message.data['kind'] == 'group') return;
+    if (type != 'message' || message.data['kind'] == 'group' ||
+        message.data['group'] == 'true' || message.data['group'] == '1') return;
     final username = message.data['chat']?.toString().trim() ?? '';
     if (username.isEmpty || !context.mounted) return;
 
