@@ -125,12 +125,14 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
   final AudioPlayer _audioPlayer = AudioPlayer();
   bool _loading = true;
   bool _initialPositionReady = false;
+  bool _initialPositionScheduled = false;
   bool _sending = false;
   bool _loadingOlder = false;
   bool _hasMore = true;
   bool _fetchingFromServer =
       false; // true while both local cache and server history are unresolved
   bool _cacheReadComplete = false;
+  bool _secondaryCacheReadComplete = false;
   bool _serverHistoryComplete = false;
   String? _chatId;
   String? _myUid;
@@ -323,7 +325,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
         _showJumpToLatest = !nearLatest;
       });
     }
-    if (_scroll.position.pixels <= 80 &&
+    if (_scroll.position.extentBefore <= 80 &&
         !_loadingOlder &&
         _hasMore &&
         _chatId != null) {
@@ -390,6 +392,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
 
     final chatId = _chatId!;
     _cacheReadComplete = false;
+    _secondaryCacheReadComplete = false;
     _serverHistoryComplete = false;
 
     // Start the socket request immediately instead of waiting for Hive to scan
@@ -404,7 +407,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
     if (mounted) {
       setState(() {
         _loading = false;
-        _initialPositionReady = true;
+        // Keep the timeline covered until local cache and server history have
+        // both settled and the first scroll position has been established.
         _fetchingFromServer = true;
       });
     }
@@ -424,10 +428,6 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
         // active timeline. Persist the confirmed snapshot in the background.
         unawaited(HybridDbService.saveMessages(history));
         unawaited(HybridDbService.setLastSync(chatId, DateTime.now()));
-        _jumpToLatestImmediately();
-      } else if (socket.messages.isNotEmpty) {
-        // A live or cached message may have arrived while history was in flight.
-        _jumpToLatestImmediately();
       }
 
       final settings = context.read<SettingsService>();
@@ -436,9 +436,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
       }
     } catch (error) {
       debugPrint('[NovynChat] Conversation history load failed: $error');
-      if (mounted && socket.messages.isNotEmpty) {
-        _jumpToLatestImmediately();
-      }
+      // Initial positioning is coordinated after both cache and server finish.
     } finally {
       _serverHistoryComplete = true;
       _refreshInitialHistoryLoadingState(socket);
@@ -484,10 +482,25 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
 
   void _refreshInitialHistoryLoadingState(SocketService socket) {
     if (!mounted) return;
-    final waiting = socket.messages.isEmpty &&
-        (!_cacheReadComplete || !_serverHistoryComplete);
+    final initialHistoryComplete = _cacheReadComplete &&
+        _secondaryCacheReadComplete && _serverHistoryComplete;
+    final waiting = socket.messages.isEmpty && !initialHistoryComplete;
     if (_fetchingFromServer != waiting) {
       setState(() => _fetchingFromServer = waiting);
+    }
+
+    if (!initialHistoryComplete) return;
+
+    if (socket.messages.isNotEmpty) {
+      // Only position the timeline once both sources have finished merging.
+      // This prevents cached rows arriving after the first frame from causing
+      // the user to see the list at an intermediate offset before it scrolls.
+      if (!_initialPositionScheduled) {
+        _initialPositionScheduled = true;
+        _jumpToLatestImmediately();
+      }
+    } else if (!_initialPositionReady) {
+      setState(() => _initialPositionReady = true);
     }
   }
 
@@ -506,6 +519,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
       debugPrint('[NovynPerf] chat_secondary_cache_ms=${watch.elapsedMilliseconds} backfilled=${missing.length}');
     } catch (error) {
       debugPrint('[NovynChat] Secondary cache hydration failed: $error');
+    } finally {
+      if (mounted && _chatId == chatId) {
+        _secondaryCacheReadComplete = true;
+        _refreshInitialHistoryLoadingState(socket);
+      }
     }
   }
 
@@ -654,58 +672,20 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
     }
   }
 
-  // Opening a conversation should land directly on the newest message.
-  // Avoid animating through the entire history, which feels slow on long chats.
+  // Keep the normal oldest-to-newest timeline. Position it at the latest
+  // message before revealing it, so users never see an intermediate offset.
   void _jumpToLatestImmediately() {
-    // Keep the message list mounted behind a loading veil while Flutter lays
-    // out variable-height bubbles. This prevents the user seeing the initial
-    // top/middle position before the list reaches the true latest message.
-    _initialPositionReady = false;
-    var attempts = 0;
-    var stableFrames = 0;
-    double? previousExtent;
-
-    void retryAfterLayout() {
-      WidgetsBinding.instance.addPostFrameCallback((_) async {
-        if (!mounted) return;
-        if (!_scroll.hasClients || !_scroll.position.hasContentDimensions) {
-          if (++attempts < 40) {
-            await Future<void>.delayed(const Duration(milliseconds: 30));
-            if (mounted) retryAfterLayout();
-          } else {
-            setState(() => _initialPositionReady = true);
-          }
-          return;
-        }
-
-        final position = _scroll.position;
-        final extent = position.maxScrollExtent;
-        _scroll.jumpTo(extent);
-
-        if (previousExtent != null &&
-            (extent - previousExtent!).abs() < 1.0 &&
-            (position.maxScrollExtent - position.pixels).abs() < 1.0) {
-          stableFrames++;
-        } else {
-          stableFrames = 0;
-        }
-        previousExtent = extent;
-
-        if (++attempts < 40 && stableFrames < 3) {
-          await Future<void>.delayed(const Duration(milliseconds: 30));
-          if (mounted) retryAfterLayout();
-        } else if (mounted) {
-          _isNearLatest = true;
-          setState(() {
-            _initialPositionReady = true;
-            _showJumpToLatest = false;
-          });
-        }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (_scroll.hasClients) {
+        _scroll.jumpTo(_scroll.position.maxScrollExtent);
+      }
+      _isNearLatest = true;
+      setState(() {
+        _initialPositionReady = true;
+        _showJumpToLatest = false;
       });
-    }
-
-    retryAfterLayout();
-    _isNearLatest = true;
+    });
   }
 
   void _scrollToBottom({bool force = false}) {
@@ -1323,16 +1303,17 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
     if (peerIsTyping && _isNearLatest) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom(force: true));
     }
+    final itemCount = timelineIndices.length + 1 + (peerIsTyping ? 1 : 0);
     return ListView.builder(
       controller: _scroll,
       padding: const EdgeInsets.fromLTRB(14, 16, 14, 18),
-      itemCount: timelineIndices.length + 1 + (peerIsTyping ? 1 : 0), // start marker + date/message rows + typing
+      itemCount: itemCount,
       // Performance optimizations
       addAutomaticKeepAlives: false,
       addRepaintBoundaries: true,
-      cacheExtent: 500, // Cache 500px above/below viewport
+      cacheExtent: 500,
       itemBuilder: (context, i) {
-        // Top item: loading indicator or "start of conversation"
+        // Logical item zero is the start marker at the visual top.
         if (i == 0) {
           if (_loadingOlder) {
             return Padding(
