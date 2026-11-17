@@ -7,7 +7,6 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../services/auth_service.dart';
 import '../../services/socket_service.dart';
-import '../../services/friend_service.dart';
 import '../../services/api_service.dart';
 import '../../services/local_db_service.dart';
 import '../../models/user_model.dart';
