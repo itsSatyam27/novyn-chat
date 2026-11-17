@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import {
   ShieldCheck,
   Check,
@@ -15,8 +15,6 @@ import {
   Trash2,
   QrCode,
 } from 'lucide-react';
-import { MessageKeyTransferDialog } from '../chat/MessageKeyTransferDialog';
-import { getMyPublicKeyJwk } from '../../services/e2ee';
 import { SettingsToast, type SettingsNotice } from './SettingsToast';
 import type { SettingsMainCategory, SettingsSubSection } from './SettingsPanel';
 import { useAuth } from '../../context/AuthContext';
@@ -27,23 +25,7 @@ export function SecurityDashboard({ onSelectSection }: {
   onSelectSection?: (category: SettingsMainCategory, section: SettingsSubSection) => void;
 } = {}) {
   const { user } = useAuth();
-  const [keysOpen, setKeysOpen] = useState(false);
-  const [keysReady, setKeysReady] = useState<boolean | null>(null);
   const [notice, setNotice] = useState<SettingsNotice | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    getMyPublicKeyJwk()
-      .then((key) => {
-        if (!cancelled) setKeysReady(Boolean(key));
-      })
-      .catch(() => {
-        if (!cancelled) setKeysReady(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
   const isLocalhost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
@@ -86,173 +68,23 @@ export function SecurityDashboard({ onSelectSection }: {
   return (
     <section className="security-dashboard" aria-label="Security settings">
       <div className="security-layout">
-        {/* Row 1: Encryption Status & Sync Keys */}
-        <div className="security-top-columns">
-          {/* Left Column: Encryption Status */}
-          <article className="security-card security-card-encryption">
-            <span className="security-section-tag">
-              <span className="security-tag-dot is-green" /> ENCRYPTION STATUS
-            </span>
-
-            <div className="security-hero-banner">
-              <div className="security-hero-icon-box">
-                <ShieldCheck size={32} />
+        <article className="security-card" style={{ marginBottom: 18 }}>
+          <span className="security-section-tag">
+            <span className={`security-tag-dot ${isHttps ? 'is-green' : ''}`} /> CONNECTION SECURITY
+          </span>
+          <div className="security-status-row">
+            <div className="security-status-left">
+              <div className={`security-status-icon ${isHttps ? 'is-success' : 'is-warning'}`}>
+                {isHttps ? <Check size={15} strokeWidth={2.5} /> : <Laptop size={15} />}
               </div>
-              <div className="security-hero-text">
-                <h3>End-to-End Encryption Active</h3>
-                <p>Private conversations are encrypted on this device before dispatch.</p>
+              <div className="security-status-info">
+                <span className="security-status-title">{isHttps ? 'Secure HTTPS connection' : 'HTTPS is recommended'}</span>
+                <span className="security-status-sub">{isHttps ? 'Transport security is active for this connection.' : 'Use HTTPS when accessing Novyn outside local development.'}</span>
               </div>
             </div>
-
-            <div className="security-status-list">
-              {/* Row 1: Browser Keys */}
-              <div className="security-status-row">
-                <div className="security-status-left">
-                  <div className="security-status-icon is-success">
-                    <Check size={15} strokeWidth={2.5} />
-                  </div>
-                  <div className="security-status-info">
-                    <span className="security-status-title">Browser identity keys</span>
-                    <span className="security-status-sub">
-                      {keysReady ? 'Cryptographic keys active' : 'Generating E2EE identity…'}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Row 2: Connection TLS */}
-              <div className="security-status-row">
-                <div className="security-status-left">
-                  <div className={`security-status-icon ${isHttps ? 'is-success' : 'is-warning'}`}>
-                    {isHttps ? <Check size={15} strokeWidth={2.5} /> : <Laptop size={15} />}
-                  </div>
-                  <div className="security-status-info">
-                    <span className="security-status-title">
-                      {isHttps ? 'Connection encrypted' : 'Connection is unencrypted'}
-                    </span>
-                    <span className="security-status-sub">
-                      {isHttps ? 'HTTPS TLS active' : 'HTTP, no TLS encryption'}
-                    </span>
-                  </div>
-                </div>
-                {!isHttps && (
-                  <button type="button" className="security-action-btn" onClick={handleUseHttps}>
-                    Use HTTPS
-                  </button>
-                )}
-              </div>
-
-              {/* Row 3: Keys on Android */}
-              <div className="security-status-row">
-                <div className="security-status-left">
-                  <div className="security-status-icon is-neutral">
-                    <Smartphone size={15} />
-                  </div>
-                  <div className="security-status-info">
-                    <span className="security-status-title">Keys on Android</span>
-                    <span className="security-status-sub">Sync to read chats on phone</span>
-                  </div>
-                </div>
-                <button type="button" className="security-action-btn" onClick={() => setKeysOpen(true)}>
-                  Sync
-                </button>
-              </div>
-            </div>
-
-            <p className="security-encryption-disclaimer">
-              Clearing Novyn’s temporary cache preserves your keys. Clearing all browser cookies and site storage resets them.
-            </p>
-          </article>
-
-          {/* Right Column: Sync Message Keys */}
-          <article className="security-card security-card-sync">
-            <span className="security-section-tag">
-              <span className="security-tag-dot" style={{ background: '#c084fc', boxShadow: '0 0 8px #c084fc' }} /> KEY TRANSFER &amp; SYNC
-            </span>
-
-            <div className="security-hero-banner">
-              <div
-                className="security-hero-icon-box"
-                style={{
-                  background: 'rgba(192, 132, 252, 0.15)',
-                  borderColor: 'rgba(192, 132, 252, 0.3)',
-                  color: '#c084fc',
-                }}
-              >
-                <KeyRound size={28} />
-              </div>
-              <div className="security-hero-text">
-                <h3>Sync Message Keys</h3>
-                <p>Transfer E2EE keys across devices to decrypt past chat history on mobile or other browsers.</p>
-              </div>
-            </div>
-
-            {/* Visual P2P Transfer Bridge */}
-            <div className="security-sync-bridge-card">
-              <div className="security-sync-node">
-                <div className="security-sync-node-icon is-browser">
-                  <Laptop size={18} />
-                </div>
-                <div className="security-sync-node-meta">
-                  <span className="security-sync-node-name">This Browser</span>
-                  <span className="security-sync-node-status">
-                    <span className="sync-status-dot" /> Keys Ready
-                  </span>
-                </div>
-              </div>
-
-              <div className="security-sync-connector">
-                <div className="security-connector-line" />
-                <div className="security-connector-pill">
-                  <ShieldCheck size={11} />
-                  <span>P2P E2EE</span>
-                </div>
-              </div>
-
-              <div className="security-sync-node">
-                <div className="security-sync-node-icon is-phone">
-                  <Smartphone size={18} />
-                </div>
-                <div className="security-sync-node-meta">
-                  <span className="security-sync-node-name">Android Device</span>
-                  <span className="security-sync-node-status is-pending">Pair via QR</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Benefit pills */}
-            <div className="security-sync-benefits">
-              <div className="security-sync-benefit-item">
-                <Check size={12} className="benefit-check" />
-                <span>Zero-knowledge transfer</span>
-              </div>
-              <div className="security-sync-benefit-item">
-                <QrCode size={12} className="benefit-qr" />
-                <span>Instant QR pairing</span>
-              </div>
-              <div className="security-sync-benefit-item">
-                <Check size={12} className="benefit-check" />
-                <span>Restores past chat messages</span>
-              </div>
-            </div>
-
-            {/* Bottom Action Footer */}
-            <div className="security-sync-footer">
-              <button
-                type="button"
-                className="security-btn-glow"
-                onClick={() => setKeysOpen(true)}
-                aria-haspopup="dialog"
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}
-              >
-                <KeyRound size={15} /> Open Key Transfer
-              </button>
-              <span className="security-sync-footer-note">
-                Scan QR from your Android phone to sync
-              </span>
-            </div>
-          </article>
-        </div>
+            {!isHttps && <button type="button" className="security-action-btn" onClick={handleUseHttps}>Use HTTPS</button>}
+          </div>
+        </article>
 
         {/* Row 2: Core Security Suite (100% Functional Web Features) */}
         <article className="security-card security-suite-card">
@@ -444,7 +276,6 @@ export function SecurityDashboard({ onSelectSection }: {
         </div>
       </div>
 
-      <MessageKeyTransferDialog isOpen={keysOpen} onClose={() => setKeysOpen(false)} />
       {notice && <SettingsToast notice={notice} onDismiss={() => setNotice(null)} />}
     </section>
   );
