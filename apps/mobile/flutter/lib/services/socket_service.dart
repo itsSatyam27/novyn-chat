@@ -1224,6 +1224,9 @@ class SocketService extends ChangeNotifier {
     _socketAuthRetryTimer = null;
     _socketAuthRetryAttempt = 0;
     _isAuthenticated = true;
+    // Consumers such as Privacy settings must be notified after resume_session
+    // is accepted, not only when the raw transport connects.
+    notifyListeners();
     SyncService().setOnlineStatus(true);
     _startPendingOutboxRetry();
     if (!_stealthPreferenceSynced) {
