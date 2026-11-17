@@ -373,7 +373,7 @@ class _CallsScreenState extends State<CallsScreen> with WidgetsBindingObserver {
                       setState(() => _filter = value == 'incoming' ? 'Incoming' : 'Outgoing');
                     }
                     if (value == 'refresh') {
-                      setState(() => _loading = true);
+                      // Keep the current list visible while a manual sync runs.
                       _loadCalls();
                     }
                   },
