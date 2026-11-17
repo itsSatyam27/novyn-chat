@@ -7,8 +7,8 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../services/auth_service.dart';
 import '../../services/socket_service.dart';
-import '../../services/friend_service.dart';
 import '../../services/api_service.dart';
+import '../../services/local_db_service.dart';
 import '../../models/user_model.dart';
 import '../../widgets/user_avatar.dart';
 import '../../widgets/novyn_shimmer.dart';
@@ -110,7 +110,24 @@ class _CallsScreenState extends State<CallsScreen> with WidgetsBindingObserver {
         ],
       ),
     );
-    if (confirm == true && mounted) setState(() => _calls = []);
+    if (confirm == true && mounted) {
+      final username = _myUsername ?? context.read<AuthService>().user?.username;
+      if (username != null) {
+        try {
+          await LocalDbService.clearCallLogs(username);
+        } catch (error) {
+          debugPrint('[NovynCalls] Could not clear local call history: $error');
+        }
+      }
+      // Invalidate any in-flight sync so it cannot repaint the cleared list.
+      _callLoadGeneration++;
+      if (mounted) {
+        setState(() {
+          _calls = [];
+          _loading = false;
+        });
+      }
+    }
   }
 
   Future<void> _showCallPrivacy() async {
@@ -163,7 +180,9 @@ class _CallsScreenState extends State<CallsScreen> with WidgetsBindingObserver {
 
   Future<void> _loadCalls({bool showLoading = false}) async {
     final generation = ++_callLoadGeneration;
-    if (showLoading && mounted) setState(() => _loading = true);
+    if (showLoading && _calls.isEmpty && mounted) {
+      setState(() => _loading = true);
+    }
 
     final auth = context.read<AuthService>();
     final myUsername = auth.user?.username;
@@ -174,83 +193,123 @@ class _CallsScreenState extends State<CallsScreen> with WidgetsBindingObserver {
       return;
     }
 
-    final results = await Future.wait([ApiService.getCallLogs(), ApiService.getSession()]);
-    final rawLogs = results[0] as List<Map<String, dynamic>>;
-    final profile = results[1] as Map<String, dynamic>?;
+    // Paint the last successful snapshot first. This read is local Hive only;
+    // the call screen does not wait for the network or profile endpoint.
+    final cachedLogs = await LocalDbService.getCallLogs(myUsername);
     if (!mounted || generation != _callLoadGeneration) return;
+    final cachedEntries = await _buildCallEntries(cachedLogs, myUsername, generation);
+    if (!mounted || generation != _callLoadGeneration) return;
+    setState(() {
+      _calls = cachedEntries;
+      _loading = false;
+    });
 
+    // Refresh independently in the background. A failed request returns null
+    // and leaves the last known call history untouched.
+    unawaited(_refreshCallHistory(myUsername, generation));
+  }
+
+  Future<List<_CallEntry>> _buildCallEntries(
+    List<Map<String, dynamic>> rawLogs,
+    String myUsername,
+    int generation,
+  ) async {
     final entriesMap = <String, _CallEntry>{};
     final resolvedPeers = <String, UserModel>{};
+    final contacts = context.read<SocketService>().contacts;
 
     for (final log in rawLogs) {
-      final isOutgoing = log['callerId'] == myUsername;
-      final peerUsername = isOutgoing
-          ? log['receiverId'] as String? ?? ''
-          : log['callerId'] as String? ?? '';
+      final caller = log['callerId']?.toString() ?? '';
+      final receiver = log['receiverId']?.toString() ?? '';
+      final isOutgoing = caller.toLowerCase() == myUsername.toLowerCase();
+      final peerUsername = isOutgoing ? receiver : caller;
       if (peerUsername.isEmpty) continue;
 
       try {
-        final createdAt = () {
-          final raw = log['createdAt']?.toString() ?? '';
-          final parsed = DateTime.tryParse(raw);
-          if (parsed == null) return DateTime.now();
-          return parsed.isUtc ? parsed.toLocal() : parsed;
-        }();
-
-        final type   = log['type']   as String? ?? 'voice';
-        final status = log['status'] as String? ?? 'outgoing';
+        final parsed = DateTime.tryParse(log['createdAt']?.toString() ?? '');
+        final createdAt = parsed == null
+            ? DateTime.fromMillisecondsSinceEpoch(0)
+            : (parsed.isUtc ? parsed.toLocal() : parsed);
+        final type = log['type']?.toString() ?? 'voice';
+        final status = log['status']?.toString() ?? 'outgoing';
         final duration = (log['duration'] as num?)?.toInt() ?? 0;
+        final peerKey = peerUsername.toLowerCase();
 
-        var entry = entriesMap[peerUsername];
+        var peer = resolvedPeers[peerKey] ?? contacts.findUser(peerUsername);
+        peer ??= await LocalDbService.getUser(peerUsername);
+        if (!mounted || generation != _callLoadGeneration) return [];
+        peer ??= UserModel(
+          uid: peerUsername,
+          name: peerUsername,
+          username: peerUsername,
+          email: '',
+          bio: '',
+          createdAt: createdAt,
+        );
+        resolvedPeers[peerKey] = peer;
+
+        final entry = entriesMap[peerKey];
         if (entry == null) {
-          // Build a minimal UserModel from the log data (no Firestore needed)
-          final peerKey = peerUsername.toLowerCase();
-          var peer = resolvedPeers[peerKey] ?? context.read<SocketService>().contacts.findUser(peerUsername);
-          peer ??= await context.read<FriendService>().getUser(peerUsername);
-          if (!mounted || generation != _callLoadGeneration) return;
-          peer ??= UserModel(
-            uid: peerUsername,
-            name: peerUsername,
-            username: peerUsername,
-            email: '',
-            bio: '',
-            createdAt: DateTime.now(),
-          );
-          resolvedPeers[peerKey] = peer;
-          entriesMap[peerUsername] = _CallEntry(
-            peer:      peer,
-            type:      type,
-            status:    status,
-            duration:  duration,
+          entriesMap[peerKey] = _CallEntry(
+            peer: peer,
+            type: type,
+            status: status,
+            duration: duration,
             createdAt: createdAt,
-            history:   [log],
+            history: [log],
           );
         } else {
-          if (createdAt.isAfter(entry.createdAt)) {
-            entriesMap[peerUsername] = entry.copyWith(
-              type:      type,
-              status:    status,
-              duration:  duration,
-              createdAt: createdAt,
-              history:   [...entry.history, log],
-            );
-          } else {
-            entriesMap[peerUsername] =
-                entry.copyWith(history: [...entry.history, log]);
-          }
+          final isLatest = createdAt.isAfter(entry.createdAt);
+          entriesMap[peerKey] = entry.copyWith(
+            type: isLatest ? type : null,
+            status: isLatest ? status : null,
+            duration: isLatest ? duration : null,
+            createdAt: isLatest ? createdAt : null,
+            history: [...entry.history, log],
+          );
         }
-      } catch (_) {}
+      } catch (error) {
+        debugPrint('[NovynCalls] Skipped malformed call log: $error');
+      }
     }
 
-    final entries = entriesMap.values.toList()
+    return entriesMap.values.toList()
       ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+  }
 
+  Future<void> _refreshCallHistory(String username, int generation) async {
+    final logsFuture = ApiService.getCallLogs();
+    final profileFuture = ApiService.getSession();
+    final rawLogs = await logsFuture;
+    final profile = await profileFuture;
     if (!mounted || generation != _callLoadGeneration) return;
-    setState(() {
-      _calls   = entries;
-      _callPrivacy = ['everyone', 'friends', 'nobody'].contains(profile?['callPrivacy']) ? profile!['callPrivacy'].toString() : _callPrivacy;
-      _loading = false;
-    });
+
+    if (rawLogs != null) {
+      try {
+        await LocalDbService.saveCallLogs(username, rawLogs);
+      } catch (error) {
+        debugPrint('[NovynCalls] Could not cache synced call history: $error');
+      }
+      if (!mounted || generation != _callLoadGeneration) return;
+      // Read back the filtered snapshot so a previous local "Clear history"
+      // watermark is respected by both the cache and the visible list.
+      final visibleLogs = await LocalDbService.getCallLogs(username);
+      final entries = await _buildCallEntries(visibleLogs, username, generation);
+      if (!mounted || generation != _callLoadGeneration) return;
+      setState(() {
+        _calls = entries;
+        _loading = false;
+      });
+    }
+
+    final privacy = profile?['callPrivacy']?.toString();
+    if (privacy != null &&
+        ['everyone', 'friends', 'nobody'].contains(privacy) &&
+        privacy != _callPrivacy &&
+        mounted &&
+        generation == _callLoadGeneration) {
+      setState(() => _callPrivacy = privacy);
+    }
   }
 
   @override
@@ -313,7 +372,7 @@ class _CallsScreenState extends State<CallsScreen> with WidgetsBindingObserver {
                       setState(() => _filter = value == 'incoming' ? 'Incoming' : 'Outgoing');
                     }
                     if (value == 'refresh') {
-                      setState(() => _loading = true);
+                      // Keep the current list visible while a manual sync runs.
                       _loadCalls();
                     }
                   },

@@ -449,6 +449,81 @@ class LocalDbService {
   }
 
   static const String _pendingMessagesKey = 'pending_messages_v1';
+  static const String _callLogsKey = 'call_logs_v1';
+  static const String _callLogsClearedAtKey = 'call_logs_cleared_at_v1';
+
+  /// Read the active account's last call-history snapshot without network access.
+  static Future<List<Map<String, dynamic>>> getCallLogs(String username) async {
+    await _ensureInit();
+    final account = username.trim().toLowerCase();
+    if (account.isEmpty ||
+        _metaBox?.get('account_scope')?.toString().trim().toLowerCase() != account) {
+      return <Map<String, dynamic>>[];
+    }
+    try {
+      final raw = _metaBox?.get(_callLogsKey);
+      if (raw is! List) return <Map<String, dynamic>>[];
+      return raw
+          .whereType<Map>()
+          .map((entry) => Map<String, dynamic>.from(entry))
+          .toList(growable: false);
+    } catch (error) {
+      print('Error reading cached call logs: $error');
+      return <Map<String, dynamic>>[];
+    }
+  }
+
+  /// Replace the account's cached snapshot after a successful server response.
+  /// A local clear-history watermark prevents older server entries reappearing.
+  static Future<void> saveCallLogs(
+    String username,
+    List<Map<String, dynamic>> logs,
+  ) async {
+    await _ensureInit();
+    final account = username.trim().toLowerCase();
+    if (account.isEmpty ||
+        _metaBox?.get('account_scope')?.toString().trim().toLowerCase() != account) {
+      throw StateError('The active local database belongs to another account.');
+    }
+    final clearedAt = DateTime.tryParse(
+      _metaBox?.get(_callLogsClearedAtKey)?.toString() ?? '',
+    );
+    final byId = <String, Map<String, dynamic>>{};
+    for (final source in logs) {
+      final log = Map<String, dynamic>.from(source);
+      if (clearedAt != null) {
+        final createdAt = DateTime.tryParse(log['createdAt']?.toString() ?? '');
+        if (createdAt == null || !createdAt.isAfter(clearedAt)) continue;
+      }
+      final callId = log['callId']?.toString().trim() ?? '';
+      final fallbackId = [
+        log['callerId'], log['receiverId'], log['createdAt'],
+        log['type'], log['status'],
+      ].join('|');
+      byId[callId.isNotEmpty ? callId : fallbackId] = log;
+    }
+    final snapshot = byId.values.toList()
+      ..sort((a, b) {
+        final aTime = DateTime.tryParse(a['createdAt']?.toString() ?? '') ??
+            DateTime.fromMillisecondsSinceEpoch(0);
+        final bTime = DateTime.tryParse(b['createdAt']?.toString() ?? '') ??
+            DateTime.fromMillisecondsSinceEpoch(0);
+        return bTime.compareTo(aTime);
+      });
+    await _metaBox?.put(_callLogsKey, snapshot.take(500).toList());
+  }
+
+  /// Clear call history on this device; newer calls can still sync afterwards.
+  static Future<void> clearCallLogs(String username) async {
+    await _ensureInit();
+    final account = username.trim().toLowerCase();
+    if (account.isEmpty ||
+        _metaBox?.get('account_scope')?.toString().trim().toLowerCase() != account) {
+      throw StateError('The active local database belongs to another account.');
+    }
+    await _metaBox?.put(_callLogsClearedAtKey, DateTime.now().toUtc().toIso8601String());
+    await _metaBox?.put(_callLogsKey, <Map<String, dynamic>>[]);
+  }
 
   /// Read the durable outbox from the active account's Hive metadata box.
   static Future<List<Map<String, dynamic>>> getPendingMessages(String username) async {
