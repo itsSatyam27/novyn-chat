@@ -666,6 +666,28 @@ class _InfoRow extends StatelessWidget {
 }
 
 
+class _LiquidDownloadProgress extends StatefulWidget {
+  const _LiquidDownloadProgress({
+    required this.progress,
+    required this.downloadedBytes,
+    required this.totalBytes,
+    required this.speedBytesPerSecond,
+    required this.paused,
+    required this.primary,
+    required this.muted,
+  });
+  final double progress;
+  final int downloadedBytes;
+  final int totalBytes;
+  final double speedBytesPerSecond;
+  final bool paused;
+  final Color primary;
+  final Color muted;
+
+  @override
+  State<_LiquidDownloadProgress> createState() => _LiquidDownloadProgressState();
+}
+
 class _LiquidDownloadProgressState extends State<_LiquidDownloadProgress>
     with SingleTickerProviderStateMixin {
   late final AnimationController _wave;
@@ -733,7 +755,7 @@ class _LiquidDownloadProgressState extends State<_LiquidDownloadProgress>
                       clipper: _LiquidWaveClipper(progress: progress, phase: phase),
                       child: Center(
                         child: Text('$pct%', style: const TextStyle(
-                          color: Colors.white, fontSize: 40,
+                          color: Colors.white, fontSize: 25,
                           fontWeight: FontWeight.w900, letterSpacing: -1)),
                       ),
                     ),
@@ -768,7 +790,7 @@ class _LiquidDownloadProgressState extends State<_LiquidDownloadProgress>
   }
 }
 
-ass _LiquidWavePainter extends CustomPainter {
+class _LiquidWavePainter extends CustomPainter {
   const _LiquidWavePainter({required this.progress,required this.phase,
     required this.color});
   final double progress,phase;
