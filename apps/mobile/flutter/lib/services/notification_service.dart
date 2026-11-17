@@ -311,7 +311,8 @@ class NotificationService {
     final safeTotal = totalBytes > 0 ? totalBytes : 1;
     final percent = ((downloadedBytes / safeTotal) * 100)
         .round()
-        .clamp(0, 100);
+        .clamp(0, 100)
+        .toInt();
     final downloadedMb = (downloadedBytes / 1000000).toStringAsFixed(1);
     final totalMb = (totalBytes / 1000000).toStringAsFixed(1);
     final speedLabel = speedBytesPerSecond > 0
@@ -359,7 +360,7 @@ class NotificationService {
   }) async {
     await _ensureUpdateDownloadChannel();
     final percent = totalBytes > 0
-        ? ((downloadedBytes / totalBytes) * 100).round().clamp(0, 100)
+        ? ((downloadedBytes / totalBytes) * 100).round().clamp(0, 100).toInt()
         : 0;
     final downloadedMb = (downloadedBytes / 1000000).toStringAsFixed(1);
     final totalMb = (totalBytes / 1000000).toStringAsFixed(1);
