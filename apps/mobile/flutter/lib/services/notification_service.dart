@@ -233,7 +233,7 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   final lockedChats = (prefs.getStringList('novyn_locked_chats_$account') ?? [])
       .map((value) => value.trim().toLowerCase()).toSet();
   if (archivedChats.contains(chatKey.toLowerCase())) return;
-  final isLockedChat = !isGroup && lockedChats.contains(sender.toLowerCase());
+  final isLockedChat = lockedChats.contains(chatKey.toLowerCase());
 
   final eventId = (data['eventId'] ?? data['messageId'] ?? '').toString();
   if (await _wasNotificationHandled(prefs, account, eventId)) return;
@@ -723,6 +723,7 @@ class NotificationService {
       await prefs.setBool('notifications_on', settings.notificationsOn);
       await prefs.setBool('message_preview', settings.messagePreview);
       await prefs.setBool('hide_notification_content', settings.hideNotificationContent);
+      await prefs.setBool('group_notifications', settings.groupNotifications);
       await prefs.setBool('do_not_disturb_enabled', settings.doNotDisturbEnabled);
       await prefs.setStringList('favorite_chat_ids', settings.favoriteChatIds);
     } catch (_) {
@@ -1261,6 +1262,7 @@ class NotificationService {
     await prefs.setBool('notifications_on', _settings?.notificationsOn ?? true);
     await prefs.setBool('message_preview', _settings?.messagePreview ?? true);
     await prefs.setBool('hide_notification_content', _settings?.hideNotificationContent ?? false);
+    await prefs.setBool('group_notifications', _settings?.groupNotifications ?? true);
     await _syncUserPreferences();
     if (_preferencesLoadedForUser == uid &&
         (_settings?.notificationsOn ?? false) &&
@@ -1410,7 +1412,8 @@ class NotificationService {
     }
 
     if (type == 'message' && message.data['kind'] == 'group') {
-      if (_socket?.isConnected == true) return;
+      // Group messages do not use the direct-message socket banner callback,
+      // so FCM must render them even while the live socket remains connected.
       unawaited(_showForegroundGroupNotification(message));
       return;
     }
