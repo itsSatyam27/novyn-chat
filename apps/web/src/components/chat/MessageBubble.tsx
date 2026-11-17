@@ -741,7 +741,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                   ? '📷 [Image]'
                   : message.replyTo.attachment?.kind === 'audio'
                   ? '🎤 [Voice Message]'
-                  : message.replyTo.text === ENCRYPTED_MESSAGE_PLACEHOLDER
+                  : message.replyTo.text === LEGACY_MESSAGE_UNAVAILABLE
                   ? 'Original message'
                   : message.replyTo.text || '[Attachment]'}
               </div>
