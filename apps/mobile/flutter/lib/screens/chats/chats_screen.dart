@@ -251,7 +251,7 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
     final peer = chat.peer.username.trim().toLowerCase();
     if (account == null || account.isEmpty || peer.isEmpty) return;
     final nextArchived = Set<String>.from(_archivedChatUsernames);
-    final archived = !nextArchived.contains(peer);
+    final archived = !(nextArchived.contains(peer) || chat.isArchived);
     final nextLocked = Set<String>.from(_lockedChatUsernames);
     if (archived) { nextArchived.add(peer); nextLocked.remove(peer); } else { nextArchived.remove(peer); }
     try {
