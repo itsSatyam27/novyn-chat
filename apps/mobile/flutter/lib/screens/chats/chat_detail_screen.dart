@@ -689,7 +689,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
       if (!_scroll.hasClients || !mounted) return;
       if (!force && !_isNearLatest) return;
       _scroll.animateTo(
-        _scroll.position.maxScrollExtent,
+        0,
         duration: const Duration(milliseconds: 320),
         curve: Curves.easeOutCubic,
       );
