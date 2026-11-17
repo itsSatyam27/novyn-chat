@@ -482,8 +482,14 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
 
   void _refreshInitialHistoryLoadingState(SocketService socket) {
     if (!mounted) return;
-    final initialHistoryComplete = _cacheReadComplete &&
-        _secondaryCacheReadComplete && _serverHistoryComplete;
+    final cacheReadsComplete =
+        _cacheReadComplete && _secondaryCacheReadComplete;
+    // A usable local timeline is enough to render offline. Do not keep a
+    // cached conversation covered while waiting for a slow server response.
+    // If no local messages exist, keep the empty-state shimmer until the
+    // server has either returned history or hit its bounded timeout.
+    final initialHistoryComplete = cacheReadsComplete &&
+        (socket.messages.isNotEmpty || _serverHistoryComplete);
     final waiting = socket.messages.isEmpty && !initialHistoryComplete;
     if (_fetchingFromServer != waiting) {
       setState(() => _fetchingFromServer = waiting);
