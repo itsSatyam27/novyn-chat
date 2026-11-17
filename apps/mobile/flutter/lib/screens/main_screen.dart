@@ -153,6 +153,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     if (username == null || username.isEmpty) return;
 
     final socket = context.read<SocketService>();
+    context.read<FriendService>().activateAccount(username);
     final sameAccount =
         socket.myUsername?.toLowerCase() == username.toLowerCase();
     if (!sameAccount) {
