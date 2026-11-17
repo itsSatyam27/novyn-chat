@@ -9,9 +9,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
-import 'package:connectivity_plus/connectivity_plus.dart';
-import 'package:package_info_plus/package_info_plus.dart';
-import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
 import 'firebase_configuration.dart';
 import 'package:provider/provider.dart';
 import 'auth_service.dart';
@@ -345,6 +342,7 @@ class NotificationService {
   static int _preferenceRetryCount = 0;
   static int _tokenRetryCount = 0;
   static StreamSubscription<String>? _tokenRefreshSubscription;
+  static StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
   static StreamSubscription<RemoteMessage>? _foregroundSubscription;
   static StreamSubscription<RemoteMessage>? _openedSubscription;
   static bool? _lastAlertsEnabled;
@@ -1402,6 +1400,7 @@ class NotificationService {
           body?.isNotEmpty == true
               ? body!
               : message.notification?.body ?? 'You have a new message',
+          eventId: (message.data['eventId'] ?? message.data['messageId'])?.toString(),
         ));
       }
     }
@@ -1464,6 +1463,8 @@ class NotificationService {
         _presenceAuth?.user?.presenceMode == 'invisible') return;
     final groupId = (message.data['groupId'] ?? message.data['chat'] ?? '').toString().trim();
     if (groupId.isEmpty) return;
+    final privacy = await _chatNotificationPrivacy(groupId);
+    if (privacy.archived) return;
     if (settings.doNotDisturbEnabled &&
         !settings.favoriteChatIds.contains(groupId.toLowerCase())) return;
     final prefs = await SharedPreferences.getInstance();
@@ -1481,7 +1482,7 @@ class NotificationService {
     );
     await _localNotifications.resolvePlatformSpecificImplementation<
         AndroidFlutterLocalNotificationsPlugin>()?.createNotificationChannel(channel);
-    final mayShowPreview = settings.messagePreview && !settings.hideNotificationContent;
+    final mayShowPreview = settings.messagePreview && !settings.hideNotificationContent && !privacy.locked;
     final title = message.data['title']?.toString() ?? 'New group message';
     final rawBody = message.data['body']?.toString().trim() ?? '';
     final body = mayShowPreview && rawBody.isNotEmpty ? rawBody : 'New group message';
@@ -1508,7 +1509,7 @@ class NotificationService {
   }
 
   static Future<void> _showForegroundMessageNotification(
-      String username, String messageBody) async {
+      String username, String messageBody, {String? eventId}) async {
     final sender = username.trim();
     final privacy = await _chatNotificationPrivacy(sender);
     if (privacy.archived) return;
@@ -1518,6 +1519,12 @@ class NotificationService {
         !settings.favoriteChatIds.contains(sender.toLowerCase())) return;
     if (_presenceAuth?.user?.presenceMode == 'busy' ||
         _presenceAuth?.user?.presenceMode == 'invisible') return;
+    if (eventId != null && eventId.trim().isNotEmpty) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.reload();
+      final account = (_activeUsername ?? '').trim().toLowerCase();
+      if (account.isEmpty || await _wasNotificationHandled(prefs, account, eventId)) return;
+    }
 
     final body = settings.messagePreview && !settings.hideNotificationContent && !privacy.locked
         ? (messageBody.trim().isNotEmpty ? messageBody.trim() : 'You have a new message')
