@@ -118,7 +118,10 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
     final caller = data['chat']?.toString() ?? 'Novyn contact';
     final callId = data['callId']?.toString() ?? '';
     if (callStatus == 'ended') {
-      if (callId.isNotEmpty) await plugin.cancel(_stableNotificationId(callId));
+      if (callId.isNotEmpty) {
+        await plugin.cancel(_stableNotificationId('call:$callId:incoming'));
+        await plugin.cancel(_stableNotificationId('call:$callId:missed'));
+      }
       return;
     }
     if (_isSuppressedByPresenceOrDnd(prefs, caller)) return;
@@ -1342,7 +1345,10 @@ class NotificationService {
           alertCaller == notificationAccount) return;
       final callId = message.data['callId']?.toString() ?? '';
       if (callStatus == 'ended') {
-        if (callId.isNotEmpty) unawaited(_localNotifications.cancel(_stableNotificationId(callId)));
+        if (callId.isNotEmpty) {
+          unawaited(_localNotifications.cancel(_stableNotificationId('call:$callId:incoming')));
+          unawaited(_localNotifications.cancel(_stableNotificationId('call:$callId:missed')));
+        }
         return;
       }
       if (!(_settings?.notificationsOn ?? false) ||
