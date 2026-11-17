@@ -7,7 +7,6 @@ import type { SettingsSubSection } from './SettingsPanel';
 import { applyFontFamily, applyWallpaper, applyThemeAccent, THEME_PRESETS, WALLPAPER_PRESETS } from '../../services/settingsTheme';
 import { setBrowserPreference, useBrowserPreference } from '../../services/browserPreferences';
 import { saveAccountSettings, setBlockedContact } from '../../services/accountSettings';
-import { MessageKeyTransfer } from './MessageKeyTransfer';
 import { FontSelect } from './FontSelect';
 import { MessageSizeSlider } from './MessageSizeSlider';
 import { Modal } from '../ui/Modal';
@@ -151,7 +150,6 @@ export function WebSettings({ section, privacyGroup }: { section: SettingsSubSec
       {qr && <a className="btn btn-primary" download={'novyn-' + user?.username + '-qr.png'} href={qr}>Download QR code</a>}
       <p>This shares your profile, and does not sign in another device.</p>
     </div>}
-    {section === 'privacy-message-keys' && <MessageKeyTransfer />}
     {section.startsWith('feedback-') && <div className="feedback-grid"><form className="web-settings-card feedback-form" onSubmit={event => { event.preventDefault(); void run(async () => {
       const response = await fetch('/api/feedback', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type: feedbackType, message: feedback.trim(), email }) });
@@ -174,8 +172,8 @@ export function WebSettings({ section, privacyGroup }: { section: SettingsSubSec
       ].map(({ id, label, icon: Icon }) => <button key={id} type="button" disabled={busy} aria-pressed={feedbackType === id} onClick={() => setFeedbackType(id)}><Icon size={20} aria-hidden="true" />{label}</button>)}</div>
 </section>
       <section className="feedback-side-card feedback-faqs"><h3>Quick answers</h3><p>Help with your Novyn settings.</p>
-        <details><summary>How do I sync message keys to Android?</summary><p>In the browser where your messages are readable, open Data &amp; Storage, then Sync message keys. Download a password-protected key file and import it in the Android app. This is a manual transfer; repeat it for new conversations or changed keys. Keep the file and password private.</p></details>
-        <details><summary>What does clearing temporary files remove?</summary><p>Clear temporary files in Data &amp; Storage refreshes cached web assets. Your messages, encryption keys, notes, preferences and sign-in stay available. Clearing all site data through your browser can remove your keys.</p></details>
+        
+        <details><summary>What does clearing temporary files remove?</summary><p>Clear temporary files in Data &amp; Storage refreshes cached web assets. Your messages, notes, preferences and sign-in stay available. Clearing all site data through your browser can remove your keys.</p></details>
         <details><summary>How do I change my username?</summary><p>Username and linked email are managed in the Novyn mobile app. You can edit your display name and bio in Profile here on the web.</p></details>
         <details><summary>Why am I not getting notifications?</summary><p>Open Sounds &amp; Notifications and enable browser notifications. Allow notifications for Novyn in your browser settings too. Busy status silences incoming alerts. Check your device notification settings if alerts still do not appear.</p></details>
         <details><summary>Can I hide message text in notifications?</summary><p>Turn off Message previews in Sounds &amp; Notifications. Notifications will show “New message” instead of the message text.</p></details>
