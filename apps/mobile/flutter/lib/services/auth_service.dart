@@ -423,6 +423,12 @@ class AuthService extends ChangeNotifier {
     if (invalidationGeneration != _sessionMutationGeneration) return;
     await ApiService.clearSession();
     if (invalidationGeneration != _sessionMutationGeneration) return;
+    try {
+      await onAccountReset?.call().timeout(const Duration(seconds: 4));
+    } catch (error) {
+      debugPrint('[NovynAuth] Socket cleanup skipped after session rejection: $error');
+    }
+    if (invalidationGeneration != _sessionMutationGeneration) return;
     await _clearCachedIdentity();
     if (invalidationGeneration != _sessionMutationGeneration) return;
 
@@ -473,6 +479,7 @@ class AuthService extends ChangeNotifier {
           ApiService.sessionCookie!.isEmpty) {
         return;
       }
+      final cookieBeforeVerification = ApiService.sessionCookie;
 
       for (var attempt = 0; attempt < 5; attempt++) {
         final session = await loadSession()
@@ -483,6 +490,17 @@ class AuthService extends ChangeNotifier {
         }
         if (session?['authenticated'] == true) {
           await _applyVerifiedSession(session!, generation);
+          if (generation == _sessionMutationGeneration &&
+              _user != null &&
+              ApiService.sessionCookie != cookieBeforeVerification) {
+            // The server may rotate the cookie pair during a background
+            // refresh. Reconnect the socket so it does not keep an old session.
+            try {
+              await onSessionRefreshed?.call();
+            } catch (error) {
+              debugPrint('[NovynAuth] Socket session refresh deferred: $error');
+            }
+          }
           return;
         }
 
