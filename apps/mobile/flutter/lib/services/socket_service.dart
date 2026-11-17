@@ -105,6 +105,10 @@ class SocketService extends ChangeNotifier {
   String? _serverUrl;
   Timer? _reconnectTimer;
   Timer? _pendingOutboxRetryTimer;
+  Timer? _connectionHealthTimer;
+  int _connectionHealthMisses = 0;
+  bool _healthProbeInFlight = false;
+  bool _connectionDegraded = false;
 
   // Messages for the currently open chat (immutable list — replaced on update)
   List<Message> _messages = [];
@@ -507,6 +511,7 @@ class SocketService extends ChangeNotifier {
     });
 
     _socket!.onDisconnect((_) {
+      _stopConnectionHealthMonitor();
       _stopPendingOutboxRetry();
       _isConnecting = false;
       _isConnected = false;
@@ -519,6 +524,7 @@ class SocketService extends ChangeNotifier {
     });
 
     _socket!.onConnectError((_) {
+      _stopConnectionHealthMonitor();
       _stopPendingOutboxRetry();
       _isConnecting = false;
       _isConnected = false;
@@ -531,6 +537,7 @@ class SocketService extends ChangeNotifier {
 
     _registerEventHandlers();
     _socket!.on('auth_failed', (data) {
+      _stopConnectionHealthMonitor();
       _stopPendingOutboxRetry();
       _isAuthenticated = false;
       SyncService().setOnlineStatus(false);
@@ -577,6 +584,9 @@ class SocketService extends ChangeNotifier {
       _socket?.emit('app_visibility', {'foreground': true});
     }
     if (_isConnected && _isAuthenticated) {
+      // Probe immediately on resume; background suspension can leave a
+      // transport marked connected even though its application channel died.
+      unawaited(_probeConnectionHealth());
       _requestActiveChatRefresh();
       unawaited(_flushPendingMessageOutbox());
     }
@@ -1218,12 +1228,131 @@ class SocketService extends ChangeNotifier {
     });
   }
 
+  bool get isConnectionDegraded => _connectionDegraded;
+
+  void _stopConnectionHealthMonitor() {
+    _connectionHealthTimer?.cancel();
+    _connectionHealthTimer = null;
+    _connectionHealthMisses = 0;
+    _healthProbeInFlight = false;
+    if (_connectionDegraded) {
+      _connectionDegraded = false;
+      notifyListeners();
+    }
+  }
+
+  void _startConnectionHealthMonitor() {
+    _connectionHealthTimer?.cancel();
+    _connectionHealthMisses = 0;
+    _healthProbeInFlight = false;
+    _connectionDegraded = false;
+    // Weak mobile networks can take several seconds to deliver an ACK.
+    // Probe less aggressively so a delayed response is not mistaken for logout.
+    _connectionHealthTimer = Timer.periodic(
+      const Duration(seconds: 30),
+      (_) => unawaited(_probeConnectionHealth()),
+    );
+    unawaited(_probeConnectionHealth());
+  }
+
+  Future<void> _probeConnectionHealth() async {
+    final connection = _socket;
+    if (!_appForeground ||
+        connection == null ||
+        !_isConnected ||
+        !_isAuthenticated ||
+        _healthProbeInFlight) {
+      return;
+    }
+
+    _healthProbeInFlight = true;
+    final acknowledgement = Completer<bool>();
+    connection.emitWithAck(
+      'client_health_check',
+      {'clientTime': DateTime.now().millisecondsSinceEpoch},
+      ack: (dynamic result) {
+        if (acknowledgement.isCompleted) return;
+        acknowledgement.complete(
+          result is Map &&
+              result['ok'] == true &&
+              result['authenticated'] == true,
+        );
+      },
+    );
+
+    final healthy = await acknowledgement.future.timeout(
+      const Duration(seconds: 18),
+      onTimeout: () => false,
+    );
+    _healthProbeInFlight = false;
+    if (!identical(_socket, connection)) return;
+
+    if (healthy) {
+      _connectionHealthMisses = 0;
+      if (_connectionDegraded) {
+        _connectionDegraded = false;
+        notifyListeners();
+      }
+      return;
+    }
+
+    _connectionHealthMisses++;
+    if (!_connectionDegraded) {
+      _connectionDegraded = true;
+      notifyListeners();
+    }
+    debugPrint(
+      '[NovynSocket] Application health acknowledgement missed '
+      '($_connectionHealthMisses/3).',
+    );
+
+    // A delayed ACK is common on mobile data. Give the application channel
+    // three full probe windows before replacing a half-open transport.
+    if (_connectionHealthMisses >= 3) {
+      _stopConnectionHealthMonitor();
+      _isConnected = false;
+      _isAuthenticated = false;
+      _isConnecting = false;
+      SyncService().setOnlineStatus(false);
+      _socket = null;
+      final wasManualDisconnect = _manualDisconnect;
+      _manualDisconnect = true;
+      connection.dispose();
+      _manualDisconnect = wasManualDisconnect;
+      notifyListeners();
+      if (!_manualDisconnect) _scheduleReconnect(1);
+    }
+  }
+
+  /// A push is a durable hint that a message exists. Refresh server history
+  /// even if the socket transport claims to be connected.
+  void syncMessageFromPush(String peer, {bool isGroup = false}) {
+    final target = peer.trim();
+    if (target.isEmpty) return;
+    final connection = _socket;
+    if (connection == null || !_isConnected || !_isAuthenticated) {
+      setAppForeground(true);
+      return;
+    }
+    connection.emit('get_history', {
+      'to': target,
+      'kind': isGroup ? 'group' : 'friend',
+      'limit': 100,
+    });
+    // Refresh chat previews/unread counts independently of the active timeline.
+    connection.emit('resume_session');
+  }
+
   void _markSocketAuthenticated() {
     if (!_isConnected) return;
     _socketAuthRetryTimer?.cancel();
     _socketAuthRetryTimer = null;
     _socketAuthRetryAttempt = 0;
     _isAuthenticated = true;
+    _startConnectionHealthMonitor();
+    // Consumers such as Privacy settings must be notified after resume_session
+    // is accepted, not only when the raw transport connects.
+    notifyListeners();
     SyncService().setOnlineStatus(true);
     _startPendingOutboxRetry();
     if (!_stealthPreferenceSynced) {
@@ -2667,6 +2796,7 @@ class SocketService extends ChangeNotifier {
 
   // ── Disconnect ────────────────────────────────────────────────────────────
   void disconnect() {
+    _stopConnectionHealthMonitor();
     _stopPendingOutboxRetry();
     _socketAuthRetryTimer?.cancel();
     _socketAuthRetryTimer = null;

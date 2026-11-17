@@ -161,7 +161,7 @@ class _PeopleScreenState extends State<PeopleScreen> {
     final auth = context.watch<AuthService>();
     final friends = context.read<FriendService>();
     final myUid = auth.user?.username;
-    final cachedFriends = friends.cachedFriends ?? <UserModel>[];
+    final cachedFriends = friends.cachedFriends;
 
     if (myUid != null &&
         myUid.isNotEmpty &&
@@ -264,7 +264,7 @@ class _PeopleScreenState extends State<PeopleScreen> {
                     );
                   }
 
-                  final all = List<UserModel>.from(snapshot.data ?? cachedFriends)
+                  final all = List<UserModel>.from(snapshot.data ?? cachedFriends ?? const <UserModel>[])
                     ..sort((a, b) =>
                         a.name.toLowerCase().compareTo(b.name.toLowerCase()));
                   final filtered = all.where((user) {

@@ -179,6 +179,7 @@ class NovynApp extends StatelessWidget {
         }),
         Provider<FriendService>(
           create: (ctx) => FriendService(ctx.read<SocketService>()),
+          dispose: (_, service) => service.dispose(),
         ),
         ChangeNotifierProvider<SyncService>(create: (_) => SyncService()),
       ],

@@ -19,6 +19,28 @@ void main() {
     });
   });
 
+  test('friend snapshots are authoritative only while the live session is active', () {
+    final contacts = BackendContacts();
+    expect(contacts.hasAuthoritativeFriendSnapshot, isFalse);
+
+    contacts.applyEvent('init', {
+      'friends': [
+        {'username': 'harsh', 'displayName': 'Harsh'},
+      ],
+      'requests': [],
+      'sentRequests': [],
+    });
+    expect(contacts.hasAuthoritativeFriendSnapshot, isTrue);
+    expect(contacts.friends.single.username, 'harsh');
+
+    // Socket disconnect/logout resets live data, but the separate durable
+    // account cache must remain available to FriendService for offline use.
+    contacts.clear();
+    expect(contacts.hasAuthoritativeFriendSnapshot, isFalse);
+    expect(contacts.friends, isEmpty);
+    contacts.dispose();
+  });
+
   test('live presence events carry and clear last-seen timestamps', () {
     final contacts = BackendContacts();
     final offlineAt = DateTime.parse('2026-11-14T18:30:00.000Z');

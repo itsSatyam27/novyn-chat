@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:provider/provider.dart';
 import '../theme/novyn_theme.dart';
 import 'chats/chats_screen.dart';
@@ -47,6 +48,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   Timer? _updateCheckTimer;
   DateTime? _lastUpdateCheck;
   StreamSubscription<String>? _profileLinkSubscription;
+  StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
 
   late final List<Widget> _screens;
 
@@ -65,6 +67,8 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
       });
     }
     WidgetsBinding.instance.addObserver(this);
+    _connectivitySubscription =
+        Connectivity().onConnectivityChanged.listen(_handleConnectivityChanged);
     _profileLinkSubscription = ProfileDeepLinkService.links.listen(_openProfileLink);
     unawaited(ProfileDeepLinkService.initialize().then((_) {
       final pendingLink = ProfileDeepLinkService.takePendingLink();
@@ -133,6 +137,44 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       unawaited(_runUpdateCheck());
+      _recoverSocketIfNeeded();
+    }
+  }
+
+  void _handleConnectivityChanged(List<ConnectivityResult> results) {
+    if (!results.any((result) => result != ConnectivityResult.none)) return;
+    unawaited(_restoreSessionAndRecover());
+  }
+
+  Future<void> _restoreSessionAndRecover() async {
+    if (!mounted || !widget.managePresence) return;
+    final auth = _authService ?? context.read<AuthService>();
+    // Connectivity alone does not guarantee that the persisted HTTP session
+    // is still valid. Re-check/refresh it before rebuilding Socket.IO.
+    await auth.restoreSessionOnResume();
+    if (!mounted) return;
+    _recoverSocketIfNeeded();
+  }
+
+  void _recoverSocketIfNeeded() {
+    if (!mounted || !widget.managePresence) return;
+    final auth = _authService ?? context.read<AuthService>();
+    final username = auth.user?.username.trim();
+    if (username == null || username.isEmpty) return;
+
+    final socket = context.read<SocketService>();
+    final sameAccount =
+        socket.myUsername?.toLowerCase() == username.toLowerCase();
+    if (!sameAccount) {
+      socket.connect(ApiService.baseUrl, username);
+      return;
+    }
+
+    // A Socket.IO transport can stay marked connected after it has lost its
+    // authenticated session. Replace it when internet returns so account
+    // privacy and profile mutations do not remain stuck behind a stale socket.
+    if (!socket.isAuthenticated) {
+      unawaited(socket.reconnectWithCurrentSession());
     }
   }
 
@@ -164,12 +206,22 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     final socket = context.read<SocketService>();
     final sameAccount =
         _activeUsername?.toLowerCase() == username.toLowerCase();
-    if (sameAccount && socket.isConnected) return;
+    if (sameAccount && socket.isConnected && socket.isAuthenticated) {
+      context.read<FriendService>().activateAccount(username);
+      return;
+    }
     // A same-account login can happen while MainScreen remains mounted.
     // Reconnect if its previous socket was disconnected during logout.
     _activeUsername = username;
     auth.setOnline(true);
-    socket.connect(ApiService.baseUrl, username);
+    if (sameAccount && socket.isConnected && !socket.isAuthenticated) {
+      unawaited(socket.reconnectWithCurrentSession());
+    } else {
+      socket.connect(ApiService.baseUrl, username);
+    }
+    // SocketService now owns the requested identity and has cleared a previous
+    // account's live contacts before the offline cache is activated.
+    context.read<FriendService>().activateAccount(username);
     socket.onUserStatusChanged = (peerUsername, isOnline) {
       if (!mounted) return;
       context.read<FriendService>().updateCachedStatus(peerUsername, isOnline);
@@ -216,6 +268,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _profileLinkSubscription?.cancel();
+    _connectivitySubscription?.cancel();
     _updateCheckTimer?.cancel();
     NotificationService.setAppUpdateTapHandler(null);
     NotificationService.setSocialNotificationTapHandler(null);

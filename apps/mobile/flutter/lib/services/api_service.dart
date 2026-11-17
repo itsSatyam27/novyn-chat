@@ -209,6 +209,17 @@ class ApiService {
   // ── Expose cookie for socket handshake ───────────────────────────────────
   static String? get sessionCookie => _sessionCookie;
 
+  /// True only when the mobile client has both server-issued credentials.
+  /// A cached username alone is not an authenticated session.
+  static bool get hasPersistedSession {
+    final names = (_sessionCookie ?? '')
+        .split(';')
+        .map((part) => part.split('=').first.trim())
+        .where((name) => name.isNotEmpty)
+        .toSet();
+    return names.contains('novyn_at') && names.contains('novyn_rt');
+  }
+
   // ── Store session cookie from a response ─────────────────────────────────
   static Future<void> _storeSessionCookie(http.Response res) async {
     final raw = res.headers['set-cookie'];
@@ -377,7 +388,7 @@ class ApiService {
                 'username': username.trim().toLowerCase(),
             }),
           )
-          .timeout(const Duration(seconds: 15));
+          .timeout(const Duration(seconds: 30));
 
       if (res.statusCode == 200) {
         await _storeSessionCookie(res);
@@ -412,7 +423,7 @@ class ApiService {
               'remember': remember,
             }),
           )
-          .timeout(const Duration(seconds: 15));
+          .timeout(const Duration(seconds: 30));
 
       if (res.statusCode == 200) {
         await _storeSessionCookie(res);

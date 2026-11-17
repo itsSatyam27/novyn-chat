@@ -7,6 +7,9 @@ class BackendContacts extends ChangeNotifier {
   List<UserModel> discovered = [];
   List<String> requests = [];
   Set<String> sentRequests = {};
+  bool _hasAuthoritativeFriendSnapshot = false;
+
+  bool get hasAuthoritativeFriendSnapshot => _hasAuthoritativeFriendSnapshot;
 
   static UserModel userFromMap(Map data) {
     final username = data['username']?.toString() ?? '';
@@ -30,12 +33,14 @@ class BackendContacts extends ChangeNotifier {
     switch (event) {
       case 'register_success':
       case 'init':
+        _hasAuthoritativeFriendSnapshot = true;
         requests = _names(data['requests']);
         sentRequests = _names(data['sentRequests']).toSet();
         friends = _users(data['friends'], excludeGroups: true);
         break;
       case 'friend_list':
       case 'friend_list_updated':
+        _hasAuthoritativeFriendSnapshot = true;
         friends = _users(payload is List ? payload : data['friends'],
             excludeGroups: true);
         sentRequests.removeWhere((name) => friends
@@ -121,6 +126,7 @@ class BackendContacts extends ChangeNotifier {
   }
 
   void clear() {
+    _hasAuthoritativeFriendSnapshot = false;
     friends = [];
     discovered = [];
     requests = [];

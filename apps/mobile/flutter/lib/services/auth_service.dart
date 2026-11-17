@@ -965,6 +965,9 @@ class AuthService extends ChangeNotifier {
       _user = signedInUser;
       await _persistIdentity(signedInUser);
     } else {
+      if (!ApiService.hasPersistedSession) {
+        return 'Novyn could not save the secure session. Check your connection and try signing in again.';
+      }
       final signedInUser = NovynUser(
         username: result['username'].toString(),
         displayName: result['displayName']?.toString() ??
@@ -1012,6 +1015,9 @@ class AuthService extends ChangeNotifier {
       _user = signedInUser;
           await _persistIdentity(signedInUser);
     } else {
+      if (!ApiService.hasPersistedSession) {
+        return 'Novyn could not save the secure session. Check your connection and try signing in again.';
+      }
       final signedInUser = NovynUser(
         username: result['username'].toString(),
         displayName:
@@ -1048,6 +1054,9 @@ class AuthService extends ChangeNotifier {
       _user = signedInUser;
           await _persistIdentity(signedInUser);
     } else {
+      if (!ApiService.hasPersistedSession) {
+        return 'Novyn could not save the secure session. Check your connection and verify again.';
+      }
       final signedInUser = NovynUser(
         username: result['username'].toString(),
         displayName: result['username'].toString(),
@@ -1093,6 +1102,9 @@ class AuthService extends ChangeNotifier {
       _user = signedInUser;
           await _persistIdentity(signedInUser);
     } else {
+      if (!ApiService.hasPersistedSession) {
+        return 'Your account was created, but Novyn could not save the secure session. Please sign in again when the connection is stable.';
+      }
       final signedInUser = NovynUser(
         username: result['username'].toString(),
         displayName: name,

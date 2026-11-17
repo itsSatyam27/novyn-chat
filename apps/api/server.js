@@ -6135,6 +6135,23 @@ io.on("connection", (socket) => {
     }
     finalizeSocketAuthentication(socket, user);
   });
+
+  // App-level liveness probe. A live Socket.IO transport alone does not prove
+  // that authenticated application events are reaching this server.
+  socket.on("client_health_check", (payload, acknowledge) => {
+    if (typeof acknowledge !== "function") return;
+    const userKey = resolveCurrentUserKey(socket.data.userKey);
+    const user = userKey ? users.get(userKey) : null;
+    if (!user || !user.isRegistered) {
+      acknowledge({ ok: false, authenticated: false });
+      return;
+    }
+    acknowledge({
+      ok: true,
+      authenticated: true,
+      serverTime: Date.now(),
+    });
+  });
   socket.on("register", (payload) => {
     if (!allowSocketAction(socket, "register", 10, 15 * 60 * 1000)) {
       socket.emit("auth_failed", { message: "Too many authentication attempts. Try again later." });
