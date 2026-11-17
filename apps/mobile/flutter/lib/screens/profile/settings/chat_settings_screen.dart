@@ -307,10 +307,9 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
         final saved = await ChatBackupService.exportBackup(
           username: username,
           password: password,
-          encryption: context.read<SocketService>().encryption,
         );
         if (!mounted) return;
-        _message(saved ? 'Encrypted chat backup saved.' : 'Backup export was cancelled.');
+        _message(saved ? 'Password-protected chat backup saved.' : 'Backup export was cancelled.');
       }
     } catch (error) {
       if (!mounted) return;
