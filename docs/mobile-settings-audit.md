@@ -37,12 +37,16 @@ The main menu now places Preferences before Account. Its compact cards and float
 - Before the mobile-managed settings change, Web Change Password only validated fields and displayed success; Android used a mismatched REST route. Web now directs password changes to Android, and Android uses the existing `change_password` socket protocol, waits for server confirmation and requires the server's 12-character minimum.
 - Web message-preview preferences still only write localStorage without a runtime consumer. The web read-receipt switch has been replaced with mobile-app guidance; Android read-receipt enforcement still needs repair.
 - Web Active Sessions, Linked Devices and Account Actions now show explicit coming-soon guidance. The static session card and misleading Sign Out All action have been removed; normal browser logout remains on the main Settings page.
-- Web JSON export contains profile/conversation summaries, not full chat history. Its import verifies a file and displays a restored message without restoring application state. This is separate from the working protected message-key transfer added for Android encryption compatibility.
+- Web JSON export contains profile/conversation summaries, not full chat history. Its import verifies a file and displays a restored message without restoring application state. This import does not transfer application state; message-key transfer has been removed with message E2EE.
 - General preference synchronization is missing: web uses localStorage and Android uses SharedPreferences. Existing shared backend fields cover profile, presence and retention rather than a unified settings record.
 
-## Message issue handled before settings changes
+## Message transport update
 
-Android previously discarded encrypted message metadata and had no decryption implementation. The new message-key import stores conversation keys in secure storage and retains ciphertext/IV in the local database. The web export protects these keys with a transfer password and preserves the browser's non-extractable private identity. Import is required once from the original browser; repeat for new contacts or changed conversation keys. No backend deployment is required for this transfer format because the existing message envelope and public-key lookup protocol are reused.
+Message-level E2EE and the associated identity/key-transfer workflow have been
+removed from the Android, web, and backend messaging paths. New direct and group
+messages are ordinary readable text at the backend. HTTPS/WSS protects transport;
+it does not encrypt message bodies at rest. Older encrypted records can show as
+unavailable unless a readable local copy was already cached on that device.
 
 Suggested settings repair order: remove false-success security flows; fix API/socket routing and server privacy enforcement; connect notification and audio preferences; enforce app lock at startup; then unify subpage density, wording, localization and accessibility.
 
