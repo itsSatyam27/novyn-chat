@@ -1088,13 +1088,13 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(
-                      widget.isGroup ? Icons.groups_rounded : Icons.lock_outline_rounded,
+                      widget.isGroup ? Icons.groups_rounded : Icons.chat_bubble_outline_rounded,
                       color: scheme.primary,
                       size: 17,
                     ),
                     const SizedBox(width: 9),
                     Text(
-                      widget.isGroup ? 'Group conversation' : 'End-to-end encrypted',
+                      widget.isGroup ? 'Group conversation' : 'Direct conversation',
                       style: TextStyle(
                         fontFamily: 'PlusJakartaSans',
                         fontSize: 12,
@@ -3483,7 +3483,7 @@ class _MessageBubble extends StatelessWidget {
                       children: [
                         // Reply quote
                         if (message.replyToText != null &&
-                            message.replyToText != '🔒 Encrypted message') ...[
+                            message.replyToText != 'Previous encrypted message unavailable') ...[
                           Container(
                             padding: const EdgeInsets.all(8),
                             margin: const EdgeInsets.only(bottom: 6),
