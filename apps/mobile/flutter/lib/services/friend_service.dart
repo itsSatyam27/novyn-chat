@@ -185,6 +185,9 @@ class FriendService {
           _cachedFriends = List<UserModel>.from(_socket.contacts.friends);
           unawaited(_persistFriends(owner, _cachedFriends!));
         }
+        // Do not publish a transient empty list while the offline cache is
+        // still being read. PeopleScreen keeps its shimmer until this emits.
+        if (!hasLiveSnapshot && !_cacheLoaded && _cachedFriends == null) return;
         final source = hasLiveSnapshot
             ? _socket.contacts.friends
             : (_cachedFriends ?? _socket.contacts.friends);
