@@ -125,6 +125,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
   final AudioPlayer _audioPlayer = AudioPlayer();
   bool _loading = true;
   bool _initialPositionReady = false;
+  bool _initialPositionScheduled = false;
   bool _sending = false;
   bool _loadingOlder = false;
   bool _hasMore = true;
@@ -404,7 +405,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
     if (mounted) {
       setState(() {
         _loading = false;
-        _initialPositionReady = true;
+        // Keep the timeline covered until local cache and server history have
+        // both settled and the first scroll position has been established.
         _fetchingFromServer = true;
       });
     }
@@ -424,10 +426,6 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
         // active timeline. Persist the confirmed snapshot in the background.
         unawaited(HybridDbService.saveMessages(history));
         unawaited(HybridDbService.setLastSync(chatId, DateTime.now()));
-        _jumpToLatestImmediately();
-      } else if (socket.messages.isNotEmpty) {
-        // A live or cached message may have arrived while history was in flight.
-        _jumpToLatestImmediately();
       }
 
       final settings = context.read<SettingsService>();
@@ -436,9 +434,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
       }
     } catch (error) {
       debugPrint('[NovynChat] Conversation history load failed: $error');
-      if (mounted && socket.messages.isNotEmpty) {
-        _jumpToLatestImmediately();
-      }
+      // Initial positioning is coordinated after both cache and server finish.
     } finally {
       _serverHistoryComplete = true;
       _refreshInitialHistoryLoadingState(socket);
@@ -484,10 +480,24 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
 
   void _refreshInitialHistoryLoadingState(SocketService socket) {
     if (!mounted) return;
-    final waiting = socket.messages.isEmpty &&
-        (!_cacheReadComplete || !_serverHistoryComplete);
+    final initialHistoryComplete = _cacheReadComplete && _serverHistoryComplete;
+    final waiting = socket.messages.isEmpty && !initialHistoryComplete;
     if (_fetchingFromServer != waiting) {
       setState(() => _fetchingFromServer = waiting);
+    }
+
+    if (!initialHistoryComplete) return;
+
+    if (socket.messages.isNotEmpty) {
+      // Only position the timeline once both sources have finished merging.
+      // This prevents cached rows arriving after the first frame from causing
+      // the user to see the list at an intermediate offset before it scrolls.
+      if (!_initialPositionScheduled) {
+        _initialPositionScheduled = true;
+        _jumpToLatestImmediately();
+      }
+    } else if (!_initialPositionReady) {
+      setState(() => _initialPositionReady = true);
     }
   }
 
