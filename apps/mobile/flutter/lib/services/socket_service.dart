@@ -1246,8 +1246,10 @@ class SocketService extends ChangeNotifier {
     _connectionHealthMisses = 0;
     _healthProbeInFlight = false;
     _connectionDegraded = false;
+    // Weak mobile networks can take several seconds to deliver an ACK.
+    // Probe less aggressively so a delayed response is not mistaken for logout.
     _connectionHealthTimer = Timer.periodic(
-      const Duration(seconds: 20),
+      const Duration(seconds: 30),
       (_) => unawaited(_probeConnectionHealth()),
     );
     unawaited(_probeConnectionHealth());
@@ -1279,7 +1281,7 @@ class SocketService extends ChangeNotifier {
     );
 
     final healthy = await acknowledgement.future.timeout(
-      const Duration(seconds: 8),
+      const Duration(seconds: 18),
       onTimeout: () => false,
     );
     _healthProbeInFlight = false;
@@ -1301,12 +1303,12 @@ class SocketService extends ChangeNotifier {
     }
     debugPrint(
       '[NovynSocket] Application health acknowledgement missed '
-      '($_connectionHealthMisses/2).',
+      '($_connectionHealthMisses/3).',
     );
 
-    // Two missed authenticated ACKs indicate a half-open/stalled transport.
-    // Replace it instead of leaving the UI falsely marked as connected.
-    if (_connectionHealthMisses >= 2) {
+    // A delayed ACK is common on mobile data. Give the application channel
+    // three full probe windows before replacing a half-open transport.
+    if (_connectionHealthMisses >= 3) {
       _stopConnectionHealthMonitor();
       _isConnected = false;
       _isAuthenticated = false;
@@ -1393,9 +1395,6 @@ class SocketService extends ChangeNotifier {
 
   Future<void> _requireAuthenticatedConnection() async {
     await _waitForSocketAuthentication();
-    if (_connectionDegraded) {
-      throw StateError('Novyn detected a slow connection and is reconnecting. Please retry shortly.');
-    }
     if (_socket == null || !_isConnected || !_isAuthenticated) {
       throw StateError('Novyn is reconnecting securely. Please try again in a moment.');
     }
@@ -2199,9 +2198,6 @@ class SocketService extends ChangeNotifier {
   }
 
   void _requireConnection() {
-    if (_connectionDegraded) {
-      throw StateError('Novyn detected a slow connection and is reconnecting. Please retry shortly.');
-    }
     if (!_isConnected || _socket == null) {
       throw StateError('Connect to Novyn before sending messages or changing contacts.');
     }
