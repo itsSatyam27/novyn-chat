@@ -24,7 +24,7 @@ import { PollMessageBubble } from './PollMessageBubble';
 import { GameMessageBubble } from './GameMessageBubble';
 import { RiddleMessageBubble } from './RiddleMessageBubble';
 import { triggerHaptic } from '../../services/capacitor';
-import { ENCRYPTED_MESSAGE_PLACEHOLDER } from '../../services/messagePresentation';
+import { LEGACY_MESSAGE_UNAVAILABLE } from '../../services/messagePresentation';
 
 interface MessageBubbleProps {
   message: Message;
