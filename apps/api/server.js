@@ -3887,6 +3887,8 @@ function getConversationSummaryByKey(conversationKey) {
       to: message.to,
       text: message.isEncrypted && !message.deletedAt ? LEGACY_MESSAGE_UNAVAILABLE : compact,
       timestamp: message.timestamp,
+      deliveredAt: message.deliveredAt || null,
+      seenAt: message.seenAt || null,
       isEncrypted: Boolean(message.isEncrypted && !message.deletedAt),
       attachment: !message.deletedAt ? message.attachment : undefined,
       isVoice: !message.deletedAt && Boolean(message.isVoice || message.attachment?.kind === 'audio'),
