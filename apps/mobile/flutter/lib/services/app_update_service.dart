@@ -86,12 +86,16 @@ class AppUpdateService extends ChangeNotifier {
   Future<void>? _downloadFuture;
   String? _activeDownloadKey;
   bool isDownloading = false;
+  bool isPaused = false;
   double downloadProgress = 0;
   int downloadedBytes = 0;
   int expectedBytes = 0;
   bool hasPartialDownload = false;
   String? downloadedApkPath;
   String? downloadError;
+  bool _pauseRequested = false;
+  bool _cancelRequested = false;
+  http.Client? _activeDownloadClient;
 
   static Future<void> initializeBackgroundChecks() async {
     await Workmanager().initialize(
@@ -332,6 +336,9 @@ class AppUpdateService extends ChangeNotifier {
 
     _activeDownloadKey = key;
     isDownloading = false;
+    isPaused = false;
+    _pauseRequested = false;
+    _cancelRequested = false;
     downloadProgress = 0;
     downloadedBytes = 0;
     expectedBytes = release.size;
@@ -351,6 +358,7 @@ class AppUpdateService extends ChangeNotifier {
           downloadedApkPath = completeFile.path;
           downloadedBytes = length;
           downloadProgress = 1;
+          isPaused = false;
           notifyListeners();
           return;
         }
@@ -366,6 +374,7 @@ class AppUpdateService extends ChangeNotifier {
         downloadedBytes = length;
         downloadProgress = length / release.size;
         hasPartialDownload = true;
+        isPaused = true;
       }
     }
     notifyListeners();
@@ -380,6 +389,9 @@ class AppUpdateService extends ChangeNotifier {
       return;
     }
 
+    isPaused = false;
+    _pauseRequested = false;
+    _cancelRequested = false;
     final task = _performDownload(release);
     _downloadFuture = task;
     try {
@@ -391,6 +403,55 @@ class AppUpdateService extends ChangeNotifier {
     }
   }
 
+  /// Stops the active HTTP stream while keeping the partial APK for resume.
+  Future<void> pauseDownload() async {
+    if (!isDownloading) {
+      if (hasPartialDownload) {
+        isPaused = true;
+        notifyListeners();
+      }
+      return;
+    }
+    _pauseRequested = true;
+    isPaused = true;
+    _activeDownloadClient?.close();
+    notifyListeners();
+    final running = _downloadFuture;
+    if (running != null) await running;
+  }
+
+  /// Cancels the current download and removes its partial APK.
+  Future<void> cancelDownload() async {
+    _cancelRequested = true;
+    _pauseRequested = false;
+    _activeDownloadClient?.close();
+    final running = _downloadFuture;
+    if (running != null) await running;
+
+    final release = _currentRelease;
+    if (release != null) {
+      final directory = await getApplicationSupportDirectory();
+      final partial = _partialFile(directory.path, release);
+      if (await partial.exists()) await partial.delete();
+    }
+    final completedPath = downloadedApkPath;
+    if (completedPath != null) {
+      final completedFile = File(completedPath);
+      if (await completedFile.exists()) await completedFile.delete();
+    }
+
+    isDownloading = false;
+    isPaused = false;
+    downloadProgress = 0;
+    downloadedBytes = 0;
+    hasPartialDownload = false;
+    downloadedApkPath = null;
+    downloadError = null;
+    _pauseRequested = false;
+    _cancelRequested = false;
+    notifyListeners();
+  }
+
   Future<void> _performDownload(AppUpdateInfo release) async {
     isDownloading = true;
     downloadError = null;
@@ -398,6 +459,7 @@ class AppUpdateService extends ChangeNotifier {
     notifyListeners();
 
     final client = http.Client();
+    _activeDownloadClient = client;
     File? partialFile;
 
     try {
@@ -500,24 +562,66 @@ class AppUpdateService extends ChangeNotifier {
         await sink.close();
       }
 
+      if (_cancelRequested || _pauseRequested) {
+        if (_cancelRequested) {
+          if (await partial.exists()) await partial.delete();
+          downloadedBytes = 0;
+          downloadProgress = 0;
+          hasPartialDownload = false;
+          isPaused = false;
+          downloadError = null;
+        } else {
+          downloadedBytes = await partial.exists() ? await partial.length() : 0;
+          downloadProgress = release.size == 0
+              ? 0.0
+              : (downloadedBytes / release.size).clamp(0.0, 1.0).toDouble();
+          hasPartialDownload = downloadedBytes > 0;
+          isPaused = true;
+          downloadError = null;
+        }
+        return;
+      }
+
       await _verifyAndFinalize(partial, complete, release);
     } catch (error) {
       final partial = partialFile;
       final length = partial != null && await partial.exists() ? await partial.length() : 0;
-      downloadedBytes = length;
-      downloadProgress = release.size == 0 ? 0.0 : (length / release.size).clamp(0.0, 1.0).toDouble();
-      hasPartialDownload = length > 0;
-      downloadError = length > 0
-          ? 'Download paused. Your progress is saved; tap Resume download to continue.'
-          : 'Download failed. Check your connection and try again.';
-      debugPrint('[NovynUpdates] Download error: ' + error.toString());
+      if (_cancelRequested) {
+        if (partial != null && await partial.exists()) await partial.delete();
+        downloadedBytes = 0;
+        downloadProgress = 0;
+        hasPartialDownload = false;
+        isPaused = false;
+        downloadError = null;
+      } else if (_pauseRequested) {
+        downloadedBytes = length;
+        downloadProgress = release.size == 0
+            ? 0.0
+            : (length / release.size).clamp(0.0, 1.0).toDouble();
+        hasPartialDownload = length > 0;
+        isPaused = true;
+        downloadError = null;
+      } else {
+        downloadedBytes = length;
+        downloadProgress = release.size == 0
+            ? 0.0
+            : (length / release.size).clamp(0.0, 1.0).toDouble();
+        hasPartialDownload = length > 0;
+        isPaused = false;
+        downloadError = length > 0
+            ? 'Download paused. Your progress is saved; tap Resume download to continue.'
+            : 'Download failed. Check your connection and try again.';
+        debugPrint('[NovynUpdates] Download error: ' + error.toString());
+      }
     } finally {
       client.close();
+      _activeDownloadClient = null;
       isDownloading = false;
+      final wasCancelled = _cancelRequested;
       try {
-        if (downloadedApkPath != null) {
+        if (!wasCancelled && downloadedApkPath != null) {
           await NotificationService.showUpdateDownloadComplete();
-        } else if (hasPartialDownload || downloadError != null) {
+        } else if (!wasCancelled && (hasPartialDownload || downloadError != null)) {
           await NotificationService.showUpdateDownloadPaused(
             downloadedBytes: downloadedBytes,
             totalBytes: release.size,
@@ -529,6 +633,9 @@ class AppUpdateService extends ChangeNotifier {
         debugPrint('[NovynUpdates] Final download notification failed: ' +
             notificationError.toString());
       }
+      if (_pauseRequested) isPaused = true;
+      _pauseRequested = false;
+      _cancelRequested = false;
       notifyListeners();
     }
   }
@@ -566,6 +673,8 @@ class AppUpdateService extends ChangeNotifier {
     downloadedBytes = release.size;
     downloadProgress = 1;
     hasPartialDownload = false;
+    isPaused = false;
+    _pauseRequested = false;
     downloadError = null;
   }
 

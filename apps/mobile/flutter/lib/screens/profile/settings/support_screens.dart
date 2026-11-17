@@ -12,6 +12,7 @@ import '../../../services/app_update_service.dart';
 
 const _installerChannel = MethodChannel('com.example.novyn/apk_installer');
 
+
 class AboutNovynScreen extends StatefulWidget {
   const AboutNovynScreen({super.key});
   @override
@@ -20,6 +21,7 @@ class AboutNovynScreen extends StatefulWidget {
 
 class _AboutNovynScreenState extends State<AboutNovynScreen> {
   bool _checking = true, _downloading = false, _installing = false;
+  bool _readySheetOpen = false, _readySheetDismissed = false;
   String? _status, _apkUrl, _expectedSha256, _downloadedApkPath;
   int? _apkSize;
   int _installedBuild = 0, _latestBuild = 0;
@@ -29,6 +31,11 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
   double _downloadSpeedBytesPerSecond = 0;
   String _appVersion = AppUpdateService.displayVersion, _buildNumber = '0';
   final AppUpdateService _updateService = AppUpdateService.instance;
+
+  bool get _paused => !_ready && !_downloading &&
+      (_updateService.isPaused || _updateService.hasPartialDownload);
+  bool get _available => _latestBuild > _installedBuild;
+  bool get _ready => _downloadedApkPath != null;
 
   @override
   void initState() {
@@ -59,6 +66,8 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
       _lastProgressBytes = bytes;
       _downloadSpeedBytesPerSecond = 0;
     }
+
+    final previousPath = _downloadedApkPath;
     setState(() {
       _downloading = _updateService.isDownloading;
       _downloadProgress = _updateService.downloadProgress;
@@ -66,11 +75,24 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
       if (_updateService.downloadError != null) {
         _status = _updateService.downloadError;
       } else if (_downloadedApkPath != null) {
-        _status = 'ARM64 APK downloaded and verified. Ready to install.';
+        _status = 'Verified update ready to install.';
       } else if (_downloading) {
-        _status = 'Downloading ARM64 update…';
+        _status = null;
+      } else if (_updateService.isPaused) {
+        _status = 'Download paused. Your progress is saved.';
+      } else {
+        _status = null;
       }
     });
+
+    if (_downloadedApkPath != null &&
+        previousPath == null &&
+        !_readySheetDismissed &&
+        !_readySheetOpen) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _showUpdateReadySheet();
+      });
+    }
   }
 
   Future<void> _checkForUpdates() async {
@@ -85,7 +107,6 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
       });
     }
     try {
-      // Show the installed package metadata even when GitHub is unreachable.
       final packageInfo = await PackageInfo.fromPlatform();
       if (mounted) {
         setState(() {
@@ -107,7 +128,7 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
         _apkSize = release.size;
       }
       setState(() {
-        _status = result.message;
+        _status = result.release != null ? null : result.message;
         _checking = false;
       });
       _handleDownloadStateChanged();
@@ -122,7 +143,16 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
   }
 
   Future<void> _downloadUpdate() async {
+    _readySheetDismissed = false;
     await _updateService.downloadUpdate();
+  }
+
+  Future<void> _pauseUpdate() async {
+    await _updateService.pauseDownload();
+  }
+
+  Future<void> _cancelUpdate() async {
+    await _updateService.cancelDownload();
   }
 
   Future<void> _installUpdate() async {
@@ -133,7 +163,9 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
       final allowed = await _installerChannel.invokeMethod<bool>('canInstallPackages') ?? false;
       if (!allowed) {
         await _installerChannel.invokeMethod<void>('openInstallPermissionSettings');
-        if (mounted) setState(() => _status = 'Allow Novyn to install updates, then tap Install update again.');
+        if (mounted) {
+          setState(() => _status = 'Allow Novyn to install updates, then tap Install update again.');
+        }
         return;
       }
       await _installerChannel.invokeMethod<void>('installApk', {'path': path});
@@ -142,6 +174,134 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
     } finally {
       if (mounted) setState(() => _installing = false);
     }
+  }
+
+  Future<void> _showUpdateReadySheet() async {
+    if (!mounted || _readySheetOpen || _downloadedApkPath == null) return;
+    _readySheetOpen = true;
+    final install = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: false,
+      backgroundColor: Colors.transparent,
+      barrierColor: Colors.black54,
+      builder: (sheetContext) {
+        final sizeMb = ((_apkSize ?? _updateService.expectedBytes) / 1000000)
+            .toStringAsFixed(1);
+        return SafeArea(
+          top: false,
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.fromLTRB(28, 14, 28, 26),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(40)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 70,
+                  height: 5,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFD9D3EA),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Container(
+                  width: 104,
+                  height: 104,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEDE7FF),
+                    borderRadius: BorderRadius.circular(30),
+                  ),
+                  child: const Icon(Icons.install_mobile_rounded,
+                    color: Color(0xFF7048F8), size: 52),
+                ),
+                const SizedBox(height: 22),
+                const Text('Update ready to install',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Color(0xFF1D1B2B), fontSize: 26,
+                    letterSpacing: -.75, fontWeight: FontWeight.w900)),
+                const SizedBox(height: 4),
+                Text('Novyn Beta v1.1 · $sizeMb MB',
+                  style: const TextStyle(color: Color(0xFF777487), fontSize: 17,
+                    fontWeight: FontWeight.w500)),
+                const SizedBox(height: 24),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.fromLTRB(24, 20, 20, 20),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF6F3FC),
+                    borderRadius: BorderRadius.circular(28),
+                  ),
+                  child: const Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _UpdateNote(text: 'Faster chat loading'),
+                      SizedBox(height: 13),
+                      _UpdateNote(text: 'Better call quality'),
+                      SizedBox(height: 13),
+                      _UpdateNote(text: 'Bug fixes'),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 22),
+                SizedBox(
+                  width: double.infinity,
+                  height: 76,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF8052FF), Color(0xFF6741F4)],
+                      ),
+                      borderRadius: BorderRadius.circular(30),
+                      boxShadow: const [BoxShadow(
+                        color: Color(0x337048F8), blurRadius: 22,
+                        offset: Offset(0, 9))],
+                    ),
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(30),
+                        onTap: () => Navigator.of(sheetContext).pop(true),
+                        child: const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.install_mobile_rounded,
+                              color: Colors.white, size: 25),
+                            SizedBox(width: 12),
+                            Text('Install update', style: TextStyle(
+                              color: Colors.white, fontSize: 20,
+                              fontWeight: FontWeight.w800)),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextButton(
+                  onPressed: () => Navigator.of(sheetContext).pop(false),
+                  child: const Text('Later', style: TextStyle(
+                    color: Color(0xFF777487), fontSize: 17,
+                    fontWeight: FontWeight.w700)),
+                ),
+                const SizedBox(height: 18),
+                const Text('Novyn will restart after installing',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Color(0xFF777487), fontSize: 15)),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+    _readySheetOpen = false;
+    _readySheetDismissed = true;
+    if (!mounted) return;
+    if (install == true) await _installUpdate();
   }
 
   @override
@@ -153,23 +313,21 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
   @override
   Widget build(BuildContext context) {
     final dark = Theme.of(context).brightness == Brightness.dark;
-    final pageBg = dark ? NovynTheme.pageBg(context) : const Color(0xFFF5F3FF);
-    final ink = dark ? const Color(0xFFF0EFFF) : const Color(0xFF1E1B49);
-    final muted = dark ? const Color(0xFFAAA8C6) : const Color(0xFF5D5A85);
-    final surface = dark ? const Color(0xFF13141D) : Colors.white;
-    final border = dark ? const Color(0xFF39345F) : const Color(0xFFDDD8FF);
-    final primary = Theme.of(context).colorScheme.primary;
-    final available = _latestBuild > _installedBuild;
-    final upToDate = !_checking && !available &&
-        (_status?.toLowerCase().contains('up to date') == true);
-    final error = !_checking && !available && !upToDate;
+    final pageBg = dark ? NovynTheme.pageBg(context) : const Color(0xFFF5F1FF);
+    final ink = dark ? const Color(0xFFF0EFFF) : const Color(0xFF1D1B2B);
+    final muted = dark ? const Color(0xFFAAA8C6) : const Color(0xFF777487);
+    final surface = dark ? const Color(0xFF171622) : Colors.white;
+    final border = dark ? const Color(0xFF39345F) : const Color(0xFFE5DFFF);
+    final primary = const Color(0xFF7048F8);
+    final activeDownload = !_ready &&
+        (_downloading || _paused || _updateService.hasPartialDownload);
 
     return Scaffold(
       backgroundColor: pageBg,
       body: SafeArea(
         child: SingleChildScrollView(
           physics: const BouncingScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(20, 10, 20, 34),
+          padding: const EdgeInsets.fromLTRB(20, 18, 20, 34),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -181,239 +339,214 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
                     onTap: () => Navigator.of(context).maybePop(),
                     borderRadius: BorderRadius.circular(17),
                     child: Container(
-                      width: 46,
-                      height: 46,
+                      width: 54,
+                      height: 54,
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(17),
                         border: Border.all(color: border),
                       ),
-                      child: Icon(Icons.chevron_left_rounded, color: ink, size: 30),
+                      child: Icon(Icons.arrow_back_rounded, color: ink, size: 27),
                     ),
                   ),
                 ),
-                const SizedBox(width: 14),
-                Text('About Novyn', style: TextStyle(color: ink, fontSize: 26,
-                  letterSpacing: -.7, fontWeight: FontWeight.w800)),
+                Expanded(
+                  child: Center(
+                    child: Text('About Novyn', style: TextStyle(color: ink,
+                      fontSize: 25, letterSpacing: -.65, fontWeight: FontWeight.w900)),
+                  ),
+                ),
+                const SizedBox(width: 54),
               ]),
-              const SizedBox(height: 16),
+              const SizedBox(height: 28),
               Center(
                 child: Column(children: [
                   Container(
-                    width: 88,
-                    height: 88,
+                    width: 120,
+                    height: 120,
                     decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(29),
+                      borderRadius: BorderRadius.circular(36),
                       gradient: const LinearGradient(
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
-                        colors: [Color(0xFF806FFF), Color(0xFF5141CD)],
+                        colors: [Color(0xFF8A65FF), Color(0xFF5B3DEB)],
                       ),
-                      boxShadow: [BoxShadow(
-                        color: const Color(0xFF5141CD).withValues(alpha: .23),
-                        blurRadius: 28, offset: const Offset(0, 11))],
+                      boxShadow: const [BoxShadow(
+                        color: Color(0x337048F8), blurRadius: 30,
+                        offset: Offset(0, 12))],
                     ),
-                    child: const Icon(Icons.bookmark_rounded, color: Colors.white, size: 47),
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        const Icon(Icons.chat_bubble_rounded,
+                          color: Colors.white, size: 68),
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 5),
+                          child: Text('N', style: TextStyle(
+                            color: primary, fontSize: 35,
+                            fontWeight: FontWeight.w900)),
+                        ),
+                      ],
+                    ),
                   ),
-                  const SizedBox(height: 16),
-                  Text('Novyn', style: TextStyle(color: ink, fontSize: 34,
-                    letterSpacing: -1.1, fontWeight: FontWeight.w800)),
-                  const SizedBox(height: 5),
+                  const SizedBox(height: 17),
+                  Text('Novyn', style: TextStyle(color: ink, fontSize: 38,
+                    letterSpacing: -1.2, fontWeight: FontWeight.w900)),
+                  const SizedBox(height: 4),
                   Text('Your space, your people.',
-                    style: TextStyle(color: muted, fontSize: 16, fontWeight: FontWeight.w500)),
-                  const SizedBox(height: 14),
+                    style: TextStyle(color: muted, fontSize: 18,
+                      fontWeight: FontWeight.w500)),
+                  const SizedBox(height: 16),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 17, vertical: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 10),
                     decoration: BoxDecoration(
                       color: surface,
-                      borderRadius: BorderRadius.circular(19),
+                      borderRadius: BorderRadius.circular(24),
                       border: Border.all(color: border),
                     ),
-                    child: Text('Version $_appVersion (build $_buildNumber)',
-                      style: TextStyle(color: ink, fontSize: 14, fontWeight: FontWeight.w700)),
+                    child: Text('Version $_appVersion',
+                      style: TextStyle(color: ink, fontSize: 16,
+                        fontWeight: FontWeight.w800)),
                   ),
                 ]),
               ),
-              const SizedBox(height: 22),
+              const SizedBox(height: 24),
               Container(
-                padding: const EdgeInsets.all(19),
+                padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
-                  color: available
-                      ? (dark ? const Color(0xFF211D3B) : const Color(0xFFF0EDFF))
-                      : surface,
-                  borderRadius: BorderRadius.circular(26),
-                  border: Border.all(color: available ? primary : border,
-                    width: available ? 1.5 : 1),
-                  boxShadow: available ? [BoxShadow(
-                    color: primary.withValues(alpha: .08),
-                    blurRadius: 22, offset: const Offset(0, 8))] : const [],
+                  color: surface,
+                  borderRadius: BorderRadius.circular(34),
+                  border: Border.all(color: border.withValues(alpha: .65)),
+                  boxShadow: const [BoxShadow(
+                    color: Color(0x0D5038A0), blurRadius: 20,
+                    offset: Offset(0, 8))],
                 ),
-                child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                  Row(children: [
-                    Container(
-                      width: 46,
-                      height: 46,
-                      decoration: BoxDecoration(
-                        color: available
-                            ? primary
-                            : upToDate
-                                ? const Color(0xFFDDFBE8)
-                                : error
-                                    ? const Color(0xFFFFF0D9)
-                                    : primary.withValues(alpha: .12),
-                        borderRadius: BorderRadius.circular(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(children: [
+                      Container(
+                        width: 66,
+                        height: 66,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFEDE7FF),
+                          borderRadius: BorderRadius.circular(22),
+                        ),
+                        child: const Icon(Icons.download_rounded,
+                          color: Color(0xFF7048F8), size: 34),
                       ),
-                      child: _checking
-                          ? const Padding(
-                              padding: EdgeInsets.all(13),
-                              child: CircularProgressIndicator(strokeWidth: 2.2))
-                          : Icon(
-                              available ? Icons.download_rounded :
-                                upToDate ? Icons.check_rounded :
-                                  error ? Icons.error_outline_rounded : Icons.sync_rounded,
-                              color: available ? Colors.white :
-                                upToDate ? const Color(0xFF176B3B) :
-                                  error ? const Color(0xFF9A5A08) : primary,
-                              size: 25),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          available ? 'Update available' :
-                            upToDate ? 'You are up to date' :
-                              error ? 'Could not check for updates' : 'Checking for updates',
-                          style: TextStyle(color: ink, fontSize: 18,
-                            letterSpacing: -.35, fontWeight: FontWeight.w800)),
-                        const SizedBox(height: 3),
-                        Text(
-                          available ? 'A newer build is ready to install.' :
-                            upToDate ? 'Last checked just now' :
-                              error ? (_status ?? 'Check your connection and try again.') :
-                                'Looking for the latest Novyn build.',
-                          style: TextStyle(color: muted, fontSize: 13, height: 1.35,
-                            fontWeight: FontWeight.w500)),
-                      ],
-                    )),
-                  ]),
-                  if (available) ...[
-                    const SizedBox(height: 14),
-                    Wrap(spacing: 8, runSpacing: 8, children: [
-                      _updateChip(((_apkSize ?? 0) / 1000000).toStringAsFixed(1) + ' MB',
-                        surface, ink, border),
-                      _updateChip('ARM64-v8a', surface, ink, border),
+                      const SizedBox(width: 18),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              _checking ? 'Checking for updates' :
+                                _ready ? 'Update downloaded' :
+                                  _paused ? 'Download paused' :
+                                    _downloading ? 'Downloading update' :
+                                      _available ? 'Update available' :
+                                        (!_checking && _status != null &&
+                                          !_status!.toLowerCase().contains('up to date')
+                                          ? 'Could not check for updates' : 'You are up to date'),
+                              style: TextStyle(color: ink, fontSize: 21,
+                                letterSpacing: -.45, fontWeight: FontWeight.w900)),
+                            const SizedBox(height: 4),
+                            Text(
+                              _available ? 'Beta v1.1' :
+                                _checking ? 'Looking for the latest version' :
+                                (!_available && _status != null &&
+                                  !_status!.toLowerCase().contains('up to date')
+                                  ? _status! : 'Novyn is running the latest version'),
+                              style: TextStyle(color: muted, fontSize: 16,
+                                fontWeight: FontWeight.w500)),
+                          ],
+                        ),
+                      ),
                     ]),
-                    if (_downloading || _updateService.hasPartialDownload) ...[
-                      const SizedBox(height: 16),
+                    if (activeDownload) ...[
+                      const SizedBox(height: 22),
                       _LiquidDownloadProgress(
                         progress: _downloadProgress,
                         downloadedBytes: _updateService.downloadedBytes,
                         totalBytes: _apkSize ?? _updateService.expectedBytes,
                         speedBytesPerSecond: _downloadSpeedBytesPerSecond,
-                        paused: !_downloading && _updateService.hasPartialDownload,
+                        paused: _paused,
                         primary: primary,
                         muted: muted,
                       ),
+                      const SizedBox(height: 22),
+                    ] else if (_ready) ...[
+                      const SizedBox(height: 14),
+                      Text('Your update is verified and ready to install.',
+                        style: TextStyle(color: muted, fontSize: 14, height: 1.4)),
+                      const SizedBox(height: 18),
+                    ] else if (_status != null && !_checking && !_available) ...[
+                      const SizedBox(height: 12),
+                      Text(_status!, style: TextStyle(color: muted,
+                        fontSize: 13, height: 1.4)),
                     ],
-                    if (_updateService.downloadError != null) ...[
-                      const SizedBox(height: 8),
-                      Text(
-                        _updateService.downloadError!,
-                        style: TextStyle(color: muted, fontSize: 12.5, height: 1.35),
-                      ),
-                    ],
-                    const SizedBox(height: 16),
-                    SizedBox(
-                      height: 54,
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                            colors: [Color(0xFF705DFF), Color(0xFF5543E8)],
-                          ),
-                          borderRadius: BorderRadius.circular(32),
-                          boxShadow: [BoxShadow(
-                            color: primary.withValues(alpha: .24),
-                            blurRadius: 20, offset: const Offset(0, 8))],
-                        ),
-                        child: Material(
-                          color: Colors.transparent,
-                          child: InkWell(
-                            onTap: _downloading || _installing
-                                ? null
-                                : (_downloadedApkPath == null ? _downloadUpdate : _installUpdate),
-                            borderRadius: BorderRadius.circular(32),
-                            child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                              if (_downloading || _installing)
-                                const SizedBox(width: 20, height: 20,
-                                  child: CircularProgressIndicator(strokeWidth: 2,
-                                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white)))
-                              else
-                                Icon(_downloadedApkPath == null
-                                  ? Icons.download_rounded : Icons.install_mobile_rounded,
-                                  color: Colors.white, size: 22),
-                              const SizedBox(width: 10),
-                              Text(
-                                _downloading ? 'Downloading update' :
-                                  _installing ? 'Opening installer' :
-                                    _downloadedApkPath == null
-                                        ? (_updateService.hasPartialDownload ? 'Resume download' : 'Download update')
-                                        : 'Install update',
-                                style: const TextStyle(color: Colors.white,
-                                  fontSize: 15.5, fontWeight: FontWeight.w800)),
-                            ]),
+                    if (activeDownload) ...[
+                      Row(children: [
+                        Expanded(
+                          child: _updateAction(
+                            label: _paused ? 'Resume' : 'Pause',
+                            icon: _paused ? Icons.play_arrow_rounded : Icons.pause_rounded,
+                            background: const Color(0xFFEDE7FF),
+                            foreground: const Color(0xFF6542E8),
+                            onTap: _paused ? _downloadUpdate : _pauseUpdate,
                           ),
                         ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _updateAction(
+                            label: 'Cancel',
+                            icon: Icons.close_rounded,
+                            background: const Color(0xFFFFEBEC),
+                            foreground: const Color(0xFFD22B3A),
+                            onTap: _cancelUpdate,
+                          ),
+                        ),
+                      ]),
+                    ] else if (_ready) ...[
+                      _primaryUpdateButton(
+                        label: 'Install update',
+                        icon: Icons.install_mobile_rounded,
+                        onTap: _installing ? null : _installUpdate,
                       ),
-                    ),
-                    const SizedBox(height: 11),
-                    Center(child: TextButton(
-                      onPressed: _checking || _downloading || _installing ? null : _checkForUpdates,
-                      style: TextButton.styleFrom(foregroundColor: primary,
-                        textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800)),
-                      child: const Text('Check again'))),
-                  ] else ...[
-                    if (error) ...[
-                      const SizedBox(height: 8),
-                      Text('$_status', style: TextStyle(color: muted, fontSize: 12.5, height: 1.4)),
+                    ] else if (_available) ...[
+                      _primaryUpdateButton(
+                        label: _updateService.hasPartialDownload ? 'Resume download' : 'Download update',
+                        icon: Icons.download_rounded,
+                        onTap: _checking ? null : _downloadUpdate,
+                      ),
+                    ] else ...[
+                      _primaryUpdateButton(
+                        label: _checking ? 'Checking for updates' :
+                          (_status?.toLowerCase().contains('up to date') == true
+                            ? 'Check for updates' : 'Try again'),
+                        icon: _checking ? Icons.sync_rounded : Icons.refresh_rounded,
+                        onTap: _checking ? null : _checkForUpdates,
+                      ),
                     ],
-                    const SizedBox(height: 17),
-                    SizedBox(
-                      height: 54,
-                      child: OutlinedButton.icon(
-                        onPressed: _checking ? null : _checkForUpdates,
-                        icon: _checking
-                            ? SizedBox(width: 19, height: 19,
-                                child: CircularProgressIndicator(strokeWidth: 2,
-                                  valueColor: AlwaysStoppedAnimation<Color>(ink)))
-                            : Icon(Icons.refresh_rounded, color: ink, size: 21),
-                        label: Text(
-                          _checking ? 'Checking for updates' :
-                            upToDate ? 'Check for updates' : 'Try again',
-                          style: TextStyle(color: ink, fontSize: 15, fontWeight: FontWeight.w800)),
-                        style: OutlinedButton.styleFrom(
-                          side: BorderSide(color: border, width: 1.5),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(32))),
-                      ),
-                    ),
+                    if (_status != null && (_available || _ready)) ...[
+                      const SizedBox(height: 12),
+                      Text(_status!, textAlign: TextAlign.center,
+                        style: TextStyle(color: muted, fontSize: 12.5, height: 1.35)),
+                    ],
                   ],
-                ]),
+                ),
               ),
-              const SizedBox(height: 15),
+              const SizedBox(height: 18),
               _infoCard(context, [
                 _InfoRow(label: 'App version', value: '$_appVersion (build $_buildNumber)'),
                 Divider(height: 1, color: border.withValues(alpha: .8)),
-                const _InfoRow(label: 'Platform', value: 'Flutter · Android ARM64'),
+                const _InfoRow(label: 'Platform', value: 'Flutter · Android'),
               ]),
-              const SizedBox(height: 23),
+              const SizedBox(height: 25),
               Center(child: Text('MADE TO KEEP YOUR PEOPLE CLOSE',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: muted, fontSize: 12.5, letterSpacing: 1.7,
-                  fontWeight: FontWeight.w800))),
-              const SizedBox(height: 6),
-              Center(child: Text('© ${DateTime.now().year} Novyn',
-                style: TextStyle(color: muted, fontSize: 12.5, fontWeight: FontWeight.w500))),
+                style: TextStyle(color: muted, fontSize: 13,
+                  letterSpacing: 1.7, fontWeight: FontWeight.w800))),
             ],
           ),
         ),
@@ -421,31 +554,91 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
     );
   }
 
-  Widget _updateChip(String text, Color surface, Color ink, Color border) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-      decoration: BoxDecoration(
-        color: surface,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: border),
+  Widget _updateAction({
+    required String label,
+    required IconData icon,
+    required Color background,
+    required Color foreground,
+    required Future<void> Function() onTap,
+  }) {
+    return SizedBox(
+      height: 76,
+      child: Material(
+        color: background,
+        borderRadius: BorderRadius.circular(25),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(25),
+          onTap: () => onTap(),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, color: foreground, size: 25),
+              const SizedBox(width: 10),
+              Text(label, style: TextStyle(color: foreground,
+                fontSize: 19, fontWeight: FontWeight.w800)),
+            ],
+          ),
+        ),
       ),
-      child: Text(text, style: TextStyle(color: ink, fontSize: 13,
-        fontWeight: FontWeight.w700)),
+    );
+  }
+
+  Widget _primaryUpdateButton({
+    required String label,
+    required IconData icon,
+    required Future<void> Function()? onTap,
+  }) {
+    return SizedBox(
+      height: 66,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFF8052FF), Color(0xFF6741F4)],
+          ),
+          borderRadius: BorderRadius.circular(27),
+          boxShadow: const [BoxShadow(
+            color: Color(0x337048F8), blurRadius: 20,
+            offset: Offset(0, 8))],
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap == null ? null : () => onTap(),
+            borderRadius: BorderRadius.circular(27),
+            child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+              Icon(icon, color: Colors.white, size: 23),
+              const SizedBox(width: 10),
+              Text(label, style: const TextStyle(color: Colors.white,
+                fontSize: 17, fontWeight: FontWeight.w800)),
+            ]),
+          ),
+        ),
+      ),
     );
   }
 
   Widget _infoCard(BuildContext context, List<Widget> children) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 4),
+    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
     decoration: BoxDecoration(
       color: NovynTheme.cardBg(context),
-      borderRadius: BorderRadius.circular(20),
+      borderRadius: BorderRadius.circular(24),
       border: Border.all(color: Theme.of(context).brightness == Brightness.dark
-        ? const Color(0xFF39345F) : const Color(0xFFDDD8FF)),
+        ? const Color(0xFF39345F) : const Color(0xFFE5DFFF)),
     ),
     child: Column(children: children),
   );
+}
 
-
+class _UpdateNote extends StatelessWidget {
+  const _UpdateNote({required this.text});
+  final String text;
+  @override
+  Widget build(BuildContext context) => Row(children: [
+    const Icon(Icons.circle, color: Color(0xFF8052FF), size: 12),
+    const SizedBox(width: 13),
+    Expanded(child: Text(text, style: const TextStyle(
+      color: Color(0xFF39364D), fontSize: 17, fontWeight: FontWeight.w500))),
+  ]);
 }
 
 class _InfoRow extends StatelessWidget {
@@ -471,6 +664,7 @@ class _InfoRow extends StatelessWidget {
     );
   }
 }
+
 
 class _LiquidDownloadProgress extends StatefulWidget {
   const _LiquidDownloadProgress({
@@ -508,64 +702,92 @@ class _LiquidDownloadProgressState extends State<_LiquidDownloadProgress>
 
   String _mb(int bytes) => (bytes / 1000000).toStringAsFixed(1);
   String _eta() {
-    final remaining=(widget.totalBytes-widget.downloadedBytes)
-        .clamp(0,widget.totalBytes);
-    if(widget.speedBytesPerSecond<1024||widget.totalBytes<=0)
-      return widget.paused?'Paused':'Calculating time…';
-    final seconds=(remaining/widget.speedBytesPerSecond).ceil().clamp(0,86400);
-    if(seconds<60) return seconds.toString()+' sec left';
-    return ((seconds/60).ceil()).toString()+' min left';
+    final remaining = (widget.totalBytes - widget.downloadedBytes)
+        .clamp(0, widget.totalBytes);
+    if (widget.paused || widget.totalBytes <= 0 ||
+        widget.speedBytesPerSecond <= 0) {
+      return '0:00';
+    }
+    final seconds = (remaining / widget.speedBytesPerSecond)
+        .ceil().clamp(0, 86400);
+    final hours = seconds ~/ 3600;
+    final minutes = (seconds % 3600) ~/ 60;
+    final secs = seconds % 60;
+    if (hours > 0) {
+      return '$hours:${minutes.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}';
+    }
+    return '${(seconds ~/ 60)}:${secs.toString().padLeft(2, '0')}';
   }
 
   @override
   Widget build(BuildContext context) {
-    final pct=(widget.progress.clamp(0.0,1.0)*100).round();
-    final speed=widget.speedBytesPerSecond>=1024
-      ? (widget.speedBytesPerSecond/1000000).toStringAsFixed(1)+' MB/s'
-      : widget.paused?'Paused':'Measuring speed…';
-    return Row(crossAxisAlignment:CrossAxisAlignment.center,children:[
-      AnimatedBuilder(animation:_wave,builder:(context,child){
-        final phase=_wave.value*2*math.pi;
-        final p=widget.progress.clamp(0.0,1.0).toDouble();
-        return SizedBox(width:108,height:108,child:ClipRRect(
-          borderRadius:BorderRadius.circular(32),
-          child:Stack(fit:StackFit.expand,children:[
-            ColoredBox(color:widget.primary.withValues(alpha:.13)),
-            CustomPaint(painter:_LiquidWavePainter(
-              progress:p,phase:phase,color:widget.primary)),
-            Center(child:Text(pct.toString()+'%',style:TextStyle(
-              color:widget.primary,fontSize:25,fontWeight:FontWeight.w900,
-              letterSpacing:-.7))),
-            ClipPath(clipper:_LiquidWaveClipper(progress:p,phase:phase),
-              child:Center(child:Text(pct.toString()+'%',
-                style:const TextStyle(color:Colors.white,fontSize:25,
-                  fontWeight:FontWeight.w900,letterSpacing:-.7)))),
-          ]),
-        ));
-      }),
-      const SizedBox(width:14),
-      Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,
-        mainAxisAlignment:MainAxisAlignment.center,children:[
-        Text(widget.paused?'Download paused':'Downloading update',
-          style:TextStyle(color:Theme.of(context).colorScheme.onSurface,
-            fontSize:14,fontWeight:FontWeight.w900)),
-        const SizedBox(height:5),
-        Text(_mb(widget.downloadedBytes)+' of '+_mb(widget.totalBytes)+' MB',
-          style:TextStyle(color:widget.muted,fontSize:12,fontWeight:FontWeight.w600)),
-        const SizedBox(height:9),
-        _chip(speed),
-        const SizedBox(height:6),
-        _chip(_eta()),
-      ])),
-    ]);
+    final pct = (widget.progress.clamp(0.0, 1.0) * 100).round();
+    final speed = widget.speedBytesPerSecond <= 0
+        ? '0 KB/s'
+        : widget.speedBytesPerSecond >= 1000000
+            ? '${(widget.speedBytesPerSecond / 1000000).toStringAsFixed(1)} MB/s'
+            : '${(widget.speedBytesPerSecond / 1000).toStringAsFixed(1)} KB/s';
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        AnimatedBuilder(
+          animation: _wave,
+          builder: (context, child) {
+            final phase = _wave.value * 2 * math.pi;
+            final progress = widget.progress.clamp(0.0, 1.0).toDouble();
+            return SizedBox(
+              width: 166,
+              height: 166,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(34),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    ColoredBox(color: widget.primary.withValues(alpha: .13)),
+                    CustomPaint(painter: _LiquidWavePainter(
+                      progress: progress, phase: phase, color: widget.primary)),
+                    Center(
+                      child: Text('$pct%', style: TextStyle(
+                        color: widget.primary, fontSize: 40,
+                        fontWeight: FontWeight.w900, letterSpacing: -1)),
+                    ),
+                    ClipPath(
+                      clipper: _LiquidWaveClipper(progress: progress, phase: phase),
+                      child: Center(
+                        child: Text('$pct%', style: const TextStyle(
+                          color: Colors.white, fontSize: 40,
+                          fontWeight: FontWeight.w900, letterSpacing: -1)),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
+        const SizedBox(width: 22),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                '${_mb(widget.downloadedBytes)} of ${_mb(widget.totalBytes)} MB',
+                style: TextStyle(color: Theme.of(context).colorScheme.onSurface,
+                  fontSize: 18, fontWeight: FontWeight.w800, letterSpacing: -.3)),
+              const SizedBox(height: 8),
+              Text(
+                widget.paused ? 'Download paused' : '$speed · ${_eta()}',
+                textAlign: TextAlign.start,
+                style: TextStyle(color: widget.muted, fontSize: 15,
+                  fontWeight: FontWeight.w500),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
   }
-
-  Widget _chip(String label)=>Container(
-    padding:const EdgeInsets.symmetric(horizontal:9,vertical:5),
-    decoration:BoxDecoration(color:widget.primary.withValues(alpha:.08),
-      borderRadius:BorderRadius.circular(12)),
-    child:Text(label,maxLines:1,overflow:TextOverflow.ellipsis,
-      style:TextStyle(color:widget.muted,fontSize:11,fontWeight:FontWeight.w700)));
 }
 
 class _LiquidWavePainter extends CustomPainter {
