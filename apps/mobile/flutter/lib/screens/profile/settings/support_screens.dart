@@ -634,7 +634,7 @@ class HelpSupportScreen extends StatefulWidget {
 class _HelpSupportScreenState extends State<HelpSupportScreen> {
   final _searchController = TextEditingController();
   String _query = '';
-  String? _expandedFaq;
+  String? _expandedFaq = 'How do I back up my chats?';
   final Map<String, bool> _votes = {};
 
   static const _topics = <_HelpEntry>[
@@ -660,7 +660,7 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
 
   static const _faqs = <_HelpEntry>[
     _HelpEntry('How do I back up my chats?','Popular question',
-      'Open Settings → Chat Settings and choose Chat backup. Create a backup and keep it somewhere safe so you can restore it when setting up Novyn again.',
+      'Open Settings → Chat Settings and choose Chat backup. Backups are encrypted, and you can restore them when you set up Novyn again.',
       Icons.description_outlined,Color(0xFF8B6DF6),'Popular question'),
     _HelpEntry('How do I stop screenshots in chats?','Popular question',
       'Open the conversation settings and review the privacy controls available for that chat. Availability can depend on the current app build and device.',
