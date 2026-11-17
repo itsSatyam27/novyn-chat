@@ -132,6 +132,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
   bool _fetchingFromServer =
       false; // true while both local cache and server history are unresolved
   bool _cacheReadComplete = false;
+  bool _secondaryCacheReadComplete = false;
   bool _serverHistoryComplete = false;
   String? _chatId;
   String? _myUid;
@@ -391,6 +392,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
 
     final chatId = _chatId!;
     _cacheReadComplete = false;
+    _secondaryCacheReadComplete = false;
     _serverHistoryComplete = false;
 
     // Start the socket request immediately instead of waiting for Hive to scan
@@ -480,7 +482,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
 
   void _refreshInitialHistoryLoadingState(SocketService socket) {
     if (!mounted) return;
-    final initialHistoryComplete = _cacheReadComplete && _serverHistoryComplete;
+    final initialHistoryComplete = _cacheReadComplete &&
+        _secondaryCacheReadComplete && _serverHistoryComplete;
     final waiting = socket.messages.isEmpty && !initialHistoryComplete;
     if (_fetchingFromServer != waiting) {
       setState(() => _fetchingFromServer = waiting);
@@ -516,6 +519,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
       debugPrint('[NovynPerf] chat_secondary_cache_ms=${watch.elapsedMilliseconds} backfilled=${missing.length}');
     } catch (error) {
       debugPrint('[NovynChat] Secondary cache hydration failed: $error');
+    } finally {
+      if (mounted && _chatId == chatId) {
+        _secondaryCacheReadComplete = true;
+        _refreshInitialHistoryLoadingState(socket);
+      }
     }
   }
 
