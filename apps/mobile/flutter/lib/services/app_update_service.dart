@@ -248,11 +248,12 @@ class AppUpdateService extends ChangeNotifier {
     }
 
     try {
-      if (isBackgroundCheck) {
-        await _showBackgroundUpdateNotification();
-      } else {
-        await NotificationService.showAppUpdateAvailable();
-      }
+      // Foreground checks and WorkManager use the same notification channel,
+      // build marker and tap payload as incoming FCM update alerts.
+      await NotificationService.showAppUpdateAvailable(
+        buildNumber: release.build,
+        allowRepeat: true,
+      );
       // Store only after the notification API succeeds. The same notification
       // ID is reused, so a dismissed alert can be shown again after 24 hours.
       await prefs.setInt(_lastNotifiedBuildKey, release.build);
