@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'package:flutter/gestures.dart';
 import '../../widgets/novyn_alert.dart';
 import 'dart:async';
 import 'dart:io';
@@ -128,7 +129,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
   bool _loadingOlder = false;
   bool _hasMore = true;
   bool _fetchingFromServer =
-      false; // true only when cache empty + waiting for API
+      false; // true while both local cache and server history are unresolved
+  bool _cacheReadComplete = false;
+  bool _serverHistoryComplete = false;
   String? _chatId;
   String? _myUid;
   bool _peerIsOnline = false;
@@ -385,32 +388,32 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
         ? (widget.peer.uid.isNotEmpty ? widget.peer.uid : widget.peer.username)
         : widget.peer.username;
 
-    final cacheWatch = Stopwatch()..start();
-    List<Message> cachedMessages = [];
-    try {
-      // Render the complete Hive cache first; Drift is warmed and merged later.
-      cachedMessages = await HybridDbService.getCachedMessages(_chatId!)
-          .timeout(const Duration(seconds: 4), onTimeout: () => <Message>[]);
-    } catch (error) {
-      debugPrint('[NovynChat] Local message cache read failed: $error');
-    }
-    debugPrint('[NovynPerf] chat_cache_ms=${cacheWatch.elapsedMilliseconds} count=${cachedMessages.length}');
-    if (!mounted) return;
+    final chatId = _chatId!;
+    _cacheReadComplete = false;
+    _serverHistoryComplete = false;
 
-    // openChat requests history from the authenticated Socket.IO session and
-    // completes only after the matching conversation response is processed.
-    // Avoid the legacy REST history endpoint, which can return an empty list
-    // independently of the live conversation and race the socket response.
+    // Start the socket request immediately instead of waiting for Hive to scan
+    // the local message box. The screen can now paint its header, composer and
+    // loading/empty state on the first frame while both sources load in parallel.
     final historyRequest = socket.openChat(
-      _chatId!,
-      cachedMessages,
+      chatId,
+      const <Message>[],
       isGroup: widget.isGroup,
     );
-    unawaited(_hydrateIndexedCache(_chatId!, socket));
-    setState(() {
-      _loading = false;
-      _fetchingFromServer = cachedMessages.isEmpty;
-    });
+
+    if (mounted) {
+      setState(() {
+        _loading = false;
+        _initialPositionReady = true;
+        _fetchingFromServer = true;
+      });
+    }
+
+    final cacheWatch = Stopwatch()..start();
+    unawaited(_loadLocalChatHistory(chatId, socket, cacheWatch));
+    // Drift may contain rows written by an earlier app version that are not
+    // yet present in Hive. Hydrate those missing IDs in the background too.
+    unawaited(_hydrateIndexedCache(chatId, socket));
 
     try {
       final history = await historyRequest;
@@ -418,32 +421,73 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
 
       if (history.isNotEmpty) {
         // The socket service has already merged these messages into the
-        // active timeline. Persist the confirmed snapshot and reveal it.
+        // active timeline. Persist the confirmed snapshot in the background.
         unawaited(HybridDbService.saveMessages(history));
-        unawaited(HybridDbService.setLastSync(_chatId!, DateTime.now()));
+        unawaited(HybridDbService.setLastSync(chatId, DateTime.now()));
         _jumpToLatestImmediately();
       } else if (socket.messages.isNotEmpty) {
-        // A live message may have arrived while the history request was in flight.
+        // A live or cached message may have arrived while history was in flight.
         _jumpToLatestImmediately();
-      } else {
-        setState(() => _initialPositionReady = true);
       }
 
       final settings = context.read<SettingsService>();
       if (settings.readReceipts && !widget.isGroup) {
-        unawaited(ApiService.markRead(_chatId!, _myUid!));
+        unawaited(ApiService.markRead(chatId, _myUid!));
       }
     } catch (error) {
       debugPrint('[NovynChat] Conversation history load failed: $error');
-      if (mounted) {
-        if (socket.messages.isNotEmpty) {
-          _jumpToLatestImmediately();
-        } else {
-          setState(() => _initialPositionReady = true);
-        }
+      if (mounted && socket.messages.isNotEmpty) {
+        _jumpToLatestImmediately();
       }
     } finally {
-      if (mounted) setState(() => _fetchingFromServer = false);
+      _serverHistoryComplete = true;
+      _refreshInitialHistoryLoadingState(socket);
+    }
+  }
+
+  Future<void> _loadLocalChatHistory(
+    String chatId,
+    SocketService socket,
+    Stopwatch cacheWatch,
+  ) async {
+    try {
+      final cachedMessages = await HybridDbService.getCachedMessages(chatId)
+          .timeout(const Duration(seconds: 4), onTimeout: () => <Message>[]);
+      if (!mounted ||
+          _chatId != chatId ||
+          socket.currentChatWith?.trim().toLowerCase() !=
+              chatId.trim().toLowerCase()) {
+        return;
+      }
+
+      // The network can win the race. Backfill only IDs that are still absent
+      // so an older disk copy never overwrites newer server message state.
+      final existingIds = socket.messages.map((message) => message.id).toSet();
+      final missing = cachedMessages
+          .where((message) => !existingIds.contains(message.id))
+          .toList();
+      if (missing.isNotEmpty) socket.mergeChatHistory(missing);
+
+      debugPrint(
+        '[NovynPerf] chat_cache_ms=${cacheWatch.elapsedMilliseconds} '
+        'count=${cachedMessages.length} backfilled=${missing.length}',
+      );
+    } catch (error) {
+      debugPrint('[NovynChat] Local message cache read failed: $error');
+    } finally {
+      if (mounted && _chatId == chatId) {
+        _cacheReadComplete = true;
+        _refreshInitialHistoryLoadingState(socket);
+      }
+    }
+  }
+
+  void _refreshInitialHistoryLoadingState(SocketService socket) {
+    if (!mounted) return;
+    final waiting = socket.messages.isEmpty &&
+        (!_cacheReadComplete || !_serverHistoryComplete);
+    if (_fetchingFromServer != waiting) {
+      setState(() => _fetchingFromServer = waiting);
     }
   }
 
@@ -584,9 +628,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
         _scrollToBottom();
       }
 
-      await pendingSend;
-      if (!mounted) return;
-      _playSentSound();
+      // sendMessage resolves once the durable outbox accepts the message.
+      // A queued message is not a confirmed delivery, so do not play the
+      // "sent" sound until the server acknowledgement arrives.
     } catch (error) {
       if (mounted) {
         // Restore the failed text only when the user has not started another
@@ -3313,12 +3357,105 @@ ${htmlMessages}
   }
 }
 
+// ── Clickable URLs inside message text ─────────────────────────────────────
+class _LinkifiedMessageText extends StatefulWidget {
+  final String text;
+  final TextStyle style;
+  final Color linkColor;
+
+  const _LinkifiedMessageText({
+    required this.text,
+    required this.style,
+    required this.linkColor,
+  });
+
+  @override
+  State<_LinkifiedMessageText> createState() => _LinkifiedMessageTextState();
+}
+
+class _LinkifiedMessageTextState extends State<_LinkifiedMessageText> {
+  final Map<String, TapGestureRecognizer> _recognizers = {};
+
+  @override
+  void dispose() {
+    for (final recognizer in _recognizers.values) {
+      recognizer.dispose();
+    }
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final pattern = RegExp(
+      r'(?:https?://|www\.)[^\s<>()]+|(?:[a-z0-9-]+\.)+[a-z]{2,}(?:/[^\s<>()]*)?',
+      caseSensitive: false,
+    );
+    final spans = <TextSpan>[];
+    var cursor = 0;
+
+    for (final match in pattern.allMatches(widget.text)) {
+      final rawUrl = match.group(0)!;
+      final url = rawUrl.replaceFirst(RegExp(r'[.,!?;:]+$'), '');
+      if (url.isEmpty) continue;
+      final end = match.start + url.length;
+
+      if (match.start > cursor) {
+        spans.add(TextSpan(text: widget.text.substring(cursor, match.start)));
+      }
+
+      final recognizer = _recognizers.putIfAbsent(url, () {
+        return TapGestureRecognizer()
+          ..onTap = () async {
+            final candidate = url.toLowerCase().startsWith('http')
+                ? url
+                : 'https://$url';
+            final uri = Uri.tryParse(candidate);
+            if (uri == null ||
+                (uri.scheme != 'http' && uri.scheme != 'https') ||
+                uri.host.isEmpty) {
+              return;
+            }
+            try {
+              await launchUrl(uri, mode: LaunchMode.externalApplication);
+            } catch (error) {
+              debugPrint('[NovynChat] Could not open message link: $error');
+            }
+          };
+      });
+      spans.add(TextSpan(
+        text: url,
+        style: TextStyle(
+          color: widget.linkColor,
+          decoration: TextDecoration.underline,
+          decorationColor: widget.linkColor.withValues(alpha: 0.75),
+          fontWeight: FontWeight.w600,
+        ),
+        recognizer: recognizer,
+      ));
+      if (end < match.end) {
+        spans.add(TextSpan(text: widget.text.substring(end, match.end)));
+      }
+      cursor = match.end;
+    }
+
+    if (cursor < widget.text.length) {
+      spans.add(TextSpan(text: widget.text.substring(cursor)));
+    }
+
+    return RichText(text: TextSpan(style: widget.style, children: spans));
+  }
+}
+
 // ── Message Bubble ─────────────────────────────────────────────────────────
 class _MessageBubble extends StatelessWidget {
   static final Map<String, Future<Map<String, dynamic>?>> _linkPreviewCache = {};
 
   String? _extractFirstUrl(String text) {
-    return RegExp(r'https?://\S+', caseSensitive: false).firstMatch(text)?.group(0);
+    final match = RegExp(
+      r'(?:https?://|www\.)[^\s<>()]+|(?:[a-z0-9-]+\.)+[a-z]{2,}(?:/[^\s<>()]*)?',
+      caseSensitive: false,
+    ).firstMatch(text);
+    return match?.group(0)?.replaceFirst(RegExp(r'[.,!?;:]+$'), '');
   }
 
   Widget _buildLinkPreview(BuildContext context, String url) {
@@ -3580,17 +3717,20 @@ class _MessageBubble extends StatelessWidget {
                                 (message.attachment['kind']?.toString().toLowerCase() == 'image' ||
                                     message.attachment['mime']?.toString().toLowerCase().startsWith('image/') == true) &&
                                 (message.text as String).trim() == '[Image]'))
-                          Text(
-                          novynEmojiText(message.text as String),
-                          style: TextStyle(
-                            fontFamily: 'PlusJakartaSans',
-                            fontSize: 15,
-                            height: 1.35,
-                            color: isMe
+                          _LinkifiedMessageText(
+                            text: novynEmojiText(message.text as String),
+                            style: TextStyle(
+                              fontFamily: 'PlusJakartaSans',
+                              fontSize: 15,
+                              height: 1.35,
+                              color: isMe
+                                  ? Colors.white
+                                  : Theme.of(context).colorScheme.onSurface,
+                            ),
+                            linkColor: isMe
                                 ? Colors.white
-                                : Theme.of(context).colorScheme.onSurface,
+                                : Theme.of(context).colorScheme.primary,
                           ),
-                        ),
                         if (context.watch<SettingsService>().chatLinkPreviews &&
                             _extractFirstUrl(message.text as String) != null)
                           _buildLinkPreview(context, _extractFirstUrl(message.text as String)!),
@@ -4339,6 +4479,8 @@ class _MessageBubble extends StatelessWidget {
           height: 20,
           child: CustomPaint(painter: _SendingStatusPainter()),
         );
+      case 'queued':
+        return const Icon(Icons.schedule_rounded, color: muted, size: 14);
       case 'sent':
         return const Icon(Icons.check_rounded, color: muted, size: 15);
       case 'delivered':

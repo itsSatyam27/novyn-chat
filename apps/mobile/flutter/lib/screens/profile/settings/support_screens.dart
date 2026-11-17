@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:novyn/widgets/novyn_alert.dart';
@@ -23,6 +24,9 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
   int? _apkSize;
   int _installedBuild = 0, _latestBuild = 0;
   double _downloadProgress = 0;
+  DateTime? _lastProgressAt;
+  int _lastProgressBytes = 0;
+  double _downloadSpeedBytesPerSecond = 0;
   String _appVersion = AppUpdateService.displayVersion, _buildNumber = '0';
   final AppUpdateService _updateService = AppUpdateService.instance;
 
@@ -37,6 +41,24 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
 
   void _handleDownloadStateChanged() {
     if (!mounted) return;
+    final now = DateTime.now();
+    final bytes = _updateService.downloadedBytes;
+    if (_updateService.isDownloading) {
+      final previousAt = _lastProgressAt;
+      if (previousAt != null) {
+        final elapsed = now.difference(previousAt).inMilliseconds / 1000;
+        final received = bytes - _lastProgressBytes;
+        if (elapsed > 0 && received >= 0) {
+          _downloadSpeedBytesPerSecond = received / elapsed;
+        }
+      }
+      _lastProgressAt = now;
+      _lastProgressBytes = bytes;
+    } else {
+      _lastProgressAt = null;
+      _lastProgressBytes = bytes;
+      _downloadSpeedBytesPerSecond = 0;
+    }
     setState(() {
       _downloading = _updateService.isDownloading;
       _downloadProgress = _updateService.downloadProgress;
@@ -282,17 +304,16 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
                       _updateChip('ARM64-v8a', surface, ink, border),
                     ]),
                     if (_downloading || _updateService.hasPartialDownload) ...[
-                      const SizedBox(height: 14),
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: LinearProgressIndicator(
-                          value: _downloadProgress,
-                          minHeight: 5,
-                          backgroundColor: primary.withValues(alpha: .15)),
+                      const SizedBox(height: 16),
+                      _LiquidDownloadProgress(
+                        progress: _downloadProgress,
+                        downloadedBytes: _updateService.downloadedBytes,
+                        totalBytes: _apkSize ?? _updateService.expectedBytes,
+                        speedBytesPerSecond: _downloadSpeedBytesPerSecond,
+                        paused: !_downloading && _updateService.hasPartialDownload,
+                        primary: primary,
+                        muted: muted,
                       ),
-                      const SizedBox(height: 6),
-                      Text('Downloading ${(_downloadProgress * 100).toStringAsFixed(0)}%',
-                        style: TextStyle(color: muted, fontSize: 12, fontWeight: FontWeight.w600)),
                     ],
                     if (_updateService.downloadError != null) ...[
                       const SizedBox(height: 8),
@@ -451,85 +472,587 @@ class _InfoRow extends StatelessWidget {
   }
 }
 
-class HelpSupportScreen extends StatelessWidget {
-  const HelpSupportScreen({super.key});
+class _LiquidDownloadProgress extends StatefulWidget {
+  const _LiquidDownloadProgress({
+    required this.progress,
+    required this.downloadedBytes,
+    required this.totalBytes,
+    required this.speedBytesPerSecond,
+    required this.paused,
+    required this.primary,
+    required this.muted,
+  });
+  final double progress;
+  final int downloadedBytes;
+  final int totalBytes;
+  final double speedBytesPerSecond;
+  final bool paused;
+  final Color primary;
+  final Color muted;
 
-  Future<void> _openIssues(BuildContext context) async {
-    final uri = Uri.parse('https://github.com/itsSatyam27/novyn-chat/issues');
-    if (!await launchUrl(uri, mode: LaunchMode.externalApplication) && context.mounted) {
-      context.showNovynAlert(const SnackBar(content: Text('Could not open support page.')));
-    }
+  @override
+  State<_LiquidDownloadProgress> createState() => _LiquidDownloadProgressState();
+}
+
+class _LiquidDownloadProgressState extends State<_LiquidDownloadProgress>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _wave;
+  @override
+  void initState() {
+    super.initState();
+    _wave = AnimationController(vsync: this,
+      duration: const Duration(milliseconds: 1700))..repeat();
+  }
+  @override
+  void dispose() { _wave.dispose(); super.dispose(); }
+
+  String _mb(int bytes) => (bytes / 1000000).toStringAsFixed(1);
+  String _eta() {
+    final remaining=(widget.totalBytes-widget.downloadedBytes)
+        .clamp(0,widget.totalBytes);
+    if(widget.speedBytesPerSecond<1024||widget.totalBytes<=0)
+      return widget.paused?'Paused':'Calculating time…';
+    final seconds=(remaining/widget.speedBytesPerSecond).ceil().clamp(0,86400);
+    if(seconds<60) return seconds.toString()+' sec left';
+    return ((seconds/60).ceil()).toString()+' min left';
   }
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    return Scaffold(
-      backgroundColor: NovynTheme.pageBg(context),
-      appBar: AppBar(
-        backgroundColor: NovynTheme.pageBg(context),
-        elevation: 0,
-        title: const Text('Help & Support', style: TextStyle(fontWeight: FontWeight.w800)),
-      ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 36),
-        children: [
-          Text('How can we help?', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900)),
-          const SizedBox(height: 7),
-          Text('Find answers or report a problem with Novyn.', style: TextStyle(color: colors.onSurfaceVariant)),
-          const SizedBox(height: 22),
-          _helpCard(context, icon: Icons.menu_book_rounded, title: 'Getting started', description: 'Learn how to use chats, contacts, calls and settings.'),
-          _helpCard(context, icon: Icons.lock_outline_rounded, title: 'Account & privacy', description: 'Review privacy controls and account security settings.'),
-          _helpCard(context, icon: Icons.backup_outlined, title: 'Chat backup', description: 'Create an encrypted backup from Settings → Chat Settings.'),
-          const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.all(17),
-            decoration: BoxDecoration(
-              color: NovynTheme.cardBg(context),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: colors.outlineVariant.withValues(alpha: .6)),
-            ),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Text('Report a bug or issue', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
-              const SizedBox(height: 6),
-              Text('Open the Novyn project issue tracker to report a problem or share feedback.', style: TextStyle(color: colors.onSurfaceVariant, height: 1.4)),
-              const SizedBox(height: 14),
-              SizedBox(width: double.infinity, child: FilledButton.icon(
-                onPressed: () => _openIssues(context),
-                icon: const Icon(Icons.open_in_new_rounded),
-                label: const Text('Open support page'),
-              )),
+    final pct=(widget.progress.clamp(0.0,1.0)*100).round();
+    final speed=widget.speedBytesPerSecond>=1024
+      ? (widget.speedBytesPerSecond/1000000).toStringAsFixed(1)+' MB/s'
+      : widget.paused?'Paused':'Measuring speed…';
+    return Row(crossAxisAlignment:CrossAxisAlignment.center,children:[
+      AnimatedBuilder(animation:_wave,builder:(context,child){
+        final phase=_wave.value*2*math.pi;
+        final p=widget.progress.clamp(0.0,1.0).toDouble();
+        return SizedBox(width:108,height:108,child:ClipRRect(
+          borderRadius:BorderRadius.circular(32),
+          child:Stack(fit:StackFit.expand,children:[
+            ColoredBox(color:widget.primary.withValues(alpha:.13)),
+            CustomPaint(painter:_LiquidWavePainter(
+              progress:p,phase:phase,color:widget.primary)),
+            Center(child:Text(pct.toString()+'%',style:TextStyle(
+              color:widget.primary,fontSize:25,fontWeight:FontWeight.w900,
+              letterSpacing:-.7))),
+            ClipPath(clipper:_LiquidWaveClipper(progress:p,phase:phase),
+              child:Center(child:Text(pct.toString()+'%',
+                style:const TextStyle(color:Colors.white,fontSize:25,
+                  fontWeight:FontWeight.w900,letterSpacing:-.7)))),
+          ]),
+        ));
+      }),
+      const SizedBox(width:14),
+      Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,
+        mainAxisAlignment:MainAxisAlignment.center,children:[
+        Text(widget.paused?'Download paused':'Downloading update',
+          style:TextStyle(color:Theme.of(context).colorScheme.onSurface,
+            fontSize:14,fontWeight:FontWeight.w900)),
+        const SizedBox(height:5),
+        Text(_mb(widget.downloadedBytes)+' of '+_mb(widget.totalBytes)+' MB',
+          style:TextStyle(color:widget.muted,fontSize:12,fontWeight:FontWeight.w600)),
+        const SizedBox(height:9),
+        _chip(speed),
+        const SizedBox(height:6),
+        _chip(_eta()),
+      ])),
+    ]);
+  }
+
+  Widget _chip(String label)=>Container(
+    padding:const EdgeInsets.symmetric(horizontal:9,vertical:5),
+    decoration:BoxDecoration(color:widget.primary.withValues(alpha:.08),
+      borderRadius:BorderRadius.circular(12)),
+    child:Text(label,maxLines:1,overflow:TextOverflow.ellipsis,
+      style:TextStyle(color:widget.muted,fontSize:11,fontWeight:FontWeight.w700)));
+}
+
+class _LiquidWavePainter extends CustomPainter {
+  const _LiquidWavePainter({required this.progress,required this.phase,
+    required this.color});
+  final double progress,phase;
+  final Color color;
+  Path _path(Size size) {
+    if(progress>=1) return Path()..addRect(Offset.zero&size);
+    final level=size.height*(1-progress);
+    final path=Path()..moveTo(0,level);
+    for(double x=0;x<=size.width;x+=2){
+      final y=level+math.sin((x/size.width*2*math.pi)+phase)*3.5;
+      path.lineTo(x,y);
+    }
+    return path..lineTo(size.width,size.height)
+      ..lineTo(0,size.height)..close();
+  }
+  @override
+  void paint(Canvas canvas,Size size){
+    if(progress>0) canvas.drawPath(_path(size),Paint()..color=color);
+  }
+  @override
+  bool shouldRepaint(covariant _LiquidWavePainter old)=>old.progress!=progress||
+    old.phase!=phase||old.color!=color;
+}
+
+class _LiquidWaveClipper extends CustomClipper<Path> {
+  const _LiquidWaveClipper({required this.progress,required this.phase});
+  final double progress,phase;
+  @override
+  Path getClip(Size size){
+    if(progress<=0) return Path();
+    if(progress>=1) return Path()..addRect(Offset.zero&size);
+    final level=size.height*(1-progress);
+    final path=Path()..moveTo(0,level);
+    for(double x=0;x<=size.width;x+=2){
+      final y=level+math.sin((x/size.width*2*math.pi)+phase)*3.5;
+      path.lineTo(x,y);
+    }
+    return path..lineTo(size.width,size.height)
+      ..lineTo(0,size.height)..close();
+  }
+  @override
+  bool shouldReclip(covariant _LiquidWaveClipper old)=>
+    old.progress!=progress||old.phase!=phase;
+}
+
+class _HelpEntry {
+  const _HelpEntry(this.title, this.subtitle, this.detail, this.icon,
+      this.accent, this.kind);
+  final String title;
+  final String subtitle;
+  final String detail;
+  final IconData icon;
+  final Color accent;
+  final String kind;
+}
+
+class HelpSupportScreen extends StatefulWidget {
+  const HelpSupportScreen({super.key});
+  @override
+  State<HelpSupportScreen> createState() => _HelpSupportScreenState();
+}
+
+class _HelpSupportScreenState extends State<HelpSupportScreen> {
+  final _searchController = TextEditingController();
+  String _query = '';
+  String? _expandedFaq = 'How do I back up my chats?';
+  final Map<String, bool> _votes = {};
+
+  static const _topics = <_HelpEntry>[
+    _HelpEntry('Getting started','Chats, contacts, calls and settings',
+      'Start conversations from Chats, find people in Friends, and personalize Novyn from your profile settings.',
+      Icons.menu_book_rounded,Color(0xFF8B6DF6),'Help topic'),
+    _HelpEntry('Account & privacy','Privacy controls and security',
+      'Review your account details, app lock, blocked contacts, presence and privacy controls from Settings.',
+      Icons.lock_outline_rounded,Color(0xFF4A956A),'Help topic'),
+    _HelpEntry('Chat backup','Create and restore a chat backup',
+      'Open Settings → Chat Settings → Chat backup. Create a backup before changing devices, then use Restore when setting up Novyn again.',
+      Icons.cloud_upload_outlined,Color(0xFF5488C7),'Help topic'),
+    _HelpEntry('Friends & requests','Add people by username',
+      'Open Friends, search for a person by their Novyn username, and send a friend request. You can review incoming requests in the same area.',
+      Icons.group_outlined,Color(0xFFB45E91),'Help topic'),
+    _HelpEntry('Calls & video','Audio and video calling',
+      'Open a conversation and use its call controls to start an audio or video call. Check microphone and camera permissions if a call cannot start.',
+      Icons.call_outlined,Color(0xFF4C9A91),'Help topic'),
+    _HelpEntry('Notifications','Alerts, sounds and Do Not Disturb',
+      'Open Settings → Notifications to manage message previews, sounds, vibration and Do Not Disturb preferences.',
+      Icons.notifications_none_rounded,Color(0xFFBD8744),'Help topic'),
+  ];
+
+  static const _faqs = <_HelpEntry>[
+    _HelpEntry('How do I back up my chats?','Popular question',
+      'Open Settings → Chat Settings and choose Chat backup. Backups are encrypted, and you can restore them when you set up Novyn again.',
+      Icons.description_outlined,Color(0xFF8B6DF6),'Popular question'),
+    _HelpEntry('How do I stop screenshots in chats?','Popular question',
+      'Open the conversation settings and review the privacy controls available for that chat. Availability can depend on the current app build and device.',
+      Icons.description_outlined,Color(0xFF8B6DF6),'Popular question'),
+    _HelpEntry('Who can see when I am online?','Popular question',
+      'Your presence is shown according to your current presence and privacy settings. Review the privacy controls in Settings for the options available in your build.',
+      Icons.description_outlined,Color(0xFF8B6DF6),'Popular question'),
+    _HelpEntry('How do I add a friend?','Popular question',
+      'Open Friends, search by the person’s Novyn username, and send a friend request.',
+      Icons.description_outlined,Color(0xFF8B6DF6),'Popular question'),
+  ];
+
+  static const _articles = <_HelpEntry>[
+    _HelpEntry('Restore a backup on a new phone','Article',
+      'Install Novyn on your new phone, sign in to the same account, open Settings → Chat Settings → Chat backup, and follow the restore flow for your saved backup.',
+      Icons.article_outlined,Color(0xFF8B6DF6),'Article'),
+  ];
+
+  List<_HelpEntry> get _results {
+    final q=_query.trim().toLowerCase();
+    if(q.isEmpty) return const [];
+    return <_HelpEntry>[..._topics,..._faqs,..._articles].where((e)=>
+      e.title.toLowerCase().contains(q) ||
+      e.subtitle.toLowerCase().contains(q) ||
+      e.detail.toLowerCase().contains(q)).take(8).toList();
+  }
+
+  @override
+  void dispose(){_searchController.dispose();super.dispose();}
+
+  Future<void> _openIssues({bool newBug=false}) async {
+    final uri=newBug
+      ? Uri.https('github.com','/itsSatyam27/novyn-chat/issues/new',
+          {'title':'Novyn app bug report'})
+      : Uri.https('github.com','/itsSatyam27/novyn-chat/issues');
+    if(!await launchUrl(uri,mode:LaunchMode.externalApplication)&&mounted){
+      context.showNovynAlert(const SnackBar(content:Text('Could not open the support page.')));
+    }
+  }
+
+  void _openFeedback()=>Navigator.of(context).push(
+    MaterialPageRoute<void>(builder:(_)=>const FeedbackScreen()));
+
+  void _showEntry(_HelpEntry e){
+    final dark=Theme.of(context).brightness==Brightness.dark;
+    showModalBottomSheet<void>(
+      context:context,isScrollControlled:true,backgroundColor:Colors.transparent,
+      builder:(sheetContext){
+        final surface=dark?const Color(0xFF171622):Colors.white;
+        final ink=dark?const Color(0xFFF2F0FF):const Color(0xFF1C1B29);
+        final muted=dark?const Color(0xFFAAA7BE):const Color(0xFF6B6880);
+        return SafeArea(top:false,child:Container(
+          padding:const EdgeInsets.fromLTRB(22,12,22,28),
+          decoration:BoxDecoration(color:surface,borderRadius:
+            const BorderRadius.vertical(top:Radius.circular(28))),
+          child:Column(mainAxisSize:MainAxisSize.min,crossAxisAlignment:
+            CrossAxisAlignment.start,children:[
+            Center(child:Container(width:42,height:4,decoration:BoxDecoration(
+              color:muted.withValues(alpha:.35),borderRadius:BorderRadius.circular(8)))),
+            const SizedBox(height:22),
+            Row(children:[
+              Container(width:46,height:46,decoration:BoxDecoration(
+                color:e.accent.withValues(alpha:.13),borderRadius:BorderRadius.circular(15)),
+                child:Icon(e.icon,color:e.accent,size:23)),
+              const SizedBox(width:12),
+              Expanded(child:Text(e.kind.toUpperCase(),style:TextStyle(color:muted,
+                fontSize:11,fontWeight:FontWeight.w800,letterSpacing:1.1))),
+              IconButton(onPressed:()=>Navigator.pop(sheetContext),
+                icon:Icon(Icons.close_rounded,color:muted)),
             ]),
-          ),
-        ],
-      ),
+            const SizedBox(height:12),
+            Text(e.title,style:TextStyle(color:ink,fontSize:21,
+              fontWeight:FontWeight.w900,letterSpacing:-.45)),
+            const SizedBox(height:9),
+            Text(e.detail,style:TextStyle(color:muted,fontSize:14,height:1.55)),
+            const SizedBox(height:22),
+            SizedBox(width:double.infinity,height:48,child:FilledButton(
+              onPressed:()=>Navigator.pop(sheetContext),child:const Text('Got it'))),
+          ]),
+        ));
+      },
     );
   }
 
-  Widget _helpCard(BuildContext context, {
-    required IconData icon,
-    required String title,
-    required String description,
-  }) => Container(
-    margin: const EdgeInsets.only(bottom: 10),
-    padding: const EdgeInsets.all(15),
-    decoration: BoxDecoration(
-      color: NovynTheme.cardBg(context),
-      borderRadius: BorderRadius.circular(17),
-      border: Border.all(color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: .55)),
+  Widget _header(Color ink,Color surface,Color border)=>Row(children:[
+    Material(color:surface,borderRadius:BorderRadius.circular(15),child:InkWell(
+      onTap:()=>Navigator.of(context).maybePop(),borderRadius:BorderRadius.circular(15),
+      child:Container(width:44,height:44,decoration:BoxDecoration(
+        borderRadius:BorderRadius.circular(15),
+        border:Border.all(color:border.withValues(alpha:.65))),
+        child:Icon(Icons.arrow_back_rounded,color:ink,size:21)))),
+    const Expanded(child:Text('Help & Support',textAlign:TextAlign.center,
+      style:TextStyle(fontSize:17,fontWeight:FontWeight.w900,letterSpacing:-.25))),
+    const SizedBox(width:44),
+  ]);
+
+  Widget _search(Color ink,Color muted,Color surface,Color primary)=>Container(
+    height:50,
+    decoration:BoxDecoration(color:surface,borderRadius:BorderRadius.circular(26),
+      boxShadow:[BoxShadow(color:primary.withValues(alpha:.07),
+        blurRadius:15,offset:const Offset(0,4))]),
+    child:TextField(
+      controller:_searchController,
+      onChanged:(v)=>setState(()=>_query=v),
+      textInputAction:TextInputAction.search,
+      style:TextStyle(color:ink,fontSize:14),
+      decoration:InputDecoration(
+        hintText:'Search help topics',
+        hintStyle:TextStyle(color:muted,fontSize:14),
+        prefixIcon:Icon(Icons.search_rounded,color:primary,size:21),
+        suffixIcon:_query.isEmpty?null:IconButton(
+          onPressed:(){_searchController.clear();setState(()=>_query='');},
+          icon:Icon(Icons.close_rounded,color:muted,size:20)),
+        border:InputBorder.none,
+        contentPadding:const EdgeInsets.symmetric(vertical:14),
+      ),
     ),
-    child: Row(children: [
-      Icon(icon, color: Theme.of(context).colorScheme.primary, size: 22),
-      const SizedBox(width: 13),
-      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
-        const SizedBox(height: 3),
-        Text(description, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+  );
+
+  Widget _action(String title,IconData icon,Color accent,VoidCallback tap,
+      {bool external=false}){
+    final dark=Theme.of(context).brightness==Brightness.dark;
+    final surface=dark?const Color(0xFF191824):Colors.white;
+    return Expanded(child:Material(color:surface,borderRadius:BorderRadius.circular(21),
+      child:InkWell(onTap:tap,borderRadius:BorderRadius.circular(21),
+        child:Container(height:102,padding:const EdgeInsets.fromLTRB(6,10,6,9),
+          decoration:BoxDecoration(borderRadius:BorderRadius.circular(21),
+            border:Border.all(color:Theme.of(context).colorScheme.outlineVariant
+              .withValues(alpha:.28)),
+            boxShadow:[BoxShadow(color:accent.withValues(alpha:.045),
+              blurRadius:12,offset:const Offset(0,4))]),
+          child:Column(mainAxisAlignment:MainAxisAlignment.center,children:[
+            Container(width:38,height:38,decoration:BoxDecoration(
+              color:accent.withValues(alpha:.12),borderRadius:BorderRadius.circular(13)),
+              child:Icon(icon,color:accent,size:20)),
+            const SizedBox(height:7),
+            Row(mainAxisAlignment:MainAxisAlignment.center,children:[
+              Flexible(child:Text(title,maxLines:1,overflow:TextOverflow.ellipsis,
+                style:TextStyle(color:Theme.of(context).colorScheme.onSurface,
+                  fontSize:11.5,fontWeight:FontWeight.w900))),
+              if(external) ...[const SizedBox(width:3),
+                Icon(Icons.open_in_new_rounded,color:accent,size:11)],
+            ]),
+          ]),
+        ),
+      ),
+    ));
+  }
+
+  Widget _section(String title,Color muted)=>Padding(
+    padding:const EdgeInsets.only(left:3,bottom:10),
+    child:Text(title.toUpperCase(),style:TextStyle(color:muted,fontSize:10.5,
+      fontWeight:FontWeight.w900,letterSpacing:1.4)));
+
+  Widget _topicCard(_HelpEntry e,Color ink,Color muted,Color surface)=>Material(
+    color:surface,borderRadius:BorderRadius.circular(20),
+    child:InkWell(onTap:()=>_showEntry(e),borderRadius:BorderRadius.circular(20),
+      child:Container(padding:const EdgeInsets.all(13),
+        decoration:BoxDecoration(borderRadius:BorderRadius.circular(20),
+          border:Border.all(color:Theme.of(context).colorScheme.outlineVariant
+            .withValues(alpha:.25)),
+          boxShadow:[BoxShadow(color:e.accent.withValues(alpha:.035),
+            blurRadius:12,offset:const Offset(0,3))]),
+        child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+          Container(width:34,height:34,decoration:BoxDecoration(
+            color:e.accent.withValues(alpha:.13),borderRadius:BorderRadius.circular(11)),
+            child:Icon(e.icon,color:e.accent,size:18)),
+          const SizedBox(height:8),
+          Text(e.title,maxLines:1,overflow:TextOverflow.ellipsis,
+            style:TextStyle(color:ink,fontSize:12.3,fontWeight:FontWeight.w900)),
+          const SizedBox(height:3),
+          Text(e.subtitle,maxLines:2,overflow:TextOverflow.ellipsis,
+            style:TextStyle(color:muted,fontSize:10.8,height:1.28)),
+        ]),
+      ),
+    ),
+  );
+
+  Widget _vote(IconData icon,bool selected,VoidCallback tap)=>Material(
+    color:selected?const Color(0xFFEAE4FF):const Color(0xFFF5F3FA),
+    borderRadius:BorderRadius.circular(12),
+    child:InkWell(onTap:tap,borderRadius:BorderRadius.circular(12),
+      child:SizedBox(width:36,height:30,child:Icon(icon,
+        color:selected?const Color(0xFF6C4DF6):const Color(0xFF777389),size:16))));
+
+  Widget _faqList(Color ink,Color muted,Color surface,Color border)=>Container(
+    decoration:BoxDecoration(color:surface,borderRadius:BorderRadius.circular(22),
+      border:Border.all(color:border.withValues(alpha:.45)),
+      boxShadow:[BoxShadow(color:const Color(0xFF6C4DF6).withValues(alpha:.045),
+        blurRadius:16,offset:const Offset(0,5))]),
+    child:Column(children:List.generate(_faqs.length,(i){
+      final e=_faqs[i],expanded=_expandedFaq==_faqs[i].title;
+      final vote=_votes[e.title];
+      return Column(children:[
+        InkWell(onTap:()=>setState(()=>_expandedFaq=expanded?null:e.title),
+          child:Padding(padding:const EdgeInsets.symmetric(horizontal:15,vertical:13),
+            child:Row(children:[
+              Expanded(child:Text(e.title,style:TextStyle(color:ink,fontSize:12.5,
+                fontWeight:FontWeight.w800))),
+              const SizedBox(width:9),
+              Container(width:27,height:27,decoration:const BoxDecoration(
+                color:Color(0xFFF1EDFF),shape:BoxShape.circle),
+                child:Icon(expanded?Icons.keyboard_arrow_up_rounded:
+                  Icons.keyboard_arrow_down_rounded,
+                  color:const Color(0xFF6C4DF6),size:19)),
+            ]))),
+        if(expanded) Padding(padding:const EdgeInsets.fromLTRB(15,0,15,13),
+          child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+            Text(e.detail,style:TextStyle(color:muted,fontSize:12.2,height:1.5)),
+            const SizedBox(height:12),
+            Row(children:[
+              Expanded(child:Text('Was this helpful?',style:TextStyle(color:muted,
+                fontSize:11.5,fontWeight:FontWeight.w700))),
+              _vote(Icons.thumb_up_alt_outlined,vote==true,
+                ()=>setState(()=>_votes[e.title]=true)),
+              const SizedBox(width:7),
+              _vote(Icons.thumb_down_alt_outlined,vote==false,
+                ()=>setState(()=>_votes[e.title]=false)),
+            ]),
+          ])),
+        if(i!=_faqs.length-1) Divider(height:1,color:border.withValues(alpha:.38)),
+      ]);
+    })),
+  );
+
+  Widget _cantFind(Color ink,Color muted,Color surface)=>Container(
+    padding:const EdgeInsets.all(14),
+    decoration:BoxDecoration(color:surface,borderRadius:BorderRadius.circular(20)),
+    child:Row(children:[
+      Container(width:42,height:42,decoration:BoxDecoration(
+        color:const Color(0xFFBD8744).withValues(alpha:.13),
+        borderRadius:BorderRadius.circular(14)),
+        child:const Icon(Icons.headset_mic_rounded,
+          color:Color(0xFFBD8744),size:20)),
+      const SizedBox(width:11),
+      Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+        Text('Can’t find it?',style:TextStyle(color:ink,fontSize:13.5,
+          fontWeight:FontWeight.w900)),
+        const SizedBox(height:2),
+        Text('Open the support page and tell us.',
+          style:TextStyle(color:muted,fontSize:11.5)),
       ])),
+      IconButton.filled(onPressed:()=>_openIssues(),
+        style:IconButton.styleFrom(
+          backgroundColor:Theme.of(context).colorScheme.primary,
+          foregroundColor:Theme.of(context).colorScheme.onPrimary,
+          shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(14))),
+        icon:const Icon(Icons.open_in_new_rounded,size:19)),
     ]),
   );
-}
 
+  Widget _searchResults(Color ink,Color muted,Color surface,Color border){
+    final results=_results;
+    return Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+      _section(results.length.toString()+' results',muted),
+      if(results.isEmpty) Container(padding:const EdgeInsets.all(22),
+        decoration:BoxDecoration(color:surface,borderRadius:BorderRadius.circular(22)),
+        child:Center(child:Text('No matching topics found. Try another search.',
+          textAlign:TextAlign.center,style:TextStyle(color:muted,fontSize:13))))
+      else Container(
+        decoration:BoxDecoration(color:surface,borderRadius:BorderRadius.circular(22),
+          border:Border.all(color:border.withValues(alpha:.35))),
+        child:Column(children:List.generate(results.length,(i){
+          final e=results[i];
+          return Column(children:[
+            ListTile(onTap:()=>_showEntry(e),
+              contentPadding:const EdgeInsets.symmetric(horizontal:15,vertical:3),
+              leading:Container(width:42,height:42,decoration:BoxDecoration(
+                color:e.accent.withValues(alpha:.13),borderRadius:BorderRadius.circular(14)),
+                child:Icon(e.icon,color:e.accent,size:20)),
+              title:Text(e.title,style:TextStyle(color:ink,fontSize:13,
+                fontWeight:FontWeight.w800)),
+              subtitle:Text(e.kind,style:TextStyle(color:muted,fontSize:11.5)),
+              trailing:Icon(Icons.chevron_right_rounded,color:muted)),
+            if(i!=results.length-1) Divider(height:1,
+              color:border.withValues(alpha:.35),indent:70),
+          ]);
+        })),
+      ),
+      const SizedBox(height:18),
+      _cantFind(ink,muted,surface),
+    ]);
+  }
+
+  Widget _stillNeedHelp(Color ink,Color muted,Color surface){
+    final primary=Theme.of(context).colorScheme.primary;
+    return Container(padding:const EdgeInsets.all(17),
+      decoration:BoxDecoration(color:surface,borderRadius:BorderRadius.circular(23),
+        border:Border.all(color:Theme.of(context).colorScheme.outlineVariant
+          .withValues(alpha:.25)),
+        boxShadow:[BoxShadow(color:primary.withValues(alpha:.045),
+          blurRadius:14,offset:const Offset(0,5))]),
+      child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+        Row(children:[
+          Container(width:42,height:42,decoration:BoxDecoration(
+            color:primary.withValues(alpha:.12),borderRadius:BorderRadius.circular(14)),
+            child:Icon(Icons.support_agent_rounded,color:primary,size:22)),
+          const SizedBox(width:11),
+          Text('Still need help?',style:TextStyle(color:ink,fontSize:15,
+            fontWeight:FontWeight.w900)),
+        ]),
+        const SizedBox(height:10),
+        Text('Open the Novyn project issue tracker to report a problem or share feedback.',
+          style:TextStyle(color:muted,fontSize:12.5,height:1.45)),
+        const SizedBox(height:13),
+        SizedBox(width:double.infinity,height:45,child:FilledButton.icon(
+          onPressed:()=>_openIssues(),
+          icon:const Icon(Icons.open_in_new_rounded,size:18),
+          label:const Text('Open support page',
+            style:TextStyle(fontWeight:FontWeight.w800)),
+          style:FilledButton.styleFrom(shape:RoundedRectangleBorder(
+            borderRadius:BorderRadius.circular(16))))),
+      ]),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context){
+    final dark=Theme.of(context).brightness==Brightness.dark;
+    final pageBg=dark?NovynTheme.pageBg(context):const Color(0xFFF3F0FB);
+    final surface=dark?const Color(0xFF191824):Colors.white;
+    final ink=dark?const Color(0xFFF0EFFF):const Color(0xFF1C1B29);
+    final muted=dark?const Color(0xFFAAA8C6):const Color(0xFF6B6880);
+    final border=dark?const Color(0xFF39345F):const Color(0xFFE4DFFB);
+    final primary=Theme.of(context).colorScheme.primary;
+    return Scaffold(backgroundColor:pageBg,body:SafeArea(child:ListView(
+      physics:const BouncingScrollPhysics(),
+      padding:const EdgeInsets.fromLTRB(16,8,16,28),
+      children:[
+        _header(ink,surface,border),
+        const SizedBox(height:17),
+        if(_query.isEmpty) ...[
+          Container(
+            padding:const EdgeInsets.fromLTRB(17,17,17,16),
+            decoration:BoxDecoration(
+              gradient:LinearGradient(begin:Alignment.topLeft,end:Alignment.bottomRight,
+                colors:dark?const [Color(0xFF292342),Color(0xFF211E35)]:
+                  const [Color(0xFFE8E1FF),Color(0xFFDCD3FF)]),
+              borderRadius:BorderRadius.circular(25)),
+            child:Stack(children:[
+              Positioned(right:4,top:-20,child:Container(width:80,height:80,
+                decoration:BoxDecoration(shape:BoxShape.circle,
+                  border:Border.all(color:primary.withValues(alpha:.10),width:1.5)))),
+              Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+                Text('How can we help?',style:TextStyle(color:ink,fontSize:22,
+                  fontWeight:FontWeight.w900,letterSpacing:-.65)),
+                const SizedBox(height:4),
+                Text('Find answers or report a problem\nwith Novyn.',
+                  style:TextStyle(color:muted,fontSize:12.5,height:1.35)),
+                const SizedBox(height:14),
+                _search(ink,muted,surface,primary),
+              ]),
+            ]),
+          ),
+          const SizedBox(height:12),
+          Row(children:[
+            _action('Contact support',Icons.headset_mic_rounded,
+              const Color(0xFF8065ED),()=>_openIssues(),external:true),
+            const SizedBox(width:9),
+            _action('Report a bug',Icons.bug_report_rounded,
+              const Color(0xFFD45B56),()=>_openIssues(newBug:true),external:true),
+            const SizedBox(width:9),
+            _action('Send feedback',Icons.chat_bubble_outline_rounded,
+              const Color(0xFFBD8744),_openFeedback),
+          ]),
+          const SizedBox(height:22),
+          _section('Help topics',muted),
+          GridView.builder(
+            shrinkWrap:true,physics:const NeverScrollableScrollPhysics(),
+            itemCount:_topics.length,
+            gridDelegate:const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount:2,mainAxisSpacing:10,crossAxisSpacing:10,
+              mainAxisExtent:119),
+            itemBuilder:(context,i)=>_topicCard(_topics[i],ink,muted,surface)),
+          const SizedBox(height:21),
+          _section('Popular questions',muted),
+          _faqList(ink,muted,surface,border),
+          const SizedBox(height:15),
+          _stillNeedHelp(ink,muted,surface),
+        ] else ...[
+          _search(ink,muted,surface,primary),
+          const SizedBox(height:21),
+          _searchResults(ink,muted,surface,border),
+        ],
+        const SizedBox(height:22),
+        Center(child:Text('NOVYN · YOUR SPACE, YOUR PEOPLE',
+          style:TextStyle(color:muted,fontSize:10.5,fontWeight:FontWeight.w800,
+            letterSpacing:1.6))),
+      ],
+    )));
+  }
+}
 
 class FeedbackScreen extends StatefulWidget {
   const FeedbackScreen({super.key});

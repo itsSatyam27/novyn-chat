@@ -95,6 +95,12 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   // The active mode's notificationsEnabled preference is persisted above.
   // Keep honoring explicit silent payloads (including delayed pushes).
   final sender = (data['chat'] ?? '').toString().trim();
+  final archivedChats = (prefs.getStringList('novyn_archived_${(prefs.getString('novyn_notification_account') ?? '').trim().toLowerCase()}') ?? [])
+      .map((value) => value.trim().toLowerCase()).toSet();
+  final lockedChats = (prefs.getStringList('novyn_locked_chats_${(prefs.getString('novyn_notification_account') ?? '').trim().toLowerCase()}') ?? [])
+      .map((value) => value.trim().toLowerCase()).toSet();
+  if (archivedChats.contains(sender.toLowerCase())) return;
+  final isLockedChat = lockedChats.contains(sender.toLowerCase());
   final dndEnabled = prefs.getBool('do_not_disturb_enabled') ?? false;
   final favoriteIds = (prefs.getStringList('favorite_chat_ids') ?? [])
       .map((value) => value.toLowerCase()).toSet();
@@ -116,7 +122,7 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   }
 
   var body = 'You have a new message';
-  if (previewEnabled && !hideContent) {
+  if (previewEnabled && !hideContent && !isLockedChat) {
     // New message pushes contain the plain message preview in their data payload.
     final plaintextPreview = data['body']?.toString().trim() ?? '';
     if (plaintextPreview.isNotEmpty &&
@@ -178,6 +184,24 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 
 class NotificationService {
   static final FirebaseMessaging _fcm = FirebaseMessaging.instance;
+  static final Set<String> _archivedChatNotificationIds = <String>{};
+
+  static void setChatArchivedForNotifications(String chatId, bool archived) {
+    final key = chatId.trim().toLowerCase();
+    if (key.isEmpty) return;
+    if (archived) { _archivedChatNotificationIds.add(key); } else { _archivedChatNotificationIds.remove(key); }
+  }
+
+  static Future<({bool archived, bool locked})> _chatNotificationPrivacy(String chatId) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.reload();
+    final account = (prefs.getString('novyn_notification_account') ?? '').trim().toLowerCase();
+    final key = chatId.trim().toLowerCase();
+    final archived = (prefs.getStringList('novyn_archived_$account') ?? []).map((v) => v.toLowerCase()).contains(key);
+    final locked = (prefs.getStringList('novyn_locked_chats_$account') ?? []).map((v) => v.toLowerCase()).contains(key);
+    setChatArchivedForNotifications(key, archived);
+    return (archived: archived, locked: locked && !archived);
+  }
   static final FlutterLocalNotificationsPlugin _localNotifications =
       FlutterLocalNotificationsPlugin();
   static const String _messageChannelId = 'novyn_messages';
@@ -498,6 +522,8 @@ class NotificationService {
 
   static Future<void> showInAppMessage(
       String username, String messageBody, BuildContext context) async {
+    final privacy = await _chatNotificationPrivacy(username);
+    if (privacy.archived) return;
     // Keep the host screen context for navigation. The banner's animated
     // builder context is disposed as soon as the overlay entry is removed.
     final navigationContext = context;
@@ -512,7 +538,7 @@ class NotificationService {
       return;
     }
 
-    final preview = settings.messagePreview && !settings.hideNotificationContent
+    final preview = settings.messagePreview && !settings.hideNotificationContent && !privacy.locked
         ? messageBody.trim()
         : 'You have a new message';
     final senderProfile = _socket?.contacts.findUser(username);
@@ -806,6 +832,13 @@ class NotificationService {
     _presenceAuth!.addListener(_syncPresentation);
     _syncPresentation();
     await _initializeLocalNotifications(context);
+    final notificationPrefs = await SharedPreferences.getInstance();
+    await notificationPrefs.reload();
+    final notificationAccount = (notificationPrefs.getString('novyn_notification_account') ?? '').trim().toLowerCase();
+    _archivedChatNotificationIds
+      ..clear()
+      ..addAll((notificationPrefs.getStringList('novyn_archived_$notificationAccount') ?? []).map((v) => v.trim().toLowerCase()));
+    _socket!.notificationsMuted = ([String? sender]) => sender != null && _archivedChatNotificationIds.contains(sender.trim().toLowerCase());
     _socket!.onIncomingMessage = (username, body) {
       if (!context.mounted) return;
       if (WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed) {
@@ -1025,6 +1058,8 @@ class NotificationService {
   static Future<void> _showForegroundMessageNotification(
       String username, String messageBody) async {
     final sender = username.trim();
+    final privacy = await _chatNotificationPrivacy(sender);
+    if (privacy.archived) return;
     final settings = _settings;
     if (sender.isEmpty || settings == null || !settings.notificationsOn) return;
     if (settings.doNotDisturbEnabled &&
@@ -1032,7 +1067,7 @@ class NotificationService {
     if (_presenceAuth?.user?.presenceMode == 'busy' ||
         _presenceAuth?.user?.presenceMode == 'invisible') return;
 
-    final body = settings.messagePreview && !settings.hideNotificationContent
+    final body = settings.messagePreview && !settings.hideNotificationContent && !privacy.locked
         ? (messageBody.trim().isNotEmpty ? messageBody.trim() : 'You have a new message')
         : 'You have a new message';
     final notificationId = DateTime.now().millisecondsSinceEpoch % 2147483647;

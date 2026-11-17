@@ -14,15 +14,23 @@ class LocalDbService {
   static Box? _metaBox; // For metadata like last sync time
 
   static bool _isInitialized = false;
+  static Future<void>? _initFuture;
   static String _accountSuffix = '';
+
+  // Hive stores messages by ID, so scanning every message on each chat open
+  // is O(total account history). Keep a per-chat ID index in memory instead.
+  static final Map<String, Map<String, Message>> _messagesByChatId = {};
 
   static String _boxName(String base) =>
       _accountSuffix.isEmpty ? base : '${base}_$_accountSuffix';
 
-  /// Initialize all Hive boxes
-  static Future<void> init() async {
-    if (_isInitialized) return;
+  /// Initialize all Hive boxes once, including a one-time per-chat message index.
+  static Future<void> init() {
+    if (_isInitialized) return Future<void>.value();
+    return _initFuture ??= _initialize();
+  }
 
+  static Future<void> _initialize() async {
     try {
       // Check if boxes are already open, if so just use them
       if (Hive.isBoxOpen(_boxName('messages'))) {
@@ -49,11 +57,38 @@ class LocalDbService {
         _metaBox = await Hive.openBox(_boxName('metadata'));
       }
 
+      _rebuildMessageIndex();
       _isInitialized = true;
       print('✅ LocalDbService initialized');
     } catch (e) {
+      _initFuture = null;
       print('❌ LocalDbService init error: $e');
       // Don't set _isInitialized to true on error
+    }
+  }
+
+  static void _rebuildMessageIndex() {
+    _messagesByChatId.clear();
+    final box = _messagesBox;
+    if (box == null) return;
+    for (final message in box.values) {
+      _indexMessage(message);
+    }
+  }
+
+  static void _indexMessage(Message message) {
+    _messagesByChatId.putIfAbsent(
+      message.chatId,
+      () => <String, Message>{},
+    )[message.id] = message;
+  }
+
+  static void _removeIndexedMessage(Message? message) {
+    if (message == null) return;
+    final messages = _messagesByChatId[message.chatId];
+    messages?.remove(message.id);
+    if (messages != null && messages.isEmpty) {
+      _messagesByChatId.remove(message.chatId);
     }
   }
 
@@ -65,7 +100,14 @@ class LocalDbService {
   static Future<void> saveMessage(Message message) async {
     await _ensureInit();
     try {
-      await _messagesBox?.put(message.id, message);
+      final box = _messagesBox;
+      if (box == null) return;
+      final previous = box.get(message.id);
+      await box.put(message.id, message);
+      if (previous != null && previous.chatId != message.chatId) {
+        _removeIndexedMessage(previous);
+      }
+      _indexMessage(message);
     } catch (e) {
       print('Error saving message: $e');
     }
@@ -75,8 +117,19 @@ class LocalDbService {
   static Future<void> saveMessages(List<Message> messages) async {
     await _ensureInit();
     try {
-      final map = {for (var m in messages) m.id: m};
-      await _messagesBox?.putAll(map);
+      final box = _messagesBox;
+      if (box == null) return;
+      final map = {for (var message in messages) message.id: message};
+      for (final message in map.values) {
+        final previous = box.get(message.id);
+        if (previous != null && previous.chatId != message.chatId) {
+          _removeIndexedMessage(previous);
+        }
+      }
+      await box.putAll(map);
+      for (final message in map.values) {
+        _indexMessage(message);
+      }
     } catch (e) {
       print('Error saving messages: $e');
     }
@@ -86,9 +139,7 @@ class LocalDbService {
   static Future<List<Message>> getMessages(String chatId, {int limit = 50}) async {
     await _ensureInit();
     try {
-      final messages = _messagesBox?.values
-              .where((message) => message.chatId == chatId) ??
-          const <Message>[];
+      final messages = _messagesByChatId[chatId]?.values ?? const <Message>[];
       return latestMessagesPage(messages, limit: limit);
     } catch (e) {
       print('Error getting messages: $e');
@@ -105,10 +156,10 @@ class LocalDbService {
   }) async {
     await _ensureInit();
     try {
-      final messages = _messagesBox?.values.where((message) =>
-              message.chatId == chatId &&
-              isMessageBeforeCursor(message, before, beforeId: beforeId)) ??
-          const <Message>[];
+      final messages = (_messagesByChatId[chatId]?.values ??
+              const <Message>[])
+          .where((message) =>
+              isMessageBeforeCursor(message, before, beforeId: beforeId));
       return latestMessagesPage(messages, limit: limit);
     } catch (e) {
       print('Error getting older messages: $e');
@@ -120,7 +171,14 @@ class LocalDbService {
   static Future<void> updateMessage(String messageId, Message updated) async {
     await _ensureInit();
     try {
-      await _messagesBox?.put(messageId, updated);
+      final box = _messagesBox;
+      if (box == null) return;
+      final previous = box.get(messageId);
+      await box.put(messageId, updated);
+      if (previous != null && previous.chatId != updated.chatId) {
+        _removeIndexedMessage(previous);
+      }
+      _indexMessage(updated);
     } catch (e) {
       print('Error updating message: $e');
     }
@@ -130,7 +188,11 @@ class LocalDbService {
   static Future<void> deleteMessage(String messageId) async {
     await _ensureInit();
     try {
-      await _messagesBox?.delete(messageId);
+      final box = _messagesBox;
+      if (box == null) return;
+      final previous = box.get(messageId);
+      await box.delete(messageId);
+      _removeIndexedMessage(previous);
     } catch (e) {
       print('Error deleting message: $e');
     }
@@ -140,9 +202,7 @@ class LocalDbService {
   static Future<int> getMessageCount(String chatId) async {
     await _ensureInit();
     try {
-      return _messagesBox?.values
-          .where((m) => m.chatId == chatId)
-          .length ?? 0;
+      return _messagesByChatId[chatId]?.length ?? 0;
     } catch (e) {
       print('Error getting message count: $e');
       return 0;
@@ -161,6 +221,10 @@ class LocalDbService {
         'chatId': chat.chatId,
         'peerUid': chat.peerUid,
         'lastMessage': chat.lastMessage,
+        'lastMessageId': chat.lastMessageId,
+        'lastMessageFrom': chat.lastMessageFrom,
+        'lastMessageDeliveredAt': chat.lastMessageDeliveredAt?.toIso8601String(),
+        'lastMessageSeenAt': chat.lastMessageSeenAt?.toIso8601String(),
         'lastTime': chat.lastTime.toIso8601String(),
         'unreadCount': chat.unreadCount,
         'isPinned': chat.isPinned,
@@ -180,6 +244,10 @@ class LocalDbService {
           'chatId': c.chatId,
           'peerUid': c.peerUid,
           'lastMessage': c.lastMessage,
+          'lastMessageId': c.lastMessageId,
+          'lastMessageFrom': c.lastMessageFrom,
+          'lastMessageDeliveredAt': c.lastMessageDeliveredAt?.toIso8601String(),
+          'lastMessageSeenAt': c.lastMessageSeenAt?.toIso8601String(),
           'lastTime': c.lastTime.toIso8601String(),
           'unreadCount': c.unreadCount,
           'isPinned': c.isPinned,
@@ -365,6 +433,7 @@ class LocalDbService {
         await _metaBox?.putAll(oldMeta);
       }
     }
+    _rebuildMessageIndex();
     await _metaBox?.put('account_scope', normalized);
   }
 
@@ -473,6 +542,7 @@ class LocalDbService {
     await _ensureInit();
     try {
       await _messagesBox?.clear();
+      _messagesByChatId.clear();
       await _chatsBox?.clear();
       await _usersBox?.clear();
       await _metaBox?.clear();
@@ -586,6 +656,7 @@ class LocalDbService {
       );
     }
     await _messagesBox?.putAll(messages);
+    _rebuildMessageIndex();
     await _chatsBox?.putAll(chats);
     await _usersBox?.putAll(users);
     return {'messages': messages.length, 'chats': chats.length, 'contacts': users.length};
@@ -614,6 +685,12 @@ class LocalDbService {
     await _chatsBox?.close();
     await _usersBox?.close();
     await _metaBox?.close();
+    _messagesBox = null;
+    _chatsBox = null;
+    _usersBox = null;
+    _metaBox = null;
+    _messagesByChatId.clear();
     _isInitialized = false;
+    _initFuture = null;
   }
 }

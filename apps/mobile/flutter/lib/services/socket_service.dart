@@ -269,7 +269,7 @@ class SocketService extends ChangeNotifier {
     await SyncService().activateAccount(username);
     if (_myUsername?.toLowerCase() != username.trim().toLowerCase()) return;
     for (final pending in SyncService().pendingMessages) {
-      _messageStatuses[pending.tempId] = 'sending';
+      _messageStatuses[pending.tempId] = _isConnected && _isAuthenticated ? 'sending' : 'queued';
     }
     _restorePendingMessagesForOpenChat();
     notifyListeners();
@@ -313,6 +313,11 @@ class SocketService extends ChangeNotifier {
           debugPrint('[NovynOutbox] Message ${pending.tempId} rejected: $reason');
           notifyListeners();
         },
+        onDeferred: (pending) {
+          _messageStatuses[pending.tempId] = 'queued';
+          _messageStatusRevision++;
+          notifyListeners();
+        },
       );
     } catch (error) {
       debugPrint('[NovynOutbox] Flush deferred: $error');
@@ -322,7 +327,7 @@ class SocketService extends ChangeNotifier {
   void _startPendingOutboxRetry() {
     _pendingOutboxRetryTimer?.cancel();
     _pendingOutboxRetryTimer = Timer.periodic(
-      const Duration(seconds: 20),
+      const Duration(seconds: 5),
       (_) {
         if (!_isConnected ||
             !_isAuthenticated ||
@@ -354,6 +359,10 @@ class SocketService extends ChangeNotifier {
     if (connection == null || !_isConnected || !_isAuthenticated) {
       throw StateError('Novyn is reconnecting. The message remains queued.');
     }
+
+    _messageStatuses[pending.tempId] = 'sending';
+    _messageStatusRevision++;
+    notifyListeners();
 
     final payload = <String, dynamic>{
       'to': pending.receiverId,
@@ -857,15 +866,22 @@ class SocketService extends ChangeNotifier {
           }
         }
       } else if (!isOwn) {
-        if (!isGroupMessage) {
+        // While the app is active, Socket.IO owns the in-app alert. In the
+        // background, let the high-priority FCM handler own the system alert;
+        // emitting both paths can create duplicate notifications when Android
+        // keeps the socket process alive for a short time after backgrounding.
+        if (!isGroupMessage && _appForeground) {
           onIncomingMessage?.call(chatPartner, msg.text);
         }
-        // Sound and vibration remain independent user preferences.
-        if (!(notificationsMuted?.call(chatPartner) ?? false)) {
+        // Background notification sound/vibration comes from the OS channel.
+        // Suppress the in-process alert path when relying on FCM.
+        final suppressChatAlert = !_appForeground ||
+            (notificationsMuted?.call(chatPartner) ?? false);
+        if (!suppressChatAlert) {
           unawaited(_playIncomingMessageSound());
+          final vibrate = notificationsVibrate;
+          if (vibrate != null) unawaited(vibrate(chatPartner));
         }
-        final vibrate = notificationsVibrate;
-        if (vibrate != null) unawaited(vibrate(chatPartner));
       }
 
       // Resolve reply metadata against locally cached originals.
@@ -982,8 +998,26 @@ class SocketService extends ChangeNotifier {
               ? 'delivered'
               : null;
       if (next == null) return;
+      final deliveredAt = DateTime.tryParse(data['deliveredAt']?.toString() ?? '');
+      final seenAt = DateTime.tryParse(data['seenAt']?.toString() ?? '');
+      var previewChanged = false;
+      _conversations = _conversations.map((chat) {
+        if (chat.lastMessageId != msgId) return chat;
+        previewChanged = true;
+        return chat.copyWith(
+          lastMessageDeliveredAt: deliveredAt ?? chat.lastMessageDeliveredAt,
+          lastMessageSeenAt: seenAt ?? chat.lastMessageSeenAt,
+        );
+      }).toList();
+      if (previewChanged) {
+        unawaited(HybridDbService.saveChats(_conversations));
+      }
+
       final current = _messageStatuses[msgId] ?? 'sent';
-      if (current == 'seen' || (current == 'delivered' && next == 'delivered')) return;
+      if (current == 'seen' || (current == 'delivered' && next == 'delivered')) {
+        if (previewChanged) notifyListeners();
+        return;
+      }
       _messageStatuses[msgId] = next;
       _messageStatusRevision++;
       notifyListeners();
@@ -1278,6 +1312,9 @@ class SocketService extends ChangeNotifier {
             username;
         // Legacy encrypted history may no longer contain a readable message body.
         final lastMsg = item['lastMessageData'] ?? item['lastMessage'];
+        final lastMessageData = lastMsg is Map
+            ? Map<String, dynamic>.from(lastMsg)
+            : const <String, dynamic>{};
         final hasConversationActivity =
             (item['lastTimestamp']?.toString().trim().isNotEmpty ?? false) ||
             (lastMsg is Map && lastMsg.isNotEmpty) ||
@@ -1307,10 +1344,19 @@ class SocketService extends ChangeNotifier {
           peer: peerModel,
           isGroup: isGroupConversation,
           lastMessage: lastMsg is Map
-              ? (lastMsg['isEncrypted'] == true
+              ? (lastMessageData['isEncrypted'] == true
                   ? 'Previous encrypted message unavailable'
-                  : lastMsg['text']?.toString() ?? '')
+                  : lastMessageData['text']?.toString() ?? '')
               : lastMsg?.toString() ?? '',
+          lastMessageId: lastMessageData['id']?.toString() ?? '',
+          lastMessageFrom: lastMessageData['from']?.toString() ??
+              item['lastFrom']?.toString() ?? '',
+          lastMessageDeliveredAt: DateTime.tryParse(
+            lastMessageData['deliveredAt']?.toString() ?? '',
+          ),
+          lastMessageSeenAt: DateTime.tryParse(
+            lastMessageData['seenAt']?.toString() ?? '',
+          ),
           // Conversations without a message have no activity time.
           // Keep a stable old sentinel for sorting; the UI hides this value.
           lastTime:
@@ -1548,7 +1594,7 @@ class SocketService extends ChangeNotifier {
       isEncrypted: false,
     );
 
-    _messageStatuses[clientTempId] = 'sending';
+    _messageStatuses[clientTempId] = 'queued';
     _messageStatusRevision++;
     _messages = [..._messages, tempMsg];
     notifyListeners();
@@ -1575,13 +1621,13 @@ class SocketService extends ChangeNotifier {
       ));
       await HybridDbService.saveMessage(tempMsg);
 
-      // Offline sends are accepted into the durable outbox immediately.
-      // Authenticated reconnect triggers the actual send.
+      // The durable outbox is the source of truth. Never make the composer
+      // wait for a slow/weak network acknowledgement; flush in the background.
       if (_isConnected && _isAuthenticated) {
-        await _flushPendingMessageOutbox();
+        unawaited(_flushPendingMessageOutbox());
       }
     } catch (error) {
-      _messageStatuses[clientTempId] = 'failed';
+      _messageStatuses[clientTempId] = SyncService().pendingMessages.any((item) => item.tempId == clientTempId) ? 'queued' : 'failed';
       _messageStatusRevision++;
       notifyListeners();
       rethrow;
