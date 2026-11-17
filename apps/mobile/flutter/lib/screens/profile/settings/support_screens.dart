@@ -32,7 +32,7 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
   String _appVersion = AppUpdateService.displayVersion, _buildNumber = '0';
   final AppUpdateService _updateService = AppUpdateService.instance;
 
-  bool get _paused => !_downloading &&
+  bool get _paused => !_ready && !_downloading &&
       (_updateService.isPaused || _updateService.hasPartialDownload);
   bool get _available => _latestBuild > _installedBuild;
   bool get _ready => _downloadedApkPath != null;
@@ -319,7 +319,8 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
     final surface = dark ? const Color(0xFF171622) : Colors.white;
     final border = dark ? const Color(0xFF39345F) : const Color(0xFFE5DFFF);
     final primary = const Color(0xFF7048F8);
-    final activeDownload = _downloading || _paused || _updateService.hasPartialDownload;
+    final activeDownload = !_ready &&
+        (_downloading || _paused || _updateService.hasPartialDownload);
 
     return Scaffold(
       backgroundColor: pageBg,
@@ -451,7 +452,9 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
                             Text(
                               _available ? 'Beta v1.1' :
                                 _checking ? 'Looking for the latest version' :
-                                  'Novyn is running the latest version',
+                                (!_available && _status != null &&
+                                  !_status!.toLowerCase().contains('up to date')
+                                  ? _status! : 'Novyn is running the latest version'),
                               style: TextStyle(color: muted, fontSize: 16,
                                 fontWeight: FontWeight.w500)),
                           ],
@@ -480,7 +483,7 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
                       Text(_status!, style: TextStyle(color: muted,
                         fontSize: 13, height: 1.4)),
                     ],
-                    if (_downloading || _paused) ...[
+                    if (activeDownload) ...[
                       Row(children: [
                         Expanded(
                           child: _updateAction(
