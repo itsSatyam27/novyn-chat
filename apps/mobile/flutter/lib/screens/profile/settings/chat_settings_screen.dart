@@ -5,7 +5,6 @@ import 'package:provider/provider.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/chat_backup_service.dart';
 import '../../../services/settings_service.dart';
-import '../../../services/socket_service.dart';
 import '../../../theme/novyn_theme.dart';
 
 class ChatSettingsScreen extends StatefulWidget {
