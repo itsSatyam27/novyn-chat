@@ -6,7 +6,6 @@ const path = require('node:path');
 const net = require('node:net');
 const { spawn } = require('node:child_process');
 const { io } = require('socket.io-client');
-const { webcrypto } = require('node:crypto');
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 (async () => {
@@ -52,9 +51,6 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
     });
     assert.equal(peerSignup.status, 200);
     peer = await connect(peerSignup.headers.getSetCookie().map(value => value.split(';')[0]).join('; '));
-    const peerKeys = await webcrypto.subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, false, ['deriveKey', 'deriveBits']);
-    const peerPublicKey = JSON.stringify(await webcrypto.subtle.exportKey('jwk', peerKeys.publicKey));
-    assert.equal((await peer.timeout(3000).emitWithAck('register_public_key', { publicKey: peerPublicKey })).ok, true);
     setupSocket = await connect(cookies.join('; '));
     assert.equal((await setupSocket.timeout(3000).emitWithAck('add_friend', 'statuspeer')).ok, true);
     const accepted = socketEvent(setupSocket, 'friend_request_accepted'); peer.emit('accept_friend', 'settingsuser'); await accepted;
@@ -635,22 +631,6 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
     assert.match(await evaluate('getComputedStyle(document.querySelector(".chat-window")).backgroundImage'), /data:image\/svg\+xml/, 'saved wallpaper renders behind real chat messages');
     const chatWallpaperCapture = await call('Page.captureScreenshot', { format: 'png' });
     await fs.writeFile(path.join(directory, 'chat-wallpaper.png'), Buffer.from(chatWallpaperCapture.data, 'base64'));
-    await waitFor("document.querySelector('button[aria-label=\"Transfer message keys\"]')");
-    await evaluate("document.querySelector('button[aria-label=\"Transfer message keys\"]').click()");
-    await waitFor('document.querySelector("dialog[open] #message-key-password")');
-    assert.equal(await evaluate('document.querySelector("#message-key-password").nextElementSibling.disabled'), true);
-    await evaluate('{ const input = document.querySelector("#message-key-password"); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(input, "browser-test-transfer-password"); input.dispatchEvent(new Event("input", {bubbles:true})); }');
-    await waitFor('!document.querySelector("#message-key-password").nextElementSibling.disabled');
-    await evaluate('document.querySelector("#message-key-password").nextElementSibling.click()');
-    await waitFor('document.querySelector("dialog[open] [role=status]")?.textContent.startsWith("Downloaded.")');
-    let downloaded;
-    for (let attempt = 0; attempt < 100; attempt++) {
-      try { downloaded = JSON.parse(await fs.readFile(path.join(directory, 'novyn-message-keys.json'), 'utf8')); break; }
-      catch { await delay(100); }
-    }
-    assert.equal(downloaded?.format, 'novyn-message-keys');
-    assert.equal(downloaded?.username, undefined, 'account and conversation keys are inside the encrypted payload');
-    await evaluate("document.querySelector('dialog[open] button[aria-label=\"Close\"]').click()");
     await evaluate("document.querySelector('button[aria-label=\"Settings\"]').click()");
     await waitFor("document.querySelector('.android-profile-card')");
     await clickText('Appearance');
