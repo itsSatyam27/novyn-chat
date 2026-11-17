@@ -2454,6 +2454,7 @@ function hydrateMessage(rawMessage) {
     toType,
     groupId: toType === "group" ? toKey : "",
     text: message.isEncrypted ? LEGACY_MESSAGE_UNAVAILABLE : withUploadToken(message.text),
+    isEncrypted: Boolean(message.isEncrypted),
     timestamp: toDisplayName(message.timestamp) || nowIso(),
     deliveredAt: toDisplayName(message.deliveredAt) || null,
     seenAt: toDisplayName(message.seenAt) || null,
