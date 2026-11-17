@@ -4,7 +4,7 @@
 
 ![Novyn Chat Banner](public/logo192.png)
 
-**A real-time messaging platform with client-side encryption for supported direct text messages, WebRTC voice/video calling, in-chat mini-games, and a React + Capacitor web/Android client.**
+**A real-time messaging platform with direct and group chats, WebRTC voice/video calling, in-chat mini-games, and React + Capacitor web/Android clients.**
 
 [![React](https://img.shields.io/badge/React-19-blue.svg)](https://reactjs.org/)
 [![Vite](https://img.shields.io/badge/Vite-8.x-purple.svg)](https://vitejs.dev/)
@@ -12,7 +12,6 @@
 [![Socket.IO](https://img.shields.io/badge/Socket.IO-4.x-black.svg)](https://socket.io/)
 [![MongoDB](https://img.shields.io/badge/MongoDB-Atlas%20Ready-brightgreen.svg)](https://www.mongodb.com/)
 [![Capacitor](https://img.shields.io/badge/Capacitor-6.x%20(Android)-1192e8.svg)](https://capacitorjs.com/)
-[![Web Crypto API](https://img.shields.io/badge/Security-Web%20Crypto%20prototype-gold.svg)](https://developer.mozilla.org/en-US/docs/Web/API/Web_Crypto_API)
 
 </div>
 
@@ -20,9 +19,8 @@
 
 ## 📑 Table of Contents
 1. [Architecture & Unified Platform Design](#-architecture--unified-platform-design)
-2. [End-to-End Encryption (E2EE) Deep Dive](#-end-to-end-encryption-e2ee-deep-dive)
 3. [Feature Showcase](#-feature-showcase)
-4. [MongoDB Data Schema (Zero-Knowledge)](#-mongodb-data-schema-zero-knowledge)
+4. [MongoDB Data Schema](#-mongodb-data-schema)
 5. [Directory & File Structure](#-directory--file-structure)
 6. [Quick Start & Local Development](#-quick-start--local-development)
 7. [Building for Android (Capacitor)](#-building-for-android-capacitor)
@@ -37,25 +35,23 @@
 
 ## 🏛️ Architecture & Unified Platform Design
 
-Novyn's primary client is a **Vite + React + TypeScript** application packaged for Android with **Capacitor**. The Node.js + Express + Socket.IO backend is shared by the web and Capacitor clients. A separate Flutter client exists in the repository but is not yet protocol-equivalent for E2EE.
+Novyn's primary client is a **Vite + React + TypeScript** application packaged for Android with **Capacitor**. The Node.js + Express + Socket.IO backend is shared by the web, Capacitor, and Flutter clients.
 
 ```mermaid
 graph TD
     subgraph Client ["📱 Unified Cross-Platform Client"]
         A[🌐 Web Browser] & B[🤖 Native Android Shell (Capacitor)]
         C[⚛️ React 18 + Vite SPA UI]
-        D[🔐 Web Crypto API Engine (ECDH P-256 + AES-GCM)]
         E[⚡ Socket.IO Client + WebRTC Manager]
-        F[💾 Local IndexedDB KeyStore + Session Cache]
+        F[💾 Local IndexedDB + Session Cache]
         A --> C
         B --> C
-        C --> D
         C --> E
         C --> F
     end
 
     subgraph Backend ["☁️ Node.js + Express + Socket.IO Server"]
-        G[🛡️ Zero-Knowledge Relay & Auth Controller]
+        G[🛡️ Authenticated Messaging & Session Controller]
         H[📡 WebSocket Event Dispatcher]
         I[📦 Cloudinary / Local Disk Media Engine]
         J[📬 WebPush & SMTP Reset Service]
@@ -66,7 +62,7 @@ graph TD
         L[📁 uploads/ Storage]
     end
 
-    E <-->|Encrypted Ciphertext & WebRTC Signaling| Backend
+    E <-->|Message Text & WebRTC Signaling over HTTPS/WSS| Backend
     Backend <--> Database
 ```
 
@@ -77,44 +73,24 @@ graph TD
 
 ---
 
-## 🔒 End-to-End Encryption (E2EE) Deep Dive
+## 🔐 Messaging and transport security
 
-Novyn currently has a **pairwise encryption prototype** for supported web direct text messages using Web Crypto API (`window.crypto.subtle`). It is **not yet Signal/WhatsApp-grade E2EE**: there is no Double Ratchet/X3DH-style session protocol, group E2EE, encrypted media/voice, or cryptographic key-authentication layer.
+Novyn direct and group messages are sent to the authenticated backend as ordinary
+message text. The backend can read and persist message bodies, and authorized
+conversation participants receive that text through the realtime messaging
+transport. Novyn does **not** provide end-to-end encryption for messages.
 
-```mermaid
-sequenceDiagram
-    autonumber
-    participant Alice as 📱 Alice (Sender)
-    participant Server as ☁️ Novyn Server (Zero-Knowledge Relay)
-    participant Bob as 📱 Bob (Recipient)
+Production deployments should serve the app and API over HTTPS/WSS. TLS protects
+traffic while it travels between the client and server; it does not make stored
+message bodies end-to-end encrypted or unreadable to the backend.
 
-    Note over Alice,Bob: 1. Key Generation (Curve P-256)
-    Alice->>Alice: Generate ECDH Identity Keypair (IndexedDB)
-    Bob->>Bob: Generate ECDH Identity Keypair (IndexedDB)
+Account security is separate from message encryption: passwords continue to be
+stored as password hashes, and sign-in sessions and two-factor authentication
+remain protected by the existing authentication controls.
 
-    Alice->>Server: Register Public Key (Alice_pub)
-    Bob->>Server: Register Public Key (Bob_pub)
-
-    Note over Alice,Bob: 2. Pairwise Shared Secret Derivation
-    Alice->>Alice: ECDH(Alice_priv, Bob_pub) → Shared AES-256-GCM Key
-    Bob->>Bob: ECDH(Bob_priv, Alice_pub) → Shared AES-256-GCM Key
-
-    Note over Alice: 3. Message Encrypted On-Device
-    Alice->>Alice: AES-GCM Encrypt(text, iv) → Ciphertext
-
-    Alice->>Server: Send { ciphertext, iv, isEncrypted: true }
-    Note over Server: Server CANNOT read plaintext content
-    Server->>Bob: Relay Ciphertext
-
-    Note over Bob: 4. Message Decrypted On-Device
-    Bob->>Bob: AES-GCM Decrypt(ciphertext, iv) → Original Plaintext
-```
-
-### Current security boundaries:
-1. **Private-key storage**: The web client stores `CryptoKey` objects in IndexedDB; the identity private key is generated as non-extractable where supported.
-2. **Direct text only**: Supported direct messages can carry ciphertext/IV. Groups, attachments, and voice messages are not currently E2EE.
-3. **Key authenticity is not complete**: Safety numbers are fingerprints of exchanged public keys; the protocol does not yet provide signed prekeys or a full device-identity verification model.
-4. **Protocol roadmap**: A production E2EE implementation should use a mature Signal-style protocol with device sessions, ratcheting, prekeys, key rotation, and encrypted media rather than extending the current prototype ad hoc.
+Older messages created by the former E2EE prototype may appear as
+**“Previous encrypted message unavailable”**. Removing the encryption code does
+not recover the old plaintext or make legacy ciphertext readable.
 
 ---
 
@@ -132,9 +108,9 @@ sequenceDiagram
 
 ---
 
-## 🗄️ MongoDB Data Schema (Zero-Knowledge)
+## 🗄️ MongoDB Data Schema
 
-When connected to MongoDB Atlas, Novyn Chat organizes data into high-performance split collections:
+When connected to MongoDB Atlas, Novyn Chat organizes data into high-performance split collections. Message text is stored as ordinary readable text, not end-to-end encrypted ciphertext:
 
 ### 1. `messages` Collection
 ```json
@@ -151,11 +127,7 @@ When connected to MongoDB Atlas, Novyn Chat organizes data into high-performance
   "deliveredAt": "2026-08-16T09:44:01.000Z",
   "seenAt": "2026-08-16T09:44:05.000Z",
   
-  // 🔒 E2EE Ciphertext (Zero-Knowledge)
-  "isEncrypted": true,
-  "ciphertext": "8zK9pX2L4mWv/7Qj95aBc...==",
-  "iv": "3dF92aK10pX8",
-  "text": "[Encrypted Message]"
+  "text": "Hello from Novyn!"
 }
 ```
 
