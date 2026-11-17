@@ -128,7 +128,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
   bool _loadingOlder = false;
   bool _hasMore = true;
   bool _fetchingFromServer =
-      false; // true only when cache empty + waiting for API
+      false; // true while both local cache and server history are unresolved
+  bool _cacheReadComplete = false;
+  bool _serverHistoryComplete = false;
   String? _chatId;
   String? _myUid;
   bool _peerIsOnline = false;
@@ -385,32 +387,32 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
         ? (widget.peer.uid.isNotEmpty ? widget.peer.uid : widget.peer.username)
         : widget.peer.username;
 
-    final cacheWatch = Stopwatch()..start();
-    List<Message> cachedMessages = [];
-    try {
-      // Render the complete Hive cache first; Drift is warmed and merged later.
-      cachedMessages = await HybridDbService.getCachedMessages(_chatId!)
-          .timeout(const Duration(seconds: 4), onTimeout: () => <Message>[]);
-    } catch (error) {
-      debugPrint('[NovynChat] Local message cache read failed: $error');
-    }
-    debugPrint('[NovynPerf] chat_cache_ms=${cacheWatch.elapsedMilliseconds} count=${cachedMessages.length}');
-    if (!mounted) return;
+    final chatId = _chatId!;
+    _cacheReadComplete = false;
+    _serverHistoryComplete = false;
 
-    // openChat requests history from the authenticated Socket.IO session and
-    // completes only after the matching conversation response is processed.
-    // Avoid the legacy REST history endpoint, which can return an empty list
-    // independently of the live conversation and race the socket response.
+    // Start the socket request immediately instead of waiting for Hive to scan
+    // the local message box. The screen can now paint its header, composer and
+    // loading/empty state on the first frame while both sources load in parallel.
     final historyRequest = socket.openChat(
-      _chatId!,
-      cachedMessages,
+      chatId,
+      const <Message>[],
       isGroup: widget.isGroup,
     );
-    unawaited(_hydrateIndexedCache(_chatId!, socket));
-    setState(() {
-      _loading = false;
-      _fetchingFromServer = cachedMessages.isEmpty;
-    });
+
+    if (mounted) {
+      setState(() {
+        _loading = false;
+        _initialPositionReady = true;
+        _fetchingFromServer = true;
+      });
+    }
+
+    final cacheWatch = Stopwatch()..start();
+    unawaited(_loadLocalChatHistory(chatId, socket, cacheWatch));
+    // Drift may contain rows written by an earlier app version that are not
+    // yet present in Hive. Hydrate those missing IDs in the background too.
+    unawaited(_hydrateIndexedCache(chatId, socket));
 
     try {
       final history = await historyRequest;
@@ -418,32 +420,73 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
 
       if (history.isNotEmpty) {
         // The socket service has already merged these messages into the
-        // active timeline. Persist the confirmed snapshot and reveal it.
+        // active timeline. Persist the confirmed snapshot in the background.
         unawaited(HybridDbService.saveMessages(history));
-        unawaited(HybridDbService.setLastSync(_chatId!, DateTime.now()));
+        unawaited(HybridDbService.setLastSync(chatId, DateTime.now()));
         _jumpToLatestImmediately();
       } else if (socket.messages.isNotEmpty) {
-        // A live message may have arrived while the history request was in flight.
+        // A live or cached message may have arrived while history was in flight.
         _jumpToLatestImmediately();
-      } else {
-        setState(() => _initialPositionReady = true);
       }
 
       final settings = context.read<SettingsService>();
       if (settings.readReceipts && !widget.isGroup) {
-        unawaited(ApiService.markRead(_chatId!, _myUid!));
+        unawaited(ApiService.markRead(chatId, _myUid!));
       }
     } catch (error) {
       debugPrint('[NovynChat] Conversation history load failed: $error');
-      if (mounted) {
-        if (socket.messages.isNotEmpty) {
-          _jumpToLatestImmediately();
-        } else {
-          setState(() => _initialPositionReady = true);
-        }
+      if (mounted && socket.messages.isNotEmpty) {
+        _jumpToLatestImmediately();
       }
     } finally {
-      if (mounted) setState(() => _fetchingFromServer = false);
+      _serverHistoryComplete = true;
+      _refreshInitialHistoryLoadingState(socket);
+    }
+  }
+
+  Future<void> _loadLocalChatHistory(
+    String chatId,
+    SocketService socket,
+    Stopwatch cacheWatch,
+  ) async {
+    try {
+      final cachedMessages = await HybridDbService.getCachedMessages(chatId)
+          .timeout(const Duration(seconds: 4), onTimeout: () => <Message>[]);
+      if (!mounted ||
+          _chatId != chatId ||
+          socket.currentChatWith?.trim().toLowerCase() !=
+              chatId.trim().toLowerCase()) {
+        return;
+      }
+
+      // The network can win the race. Backfill only IDs that are still absent
+      // so an older disk copy never overwrites newer server message state.
+      final existingIds = socket.messages.map((message) => message.id).toSet();
+      final missing = cachedMessages
+          .where((message) => !existingIds.contains(message.id))
+          .toList();
+      if (missing.isNotEmpty) socket.mergeChatHistory(missing);
+
+      debugPrint(
+        '[NovynPerf] chat_cache_ms=${cacheWatch.elapsedMilliseconds} '
+        'count=${cachedMessages.length} backfilled=${missing.length}',
+      );
+    } catch (error) {
+      debugPrint('[NovynChat] Local message cache read failed: $error');
+    } finally {
+      if (mounted && _chatId == chatId) {
+        _cacheReadComplete = true;
+        _refreshInitialHistoryLoadingState(socket);
+      }
+    }
+  }
+
+  void _refreshInitialHistoryLoadingState(SocketService socket) {
+    if (!mounted) return;
+    final waiting = socket.messages.isEmpty &&
+        (!_cacheReadComplete || !_serverHistoryComplete);
+    if (_fetchingFromServer != waiting) {
+      setState(() => _fetchingFromServer = waiting);
     }
   }
 
