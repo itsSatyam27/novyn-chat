@@ -616,7 +616,7 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
     assert.ok(chatExport.conversations.some(item => item.username === 'statuspeer'));
     await clickText('Help & Support');
     assert.equal(await evaluate('document.querySelector(".settings-section-nav")'), null, 'feedback has one sidebar');
-    assert.equal(await evaluate('document.querySelectorAll(".feedback-faqs details").length'), 5);
+    assert.equal(await evaluate('document.querySelectorAll(".feedback-faqs details").length'), 4);
     await evaluate('document.querySelector(".feedback-faqs summary").click()');
     assert.equal(await evaluate('document.querySelector(".feedback-faqs details").open'), true);
     await clickControl('Report a bug');
