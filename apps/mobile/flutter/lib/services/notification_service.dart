@@ -194,8 +194,8 @@ class NotificationService {
 
   static Future<({bool archived, bool locked})> _chatNotificationPrivacy(String chatId) async {
     final prefs = await SharedPreferences.getInstance();
-    final account = (prefs.getString('novyn_notification_account') ?? '').trim().toLowerCase();
     await prefs.reload();
+    final account = (prefs.getString('novyn_notification_account') ?? '').trim().toLowerCase();
     final key = chatId.trim().toLowerCase();
     final archived = (prefs.getStringList('novyn_archived_$account') ?? []).map((v) => v.toLowerCase()).contains(key);
     final locked = (prefs.getStringList('novyn_locked_chats_$account') ?? []).map((v) => v.toLowerCase()).contains(key);
