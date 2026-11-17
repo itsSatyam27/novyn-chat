@@ -337,12 +337,12 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
                   borderRadius: BorderRadius.circular(15),
                   child: InkWell(
                     onTap: () => Navigator.of(context).maybePop(),
-                    borderRadius: BorderRadius.circular(17),
+                    borderRadius: BorderRadius.circular(15),
                     child: Container(
                       width: 46,
                       height: 46,
                       decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(17),
+                        borderRadius: BorderRadius.circular(15),
                         border: Border.all(color: border),
                       ),
                       child: Icon(Icons.arrow_back_rounded, color: ink, size: 23),
