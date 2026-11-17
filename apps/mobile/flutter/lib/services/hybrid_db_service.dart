@@ -194,6 +194,24 @@ class HybridDbService {
             'isArchived': chat.isArchived,
           },
       }..remove('');
+
+      // Receipt fields are stored in Hive while the fast Drift table keeps
+      // the compact chat-list columns. Overlay the Hive-only metadata after
+      // the Drift rows so a cache read does not discard delivered/seen state.
+      for (final cached in hiveChats) {
+        final chatId = cached['chatId']?.toString() ?? '';
+        final current = merged[chatId];
+        if (current == null) continue;
+        for (final field in const [
+          'lastMessageId',
+          'lastMessageFrom',
+          'lastMessageDeliveredAt',
+          'lastMessageSeenAt',
+        ]) {
+          if (cached.containsKey(field)) current[field] = cached[field];
+        }
+      }
+
       final result = merged.values.toList()
         ..sort((a, b) {
           final aTime = DateTime.tryParse(a['lastTime']?.toString() ?? '') ?? DateTime(2000);
