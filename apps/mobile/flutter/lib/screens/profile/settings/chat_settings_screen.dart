@@ -66,17 +66,6 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
           ),
           _sizeSettingTile(
             context,
-            icon: Icons.text_fields_rounded,
-            title: 'Message text size',
-            subtitle: 'Change the size of message content',
-            value: settings.fontSize,
-            min: 0.85,
-            max: 1.25,
-            divisions: 8,
-            onChanged: settings.setFontSize,
-          ),
-          _sizeSettingTile(
-            context,
             icon: Icons.label_outline_rounded,
             title: 'Chat labels size',
             subtitle: 'Change timestamps, edited tags and link details',
