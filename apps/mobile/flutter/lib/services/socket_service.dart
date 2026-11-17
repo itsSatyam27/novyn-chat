@@ -866,11 +866,17 @@ class SocketService extends ChangeNotifier {
           }
         }
       } else if (!isOwn) {
-        if (!isGroupMessage) {
+        // While the app is active, Socket.IO owns the in-app alert. In the
+        // background, let the high-priority FCM handler own the system alert;
+        // emitting both paths can create duplicate notifications when Android
+        // keeps the socket process alive for a short time after backgrounding.
+        if (!isGroupMessage && _appForeground) {
           onIncomingMessage?.call(chatPartner, msg.text);
         }
-        // Sound and vibration remain independent user preferences.
-        final suppressChatAlert = notificationsMuted?.call(chatPartner) ?? false;
+        // Background notification sound/vibration comes from the OS channel.
+        // Suppress the in-process alert path when relying on FCM.
+        final suppressChatAlert = !_appForeground ||
+            (notificationsMuted?.call(chatPartner) ?? false);
         if (!suppressChatAlert) {
           unawaited(_playIncomingMessageSound());
           final vibrate = notificationsVibrate;
