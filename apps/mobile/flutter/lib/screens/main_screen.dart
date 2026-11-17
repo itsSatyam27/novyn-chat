@@ -153,7 +153,6 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     if (username == null || username.isEmpty) return;
 
     final socket = context.read<SocketService>();
-    context.read<FriendService>().activateAccount(username);
     final sameAccount =
         socket.myUsername?.toLowerCase() == username.toLowerCase();
     if (!sameAccount) {
@@ -197,7 +196,10 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     final socket = context.read<SocketService>();
     final sameAccount =
         _activeUsername?.toLowerCase() == username.toLowerCase();
-    if (sameAccount && socket.isConnected && socket.isAuthenticated) return;
+    if (sameAccount && socket.isConnected && socket.isAuthenticated) {
+      context.read<FriendService>().activateAccount(username);
+      return;
+    }
     // A same-account login can happen while MainScreen remains mounted.
     // Reconnect if its previous socket was disconnected during logout.
     _activeUsername = username;
@@ -207,6 +209,9 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     } else {
       socket.connect(ApiService.baseUrl, username);
     }
+    // SocketService now owns the requested identity and has cleared a previous
+    // account's live contacts before the offline cache is activated.
+    context.read<FriendService>().activateAccount(username);
     socket.onUserStatusChanged = (peerUsername, isOnline) {
       if (!mounted) return;
       context.read<FriendService>().updateCachedStatus(peerUsername, isOnline);
