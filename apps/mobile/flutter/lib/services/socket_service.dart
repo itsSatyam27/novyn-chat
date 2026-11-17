@@ -992,8 +992,26 @@ class SocketService extends ChangeNotifier {
               ? 'delivered'
               : null;
       if (next == null) return;
+      final deliveredAt = DateTime.tryParse(data['deliveredAt']?.toString() ?? '');
+      final seenAt = DateTime.tryParse(data['seenAt']?.toString() ?? '');
+      var previewChanged = false;
+      _conversations = _conversations.map((chat) {
+        if (chat.lastMessageId != msgId) return chat;
+        previewChanged = true;
+        return chat.copyWith(
+          lastMessageDeliveredAt: deliveredAt ?? chat.lastMessageDeliveredAt,
+          lastMessageSeenAt: seenAt ?? chat.lastMessageSeenAt,
+        );
+      }).toList();
+      if (previewChanged) {
+        unawaited(HybridDbService.saveChats(_conversations));
+      }
+
       final current = _messageStatuses[msgId] ?? 'sent';
-      if (current == 'seen' || (current == 'delivered' && next == 'delivered')) return;
+      if (current == 'seen' || (current == 'delivered' && next == 'delivered')) {
+        if (previewChanged) notifyListeners();
+        return;
+      }
       _messageStatuses[msgId] = next;
       _messageStatusRevision++;
       notifyListeners();
@@ -1288,6 +1306,9 @@ class SocketService extends ChangeNotifier {
             username;
         // Legacy encrypted history may no longer contain a readable message body.
         final lastMsg = item['lastMessageData'] ?? item['lastMessage'];
+        final lastMessageData = lastMsg is Map
+            ? Map<String, dynamic>.from(lastMsg)
+            : const <String, dynamic>{};
         final hasConversationActivity =
             (item['lastTimestamp']?.toString().trim().isNotEmpty ?? false) ||
             (lastMsg is Map && lastMsg.isNotEmpty) ||
@@ -1317,10 +1338,19 @@ class SocketService extends ChangeNotifier {
           peer: peerModel,
           isGroup: isGroupConversation,
           lastMessage: lastMsg is Map
-              ? (lastMsg['isEncrypted'] == true
+              ? (lastMessageData['isEncrypted'] == true
                   ? 'Previous encrypted message unavailable'
-                  : lastMsg['text']?.toString() ?? '')
+                  : lastMessageData['text']?.toString() ?? '')
               : lastMsg?.toString() ?? '',
+          lastMessageId: lastMessageData['id']?.toString() ?? '',
+          lastMessageFrom: lastMessageData['from']?.toString() ??
+              item['lastFrom']?.toString() ?? '',
+          lastMessageDeliveredAt: DateTime.tryParse(
+            lastMessageData['deliveredAt']?.toString() ?? '',
+          ),
+          lastMessageSeenAt: DateTime.tryParse(
+            lastMessageData['seenAt']?.toString() ?? '',
+          ),
           // Conversations without a message have no activity time.
           // Keep a stable old sentinel for sorting; the UI hides this value.
           lastTime:
