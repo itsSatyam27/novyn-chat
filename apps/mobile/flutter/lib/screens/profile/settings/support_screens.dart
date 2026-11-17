@@ -32,7 +32,8 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
   String _appVersion = AppUpdateService.displayVersion, _buildNumber = '0';
   final AppUpdateService _updateService = AppUpdateService.instance;
 
-  bool get _paused => _updateService.isPaused && !_downloading;
+  bool get _paused => !_downloading &&
+      (_updateService.isPaused || _updateService.hasPartialDownload);
   bool get _available => _latestBuild > _installedBuild;
   bool get _ready => _downloadedApkPath != null;
 
@@ -127,7 +128,7 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
         _apkSize = release.size;
       }
       setState(() {
-        _status = result.message;
+        _status = result.release != null ? null : result.message;
         _checking = false;
       });
       _handleDownloadStateChanged();
@@ -739,12 +740,6 @@ class _LiquidDownloadProgressState extends State<_LiquidDownloadProgress>
                       child: Text('$pct%', style: TextStyle(
                         color: widget.primary, fontSize: 40,
                         fontWeight: FontWeight.w900, letterSpacing: -1)),
-                    ),
-                    ClipPath(
-                      clipper: _LiquidWaveClipper(progress: progress, phase: phase),
-                      child: const Center(
-                        child: Text(' ', style: TextStyle(color: Colors.white)),
-                      ),
                     ),
                     ClipPath(
                       clipper: _LiquidWaveClipper(progress: progress, phase: phase),
