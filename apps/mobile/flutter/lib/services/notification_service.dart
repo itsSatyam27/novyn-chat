@@ -1412,7 +1412,8 @@ class NotificationService {
     }
 
     if (type == 'message') {
-      final isGroup = message.data['kind'] == 'group';
+      final isGroup = message.data['kind'] == 'group' ||
+          message.data['group'] == 'true' || message.data['group'] == '1';
       final peer = isGroup
           ? (message.data['groupId'] ?? message.data['chat'] ?? '').toString()
           : (message.data['chat'] ?? '').toString();
