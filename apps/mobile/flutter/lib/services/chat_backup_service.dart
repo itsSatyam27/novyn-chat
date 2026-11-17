@@ -58,7 +58,6 @@ class ChatBackupService {
   static Future<Map<String, int>?> restoreBackup({
     required String username,
     required String password,
-    required MessageEncryptionService encryption,
   }) async {
     final picked = await FilePicker.platform.pickFiles(
       type: FileType.custom,
