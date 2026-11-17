@@ -13,7 +13,7 @@ import { WallpaperPickerModal } from './WallpaperPickerModal';
 import { GameLauncherModal } from './GameLauncherModal';
 import { Avatar } from '../ui/Avatar';
 import { Message } from '../../types';
-import { Phone, Video, ChevronLeft, PanelLeftOpen, Info, Search, Lock, ArrowDown, X, Sun, Moon, Star, MessageCircle, Mic, Gamepad2, Sunset, Bookmark } from 'lucide-react';
+import { Phone, Video, ChevronLeft, PanelLeftOpen, Info, Search, ArrowDown, X, Sun, Moon, Star, MessageCircle, Mic, Gamepad2, Sunset, Bookmark } from 'lucide-react';
 import './savedMessages.css';
 import { triggerHaptic } from '../../services/capacitor';
 import { getSocket } from '../../services/socket';
