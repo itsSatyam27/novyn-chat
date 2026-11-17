@@ -74,11 +74,9 @@ function registerFcmDevice(users, userKey, user, tokenValue, metadata = {}) {
 function removeFcmDevice(user, tokenValue) {
   if (!user) return false;
   const token = safeToken(tokenValue);
-  if (!token) {
-    user.fcmDevices = [];
-    user.fcmToken = "";
-    return true;
-  }
+  // An absent or malformed token must never turn a single-device logout into
+  // an accidental sign-out of every registered device on the account.
+  if (!token) return false;
 
   const devices = collectFcmDevices(user);
   const next = devices.filter((device) => device.token !== token);
@@ -99,7 +97,6 @@ function createFcmMessage(userKey, user, payload = {}) {
   const type = String(payload.type || "message");
   const isCall = type === "call";
   const isGroup = payload.group === true;
-  const isDirectMessage = type === "message" && !isGroup;
   const dataOnlyTypes = new Set([
     "call",
     "app_update",
