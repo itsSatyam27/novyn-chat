@@ -21,7 +21,7 @@ import 'sync_service.dart';
 ///   EMIT  resume_session           — authenticate socket after connect
 ///   EMIT  set_active_chat          — { to, kind }
 ///   EMIT  get_history              — { to, kind }
-///   EMIT  private_message          — { to, toType, text, attachment?, replyTo?, clientTempId, ciphertext?, iv?, isEncrypted? }
+///   EMIT  private_message          — { to, toType, text, attachment?, replyTo?, clientTempId }
 ///   EMIT  typing                   — { to, isTyping, toType }
 ///   EMIT  edit_message             — { messageId, text, to }
 ///   EMIT  unsend_message           — { messageId, to }
@@ -731,7 +731,7 @@ class SocketService extends ChangeNotifier {
         }
         // Merge by message ID instead of replacing the local timeline with
         // only the server's latest page. This preserves older cached messages
-        // and messages received while history was being decrypted.
+        // and messages received while history was being refreshed.
         final merged = <String, Message>{
           for (final message in _messages)
             if (message.id.isNotEmpty) message.id: message,
@@ -1276,8 +1276,7 @@ class SocketService extends ChangeNotifier {
         final displayName = item['displayName']?.toString() ??
             item['name']?.toString() ??
             username;
-        // The relay keeps the encrypted envelope in lastMessageData. The
-        // legacy lastMessage field may not contain the ciphertext/IV.
+        // Legacy encrypted history may no longer contain a readable message body.
         final lastMsg = item['lastMessageData'] ?? item['lastMessage'];
         final hasConversationActivity =
             (item['lastTimestamp']?.toString().trim().isNotEmpty ?? false) ||
@@ -1322,19 +1321,8 @@ class SocketService extends ChangeNotifier {
       }
 
       if (_myUsername != account) return;
-          if (!decrypted.needsMessageKey) {
-            previews[previewIndex] = previews[previewIndex].copyWith(
-              lastMessage: decrypted.text,
-            );
-          }
-        } catch (error) {
-          debugPrint('[NovynSocket] Could not decrypt chat preview: $error');
-        }
-      }
 
-      if (_myUsername != account) return;
-
-      // Publish one stable snapshot only after preview decryption has settled.
+      // Publish the refreshed conversation list.
       // Local persistence remains asynchronous and does not block first render.
       _conversations = previews;
       _hasLoadedConversations = true;
