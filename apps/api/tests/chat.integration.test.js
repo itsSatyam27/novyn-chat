@@ -173,6 +173,62 @@ test('localhost discovery, requests, reconnect state, and private media', { time
   bob.socket.emit('accept_friend', 'alice');
   assert.equal((await accepted).by, 'bob');
 
+  // The server stores only the client-encrypted identity envelope, scoped
+  // to the authenticated account, and retains it across a socket reconnect.
+  const recoveryWebCrypto = require('node:crypto').webcrypto;
+  const aliceE2ee = await recoveryWebCrypto.subtle.generateKey(
+    { name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveKey']
+  );
+  const aliceE2eePublicKey = JSON.stringify(
+    await recoveryWebCrypto.subtle.exportKey('jwk', aliceE2ee.publicKey)
+  );
+  assert.equal(
+    (await alice.socket.timeout(3000).emitWithAck(
+      'register_public_key', { publicKey: aliceE2eePublicKey },
+    )).ok,
+    true,
+  );
+  const identityRecoveryEnvelope = {
+    format: 'novyn-e2ee-identity',
+    version: 1,
+    iterations: 210000,
+    username: 'alice',
+    publicKey: aliceE2eePublicKey,
+    salt: Buffer.alloc(16, 1).toString('base64'),
+    iv: Buffer.alloc(12, 2).toString('base64'),
+    ciphertext: Buffer.alloc(48, 3).toString('base64'),
+  };
+  const savedIdentityBackup = await alice.socket.timeout(3000).emitWithAck(
+    'save_e2ee_identity_backup',
+    { publicKey: aliceE2eePublicKey, backup: identityRecoveryEnvelope },
+  );
+  assert.equal(savedIdentityBackup.ok, true);
+  const ownIdentityBackup = await alice.socket.timeout(3000).emitWithAck(
+    'get_e2ee_identity_backup', {},
+  );
+  assert.equal(ownIdentityBackup.ok, true);
+  assert.deepEqual(ownIdentityBackup.backup, identityRecoveryEnvelope);
+  assert.equal(ownIdentityBackup.publicKey, aliceE2eePublicKey);
+  const bobIdentityBackup = await bob.socket.timeout(3000).emitWithAck(
+    'get_e2ee_identity_backup', {},
+  );
+  assert.equal(bobIdentityBackup.ok, true);
+  assert.equal(bobIdentityBackup.backup, null, 'a user cannot read another account’s recovery envelope');
+  await new Promise((resolve) => setTimeout(resolve, 250));
+  const persistedIdentityState = JSON.parse(
+    await fs.readFile(path.join(directory, 'data', 'chat-state.json'), 'utf8'),
+  );
+  const alicePersistedIdentity = persistedIdentityState.users.find((entry) => entry.key === 'alice');
+  assert.equal(alicePersistedIdentity.e2eeIdentityBackup, JSON.stringify(identityRecoveryEnvelope));
+  assert.equal(alicePersistedIdentity.e2eeIdentityBackupPublicKey, aliceE2eePublicKey);
+  alice.socket.disconnect();
+  const restoredAliceIdentitySocket = await connect(alice.cookie);
+  alice.socket = restoredAliceIdentitySocket.socket;
+  const identityBackupAfterReconnect = await alice.socket.timeout(3000).emitWithAck(
+    'get_e2ee_identity_backup', {},
+  );
+  assert.deepEqual(identityBackupAfterReconnect.backup, identityRecoveryEnvelope);
+
   // Profile photos are private media too: Everyone must be viewable by a
   // non-friend, while Friends must allow Bob but deny Eve.
   const avatarForm = new FormData();
