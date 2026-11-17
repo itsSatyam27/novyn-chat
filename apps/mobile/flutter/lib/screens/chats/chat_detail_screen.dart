@@ -3671,7 +3671,7 @@ class _MessageBubble extends StatelessWidget {
     const emojis = ['❤️', '😂', '😮', '😢', '👍', '🔥'];
     final scheme = Theme.of(context).colorScheme;
     final canCopy = message.text.toString().trim().isNotEmpty &&
-        message.text.toString() != '🔒 Encrypted message';
+        message.text.toString() != 'Previous encrypted message unavailable';
     final socket = context.read<SocketService>();
     final messageId = message.id.toString();
     final status = socket.messageStatusFor(messageId);
