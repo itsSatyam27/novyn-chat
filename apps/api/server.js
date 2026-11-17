@@ -947,7 +947,7 @@ const MONGODB_MESSAGES_COLLECTION = toDisplayName(process.env.MONGODB_MESSAGES_C
 const MIN_PASSWORD_LENGTH = 12;
 const DELETED_MESSAGE_TEXT = "This message was deleted.";
 const CALL_LOG_PREFIX = "__call_log__:";
-const ENCRYPTED_MESSAGE_PLACEHOLDER = "🔒 Encrypted message";
+const LEGACY_MESSAGE_UNAVAILABLE = "Previous message unavailable";
 const PASSWORD_RESET_CODE_TTL_MS = 15 * 60 * 1000;
 const PASSWORD_RESET_MAX_ATTEMPTS = 5;
 const PASSWORD_RESET_WINDOW_MS = 15 * 60 * 1000;
@@ -1543,9 +1543,6 @@ function createUserRecord(username) {
     createdAt: "",
     lastSeenAt: "",
     presenceMode: "online",
-    publicKey: "",
-    e2eeIdentityBackup: "",
-    e2eeIdentityBackupPublicKey: "",
     retentionDays: 0,
     callsEnabled: true,
     callPrivacy: "friends",
@@ -1595,9 +1592,6 @@ function serializeState() {
       createdAt: toDisplayName(user.createdAt),
       lastSeenAt: toDisplayName(user.lastSeenAt),
       presenceMode: normalizePresenceMode(user.presenceMode),
-      publicKey: toDisplayName(user.publicKey),
-      e2eeIdentityBackup: toDisplayName(user.e2eeIdentityBackup),
-      e2eeIdentityBackupPublicKey: toDisplayName(user.e2eeIdentityBackupPublicKey),
       retentionDays: 0,
       callsEnabled: user.callsEnabled !== false,
         callPrivacy: user.callPrivacy || "friends", messagePrivacy: user.messagePrivacy || "friends",
@@ -1813,9 +1807,6 @@ async function persistMongoNow() {
               createdAt: toDisplayName(entry.createdAt),
               lastSeenAt: toDisplayName(entry.lastSeenAt),
               presenceMode: normalizePresenceMode(entry.presenceMode),
-              publicKey: toDisplayName(entry.publicKey),
-              e2eeIdentityBackup: toDisplayName(entry.e2eeIdentityBackup),
-              e2eeIdentityBackupPublicKey: toDisplayName(entry.e2eeIdentityBackupPublicKey),
               callsEnabled: entry.callsEnabled !== false,
               callPrivacy: entry.callPrivacy || "friends",
               messagePrivacy: entry.messagePrivacy || "friends",
@@ -2360,15 +2351,6 @@ async function sendPushToUser(userKey, payload) {
     try {
       const token = toDisplayName(user.fcmToken);
       if (token) {
-        const isEncryptedDirectMessage =
-          safePayload.type === "message" &&
-          safePayload.group !== true &&
-          typeof safePayload.ciphertext === "string" &&
-          typeof safePayload.iv === "string" &&
-          typeof safePayload.senderPublicKey === "string";
-        // Encrypted direct messages use data-only delivery. The recipient app
-        // decrypts locally and creates the visible notification; plaintext
-        // never passes through FCM or this server.
         const isCallPush = safePayload.type === "call";
         // Direct-message notifications are rendered by the app's background
         // handler. Sending an FCM notification payload as well makes Android
@@ -2398,14 +2380,6 @@ async function sendPushToUser(userKey, payload) {
             body: toDisplayName(safePayload.body) || "You have an incoming call",
           } : {}),
         };
-        if (isEncryptedDirectMessage) {
-          data.title = toDisplayName(safePayload.title) || "Novyn";
-          data.ciphertext = safePayload.ciphertext;
-          data.iv = safePayload.iv;
-          data.senderPublicKey = safePayload.senderPublicKey;
-          data.messageId = toDisplayName(safePayload.messageId);
-          data.previewEnabled = previewEnabled ? "1" : "0";
-        }
         const message = {
           token,
           ...(!isDirectMessagePush && !isCallPush ? {
@@ -2491,7 +2465,7 @@ function hydrateMessage(rawMessage) {
     toKey,
     toType,
     groupId: toType === "group" ? toKey : "",
-    text: withUploadToken(message.text),
+    text: message.isEncrypted ? LEGACY_MESSAGE_UNAVAILABLE : withUploadToken(message.text),
     timestamp: toDisplayName(message.timestamp) || nowIso(),
     deliveredAt: toDisplayName(message.deliveredAt) || null,
     seenAt: toDisplayName(message.seenAt) || null,
@@ -2502,9 +2476,6 @@ function hydrateMessage(rawMessage) {
     reactions: message.reactions || {},
     poll: message.poll || null,
     game: message.game || null,
-    ciphertext: toDisplayName(message.ciphertext) || undefined,
-    iv: toDisplayName(message.iv) || undefined,
-    isEncrypted: Boolean(message.isEncrypted),
   };
   if (toType === "group") {
     hydrated.seenBy = seenBy.length ? seenBy : (fromKey ? [fromKey] : []);
@@ -2579,9 +2550,6 @@ function applyLoadedState(parsed) {
     user.createdAt = toDisplayName(entry.createdAt);
     user.lastSeenAt = toDisplayName(entry.lastSeenAt);
     user.presenceMode = normalizePresenceMode(entry.presenceMode);
-    user.publicKey = toDisplayName(entry.publicKey);
-    user.e2eeIdentityBackup = toDisplayName(entry.e2eeIdentityBackup);
-    user.e2eeIdentityBackupPublicKey = toDisplayName(entry.e2eeIdentityBackupPublicKey);
     user.retentionDays = 0;
     user.callPrivacy = ["everyone", "friends", "nobody"].includes(entry.callPrivacy) ? entry.callPrivacy : "friends";
     user.messagePrivacy = ["everyone", "friends", "nobody"].includes(entry.messagePrivacy) ? entry.messagePrivacy : "friends";
@@ -2700,27 +2668,6 @@ function applyLoadedState(parsed) {
   }
 }
 
-// Older encrypted messages were stored with both ciphertext and the original body.
-// The ciphertext is sufficient for clients to decrypt, so scrub only the redundant
-// plaintext when both cryptographic fields are present.
-function scrubEncryptedMessagePlaintext() {
-  let scrubbed = 0;
-  for (const conversation of conversations.values()) {
-    for (const message of conversation) {
-      if (!message?.isEncrypted || !message.ciphertext || !message.iv) continue;
-      if (message.text !== ENCRYPTED_MESSAGE_PLACEHOLDER) {
-        message.text = ENCRYPTED_MESSAGE_PLACEHOLDER;
-        scrubbed += 1;
-      }
-      if (message.replyTo?.text && message.replyTo.text !== ENCRYPTED_MESSAGE_PLACEHOLDER) {
-        message.replyTo.text = ENCRYPTED_MESSAGE_PLACEHOLDER;
-        scrubbed += 1;
-      }
-    }
-  }
-  return scrubbed;
-}
-
 async function loadStateFromFile() {
   if (!fs.existsSync(DATA_FILE)) {
     return false;
@@ -2806,9 +2753,6 @@ function toSerializedUserEntry(doc) {
     createdAt: toDisplayName(doc?.createdAt),
     lastSeenAt: toDisplayName(doc?.lastSeenAt),
     presenceMode: normalizePresenceMode(doc?.presenceMode),
-    publicKey: toDisplayName(doc?.publicKey),
-    e2eeIdentityBackup: toDisplayName(doc?.e2eeIdentityBackup),
-    e2eeIdentityBackupPublicKey: toDisplayName(doc?.e2eeIdentityBackupPublicKey),
     callsEnabled: doc?.callsEnabled !== false,
     callPrivacy: doc?.callPrivacy || "friends", messagePrivacy: doc?.messagePrivacy || "friends",
     profilePhotoPrivacy: doc?.profilePhotoPrivacy || "everyone", presencePrivacy: doc?.presencePrivacy || "everyone", discoverPrivacy: doc?.discoverPrivacy || "everyone",
@@ -2843,9 +2787,6 @@ function toSerializedMessageEntry(doc) {
     attachment: doc?.attachment || undefined,
     poll: doc?.poll || undefined,
     game: doc?.game || undefined,
-    ciphertext: toDisplayName(doc?.ciphertext) || undefined,
-    iv: toDisplayName(doc?.iv) || undefined,
-    senderPublicKey: normalizePushPublicKey(doc?.senderPublicKey) || undefined,
     isEncrypted: Boolean(doc?.isEncrypted),
     seenBy: Array.isArray(doc?.seenBy) ? doc.seenBy : undefined,
     riddle: doc?.riddle || undefined,
@@ -3422,10 +3363,6 @@ function createStoredMessage(params = {}) {
   if (params.poll) message.poll = params.poll;
   if (params.game) message.game = params.game;
   if (params.riddle) message.riddle = params.riddle;
-  if (params.ciphertext) message.ciphertext = toDisplayName(params.ciphertext);
-  if (params.iv) message.iv = toDisplayName(params.iv);
-  if (params.isEncrypted) message.isEncrypted = Boolean(params.isEncrypted);
-  if (params.senderPublicKey) message.senderPublicKey = normalizePushPublicKey(params.senderPublicKey);
   const temp = toDisplayName(params.clientTempId).slice(0, 64);
   if (temp) message.clientTempId = temp;
   return message;
@@ -3501,10 +3438,6 @@ function deliverFriendMessage(params = {}) {
     poll: params.poll,
     game: params.game,
     riddle: params.riddle,
-    ciphertext: params.ciphertext,
-    iv: params.iv,
-    isEncrypted: params.isEncrypted,
-    senderPublicKey: params.senderPublicKey,
     clientTempId,
   });
 
@@ -3525,22 +3458,11 @@ function deliverFriendMessage(params = {}) {
     io.to(recipientSocketId).emit("private_message", riddleForViewer(message, toKey));
   }
   if (!isSelf && !recipientViewing && !isMutedBy(friend, fromKey)) {
-    const bodyText = params.isEncrypted === true
-      ? "You have a new message"
-      : formatPushBody(text);
+    const bodyText = formatPushBody(text);
     void sendPushToUser(toKey, {
       type: "message",
       title: `New message from ${me.username}`,
       body: bodyText,
-      ...(params.isEncrypted === true ? {
-        ciphertext: params.ciphertext,
-        iv: params.iv,
-        // Multi-device accounts can have different private ECDH identities.
-        // Use the sender device's key for this message, not the last account
-        // key registered on the server.
-        senderPublicKey: normalizePushPublicKey(params.senderPublicKey) || normalizePushPublicKey(me.publicKey),
-        messageId: message.id || message.messageId || "",
-      } : {}),
       tag: `msg-${fromKey}`,
       chat: me.username,
       url: `/?source=push&chat=${encodeURIComponent(me.username)}`,
@@ -3982,12 +3904,9 @@ function getConversationSummaryByKey(conversationKey) {
       id: message.id,
       from: message.from,
       to: message.to,
-      text: message.isEncrypted && !message.deletedAt ? ENCRYPTED_MESSAGE_PLACEHOLDER : compact,
+      text: message.isEncrypted && !message.deletedAt ? LEGACY_MESSAGE_UNAVAILABLE : compact,
       timestamp: message.timestamp,
       isEncrypted: Boolean(message.isEncrypted && !message.deletedAt),
-      ciphertext: !message.deletedAt ? message.ciphertext : undefined,
-      iv: !message.deletedAt ? message.iv : undefined,
-      senderPublicKey: !message.deletedAt ? message.senderPublicKey : undefined,
       attachment: !message.deletedAt ? message.attachment : undefined,
       isVoice: !message.deletedAt && Boolean(message.isVoice || message.attachment?.kind === 'audio'),
     },
@@ -4185,7 +4104,6 @@ function buildFriendList(forUser) {
       displayName: friend?.displayName || "",
       bio: friend?.bio || "",
       lastSeenAt: blocked || !presenceAllowed ? null : getVisibleLastSeen(friend),
-      publicKey: friend?.publicKey || "",
       muted: isMutedBy(user, friendKey),
       memberCount: 2,
       onlineCount: isOnline ? 1 : 0,
@@ -8223,25 +8141,13 @@ io.on("connection", (socket) => {
       return;
     }
 
-    const isEncrypted = Boolean(payload?.isEncrypted);
-    const ciphertext = toDisplayName(payload?.ciphertext);
-    const iv = toDisplayName(payload?.iv);
-    const senderPublicKey = normalizePushPublicKey(payload?.senderPublicKey);
-    if (isEncrypted && (!ciphertext || !iv || !senderPublicKey)) {
-      rejectMessage("Invalid encrypted message payload.");
-      return;
-    }
-    // Never store a client-supplied plaintext body for an encrypted message.
-    const text = isEncrypted
-      ? ENCRYPTED_MESSAGE_PLACEHOLDER
-      : withUploadToken(payload?.text || (payload?.attachment ? '[Attachment]' : ''));
+    const text = withUploadToken(payload?.text || (payload?.attachment ? '[Attachment]' : ''));
     const attachment = sanitizeMessageAttachment(payload?.attachment, text);
     const clientTempId = String(payload?.clientTempId || "").trim();
     const safeClientTempId = clientTempId.slice(0, 64);
     const to = toDisplayName(payload?.to);
     const toType = normalizeChatKind(payload?.toType || "friend");
     const replyTo = normalizeReplyPayload(payload?.replyTo);
-    if (isEncrypted && replyTo) replyTo.text = ENCRYPTED_MESSAGE_PLACEHOLDER;
     const rawGame = payload?.game || null;
     let game = null;
     if (rawGame) {
@@ -8296,10 +8202,6 @@ io.on("connection", (socket) => {
       replyTo,
       game,
       poll,
-      ciphertext,
-      iv,
-      isEncrypted,
-      senderPublicKey,
       clientTempId: safeClientTempId,
     });
     if (!result.ok) {
@@ -8390,113 +8292,6 @@ io.on("connection", (socket) => {
       if (senderSocketId) io.to(senderSocketId).emit("riddle_updated", riddleForViewer(message, resolved.targetKey));
     }
     respond({ ok: true, riddle: recipientView.riddle });
-  });
-
-  socket.on("register_public_key", (payload, callback) => {
-    const respond = typeof callback === "function" ? callback : (d) => socket.emit("public_key_registered", d);
-    const userKey = socket.data.userKey;
-    if (!userKey) {
-      respond({ ok: false, message: "Unauthorized" });
-      return;
-    }
-    const publicKey = toDisplayName(payload?.publicKey || payload);
-    if (!publicKey) {
-      respond({ ok: false, message: "Public key is required" });
-      return;
-    }
-    const user = users.get(userKey);
-    if (user) {
-      user.publicKey = publicKey;
-      schedulePersist();
-      // Notify friends of updated public key
-      for (const friendKey of user.friends || []) {
-        const friendSocket = onlineUsers.get(friendKey);
-        if (friendSocket) {
-          io.to(friendSocket).emit("peer_public_key_updated", {
-            username: user.username,
-            publicKey,
-          });
-        }
-      }
-      respond({ ok: true, publicKey });
-    }
-  });
-
-  socket.on("get_public_key", (payload, callback) => {
-    const respond = typeof callback === "function" ? callback : (d) => socket.emit("public_key_response", d);
-    const targetName = toDisplayName(payload?.username || payload?.target || payload);
-    const targetKey = normalizeName(targetName);
-    const target = users.get(targetKey);
-    const publicKey = target?.publicKey || "";
-    respond({ username: target?.username || targetName, publicKey });
-  });
-
-  socket.on("save_e2ee_identity_backup", (payload, callback) => {
-    const respond = typeof callback === "function" ? callback : (data) => socket.emit("e2ee_identity_backup_saved", data);
-    const userKey = socket.data.userKey;
-    const user = userKey ? users.get(userKey) : null;
-    if (!user) {
-      respond({ ok: false, message: "Unauthorized" });
-      return;
-    }
-    const backup = payload?.backup;
-    const publicKey = toDisplayName(payload?.publicKey);
-    if (!backup || typeof backup !== "object" || Array.isArray(backup)) {
-      respond({ ok: false, message: "A valid encrypted identity backup is required." });
-      return;
-    }
-    if (
-      backup.format !== "novyn-e2ee-identity" ||
-      backup.version !== 1 ||
-      normalizeName(backup.username) !== userKey ||
-      backup.publicKey !== publicKey ||
-      !publicKey ||
-      user.publicKey !== publicKey
-    ) {
-      respond({ ok: false, message: "The backup does not match this account's active encryption identity." });
-      return;
-    }
-    let serialized = "";
-    try {
-      serialized = JSON.stringify(backup);
-    } catch (_) {
-      respond({ ok: false, message: "The encrypted identity backup is invalid." });
-      return;
-    }
-    if (serialized.length > 12000) {
-      respond({ ok: false, message: "The encrypted identity backup is too large." });
-      return;
-    }
-    user.e2eeIdentityBackup = serialized;
-    user.e2eeIdentityBackupPublicKey = publicKey;
-    schedulePersist();
-    respond({ ok: true });
-  });
-
-  socket.on("get_e2ee_identity_backup", (_payload, callback) => {
-    const respond = typeof callback === "function" ? callback : (data) => socket.emit("e2ee_identity_backup", data);
-    const userKey = socket.data.userKey;
-    const user = userKey ? users.get(userKey) : null;
-    if (!user) {
-      respond({ ok: false, message: "Unauthorized" });
-      return;
-    }
-    let backup = null;
-    if (user.e2eeIdentityBackup) {
-      try {
-        const parsed = JSON.parse(user.e2eeIdentityBackup);
-        if (parsed && parsed.format === "novyn-e2ee-identity" && normalizeName(parsed.username) === userKey) {
-          backup = parsed;
-        }
-      } catch (_) {
-        backup = null;
-      }
-    }
-    respond({
-      ok: true,
-      backup,
-      publicKey: backup ? toDisplayName(user.e2eeIdentityBackupPublicKey) : "",
-    });
   });
 
   socket.on("schedule_message", (payload) => {
