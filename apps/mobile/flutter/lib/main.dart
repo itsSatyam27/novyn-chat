@@ -32,16 +32,8 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   unawaited(ProfileDeepLinkService.initialize());
 
-  // Android WorkManager performs periodic release checks even when Novyn is
-  // not currently open. Failures must never block normal app startup.
-  if (Platform.isAndroid) {
-    try {
-      await AppUpdateService.initializeBackgroundChecks();
-    } catch (error) {
-      debugPrint('[NovynUpdates] Background scheduler setup failed: ' + error.toString());
-    }
-  }
-
+  // WorkManager performs periodic update checks, but its plugin setup is
+  // not required for the first frame. Initialize it after runApp below.
   // Capture uncaught framework and asynchronous Dart errors from devices that
   // may exercise different Android/plugin code paths. Keep diagnostics in the
   // platform log instead of allowing an unhandled Dart exception to terminate
@@ -82,6 +74,18 @@ void main() async {
   // AuthService restores the secure session after runApp, while the splash
   // remains visible; this avoids hiding the splash behind disk I/O.
   runApp(NovynApp(settings: settings));
+
+  // Schedule periodic update checks after the first frame so WorkManager
+  // initialization never delays the branded splash or initial navigation.
+  if (Platform.isAndroid) {
+    unawaited(() async {
+      try {
+        await AppUpdateService.initializeBackgroundChecks();
+      } catch (error) {
+        debugPrint('[NovynUpdates] Background scheduler setup failed: ' + error.toString());
+      }
+    }());
+  }
 
   // Warm the backend without blocking the first frame or session restoration.
   unawaited(ApiService.ping());
