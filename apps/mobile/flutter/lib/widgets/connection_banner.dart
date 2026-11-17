@@ -28,16 +28,21 @@ class _ConnectionBannerState extends State<ConnectionBanner> {
     final socket = context.watch<SocketService>();
     final sync = context.watch<SyncService>();
 
-    if (socket.isConnected) {
+    // A transport may reconnect before its authenticated session is restored.
+    // Treat it as unavailable until both states are healthy, but hide brief
+    // Android resume gaps so the banner does not flash during normal navigation.
+    final isHealthy = socket.isConnected && socket.isAuthenticated;
+    if (isHealthy) {
       _connectDelay?.cancel();
       _connectDelay = null;
       _showConnecting = false;
       if (!sync.isSyncing) return const SizedBox.shrink();
     } else {
       if (!_showConnecting && _connectDelay == null) {
-        _connectDelay = Timer(const Duration(seconds: 4), () {
+        _connectDelay = Timer(const Duration(seconds: 7), () {
           _connectDelay = null;
-          if (mounted && !context.read<SocketService>().isConnected) {
+          final current = context.read<SocketService>();
+          if (mounted && !(current.isConnected && current.isAuthenticated)) {
             setState(() => _showConnecting = true);
           }
         });
@@ -45,7 +50,7 @@ class _ConnectionBannerState extends State<ConnectionBanner> {
       if (!_showConnecting) return const SizedBox.shrink();
     }
 
-    final isOffline = !socket.isConnected;
+    final isOffline = !isHealthy;
     final scheme = Theme.of(context).colorScheme;
     final foreground = isOffline ? scheme.onSurfaceVariant : scheme.primary;
     final background = isOffline
