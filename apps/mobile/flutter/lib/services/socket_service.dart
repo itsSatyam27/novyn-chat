@@ -1310,7 +1310,10 @@ class SocketService extends ChangeNotifier {
       _isConnecting = false;
       SyncService().setOnlineStatus(false);
       _socket = null;
+      final wasManualDisconnect = _manualDisconnect;
+      _manualDisconnect = true;
       connection.dispose();
+      _manualDisconnect = wasManualDisconnect;
       notifyListeners();
       if (!_manualDisconnect) _scheduleReconnect(1);
     }
