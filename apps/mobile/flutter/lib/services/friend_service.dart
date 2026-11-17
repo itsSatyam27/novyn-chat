@@ -53,6 +53,24 @@ class FriendService {
 
   List<UserModel>? get cachedFriends => _cachedFriends;
 
+  /// Attach the durable cache to the signed-in account before the Contacts
+  /// tab is opened. This ensures a friend-list snapshot received at login is
+  /// persisted even when the user never visits Contacts while online.
+  void activateAccount(String username) {
+    final owner = username.trim().toLowerCase();
+    if (owner.isEmpty) return;
+    final ownerChanged = owner != _cacheOwner;
+    _activateCacheOwner(owner);
+
+    if (_socket.contacts.hasAuthoritativeFriendSnapshot) {
+      _cachedFriends = List<UserModel>.from(_socket.contacts.friends);
+      unawaited(_persistFriends(owner, _cachedFriends!));
+    }
+    if (ownerChanged || !_cacheLoaded) {
+      unawaited(_loadCachedFriends(owner));
+    }
+  }
+
   static String _cacheKey(String username) =>
       'novyn_contacts_cache_v1_${username.trim().toLowerCase()}';
 
