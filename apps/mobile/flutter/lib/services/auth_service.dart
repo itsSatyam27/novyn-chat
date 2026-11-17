@@ -179,8 +179,32 @@ class AuthService extends ChangeNotifier {
 
   static const String _cachedIdentityMirrorKey =
       'novyn_last_signed_in_identity_mirror_v1';
+  // This marker distinguishes an intentional local sign-out from a missing
+  // cookie after a process restart or transient Android storage failure.
+  static const String _signedOutMarkerKey = 'novyn_explicit_signed_out_v1';
+
+  Future<bool> _hasSignedOutMarker() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getBool(_signedOutMarkerKey) == true;
+    } catch (error) {
+      debugPrint('[NovynAuth] Sign-out marker read failed: $error');
+      return false;
+    }
+  }
+
+  Future<void> _setSignedOutMarker(bool value) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_signedOutMarkerKey, value);
+    } catch (error) {
+      debugPrint('[NovynAuth] Sign-out marker write failed: $error');
+    }
+  }
 
   Future<void> _persistIdentity(NovynUser user) async {
+    // A successful sign-in/session restore supersedes any earlier sign-out.
+    await _setSignedOutMarker(false);
     final encoded = jsonEncode(_identityToMap(user));
     // The secure copy remains the primary cache. A second copy contains only
     // non-secret profile identity (never a password, access token or cookie),
@@ -300,6 +324,17 @@ class AuthService extends ChangeNotifier {
   Future<void> _restoreSession(
       Future<Map<String, dynamic>?> Function() loadSession) async {
     final cachedIdentity = await _readCachedIdentity();
+    final explicitlySignedOut = await _hasSignedOutMarker();
+    if (explicitlySignedOut) {
+      // A locally recorded sign-out wins even if the process was killed before
+      // the remote logout request completed.
+      await ApiService.clearSession();
+      await _clearCachedIdentity();
+      _user = null;
+      _authReady = true;
+      notifyListeners();
+      return;
+    }
     final clock = Stopwatch()..start();
     var storageReady = ApiService.sessionStorageInitialized;
     var hadSavedCookie = ApiService.sessionCookie != null;
@@ -341,10 +376,18 @@ class AuthService extends ChangeNotifier {
 
       hadSavedCookie = hadSavedCookie || ApiService.sessionCookie != null;
       if (!hadSavedCookie) {
-        // Secure storage was read successfully and confirmed there is no saved
-        // session. This is a real signed-out state (including after user logout).
+        if (cachedIdentity != null) {
+          // A successful Keystore read returning an empty cookie is not enough
+          // to prove the user explicitly signed out. Keep the last account
+          // available for its local/offline data and let resume retry storage.
+          // Only the durable sign-out marker above may clear this identity.
+          await _activateCachedIdentity(
+            cachedIdentity,
+            reason: 'session cookie unavailable after restart',
+          );
+          return;
+        }
         _user = null;
-        await _clearCachedIdentity();
         _authReady = true;
         notifyListeners();
         return;
@@ -377,6 +420,7 @@ class AuthService extends ChangeNotifier {
           if (refreshStatus == 401 || refreshStatus == 403) {
             definitiveRejections++;
             if (definitiveRejections >= 3) {
+              await _setSignedOutMarker(true);
               await ApiService.clearSession();
               await _clearCachedIdentity();
               _user = null;
@@ -834,6 +878,9 @@ class AuthService extends ChangeNotifier {
   // ── Logout ────────────────────────────────────────────────────────────────
   Future<void> logout() async {
     final username = _user?.username;
+    // Persist intent before any async cleanup so killing the app mid-logout
+    // cannot restore the previous account on the next launch.
+    await _setSignedOutMarker(true);
 
     // Change the local auth state first. Navigation must never wait on push
     // cleanup, Firebase sign-out, a slow backend or a socket disconnect.
