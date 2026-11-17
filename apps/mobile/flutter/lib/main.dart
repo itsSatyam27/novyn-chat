@@ -187,8 +187,8 @@ class NovynApp extends StatelessWidget {
           return MaterialApp(
             title: 'Novyn',
             debugShowCheckedModeBanner: false,
-            theme: NovynTheme.lightTheme(accent: s.accentColorEnabled ? Color(s.accentColorValue) : NovynTheme.indigo, fontScale: s.fontSize, highContrast: s.highContrast),
-            darkTheme: NovynTheme.darkTheme(accent: s.accentColorEnabled ? Color(s.accentColorValue) : NovynTheme.indigo, fontScale: s.fontSize, highContrast: s.highContrast),
+            theme: NovynTheme.lightTheme(accent: s.accentColorEnabled ? Color(s.accentColorValue) : NovynTheme.indigo, highContrast: s.highContrast),
+            darkTheme: NovynTheme.darkTheme(accent: s.accentColorEnabled ? Color(s.accentColorValue) : NovynTheme.indigo, highContrast: s.highContrast),
             themeMode: s.themeMode,
             locale: Locale(s.language),
             localizationsDelegates: [
@@ -212,24 +212,34 @@ class NovynApp extends StatelessWidget {
               Locale('ko'),
               Locale('ru'),
             ],
-            builder: (context, child) => MediaQuery(
-              data: MediaQuery.of(context).copyWith(disableAnimations: s.reduceMotion),
-              child: SessionLifecycleGuard(
-                child: AppLockWrapper(
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      child!,
-                      ValueListenableBuilder<Widget?>(
-                        valueListenable: CallOverlayService.miniCall,
-                        builder: (context, miniCall, _) =>
-                            miniCall ?? const SizedBox.shrink(),
+            builder: (context, child) {
+              final systemMediaQuery = MediaQuery.of(context);
+              final systemTextScale = systemMediaQuery.textScaler.scale(1.0);
+              return MediaQuery(
+                data: systemMediaQuery.copyWith(
+                  textScaler: TextScaler.linear(systemTextScale * s.fontSize),
+                  disableAnimations: s.reduceMotion,
+                ),
+                child: TickerMode(
+                  enabled: !s.reduceMotion,
+                  child: SessionLifecycleGuard(
+                    child: AppLockWrapper(
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          child!,
+                          ValueListenableBuilder<Widget?>(
+                            valueListenable: CallOverlayService.miniCall,
+                            builder: (context, miniCall, _) =>
+                                miniCall ?? const SizedBox.shrink(),
+                          ),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
                 ),
-              ),
-            ),
+              );
+            },
             home: const SplashScreenV2(),
           );
         },
