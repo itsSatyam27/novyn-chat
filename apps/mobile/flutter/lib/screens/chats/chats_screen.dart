@@ -9,6 +9,7 @@ import '../../services/auth_service.dart';
 import '../../services/settings_service.dart';
 import '../../services/socket_service.dart';
 import '../../services/hybrid_db_service.dart';
+import '../../services/notification_service.dart';
 import '../../widgets/user_avatar.dart';
 import '../../widgets/novyn_empty_state.dart';
 import '../../widgets/novyn_page_route.dart';
@@ -214,24 +215,29 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
   Future<void> _loadArchiveAndLockPreferences(String username) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final archived = prefs.getStringList(_archivedChatsPreferenceKey(username)) ?? [];
-      final locked = prefs.getStringList(_lockedChatsPreferenceKey(username)) ?? [];
-      if (!mounted ||
-          context.read<AuthService>().user?.username.trim().toLowerCase() !=
-              username.trim().toLowerCase()) {
-        return;
-      }
+      final archived = (prefs.getStringList(_archivedChatsPreferenceKey(username)) ?? [])
+          .map((value) => value.trim().toLowerCase()).where((value) => value.isNotEmpty).toSet();
+      final locked = (prefs.getStringList(_lockedChatsPreferenceKey(username)) ?? [])
+          .map((value) => value.trim().toLowerCase()).where((value) => value.isNotEmpty).toSet();
+      // Resolve legacy overlap deterministically: Archive wins.
+      locked.removeAll(archived);
+      await prefs.setStringList(_archivedChatsPreferenceKey(username), archived.toList());
+      await prefs.setStringList(_lockedChatsPreferenceKey(username), locked.toList());
+      if (!mounted || context.read<AuthService>().user?.username.trim().toLowerCase() != username.trim().toLowerCase()) return;
       setState(() {
-        _archivedChatUsernames = archived
-            .map((value) => value.trim().toLowerCase())
-            .where((value) => value.isNotEmpty)
-            .toSet();
-        _lockedChatUsernames = locked
-            .map((value) => value.trim().toLowerCase())
-            .where((value) => value.isNotEmpty)
-            .toSet();
-        _chats = _withPinnedPreferences(_chats);
+        _archivedChatUsernames = archived;
+        _lockedChatUsernames = locked;
+        _chats = _withPinnedPreferences(_chats.map((chat) {
+          final peer = chat.peer.username.trim().toLowerCase();
+          return locked.contains(peer) && chat.isArchived ? chat.copyWith(isArchived: false) : chat;
+        }).toList());
       });
+      for (final peer in archived) {
+        NotificationService.setChatArchivedForNotifications(peer, true);
+      }
+      for (final peer in locked) {
+        NotificationService.setChatArchivedForNotifications(peer, false);
+      }
       ChatsScreen.cachedChats = List<ChatPreview>.from(_chats);
       ChatsScreen.cachedChatsOwner = username.trim().toLowerCase();
       _applyFilters();
@@ -244,84 +250,59 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
     final account = context.read<AuthService>().user?.username.trim().toLowerCase();
     final peer = chat.peer.username.trim().toLowerCase();
     if (account == null || account.isEmpty || peer.isEmpty) return;
-
-    final next = Set<String>.from(_archivedChatUsernames);
-    final archived = !next.contains(peer);
-    if (archived) {
-      next.add(peer);
-    } else {
-      next.remove(peer);
-    }
-
+    final nextArchived = Set<String>.from(_archivedChatUsernames);
+    final archived = !nextArchived.contains(peer);
+    final nextLocked = Set<String>.from(_lockedChatUsernames);
+    if (archived) { nextArchived.add(peer); nextLocked.remove(peer); } else { nextArchived.remove(peer); }
     try {
       final prefs = await SharedPreferences.getInstance();
-      final saved = await prefs.setStringList(
-        _archivedChatsPreferenceKey(account),
-        next.toList(),
-      );
-      if (!saved) throw StateError('Could not save archive preference.');
-      if (!mounted ||
-          context.read<AuthService>().user?.username.trim().toLowerCase() != account) {
-        return;
-      }
+      final a = await prefs.setStringList(_archivedChatsPreferenceKey(account), nextArchived.toList());
+      final l = await prefs.setStringList(_lockedChatsPreferenceKey(account), nextLocked.toList());
+      if (!a || !l) throw StateError('Could not save chat privacy preferences.');
+      if (!mounted || context.read<AuthService>().user?.username.trim().toLowerCase() != account) return;
       final updated = _chats.map((item) => item.peer.username.trim().toLowerCase() == peer
-          ? item.copyWith(isArchived: archived)
-          : item).toList();
-      setState(() {
-        _archivedChatUsernames = next;
-        _chats = _withPinnedPreferences(updated);
-      });
+          ? item.copyWith(isArchived: archived) : item).toList();
+      setState(() { _archivedChatUsernames = nextArchived; _lockedChatUsernames = nextLocked; _chats = _withPinnedPreferences(updated); });
+      NotificationService.setChatArchivedForNotifications(peer, archived);
       ChatsScreen.cachedChats = List<ChatPreview>.from(_chats);
       ChatsScreen.cachedChatsOwner = account;
       await HybridDbService.saveChat(chat.copyWith(isArchived: archived));
       _applyFilters();
       _showNovynAlert(archived ? 'Chat archived' : 'Chat unarchived');
-    } catch (error) {
-      _showNovynAlert('Could not update archive: $error');
-    }
+    } catch (error) { _showNovynAlert('Could not update archive: $error'); }
   }
 
   Future<void> _toggleLockedChat(ChatPreview chat) async {
     final settings = context.read<SettingsService>();
-    if (!settings.appLockEnabled ||
-        settings.appLockPin == null ||
-        settings.appLockPin!.isEmpty ||
-        !settings.secureStorageAvailable) {
+    if (!settings.appLockEnabled || settings.appLockPin == null ||
+        settings.appLockPin!.isEmpty || !settings.secureStorageAvailable) {
       _showNovynAlert('Enable App Lock, set a secure PIN and make sure secure storage is available before locking chats.');
       return;
     }
-
     final account = context.read<AuthService>().user?.username.trim().toLowerCase();
     final peer = chat.peer.username.trim().toLowerCase();
     if (account == null || account.isEmpty || peer.isEmpty) return;
-    final next = Set<String>.from(_lockedChatUsernames);
-    final locked = !next.contains(peer);
-    if (!locked && !_showingLockedChats) {
-      if (!await _requireChatUnlock() || !mounted) return;
-    }
-    if (locked) {
-      next.add(peer);
-    } else {
-      next.remove(peer);
-    }
-
+    final nextLocked = Set<String>.from(_lockedChatUsernames);
+    final locked = !nextLocked.contains(peer);
+    if (!locked && !_showingLockedChats) { if (!await _requireChatUnlock() || !mounted) return; }
+    final nextArchived = Set<String>.from(_archivedChatUsernames);
+    if (locked) { nextLocked.add(peer); nextArchived.remove(peer); } else { nextLocked.remove(peer); }
     try {
       final prefs = await SharedPreferences.getInstance();
-      final saved = await prefs.setStringList(
-        _lockedChatsPreferenceKey(account),
-        next.toList(),
-      );
-      if (!saved) throw StateError('Could not save chat lock preference.');
-      if (!mounted ||
-          context.read<AuthService>().user?.username.trim().toLowerCase() != account) {
-        return;
-      }
-      setState(() => _lockedChatUsernames = next);
+      final l = await prefs.setStringList(_lockedChatsPreferenceKey(account), nextLocked.toList());
+      final a = await prefs.setStringList(_archivedChatsPreferenceKey(account), nextArchived.toList());
+      if (!l || !a) throw StateError('Could not save chat privacy preferences.');
+      if (!mounted || context.read<AuthService>().user?.username.trim().toLowerCase() != account) return;
+      final updated = _chats.map((item) => item.peer.username.trim().toLowerCase() == peer
+          ? item.copyWith(isArchived: false) : item).toList();
+      setState(() { _lockedChatUsernames = nextLocked; _archivedChatUsernames = nextArchived; _chats = _withPinnedPreferences(updated); });
+      NotificationService.setChatArchivedForNotifications(peer, false);
+      ChatsScreen.cachedChats = List<ChatPreview>.from(_chats);
+      ChatsScreen.cachedChatsOwner = account;
+      await HybridDbService.saveChat(chat.copyWith(isArchived: false));
       _applyFilters();
       _showNovynAlert(locked ? 'Chat locked' : 'Chat unlocked');
-    } catch (error) {
-      _showNovynAlert('Could not update chat lock: $error');
-    }
+    } catch (error) { _showNovynAlert('Could not update chat lock: $error'); }
   }
 
   String _hiddenChatsPreferenceKey(String username) =>
@@ -855,41 +836,26 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
     final account = context.read<AuthService>().user?.username.trim().toLowerCase();
     if (account == null || account.isEmpty || _selectedChatIds.isEmpty) return;
     final selected = _chats.where((chat) => _selectedChatIds.contains(chat.chatId)).toList();
-    final next = Set<String>.from(_archivedChatUsernames);
-    for (final chat in selected) {
-      next.add(chat.peer.username.trim().toLowerCase());
-    }
+    final nextArchived = Set<String>.from(_archivedChatUsernames);
+    final nextLocked = Set<String>.from(_lockedChatUsernames);
+    for (final chat in selected) { final peer = chat.peer.username.trim().toLowerCase(); nextArchived.add(peer); nextLocked.remove(peer); }
     try {
       final prefs = await SharedPreferences.getInstance();
-      final saved = await prefs.setStringList(
-        _archivedChatsPreferenceKey(account),
-        next.toList(),
-      );
-      if (!saved) throw StateError('Could not save archived chats.');
-      if (!mounted ||
-          context.read<AuthService>().user?.username.trim().toLowerCase() != account) {
-        return;
-      }
-      final updated = _chats.map((chat) {
-        final archived = next.contains(chat.peer.username.trim().toLowerCase());
-        return chat.copyWith(isArchived: archived);
-      }).toList();
-      setState(() {
-        _archivedChatUsernames = next;
-        _chats = _withPinnedPreferences(updated);
-        _selectionMode = false;
-        _selectedChatIds.clear();
-      });
+      final a = await prefs.setStringList(_archivedChatsPreferenceKey(account), nextArchived.toList());
+      final l = await prefs.setStringList(_lockedChatsPreferenceKey(account), nextLocked.toList());
+      if (!a || !l) throw StateError('Could not save archived chats.');
+      if (!mounted || context.read<AuthService>().user?.username.trim().toLowerCase() != account) return;
+      final peers = selected.map((chat) => chat.peer.username.trim().toLowerCase()).toSet();
+      final updated = _chats.map((chat) => peers.contains(chat.peer.username.trim().toLowerCase())
+          ? chat.copyWith(isArchived: true) : chat).toList();
+      setState(() { _archivedChatUsernames = nextArchived; _lockedChatUsernames = nextLocked; _chats = _withPinnedPreferences(updated); _selectionMode = false; _selectedChatIds.clear(); });
+      for (final peer in peers) { NotificationService.setChatArchivedForNotifications(peer, true); }
       ChatsScreen.cachedChats = List<ChatPreview>.from(_chats);
       ChatsScreen.cachedChatsOwner = account;
-      await Future.wait(selected.map(
-        (chat) => HybridDbService.saveChat(chat.copyWith(isArchived: true)),
-      ));
+      await Future.wait(selected.map((chat) => HybridDbService.saveChat(chat.copyWith(isArchived: true))));
       _applyFilters();
       _showNovynAlert('${selected.length} chat${selected.length == 1 ? '' : 's'} archived');
-    } catch (error) {
-      _showNovynAlert('Could not archive selected chats: $error');
-    }
+    } catch (error) { _showNovynAlert('Could not archive selected chats: $error'); }
   }
 
   Future<void> _markAllChatsRead() async {
