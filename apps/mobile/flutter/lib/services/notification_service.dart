@@ -7,7 +7,6 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart' hi
 import 'package:flutter_local_notifications/flutter_local_notifications.dart' as fln;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'firebase_configuration.dart';
-import '../models/chat_models.dart';
 import 'package:provider/provider.dart';
 import 'auth_service.dart';
 import 'settings_service.dart';
