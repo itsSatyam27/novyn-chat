@@ -1411,14 +1411,23 @@ class NotificationService {
       return;
     }
 
-    if (type == 'message' && message.data['kind'] == 'group') {
-      // Group messages do not use the direct-message socket banner callback,
-      // so FCM must render them even while the live socket remains connected.
-      unawaited(_showForegroundGroupNotification(message));
-      return;
+    if (type == 'message') {
+      final isGroup = message.data['kind'] == 'group';
+      final peer = isGroup
+          ? (message.data['groupId'] ?? message.data['chat'] ?? '').toString()
+          : (message.data['chat'] ?? '').toString();
+      // FCM is also a server-side delivery signal. Do not discard it merely
+      // because Socket.IO reports a live transport: request authoritative
+      // history so slow/stalled sockets cannot leave the conversation stale.
+      if (peer.trim().isNotEmpty) {
+        _socket?.syncMessageFromPush(peer, isGroup: isGroup);
+      }
+      if (isGroup) {
+        unawaited(_showForegroundGroupNotification(message));
+        return;
+      }
+      if (_socket?.isAuthenticated == true) return;
     }
-
-    if (type == 'message' && _socket?.isConnected == true) return;
     if (type == 'message') {
       final username = message.data['chat']?.toString().trim() ?? '';
       if (username.isNotEmpty) {
@@ -1611,9 +1620,18 @@ class NotificationService {
       _openSocialNotificationDestination(context, type);
       return;
     }
-    if (type == 'message' && message.data['kind'] == 'group') {
-      _openGroupNotificationDestination(context);
-      return;
+    if (type == 'message') {
+      final isGroup = message.data['kind'] == 'group';
+      final peer = isGroup
+          ? (message.data['groupId'] ?? message.data['chat'] ?? '').toString()
+          : (message.data['chat'] ?? '').toString();
+      if (peer.trim().isNotEmpty) {
+        _socket?.syncMessageFromPush(peer, isGroup: isGroup);
+      }
+      if (isGroup) {
+        _openGroupNotificationDestination(context);
+        return;
+      }
     }
 
     if (type == 'call') {
