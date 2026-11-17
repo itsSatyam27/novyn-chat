@@ -318,14 +318,14 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
   // Load older messages when scrolled to top
   void _onScroll() {
     if (!_scroll.hasClients) return;
-    final nearLatest = _scroll.position.extentAfter <= 120;
+    final nearLatest = _scroll.position.pixels <= 120;
     if (nearLatest != _isNearLatest && mounted) {
       setState(() {
         _isNearLatest = nearLatest;
         _showJumpToLatest = !nearLatest;
       });
     }
-    if (_scroll.position.pixels <= 80 &&
+    if (_scroll.position.extentAfter <= 80 &&
         !_loadingOlder &&
         _hasMore &&
         _chatId != null) {
@@ -559,7 +559,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
       // Keyboard insets can change the viewport abruptly on Android. A short,
       // bounded animation keeps the latest message visible without a harsh jump.
       _scroll.animateTo(
-        _scroll.position.maxScrollExtent,
+        0,
         duration: const Duration(milliseconds: 180),
         curve: Curves.easeOutCubic,
       );
@@ -672,58 +672,16 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
     }
   }
 
-  // Opening a conversation should land directly on the newest message.
-  // Avoid animating through the entire history, which feels slow on long chats.
+  // The message list is reversed, so its initial offset (zero) is the
+  // latest message. No extent measurement or scroll animation is required.
   void _jumpToLatestImmediately() {
-    // Keep the message list mounted behind a loading veil while Flutter lays
-    // out variable-height bubbles. This prevents the user seeing the initial
-    // top/middle position before the list reaches the true latest message.
-    _initialPositionReady = false;
-    var attempts = 0;
-    var stableFrames = 0;
-    double? previousExtent;
-
-    void retryAfterLayout() {
-      WidgetsBinding.instance.addPostFrameCallback((_) async {
-        if (!mounted) return;
-        if (!_scroll.hasClients || !_scroll.position.hasContentDimensions) {
-          if (++attempts < 40) {
-            await Future<void>.delayed(const Duration(milliseconds: 30));
-            if (mounted) retryAfterLayout();
-          } else {
-            setState(() => _initialPositionReady = true);
-          }
-          return;
-        }
-
-        final position = _scroll.position;
-        final extent = position.maxScrollExtent;
-        _scroll.jumpTo(extent);
-
-        if (previousExtent != null &&
-            (extent - previousExtent!).abs() < 1.0 &&
-            (position.maxScrollExtent - position.pixels).abs() < 1.0) {
-          stableFrames++;
-        } else {
-          stableFrames = 0;
-        }
-        previousExtent = extent;
-
-        if (++attempts < 40 && stableFrames < 3) {
-          await Future<void>.delayed(const Duration(milliseconds: 30));
-          if (mounted) retryAfterLayout();
-        } else if (mounted) {
-          _isNearLatest = true;
-          setState(() {
-            _initialPositionReady = true;
-            _showJumpToLatest = false;
-          });
-        }
+    _isNearLatest = true;
+    if (mounted) {
+      setState(() {
+        _initialPositionReady = true;
+        _showJumpToLatest = false;
       });
     }
-
-    retryAfterLayout();
-    _isNearLatest = true;
   }
 
   void _scrollToBottom({bool force = false}) {
@@ -1341,16 +1299,21 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
     if (peerIsTyping && _isNearLatest) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom(force: true));
     }
+    final itemCount = timelineIndices.length + 1 + (peerIsTyping ? 1 : 0);
     return ListView.builder(
       controller: _scroll,
+      reverse: true,
       padding: const EdgeInsets.fromLTRB(14, 16, 14, 18),
-      itemCount: timelineIndices.length + 1 + (peerIsTyping ? 1 : 0), // start marker + date/message rows + typing
+      itemCount: itemCount, // newest message starts at offset zero
       // Performance optimizations
       addAutomaticKeepAlives: false,
       addRepaintBoundaries: true,
-      cacheExtent: 500, // Cache 500px above/below viewport
-      itemBuilder: (context, i) {
-        // Top item: loading indicator or "start of conversation"
+      cacheExtent: 500,
+      itemBuilder: (context, visualIndex) {
+        // Reverse the builder index so the newest message is the first
+        // visible child at scroll offset zero; older history extends upward.
+        final i = itemCount - 1 - visualIndex;
+        // Logical item zero is the start marker at the visual top.
         if (i == 0) {
           if (_loadingOlder) {
             return Padding(
