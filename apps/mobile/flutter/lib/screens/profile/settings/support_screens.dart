@@ -771,9 +771,16 @@ class _LiquidDownloadProgressState extends State<_LiquidDownloadProgress>
                 style: TextStyle(color: Theme.of(context).colorScheme.onSurface,
                   fontSize: 18, fontWeight: FontWeight.w800, letterSpacing: -.3)),
               const SizedBox(height: 8),
-              Text(widget.paused ? 'Download paused' : '$speed · ${_eta()}',
+              Text(
+                widget.paused
+                    ? 'Download paused'
+                    : widget.speedBytesPerSecond < 1024 || widget.totalBytes <= 0
+                        ? 'Calculating speed and time…'
+                        : '$speed · ${_eta()}',
+                textAlign: TextAlign.start,
                 style: TextStyle(color: widget.muted, fontSize: 15,
-                  fontWeight: FontWeight.w500)),
+                  fontWeight: FontWeight.w500),
+              ),
             ],
           ),
         ),
