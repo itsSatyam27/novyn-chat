@@ -8,7 +8,6 @@ import { triggerHaptic } from '../services/capacitor';
 import { browserAlertsEnabled, messagePreviewsEnabled, callSoundEnabled } from '../services/browserPreferences';
 import { setBlockedContact } from '../services/accountSettings';
 import { ENCRYPTED_MESSAGE_PLACEHOLDER, readLastMessage, withDecryptedText } from '../services/messagePresentation';
-} from '../services/e2ee';
 
 interface ChatContextType {
   conversations: Conversation[];
@@ -1211,8 +1210,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       socket.off('connect', resumeSession);
       socket.off('friend_list');
       socket.off('friend_list_updated');
-      socket.off('peer_public_key_updated');
-      socket.off('requests_updated');
+        socket.off('requests_updated');
       socket.off('user_profile_updated');
       socket.off('profile_updated');
       socket.off('message_unsent');
@@ -1296,8 +1294,6 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       triggerHaptic('light');
       return;
     }
-    // Editing would require re-encrypting and replacing the ciphertext. Until that
-    // protocol exists, never fall back to submitting an encrypted message as plaintext.
     if (messagesCacheRef.current[activeChat.toLowerCase()]?.some((m) => m.id === messageId && m.isEncrypted)) {
       return;
     }
