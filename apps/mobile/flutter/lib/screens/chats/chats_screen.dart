@@ -617,6 +617,14 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
             peerUid: peerUid,
             peer: peer,
             lastMessage: chat['lastMessage'] ?? '',
+            lastMessageId: chat['lastMessageId']?.toString() ?? '',
+            lastMessageFrom: chat['lastMessageFrom']?.toString() ?? '',
+            lastMessageDeliveredAt: DateTime.tryParse(
+              chat['lastMessageDeliveredAt']?.toString() ?? '',
+            ),
+            lastMessageSeenAt: DateTime.tryParse(
+              chat['lastMessageSeenAt']?.toString() ?? '',
+            ),
             lastTime: lastTime,
             unreadCount: (chat['unreadCount'] as num?)?.toInt() ?? 0,
             isPinned: _pinnedChatUsernames.contains(
@@ -2000,6 +2008,15 @@ class _ChatCard extends StatelessWidget {
     final hasUnread = preview.unreadCount > 0;
     final titleColor = colors.onSurface;
     final metaColor = colors.onSurfaceVariant;
+    final currentUsername = context.read<SocketService>().myUsername
+        ?.trim()
+        .toLowerCase() ?? '';
+    final showOutgoingReceipt = !preview.isGroup &&
+        preview.lastMessageId.isNotEmpty &&
+        currentUsername.isNotEmpty &&
+        preview.lastMessageFrom.trim().toLowerCase() == currentUsername;
+    final receiptSeen = preview.lastMessageSeenAt != null;
+    final receiptDelivered = preview.lastMessageDeliveredAt != null;
 
     return InkWell(
       onTap: () {
@@ -2075,18 +2092,36 @@ class _ChatCard extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 5),
-                  Text(
-                    preview.lastMessage.isEmpty
-                        ? 'Tap to chat'
-                        : preview.lastMessage,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontFamily: 'PlusJakartaSans',
-                      fontSize: 14.5,
-                      color: hasUnread ? titleColor : metaColor,
-                      fontWeight: hasUnread ? FontWeight.w500 : FontWeight.w400,
-                    ),
+                  Row(
+                    children: [
+                      if (showOutgoingReceipt) ...[
+                        Icon(
+                          receiptSeen || receiptDelivered
+                              ? Icons.done_all_rounded
+                              : Icons.check_rounded,
+                          size: 17,
+                          color: receiptSeen
+                              ? const Color(0xFF2998E8)
+                              : metaColor,
+                        ),
+                        const SizedBox(width: 4),
+                      ],
+                      Expanded(
+                        child: Text(
+                          preview.lastMessage.isEmpty
+                              ? 'Tap to chat'
+                              : preview.lastMessage,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontFamily: 'PlusJakartaSans',
+                            fontSize: 14.5,
+                            color: hasUnread ? titleColor : metaColor,
+                            fontWeight: hasUnread ? FontWeight.w500 : FontWeight.w400,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
