@@ -10,6 +10,7 @@ typedef PendingMessageFailureHandler = void Function(
   PendingMessage message,
   String reason,
 );
+typedef PendingMessageDeferredHandler = void Function(PendingMessage message);
 
 /// A server rejection is permanent for this queued payload. Transport errors,
 /// timeouts and missing peer keys remain retryable and stay in the outbox.
@@ -235,9 +236,10 @@ class SyncService extends ChangeNotifier {
   Future<void> flushPendingMessages(
     PendingMessageSender sender, {
     PendingMessageFailureHandler? onRejected,
+    PendingMessageDeferredHandler? onDeferred,
   }) async {
     if (_flushFuture != null) return _flushFuture!;
-    final task = _flushOutbox(sender, onRejected: onRejected);
+    final task = _flushOutbox(sender, onRejected: onRejected, onDeferred: onDeferred);
     _flushFuture = task;
     try {
       await task;
@@ -249,6 +251,7 @@ class SyncService extends ChangeNotifier {
   Future<void> _flushOutbox(
     PendingMessageSender sender, {
     PendingMessageFailureHandler? onRejected,
+    PendingMessageDeferredHandler? onDeferred,
   }) async {
     await _ensureOutboxLoaded();
     final account = _activeAccount;
@@ -296,6 +299,7 @@ class SyncService extends ChangeNotifier {
             lastError: error.toString(),
           ),
         );
+        onDeferred?.call(pending);
         debugPrint(
           '[NovynOutbox] Will retry ${pending.tempId}: ${error.toString()}',
         );
