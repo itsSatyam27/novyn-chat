@@ -4479,6 +4479,8 @@ class _MessageBubble extends StatelessWidget {
           height: 20,
           child: CustomPaint(painter: _SendingStatusPainter()),
         );
+      case 'queued':
+        return const Icon(Icons.schedule_rounded, color: muted, size: 14);
       case 'sent':
         return const Icon(Icons.check_rounded, color: muted, size: 15);
       case 'delivered':
