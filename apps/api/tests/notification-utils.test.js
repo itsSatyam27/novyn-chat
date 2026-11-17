@@ -41,6 +41,21 @@ test("registration moves a token to the active account and preserves update mark
   assert.equal(newUser.fcmDevices[0].lastNotifiedUpdateBuild, 30);
 });
 
+test("an absent or malformed logout token never clears every device", () => {
+  const user = {
+    fcmToken: tokenB,
+    fcmDevices: [
+      { token: tokenA, appBuild: 40 },
+      { token: tokenB, appBuild: 50 },
+    ],
+  };
+
+  assert.equal(removeFcmDevice(user, null), false);
+  assert.equal(removeFcmDevice(user, "invalid"), false);
+  assert.equal(user.fcmDevices.length, 2);
+  assert.equal(user.fcmToken, tokenB);
+});
+
 test("logout removes only this device token and preserves other devices", () => {
   const user = {
     fcmToken: tokenB,
@@ -74,13 +89,38 @@ test("app update and direct message pushes are data-only and have offline TTL", 
   assert.equal(direct.data.chat, "bob");
 });
 
-test("group message push keeps a system notification while carrying group routing data", () => {
+test("group messages are data-only and preserve group routing metadata", () => {
   const group = createFcmMessage("alice", { username: "alice" }, {
     type: "message", group: true, groupId: "room-1", title: "Group message", body: "Hello group",
   });
-  assert.deepEqual(group.notification, { title: "Group message", body: "Hello group" });
+  assert.equal(group.notification, undefined);
   assert.equal(group.data.kind, "group");
   assert.equal(group.data.groupId, "room-1");
+  assert.equal(group.android.priority, "high");
+  assert.equal(group.android.ttl, 28 * 24 * 60 * 60 * 1000);
+});
+
+test("calls use a short high-priority delivery window", () => {
+  const call = createFcmMessage("alice", { username: "alice" }, {
+    type: "call", callStatus: "incoming", callId: "call-123", chat: "bob",
+  });
+  assert.equal(call.notification, undefined);
+  assert.equal(call.data.recipient, "alice");
+  assert.equal(call.data.callStatus, "incoming");
+  assert.equal(call.android.priority, "high");
+  assert.equal(call.android.ttl, 45 * 1000);
+});
+
+test("social notifications remain data-only for account and preference filtering", () => {
+  const social = createFcmMessage("alice", { username: "alice" }, {
+    type: "friend_request", eventId: "request-1", from: "bob",
+    title: "Friend request", body: "Bob sent a request",
+  });
+  assert.equal(social.notification, undefined);
+  assert.equal(social.data.type, "friend_request");
+  assert.equal(social.data.eventId, "request-1");
+  assert.equal(social.data.from, "bob");
+  assert.equal(social.data.recipient, "alice");
 });
 
 test("classifies invalid token and retryable Firebase errors", () => {
