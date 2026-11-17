@@ -1469,7 +1469,7 @@ export function StorageDashboard() {
                 navigateTo({ tab: 'settings', category: 'security', subSection: 'security-dashboard' });
               }}
             >
-              <span>Manage Keys in Security</span>
+              <span>Manage account security</span>
               <ArrowRight size={13} />
             </button>
           </div>
