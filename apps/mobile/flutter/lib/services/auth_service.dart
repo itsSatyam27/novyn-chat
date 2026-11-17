@@ -447,8 +447,28 @@ class AuthService extends ChangeNotifier {
         const Duration(seconds: 4),
         onTimeout: () => false,
       );
-      if (!storageReady ||
-          generation != _sessionMutationGeneration ||
+      if (!storageReady) {
+        // Keep the previous Keystore recovery behavior, but do it after the
+        // user has already reached the local account instead of holding splash.
+        unawaited(Future<void>.delayed(const Duration(seconds: 2), () async {
+          if (generation != _sessionMutationGeneration || _user == null) return;
+          try {
+            final ready = await ApiService.initializeSessionStorage().timeout(
+              const Duration(seconds: 4),
+              onTimeout: () => false,
+            );
+            if (ready &&
+                generation == _sessionMutationGeneration &&
+                _user != null) {
+              await restoreSessionOnResume();
+            }
+          } catch (error) {
+            debugPrint('[NovynAuth] Background Keystore retry failed: $error');
+          }
+        }));
+        return;
+      }
+      if (generation != _sessionMutationGeneration ||
           ApiService.sessionCookie == null ||
           ApiService.sessionCookie!.isEmpty) {
         return;
