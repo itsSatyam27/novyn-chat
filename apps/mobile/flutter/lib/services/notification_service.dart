@@ -351,9 +351,19 @@ class NotificationService {
   static const int _activeCallNotificationId = 781204;
   static const int _appUpdateNotificationId = 781205;
   static ValueChanged<BuildContext>? _appUpdateTapHandler;
+  static ValueChanged<String>? _socialNotificationTapHandler;
+  static VoidCallback? _groupNotificationTapHandler;
 
   static void setAppUpdateTapHandler(ValueChanged<BuildContext>? handler) {
     _appUpdateTapHandler = handler;
+  }
+
+  static void setSocialNotificationTapHandler(ValueChanged<String>? handler) {
+    _socialNotificationTapHandler = handler;
+  }
+
+  static void setGroupNotificationTapHandler(VoidCallback? handler) {
+    _groupNotificationTapHandler = handler;
   }
 
   static Future<void> showAppUpdateAvailable({
@@ -375,6 +385,7 @@ class NotificationService {
           iOS: DarwinInitializationSettings(),
         ),
       );
+      _localNotificationsReady = true;
     }
     final android = _localNotifications.resolvePlatformSpecificImplementation<
         AndroidFlutterLocalNotificationsPlugin>();
@@ -748,7 +759,11 @@ class NotificationService {
           return;
         }
         if (payload.startsWith('social|')) {
-          _openSocialNotificationDestination(context);
+          final parts = payload.split('|');
+          _openSocialNotificationDestination(
+            context,
+            parts.length > 1 ? parts[1] : '',
+          );
           return;
         }
         if (payload.startsWith('group|')) {
@@ -1211,7 +1226,11 @@ class NotificationService {
       if (localPayload == 'app_update') {
         _appUpdateTapHandler?.call(context);
       } else if (localPayload.startsWith('social|')) {
-        _openSocialNotificationDestination(context);
+        final parts = localPayload.split('|');
+        _openSocialNotificationDestination(
+          context,
+          parts.length > 1 ? parts[1] : '',
+        );
       } else if (localPayload.startsWith('group|')) {
         _openGroupNotificationDestination(context);
       } else if (localPayload.startsWith('call:')) {
@@ -1580,7 +1599,7 @@ class NotificationService {
         type == 'friend_request_accepted' ||
         type == 'friend_request_declined' ||
         type == 'group_invite') {
-      _openSocialNotificationDestination(context);
+      _openSocialNotificationDestination(context, type);
       return;
     }
     if (type == 'message' && message.data['kind'] == 'group') {
@@ -1607,14 +1626,19 @@ class NotificationService {
     await _openChatFromNotification(username, context);
   }
 
-  static void _openSocialNotificationDestination(BuildContext context) {
+  static void _openSocialNotificationDestination(
+    BuildContext context,
+    String type,
+  ) {
     if (!context.mounted) return;
     Navigator.of(context, rootNavigator: true).popUntil((route) => route.isFirst);
+    _socialNotificationTapHandler?.call(type);
   }
 
   static void _openGroupNotificationDestination(BuildContext context) {
     if (!context.mounted) return;
     Navigator.of(context, rootNavigator: true).popUntil((route) => route.isFirst);
+    _groupNotificationTapHandler?.call();
   }
 
   static Future<void> _openIncomingCall(String caller, String callId, bool isVideo, BuildContext context) async {
