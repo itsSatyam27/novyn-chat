@@ -76,7 +76,7 @@ export const mobileManagedSettings: Record<SettingsSubSection, MobileSetting> = 
   'appear-accessibility': { title: 'Accessibility', path: ['Settings', 'Accessibility'] },
   'storage-cache': { title: 'Data & Storage', path: ['Settings', 'Data & Storage'] },
   'storage-export': { title: 'Backup & Restore', pending: 'Backup and restore are not available in the mobile app yet.' },
-  'storage-security': { title: 'Encryption Status', path: ['Settings', 'Security & Privacy'] },
+  'storage-security': { title: 'Account Security', path: ['Settings', 'Security & Privacy'] },
   'feedback-send': { title: 'Help & Support', path: ['Settings', 'Help & Support'] },
   'feedback-bug': { title: 'Report a Bug', path: ['Settings', 'Help & Support'] },
   'feedback-feature': { title: 'Request a Feature', path: ['Settings', 'Help & Support'] },
