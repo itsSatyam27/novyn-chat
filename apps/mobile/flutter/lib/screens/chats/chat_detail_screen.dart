@@ -318,14 +318,14 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
   // Load older messages when scrolled to top
   void _onScroll() {
     if (!_scroll.hasClients) return;
-    final nearLatest = _scroll.position.pixels <= 120;
+    final nearLatest = _scroll.position.extentAfter <= 120;
     if (nearLatest != _isNearLatest && mounted) {
       setState(() {
         _isNearLatest = nearLatest;
         _showJumpToLatest = !nearLatest;
       });
     }
-    if (_scroll.position.extentAfter <= 80 &&
+    if (_scroll.position.extentBefore <= 80 &&
         !_loadingOlder &&
         _hasMore &&
         _chatId != null) {
@@ -559,7 +559,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
       // Keyboard insets can change the viewport abruptly on Android. A short,
       // bounded animation keeps the latest message visible without a harsh jump.
       _scroll.animateTo(
-        0,
+        _scroll.position.maxScrollExtent,
         duration: const Duration(milliseconds: 180),
         curve: Curves.easeOutCubic,
       );
@@ -672,16 +672,20 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
     }
   }
 
-  // The message list is reversed, so its initial offset (zero) is the
-  // latest message. No extent measurement or scroll animation is required.
+  // Keep the normal oldest-to-newest timeline. Position it at the latest
+  // message before revealing it, so users never see an intermediate offset.
   void _jumpToLatestImmediately() {
-    _isNearLatest = true;
-    if (mounted) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (_scroll.hasClients) {
+        _scroll.jumpTo(_scroll.position.maxScrollExtent);
+      }
+      _isNearLatest = true;
       setState(() {
         _initialPositionReady = true;
         _showJumpToLatest = false;
       });
-    }
+    });
   }
 
   void _scrollToBottom({bool force = false}) {
@@ -689,7 +693,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
       if (!_scroll.hasClients || !mounted) return;
       if (!force && !_isNearLatest) return;
       _scroll.animateTo(
-        0,
+        _scroll.position.maxScrollExtent,
         duration: const Duration(milliseconds: 320),
         curve: Curves.easeOutCubic,
       );
@@ -1302,17 +1306,13 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
     final itemCount = timelineIndices.length + 1 + (peerIsTyping ? 1 : 0);
     return ListView.builder(
       controller: _scroll,
-      reverse: true,
       padding: const EdgeInsets.fromLTRB(14, 16, 14, 18),
-      itemCount: itemCount, // newest message starts at offset zero
+      itemCount: itemCount,
       // Performance optimizations
       addAutomaticKeepAlives: false,
       addRepaintBoundaries: true,
       cacheExtent: 500,
-      itemBuilder: (context, visualIndex) {
-        // Reverse the builder index so the newest message is the first
-        // visible child at scroll offset zero; older history extends upward.
-        final i = itemCount - 1 - visualIndex;
+      itemBuilder: (context, i) {
         // Logical item zero is the start marker at the visual top.
         if (i == 0) {
           if (_loadingOlder) {
