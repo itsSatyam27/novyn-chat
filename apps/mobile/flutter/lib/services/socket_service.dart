@@ -584,6 +584,9 @@ class SocketService extends ChangeNotifier {
       _socket?.emit('app_visibility', {'foreground': true});
     }
     if (_isConnected && _isAuthenticated) {
+      // Probe immediately on resume; background suspension can leave a
+      // transport marked connected even though its application channel died.
+      unawaited(_probeConnectionHealth());
       _requestActiveChatRefresh();
       unawaited(_flushPendingMessageOutbox());
     }
