@@ -126,7 +126,7 @@ export const MobileAuthPage: React.FC<MobileAuthPageProps> = ({
               </h1>
               <p className="mobile-auth-subtitle">
                 <ShieldCheck size={14} style={{ color: 'var(--primary)' }} />
-                End-to-End Encrypted Messenger
+                Chat with your people, wherever you are
               </p>
             </header>
 
@@ -363,7 +363,7 @@ export const MobileAuthPage: React.FC<MobileAuthPageProps> = ({
 
           <div className="mobile-auth-security-tag">
             <ShieldCheck size={13} style={{ color: 'var(--primary)' }} />
-            <span>Encrypted with client-side device keys</span>
+            <span>Your account and sessions stay protected</span>
           </div>
         </footer>
       </motion.div>
