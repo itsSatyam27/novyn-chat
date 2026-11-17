@@ -880,14 +880,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // Preserve any locally cached readable copy of a legacy message when refreshing history.
         const reconciledList = formattedList.map((incoming) => {
           const cached = existingById.get(incoming.id);
-          const sameEncryptedPayload = Boolean(
-            cached?.isEncrypted &&
-            (incoming.isEncrypted || incoming.text === LEGACY_MESSAGE_UNAVAILABLE) &&
-          );
-          return sameEncryptedPayload &&
-            cached!.text !== 'Previous encrypted message unavailable'
-            ? { ...incoming, text: cached!.text, isEncrypted: true }
-            : incoming;
+          return cached ? withCachedLegacyText(incoming, cached) : incoming;
         });
         const pendingMessages = existing.filter((message) => pendingSendsRef.current.has(message.id));
         const isOlderPage = Boolean(data?.before);
