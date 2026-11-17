@@ -108,7 +108,9 @@ function createFcmMessage(userKey, user, payload = {}) {
     "friend_request_declined",
     "group_invite",
   ]);
-  const dataOnly = isDirectMessage || dataOnlyTypes.has(type);
+  // Every mobile alert is data-only so the app can check the signed-in account,
+  // apply privacy/DND rules, and render one consistent local notification.
+  const dataOnly = type === "message" || dataOnlyTypes.has(type);
   const silent = payload.silent === true;
   const ttlMs = isCall ? 45000 : FOUR_WEEKS_MS;
   const title = String(payload.title || "Novyn").slice(0, 180);
