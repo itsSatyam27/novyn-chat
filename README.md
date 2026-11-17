@@ -140,7 +140,6 @@ When connected to MongoDB Atlas, Novyn Chat organizes data into high-performance
   "displayName": "Satyam",
   "avatarId": "avatar_robot_01",
   "bio": "Building with Novyn Chat",
-  "publicKey": "{\"crv\":\"P-256\",\"ext\":true,\"key_ops\":[],\"kty\":\"EC\",\"x\":\"...\",\"y\":\"...\"}",
   "friends": ["alex"],
   "groups": [],
   "presenceMode": "online",
