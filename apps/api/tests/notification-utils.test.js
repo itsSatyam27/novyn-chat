@@ -7,6 +7,7 @@ const {
   registerFcmDevice,
   removeFcmDevice,
   createFcmMessage,
+  parseAndroidReleaseBuild,
   isInvalidFcmTokenError,
   isRetryableFcmError,
 } = require("../server/notification-utils");
@@ -121,6 +122,14 @@ test("social notifications remain data-only for account and preference filtering
   assert.equal(social.data.eventId, "request-1");
   assert.equal(social.data.from, "bob");
   assert.equal(social.data.recipient, "alice");
+});
+
+test("recognizes current and legacy ARM64 APK release tags", () => {
+  assert.equal(parseAndroidReleaseBuild("novyn-arm64-build-62-1"), 62);
+  assert.equal(parseAndroidReleaseBuild("novyn-apk-47-1"), 47);
+  assert.equal(parseAndroidReleaseBuild("novyn-apk-47"), 47);
+  assert.equal(parseAndroidReleaseBuild("novyn-apk-beta-48"), 0);
+  assert.equal(parseAndroidReleaseBuild("unrelated-release-49"), 0);
 });
 
 test("classifies invalid token and retryable Firebase errors", () => {
