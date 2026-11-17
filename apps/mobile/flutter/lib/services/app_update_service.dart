@@ -428,7 +428,7 @@ class AppUpdateService extends ChangeNotifier {
         }
         final elapsedSeconds = elapsed.inMicroseconds / 1000000;
         final speed = elapsedSeconds > 0
-            ? ((bytes - offset).clamp(0, release.size) / elapsedSeconds)
+            ? ((bytes - offset).clamp(0, release.size) / elapsedSeconds).toDouble()
             : 0.0;
         try {
           await NotificationService.showUpdateDownloadProgress(
