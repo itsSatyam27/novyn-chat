@@ -292,7 +292,10 @@ class _CallsScreenState extends State<CallsScreen> with WidgetsBindingObserver {
         debugPrint('[NovynCalls] Could not cache synced call history: $error');
       }
       if (!mounted || generation != _callLoadGeneration) return;
-      final entries = await _buildCallEntries(rawLogs, username, generation);
+      // Read back the filtered snapshot so a previous local "Clear history"
+      // watermark is respected by both the cache and the visible list.
+      final visibleLogs = await LocalDbService.getCallLogs(username);
+      final entries = await _buildCallEntries(visibleLogs, username, generation);
       if (!mounted || generation != _callLoadGeneration) return;
       setState(() {
         _calls = entries;
