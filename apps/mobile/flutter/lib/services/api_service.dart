@@ -800,16 +800,31 @@ class ApiService {
   }
 
   // ── Fetch call logs for the current user ─────────────────────────────────
-  static Future<List<Map<String, dynamic>>> getCallLogs() async {
+  // null means the server could not be reached; an empty list is a confirmed
+  // empty history. Callers must never replace a local cache with a timeout.
+  static Future<List<Map<String, dynamic>>?> getCallLogs() async {
+    await initializeSessionStorage();
     try {
-      final res = await http
+      Future<http.Response> request() => http
           .get(Uri.parse('$baseUrl/api/calls'), headers: _authHeaders)
           .timeout(const Duration(seconds: 10));
-      if (res.statusCode == 200) {
-        return List<Map<String, dynamic>>.from(jsonDecode(res.body));
+
+      var response = await request();
+      if (response.statusCode == 401) {
+        final refreshed = await refreshSessionStatus();
+        if (refreshed == 200) response = await request();
       }
-    } catch (_) {}
-    return [];
+      if (response.statusCode != 200) return null;
+      final decoded = jsonDecode(response.body);
+      if (decoded is! List) return null;
+      return decoded
+          .whereType<Map>()
+          .map((entry) => Map<String, dynamic>.from(entry))
+          .toList(growable: false);
+    } catch (error) {
+      debugPrint('[NovynCalls] Call history sync deferred: $error');
+      return null;
+    }
   }
 
   // ── Friend search ─────────────────────────────────────────────────────────
