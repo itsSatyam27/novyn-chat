@@ -75,9 +75,10 @@ void main() async {
   // remains visible; this avoids hiding the splash behind disk I/O.
   runApp(NovynApp(settings: settings));
 
-  // Schedule periodic update checks after the first frame so WorkManager
-  // initialization never delays the branded splash or initial navigation.
-  if (Platform.isAndroid) {
+  // Schedule periodic update checks only after Flutter has rendered the
+  // first frame; WorkManager setup must not delay the branded splash.
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    if (!Platform.isAndroid) return;
     unawaited(() async {
       try {
         await AppUpdateService.initializeBackgroundChecks();
@@ -85,7 +86,7 @@ void main() async {
         debugPrint('[NovynUpdates] Background scheduler setup failed: ' + error.toString());
       }
     }());
-  }
+  });
 
   // Warm the backend without blocking the first frame or session restoration.
   unawaited(ApiService.ping());
