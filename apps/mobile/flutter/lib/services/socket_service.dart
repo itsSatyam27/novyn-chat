@@ -1390,6 +1390,9 @@ class SocketService extends ChangeNotifier {
 
   Future<void> _requireAuthenticatedConnection() async {
     await _waitForSocketAuthentication();
+    if (_connectionDegraded) {
+      throw StateError('Novyn detected a slow connection and is reconnecting. Please retry shortly.');
+    }
     if (_socket == null || !_isConnected || !_isAuthenticated) {
       throw StateError('Novyn is reconnecting securely. Please try again in a moment.');
     }
@@ -2193,6 +2196,9 @@ class SocketService extends ChangeNotifier {
   }
 
   void _requireConnection() {
+    if (_connectionDegraded) {
+      throw StateError('Novyn detected a slow connection and is reconnecting. Please retry shortly.');
+    }
     if (!_isConnected || _socket == null) {
       throw StateError('Connect to Novyn before sending messages or changing contacts.');
     }
