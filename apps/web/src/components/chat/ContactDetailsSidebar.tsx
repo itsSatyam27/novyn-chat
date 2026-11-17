@@ -1050,7 +1050,7 @@ export const ContactDetailsSidebar: React.FC<ContactDetailsSidebarProps> = ({
                 <ExternalLink style={{ width: '15px', height: '15px', color: 'var(--text-dark)' }} />
               </div>
 
-              {/* 3. QR Code & Encryption (1-on-1 only) */}
+              {/* 3. Contact QR Code (1-on-1 only) */}
               {!isGroup && (
                 <>
                   <div
