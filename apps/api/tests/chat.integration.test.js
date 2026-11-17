@@ -282,7 +282,7 @@ test('localhost discovery, requests, reconnect state, and private media', { time
 
   // Direct messages now use ordinary text payloads. Both participants receive
   // readable previews, retries are idempotent, and deleted previews are removed.
-  const plaintext = 'This message is stored and delivered as ordinary text';
+  const plaintext = 'Plain text message preview works';
   const isPlainSummary = ({ friends }) => friends.some(
     (friend) => friend.lastMessageData?.text === plaintext,
   );
