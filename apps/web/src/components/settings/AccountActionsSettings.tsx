@@ -104,8 +104,6 @@ export const AccountActionsSettings: React.FC<AccountActionsSettingsProps> = ({
         'novyn_auth_token',
         'novyn_refresh_token',
         'novyn_chat_username',
-        'novyn_e2ee_identity_key',
-        'novyn_e2ee_pre_keys',
         'novyn_app_lock_pin_hash',
       ]);
 
@@ -298,7 +296,7 @@ export const AccountActionsSettings: React.FC<AccountActionsSettingsProps> = ({
             {/* Status Pills */}
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 20 }}>
               <div className="account-status-pill">
-                <Check size={13} strokeWidth={2.8} /> Encryption keys stay
+                <Check size={13} strokeWidth={2.8} /> Account data stays
               </div>
               <div className="account-status-pill">
                 <Check size={13} strokeWidth={2.8} /> You stay signed in
@@ -458,7 +456,7 @@ export const AccountActionsSettings: React.FC<AccountActionsSettingsProps> = ({
                   <MessageSquare size={16} />
                 </div>
                 <div className="account-danger-consequence-text">
-                  All end-to-end encrypted chats and media are erased
+                  All chats and shared media are erased
                 </div>
               </div>
 

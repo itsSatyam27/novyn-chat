@@ -7,14 +7,7 @@ import { playMessageNotification, playMessageSentSound, getSoundVolume } from '.
 import { triggerHaptic } from '../services/capacitor';
 import { browserAlertsEnabled, messagePreviewsEnabled, callSoundEnabled } from '../services/browserPreferences';
 import { setBlockedContact } from '../services/accountSettings';
-import { ENCRYPTED_MESSAGE_PLACEHOLDER, readLastMessage, needsDecryption, withDecryptedText } from '../services/messagePresentation';
-import {
-  initE2EEIdentity,
-  encryptMessageContent,
-  decryptMessageContent,
-  generateSafetyNumber,
-  getMyPublicKeyJwk,
-} from '../services/e2ee';
+import { LEGACY_MESSAGE_UNAVAILABLE, readLastMessage, withCachedLegacyText } from '../services/messagePresentation';
 
 interface ChatContextType {
   conversations: Conversation[];
@@ -81,8 +74,6 @@ interface ChatContextType {
   toggleMute: () => void;
   toggleCamera: () => void;
   toggleScreenShare: () => Promise<void>;
-  myPublicKey: string;
-  getSafetyNumber: (peerUsername: string) => Promise<string>;
 }
 
 const ChatContext = createContext<ChatContextType | null>(null);
@@ -283,87 +274,6 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const callTimeoutTimerRef = useRef<any>(null);
   const callStartTimeRef = useRef<number | null>(null);
 
-  const [myPublicKey, setMyPublicKey] = useState<string>('');
-  const myPublicKeyRef = useRef<string>('');
-  myPublicKeyRef.current = myPublicKey;
-
-  // Initialize E2EE Identity Key on client device
-  useEffect(() => {
-    if (!user?.username) return;
-    initE2EEIdentity(user.username).then((pubKey) => {
-      if (pubKey) {
-        setMyPublicKey(pubKey);
-        myPublicKeyRef.current = pubKey;
-        const socket = getSocket();
-        if (socket) {
-          socket.emit('register_public_key', { publicKey: pubKey });
-        }
-      }
-    });
-  }, [user?.username]);
-
-  // Decrypt both open-chat messages and unopened conversation previews. Waiting
-  // for identity/key readiness also handles history arriving before local keys.
-  useEffect(() => {
-    if (!user || !myPublicKey) return;
-    let cancelled = false;
-    const jobs = new Map<string, { partner: string; message: Message; publicKey: string }>();
-    const queue = (conversation: Conversation, message?: Message) => {
-      if (conversation.isGroup || !conversation.publicKey || !needsDecryption(message)) return;
-      const partner = conversation.username.toLowerCase();
-      jobs.set(JSON.stringify([partner, message.id, message.ciphertext, message.iv]), {
-        partner, message, publicKey: conversation.publicKey,
-      });
-    };
-    conversations.forEach((conversation) => queue(conversation, conversation.lastMessage));
-    const active = conversations.find((c) => c.username.toLowerCase() === activeChat?.toLowerCase());
-    if (active) messages.forEach((message) => queue(active, message));
-    if (!jobs.size) return;
-
-    void Promise.all([...jobs.values()].map(async (job) => {
-      const text = await decryptMessageContent(job.message.ciphertext!, job.message.iv!, job.partner, job.publicKey);
-      return text === null ? null : { partner: job.partner, message: { ...job.message, text } };
-    })).then((results) => {
-      if (cancelled) return;
-      const decrypted = results.filter((result) => result !== null);
-      if (!decrypted.length) return;
-      const update = (message: Message, partner: string) => decrypted.reduce(
-        (current, result) => result.partner === partner ? withDecryptedText(current, result.message) : current,
-        message
-      );
-      const updateList = (list: Message[], partner: string) => {
-        const next = list.map((message) => update(message, partner));
-        return next.some((message, index) => message !== list[index]) ? next : list;
-      };
-      for (const partner of new Set(decrypted.map((result) => result.partner))) {
-        const cached = messagesCacheRef.current[partner];
-        if (cached) messagesCacheRef.current[partner] = updateList(cached, partner);
-      }
-      if (activeChat) setMessages((previous) => updateList(previous, activeChat.toLowerCase()));
-      setConversations((previous) => {
-        const next = previous.map((conversation) => {
-          if (!conversation.lastMessage) return conversation;
-          const lastMessage = update(conversation.lastMessage, conversation.username.toLowerCase());
-          return lastMessage === conversation.lastMessage ? conversation : { ...conversation, lastMessage };
-        });
-        return next.some((conversation, index) => conversation !== previous[index]) ? next : previous;
-      });
-    });
-    return () => { cancelled = true; };
-  }, [conversations, messages, activeChat, myPublicKey, user?.username]);
-
-  const getSafetyNumber = useCallback(async (peerUsername: string): Promise<string> => {
-    const peerConv = conversationsRef.current.find(
-      (c) => c.username.toLowerCase() === peerUsername.toLowerCase()
-    );
-    const myPub = myPublicKeyRef.current;
-    const peerPub = peerConv?.publicKey || '';
-    if (!myPub || !peerPub) {
-      return '01948 29384 10293 84726 19283 74625 10293 84726 19283 74625 10293 84726';
-    }
-    return generateSafetyNumber(myPub, peerPub);
-  }, []);
-
   // Load call logs from localStorage
   useEffect(() => {
     if (!user?.username) return;
@@ -478,7 +388,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const activeConversation = conversationsRef.current.find((conversation) => conversation.username.toLowerCase() === key);
 
     // Saved Messages is a private, device-local notebook. It deliberately avoids
-    // friend authorization, networking and peer encryption requirements.
+    // friend authorization, networking and message-key requirements.
     if (activeConversation?.isSelf) {
       try {
         const stored = JSON.parse(localStorage.getItem(`novyn_saved_messages_${user.username.toLowerCase()}`) || '[]');
@@ -703,16 +613,10 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
           return cached ? { ...conversation, lastMessage: cached } : conversation;
         }
         return conversation.lastMessage && cached
-          ? { ...conversation, lastMessage: withDecryptedText(conversation.lastMessage, cached) }
+          ? { ...conversation, lastMessage: withCachedLegacyText(conversation.lastMessage, cached) }
           : conversation;
       }));
     };
-
-    socket.on('peer_public_key_updated', ({ username, publicKey }: { username: string; publicKey: string }) => {
-      setConversations((prev) =>
-        prev.map((c) => (c.username.toLowerCase() === username.toLowerCase() ? { ...c, publicKey } : c))
-      );
-    });
 
     socket.on('group_created', ({ group }: any) => {
       triggerHaptic('success');
@@ -953,7 +857,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
           id: m.id || m.messageId || String(m.timestamp),
           sender: m.from || m.sender || m.fromKey,
           receiver: m.to || m.receiver || m.toKey,
-          text: m.isEncrypted && !m.deletedAt ? ENCRYPTED_MESSAGE_PLACEHOLDER : m.text || '',
+          text: m.isEncrypted && !m.deletedAt ? 'Previous encrypted message unavailable' : m.text || '',
           timestamp: m.timestamp,
           status: (m.seenAt ? 'seen' : m.deliveredAt ? 'delivered' : m.status || 'sent') as MessageStatus,
           attachment: m.attachment,
@@ -965,9 +869,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
           poll: m.poll || null,
           game: m.game || null,
           riddle: m.riddle || null,
-          ciphertext: !m.deletedAt ? m.ciphertext : undefined,
-          iv: !m.deletedAt ? m.iv : undefined,
-          isEncrypted: Boolean(m.isEncrypted && !m.deletedAt),
+          isEncrypted: Boolean((m.isEncrypted || m.text === LEGACY_MESSAGE_UNAVAILABLE) && !m.deletedAt),
         }));
 
         const targetKey = target.toLowerCase();
@@ -975,21 +877,10 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         for (const id of confirmedIds) pendingSendsRef.current.delete(String(id));
         const existing = messagesCacheRef.current[targetKey] || [];
         const existingById = new Map(existing.map((message) => [message.id, message]));
-        // History sync returns ciphertext again. Keep the already-decrypted local
-        // text for the same encrypted payload so reopening a chat never flashes
-        // the temporary "Encrypted message" placeholder over visible content.
+        // Preserve any locally cached readable copy of a legacy message when refreshing history.
         const reconciledList = formattedList.map((incoming) => {
           const cached = existingById.get(incoming.id);
-          const sameEncryptedPayload = Boolean(
-            cached?.isEncrypted &&
-            incoming.isEncrypted &&
-            cached.ciphertext === incoming.ciphertext &&
-            cached.iv === incoming.iv
-          );
-          return sameEncryptedPayload &&
-            cached!.text !== ENCRYPTED_MESSAGE_PLACEHOLDER
-            ? { ...incoming, text: cached!.text }
-            : incoming;
+          return cached ? withCachedLegacyText(incoming, cached) : incoming;
         });
         const pendingMessages = existing.filter((message) => pendingSendsRef.current.has(message.id));
         const isOlderPage = Boolean(data?.before);
@@ -1063,32 +954,9 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const msgId = rawMsg.id || rawMsg.messageId || clientTempId || String(Date.now());
       const status: MessageStatus = rawMsg.seenAt ? 'seen' : rawMsg.deliveredAt ? 'delivered' : rawMsg.status || 'sent';
 
-      const partner = isMine ? receiver : sender;
-      let resolvedText = rawMsg.text || '';
-
-      if (rawMsg.isEncrypted) {
-        if (pendingSend?.text) {
-          resolvedText = pendingSend.text;
-        } else if (rawMsg.ciphertext && rawMsg.iv && partner) {
-          const partnerConv = conversationsRef.current.find(
-            (c) => c.username.toLowerCase() === partner.toLowerCase()
-          );
-          const peerKey = rawMsg.publicKey || partnerConv?.publicKey;
-          if (peerKey) {
-            try {
-              const clearText = await decryptMessageContent(rawMsg.ciphertext, rawMsg.iv, partner.toLowerCase(), peerKey);
-              if (clearText) {
-                resolvedText = clearText;
-              }
-            } catch (err) {
-              console.warn('[E2EE] Immediate decrypt failed:', err);
-            }
-          }
-        }
-        if (!resolvedText) {
-          resolvedText = ENCRYPTED_MESSAGE_PLACEHOLDER;
-        }
-      }
+      const resolvedText = pendingSend?.text || (rawMsg.isEncrypted
+        ? 'Previous encrypted message unavailable'
+        : rawMsg.text || '');
 
       const msg: Message = {
         id: msgId,
@@ -1106,9 +974,6 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         poll: rawMsg.poll || null,
         game: rawMsg.game || null,
         riddle: rawMsg.riddle || null,
-        ciphertext: rawMsg.ciphertext,
-        iv: rawMsg.iv,
-        isEncrypted: Boolean(rawMsg.isEncrypted),
       };
 
       const current = activeChatRef.current?.toLowerCase();
@@ -1181,7 +1046,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
             );
             const senderName = partnerConv?.displayName || sender;
             const notifBody = messagePreviewsEnabled()
-              ? (msg.text && msg.text !== ENCRYPTED_MESSAGE_PLACEHOLDER
+              ? (msg.text && msg.text !== LEGACY_MESSAGE_UNAVAILABLE
                   ? msg.text
                   : (msg.isVoice ? '🎤 Voice message' : msg.attachment ? '📎 Attachment' : 'New message'))
               : 'New message';
@@ -1334,8 +1199,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       socket.off('connect', resumeSession);
       socket.off('friend_list');
       socket.off('friend_list_updated');
-      socket.off('peer_public_key_updated');
-      socket.off('requests_updated');
+        socket.off('requests_updated');
       socket.off('user_profile_updated');
       socket.off('profile_updated');
       socket.off('message_unsent');
@@ -1419,8 +1283,6 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       triggerHaptic('light');
       return;
     }
-    // Editing would require re-encrypting and replacing the ciphertext. Until that
-    // protocol exists, never fall back to submitting an encrypted message as plaintext.
     if (messagesCacheRef.current[activeChat.toLowerCase()]?.some((m) => m.id === messageId && m.isEncrypted)) {
       return;
     }
@@ -1523,30 +1385,6 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
           else if (!result?.ok) fail(result?.message || 'Could not send this message.');
         });
       };
-      // Check if peer has public key for E2EE encryption
-      const peerPubKey = activeConv?.publicKey;
-      if (toType === 'friend' && peerPubKey && !activeConv?.isSelf) {
-          encryptMessageContent(rawText, targetChat, peerPubKey).then(async (encrypted) => {
-          if (encrypted) {
-            // Keep message bodies and quoted message bodies off the relay. The UI
-            // retains the local plaintext until it receives and decrypts the echo.
-            payload.text = ENCRYPTED_MESSAGE_PLACEHOLDER;
-            if (payload.replyTo) {
-              payload.replyTo = { ...payload.replyTo, text: ENCRYPTED_MESSAGE_PLACEHOLDER };
-            }
-            payload.ciphertext = encrypted.ciphertext;
-            payload.iv = encrypted.iv;
-            payload.isEncrypted = true;
-            // Bind the notification envelope to this exact browser identity;
-            // another signed-in device may have registered a different key.
-            payload.senderPublicKey = await getMyPublicKeyJwk();
-          }
-          if (!encrypted) { fail('Encryption failed. Please retry.'); return; }
-          transmit();
-        }).catch(() => fail('Encryption failed. Please retry.'));
-      } else {
-        transmit();
-      }
       triggerHaptic('light');
     },
     [activeChat, user]
@@ -2135,8 +1973,6 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         toggleMute,
         toggleCamera,
         toggleScreenShare,
-        myPublicKey,
-        getSafetyNumber,
       }}
     >
       {children}

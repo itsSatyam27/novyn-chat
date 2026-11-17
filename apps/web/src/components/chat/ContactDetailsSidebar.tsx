@@ -37,7 +37,6 @@ import { SharedMediaModal } from './SharedMediaModal';
 import { ExportChatModal } from './ExportChatModal';
 import { QRCodeModal } from '../profile/QRCodeModal';
 import { WallpaperPickerModal } from './WallpaperPickerModal';
-import { VerifySafetyNumberModal } from './VerifySafetyNumberModal';
 import { useChat } from '../../context/ChatContext';
 import { useAuth } from '../../context/AuthContext';
 import { triggerHaptic } from '../../services/capacitor';
@@ -99,7 +98,6 @@ export const ContactDetailsSidebar: React.FC<ContactDetailsSidebarProps> = ({
   const [isSharedMediaModalOpen, setIsSharedMediaModalOpen] = useState(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [isQRModalOpen, setIsQRModalOpen] = useState(false);
-  const [isSafetyModalOpen, setIsSafetyModalOpen] = useState(false);
   const [isWallpaperModalOpen, setIsWallpaperModalOpen] = useState(false);
   const [showConfirmUnfriend, setShowConfirmUnfriend] = useState(false);
   const [showConfirmClear, setShowConfirmClear] = useState(false);
@@ -290,7 +288,7 @@ export const ContactDetailsSidebar: React.FC<ContactDetailsSidebarProps> = ({
                   <Bookmark style={{ width: '32px', height: '32px' }} fill="currentColor" />
                 </div>
                 <h2 style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--text-main)', margin: '0 0 4px' }}>Saved Messages</h2>
-                <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '0 0 12px' }}>Your private encrypted notebook</p>
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '0 0 12px' }}>Your personal notebook</p>
                 {savedMsgStats && (
                   <div className="saved-messages-details-stats">
                     <div className="saved-messages-stat-box">
@@ -1052,7 +1050,7 @@ export const ContactDetailsSidebar: React.FC<ContactDetailsSidebarProps> = ({
                 <ExternalLink style={{ width: '15px', height: '15px', color: 'var(--text-dark)' }} />
               </div>
 
-              {/* 3. QR Code & Encryption (1-on-1 only) */}
+              {/* 3. Contact QR Code (1-on-1 only) */}
               {!isGroup && (
                 <>
                   <div
@@ -1095,48 +1093,6 @@ export const ContactDetailsSidebar: React.FC<ContactDetailsSidebarProps> = ({
                     <ExternalLink style={{ width: '15px', height: '15px', color: 'var(--text-dark)' }} />
                   </div>
 
-                  {/* End-to-End Encryption & Security Code */}
-                  <div
-                    onClick={() => {
-                      triggerHaptic('light');
-                      setIsSafetyModalOpen(true);
-                    }}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      padding: '12px 14px',
-                      cursor: 'pointer',
-                      borderBottom: '1px solid var(--border)',
-                      transition: 'background 0.15s ease',
-                    }}
-                    onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255, 255, 255, 0.55)')}
-                    onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                      <div
-                        style={{
-                          width: '32px',
-                          height: '32px',
-                          borderRadius: '8px',
-                          background: 'rgba(16, 185, 129, 0.15)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          color: '#0e9f8a',
-                        }}
-                      >
-                        <Lock style={{ width: '16px', height: '16px' }} />
-                      </div>
-                      <div>
-                        <div style={{ fontSize: '0.86rem', fontWeight: 600, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          Encryption <span style={{ fontSize: '0.68rem', padding: '1px 6px', borderRadius: '6px', background: 'rgba(16, 185, 129, 0.2)', color: '#0e9f8a', fontWeight: 700 }}>E2EE</span>
-                        </div>
-                        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Tap to verify 60-digit security code</div>
-                      </div>
-                    </div>
-                    <ExternalLink style={{ width: '15px', height: '15px', color: 'var(--text-dark)' }} />
-                  </div>
                 </>
               )}
 
@@ -1505,15 +1461,6 @@ export const ContactDetailsSidebar: React.FC<ContactDetailsSidebarProps> = ({
         onSelectWallpaper={(bg) => setChatWallpaper(contact.username, bg)}
       />
 
-      {/* Verify Safety Number / Encryption Modal */}
-      {!isGroup && (
-        <VerifySafetyNumberModal
-          isOpen={isSafetyModalOpen}
-          onClose={() => setIsSafetyModalOpen(false)}
-          contactUsername={contact.username}
-          contactDisplayName={contact.displayName}
-        />
-      )}
     </>,
     document.body
   );

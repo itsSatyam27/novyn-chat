@@ -13,7 +13,7 @@ import { WallpaperPickerModal } from './WallpaperPickerModal';
 import { GameLauncherModal } from './GameLauncherModal';
 import { Avatar } from '../ui/Avatar';
 import { Message } from '../../types';
-import { Phone, Video, ChevronLeft, PanelLeftOpen, Info, Search, Lock, ArrowDown, X, Sun, Moon, Star, MessageCircle, Mic, Gamepad2, Sunset, Bookmark } from 'lucide-react';
+import { Phone, Video, ChevronLeft, PanelLeftOpen, Info, Search, ArrowDown, X, Sun, Moon, Star, MessageCircle, Mic, Gamepad2, Sunset, Bookmark } from 'lucide-react';
 import './savedMessages.css';
 import { triggerHaptic } from '../../services/capacitor';
 import { getSocket } from '../../services/socket';
@@ -657,35 +657,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           {isAwayFromLatest && stickyDay && (
             <div className="chat-sticky-day-chip" aria-hidden="true">{stickyDay}</div>
           )}
-          {/* Encryption scope banner — Saved Messages has no remote peer to negotiate with. */}
-          {!activeContact?.isSelf && <div
-            className="encryption-scope-banner"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '8px',
-              padding: '7px 14px',
-              margin: '10px auto 14px',
-              maxWidth: '460px',
-              borderRadius: '10px',
-              background: 'rgba(251, 191, 36, 0.07)',
-              border: '1px solid rgba(251, 191, 36, 0.18)',
-              boxShadow: '0 4px 12px rgba(36, 76, 96, 0.1)',
-              textAlign: 'center',
-              flexShrink: 0,
-            }}
-          >
-            <Lock style={{ width: '13px', height: '13px', color: '#a0690b', flexShrink: 0 }} />
-            <span style={{ fontSize: '0.73rem', color: '#a0690b', lineHeight: 1.35, fontWeight: 500 }}>
-              {activeContact?.isGroup
-                ? 'Group messages are not end-to-end encrypted yet.'
-                : activeContact?.publicKey
-                  ? 'End-to-end encrypted · Only chat members can read this.'
-                  : 'Encryption is unavailable until both contacts have registered device keys.'}
-            </span>
-          </div>}
-
           {visibleMessages.length === 0 ? (
             activeContact && !activeContact.isGroup && !activeContact.isSelf ? (
               <section className="chat-first-contact" aria-label={`Start a conversation with ${activeContact.displayName || activeContact.username}`}>
@@ -698,7 +669,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                   <p className="chat-first-contact-presence"><i data-presence={activeContact.presence || (activeContact.online ? 'online' : 'offline')} />{activeContact.displayName || activeContact.username} {getPresenceGreeting(activeContact.presence, activeContact.online)}</p>
                   <div className="chat-first-contact-badges">
                     <span><i className="chat-first-contact-presence-dot" data-presence={activeContact.presence || (activeContact.online ? 'online' : 'offline')} />{activeContact.online && activeContact.presence !== 'invisible' ? (activeContact.presence === 'busy' || activeContact.presence === 'dnd' ? 'Busy' : activeContact.presence === 'away' ? 'Away' : 'Online') : 'Offline'}</span>
-                    <span>{activeContact.publicKey ? <><Lock size={11} aria-hidden="true" /> Encrypted</> : 'Private chat'}</span>
+                    <span>Chat</span>
                   </div>
                   <button type="button" className="chat-first-contact-cta" onClick={() => { triggerHaptic('light'); sendMessage('Hi!'); }}>
                     <MessageCircle size={15} aria-hidden="true" /> Say hi to {activeContact.displayName || activeContact.username}
@@ -716,7 +687,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                   <Bookmark style={{ width: '36px', height: '36px' }} fill="currentColor" />
                 </div>
                 <h2>Saved Messages</h2>
-                <p>Your private encrypted notebook & cloud scratchpad</p>
+                <p>Your personal notebook & cloud scratchpad</p>
                 <div className="saved-messages-tips">
                   <div className="saved-messages-tip-item">
                     <span>📌</span>
@@ -727,8 +698,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                     <div>Store files, photos, links & audio notes locally</div>
                   </div>
                   <div className="saved-messages-tip-item">
-                    <span>🔒</span>
-                    <div>Private to you • Encrypted on this device</div>
+                    <span>📝</span>
+                    <div>Private to you • Saved on this device</div>
                   </div>
                 </div>
               </section>

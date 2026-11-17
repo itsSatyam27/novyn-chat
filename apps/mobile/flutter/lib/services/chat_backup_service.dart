@@ -6,7 +6,6 @@ import 'package:cryptography/cryptography.dart';
 import 'package:file_picker/file_picker.dart';
 
 import 'local_db_service.dart';
-import 'message_encryption_service.dart';
 
 class ChatBackupService {
   static const _iterations = 210000;
@@ -19,7 +18,6 @@ class ChatBackupService {
   static Future<bool> exportBackup({
     required String username,
     required String password,
-    required MessageEncryptionService encryption,
   }) async {
     if (password.length < 8) {
       throw const FormatException('Use a backup password with at least 8 characters.');
@@ -28,7 +26,6 @@ class ChatBackupService {
     if (data['username']?.toString().toLowerCase() != username.trim().toLowerCase()) {
       throw const FormatException('The active local chat account does not match the signed-in account.');
     }
-    data['messageKeys'] = await encryption.exportBackupKeys(username);
     final random = Random.secure();
     final salt = List<int>.generate(16, (_) => random.nextInt(256));
     final nonce = List<int>.generate(12, (_) => random.nextInt(256));
@@ -61,7 +58,6 @@ class ChatBackupService {
   static Future<Map<String, int>?> restoreBackup({
     required String username,
     required String password,
-    required MessageEncryptionService encryption,
   }) async {
     final picked = await FilePicker.platform.pickFiles(
       type: FileType.custom,
@@ -113,15 +109,7 @@ class ChatBackupService {
       throw const FormatException('Sign in to the same Novyn account before restoring this backup.');
     }
     final data = Map<String, dynamic>.from(decoded);
-    final keyBackup = data['messageKeys'];
-    var restoredKeys = 0;
-    if (keyBackup is Map) {
-      restoredKeys = await encryption.importBackupKeys(
-        Map<String, dynamic>.from(keyBackup), username,
-      );
-    }
     final counts = await LocalDbService.restoreChatBackupData(data, username);
-    counts['encryptionKeys'] = restoredKeys;
     return counts;
   }
 }

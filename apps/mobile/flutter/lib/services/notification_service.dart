@@ -6,9 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart' hide Message;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart' as fln;
 import 'package:shared_preferences/shared_preferences.dart';
-import 'message_encryption_service.dart';
 import 'firebase_configuration.dart';
-import '../models/chat_models.dart';
 import 'package:provider/provider.dart';
 import 'auth_service.dart';
 import 'settings_service.dart';
@@ -107,8 +105,7 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
     return;
   }
 
-  // Respect both the locally persisted preference and the server-side value
-  // carried with encrypted pushes; either can disable previews.
+  // Respect local preview and privacy preferences.
   final previewEnabled = (prefs.getBool('message_preview') ?? true) &&
       data['previewEnabled']?.toString() != '0';
   final hideContent = prefs.getBool('hide_notification_content') ?? false;
@@ -120,8 +117,7 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 
   var body = 'You have a new message';
   if (previewEnabled && !hideContent) {
-    // Plaintext Flutter messages carry a safe preview in the FCM data payload.
-    // Older encrypted messages still use the legacy local decryption path below.
+    // New message pushes contain the plain message preview in their data payload.
     final plaintextPreview = data['body']?.toString().trim() ?? '';
     if (plaintextPreview.isNotEmpty &&
         plaintextPreview != 'You have a new message' &&
@@ -129,51 +125,7 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
       body = plaintextPreview;
     }
   }
-  if (previewEnabled && !hideContent && account.isNotEmpty) {
-    final ciphertext = data['ciphertext']?.toString() ?? '';
-    final iv = data['iv']?.toString() ?? '';
-    final peerKey = data['senderPublicKey']?.toString() ?? '';
-    if (ciphertext.isNotEmpty && iv.isNotEmpty && peerKey.isNotEmpty) {
-      try {
-        final encrypted = Message(
-          id: data['messageId']?.toString() ?? 'notification',
-          text: '🔒 Encrypted message',
-          isFromMe: false,
-          chatId: sender,
-          senderId: sender,
-          isEncrypted: true,
-          ciphertext: ciphertext,
-          iv: iv,
-        );
-        final encryption = MessageEncryptionService();
-        var decrypted = await encryption.decrypt(encrypted, account, peerKey);
-        // Secure storage can take longer to become available in Android's
-        // background isolate. Retry with bounded backoff; never expose
-        // ciphertext or fall back to plaintext from the server.
-        const retryDelays = [350, 700, 1200];
-        for (final delay in retryDelays) {
-          if (!decrypted.needsMessageKey) break;
-          await Future<void>.delayed(Duration(milliseconds: delay));
-          decrypted = await encryption.decrypt(encrypted, account, peerKey);
-        }
-        if (!decrypted.needsMessageKey &&
-            decrypted.text != '🔒 Encrypted message' &&
-            decrypted.text.trim().isNotEmpty) {
-          body = decrypted.text.trim();
-          debugPrint('[NovynNotifications] Background message preview decrypted successfully.');
-        } else {
-          debugPrint('[NovynNotifications] Message preview key unavailable for this sender/account.');
-        }
-      } catch (error) {
-        debugPrint('[NovynNotifications] Background preview decryption failed: $error');
-        // Never expose ciphertext; fall back to a private generic alert.
-      }
-    } else {
-      debugPrint('[NovynNotifications] Encrypted push is missing preview key material (ciphertext: ${ciphertext.isNotEmpty}, iv: ${iv.isNotEmpty}, sender key: ${peerKey.isNotEmpty}, account: ${account.isNotEmpty}).');
-    }
-  } else {
-    debugPrint('[NovynNotifications] Message preview is disabled or content is hidden.');
-  }
+
 
   final plugin = FlutterLocalNotificationsPlugin();
   await plugin.initialize(const InitializationSettings(

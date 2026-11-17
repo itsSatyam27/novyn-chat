@@ -154,7 +154,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               {mode === 'signin' ? 'Welcome Back' : 'Create an Account'}
             </h2>
             <p className="auth-brand-subtitle" style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
-              <ShieldCheck style={{ width: '14px', height: '14px', color: '#0e9f8a' }} /> Direct-message encryption with device keys
+              <ShieldCheck style={{ width: '14px', height: '14px', color: '#0e9f8a' }} /> Your chats, your people
             </p>
           </div>
 

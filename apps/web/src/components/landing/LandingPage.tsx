@@ -57,11 +57,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onOpenAuth }) => {
   // Hero interactive tabs: 'chat' | 'voice' | 'games'
   const [activeHeroTab, setActiveHeroTab] = useState<'chat' | 'voice' | 'games'>('chat');
 
-  // Interactive Live Cipher Simulator State
-  const [plainInput, setPlainInput] = useState('Secret meeting at 5:00 PM in Room 402');
-  const [fakeCipher, setFakeCipher] = useState('8zK9pX2L4mWv/7Qj95aBc71uE9d');
-  const [fakeIv, setFakeIv] = useState('3dF92aK10pX8');
-
   // Interactive Mini-Game (Tic-Tac-Toe) on Landing Page
   const [board, setBoard] = useState<(string | null)[]>(Array(9).fill(null));
   const [isXNext, setIsXNext] = useState(true);
@@ -69,22 +64,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onOpenAuth }) => {
 
   // Voice note demo playing state
   const [isPlayingVoice, setIsPlayingVoice] = useState(false);
-
-  // Re-scramble fake ciphertext when plain input changes
-  useEffect(() => {
-    if (!plainInput.trim()) {
-      setFakeCipher('...');
-      return;
-    }
-    let hash = 0;
-    for (let i = 0; i < plainInput.length; i++) {
-      hash = (hash << 5) - hash + plainInput.charCodeAt(i);
-      hash |= 0;
-    }
-    const b64 = btoa(encodeURIComponent(plainInput)).substring(0, 24) + '==';
-    setFakeCipher(b64);
-    setFakeIv(Math.abs(hash).toString(16).padStart(12, 'a').substring(0, 12));
-  }, [plainInput]);
 
   // Tic-Tac-Toe logic
   const handleCellClick = (index: number) => {
@@ -294,7 +273,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onOpenAuth }) => {
                   display: 'inline-block',
                 }}
               >
-                Universal Encrypted Messenger
+                Modern Messenger
               </motion.span>
             </motion.div>
 
@@ -374,7 +353,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onOpenAuth }) => {
                 Novyn
               </span>
               <span style={{ fontSize: '0.68rem', color: '#0e9f8a', fontWeight: 700, letterSpacing: '0.04em' }}>
-                v2.0 ENCRYPTED
+                v2.0 MESSAGING
               </span>
             </div>
           </div>
@@ -531,7 +510,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onOpenAuth }) => {
         >
           <Sparkles style={{ width: '15px', height: '15px', color: '#078779' }} />
           <span style={{ fontWeight: 700, letterSpacing: '0.02em' }}>
-            Zero-Knowledge E2EE • WebRTC Calls • In-Chat Games
+            Realtime Chat • WebRTC Calls • In-Chat Games
           </span>
         </motion.div>
 
@@ -562,7 +541,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onOpenAuth }) => {
           className="hero-subtitle"
           style={{ maxWidth: '640px', fontSize: '1.05rem', color: 'var(--text-muted)' }}
         >
-          WhatsApp-grade ECDH P-256 client encryption, crystal-clear WebRTC audio & video, live voice waveforms, and turn-based games — synchronized instantaneously across Web & Android.
+          Fast messaging, crystal-clear WebRTC audio & video, live voice waveforms, and turn-based games — synchronized across Web & Android.
         </motion.p>
 
         <motion.div
@@ -619,7 +598,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onOpenAuth }) => {
         >
           <div className="hero-pill-item">
             <ShieldCheck style={{ width: '16px', height: '16px', color: '#0e9f8a' }} />
-            <span>256-Bit AES-GCM Encryption</span>
+            <span>Account Privacy Controls</span>
           </div>
           <div className="hero-pill-item">
             <Radio style={{ width: '16px', height: '16px', color: '#087fac' }} />
@@ -767,14 +746,14 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onOpenAuth }) => {
                 }}
               >
                 <Lock style={{ width: '12px', height: '12px' }} />
-                <span>Messages & calls are End-to-End Encrypted. No one outside can read them.</span>
+                <span>Stay connected with real-time messages and calls across your devices.</span>
               </div>
 
               <div className="mockup-msg mockup-msg-in" style={{ position: 'relative' }}>
                 <span style={{ color: '#078779', fontWeight: 700, fontSize: '0.76rem', display: 'block', marginBottom: '4px' }}>
                   Alex • Online
                 </span>
-                Hey! Did you see Novyn's new E2EE 60-digit safety code verification? Also testing the live audio waveforms! 🎙️
+                Hey! Did you try Novyn's new chat reactions? Also testing the live audio waveforms! 🎙️
                 <span style={{ display: 'block', fontSize: '0.66rem', color: 'var(--text-muted)', textAlign: 'right', marginTop: '6px' }}>
                   10:42 AM
                 </span>
@@ -1050,124 +1029,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onOpenAuth }) => {
         </motion.div>
       </section>
 
-      {/* Real-Time Zero-Knowledge Cipher Playground */}
-      <section className="landing-crypto-section" style={{ padding: '60px 24px', maxWidth: '1060px', margin: '0 auto', position: 'relative', zIndex: 1 }}>
-        <div style={{ textAlign: 'center', marginBottom: '36px' }}>
-          <div
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '4px 14px',
-              borderRadius: '9999px',
-              background: 'rgba(16, 185, 129, 0.1)',
-              border: '1px solid rgba(16, 185, 129, 0.3)',
-              fontSize: '0.78rem',
-              fontWeight: 700,
-              color: '#0e9f8a',
-              marginBottom: '10px',
-            }}
-          >
-            <Lock style={{ width: '13px', height: '13px' }} />
-            LIVE CRYPTO ENGINE
-          </div>
-          <h2 style={{ fontSize: '2.2rem', fontWeight: 800, color: 'var(--text-main)', letterSpacing: '-0.02em', margin: 0 }}>
-            See E2EE Zero-Knowledge in Action
-          </h2>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.94rem', maxWidth: '580px', margin: '8px auto 0' }}>
-            Type any phrase below to watch the client-side AES-GCM-256 cipher scramble it before it ever hits the server.
-          </p>
-        </div>
-
-        <div
-          className="landing-crypto-panel"
-          style={{
-            background: 'rgba(247, 254, 253, 0.85)',
-            border: '1px solid var(--border)',
-            borderRadius: '24px',
-            padding: '28px',
-            boxShadow: '0 20px 50px rgba(36, 76, 96, 0.1)',
-          }}
-        >
-          <div style={{ marginBottom: '22px' }}>
-            <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '8px' }}>
-              Your Plaintext Message (Typed on Device)
-            </label>
-            <input
-              type="text"
-              value={plainInput}
-              onChange={(e) => setPlainInput(e.target.value)}
-              className="input-field"
-              style={{
-                height: '48px',
-                fontSize: '0.95rem',
-                borderRadius: '14px',
-                paddingLeft: '16px',
-                background: 'rgba(23, 66, 78, 0.1)',
-                border: '1px solid var(--border)',
-              }}
-              placeholder="Type anything here..."
-            />
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '16px' }}>
-            {/* Cloud/Database view */}
-            <div
-              className="landing-crypto-card landing-crypto-card--server"
-              style={{
-                background: 'rgba(239, 68, 68, 0.05)',
-                border: '1px solid rgba(239, 68, 68, 0.25)',
-                borderRadius: '16px',
-                padding: '20px',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-                <span style={{ fontSize: '0.82rem', fontWeight: 800, color: '#bd3750' }}>
-                  ☁️ WHAT SERVER & MONGODB SEES
-                </span>
-                <span style={{ fontSize: '0.68rem', background: 'rgba(239, 68, 68, 0.15)', color: '#bd3750', padding: '2px 8px', borderRadius: '6px', fontWeight: 700 }}>
-                  ZERO-KNOWLEDGE
-                </span>
-              </div>
-              <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: '0 0 10px' }}>
-                Only randomized Base64 ciphertext & initialization vectors exist on the database.
-              </p>
-              <div style={{ background: 'var(--bg-surface)', padding: '12px', borderRadius: '10px', fontFamily: 'monospace', fontSize: '0.82rem', color: '#ac3049', wordBreak: 'break-all' }}>
-                <div><span style={{ color: 'var(--text-muted)' }}>ciphertext:</span> "{fakeCipher}"</div>
-                <div><span style={{ color: 'var(--text-muted)' }}>iv:</span> "{fakeIv}"</div>
-                <div><span style={{ color: 'var(--text-muted)' }}>isEncrypted:</span> true</div>
-              </div>
-            </div>
-
-            {/* Recipient Device View */}
-            <div
-              className="landing-crypto-card landing-crypto-card--recipient"
-              style={{
-                background: 'rgba(16, 185, 129, 0.05)',
-                border: '1px solid rgba(16, 185, 129, 0.25)',
-                borderRadius: '16px',
-                padding: '20px',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-                <span style={{ fontSize: '0.82rem', fontWeight: 800, color: '#078779' }}>
-                  📱 WHAT RECIPIENT DECRYPTS
-                </span>
-                <span style={{ fontSize: '0.68rem', background: 'rgba(16, 185, 129, 0.15)', color: '#078779', padding: '2px 8px', borderRadius: '6px', fontWeight: 700 }}>
-                  ECDH P-256 MATCH
-                </span>
-              </div>
-              <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: '0 0 10px' }}>
-                Decrypted on-device using the recipient's private key stored locally in IndexedDB.
-              </p>
-              <div style={{ background: 'var(--bg-surface)', padding: '12px', borderRadius: '10px', fontFamily: 'monospace', fontSize: '0.86rem', color: '#078779', wordBreak: 'break-word', minHeight: '68px', display: 'flex', alignItems: 'center' }}>
-                "{plainInput || 'Empty message'}"
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
       {/* High-Impact Bento Grid Showcase */}
       <section className="landing-features-section" style={{ padding: '40px 24px 70px', maxWidth: '1100px', margin: '0 auto', position: 'relative', zIndex: 1 }}>
         <div style={{ textAlign: 'center', marginBottom: '46px' }}>
@@ -1180,16 +1041,16 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onOpenAuth }) => {
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '22px' }}>
-          {/* Bento Card 1: E2EE */}
+          {/* Bento Card 1: Messaging */}
           <div className="bento-card">
             <div style={{ width: '50px', height: '50px', borderRadius: '14px', background: 'rgba(16, 185, 129, 0.12)', color: '#0e9f8a', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '20px' }}>
               <ShieldCheck style={{ width: '26px', height: '26px' }} />
             </div>
             <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-main)', marginBottom: '8px' }}>
-              Zero-Knowledge Architecture
+              Flexible Messaging
             </h3>
             <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', lineHeight: 1.6, margin: 0 }}>
-              Signal and WhatsApp-modeled cryptography. Private identity keys reside solely in your local browser's IndexedDB. 60-digit safety numbers & QR codes prevent man-in-the-middle attacks.
+              Chat with friends, share files and voice notes, and keep conversations synced across supported devices.
             </p>
           </div>
 
@@ -1215,7 +1076,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onOpenAuth }) => {
               P2P WebRTC HD Audio & Video
             </h3>
             <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', lineHeight: 1.6, margin: 0 }}>
-              Direct browser-to-browser streaming with DTLS-SRTP media encryption. Integrated TURN relay fallback for reliable calling across carrier firewalls and mobile networks.
+              Direct browser-to-browser streaming with TURN relay fallback for reliable calling across carrier firewalls and mobile networks.
             </p>
           </div>
 
@@ -1431,7 +1292,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onOpenAuth }) => {
             <NovynLogo size={18} variant="white" withBadge badgeSize={30} />
             <span style={{ fontWeight: 800, color: 'var(--text-main)', fontSize: '1rem' }}>Novyn Chat</span>
           </div>
-          <p style={{ margin: 0 }}>© 2026 Novyn Technologies. Zero-Knowledge E2EE Architecture.</p>
+          <p style={{ margin: 0 }}>© 2026 Novyn Technologies. Messaging, calls and games.</p>
           <div style={{ display: 'flex', gap: '18px' }}>
             <button onClick={() => onOpenAuth('signin')} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontWeight: 600 }}>
               Sign In

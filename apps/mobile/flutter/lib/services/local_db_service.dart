@@ -498,7 +498,7 @@ class LocalDbService {
         'createdAt': m.createdAt.toIso8601String(), 'reactions': m.reactions,
         'replyToId': m.replyToId, 'replyToText': m.replyToText,
         'replyToSender': m.replyToSender, 'edited': m.edited,
-        'isEncrypted': m.isEncrypted, 'ciphertext': m.ciphertext, 'iv': m.iv,
+        
         'attachment': m.attachment, 'poll': m.poll, 'pinnedAt': m.pinnedAt,
         'pinnedBy': m.pinnedBy, 'riddle': m.riddle, 'game': m.game,
       }).toList(),

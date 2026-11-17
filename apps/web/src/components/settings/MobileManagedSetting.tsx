@@ -17,11 +17,6 @@ export const mobileManagedSettings: Record<SettingsSubSection, MobileSetting> = 
   'profile-presence': { title: 'Presence & Status', path: ['Settings', 'Presence & Status'] },
   'profile-qr': { title: 'QR Code', path: ['Settings', 'QR Code'] },
   'security-dashboard': { title: 'Security', path: ['Settings', 'Security'] },
-  'privacy-message-keys': {
-    title: 'Sync Message Keys',
-    path: ['Settings', 'Security', 'Import message keys'],
-    note: 'To export keys from your original browser, use Transfer message keys on the Messages screen.',
-  },
   'privacy-blocked': { title: 'Blocked Contacts', path: ['Settings', 'Security & Privacy', 'Blocked Users'] },
   'privacy-password': {
     title: 'Change Password',
@@ -64,7 +59,7 @@ export const mobileManagedSettings: Record<SettingsSubSection, MobileSetting> = 
   },
   'privacy-linked-devices': {
     title: 'Linked Devices',
-    pending: 'Device linking is not available yet. You can currently transfer message keys using Sync Message Keys.',
+    pending: 'Device linking is not available yet. Check back in a future Novyn update.',
   },
   'privacy-danger': {
     title: 'Account Actions',
@@ -81,7 +76,7 @@ export const mobileManagedSettings: Record<SettingsSubSection, MobileSetting> = 
   'appear-accessibility': { title: 'Accessibility', path: ['Settings', 'Accessibility'] },
   'storage-cache': { title: 'Data & Storage', path: ['Settings', 'Data & Storage'] },
   'storage-export': { title: 'Backup & Restore', pending: 'Backup and restore are not available in the mobile app yet.' },
-  'storage-security': { title: 'Encryption Status', path: ['Settings', 'Security & Privacy'] },
+  'storage-security': { title: 'Account Security', path: ['Settings', 'Security & Privacy'] },
   'feedback-send': { title: 'Help & Support', path: ['Settings', 'Help & Support'] },
   'feedback-bug': { title: 'Report a Bug', path: ['Settings', 'Help & Support'] },
   'feedback-feature': { title: 'Request a Feature', path: ['Settings', 'Help & Support'] },

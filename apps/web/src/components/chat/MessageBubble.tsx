@@ -24,7 +24,7 @@ import { PollMessageBubble } from './PollMessageBubble';
 import { GameMessageBubble } from './GameMessageBubble';
 import { RiddleMessageBubble } from './RiddleMessageBubble';
 import { triggerHaptic } from '../../services/capacitor';
-import { ENCRYPTED_MESSAGE_PLACEHOLDER } from '../../services/messagePresentation';
+import { LEGACY_MESSAGE_UNAVAILABLE } from '../../services/messagePresentation';
 
 interface MessageBubbleProps {
   message: Message;
@@ -741,7 +741,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                   ? '📷 [Image]'
                   : message.replyTo.attachment?.kind === 'audio'
                   ? '🎤 [Voice Message]'
-                  : message.replyTo.text === ENCRYPTED_MESSAGE_PLACEHOLDER
+                  : message.replyTo.text === LEGACY_MESSAGE_UNAVAILABLE
                   ? 'Original message'
                   : message.replyTo.text || '[Attachment]'}
               </div>

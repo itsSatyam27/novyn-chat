@@ -1,9 +1,8 @@
 import type { Message } from '../types';
 
-export const ENCRYPTED_MESSAGE_PLACEHOLDER = '🔒 Encrypted message';
+export const LEGACY_MESSAGE_UNAVAILABLE = 'Previous encrypted message unavailable';
 
-// Resolve quotes locally: encrypted reply metadata must stay opaque on the relay.
-// Re-run when originals decrypt, are edited, or are deleted.
+// Resolve reply previews from locally cached message text.
 export function resolveReplyPreviews(messages: Message[]): Message[] {
   const originals = new Map(messages.map(message => [message.id, message]));
   return messages.map(message => {
@@ -23,37 +22,30 @@ export function resolveReplyPreviews(messages: Message[]): Message[] {
   });
 }
 
-// Keep the legacy text summary compatible with older clients. New clients use
-// the encrypted envelope to produce their preview locally, never on the relay.
+// Older message records may still be marked encrypted; display them as unavailable
+// unless this device already has a readable local copy.
 export function readLastMessage(item: any, username: string): Message | undefined {
   const raw = item.lastMessageData || item.lastMessage;
   if (!raw) return undefined;
   const message = typeof raw === 'string' ? { text: raw } : raw;
+  const legacyEncrypted = Boolean(message.isEncrypted);
   return {
     id: message.id || '',
     sender: message.from || message.sender || item.lastFrom || '',
     receiver: message.to || message.receiver || username,
-    text: message.isEncrypted ? ENCRYPTED_MESSAGE_PLACEHOLDER : message.text || '',
+    text: legacyEncrypted ? LEGACY_MESSAGE_UNAVAILABLE : message.text || '',
     timestamp: message.timestamp || item.lastTimestamp,
     status: 'delivered',
     attachment: message.attachment,
     isVoice: Boolean(message.isVoice || message.attachment?.kind === 'audio'),
-    isEncrypted: Boolean(message.isEncrypted),
-    ciphertext: message.ciphertext,
-    iv: message.iv,
+    isEncrypted: legacyEncrypted,
   };
 }
 
-export function needsDecryption(message?: Message): message is Message {
-  return Boolean(message?.isEncrypted && message.ciphertext && message.iv &&
-    message.text === ENCRYPTED_MESSAGE_PLACEHOLDER);
-}
-
-export function withDecryptedText(message: Message, decrypted: Message): Message {
-  // A late decryption must not overwrite a newer, edited, or deleted message.
-  if (!needsDecryption(message) || !decrypted.isEncrypted ||
-      message.id !== decrypted.id || message.ciphertext !== decrypted.ciphertext ||
-      message.iv !== decrypted.iv || message.text === decrypted.text ||
-      decrypted.text === ENCRYPTED_MESSAGE_PLACEHOLDER) return message;
-  return { ...message, text: decrypted.text };
+export function withCachedLegacyText(message: Message, cached: Message): Message {
+  // Preserve only a readable copy already cached locally; never decrypt ciphertext.
+  if (!message.isEncrypted || !cached.isEncrypted || message.id !== cached.id ||
+      message.text !== LEGACY_MESSAGE_UNAVAILABLE || !cached.text ||
+      cached.text === LEGACY_MESSAGE_UNAVAILABLE) return message;
+  return { ...message, text: cached.text, isEncrypted: true };
 }

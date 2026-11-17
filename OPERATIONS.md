@@ -104,8 +104,8 @@ cannot revoke copies of those old URLs. Before claiming that historical media is
 private, back up the media, migrate those remote objects to authenticated storage,
 record their ownership/conversation mapping, update message URLs, and invalidate
 old CDN delivery. This requires a deployment-specific data migration and has not
-been run against your account. Media remains unencrypted at the storage provider;
-this is access control, not media E2EE.
+been run against your account. Media is not cryptographically encrypted by the app
+at rest; download access is enforced by the backend.
 
 Cloudinary's temporary-download API bypasses CDN caching and has higher bandwidth
 costs. For a high-volume deployment, evaluate authenticated CDN delivery with
@@ -128,7 +128,8 @@ and `qs` is overridden to its patched 6.x line. Nodemailer moves to patched 10.x
 Compatibility tests cover Capacitor template extraction and mail construction.
 Recheck overrides when upgrading their parent packages.
 
-The backend and chat context remain large. New security helpers and regression
-tests provide a safer starting point for extracting domains, but a full backend
-or Flutter protocol refactor is not part of this patch. React/Capacitor remains
-the primary client; Flutter is not yet E2EE-compatible.
+Message E2EE and its key-management protocol have been removed from the web,
+Capacitor, Flutter, and backend messaging paths. Message bodies are readable by
+the backend and should only be sent over HTTPS/WSS in production. Password
+hashing, session authentication, TOTP secret protection, and transport TLS remain
+separate account/network security controls.

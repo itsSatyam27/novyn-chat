@@ -93,8 +93,6 @@ export interface Message {
     triesLeft: number;
     unlocked: boolean;
   } | null;
-  ciphertext?: string;
-  iv?: string;
   isEncrypted?: boolean;
 }
 
@@ -109,7 +107,6 @@ export interface UserProfile {
   online?: boolean;
   lastSeenAt?: string;
   presenceMode?: 'online' | 'away' | 'busy' | 'invisible' | 'dnd' | 'offline';
-  publicKey?: string;
   retentionDays?: 0;
   callPrivacy?: 'everyone' | 'friends' | 'nobody';
   messagePrivacy?: 'everyone' | 'friends' | 'nobody';

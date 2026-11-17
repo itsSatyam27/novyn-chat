@@ -22,8 +22,6 @@
 }
 
 /* Base Card Styling */
-.security-card-encryption,
-.security-card-sync,
 .security-suite-card,
 .security-danger-summary-card,
 .security-card-mobile {
@@ -36,8 +34,6 @@
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
-:root[data-color-mode="dark"] .security-card-encryption,
-:root[data-color-mode="dark"] .security-card-sync,
 :root[data-color-mode="dark"] .security-suite-card,
 :root[data-color-mode="dark"] .security-danger-summary-card,
 :root[data-color-mode="dark"] .security-card-mobile {
@@ -45,27 +41,12 @@
   border-color: rgba(255, 255, 255, 0.08);
 }
 
-:root[data-color-mode="light"] .security-card-encryption,
-:root[data-color-mode="light"] .security-card-sync,
 :root[data-color-mode="light"] .security-suite-card,
 :root[data-color-mode="light"] .security-danger-summary-card,
 :root[data-color-mode="light"] .security-card-mobile {
   background: #ffffff;
   border-color: rgba(124, 58, 237, 0.14);
   box-shadow: 0 4px 20px rgba(99, 102, 241, 0.06);
-}
-
-.security-card-encryption {
-  padding: 24px;
-  display: flex;
-  flex-direction: column;
-}
-
-.security-card-sync {
-  padding: 24px;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
 }
 
 .security-suite-card {
@@ -151,51 +132,6 @@
 }
 
 :root[data-color-mode="light"] .security-card-desc {
-  color: #64748b !important;
-}
-
-/* Hero Banner in Encryption Card */
-.security-hero-banner {
-  display: flex;
-  align-items: center;
-  gap: 18px;
-  margin-bottom: 20px;
-}
-
-.security-hero-icon-box {
-  width: 58px;
-  height: 58px;
-  flex-shrink: 0;
-  display: grid;
-  place-items: center;
-  border-radius: 18px;
-  background: var(--primary-gradient, linear-gradient(135deg, var(--primary), var(--primary-hover)));
-  border: 1px solid rgba(167, 139, 250, 0.35);
-  color: #ffffff;
-  box-shadow: 0 8px 24px rgba(124, 58, 237, 0.38);
-}
-
-.security-hero-text h3 {
-  margin: 0 0 5px 0 !important;
-  font-size: 17.5px !important;
-  font-weight: 700 !important;
-  color: #ffffff !important;
-  letter-spacing: -0.01em;
-  line-height: 1.3;
-}
-
-:root[data-color-mode="light"] .security-hero-text h3 {
-  color: #0f172a !important;
-}
-
-.security-hero-text p {
-  margin: 0 !important;
-  font-size: 12.5px !important;
-  color: #94a3b8 !important;
-  line-height: 1.45;
-}
-
-:root[data-color-mode="light"] .security-hero-text p {
   color: #64748b !important;
 }
 
@@ -307,12 +243,6 @@
   transform: translateY(0);
 }
 
-.security-encryption-disclaimer {
-  margin-top: auto;
-  font-size: 11.5px;
-  line-height: 1.5;
-  color: #64748b;
-}
 
 /* Card Header with Icon */
 .security-card-header {
@@ -358,13 +288,6 @@
 }
 
 /* Sync Action Row (Glowing button + Diagram) */
-.security-sync-action-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  margin-top: 10px;
-}
 
 .security-btn-glow {
   background: var(--primary-gradient, linear-gradient(135deg, var(--primary), var(--primary-hover)));
@@ -876,23 +799,13 @@
 }
 
 @media (max-width: 600px) {
-  .security-card-encryption,
-  .security-card-sync,
   .security-suite-card,
   .security-danger-summary-card,
   .security-card-mobile {
     padding: 16px !important;
   }
-  .security-hero-banner {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 12px;
-  }
-  .security-sync-action-row {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 14px;
-  }
+  
+  
   .security-mobile-tiles-grid {
     grid-template-columns: 1fr;
   }
