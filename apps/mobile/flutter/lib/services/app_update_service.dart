@@ -674,6 +674,7 @@ class AppUpdateService extends ChangeNotifier {
     downloadProgress = 1;
     hasPartialDownload = false;
     isPaused = false;
+    _pauseRequested = false;
     downloadError = null;
   }
 
