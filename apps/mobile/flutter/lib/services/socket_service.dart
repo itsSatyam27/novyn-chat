@@ -736,7 +736,7 @@ class SocketService extends ChangeNotifier {
           for (final message in _messages)
             if (message.id.isNotEmpty) message.id: message,
         };
-        for (final message in decrypted) {
+        for (final message in parsed) {
           if (message.id.isNotEmpty) merged[message.id] = message;
         }
         final timeline = merged.values.toList()
