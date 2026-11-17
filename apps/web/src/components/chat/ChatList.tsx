@@ -23,7 +23,6 @@ import {
   ArrowLeft,
   Check,
   SquarePen,
-  KeyRound,
   Bookmark,
   Cloud,
 } from 'lucide-react';
@@ -31,7 +30,6 @@ import './savedMessages.css';
 import { triggerHaptic } from '../../services/capacitor';
 import { CreateGroupModal } from './CreateGroupModal';
 import { Conversation } from '../../types';
-import { MessageKeyTransferDialog } from './MessageKeyTransferDialog';
 
 interface ChatListProps {
   onOpenContacts: () => void;
@@ -70,7 +68,6 @@ export const ChatList: React.FC<ChatListProps> = ({
   const [isViewingArchived, setIsViewingArchived] = useState(false);
   const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
   const [isComposeOpen, setIsComposeOpen] = useState(false);
-  const [isKeyTransferOpen, setIsKeyTransferOpen] = useState(false);
   const composeRef = useRef<HTMLDivElement>(null);
 
   // Context Menu State
@@ -382,10 +379,6 @@ export const ChatList: React.FC<ChatListProps> = ({
           </div>
         )}
 
-        <button type="button" className="header-action-btn" title="Transfer message keys"
-          aria-label="Transfer message keys" onClick={() => setIsKeyTransferOpen(true)}>
-          <KeyRound size={19} />
-        </button>
         <div className="inbox-compose" ref={composeRef} onKeyDown={(event) => {
           if (event.key === 'Escape') {
             setIsComposeOpen(false);
@@ -1055,7 +1048,6 @@ export const ChatList: React.FC<ChatListProps> = ({
       )}
 
       {/* Create Group Modal */}
-      <MessageKeyTransferDialog isOpen={isKeyTransferOpen} onClose={() => setIsKeyTransferOpen(false)} />
       <CreateGroupModal
         isOpen={isGroupModalOpen}
         onClose={() => setIsGroupModalOpen(false)}
