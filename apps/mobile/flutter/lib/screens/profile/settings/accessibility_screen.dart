@@ -416,9 +416,9 @@ class _FontSizeCard extends StatelessWidget {
                     max: 4,
                     divisions: 4,
                     semanticFormatterCallback: (position) =>
-                        '${labels[position.round().clamp(0, 4)]} font size',
+                        '${labels[position.round().clamp(0, 4).toInt()]} font size',
                     onChanged: (position) {
-                      final nextLevel = position.round().clamp(0, 4);
+                      final nextLevel = position.round().clamp(0, 4).toInt();
                       final nextValue = AccessibilityScreen._fontScales[nextLevel];
                       if (nextValue != value) {
                         HapticService.vibrate(
