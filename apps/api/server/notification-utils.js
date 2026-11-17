@@ -186,6 +186,13 @@ function createFcmMessage(userKey, user, payload = {}) {
   return message;
 }
 
+function parseAndroidReleaseBuild(tag) {
+  const match = /^novyn-(?:arm64-build|apk)-(\\d+)(?:-\\d+)*$/i.exec(String(tag || "").trim());
+  if (!match) return 0;
+  const build = Number(match[1]);
+  return Number.isSafeInteger(build) ? build : 0;
+}
+
 function isInvalidFcmTokenError(code) {
   return code === "messaging/registration-token-not-registered" ||
     code === "messaging/invalid-registration-token";
@@ -209,6 +216,7 @@ module.exports = {
   registerFcmDevice,
   removeFcmDevice,
   createFcmMessage,
+  parseAndroidReleaseBuild,
   isInvalidFcmTokenError,
   isRetryableFcmError,
 };
