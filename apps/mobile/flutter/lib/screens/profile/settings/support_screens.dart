@@ -327,94 +327,94 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
       body: SafeArea(
         child: SingleChildScrollView(
           physics: const BouncingScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(20, 18, 20, 34),
+          padding: const EdgeInsets.fromLTRB(18, 14, 18, 28),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Row(children: [
                 Material(
                   color: surface,
-                  borderRadius: BorderRadius.circular(17),
+                  borderRadius: BorderRadius.circular(15),
                   child: InkWell(
                     onTap: () => Navigator.of(context).maybePop(),
                     borderRadius: BorderRadius.circular(17),
                     child: Container(
-                      width: 54,
-                      height: 54,
+                      width: 46,
+                      height: 46,
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(17),
                         border: Border.all(color: border),
                       ),
-                      child: Icon(Icons.arrow_back_rounded, color: ink, size: 27),
+                      child: Icon(Icons.arrow_back_rounded, color: ink, size: 23),
                     ),
                   ),
                 ),
                 Expanded(
                   child: Center(
                     child: Text('About Novyn', style: TextStyle(color: ink,
-                      fontSize: 25, letterSpacing: -.65, fontWeight: FontWeight.w900)),
+                      fontSize: 21, letterSpacing: -.45, fontWeight: FontWeight.w900)),
                   ),
                 ),
-                const SizedBox(width: 54),
+                const SizedBox(width: 46),
               ]),
-              const SizedBox(height: 28),
+              const SizedBox(height: 19),
               Center(
                 child: Column(children: [
                   Container(
-                    width: 120,
-                    height: 120,
+                    width: 92,
+                    height: 92,
                     decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(36),
+                      borderRadius: BorderRadius.circular(28),
                       gradient: const LinearGradient(
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                         colors: [Color(0xFF8A65FF), Color(0xFF5B3DEB)],
                       ),
                       boxShadow: const [BoxShadow(
-                        color: Color(0x337048F8), blurRadius: 30,
-                        offset: Offset(0, 12))],
+                        color: Color(0x2A7048F8), blurRadius: 22,
+                        offset: Offset(0, 8))],
                     ),
                     child: Stack(
                       alignment: Alignment.center,
                       children: [
                         const Icon(Icons.chat_bubble_rounded,
-                          color: Colors.white, size: 68),
+                          color: Colors.white, size: 54),
                         Padding(
                           padding: const EdgeInsets.only(bottom: 5),
                           child: Text('N', style: TextStyle(
-                            color: primary, fontSize: 35,
+                            color: primary, fontSize: 28,
                             fontWeight: FontWeight.w900)),
                         ),
                       ],
                     ),
                   ),
-                  const SizedBox(height: 17),
-                  Text('Novyn', style: TextStyle(color: ink, fontSize: 38,
-                    letterSpacing: -1.2, fontWeight: FontWeight.w900)),
+                  const SizedBox(height: 12),
+                  Text('Novyn', style: TextStyle(color: ink, fontSize: 32,
+                    letterSpacing: -1, fontWeight: FontWeight.w900)),
                   const SizedBox(height: 4),
                   Text('Your space, your people.',
-                    style: TextStyle(color: muted, fontSize: 18,
+                    style: TextStyle(color: muted, fontSize: 15,
                       fontWeight: FontWeight.w500)),
                   const SizedBox(height: 16),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 10),
+                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
                     decoration: BoxDecoration(
                       color: surface,
                       borderRadius: BorderRadius.circular(24),
                       border: Border.all(color: border),
                     ),
                     child: Text('Version $_appVersion',
-                      style: TextStyle(color: ink, fontSize: 16,
+                      style: TextStyle(color: ink, fontSize: 14,
                         fontWeight: FontWeight.w800)),
                   ),
                 ]),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 18),
               Container(
-                padding: const EdgeInsets.all(24),
+                padding: const EdgeInsets.all(18),
                 decoration: BoxDecoration(
                   color: surface,
-                  borderRadius: BorderRadius.circular(34),
+                  borderRadius: BorderRadius.circular(26),
                   border: Border.all(color: border.withValues(alpha: .65)),
                   boxShadow: const [BoxShadow(
                     color: Color(0x0D5038A0), blurRadius: 20,
@@ -425,16 +425,16 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
                   children: [
                     Row(children: [
                       Container(
-                        width: 66,
-                        height: 66,
+                        width: 54,
+                        height: 54,
                         decoration: BoxDecoration(
                           color: const Color(0xFFEDE7FF),
-                          borderRadius: BorderRadius.circular(22),
+                          borderRadius: BorderRadius.circular(18),
                         ),
                         child: const Icon(Icons.download_rounded,
-                          color: Color(0xFF7048F8), size: 34),
+                          color: Color(0xFF7048F8), size: 28),
                       ),
-                      const SizedBox(width: 18),
+                      const SizedBox(width: 14),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -448,8 +448,8 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
                                         (!_checking && _status != null &&
                                           !_status!.toLowerCase().contains('up to date')
                                           ? 'Could not check for updates' : 'You are up to date'),
-                              style: TextStyle(color: ink, fontSize: 21,
-                                letterSpacing: -.45, fontWeight: FontWeight.w900)),
+                              style: TextStyle(color: ink, fontSize: 18,
+                                letterSpacing: -.3, fontWeight: FontWeight.w900)),
                             const SizedBox(height: 4),
                             Text(
                               _available ? 'Beta v1.1' :
@@ -457,14 +457,14 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
                                 (!_available && _status != null &&
                                   !_status!.toLowerCase().contains('up to date')
                                   ? _status! : 'Novyn is running the latest version'),
-                              style: TextStyle(color: muted, fontSize: 16,
+                              style: TextStyle(color: muted, fontSize: 14,
                                 fontWeight: FontWeight.w500)),
                           ],
                         ),
                       ),
                     ]),
                     if (activeDownload) ...[
-                      const SizedBox(height: 22),
+                      const SizedBox(height: 16),
                       _LiquidDownloadProgress(
                         progress: _downloadProgress,
                         downloadedBytes: _updateService.downloadedBytes,
@@ -474,7 +474,7 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
                         primary: primary,
                         muted: muted,
                       ),
-                      const SizedBox(height: 22),
+                      const SizedBox(height: 16),
                     ] else if (_ready) ...[
                       const SizedBox(height: 14),
                       Text('Your update is verified and ready to install.',
@@ -562,20 +562,20 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
     required Future<void> Function() onTap,
   }) {
     return SizedBox(
-      height: 76,
+      height: 58,
       child: Material(
         color: background,
-        borderRadius: BorderRadius.circular(25),
+        borderRadius: BorderRadius.circular(18),
         child: InkWell(
-          borderRadius: BorderRadius.circular(25),
+          borderRadius: BorderRadius.circular(18),
           onTap: () => onTap(),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, color: foreground, size: 25),
+              Icon(icon, color: foreground, size: 21),
               const SizedBox(width: 10),
               Text(label, style: TextStyle(color: foreground,
-                fontSize: 19, fontWeight: FontWeight.w800)),
+                fontSize: 16, fontWeight: FontWeight.w800)),
             ],
           ),
         ),
@@ -589,13 +589,13 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
     required Future<void> Function()? onTap,
   }) {
     return SizedBox(
-      height: 66,
+      height: 56,
       child: DecoratedBox(
         decoration: BoxDecoration(
           gradient: const LinearGradient(
             colors: [Color(0xFF8052FF), Color(0xFF6741F4)],
           ),
-          borderRadius: BorderRadius.circular(27),
+          borderRadius: BorderRadius.circular(19),
           boxShadow: const [BoxShadow(
             color: Color(0x337048F8), blurRadius: 20,
             offset: Offset(0, 8))],
