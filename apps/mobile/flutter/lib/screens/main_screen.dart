@@ -143,6 +143,16 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
 
   void _handleConnectivityChanged(List<ConnectivityResult> results) {
     if (!results.any((result) => result != ConnectivityResult.none)) return;
+    unawaited(_restoreSessionAndRecover());
+  }
+
+  Future<void> _restoreSessionAndRecover() async {
+    if (!mounted || !widget.managePresence) return;
+    final auth = _authService ?? context.read<AuthService>();
+    // Connectivity alone does not guarantee that the persisted HTTP session
+    // is still valid. Re-check/refresh it before rebuilding Socket.IO.
+    await auth.restoreSessionOnResume();
+    if (!mounted) return;
     _recoverSocketIfNeeded();
   }
 
@@ -337,64 +347,6 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
           ),
           Column(
             children: [
-              AnimatedBuilder(
-                animation: socket,
-                builder: (context, _) {
-                  final degraded = socket.isConnectionDegraded;
-                  final reconnecting =
-                      !socket.isConnected || !socket.isAuthenticated;
-                  if (!degraded && !reconnecting) {
-                    return const SizedBox.shrink();
-                  }
-                  final colors = Theme.of(context).colorScheme;
-                  return Container(
-                    width: double.infinity,
-                    margin: const EdgeInsets.fromLTRB(14, 8, 14, 4),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 13,
-                      vertical: 10,
-                    ),
-                    decoration: BoxDecoration(
-                      color: colors.errorContainer.withValues(alpha: .72),
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(
-                        color: colors.error.withValues(alpha: .18),
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.wifi_off_rounded,
-                          size: 17,
-                          color: colors.onErrorContainer,
-                        ),
-                        const SizedBox(width: 9),
-                        Expanded(
-                          child: Text(
-                            degraded
-                                ? 'Slow connection detected. Reconnecting…'
-                                : 'Reconnecting securely. Some actions may be delayed.',
-                            style: TextStyle(
-                              color: colors.onErrorContainer,
-                              fontSize: 11.5,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        SizedBox(
-                          width: 14,
-                          height: 14,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: colors.onErrorContainer,
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                },
-              ),
               Expanded(
                 child: GestureDetector(
                   behavior: HitTestBehavior.translucent,
