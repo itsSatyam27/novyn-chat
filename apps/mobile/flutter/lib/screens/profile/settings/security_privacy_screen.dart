@@ -5,6 +5,7 @@ import 'dart:ui';
 import '../../../services/settings_service.dart';
 import 'two_factor_screen.dart';
 import '../../../services/auth_service.dart';
+import '../../../services/socket_service.dart';
 import '../../../widgets/novyn_alert.dart';
 import '../../security/setup_pin_screen.dart';
 import 'active_sessions_screen.dart';
@@ -22,6 +23,7 @@ class SecurityPrivacyScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final settings = context.watch<SettingsService>();
+    final socket = context.read<SocketService>();
     final dark = Theme.of(context).brightness == Brightness.dark;
     final ink = Theme.of(context).colorScheme.onSurface;
     final muted = Theme.of(context).colorScheme.onSurfaceVariant;
