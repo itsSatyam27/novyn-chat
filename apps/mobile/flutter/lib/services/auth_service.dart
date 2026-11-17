@@ -122,6 +122,8 @@ class AuthService extends ChangeNotifier {
   String? _pendingGoogleEmail;
   Timer? _sessionMaintenanceTimer;
   bool _sessionRestoreInProgress = false;
+  int _sessionMutationGeneration = 0;
+  bool _sessionInvalidated = false;
 
   bool get isTwoFactorPending => _pendingTwoFactorChallenge != null;
   bool get isGoogleUsernamePending =>
@@ -132,6 +134,7 @@ class AuthService extends ChangeNotifier {
   NovynUser? get user => _user;
   bool get isLoggedIn => _user != null;
   bool get authReady => _authReady;
+  bool get sessionInvalidated => _sessionInvalidated;
 
   AuthService(
       {this.savePresence,
@@ -179,12 +182,41 @@ class AuthService extends ChangeNotifier {
 
   static const String _cachedIdentityMirrorKey =
       'novyn_last_signed_in_identity_mirror_v1';
+  // This marker distinguishes an intentional local sign-out from a missing
+  // cookie after a process restart or transient Android storage failure.
+  static const String _signedOutMarkerKey = 'novyn_explicit_signed_out_v1';
 
-  Future<void> _persistIdentity(NovynUser user) async {
+  Future<bool> _hasSignedOutMarker() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getBool(_signedOutMarkerKey) == true;
+    } catch (error) {
+      debugPrint('[NovynAuth] Sign-out marker read failed: $error');
+      return false;
+    }
+  }
+
+  Future<void> _setSignedOutMarker(bool value) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_signedOutMarkerKey, value);
+    } catch (error) {
+      debugPrint('[NovynAuth] Sign-out marker write failed: $error');
+    }
+  }
+
+  Future<void> _persistIdentity(
+    NovynUser user, {
+    int? expectedGeneration,
+  }) async {
+    // New sign-ins supersede any older startup verification. Background
+    // restore passes its captured generation so a late response cannot undo
+    // an explicit logout or a newer login.
+    final writeGeneration = expectedGeneration ?? ++_sessionMutationGeneration;
+    if (writeGeneration != _sessionMutationGeneration) return;
+    _sessionInvalidated = false;
     final encoded = jsonEncode(_identityToMap(user));
-    // The secure copy remains the primary cache. A second copy contains only
-    // non-secret profile identity (never a password, access token or cookie),
-    // so a temporary Android Keystore read failure cannot look like logout.
+
     try {
       await _identityStorage.write(
         key: _cachedIdentityKey,
@@ -193,11 +225,15 @@ class AuthService extends ChangeNotifier {
     } catch (error) {
       debugPrint('[NovynAuth] Secure identity cache write failed: $error');
     }
+    if (writeGeneration != _sessionMutationGeneration) return;
+
     try {
       final prefs = await SharedPreferences.getInstance();
-      // Only the two fields needed to identify the account at startup are
-      // mirrored outside secure storage; email, avatar, profile and secrets
-      // remain in the secure cache/server.
+      if (writeGeneration != _sessionMutationGeneration) return;
+      // A successful sign-in/session restore supersedes any earlier sign-out.
+      await prefs.setBool(_signedOutMarkerKey, false);
+      if (writeGeneration != _sessionMutationGeneration) return;
+      // Only non-secret display identity is mirrored outside secure storage.
       await prefs.setString(
         _cachedIdentityMirrorKey,
         jsonEncode({
@@ -207,6 +243,24 @@ class AuthService extends ChangeNotifier {
       );
     } catch (error) {
       debugPrint('[NovynAuth] Identity mirror write failed: $error');
+    }
+  }
+
+
+  /// Read the small, non-secret SharedPreferences identity mirror first so a
+  /// returning account can reach its local data without waiting on Keystore.
+  Future<NovynUser?> _readCachedIdentityMirror() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_cachedIdentityMirrorKey);
+      if (raw == null || raw.isEmpty) return null;
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map) return null;
+      final identity = NovynUser.fromMap(Map<String, dynamic>.from(decoded));
+      return identity.username.trim().isEmpty ? null : identity;
+    } catch (error) {
+      debugPrint('[NovynAuth] Identity mirror read failed: $error');
+      return null;
     }
   }
 
@@ -292,14 +346,225 @@ class AuthService extends ChangeNotifier {
       debugPrint('[NovynAuth] Local account cache is not ready yet: $error');
     }
     _user = cachedIdentity;
+    _sessionInvalidated = false;
     _authReady = true;
     notifyListeners();
     debugPrint('[NovynAuth] Restored local account identity ($reason).');
   }
 
+  Future<void> _hydrateCachedIdentityDetails(
+    String username,
+    int expectedGeneration,
+  ) async {
+    try {
+      final cached = await _readCachedIdentity();
+      if (cached == null ||
+          cached.username.toLowerCase() != username.toLowerCase() ||
+          expectedGeneration != _sessionMutationGeneration ||
+          _user?.username.toLowerCase() != username.toLowerCase()) {
+        return;
+      }
+      final previous = _user;
+      final changed = previous == null ||
+          jsonEncode(_identityToMap(previous)) !=
+              jsonEncode(_identityToMap(cached));
+      if (!changed) return;
+      _user = cached;
+      notifyListeners();
+    } catch (error) {
+      debugPrint('[NovynAuth] Cached profile hydration failed: $error');
+    }
+  }
+
+  Future<void> _applyVerifiedSession(
+    Map<String, dynamic> session,
+    int expectedGeneration,
+  ) async {
+    if (expectedGeneration != _sessionMutationGeneration ||
+        await _hasSignedOutMarker()) {
+      return;
+    }
+    final restoredUser = NovynUser.fromMap(session);
+    if (restoredUser.username.trim().isEmpty) return;
+
+    final previous = _user;
+    if (previous?.username.toLowerCase() !=
+        restoredUser.username.toLowerCase()) {
+      await HybridDbService.activateAccount(restoredUser.username)
+          .timeout(const Duration(seconds: 8));
+    }
+    if (expectedGeneration != _sessionMutationGeneration ||
+        await _hasSignedOutMarker()) {
+      return;
+    }
+
+    final changed = previous == null ||
+        jsonEncode(_identityToMap(previous)) !=
+            jsonEncode(_identityToMap(restoredUser));
+    _user = restoredUser;
+    _authReady = true;
+    await _persistIdentity(
+      restoredUser,
+      expectedGeneration: expectedGeneration,
+    );
+    if (expectedGeneration != _sessionMutationGeneration ||
+        await _hasSignedOutMarker()) {
+      return;
+    }
+    if (changed) notifyListeners();
+  }
+
+  Future<void> _invalidateSessionAfterStartupRejections(
+    int expectedGeneration,
+  ) async {
+    if (expectedGeneration != _sessionMutationGeneration) return;
+    final invalidationGeneration = ++_sessionMutationGeneration;
+    await _setSignedOutMarker(true);
+    if (invalidationGeneration != _sessionMutationGeneration) return;
+    await ApiService.clearSession();
+    if (invalidationGeneration != _sessionMutationGeneration) return;
+    try {
+      await onAccountReset?.call().timeout(const Duration(seconds: 4));
+    } catch (error) {
+      debugPrint('[NovynAuth] Socket cleanup skipped after session rejection: $error');
+    }
+    if (invalidationGeneration != _sessionMutationGeneration) return;
+    await _clearCachedIdentity();
+    if (invalidationGeneration != _sessionMutationGeneration) return;
+
+    _user = null;
+    _authReady = true;
+    _sessionInvalidated = true;
+    notifyListeners();
+  }
+
+  /// Verify a locally restored account after navigation. Transient network,
+  /// storage and 5xx failures leave its offline cache available; only repeated
+  /// explicit refresh-token rejection invalidates the local session.
+  Future<void> _verifySessionInBackground(
+    Future<Map<String, dynamic>?> Function() loadSession,
+  ) async {
+    if (_sessionRestoreInProgress) return;
+    _sessionRestoreInProgress = true;
+    final generation = _sessionMutationGeneration;
+    var definitiveRejections = 0;
+    try {
+      final storageReady = await ApiService.initializeSessionStorage().timeout(
+        const Duration(seconds: 4),
+        onTimeout: () => false,
+      );
+      if (!storageReady) {
+        // Keep the previous Keystore recovery behavior, but do it after the
+        // user has already reached the local account instead of holding splash.
+        unawaited(Future<void>.delayed(const Duration(seconds: 2), () async {
+          if (generation != _sessionMutationGeneration || _user == null) return;
+          try {
+            final ready = await ApiService.initializeSessionStorage().timeout(
+              const Duration(seconds: 4),
+              onTimeout: () => false,
+            );
+            if (ready &&
+                generation == _sessionMutationGeneration &&
+                _user != null) {
+              await restoreSessionOnResume();
+            }
+          } catch (error) {
+            debugPrint('[NovynAuth] Background Keystore retry failed: $error');
+          }
+        }));
+        return;
+      }
+      if (generation != _sessionMutationGeneration ||
+          ApiService.sessionCookie == null ||
+          ApiService.sessionCookie!.isEmpty) {
+        return;
+      }
+      final cookieBeforeVerification = ApiService.sessionCookie;
+
+      for (var attempt = 0; attempt < 5; attempt++) {
+        final session = await loadSession()
+            .timeout(const Duration(seconds: 7), onTimeout: () => null);
+        if (generation != _sessionMutationGeneration ||
+            await _hasSignedOutMarker()) {
+          return;
+        }
+        if (session?['authenticated'] == true) {
+          await _applyVerifiedSession(session!, generation);
+          if (generation == _sessionMutationGeneration &&
+              _user != null &&
+              ApiService.sessionCookie != cookieBeforeVerification) {
+            // The server may rotate the cookie pair during a background
+            // refresh. Reconnect the socket so it does not keep an old session.
+            try {
+              await onSessionRefreshed?.call();
+            } catch (error) {
+              debugPrint('[NovynAuth] Socket session refresh deferred: $error');
+            }
+          }
+          return;
+        }
+
+        final status = session?['_httpStatus'];
+        if (status != 401 && status != 403) return;
+
+        final refreshStatus = await ApiService.refreshSessionStatus().timeout(
+          const Duration(seconds: 8),
+          onTimeout: () => null,
+        );
+        if (generation != _sessionMutationGeneration ||
+            await _hasSignedOutMarker()) {
+          return;
+        }
+        if (refreshStatus == 200) {
+          await Future<void>.delayed(const Duration(milliseconds: 250));
+          continue;
+        }
+        if (refreshStatus != 401 && refreshStatus != 403) return;
+
+        definitiveRejections++;
+        if (definitiveRejections >= 3) {
+          await _invalidateSessionAfterStartupRejections(generation);
+          return;
+        }
+        await Future<void>.delayed(const Duration(milliseconds: 400));
+      }
+    } catch (error) {
+      debugPrint('[NovynAuth] Background session verification deferred: $error');
+    } finally {
+      _sessionRestoreInProgress = false;
+    }
+  }
+
   Future<void> _restoreSession(
       Future<Map<String, dynamic>?> Function() loadSession) async {
-    final cachedIdentity = await _readCachedIdentity();
+    final explicitlySignedOut = await _hasSignedOutMarker();
+    if (explicitlySignedOut) {
+      // The durable local marker is authoritative. Do not hold the splash
+      // while deleting stale cookies/profile copies from secure storage.
+      _user = null;
+      _sessionInvalidated = false;
+      _authReady = true;
+      notifyListeners();
+      unawaited(ApiService.clearSession());
+      unawaited(_clearCachedIdentity());
+      return;
+    }
+
+    // The mirror contains no password, token, cookie or other secret. It lets
+    // us restore the correct account namespace before doing remote validation.
+    final mirroredIdentity = await _readCachedIdentityMirror();
+    final cachedIdentity = mirroredIdentity ?? await _readCachedIdentity();
+    if (cachedIdentity != null) {
+      await _activateCachedIdentity(
+        cachedIdentity,
+        reason: 'local-first startup',
+      );
+      final generation = _sessionMutationGeneration;
+      unawaited(_hydrateCachedIdentityDetails(cachedIdentity.username, generation));
+      unawaited(_verifySessionInBackground(loadSession));
+      return;
+    }
+
     final clock = Stopwatch()..start();
     var storageReady = ApiService.sessionStorageInitialized;
     var hadSavedCookie = ApiService.sessionCookie != null;
@@ -341,10 +606,18 @@ class AuthService extends ChangeNotifier {
 
       hadSavedCookie = hadSavedCookie || ApiService.sessionCookie != null;
       if (!hadSavedCookie) {
-        // Secure storage was read successfully and confirmed there is no saved
-        // session. This is a real signed-out state (including after user logout).
+        if (cachedIdentity != null) {
+          // A successful Keystore read returning an empty cookie is not enough
+          // to prove the user explicitly signed out. Keep the last account
+          // available for its local/offline data and let resume retry storage.
+          // Only the durable sign-out marker above may clear this identity.
+          await _activateCachedIdentity(
+            cachedIdentity,
+            reason: 'session cookie unavailable after restart',
+          );
+          return;
+        }
         _user = null;
-        await _clearCachedIdentity();
         _authReady = true;
         notifyListeners();
         return;
@@ -377,9 +650,12 @@ class AuthService extends ChangeNotifier {
           if (refreshStatus == 401 || refreshStatus == 403) {
             definitiveRejections++;
             if (definitiveRejections >= 3) {
+              await _setSignedOutMarker(true);
+              await _setSignedOutMarker(true);
               await ApiService.clearSession();
               await _clearCachedIdentity();
               _user = null;
+              _sessionInvalidated = true;
               _authReady = true;
               notifyListeners();
               return;
@@ -833,7 +1109,12 @@ class AuthService extends ChangeNotifier {
 
   // ── Logout ────────────────────────────────────────────────────────────────
   Future<void> logout() async {
+    _sessionMutationGeneration++;
+    _sessionInvalidated = false;
     final username = _user?.username;
+    // Persist intent before any async cleanup so killing the app mid-logout
+    // cannot restore the previous account on the next launch.
+    await _setSignedOutMarker(true);
 
     // Change the local auth state first. Navigation must never wait on push
     // cleanup, Firebase sign-out, a slow backend or a socket disconnect.

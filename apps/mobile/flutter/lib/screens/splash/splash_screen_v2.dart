@@ -8,13 +8,13 @@ import '../../services/auth_service.dart';
 import '../auth/auth_screen.dart';
 import '../main_screen.dart';
 
-/// Animated light aurora splash. Session restoration is resolved by the
-/// existing AuthService before routing, so a slow backend never looks like
-/// an unexpected sign-out.
+/// Animated light aurora splash. Returning accounts are restored from the
+/// local identity/cache first; remote session verification continues in the
+/// background so a slow backend does not hold up the home screen.
 class SplashScreenV2 extends StatefulWidget {
   const SplashScreenV2({
     super.key,
-    this.minDuration = const Duration(milliseconds: 900),
+    this.minDuration = const Duration(milliseconds: 1500),
   });
 
   final Duration minDuration;
@@ -96,8 +96,8 @@ class _SplashScreenV2State extends State<SplashScreenV2>
   }
 
   Future<void> _waitForSessionResolution(AuthService auth) async {
-    // AuthService performs bounded retries and marks authReady only after it
-    // can safely determine the current account state.
+    // For returning accounts this now means local account/database bootstrap
+    // is ready. Remote cookie verification runs independently in the background.
     while (mounted && !auth.authReady) {
       await Future<void>.delayed(const Duration(milliseconds: 250));
     }
