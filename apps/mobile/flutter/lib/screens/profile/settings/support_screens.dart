@@ -704,24 +704,29 @@ class _LiquidDownloadProgressState extends State<_LiquidDownloadProgress>
   String _eta() {
     final remaining = (widget.totalBytes - widget.downloadedBytes)
         .clamp(0, widget.totalBytes);
-    if (widget.paused) return 'Paused';
-    if (widget.speedBytesPerSecond < 1024 || widget.totalBytes <= 0) {
-      return 'Calculating time…';
+    if (widget.paused || widget.totalBytes <= 0 ||
+        widget.speedBytesPerSecond <= 0) {
+      return '0:00';
     }
     final seconds = (remaining / widget.speedBytesPerSecond)
         .ceil().clamp(0, 86400);
-    if (seconds < 60) return '$seconds s left';
-    return '${(seconds / 60).ceil()} min left';
+    final hours = seconds ~/ 3600;
+    final minutes = (seconds % 3600) ~/ 60;
+    final secs = seconds % 60;
+    if (hours > 0) {
+      return '$hours:${minutes.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}';
+    }
+    return '${(seconds ~/ 60)}:${secs.toString().padLeft(2, '0')}';
   }
 
   @override
   Widget build(BuildContext context) {
     final pct = (widget.progress.clamp(0.0, 1.0) * 100).round();
-    final speed = widget.paused
-        ? 'Paused'
-        : widget.speedBytesPerSecond >= 1024
-            ? (widget.speedBytesPerSecond / 1000000).toStringAsFixed(1) + ' MB/s'
-            : 'Measuring speed…';
+    final speed = widget.speedBytesPerSecond <= 0
+        ? '0 KB/s'
+        : widget.speedBytesPerSecond >= 1000000
+            ? '${(widget.speedBytesPerSecond / 1000000).toStringAsFixed(1)} MB/s'
+            : '${(widget.speedBytesPerSecond / 1000).toStringAsFixed(1)} KB/s';
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
@@ -772,11 +777,7 @@ class _LiquidDownloadProgressState extends State<_LiquidDownloadProgress>
                   fontSize: 18, fontWeight: FontWeight.w800, letterSpacing: -.3)),
               const SizedBox(height: 8),
               Text(
-                widget.paused
-                    ? 'Download paused'
-                    : widget.speedBytesPerSecond < 1024 || widget.totalBytes <= 0
-                        ? 'Calculating speed and time…'
-                        : '$speed · ${_eta()}',
+                widget.paused ? 'Download paused' : '$speed · ${_eta()}',
                 textAlign: TextAlign.start,
                 style: TextStyle(color: widget.muted, fontSize: 15,
                   fontWeight: FontWeight.w500),
