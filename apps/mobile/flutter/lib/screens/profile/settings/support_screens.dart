@@ -445,7 +445,9 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
                                   _paused ? 'Download paused' :
                                     _downloading ? 'Downloading update' :
                                       _available ? 'Update available' :
-                                        'You are up to date',
+                                        (!_checking && _status != null &&
+                                          !_status!.toLowerCase().contains('up to date')
+                                          ? 'Could not check for updates' : 'You are up to date'),
                               style: TextStyle(color: ink, fontSize: 21,
                                 letterSpacing: -.45, fontWeight: FontWeight.w900)),
                             const SizedBox(height: 4),
@@ -769,7 +771,7 @@ class _LiquidDownloadProgressState extends State<_LiquidDownloadProgress>
                 style: TextStyle(color: Theme.of(context).colorScheme.onSurface,
                   fontSize: 18, fontWeight: FontWeight.w800, letterSpacing: -.3)),
               const SizedBox(height: 8),
-              Text('$speed · ${_eta()}',
+              Text(widget.paused ? 'Download paused' : '$speed · ${_eta()}',
                 style: TextStyle(color: widget.muted, fontSize: 15,
                   fontWeight: FontWeight.w500)),
             ],
