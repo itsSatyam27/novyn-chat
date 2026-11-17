@@ -62,7 +62,7 @@ class FriendService {
     final ownerChanged = owner != _cacheOwner;
     _activateCacheOwner(owner);
 
-    if (_socket.contacts.hasAuthoritativeFriendSnapshot) {
+    if (_hasLiveSnapshotFor(owner)) {
       _cachedFriends = List<UserModel>.from(_socket.contacts.friends);
       unawaited(_persistFriends(owner, _cachedFriends!));
     }
@@ -129,9 +129,13 @@ class FriendService {
     );
   }
 
+  bool _hasLiveSnapshotFor(String owner) =>
+      _socket.myUsername?.trim().toLowerCase() == owner &&
+      _socket.contacts.hasAuthoritativeFriendSnapshot;
+
   void _handleContactsChanged() {
     final owner = _cacheOwner;
-    if (owner == null || !_socket.contacts.hasAuthoritativeFriendSnapshot) return;
+    if (owner == null || !_hasLiveSnapshotFor(owner)) return;
     _cachedFriends = List<UserModel>.from(_socket.contacts.friends);
     unawaited(_persistFriends(owner, _cachedFriends!));
   }
@@ -176,7 +180,7 @@ class FriendService {
     _activateCacheOwner(owner);
     return Stream<List<UserModel>>.multi((controller) {
       void emit() {
-        final hasLiveSnapshot = _socket.contacts.hasAuthoritativeFriendSnapshot;
+        final hasLiveSnapshot = _hasLiveSnapshotFor(owner);
         if (hasLiveSnapshot) {
           _cachedFriends = List<UserModel>.from(_socket.contacts.friends);
           unawaited(_persistFriends(owner, _cachedFriends!));
