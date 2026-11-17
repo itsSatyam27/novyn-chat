@@ -67,6 +67,30 @@ class MainActivity : FlutterFragmentActivity() {
         // Preserve a link delivered before Flutter finished configuring its channels.
         intent?.dataString?.let { pendingDeepLink = it }
 
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            "com.example.novyn/accessibility"
+        ).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "openAccessibilitySettings" -> {
+                    try {
+                        startActivity(
+                            Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS)
+                                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        )
+                        result.success(null)
+                    } catch (error: Exception) {
+                        result.error(
+                            "ACCESSIBILITY_SETTINGS_UNAVAILABLE",
+                            error.message,
+                            null
+                        )
+                    }
+                }
+                else -> result.notImplemented()
+            }
+        }
+
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "com.example.novyn/apk_installer")
             .setMethodCallHandler { call, result ->
                 when (call.method) {

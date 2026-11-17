@@ -45,10 +45,10 @@ class NovynTheme {
   static const Color _dDivider = Color(0x21DAD6FF); // rgba(218,214,255,.13)
   static const Color _dRaised = Color(0xFF1B1A35); // header buttons
 
-  static ThemeData lightTheme({Color accent = indigo, double fontScale = 1, bool highContrast = false}) => _build(Brightness.light, accent, fontScale, highContrast);
-  static ThemeData darkTheme({Color accent = indigo, double fontScale = 1, bool highContrast = false}) => _build(Brightness.dark, accent, fontScale, highContrast);
+  static ThemeData lightTheme({Color accent = indigo, bool highContrast = false}) => _build(Brightness.light, accent, highContrast);
+  static ThemeData darkTheme({Color accent = indigo, bool highContrast = false}) => _build(Brightness.dark, accent, highContrast);
 
-  static ThemeData _build(Brightness brightness, Color accent, double fontScale, bool highContrast) {
+  static ThemeData _build(Brightness brightness, Color accent, bool highContrast) {
     final dark = brightness == Brightness.dark;
     final ink = dark ? _dInk : _lInk;
     final meta = dark ? _dMeta : _lMeta;
@@ -89,14 +89,8 @@ class NovynTheme {
     final baseTextTheme = GoogleFonts.plusJakartaSansTextTheme(
       ThemeData(brightness: brightness, useMaterial3: true).textTheme,
     ).apply(bodyColor: ink, displayColor: ink);
-    final base = baseTextTheme.copyWith(
-      bodyLarge: baseTextTheme.bodyLarge?.copyWith(fontSize: (baseTextTheme.bodyLarge?.fontSize ?? 16) * fontScale),
-      bodyMedium: baseTextTheme.bodyMedium?.copyWith(fontSize: (baseTextTheme.bodyMedium?.fontSize ?? 14) * fontScale),
-      bodySmall: baseTextTheme.bodySmall?.copyWith(fontSize: (baseTextTheme.bodySmall?.fontSize ?? 12) * fontScale),
-      titleLarge: baseTextTheme.titleLarge?.copyWith(fontSize: (baseTextTheme.titleLarge?.fontSize ?? 22) * fontScale),
-      titleMedium: baseTextTheme.titleMedium?.copyWith(fontSize: (baseTextTheme.titleMedium?.fontSize ?? 16) * fontScale),
-      titleSmall: baseTextTheme.titleSmall?.copyWith(fontSize: (baseTextTheme.titleSmall?.fontSize ?? 14) * fontScale),
-    );
+    // Font scaling is applied once through the app-wide MediaQuery TextScaler.
+    final base = baseTextTheme;
 
     OutlineInputBorder outline(Color c, [double w = 1]) => OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),

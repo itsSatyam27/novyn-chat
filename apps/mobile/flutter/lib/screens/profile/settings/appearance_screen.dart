@@ -46,7 +46,6 @@ class AppearanceScreen extends StatelessWidget {
             themeMode: settings.themeMode,
             accent: accent,
             accentName: accentName,
-            fontSize: settings.fontSize,
           ),
           const SizedBox(height: 24),
           _SectionHeading(
@@ -132,64 +131,6 @@ class AppearanceScreen extends StatelessWidget {
                   onTap: () => settings.setAccentColor(item.$2.value),
                 );
               },
-            ),
-          ),
-          const SizedBox(height: 25),
-          _SectionHeading(
-            title: 'Text size',
-            subtitle: 'Make conversations comfortable to read',
-            trailing: _ValuePill('${(settings.fontSize * 100).round()}%'),
-          ),
-          const SizedBox(height: 12),
-          _SurfaceCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Text('A', style: theme.textTheme.labelMedium?.copyWith(
-                      color: colors.onSurfaceVariant, fontWeight: FontWeight.w700)),
-                    Expanded(
-                      child: Slider(
-                        value: settings.fontSize.clamp(.85, 1.25),
-                        min: .85,
-                        max: 1.25,
-                        divisions: 8,
-                        label: '${(settings.fontSize * 100).round()}%',
-                        onChanged: settings.setFontSize,
-                      ),
-                    ),
-                    Text('A', style: theme.textTheme.titleLarge?.copyWith(
-                      color: colors.onSurface, fontWeight: FontWeight.w800)),
-                  ],
-                ),
-                const SizedBox(height: 5),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: colors.surfaceContainerHighest.withValues(alpha: .55),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Text(
-                    'Preview text · The quick brown fox jumps over the lazy dog.',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      fontSize: 14 * settings.fontSize,
-                      height: 1.4,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 9),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text('Smaller', style: theme.textTheme.labelSmall?.copyWith(
-                      color: colors.onSurfaceVariant)),
-                    Text('Larger', style: theme.textTheme.labelSmall?.copyWith(
-                      color: colors.onSurfaceVariant)),
-                  ],
-                ),
-              ],
             ),
           ),
           const SizedBox(height: 25),
@@ -292,13 +233,11 @@ class _AppearanceHero extends StatelessWidget {
     required this.themeMode,
     required this.accent,
     required this.accentName,
-    required this.fontSize,
   });
 
   final ThemeMode themeMode;
   final Color accent;
   final String accentName;
-  final double fontSize;
 
   @override
   Widget build(BuildContext context) {
@@ -399,7 +338,6 @@ class _AppearanceHero extends StatelessWidget {
             children: [
               _HeroTag(icon: Icons.brightness_6_rounded, label: AppearanceScreen._themeLabel(themeMode)),
               _HeroTag(icon: Icons.circle, label: accentName, tint: accent),
-              _HeroTag(icon: Icons.text_fields_rounded, label: '${(fontSize * 100).round()}% text'),
             ],
           ),
         ],
