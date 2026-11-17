@@ -281,6 +281,156 @@ class NotificationService {
     );
   }
 
+  static const int _updateDownloadNotificationId = 781206;
+
+  static Future<void> _ensureUpdateDownloadChannel() async {
+    if (!_localNotificationsReady) {
+      throw StateError('Local notifications are not initialized.');
+    }
+    final android = _localNotifications.resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin>();
+    await android?.createNotificationChannel(
+      const AndroidNotificationChannel(
+        'novyn_update_downloads',
+        'Update downloads',
+        description: 'Progress and completion of Novyn app updates',
+        importance: Importance.low,
+        playSound: false,
+        enableVibration: false,
+      ),
+    );
+  }
+
+  /// Shows a quiet, ongoing Android notification for the current APK download.
+  static Future<void> showUpdateDownloadProgress({
+    required int downloadedBytes,
+    required int totalBytes,
+    required double speedBytesPerSecond,
+  }) async {
+    await _ensureUpdateDownloadChannel();
+    final safeTotal = totalBytes > 0 ? totalBytes : 1;
+    final percent = ((downloadedBytes / safeTotal) * 100)
+        .round()
+        .clamp(0, 100)
+        .toInt();
+    final downloadedMb = (downloadedBytes / 1000000).toStringAsFixed(1);
+    final totalMb = (totalBytes / 1000000).toStringAsFixed(1);
+    final speedLabel = speedBytesPerSecond > 0
+        ? (speedBytesPerSecond / 1000000).toStringAsFixed(1) + ' MB/s'
+        : 'Calculating speed';
+    final remainingBytes = (totalBytes - downloadedBytes).clamp(0, totalBytes);
+    final etaSeconds = speedBytesPerSecond > 0
+        ? (remainingBytes / speedBytesPerSecond).ceil()
+        : 0;
+    final etaLabel = speedBytesPerSecond > 0
+        ? ' · about ' + _formatUpdateEta(etaSeconds) + ' left'
+        : '';
+
+    await _localNotifications.show(
+      _updateDownloadNotificationId,
+      'Downloading Novyn update · $percent%',
+      '$downloadedMb / $totalMb MB · $speedLabel$etaLabel',
+      NotificationDetails(
+        android: AndroidNotificationDetails(
+          'novyn_update_downloads',
+          'Update downloads',
+          channelDescription: 'Progress and completion of Novyn app updates',
+          importance: Importance.low,
+          priority: Priority.low,
+          icon: '@drawable/novyn_wings_icon',
+          showProgress: true,
+          maxProgress: 100,
+          progress: percent,
+          indeterminate: false,
+          ongoing: true,
+          onlyAlertOnce: true,
+          autoCancel: false,
+        ),
+        iOS: const DarwinNotificationDetails(presentAlert: false),
+      ),
+      payload: 'app_update',
+    );
+  }
+
+  /// Replaces the ongoing progress alert when the download pauses or fails.
+  static Future<void> showUpdateDownloadPaused({
+    required int downloadedBytes,
+    required int totalBytes,
+    required String message,
+  }) async {
+    await _ensureUpdateDownloadChannel();
+    final percent = totalBytes > 0
+        ? ((downloadedBytes / totalBytes) * 100).round().clamp(0, 100).toInt()
+        : 0;
+    final downloadedMb = (downloadedBytes / 1000000).toStringAsFixed(1);
+    final totalMb = (totalBytes / 1000000).toStringAsFixed(1);
+    await _localNotifications.show(
+      _updateDownloadNotificationId,
+      downloadedBytes > 0 ? 'Novyn update download paused' : 'Novyn update download failed',
+      downloadedBytes > 0
+          ? '$downloadedMb / $totalMb MB saved · $message'
+          : message,
+      NotificationDetails(
+        android: AndroidNotificationDetails(
+          'novyn_update_downloads',
+          'Update downloads',
+          channelDescription: 'Progress and completion of Novyn app updates',
+          importance: Importance.low,
+          priority: Priority.low,
+          icon: '@drawable/novyn_wings_icon',
+          showProgress: downloadedBytes > 0,
+          maxProgress: 100,
+          progress: percent,
+          indeterminate: false,
+          ongoing: false,
+          onlyAlertOnce: true,
+          autoCancel: true,
+        ),
+        iOS: const DarwinNotificationDetails(presentAlert: false),
+      ),
+      payload: 'app_update',
+    );
+  }
+
+  /// Shows the verified APK as ready and makes the notification tappable.
+  static Future<void> showUpdateDownloadComplete() async {
+    await _ensureUpdateDownloadChannel();
+    await _localNotifications.show(
+      _updateDownloadNotificationId,
+      'Novyn update ready',
+      'Download verified. Tap to open About Novyn and install the update.',
+      const NotificationDetails(
+        android: AndroidNotificationDetails(
+          'novyn_update_downloads',
+          'Update downloads',
+          channelDescription: 'Progress and completion of Novyn app updates',
+          importance: Importance.low,
+          priority: Priority.low,
+          icon: '@drawable/novyn_wings_icon',
+          showProgress: true,
+          maxProgress: 100,
+          progress: 100,
+          indeterminate: false,
+          ongoing: false,
+          onlyAlertOnce: true,
+          autoCancel: true,
+        ),
+        iOS: DarwinNotificationDetails(presentAlert: false),
+      ),
+      payload: 'app_update',
+    );
+  }
+
+  static String _formatUpdateEta(int seconds) {
+    if (seconds < 60) return '$seconds sec';
+    final minutes = seconds ~/ 60;
+    final remainingSeconds = seconds % 60;
+    if (minutes < 60) {
+      return minutes.toString() + 'm ' + remainingSeconds.toString() + 's';
+    }
+    return (minutes ~/ 60).toString() + 'h ' + (minutes % 60).toString() + 'm';
+  }
+
   /// Registers the currently visible call screen as the owner of notification
   /// actions. The notification itself stays ongoing while the call is active.
   static void setActiveCallActionHandler(ValueChanged<String>? handler) {

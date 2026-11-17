@@ -412,6 +412,40 @@ class AppUpdateService extends ChangeNotifier {
         offset = 0;
       }
 
+      final notificationStopwatch = Stopwatch()..start();
+      var lastNotificationAt = Duration.zero;
+      var lastNotificationPercent = -1;
+
+      Future<void> publishProgress(int bytes, {bool force = false}) async {
+        final elapsed = notificationStopwatch.elapsed;
+        final percent = ((bytes / release.size) * 100).round().clamp(0, 100);
+        final sinceLast = elapsed - lastNotificationAt;
+        if (!force &&
+            ((percent == lastNotificationPercent &&
+                    sinceLast < const Duration(seconds: 1)) ||
+                sinceLast < const Duration(milliseconds: 750))) {
+          return;
+        }
+        final elapsedSeconds = elapsed.inMicroseconds / 1000000;
+        final speed = elapsedSeconds > 0
+            ? ((bytes - offset).clamp(0, release.size) / elapsedSeconds).toDouble()
+            : 0.0;
+        try {
+          await NotificationService.showUpdateDownloadProgress(
+            downloadedBytes: bytes,
+            totalBytes: release.size,
+            speedBytesPerSecond: speed,
+          );
+        } catch (notificationError) {
+          debugPrint('[NovynUpdates] Progress notification failed: ' +
+              notificationError.toString());
+        }
+        lastNotificationAt = elapsed;
+        lastNotificationPercent = percent;
+      }
+
+      await publishProgress(offset, force: true);
+
       if (offset == release.size) {
         await _verifyAndFinalize(partial, complete, release);
         return;
@@ -459,6 +493,7 @@ class AppUpdateService extends ChangeNotifier {
           downloadProgress = (received / release.size).clamp(0.0, 1.0).toDouble();
           hasPartialDownload = received > 0;
           notifyListeners();
+          await publishProgress(received);
         }
       } finally {
         await sink.flush();
@@ -479,6 +514,21 @@ class AppUpdateService extends ChangeNotifier {
     } finally {
       client.close();
       isDownloading = false;
+      try {
+        if (downloadedApkPath != null) {
+          await NotificationService.showUpdateDownloadComplete();
+        } else if (hasPartialDownload || downloadError != null) {
+          await NotificationService.showUpdateDownloadPaused(
+            downloadedBytes: downloadedBytes,
+            totalBytes: release.size,
+            message: downloadError ??
+                'Your progress is saved. Tap Resume download in About Novyn.',
+          );
+        }
+      } catch (notificationError) {
+        debugPrint('[NovynUpdates] Final download notification failed: ' +
+            notificationError.toString());
+      }
       notifyListeners();
     }
   }
