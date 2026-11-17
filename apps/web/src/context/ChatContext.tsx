@@ -7,7 +7,7 @@ import { playMessageNotification, playMessageSentSound, getSoundVolume } from '.
 import { triggerHaptic } from '../services/capacitor';
 import { browserAlertsEnabled, messagePreviewsEnabled, callSoundEnabled } from '../services/browserPreferences';
 import { setBlockedContact } from '../services/accountSettings';
-import { ENCRYPTED_MESSAGE_PLACEHOLDER, readLastMessage, withDecryptedText } from '../services/messagePresentation';
+import { LEGACY_MESSAGE_UNAVAILABLE, readLastMessage, withCachedLegacyText } from '../services/messagePresentation';
 
 interface ChatContextType {
   conversations: Conversation[];
@@ -869,8 +869,6 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
           poll: m.poll || null,
           game: m.game || null,
           riddle: m.riddle || null,
-          ciphertext: !m.deletedAt ? m.ciphertext : undefined,
-          iv: !m.deletedAt ? m.iv : undefined,
           isEncrypted: Boolean(m.isEncrypted && !m.deletedAt),
         }));
 
@@ -885,8 +883,6 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const sameEncryptedPayload = Boolean(
             cached?.isEncrypted &&
             incoming.isEncrypted &&
-            cached.ciphertext === incoming.ciphertext &&
-            cached.iv === incoming.iv
           );
           return sameEncryptedPayload &&
             cached!.text !== 'Previous encrypted message unavailable'
