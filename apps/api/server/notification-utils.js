@@ -41,9 +41,14 @@ function registerFcmDevice(users, userKey, user, tokenValue, metadata = {}) {
   if (!token || !user) return false;
 
   // A Firebase token belongs to one signed-in Novyn account at a time.
+  // Preserve the per-device release marker when moving it between accounts:
+  // the marker describes the installed device build, not the account.
+  let movedDevice = null;
   for (const [otherKey, otherUser] of users.entries()) {
     if (otherKey === userKey || !otherUser) continue;
     const previous = collectFcmDevices(otherUser);
+    const existingDevice = previous.find((device) => device.token === token);
+    if (existingDevice) movedDevice = existingDevice;
     const next = previous.filter((device) => device.token !== token);
     if (next.length !== previous.length) {
       otherUser.fcmDevices = next;
@@ -54,7 +59,7 @@ function registerFcmDevice(users, userKey, user, tokenValue, metadata = {}) {
   }
 
   const devices = collectFcmDevices(user);
-  const previous = devices.find((device) => device.token === token);
+  const previous = devices.find((device) => device.token === token) || movedDevice;
   const numericBuild = Number(metadata.appBuild);
   const entry = {
     token,
