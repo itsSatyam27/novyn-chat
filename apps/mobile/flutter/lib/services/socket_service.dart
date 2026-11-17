@@ -861,11 +861,12 @@ class SocketService extends ChangeNotifier {
           onIncomingMessage?.call(chatPartner, msg.text);
         }
         // Sound and vibration remain independent user preferences.
-        if (!(notificationsMuted?.call(chatPartner) ?? false)) {
+        final suppressChatAlert = notificationsMuted?.call(chatPartner) ?? false;
+        if (!suppressChatAlert) {
           unawaited(_playIncomingMessageSound());
+          final vibrate = notificationsVibrate;
+          if (vibrate != null) unawaited(vibrate(chatPartner));
         }
-        final vibrate = notificationsVibrate;
-        if (vibrate != null) unawaited(vibrate(chatPartner));
       }
 
       // Resolve reply metadata against locally cached originals.
