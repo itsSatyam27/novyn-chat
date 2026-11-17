@@ -53,6 +53,17 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
+    if (widget.managePresence) {
+      NotificationService.setSocialNotificationTapHandler((type) {
+        if (!mounted) return;
+        // Friend-request events belong in People; a group invitation belongs
+        // in Chats so the newly added group is immediately visible.
+        _onTabTap(type == 'group_invite' ? 0 : 3);
+      });
+      NotificationService.setGroupNotificationTapHandler(() {
+        if (mounted) _onTabTap(0);
+      });
+    }
     WidgetsBinding.instance.addObserver(this);
     _profileLinkSubscription = ProfileDeepLinkService.links.listen(_openProfileLink);
     unawaited(ProfileDeepLinkService.initialize().then((_) {
@@ -207,6 +218,8 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     _profileLinkSubscription?.cancel();
     _updateCheckTimer?.cancel();
     NotificationService.setAppUpdateTapHandler(null);
+    NotificationService.setSocialNotificationTapHandler(null);
+    NotificationService.setGroupNotificationTapHandler(null);
     _authService?.removeListener(_handleAuthChanged);
     if (widget.managePresence && _authService?.user != null) {
       _authService!.setOnline(false);

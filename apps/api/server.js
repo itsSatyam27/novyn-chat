@@ -6,6 +6,15 @@ const http = require("http");
 const express = require("express");
 const multer = require("multer");
 const { createMongoStorage } = require("./server/db/mongo");
+const {
+  collectFcmDevices,
+  registerFcmDevice,
+  removeFcmDevice,
+  createFcmMessage,
+  isInvalidFcmTokenError,
+  isRetryableFcmError,
+  parseAndroidReleaseBuild,
+} = require("./server/notification-utils");
 const { createSocketAuthMiddleware } = require("./server/realtime/socket-auth");
 const { isAllowedSocketOrigin } = require("./server/security/origins");
 const { mediaNames, canReadMedia } = require("./server/security/media-access");
@@ -1525,6 +1534,7 @@ function createUserRecord(username) {
     mutedUsers: new Set(),
     pushSubs: [],
     fcmToken: "",
+    fcmDevices: [],
     isRegistered: false,
     passwordSalt: "",
     passwordHash: "",
@@ -1574,6 +1584,7 @@ function serializeState() {
       mutedUsers: Array.from(user.mutedUsers || []),
       pushSubs: Array.isArray(user.pushSubs) ? user.pushSubs : [],
       fcmToken: toDisplayName(user.fcmToken),
+      fcmDevices: collectFcmDevices(user),
       notificationsEnabled: user.notificationsEnabled !== false,
       messagePreviewEnabled: user.messagePreviewEnabled !== false,
       groupNotificationsEnabled: user.groupNotificationsEnabled !== false,
@@ -1789,6 +1800,7 @@ async function persistMongoNow() {
               mutedUsers: Array.isArray(entry.mutedUsers) ? entry.mutedUsers : [],
               pushSubs: Array.isArray(entry.pushSubs) ? entry.pushSubs : [],
               fcmToken: toDisplayName(entry.fcmToken),
+              fcmDevices: Array.isArray(entry.fcmDevices) ? entry.fcmDevices : [],
               notificationsEnabled: entry.notificationsEnabled !== false,
               messagePreviewEnabled: entry.messagePreviewEnabled !== false,
               groupNotificationsEnabled: entry.groupNotificationsEnabled !== false,
@@ -2295,21 +2307,25 @@ function formatPushBody(text, fallback = "New message") {
 }
 
 async function sendPushToUser(userKey, payload) {
-  if (!userKey) return;
+  if (!userKey) return { fcmSentCount: 0 };
   const user = users.get(userKey);
-  if (!user || user.notificationsEnabled === false) return;
-  if (payload?.group === true && user.groupNotificationsEnabled === false) return;
+  if (!user || user.notificationsEnabled === false) return { fcmSentCount: 0 };
+  if (payload?.group === true && user.groupNotificationsEnabled === false) {
+    return { fcmSentCount: 0 };
+  }
+
   const previewEnabled = user.messagePreviewEnabled !== false;
   const safePayload = {
     ...payload,
     ...(payload?.type === "message" && !previewEnabled
       ? { body: payload?.group === true ? "New group message" : "You have a new message" }
       : {}),
+    previewEnabled,
     silent: payload?.silent === true,
   };
   const body = JSON.stringify(safePayload);
 
-  // Browser push subscriptions (web app).
+  // Browser push keeps the existing web-app delivery path.
   if (pushEnabled && Array.isArray(user.pushSubs) && user.pushSubs.length > 0) {
     const remaining = [];
     let changed = false;
@@ -2333,94 +2349,85 @@ async function sendPushToUser(userKey, payload) {
     }
   }
 
-  // Firebase Cloud Messaging (Android/iOS app). The mobile client stores its
-  // current token in Firestore at users/<username>. A missing token is normal.
+  let fcmSentCount = 0;
   if (firebaseAdmin) {
-    try {
-      const token = toDisplayName(user.fcmToken);
-      if (token) {
-        const isCallPush = safePayload.type === "call";
-        // Direct-message notifications are rendered by the app's background
-        // handler. Sending an FCM notification payload as well makes Android
-        // auto-display a second, generic alert for the same message.
-        const isDirectMessagePush =
-          safePayload.type === "message" && safePayload.group !== true;
-        const data = {
-          type: toDisplayName(safePayload.type) || "message",
-          url: toDisplayName(safePayload.url),
-          tag: toDisplayName(safePayload.tag),
-          chat: toDisplayName(payload?.group === true ? payload?.groupId : payload?.chat) || "",
-          kind: payload?.group === true ? "group" : "friend",
-          // Keep a data-payload copy so Flutter can honor local preview/privacy
-          // preferences and show plaintext previews when the app is backgrounded.
-          ...(!isCallPush ? {
-            title: toDisplayName(safePayload.title) || "Novyn",
-            body: toDisplayName(safePayload.body) || "You have a new message",
-            previewEnabled: previewEnabled ? "1" : "0",
-          } : {}),
-          ...(isCallPush ? {
-            // Bind every call alert to the account whose token received it.
-            recipient: toDisplayName(user.username) || userKey,
-            callStatus: toDisplayName(safePayload.callStatus) || "missed",
-            callId: toDisplayName(safePayload.callId),
-            isVideo: safePayload.isVideo ? "1" : "0",
-            title: toDisplayName(safePayload.title) || "Incoming call",
-            body: toDisplayName(safePayload.body) || "You have an incoming call",
-          } : {}),
-        };
-        const message = {
-          token,
-          ...(!isDirectMessagePush && !isCallPush ? {
-            notification: {
-              title: toDisplayName(safePayload.title) || "Novyn",
-              body: toDisplayName(safePayload.body) || "You have a new message",
-            },
-          } : {}),
-          data,
-          android: {
-            priority: safePayload.silent ? "normal" : "high",
-            ...(isCallPush ? { ttl: 45000 } : {}),
-            ...(!isDirectMessagePush && !isCallPush ? {
-              notification: {
-                tag: toDisplayName(safePayload.tag) || undefined,
-                ...(safePayload.silent ? {} : { sound: "default" }),
-              },
-            } : {}),
-          },
-          apns: {
-            headers: (isDirectMessagePush || isCallPush) ? {
-              "apns-push-type": "background",
-              "apns-priority": "5",
-              ...(isCallPush ? { "apns-expiration": String(Math.floor(Date.now() / 1000) + 45) } : {}),
-            } : undefined,
-            payload: {
-              aps: (isDirectMessagePush || isCallPush)
-                ? { "content-available": 1 }
-                : {
-                    alert: {
-                      title: toDisplayName(safePayload.title) || "Novyn",
-                      body: toDisplayName(safePayload.body) || "You have a new message",
-                    },
-                    ...(safePayload.silent ? {} : { sound: "default" }),
-                  },
-            },
-          },
-        };
-        await admin.messaging(firebaseAdmin).send(message);
-      }
-    } catch (err) {
-      const code = err?.code || err?.errorInfo?.code;
-      if (code === "messaging/registration-token-not-registered" ||
-          code === "messaging/invalid-registration-token") {
+    const allDevices = collectFcmDevices(user);
+    const updateBuild = safePayload.type === "app_update"
+      ? Math.max(0, Number(safePayload.build) || 0)
+      : 0;
+    const targetDevices = updateBuild > 0
+      ? allDevices.filter((device) =>
+          device.platform === "android" &&
+          device.appBuild < updateBuild &&
+          device.lastNotifiedUpdateBuild < updateBuild)
+      : allDevices;
+    const pending = targetDevices.map((device) => device.token);
+    const invalidTokens = new Set();
+    const deliveredTokens = new Set();
+
+    if (pending.length > 0) {
+      const message = createFcmMessage(userKey, user, safePayload);
+      const messaging = admin.messaging(firebaseAdmin);
+
+      // FCM itself queues accepted messages for offline devices. Retry only
+      // transient send failures; never discard a device for a temporary outage.
+      for (let attempt = 0; attempt < 3 && pending.length > 0; attempt++) {
+        const currentBatch = pending.splice(0, pending.length);
+        let retryBatch = [];
         try {
-          user.fcmToken = "";
-          schedulePersist();
-        } catch (_) {}
-      } else {
-        console.warn("Firebase push notification failed:", code || err?.message || err);
+          const response = await messaging.sendEachForMulticast({
+            ...message,
+            tokens: currentBatch,
+          });
+          response.responses.forEach((result, index) => {
+            const token = currentBatch[index];
+            if (result.success) {
+              fcmSentCount++;
+              deliveredTokens.add(token);
+              return;
+            }
+            const code = result.error?.code || result.error?.errorInfo?.code;
+            if (isInvalidFcmTokenError(code)) {
+              invalidTokens.add(token);
+            } else if (attempt < 2 && (isRetryableFcmError(code) || !code)) {
+              retryBatch.push(token);
+            } else {
+              console.warn("Firebase push notification failed:", code || result.error?.message || "Unknown FCM error");
+            }
+          });
+        } catch (err) {
+          const code = err?.code || err?.errorInfo?.code;
+          if (attempt < 2 && (isRetryableFcmError(code) || !code)) {
+            retryBatch = currentBatch;
+          } else {
+            console.warn("Firebase push notification failed:", code || err?.message || err);
+          }
+        }
+
+        pending.push(...retryBatch);
+        if (pending.length > 0 && attempt < 2) {
+          await new Promise((resolve) => setTimeout(resolve, 300 * (attempt + 1)));
+        }
       }
     }
+
+    let changed = false;
+    for (const token of invalidTokens) {
+      changed = removeFcmDevice(user, token) || changed;
+    }
+
+    if (updateBuild > 0 && deliveredTokens.size > 0) {
+      user.fcmDevices = collectFcmDevices(user).map((device) =>
+        deliveredTokens.has(device.token)
+          ? { ...device, lastNotifiedUpdateBuild: updateBuild }
+          : device
+      );
+      changed = true;
+    }
+    if (changed) schedulePersist();
   }
+
+  return { fcmSentCount };
 }
 
 async function appendAbuseReport(entry) {
@@ -2554,6 +2561,7 @@ function applyLoadedState(parsed) {
       ? entry.pushSubs.filter((sub) => sub && sub.endpoint && sub.keys)
       : [];
     user.fcmToken = toDisplayName(entry.fcmToken);
+    user.fcmDevices = Array.isArray(entry.fcmDevices) ? entry.fcmDevices : [];
     user.notificationsEnabled = entry.notificationsEnabled !== false;
     user.messagePreviewEnabled = entry.messagePreviewEnabled !== false;
     user.groupNotificationsEnabled = entry.groupNotificationsEnabled !== false;
@@ -2724,6 +2732,7 @@ function toSerializedUserEntry(doc) {
     mutedUsers: Array.isArray(doc?.mutedUsers) ? doc.mutedUsers : [],
     pushSubs: Array.isArray(doc?.pushSubs) ? doc.pushSubs : [],
     fcmToken: toDisplayName(doc?.fcmToken),
+    fcmDevices: Array.isArray(doc?.fcmDevices) ? doc.fcmDevices : [],
     notificationsEnabled: doc?.notificationsEnabled !== false,
     messagePreviewEnabled: doc?.messagePreviewEnabled !== false,
     groupNotificationsEnabled: doc?.groupNotificationsEnabled !== false,
@@ -3442,6 +3451,8 @@ function deliverFriendMessage(params = {}) {
     const bodyText = formatPushBody(text);
     void sendPushToUser(toKey, {
       type: "message",
+      eventId: `message:${message.id}`,
+      messageId: message.id,
       title: `New message from ${me.username}`,
       body: bodyText,
       tag: `msg-${fromKey}`,
@@ -3539,6 +3550,8 @@ function deliverGroupMessage(params = {}) {
       const bodyText = formatPushBody(text);
       void sendPushToUser(memberKey, {
         type: "message",
+        eventId: `message:${message.id}`,
+        messageId: message.id,
         group: true,
         title: `New message in ${group.name}`,
         body: `${me.username}: ${bodyText}`,
@@ -6631,17 +6644,19 @@ io.on("connection", (socket) => {
       respond({ ok: false, message: "Invalid device notification token." });
       return;
     }
-    user.fcmToken = token;
+    const appBuild = Math.max(0, Math.floor(Number(payload?.appBuild) || 0));
+    const platform = payload?.platform === "ios" ? "ios" : "android";
+    registerFcmDevice(users, userKey, user, token, { appBuild, platform });
     schedulePersist();
     respond({ ok: true });
   });
 
-  socket.on("clear_fcm_token", (callback) => {
+  socket.on("clear_fcm_token", (payload, callback) => {
     const respond = (result) => { if (typeof callback === "function") callback(result); };
     const userKey = socket.data.userKey;
     const user = userKey ? users.get(userKey) : null;
     if (!user) { respond({ ok: false, message: "Sign in again before clearing this device." }); return; }
-    user.fcmToken = "";
+    removeFcmDevice(user, toDisplayName(payload?.token));
     schedulePersist();
     respond({ ok: true });
   });
@@ -7153,6 +7168,15 @@ io.on("connection", (socket) => {
     reply({ ok: true, username: target.username });
     socket.emit("friend_request_sent", { to: target.username });
     emitRequests(targetKey);
+    void sendPushToUser(targetKey, {
+      type: "friend_request",
+      eventId: `friend-request:${userKey}:${Date.now()}`,
+      title: "New friend request",
+      body: `${me.displayName || me.username} sent you a friend request.`,
+      chat: me.username,
+      from: me.username,
+      displayName: me.displayName || me.username,
+    });
     const targetSocket = onlineUsers.get(targetKey);
     if (targetSocket) {
       io.to(targetSocket).emit("friend_request_received", {
@@ -7203,6 +7227,15 @@ io.on("connection", (socket) => {
 
     me.requests.delete(requesterKey);
     emitRequests(userKey);
+    void sendPushToUser(requesterKey, {
+      type: "friend_request_declined",
+      eventId: `friend-declined:${userKey}:${Date.now()}`,
+      title: "Friend request update",
+      body: `${me.displayName || me.username} declined your friend request.`,
+      chat: me.username,
+      from: me.username,
+      displayName: me.displayName || me.username,
+    });
     const requesterSocket = onlineUsers.get(requesterKey);
     if (requesterSocket) {
       io.to(requesterSocket).emit("friend_request_cancelled", { to: me.username });
@@ -7240,6 +7273,15 @@ io.on("connection", (socket) => {
     emitRequests(userKey);
     emitFriendList(userKey);
     emitFriendList(friendKey);
+    void sendPushToUser(friendKey, {
+      type: "friend_request_accepted",
+      eventId: `friend-accepted:${userKey}:${Date.now()}`,
+      title: "Friend request accepted",
+      body: `${me.displayName || me.username} accepted your friend request.`,
+      chat: me.username,
+      from: me.username,
+      displayName: me.displayName || me.username,
+    });
     socket.emit("friend_request_accepted", { by: friend.username });
 
     const friendSocket = onlineUsers.get(friendKey);
@@ -8644,6 +8686,18 @@ io.on("connection", (socket) => {
       setUnreadCount(member, group.id, 0);
       emitFriendList(memberKey);
       emitGroupInfoToMember(memberKey, group);
+      if (memberKey !== userKey) {
+        void sendPushToUser(memberKey, {
+          type: "group_invite",
+          eventId: `group-invite:${group.id}:${userKey}:${memberKey}`,
+          title: `Added to ${group.name}`,
+          body: `${me.displayName || me.username} added you to the group ${group.name}.`,
+          from: me.username,
+          displayName: me.displayName || me.username,
+          chat: group.id,
+          groupId: group.id,
+        });
+      }
       const memberSocket = onlineUsers.get(memberKey);
       if (memberSocket) {
         io.to(memberSocket).emit("group_created", {
@@ -8685,6 +8739,7 @@ io.on("connection", (socket) => {
 
     const requestedMembers = Array.isArray(payload?.members) ? payload.members : [];
     const added = [];
+    const addedKeys = [];
     for (const rawMember of requestedMembers) {
       const memberKey = normalizeName(rawMember);
       if (!memberKey || group.members.has(memberKey)) continue;
@@ -8699,6 +8754,7 @@ io.on("connection", (socket) => {
       member.groups.add(group.id);
       setUnreadCount(member, group.id, 0);
       added.push(member.username || memberKey);
+      addedKeys.push(memberKey);
     }
 
     if (!added.length) {
@@ -8706,6 +8762,18 @@ io.on("connection", (socket) => {
     }
 
     group.updatedAt = nowIso();
+    for (const memberKey of addedKeys) {
+      void sendPushToUser(memberKey, {
+        type: "group_invite",
+        eventId: `group-invite:${group.id}:${userKey}:${memberKey}`,
+        title: `Added to ${group.name}`,
+        body: `${me.displayName || me.username} added you to the group ${group.name}.`,
+        from: me.username,
+        displayName: me.displayName || me.username,
+        chat: group.id,
+        groupId: group.id,
+      });
+    }
     const allMembers = Array.from(group.members);
     for (const memberKey of allMembers) {
       emitFriendList(memberKey);
@@ -9189,10 +9257,91 @@ function listenWithPortFallback(preferredPort, options = {}) {
   });
 }
 
+
+const APP_UPDATE_RELEASES_API =
+  "https://api.github.com/repos/itsSatyam27/novyn-chat/releases?per_page=50";
+const APP_UPDATE_APK_NAME = "Novyn-Android-ARM64.apk";
+
+async function checkForPublishedAndroidUpdate() {
+  if (!firebaseAdmin) return;
+  const response = await fetch(APP_UPDATE_RELEASES_API, {
+    headers: {
+      Accept: "application/vnd.github+json",
+      "User-Agent": "Novyn-FCM-Update-Notifier",
+    },
+    signal: AbortSignal.timeout(15000),
+  });
+  if (!response.ok) {
+    throw new Error(`GitHub releases lookup failed (HTTP ${response.status}).`);
+  }
+  const releases = await response.json();
+  if (!Array.isArray(releases)) {
+    throw new Error("GitHub returned an invalid releases list.");
+  }
+
+  let latest = null;
+  for (const release of releases) {
+    if (!release || release.draft === true || release.prerelease === true) continue;
+    const build = parseAndroidReleaseBuild(release.tag_name);
+    if (!Number.isSafeInteger(build) || build <= (latest?.build || -1)) continue;
+    const asset = Array.isArray(release.assets)
+      ? release.assets.find((item) => item?.name === APP_UPDATE_APK_NAME)
+      : null;
+    if (!asset) continue;
+    let url;
+    try { url = new URL(String(asset.browser_download_url || "")); } catch (_) { continue; }
+    if (
+      url.protocol !== "https:" ||
+      url.hostname !== "github.com" ||
+      !url.pathname.includes("/itsSatyam27/novyn-chat/releases/download/") ||
+      !url.pathname.endsWith("/" + APP_UPDATE_APK_NAME)
+    ) continue;
+    latest = {
+      build,
+      tag: String(release.tag_name),
+      releaseUrl: String(release.html_url || ""),
+      downloadUrl: url.toString(),
+    };
+  }
+  if (!latest) return;
+
+  for (const [userKey, user] of users.entries()) {
+    if (!user?.isRegistered || user.notificationsEnabled === false) continue;
+    const outdatedDevices = collectFcmDevices(user).filter((device) =>
+      device.platform === "android" &&
+      device.appBuild < latest.build &&
+      device.lastNotifiedUpdateBuild < latest.build
+    );
+    if (!outdatedDevices.length) continue;
+
+    await sendPushToUser(userKey, {
+      type: "app_update",
+      eventId: `app-update:${latest.build}`,
+      title: "A new Novyn update is available",
+      body: `${latest.tag} is ready. Tap to download and install the latest version.`,
+      build: String(latest.build),
+      releaseTag: latest.tag,
+      releaseUrl: latest.releaseUrl,
+    });
+  }
+}
+
+function startAppUpdateNotificationLoop() {
+  const runCheck = () => {
+    void checkForPublishedAndroidUpdate().catch((error) => {
+      console.warn("[NovynUpdates] FCM release check failed:", error?.message || error);
+    });
+  };
+  runCheck();
+  const timer = setInterval(runCheck, 15 * 60 * 1000);
+  if (typeof timer.unref === "function") timer.unref();
+}
+
 async function bootstrap() {
   await loadState();
   queueAllScheduledMessages();
   startRetentionMaintenanceLoop();
+  startAppUpdateNotificationLoop();
 
   const preferredPort = parsePort(process.env.PORT, 3000);
   const activePort = await listenWithPortFallback(preferredPort, {

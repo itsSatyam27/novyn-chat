@@ -2328,10 +2328,18 @@ class SocketService extends ChangeNotifier {
     }
   }
 
-  Future<Map<String, dynamic>> registerFcmToken(String token) async {
+  Future<Map<String, dynamic>> registerFcmToken(
+    String token, {
+    int appBuild = 0,
+    String platform = 'android',
+  }) async {
     _requireConnection();
     final completer = Completer<Map<String, dynamic>>();
-    _socket!.emitWithAck('register_fcm_token', {'token': token}, ack: (dynamic result) {
+    _socket!.emitWithAck('register_fcm_token', {
+      'token': token,
+      'appBuild': appBuild,
+      'platform': platform,
+    }, ack: (dynamic result) {
       completer.complete(result is Map
           ? Map<String, dynamic>.from(result)
           : {'ok': false, 'message': 'The server did not confirm this device.'});
@@ -2342,12 +2350,14 @@ class SocketService extends ChangeNotifier {
     );
   }
 
-  Future<Map<String, dynamic>> clearFcmToken() async {
+  Future<Map<String, dynamic>> clearFcmToken([String? token]) async {
     if (!_isConnected || _socket == null) {
       return {'ok': false, 'message': 'Device is offline.'};
     }
     final completer = Completer<Map<String, dynamic>>();
-    _socket!.emitWithAck('clear_fcm_token', {}, ack: (dynamic result) {
+    _socket!.emitWithAck('clear_fcm_token', {
+      if (token != null && token.isNotEmpty) 'token': token,
+    }, ack: (dynamic result) {
       completer.complete(result is Map
           ? Map<String, dynamic>.from(result)
           : {'ok': false, 'message': 'The server did not confirm device removal.'});
