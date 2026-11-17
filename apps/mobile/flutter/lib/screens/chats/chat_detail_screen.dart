@@ -507,7 +507,16 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
   Future<void> _hydrateIndexedCache(String chatId, SocketService socket) async {
     final watch = Stopwatch()..start();
     try {
-      final merged = await HybridDbService.getMessages(chatId);
+      // The indexed (Drift) store is only a secondary cache. Never let its
+      // initialization/query block the first chat render indefinitely; Hive
+      // and the server history have their own independent loading paths.
+      final merged = await HybridDbService.getMessages(chatId).timeout(
+        const Duration(seconds: 3),
+        onTimeout: () {
+          debugPrint('[NovynChat] Secondary cache timed out; continuing with available history');
+          return <Message>[];
+        },
+      );
       if (!mounted || _chatId != chatId || merged.isEmpty) return;
       // Do not let a late, potentially stale disk mirror overwrite newer
       // socket/server message state; only backfill IDs missing from memory.
