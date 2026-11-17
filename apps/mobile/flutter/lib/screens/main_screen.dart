@@ -5,6 +5,7 @@ import '../theme/novyn_theme.dart';
 import 'chats/chats_screen.dart';
 import 'calls/calls_screen.dart';
 import 'calls/call_screen.dart';
+import 'auth/auth_screen.dart';
 import 'people/people_screen.dart';
 import 'discover/discover_screen.dart';
 import 'profile/profile_screen.dart';
@@ -42,6 +43,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   double _horizontalDragDistance = 0;
   AuthService? _authService;
   String? _activeUsername;
+  bool _redirectingForInvalidSession = false;
   Timer? _updateCheckTimer;
   DateTime? _lastUpdateCheck;
   StreamSubscription<String>? _profileLinkSubscription;
@@ -129,8 +131,24 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     final username = auth.user?.username.trim();
     if (username == null || username.isEmpty) {
       _activeUsername = null;
+      if (auth.sessionInvalidated && !_redirectingForInvalidSession) {
+        _redirectingForInvalidSession = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          final currentAuth = context.read<AuthService>();
+          if (!currentAuth.sessionInvalidated || currentAuth.user != null) {
+            _redirectingForInvalidSession = false;
+            return;
+          }
+          Navigator.of(context, rootNavigator: true).pushAndRemoveUntil<void>(
+            NovynPageRoute<void>(child: const AuthScreen()),
+            (route) => false,
+          );
+        });
+      }
       return;
     }
+    _redirectingForInvalidSession = false;
 
     final socket = context.read<SocketService>();
     final sameAccount =
