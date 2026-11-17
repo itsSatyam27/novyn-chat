@@ -13,6 +13,7 @@ const {
   createFcmMessage,
   isInvalidFcmTokenError,
   isRetryableFcmError,
+  parseAndroidReleaseBuild,
 } = require("./server/notification-utils");
 const { createSocketAuthMiddleware } = require("./server/realtime/socket-auth");
 const { isAllowedSocketOrigin } = require("./server/security/origins");
@@ -2356,6 +2357,7 @@ async function sendPushToUser(userKey, payload) {
       : 0;
     const targetDevices = updateBuild > 0
       ? allDevices.filter((device) =>
+          device.platform === "android" &&
           device.appBuild < updateBuild &&
           device.lastNotifiedUpdateBuild < updateBuild)
       : allDevices;
@@ -9277,13 +9279,10 @@ async function checkForPublishedAndroidUpdate() {
     throw new Error("GitHub returned an invalid releases list.");
   }
 
-  const tagPattern = /^novyn-arm64-build-(\d+)(?:-\d+)*$/;
   let latest = null;
   for (const release of releases) {
     if (!release || release.draft === true || release.prerelease === true) continue;
-    const match = tagPattern.exec(String(release.tag_name || ""));
-    if (!match) continue;
-    const build = Number(match[1]);
+    const build = parseAndroidReleaseBuild(release.tag_name);
     if (!Number.isSafeInteger(build) || build <= (latest?.build || -1)) continue;
     const asset = Array.isArray(release.assets)
       ? release.assets.find((item) => item?.name === APP_UPDATE_APK_NAME)
@@ -9309,6 +9308,7 @@ async function checkForPublishedAndroidUpdate() {
   for (const [userKey, user] of users.entries()) {
     if (!user?.isRegistered || user.notificationsEnabled === false) continue;
     const outdatedDevices = collectFcmDevices(user).filter((device) =>
+      device.platform === "android" &&
       device.appBuild < latest.build &&
       device.lastNotifiedUpdateBuild < latest.build
     );
