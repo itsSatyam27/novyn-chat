@@ -89,7 +89,7 @@ function registerMessageMutationHandlers(socket, deps) {
       return;
     }
     if (message.isEncrypted) {
-      socket.emit("error_message", { message: "Encrypted messages cannot be edited yet." });
+      socket.emit("error_message", { message: "This older message is unavailable and cannot be edited." });
       return;
     }
     if (String(message.text || "").startsWith(CALL_LOG_PREFIX)) {
