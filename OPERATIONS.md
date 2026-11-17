@@ -104,8 +104,8 @@ cannot revoke copies of those old URLs. Before claiming that historical media is
 private, back up the media, migrate those remote objects to authenticated storage,
 record their ownership/conversation mapping, update message URLs, and invalidate
 old CDN delivery. This requires a deployment-specific data migration and has not
-been run against your account. Media remains unencrypted at the storage provider;
-this is access control, not media E2EE.
+been run against your account. Media is not cryptographically encrypted by the app
+at rest; download access is enforced by the backend.
 
 Cloudinary's temporary-download API bypasses CDN caching and has higher bandwidth
 costs. For a high-volume deployment, evaluate authenticated CDN delivery with
