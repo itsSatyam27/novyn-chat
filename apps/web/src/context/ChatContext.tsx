@@ -388,7 +388,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const activeConversation = conversationsRef.current.find((conversation) => conversation.username.toLowerCase() === key);
 
     // Saved Messages is a private, device-local notebook. It deliberately avoids
-    // friend authorization, networking and peer encryption requirements.
+    // friend authorization, networking and message-key requirements.
     if (activeConversation?.isSelf) {
       try {
         const stored = JSON.parse(localStorage.getItem(`novyn_saved_messages_${user.username.toLowerCase()}`) || '[]');
@@ -613,7 +613,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
           return cached ? { ...conversation, lastMessage: cached } : conversation;
         }
         return conversation.lastMessage && cached
-          ? { ...conversation, lastMessage: withDecryptedText(conversation.lastMessage, cached) }
+          ? { ...conversation, lastMessage: withCachedLegacyText(conversation.lastMessage, cached) }
           : conversation;
       }));
     };
@@ -1046,7 +1046,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
             );
             const senderName = partnerConv?.displayName || sender;
             const notifBody = messagePreviewsEnabled()
-              ? (msg.text && msg.text !== ENCRYPTED_MESSAGE_PLACEHOLDER
+              ? (msg.text && msg.text !== LEGACY_MESSAGE_UNAVAILABLE
                   ? msg.text
                   : (msg.isVoice ? '🎤 Voice message' : msg.attachment ? '📎 Attachment' : 'New message'))
               : 'New message';
