@@ -628,9 +628,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
         _scrollToBottom();
       }
 
-      await pendingSend;
-      if (!mounted) return;
-      _playSentSound();
+      // sendMessage resolves once the durable outbox accepts the message.
+      // A queued message is not a confirmed delivery, so do not play the
+      // "sent" sound until the server acknowledgement arrives.
     } catch (error) {
       if (mounted) {
         // Restore the failed text only when the user has not started another
