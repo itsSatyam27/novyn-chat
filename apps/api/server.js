@@ -2287,18 +2287,6 @@ function detachSubscriptionFromAll(endpoint, exceptKey) {
   return changed;
 }
 
-function normalizePushPublicKey(value) {
-  const raw = typeof value === "string" ? value.trim() : "";
-  if (!raw || raw.length > 2048) return "";
-  try {
-    const key = JSON.parse(raw);
-    if (key?.kty === "EC" && key?.crv === "P-256" &&
-        typeof key.x === "string" && typeof key.y === "string" &&
-        key.x.length >= 40 && key.y.length >= 40) return raw;
-  } catch (_) {}
-  return "";
-}
-
 function formatPushBody(text, fallback = "New message") {
   const cleaned = String(text || "").replace(/\s+/g, " ").trim();
   if (!cleaned) return fallback;
@@ -2969,14 +2957,6 @@ async function loadState() {
 
   if (!loaded) {
     loaded = await loadStateFromFile();
-  }
-
-  if (loaded) {
-    const scrubbed = scrubEncryptedMessagePlaintext();
-    if (scrubbed) {
-      await persistNow();
-      console.log(`Removed plaintext from ${scrubbed} encrypted message field(s).`);
-    }
   }
 
   await loadAuthState();
@@ -7659,7 +7639,7 @@ io.on("connection", (socket) => {
           return;
         }
         if (item.isEncrypted) {
-          socket.emit("error_message", { message: "Encrypted messages cannot be edited yet." });
+          socket.emit("error_message", { message: "This older message is unavailable and cannot be edited." });
           return;
         }
         item.text = newText;
