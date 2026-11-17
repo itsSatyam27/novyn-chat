@@ -134,7 +134,6 @@ class AppearanceScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 25),
-          const SizedBox(height: 25),
           _SectionHeading(
             title: 'Quick Toggles',
             subtitle: 'Choose up to four shortcuts for your Settings screen',
