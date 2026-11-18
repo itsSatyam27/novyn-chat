@@ -156,6 +156,35 @@ class MessageEncryptionService {
     return raw != null && raw.isNotEmpty;
   }
 
+  /// Encrypts this phone's E2EE identity for a browser's one-time pairing key.
+  /// The server can relay this envelope but cannot decrypt the identity.
+  Future<Map<String, dynamic>> exportIdentityForPairing(
+    String username,
+    String browserPublicKeyJwk,
+  ) async {
+    final identity = await _identity(username, createIfMissing: false);
+    final shared = await _sharedKey(username, browserPublicKeyJwk,
+        requireExistingIdentity: true);
+    final random = Random.secure();
+    final nonce = List<int>.generate(12, (_) => random.nextInt(256));
+    final plaintext = utf8.encode(jsonEncode({
+      'format': 'novyn-device-identity',
+      'version': 1,
+      'username': _account(username),
+      'identity': {
+        'd': _b64url(identity.d),
+        'x': _b64url(identity.x),
+        'y': _b64url(identity.y),
+      },
+    }));
+    final box = await _aes.encrypt(plaintext, secretKey: shared, nonce: nonce);
+    return {
+      'senderPublicKey': await initializeIdentity(username),
+      'iv': base64Encode(nonce),
+      'ciphertext': base64Encode([...box.cipherText, ...box.mac.bytes]),
+    };
+  }
+
   /// Creates an account-syncable identity backup. The server only receives
   /// this authenticated ciphertext; the recovery password never leaves device.
   Future<Map<String, dynamic>> exportIdentityRecoveryBackup(

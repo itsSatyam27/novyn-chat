@@ -17,6 +17,11 @@ export const mobileManagedSettings: Record<SettingsSubSection, MobileSetting> = 
   'profile-presence': { title: 'Presence & Status', path: ['Settings', 'Presence & Status'] },
   'profile-qr': { title: 'QR Code', path: ['Settings', 'QR Code'] },
   'security-dashboard': { title: 'Security', path: ['Settings', 'Security'] },
+  'privacy-message-keys': {
+    title: 'Sync Message Keys',
+    path: ['Settings', 'Security', 'Import message keys'],
+    note: 'To export keys from your original browser, use Transfer message keys on the Messages screen.',
+  },
   'privacy-blocked': { title: 'Blocked Contacts', path: ['Settings', 'Security & Privacy', 'Blocked Users'] },
   'privacy-password': {
     title: 'Change Password',

@@ -251,29 +251,11 @@ class _OnboardingScreenState extends State<OnboardingScreen>
   Widget _buildHeader(_OnboardingPalette p) {
     return Row(
       children: [
-        Container(
+        Image.asset(
+          'assets/icons/novyn-badge.png',
           width: 40,
           height: 40,
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [p.accent.withValues(alpha: .78), p.accent],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(13),
-            boxShadow: [
-              BoxShadow(
-                color: p.accent.withValues(alpha: .25),
-                blurRadius: 16,
-                offset: const Offset(0, 6),
-              ),
-            ],
-          ),
-          child: const Icon(
-            Icons.forum_rounded,
-            color: Colors.white,
-            size: 21,
-          ),
+          semanticLabel: 'Novyn',
         ),
         const SizedBox(width: 10),
         Text(

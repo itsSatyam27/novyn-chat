@@ -6,24 +6,24 @@ import 'package:flutter/foundation.dart';
 class FirebaseConfiguration {
   static const String googleWebClientId = String.fromEnvironment(
     'GOOGLE_WEB_CLIENT_ID',
-    defaultValue: '846944364575-ch2k51u85q4jdi50hsbqrdl4m4jv6k8l.apps.googleusercontent.com',
+    defaultValue: '587953743769-tajofk7f23b5su5r7d0j5it5ifjfc5l9.apps.googleusercontent.com',
   );
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyBFSgWsxUTrBz2K5h6WTi_mwSjoEpo947c',
-    appId: '1:846944364575:android:f41df84158160110498d2a',
-    messagingSenderId: '846944364575',
-    projectId: 'novyn-chat-app',
-    storageBucket: 'novyn-chat-app.firebasestorage.app',
+    apiKey: 'AIzaSyBpRhzVX4Xd_ievPOCuHNXJV6yxW_rwUXA',
+    appId: '1:587953743769:android:95c552c6b290c2d2da5508',
+    messagingSenderId: '587953743769',
+    projectId: 'chat-novyn',
+    storageBucket: 'chat-novyn.firebasestorage.app',
   );
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyB1SjYr_LOS4oJ1sE4_Aws4Jg6faayvHT0',
-    appId: '1:846944364575:web:94fd318c693a337d498d2a',
-    messagingSenderId: '846944364575',
-    projectId: 'novyn-chat-app',
-    authDomain: 'novyn-chat-app.firebaseapp.com',
-    storageBucket: 'novyn-chat-app.firebasestorage.app',
+    apiKey: 'AIzaSyByU_NRvExuP6wnxhGqipTanvbMRwPUjYY',
+    appId: '1:587953743769:web:96777c7f3a208772da5508',
+    messagingSenderId: '587953743769',
+    projectId: 'chat-novyn',
+    authDomain: 'chat-novyn.firebaseapp.com',
+    storageBucket: 'chat-novyn.firebasestorage.app',
   );
 
   static FirebaseOptions? get options {

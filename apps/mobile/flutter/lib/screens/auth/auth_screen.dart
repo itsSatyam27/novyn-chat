@@ -79,7 +79,7 @@ class _AuthScreenState extends State<AuthScreen>
                       height: 52,
                       decoration: BoxDecoration(
                         color: _kAccent,
-                        borderRadius: BorderRadius.circular(17),
+                        borderRadius: BorderRadius.circular(13),
                         boxShadow: const [
                           BoxShadow(
                             color: Color(0x4D6C4DF6),
@@ -88,7 +88,14 @@ class _AuthScreenState extends State<AuthScreen>
                           ),
                         ],
                       ),
-                      child: const Icon(Icons.chat_bubble_rounded, color: Colors.white, size: 28),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(13),
+                        child: Image.asset(
+                          'assets/icons/novyn-badge.png',
+                          fit: BoxFit.cover,
+                          semanticLabel: 'Novyn',
+                        ),
+                      ),
                     ),
                     const SizedBox(width: 12),
                     const Column(

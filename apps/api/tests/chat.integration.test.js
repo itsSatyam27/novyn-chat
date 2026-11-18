@@ -365,7 +365,7 @@ test('localhost discovery, requests, reconnect state, and private media', { time
   assert.equal(failureAck.ok, false, 'invalid sends receive an actionable failure');
   for (const summary of await Promise.all([senderSummary, receiverSummary])) {
     const friend = summary.friends.find((entry) => entry.lastMessageData?.ciphertext === ciphertext);
-    assert.equal(friend.lastMessage, '?? Encrypted message');
+    assert.equal(friend.lastMessage, '\u{1F512} Encrypted message');
     assert.equal(friend.lastMessageData.isEncrypted, true);
     assert.ok(friend.lastMessageData.id);
     assert.equal(friend.lastMessageData.iv, iv);

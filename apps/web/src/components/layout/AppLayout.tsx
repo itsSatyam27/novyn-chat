@@ -2,9 +2,7 @@ import { ContactsDashboard } from '../contacts/ContactsDashboard';
 import React, { lazy, Suspense, useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useChat } from '../../context/ChatContext';
-const LandingPage = lazy(() => import('../landing/LandingPage').then((m) => ({ default: m.LandingPage })));
-const AuthModal = lazy(() => import('../auth/AuthModal').then((m) => ({ default: m.AuthModal })));
-const MobileAuthPage = lazy(() => import('../auth/MobileAuthPage').then((m) => ({ default: m.MobileAuthPage })));
+const DevicePairingPage = lazy(() => import('../auth/DevicePairingPage').then((m) => ({ default: m.DevicePairingPage })));
 import { Sidebar, NavTab } from './Sidebar';
 import { BottomNav } from './BottomNav';
 import { ConnectionNotice } from './ConnectionNotice';
@@ -39,9 +37,6 @@ export const AppLayout: React.FC = () => {
     initialRoute.tab === 'settings' ? initialRoute.subSection : 'profile-details'
   );
   const [isListCollapsed, setIsListCollapsed] = useState(false);
-  const [isAuthOpen, setIsAuthOpen] = useState(false);
-  const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
-  const [showDesktopLandingOnMobile, setShowDesktopLandingOnMobile] = useState(false);
   const [isMobileSettingsDetailOpen, setIsMobileSettingsDetailOpen] = useState<boolean>(() =>
     initialRoute.tab === 'settings' ? Boolean(initialRoute.isDetailOpen) : false
   );
@@ -234,44 +229,11 @@ export const AppLayout: React.FC = () => {
     );
   }
 
-  // Unauthenticated landing & auth modal flow
+  // Web is a linked companion; the primary account signs in on Flutter.
   if (!isAuthenticated) {
-    if (isMobile && !showDesktopLandingOnMobile) {
-      return (
-        <Suspense fallback={null}>
-          <MobileAuthPage
-            initialMode={authMode}
-            onSwitchToDesktopLanding={() => setShowDesktopLandingOnMobile(true)}
-          />
-        </Suspense>
-      );
-    }
-
     return (
       <Suspense fallback={null}>
-        {isMobile && showDesktopLandingOnMobile && (
-          <header className="mobile-landing-return-bar">
-            <button
-              type="button"
-              onClick={() => setShowDesktopLandingOnMobile(false)}
-              className="mobile-landing-return-btn"
-            >
-              ← Back to Sign In / Sign Up
-            </button>
-            <span className="mobile-landing-return-tag">Novyn Web</span>
-          </header>
-        )}
-        <LandingPage
-          onOpenAuth={(mode = 'signin') => {
-            setAuthMode(mode);
-            setIsAuthOpen(true);
-          }}
-        />
-        <AuthModal
-          isOpen={isAuthOpen}
-          initialMode={authMode}
-          onClose={() => setIsAuthOpen(false)}
-        />
+        <DevicePairingPage />
       </Suspense>
     );
   }

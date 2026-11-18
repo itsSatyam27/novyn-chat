@@ -10,6 +10,7 @@ import '../../../widgets/novyn_alert.dart';
 import '../../../widgets/import_message_keys_dialog.dart';
 import '../../security/setup_pin_screen.dart';
 import 'active_sessions_screen.dart';
+import 'pair_web_device_screen.dart';
 import 'email_password_screen.dart';
 import 'blocked_users_screen.dart';
 import '../../../theme/novyn_theme.dart';
@@ -138,6 +139,9 @@ class SecurityPrivacyScreen extends StatelessWidget {
             nav(Icons.devices_rounded, const Color(0xFF2A78B8),
               'Active Sessions', 'Sign out of other devices remotely',
               () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ActiveSessionsScreen()))),
+            nav(Icons.qr_code_scanner_rounded, const Color(0xFF178B72),
+              'Pair a web device', 'Link Novyn Web securely with this phone',
+              () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PairWebDeviceScreen()))),
             nav(Icons.key_rounded, const Color(0xFF8B5CF6),
               'Import message keys', 'Sync encrypted chat history from your Novyn web browser',
               () => showImportMessageKeys(context)),

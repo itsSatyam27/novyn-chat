@@ -78,6 +78,71 @@
   word-break: break-word;
 }
 
+/* E2EE Verification Card */
+.contact-e2ee-card {
+  width: 100%;
+  box-sizing: border-box;
+  background: rgba(16, 185, 129, 0.06);
+  border: 1px solid rgba(16, 185, 129, 0.2);
+  border-radius: 14px;
+  padding: 12px 14px;
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: left;
+}
+
+.contact-e2ee-card:hover {
+  background: rgba(16, 185, 129, 0.12);
+  border-color: rgba(16, 185, 129, 0.35);
+  transform: translateY(-1px);
+}
+
+.contact-e2ee-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: rgba(16, 185, 129, 0.18);
+  color: #10b981;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.contact-e2ee-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.contact-e2ee-title {
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: var(--text-main);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 2px;
+}
+
+.contact-e2ee-badge {
+  font-size: 0.65rem;
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: #10b981;
+  color: #ffffff;
+  font-weight: 800;
+}
+
+.contact-e2ee-desc {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  line-height: 1.35;
+}
+
 /* Mutual Groups Section */
 .contact-mutual-groups-section {
   width: 100%;

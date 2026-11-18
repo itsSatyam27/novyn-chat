@@ -24,6 +24,27 @@ class ChatBackupService {
     if (password.length < 8) {
       throw const FormatException('Use a backup password with at least 8 characters.');
     }
+    final envelope = await createEncryptedBackup(
+      username: username,
+      password: password,
+      encryption: encryption,
+    );
+    final result = await FilePicker.platform.saveFile(
+      dialogTitle: 'Save encrypted Novyn chat backup',
+      fileName: 'novyn-chat-backup.json',
+      bytes: envelope,
+    );
+    return result != null;
+  }
+
+  static Future<Uint8List> createEncryptedBackup({
+    required String username,
+    required String password,
+    required MessageEncryptionService encryption,
+  }) async {
+    if (password.length < 8) {
+      throw const FormatException('Use a backup password with at least 8 characters.');
+    }
     final data = await LocalDbService.exportChatBackupData();
     if (data['username']?.toString().toLowerCase() != username.trim().toLowerCase()) {
       throw const FormatException('The active local chat account does not match the signed-in account.');
@@ -50,12 +71,7 @@ class ChatBackupService {
       'iv': base64Encode(nonce),
       'ciphertext': base64Encode([...box.cipherText, ...box.mac.bytes]),
     });
-    final result = await FilePicker.platform.saveFile(
-      dialogTitle: 'Save encrypted Novyn chat backup',
-      fileName: 'novyn-chat-backup.json',
-      bytes: Uint8List.fromList(utf8.encode(envelope)),
-    );
-    return result != null;
+    return Uint8List.fromList(utf8.encode(envelope));
   }
 
   static Future<Map<String, int>?> restoreBackup({
@@ -73,6 +89,23 @@ class ChatBackupService {
     final bytes = picked.files.single.bytes;
     if (bytes == null || bytes.length > 100 * 1024 * 1024) {
       throw const FormatException('Backup file is missing or larger than 100 MB.');
+    }
+    return restoreBackupBytes(
+      bytes: bytes,
+      username: username,
+      password: password,
+      encryption: encryption,
+    );
+  }
+
+  static Future<Map<String, int>> restoreBackupBytes({
+    required Uint8List bytes,
+    required String username,
+    required String password,
+    required MessageEncryptionService encryption,
+  }) async {
+    if (bytes.length > 100 * 1024 * 1024) {
+      throw const FormatException('Backup file is larger than 100 MB.');
     }
     final envelope = jsonDecode(utf8.decode(bytes));
     if (envelope is! Map ||

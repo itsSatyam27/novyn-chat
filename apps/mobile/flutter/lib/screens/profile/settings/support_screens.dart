@@ -11,6 +11,7 @@ import '../../../services/auth_service.dart';
 import '../../../services/app_update_service.dart';
 
 const _installerChannel = MethodChannel('com.example.novyn/apk_installer');
+const _appSupportEmail = 'novynchat.app@gmail.com';
 
 
 class AboutNovynScreen extends StatefulWidget {
@@ -360,33 +361,11 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
               const SizedBox(height: 12),
               Center(
                 child: Column(children: [
-                  Container(
+                  Image.asset(
+                    'assets/icons/novyn-badge.png',
                     width: 68,
                     height: 68,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(22),
-                      gradient: const LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [Color(0xFF8A65FF), Color(0xFF5B3DEB)],
-                      ),
-                      boxShadow: const [BoxShadow(
-                        color: Color(0x2A7048F8), blurRadius: 16,
-                        offset: Offset(0, 6))],
-                    ),
-                    child: Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        const Icon(Icons.chat_bubble_rounded,
-                          color: Colors.white, size: 40),
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 4),
-                          child: Text('N', style: TextStyle(
-                            color: primary, fontSize: 22,
-                            fontWeight: FontWeight.w900)),
-                        ),
-                      ],
-                    ),
+                    semanticLabel: 'Novyn',
                   ),
                   const SizedBox(height: 8),
                   Text('Novyn', style: TextStyle(color: ink, fontSize: 26,
@@ -914,10 +893,11 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
   void dispose(){_searchController.dispose();super.dispose();}
 
   Future<void> _openIssues({bool newBug=false}) async {
-    final uri=newBug
+    final uri = newBug
       ? Uri.https('github.com','/itsSatyam27/novyn-chat/issues/new',
           {'title':'Novyn app bug report'})
-      : Uri.https('github.com','/itsSatyam27/novyn-chat/issues');
+      : Uri(scheme: 'mailto', path: _appSupportEmail,
+          queryParameters: {'subject': 'Novyn support request'});
     if(!await launchUrl(uri,mode:LaunchMode.externalApplication)&&mounted){
       context.showNovynAlert(const SnackBar(content:Text('Could not open the support page.')));
     }

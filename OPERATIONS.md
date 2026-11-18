@@ -33,6 +33,16 @@ sure `NOVYN_API_URL` points to the same backend used by web; Flutter defaults to
 `https://novyn-live.onrender.com` and can be overridden with
 `--dart-define=NOVYN_API_URL=https://your-backend-host`.
 
+The primary Firebase project is `chat-novyn`. For production, set the API's
+`FIREBASE_SERVICE_ACCOUNT_JSON` to its Admin service account and update the
+web build's `VITE_FIREBASE_*` values to the same project's web app. During the
+mobile transition, put the old project's Admin service account in
+`FIREBASE_LEGACY_SERVICE_ACCOUNT_JSON`; the API uses it to verify old app tokens,
+send notifications to old-project FCM tokens, and remove linked identities.
+Keep that variable until old app versions are no longer in use. In Firebase
+Authentication, enable Google sign-in and add `novyn-live.onrender.com` to the
+authorized domains before deploying the new web configuration.
+
 Google Sign-In troubleshooting: if the app fails with `sign_in_failed` /
 `ApiException: 10`, the Firebase Android app configuration is mismatched. Ensure the
 Android package name matches the one in `google-services.json`, add the SHA-1 for

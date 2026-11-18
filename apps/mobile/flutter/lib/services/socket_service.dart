@@ -2730,6 +2730,37 @@ class SocketService extends ChangeNotifier {
     );
   }
 
+  Future<Map<String, dynamic>> approveWebDevicePairing({
+    required String id,
+    required String secret,
+    required String browserPublicKey,
+  }) async {
+    await _requireAuthenticatedConnection();
+    final account = _myUsername;
+    if (account == null) return {'ok': false, 'message': 'Sign in on this phone first.'};
+    final encryptedIdentity = await encryption.exportIdentityForPairing(
+      account,
+      browserPublicKey,
+    );
+    final completer = Completer<Map<String, dynamic>>();
+    _socket!.emitWithAck('approve_device_pairing', {
+      'id': id,
+      'secret': secret,
+      'browserPublicKey': browserPublicKey,
+      'encryptedIdentity': encryptedIdentity,
+    }, ack: (dynamic result) {
+      if (!completer.isCompleted) {
+        completer.complete(result is Map
+            ? Map<String, dynamic>.from(result)
+            : {'ok': false, 'message': 'The server did not confirm device pairing.'});
+      }
+    });
+    return completer.future.timeout(
+      const Duration(seconds: 12),
+      onTimeout: () => {'ok': false, 'message': 'Device pairing timed out. Try again.'},
+    );
+  }
+
   Future<Map<String, dynamic>> setBlockedUser(
     String username, {
     required bool blocked,

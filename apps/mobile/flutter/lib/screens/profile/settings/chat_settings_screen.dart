@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../../../services/auth_service.dart';
 import '../../../services/chat_backup_service.dart';
+import '../../../services/google_drive_backup_service.dart';
 import '../../../services/settings_service.dart';
 import '../../../services/socket_service.dart';
 import '../../../theme/novyn_theme.dart';
@@ -103,7 +104,7 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    'Your chat backup is encrypted with a password you choose. It restores locally cached messages, contacts and conversation keys. It does not include the account’s private E2EE identity; use E2EE Account Recovery below for that. Keep both recovery passwords safe—Novyn cannot recover them.',
+                    'Your chat backup is encrypted with a password you choose. Drive backups are stored in Novyn’s private app folder and will not appear in Drive browsing. It restores locally cached messages, contacts and conversation keys, but not the account’s private E2EE identity; use E2EE Account Recovery below for that. Keep both recovery passwords safe—Novyn cannot recover them.',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(height: 1.45, color: colors.onSurfaceVariant),
                   ),
                 ),
@@ -124,6 +125,20 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
             title: 'Restore chats',
             subtitle: 'Import a Novyn backup for this account',
             onTap: _working ? null : () => _runBackup(restore: true),
+          ),
+          _backupAction(
+            context,
+            icon: Icons.add_to_drive_rounded,
+            title: 'Back up to Google Drive',
+            subtitle: 'Save an encrypted backup in your private Drive app folder',
+            onTap: _working ? null : () => _runDriveBackup(restore: false),
+          ),
+          _backupAction(
+            context,
+            icon: Icons.cloud_download_outlined,
+            title: 'Restore from Google Drive',
+            subtitle: 'Restore the latest backup saved by Novyn',
+            onTap: _working ? null : () => _runDriveBackup(restore: true),
           ),
           const SizedBox(height: 22),
           _section('E2EE ACCOUNT RECOVERY'),
@@ -353,6 +368,50 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
         );
         if (!mounted) return;
         _message(saved ? 'Encrypted chat backup saved.' : 'Backup export was cancelled.');
+      }
+    } catch (error) {
+      if (!mounted) return;
+      _message(error.toString().replaceFirst('FormatException: ', '').replaceFirst('Bad state: ', ''));
+    } finally {
+      if (mounted) setState(() => _working = false);
+    }
+  }
+
+  Future<void> _runDriveBackup({required bool restore}) async {
+    final auth = context.read<AuthService>();
+    final username = auth.user?.username.trim() ?? '';
+    if (username.isEmpty) {
+      _message('Sign in to a Novyn account before using chat backup.');
+      return;
+    }
+    final password = await _askBackupPassword(restore: restore);
+    if (password == null || !mounted) return;
+    setState(() => _working = true);
+    try {
+      if (restore) {
+        final bytes = await GoogleDriveBackupService.restore();
+        if (!mounted) return;
+        if (bytes == null) {
+          _message('No Novyn chat backup was found in this Google Drive account.');
+          return;
+        }
+        final counts = await ChatBackupService.restoreBackupBytes(
+          bytes: bytes,
+          username: username,
+          password: password,
+          encryption: context.read<SocketService>().encryption,
+        );
+        if (!mounted) return;
+        _message('Restored ${counts['messages']} messages, ${counts['chats']} chats, ${counts['contacts']} contacts and ${counts['encryptionKeys']} encryption keys. Reopen Chats to refresh the list.');
+      } else {
+        final bytes = await ChatBackupService.createEncryptedBackup(
+          username: username,
+          password: password,
+          encryption: context.read<SocketService>().encryption,
+        );
+        await GoogleDriveBackupService.save(bytes);
+        if (!mounted) return;
+        _message('Encrypted chat backup saved to your Google Drive app folder.');
       }
     } catch (error) {
       if (!mounted) return;

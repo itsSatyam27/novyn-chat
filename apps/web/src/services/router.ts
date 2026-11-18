@@ -21,6 +21,7 @@ export const SUBSECTION_TO_CATEGORY: Record<SettingsSubSection, SettingsMainCate
   'privacy-sessions': 'security',
   'privacy-danger': 'security',
   'privacy-linked-devices': 'security',
+  'privacy-message-keys': 'security',
   'privacy-blocked': 'privacy',
   'privacy-visibility': 'privacy',
   'privacy-controls': 'privacy',

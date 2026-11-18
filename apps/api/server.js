@@ -88,12 +88,26 @@ function loadFirebaseServiceAccount() {
   return null;
 }
 
+function loadLegacyFirebaseServiceAccount() {
+  const rawJson = readEnvText(process.env.FIREBASE_LEGACY_SERVICE_ACCOUNT_JSON);
+  if (!rawJson) return null;
+
+  try {
+    return parseJsonMaybe(rawJson);
+  } catch (err) {
+    console.warn("Failed to parse FIREBASE_LEGACY_SERVICE_ACCOUNT_JSON:", err?.message || err);
+    return null;
+  }
+}
+
 let firebaseAdmin = null;
+let firebaseLegacyAdmin = null;
 try {
   const serviceAccount = loadFirebaseServiceAccount();
   if (serviceAccount) {
     firebaseAdmin = admin.initializeApp({
       credential: admin.credential.cert(serviceAccount),
+      projectId: serviceAccount.project_id,
     });
   } else {
     console.warn(
@@ -102,6 +116,32 @@ try {
   }
 } catch (err) {
   console.warn("Firebase Admin SDK unavailable:", err?.message || err);
+}
+
+try {
+  const legacyServiceAccount = loadLegacyFirebaseServiceAccount();
+  if (legacyServiceAccount &&
+      legacyServiceAccount.project_id !== firebaseAdmin?.options?.projectId) {
+    firebaseLegacyAdmin = admin.initializeApp({
+      credential: admin.credential.cert(legacyServiceAccount),
+      projectId: legacyServiceAccount.project_id,
+    }, "legacy");
+  }
+} catch (err) {
+  console.warn("Legacy Firebase Admin SDK unavailable:", err?.message || err);
+}
+
+async function verifyFirebaseIdToken(idToken) {
+  const firebaseApps = [firebaseAdmin, firebaseLegacyAdmin].filter(Boolean);
+  let verificationError;
+  for (const firebaseApp of firebaseApps) {
+    try {
+      return await admin.auth(firebaseApp).verifyIdToken(idToken);
+    } catch (err) {
+      verificationError = err;
+    }
+  }
+  throw verificationError || new Error("Firebase Admin SDK is not configured.");
 }
 
 let nodemailer = null;
@@ -2444,7 +2484,15 @@ async function sendPushToUser(userKey, payload) {
             },
           },
         };
-        await admin.messaging(firebaseAdmin).send(message);
+        try {
+          await admin.messaging(firebaseAdmin).send(message);
+        } catch (error) {
+          const code = error?.code || error?.errorInfo?.code;
+          if (code !== "messaging/mismatched-credential" || !firebaseLegacyAdmin) {
+            throw error;
+          }
+          await admin.messaging(firebaseLegacyAdmin).send(message);
+        }
       }
     } catch (err) {
       const code = err?.code || err?.errorInfo?.code;
@@ -5192,7 +5240,7 @@ app.post(
 
     let decoded;
     try {
-      decoded = await firebaseAdmin.auth().verifyIdToken(idToken);
+      decoded = await verifyFirebaseIdToken(idToken);
     } catch (err) {
       res.status(401).json({ message: "Invalid Google sign-in token." });
       return;
@@ -5546,6 +5594,86 @@ app.get("/api/auth/session", async (req, res) => {
     groupInvitePrivacy: user.groupInvitePrivacy || "friends", friendRequestPrivacy: user.friendRequestPrivacy || "everyone",
   });
 });
+
+// QR-linked web sessions are short-lived, single-use and approved from the
+// authenticated primary phone. E2EE material stays inside the encrypted
+// envelope and is only ever returned to the browser presenting the secret.
+app.post("/api/device-pairing/start",
+  createIpRateLimiter({ getStore: () => httpRateLimits }, "device-pair-start", 12, 15 * 60 * 1000),
+  requireCsrf,
+  (req, res) => {
+    const publicKey = req.body?.publicKey;
+    let jwk;
+    try { jwk = typeof publicKey === "string" ? JSON.parse(publicKey) : publicKey; } catch (_) { jwk = null; }
+    if (!jwk || jwk.kty !== "EC" || jwk.crv !== "P-256" ||
+        typeof jwk.x !== "string" || !/^[A-Za-z0-9_-]{43}$/.test(jwk.x) ||
+        typeof jwk.y !== "string" || !/^[A-Za-z0-9_-]{43}$/.test(jwk.y)) {
+      return res.status(400).json({ ok: false, message: "A valid temporary browser key is required." });
+    }
+    const now = Date.now();
+    for (const [id, pairing] of runtimeState.devicePairings) {
+      if (!pairing || pairing.expiresAt <= now || pairing.status === "complete") runtimeState.devicePairings.delete(id);
+    }
+    const id = crypto.randomBytes(18).toString("base64url");
+    const secret = crypto.randomBytes(32).toString("base64url");
+    const origin = toDisplayName(req.get("origin") || `${req.protocol}://${req.get("host")}`);
+    runtimeState.devicePairings.set(id, {
+      secretHash: crypto.createHash("sha256").update(secret).digest("hex"),
+      browserPublicKey: JSON.stringify(jwk),
+      origin,
+      createdAt: now,
+      expiresAt: now + 2 * 60 * 1000,
+      status: "waiting",
+    });
+    return res.json({ ok: true, id, secret, origin, expiresAt: now + 2 * 60 * 1000 });
+  });
+
+app.get("/api/device-pairing/status", (req, res) => {
+  const id = toDisplayName(req.query?.id);
+  const secret = toDisplayName(req.query?.secret);
+  const pairing = runtimeState.devicePairings.get(id);
+  const secretHash = crypto.createHash("sha256").update(secret).digest("hex");
+  if (!pairing || pairing.expiresAt <= Date.now() ||
+      !csrfSafeTimingEqual(pairing.secretHash, secretHash)) {
+    return res.status(404).json({ ok: false, message: "This pairing request expired. Refresh to try again." });
+  }
+  return res.json({ ok: true, status: pairing.status });
+});
+
+app.post("/api/device-pairing/complete",
+  createIpRateLimiter({ getStore: () => httpRateLimits }, "device-pair-complete", 12, 15 * 60 * 1000),
+  requireCsrf,
+  async (req, res) => {
+    const id = toDisplayName(req.body?.id);
+    const secret = toDisplayName(req.body?.secret);
+    const pairing = runtimeState.devicePairings.get(id);
+    const secretHash = crypto.createHash("sha256").update(secret).digest("hex");
+    if (!pairing || pairing.expiresAt <= Date.now() || pairing.status !== "approved" ||
+        pairing.completing || !csrfSafeTimingEqual(pairing.secretHash, secretHash)) {
+      return res.status(409).json({ ok: false, message: "Pairing is not approved or has expired." });
+    }
+    const user = users.get(pairing.userKey);
+    if (!user?.isRegistered) {
+      runtimeState.devicePairings.delete(id);
+      return res.status(410).json({ ok: false, message: "The primary account is no longer available." });
+    }
+    pairing.completing = true;
+    const tokens = await issueAuthTokensForUser(pairing.userKey, true);
+    if (!tokens) {
+      pairing.completing = false;
+      return res.status(503).json({ ok: false, message: "Could not create the linked session. Retry." });
+    }
+    applyAuthCookies(res, tokens);
+    pairing.status = "complete";
+    res.json({
+      ok: true,
+      username: user.username,
+      displayName: user.displayName || user.username,
+      email: user.email || "",
+      encryptedIdentity: pairing.encryptedIdentity,
+    });
+    runtimeState.devicePairings.delete(id);
+  });
 
 app.post("/api/auth/refresh", createIpRateLimiter({ getStore: () => httpRateLimits }, "auth-refresh", 120, 15 * 60 * 1000), requireCsrf, async (req, res) => {
   const cookies = getAuthCookiesFromHeader(req.headers.cookie);
@@ -7026,14 +7154,16 @@ io.on("connection", (socket) => {
         });
         return;
       }
-      try {
-        await firebaseAdmin.auth().deleteUser(user.googleUid);
-      } catch (error) {
-        if (error?.code !== "auth/user-not-found") {
-          socket.emit("account_deletion_failed", {
-            message: "Could not remove the linked Google identity. Your account was not deleted.",
-          });
-          return;
+      for (const firebaseApp of [firebaseLegacyAdmin, firebaseAdmin].filter(Boolean)) {
+        try {
+          await admin.auth(firebaseApp).deleteUser(user.googleUid);
+        } catch (error) {
+          if (error?.code !== "auth/user-not-found") {
+            socket.emit("account_deletion_failed", {
+              message: "Could not remove the linked Google identity. Your account was not deleted.",
+            });
+            return;
+          }
         }
       }
     }
@@ -8420,6 +8550,50 @@ io.on("connection", (socket) => {
       }
       respond({ ok: true, publicKey });
     }
+  });
+
+  socket.on("approve_device_pairing", (payload, callback) => {
+    const respond = typeof callback === "function" ? callback : () => {};
+    const userKey = normalizeName(socket.data.userKey || "");
+    const id = toDisplayName(payload?.id);
+    const secret = toDisplayName(payload?.secret);
+    const pairing = runtimeState.devicePairings.get(id);
+    const secretHash = crypto.createHash("sha256").update(secret).digest("hex");
+    if (!userKey || !users.get(userKey)?.isRegistered) {
+      return respond({ ok: false, message: "Sign in on your primary phone first." });
+    }
+    if (!pairing || pairing.expiresAt <= Date.now() || pairing.status !== "waiting" ||
+        !csrfSafeTimingEqual(pairing.secretHash, secretHash)) {
+      return respond({ ok: false, message: "This QR request expired or was already used." });
+    }
+    let requestedBrowserKey;
+    try { requestedBrowserKey = JSON.parse(toDisplayName(payload?.browserPublicKey)); } catch (_) { requestedBrowserKey = null; }
+    let expectedBrowserKey;
+    try { expectedBrowserKey = JSON.parse(pairing.browserPublicKey); } catch (_) { expectedBrowserKey = null; }
+    if (!requestedBrowserKey || !expectedBrowserKey ||
+        requestedBrowserKey.kty !== "EC" || requestedBrowserKey.crv !== "P-256" ||
+        requestedBrowserKey.x !== expectedBrowserKey.x || requestedBrowserKey.y !== expectedBrowserKey.y) {
+      return respond({ ok: false, message: "The browser key did not match the original QR request." });
+    }
+    const encryptedIdentity = payload?.encryptedIdentity;
+    if (!encryptedIdentity || typeof encryptedIdentity !== "object" ||
+        typeof encryptedIdentity.senderPublicKey !== "string" ||
+        typeof encryptedIdentity.iv !== "string" || typeof encryptedIdentity.ciphertext !== "string" ||
+        encryptedIdentity.ciphertext.length > 8192 || encryptedIdentity.iv.length > 64 ||
+        encryptedIdentity.senderPublicKey.length > 2048) {
+      return respond({ ok: false, message: "The encrypted device key envelope is invalid." });
+    }
+    let senderKey;
+    try { senderKey = JSON.parse(encryptedIdentity.senderPublicKey); } catch (_) { senderKey = null; }
+    if (!senderKey || senderKey.kty !== "EC" || senderKey.crv !== "P-256" ||
+        !senderKey.x || !senderKey.y) {
+      return respond({ ok: false, message: "The primary phone encryption key is invalid." });
+    }
+    pairing.userKey = userKey;
+    pairing.encryptedIdentity = encryptedIdentity;
+    pairing.status = "approved";
+    pairing.approvedAt = Date.now();
+    respond({ ok: true });
   });
 
   socket.on("get_public_key", (payload, callback) => {

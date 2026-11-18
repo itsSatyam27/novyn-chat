@@ -2,7 +2,8 @@
  * Novyn Chat - Client-Side End-to-End Encryption (E2EE)
  * Powered by Web Crypto API (ECDH P-256 + AES-GCM-256)
  *
- * Guarantees Zero-Knowledge privacy: private keys never leave the device.
+ * Private identities stay on user devices; linked-device transfers use an
+ * authenticated phone approval and an encrypted one-time ECDH envelope.
  */
 
 const DB_NAME = 'novyn_e2ee_keystore';
@@ -13,6 +14,7 @@ const STORE_NAME = 'identity_keys';
 const sharedKeysCache = new Map<string, CryptoKey>();
 // In-memory cache for imported peer public keys
 const peerPublicKeysCache = new Map<string, CryptoKey>();
+const legacyIdentityCache = new Map<string, CryptoKeyPair[]>();
 
 let cachedKeyPair: CryptoKeyPair | null = null;
 let currentUsernameKey: string | null = null;
@@ -53,6 +55,55 @@ async function saveKeyPairToDB(username: string, keyPair: CryptoKeyPair): Promis
     });
   } catch (err) {
     console.warn('Failed to persist E2EE CryptoKeys to IndexedDB:', err);
+  }
+}
+
+async function preserveLegacyKeyPair(username: string, keyPair: CryptoKeyPair): Promise<void> {
+  const db = await openKeyStoreDB();
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readwrite');
+    const request = tx.objectStore(STORE_NAME).put({
+      username: `${username.toLowerCase()}::legacy::${Date.now()}::${crypto.randomUUID()}`,
+      privateKey: keyPair.privateKey,
+      publicKey: keyPair.publicKey,
+      createdAt: Date.now(),
+    });
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error);
+  });
+}
+
+async function loadLegacyKeyPairs(username: string): Promise<CryptoKeyPair[]> {
+  const account = username.toLowerCase();
+  const cached = legacyIdentityCache.get(account);
+  if (cached) return cached;
+  try {
+    const db = await openKeyStoreDB();
+    const records = await new Promise<any[]>((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readonly');
+      const request = tx.objectStore(STORE_NAME).getAll();
+      request.onsuccess = () => resolve(request.result || []);
+      request.onerror = () => reject(request.error);
+    });
+    const prefix = `${account}::legacy::`;
+    const result: CryptoKeyPair[] = [];
+    for (const record of records) {
+      if (typeof record?.username !== 'string' || !record.username.startsWith(prefix)) continue;
+      if (record.privateKey instanceof CryptoKey && record.publicKey instanceof CryptoKey) {
+        result.push({ privateKey: record.privateKey, publicKey: record.publicKey });
+        continue;
+      }
+      if (!record.privateKeyJwk || !record.publicKeyJwk) continue;
+      const privateKey = await crypto.subtle.importKey('jwk', record.privateKeyJwk,
+        { name: 'ECDH', namedCurve: 'P-256' }, false, ['deriveKey', 'deriveBits']);
+      const publicKey = await crypto.subtle.importKey('jwk', record.publicKeyJwk,
+        { name: 'ECDH', namedCurve: 'P-256' }, true, []);
+      result.push({ privateKey, publicKey });
+    }
+    legacyIdentityCache.set(account, result);
+    return result;
+  } catch {
+    return [];
   }
 }
 
@@ -168,6 +219,69 @@ export async function getMyPublicKeyJwk(): Promise<string> {
   } catch {
     return '';
   }
+}
+
+export async function createWebPairingKey(): Promise<{ keyPair: CryptoKeyPair; publicKey: string }> {
+  if (!isCryptoSubtleAvailable()) throw new Error('Secure browser cryptography is unavailable.');
+  const keyPair = await crypto.subtle.generateKey(
+    { name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveBits'],
+  ) as CryptoKeyPair;
+  return { keyPair, publicKey: JSON.stringify(await crypto.subtle.exportKey('jwk', keyPair.publicKey)) };
+}
+
+export async function acceptPairedIdentity(
+  username: string,
+  keyPair: CryptoKeyPair,
+  envelope: { senderPublicKey: string; iv: string; ciphertext: string },
+): Promise<void> {
+  const userKey = username.trim().toLowerCase();
+  const senderJwk = JSON.parse(envelope.senderPublicKey);
+  const senderKey = await crypto.subtle.importKey(
+    'jwk', senderJwk, { name: 'ECDH', namedCurve: 'P-256' }, false, [],
+  );
+  const sharedBits = await crypto.subtle.deriveBits(
+    { name: 'ECDH', public: senderKey }, keyPair.privateKey, 256,
+  );
+  const sharedAesKey = await crypto.subtle.importKey('raw', sharedBits, 'AES-GCM', false, ['decrypt']);
+  const ciphertext = Uint8Array.from(atob(envelope.ciphertext), char => char.charCodeAt(0));
+  const iv = Uint8Array.from(atob(envelope.iv), char => char.charCodeAt(0));
+  const plaintext = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, sharedAesKey, ciphertext);
+  const transfer = JSON.parse(new TextDecoder().decode(plaintext));
+  if (transfer.format !== 'novyn-device-identity' || transfer.version !== 1 ||
+      transfer.username !== userKey || !transfer.identity?.d || !transfer.identity?.x || !transfer.identity?.y) {
+    throw new Error('The phone sent an invalid encryption identity.');
+  }
+  const identityJwk: JsonWebKey = {
+    kty: 'EC', crv: 'P-256', d: transfer.identity.d,
+    x: transfer.identity.x, y: transfer.identity.y, ext: false,
+    key_ops: ['deriveKey', 'deriveBits'],
+  };
+  const privateKey = await crypto.subtle.importKey(
+    'jwk', identityJwk, { name: 'ECDH', namedCurve: 'P-256' }, false, ['deriveKey', 'deriveBits'],
+  );
+  const publicKey = await crypto.subtle.importKey(
+    'jwk', { kty: 'EC', crv: 'P-256', x: identityJwk.x, y: identityJwk.y, ext: true, key_ops: [] },
+    { name: 'ECDH', namedCurve: 'P-256' }, true, [],
+  );
+  const paired = { privateKey, publicKey };
+  const previous = await loadKeyPairFromDB(userKey);
+  if (previous) {
+    const previousJwk = await crypto.subtle.exportKey('jwk', previous.publicKey);
+    if (previousJwk.x !== identityJwk.x || previousJwk.y !== identityJwk.y) {
+      await preserveLegacyKeyPair(userKey, previous);
+      legacyIdentityCache.delete(userKey);
+    }
+  }
+  await saveKeyPairToDB(userKey, paired);
+  const savedPair = await loadKeyPairFromDB(userKey);
+  const savedJwk = savedPair ? await crypto.subtle.exportKey('jwk', savedPair.publicKey) : null;
+  if (!savedJwk || savedJwk.x !== identityJwk.x || savedJwk.y !== identityJwk.y) {
+    throw new Error('This browser could not safely save the paired encryption identity.');
+  }
+  cachedKeyPair = paired;
+  currentUsernameKey = userKey;
+  sharedKeysCache.clear();
+  peerPublicKeysCache.clear();
 }
 
 export async function deriveSharedKeyBytes(publicKey: CryptoKey): Promise<Uint8Array> {
@@ -296,22 +410,27 @@ export async function decryptMessageContent(
   if (!ciphertext || !ivBase64 || !peerPublicKeyJwk) return null;
 
   try {
-    const key = await getDerivedSharedKey(peerUsername, peerPublicKeyJwk);
-    if (!key) return null;
-
     const iv = Uint8Array.from(atob(ivBase64), (c) => c.charCodeAt(0));
     const encryptedBytes = Uint8Array.from(atob(ciphertext), (c) => c.charCodeAt(0));
-
-    const decryptedBuffer = await window.crypto.subtle.decrypt(
-      {
-        name: 'AES-GCM',
-        iv,
-      },
-      key,
-      encryptedBytes
-    );
-
-    return new TextDecoder().decode(decryptedBuffer);
+    const peerPublicKey = await importPeerPublicKey(peerPublicKeyJwk);
+    if (!peerPublicKey) return null;
+    const identities = [
+      ...(cachedKeyPair ? [cachedKeyPair] : []),
+      ...(currentUsernameKey ? await loadLegacyKeyPairs(currentUsernameKey) : []),
+    ];
+    for (const identity of identities) {
+      try {
+        const key = await window.crypto.subtle.deriveKey(
+          { name: 'ECDH', public: peerPublicKey }, identity.privateKey,
+          { name: 'AES-GCM', length: 256 }, false, ['decrypt'],
+        );
+        const decryptedBuffer = await window.crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, encryptedBytes);
+        return new TextDecoder().decode(decryptedBuffer);
+      } catch {
+        // Earlier browser identity versions can still open messages sent to them.
+      }
+    }
+    return null;
   } catch (err) {
     console.warn('E2EE decryption error (may be from different device or session):', err);
     return null;

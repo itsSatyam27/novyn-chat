@@ -1,3 +1,18 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#f7faf8">
+  <meta name="description" content="Meet Novyn — a modern space for meaningful conversations. Chat on the web or get the Android app.">
+  <meta property="og:title" content="Novyn — Make every conversation count">
+  <meta property="og:description" content="A calmer, modern way to stay close. Explore Novyn on the web or Android.">
+  <meta property="og:type" content="website">
+  <link rel="icon" href="./apps/web/dist/icons/novyn-badge.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
 :root {
   color-scheme: light;
   --bg: #f7faf8;
@@ -53,10 +68,8 @@ a:focus-visible { outline: 3px solid rgba(22, 124, 99, .35); outline-offset: 4px
 }
 .brand { display: inline-flex; align-items: center; gap: 10px; color: var(--ink); font: 800 25px var(--display); letter-spacing: -1.4px; white-space: nowrap; }
 .brand-mark, .mini-mark {
-  width: 35px; height: 35px; display: grid; place-items: center; border-radius: 12px;
-  background: linear-gradient(145deg, #b9ead6, #80d2b5); color: #104d3f;
-  font: 800 23px var(--display); font-style: italic;
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.65);
+  width: 35px; height: 35px; display: block; flex: 0 0 auto; border-radius: 8px;
+  object-fit: contain;
 }
 .brand-dot, .phone-head b span { color: var(--accent); }
 .nav-links { display: flex; align-items: center; gap: clamp(22px, 3vw, 38px); color: var(--muted-dark); font-size: 13px; font-weight: 600; }
@@ -122,7 +135,7 @@ a:focus-visible { outline: 3px solid rgba(22, 124, 99, .35); outline-offset: 4px
 }
 .chat-top { display: flex; justify-content: space-between; align-items: center; padding-bottom: 14px; border-bottom: 1px solid #edf2ee; font: 800 14px var(--display); }
 .mini-brand { display: flex; align-items: center; gap: 8px; }
-.mini-mark { width: 23px; height: 23px; border-radius: 8px; font-size: 16px; }
+.mini-mark { width: 23px; height: 23px; border-radius: 6px; }
 .online { color: #648477; font: 600 10px var(--font); }
 .online i { display: inline-block; width: 6px; height: 6px; margin-right: 4px; border-radius: 50%; background: #45b78b; }
 .chat-person { display: flex; align-items: center; gap: 10px; padding: 17px 0 12px; }
@@ -235,9 +248,8 @@ a:focus-visible { outline: 3px solid rgba(22, 124, 99, .35); outline-offset: 4px
 
 .closing { padding-top: 112px; padding-bottom: 112px; text-align: center; }
 .closing-mark {
-  width: 49px; height: 49px; display: grid; place-items: center; margin: 0 auto 24px; border-radius: 16px;
-  background: linear-gradient(145deg, #b9ead6, #80d2b5); color: #104d3f; font: 800 31px var(--display); font-style: italic;
-  box-shadow: 0 8px 20px rgba(22,124,99,.12);
+  width: 49px; height: 49px; display: block; margin: 0 auto 24px; border-radius: 12px;
+  object-fit: contain; box-shadow: 0 8px 20px rgba(22,124,99,.12);
 }
 .closing .eyebrow { justify-content: center; }
 .closing h2 { margin-top: 17px; }
@@ -249,7 +261,7 @@ a:focus-visible { outline: 3px solid rgba(22, 124, 99, .35); outline-offset: 4px
   display: flex; align-items: center; gap: 27px; border-top: 1px solid var(--line-strong); color: #82938a; font-size: 10px;
 }
 .footer .brand { color: var(--ink); font-size: 19px; }
-.footer .brand-mark { width: 28px; height: 28px; border-radius: 9px; font-size: 18px; }
+.footer .brand-mark { width: 28px; height: 28px; border-radius: 7px; }
 .footer > div { display: flex; flex-wrap: wrap; gap: 22px; margin-left: auto; color: var(--muted-dark); font-weight: 600; }
 .footer small { color: #8d9a93; white-space: nowrap; }
 
@@ -286,7 +298,7 @@ a:focus-visible { outline: 3px solid rgba(22, 124, 99, .35); outline-offset: 4px
   html { scroll-padding-top: 76px; }
   .topbar { width: calc(100% - 36px); min-height: 68px; }
   .brand { gap: 8px; font-size: 22px; }
-  .brand-mark { width: 32px; height: 32px; border-radius: 11px; font-size: 21px; }
+  .brand-mark { width: 32px; height: 32px; border-radius: 8px; }
   .nav-cta { padding: 10px 13px; font-size: 10px; }
   .hero { padding: 58px 20px 22px; }
   .eyebrow { font-size: 9px; letter-spacing: 1.7px; }
@@ -405,3 +417,144 @@ a:focus-visible { outline: 3px solid rgba(22, 124, 99, .35); outline-offset: 4px
   .invite-banner-actions { width: 100%; }
   .invite-banner-actions .button { flex: 1 1 145px; justify-content: center; }
 }
+
+  </style>
+  <title>Novyn — Make every conversation count</title>
+</head>
+<body>
+  <div class="ambient ambient-one"></div><div class="ambient ambient-two"></div>
+  <header class="topbar">
+    <a class="brand" href="#" aria-label="Novyn home"><img class="brand-mark" src="./apps/web/dist/icons/novyn-badge.svg" alt=""><span>novyn<span class="brand-dot">.</span></span></a>
+    <nav class="nav-links" aria-label="Main navigation">
+      <a href="#features">Features</a><a href="#experience">Experience</a><a href="#about">About</a>
+    </nav>
+    <a class="nav-cta" href="https://novyn-live.onrender.com" target="_blank" rel="noopener">Open Novyn <span>↗</span></a>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="hero-copy">
+        <div class="eyebrow"><span class="pulse"></span> A fresh space to connect</div>
+        <h1>Make every<br>conversation <span>count.</span></h1>
+        <p class="hero-lede">The people who matter deserve a better way to stay close. Meet Novyn — messaging with a thoughtful, modern feel.</p>
+        <div class="hero-actions">
+          <a class="button button-primary" href="https://novyn-live.onrender.com" target="_blank" rel="noopener">Try the web app <span>↗</span></a>
+          <a class="button button-secondary" href="https://github.com/itsSatyam27/novyn-chat/releases/latest/download/Novyn-Android-ARM64.apk" target="_blank" rel="noopener">Get Android app <span>↓</span></a>
+        </div>
+        <div class="hero-note"><span class="note-icon">✦</span> One account. Your conversations. Your space.</div>
+      </div>
+      <div class="hero-art" aria-label="Illustration of a Novyn conversation">
+        <div class="orbit orbit-a"></div><div class="orbit orbit-b"></div>
+        <div class="spark spark-a">✳</div><div class="spark spark-b">✦</div>
+        <div class="chat-window">
+          <div class="chat-top"><div class="mini-brand"><img class="mini-mark" src="./apps/web/dist/icons/novyn-badge.svg" alt=""> novyn</div><span class="online"><i></i> online</span></div>
+          <div class="chat-person"><div class="avatar avatar-lilac">A</div><div><strong>Alex Morgan</strong><small>Always a good time to talk</small></div><span class="dots">•••</span></div>
+          <div class="chat-date">TODAY · 10:42 AM</div>
+          <div class="bubble bubble-in">Hey! Have you tried Novyn yet?</div>
+          <div class="bubble bubble-out">I’m here already. This feels nice ✨</div>
+          <div class="bubble bubble-in bubble-short">Right? 😊</div>
+          <div class="chat-compose"><span>Write a message...</span><b>↑</b></div>
+        </div>
+        <div class="float-card float-lock"><span>⌑</span><div><strong>Privacy matters</strong><small>Built with care</small></div></div>
+        <div class="float-card float-call"><span>◖</span><div><strong>Stay connected</strong><small>Voice & video calls</small></div></div>
+      </div>
+      <div class="hero-bottom"><span>DESIGNED FOR EVERYDAY CONNECTION</span><span class="bottom-line"></span><span>WEB · ANDROID</span></div>
+    </section>
+
+    <section class="features section-wrap" id="features">
+      <div class="section-heading"><div><div class="eyebrow">THE NOVYN FEEL</div><h2>More than just<br><span>a message.</span></h2></div><p>Everything you need to keep conversations flowing, wrapped in an experience that feels right at home.</p></div>
+      <div class="feature-grid">
+        <article class="feature-card feature-large"><div class="feature-icon icon-chat">↗</div><div class="feature-art-lines"></div><h3>Conversations that flow</h3><p>Keep up with your people through real-time chats and a clean, intuitive messaging experience.</p><span class="card-index">01 / CHAT</span></article>
+        <article class="feature-card"><div class="feature-icon icon-call">⌁</div><h3>Closer, even apart</h3><p>Connect face-to-face or catch up with voice calls.</p><span class="card-index">02 / CALLS</span></article>
+        <article class="feature-card"><div class="feature-icon icon-shield">◇</div><h3>Privacy with purpose</h3><p>Privacy-focused controls help you shape your own space.</p><span class="card-index">03 / PRIVACY</span></article>
+        <article class="feature-card"><div class="feature-icon icon-spark">✳</div><h3>Your app, your vibe</h3><p>Make the experience feel yours with thoughtful appearance and chat settings.</p><span class="card-index">04 / PERSONAL</span></article>
+      </div>
+      <p class="feature-footnote">Feature availability may vary by platform and app version.</p>
+    </section>
+
+    <section class="experience" id="experience">
+      <div class="experience-inner">
+        <div class="experience-copy"><div class="eyebrow">PICK UP WHEREVER YOU ARE</div><h2>Your conversations<br>fit <span>your day.</span></h2><p>At your desk or on the move, open Novyn in your browser or get the Android app and make room for better conversations.</p><div class="platform-list"><div><span class="platform-symbol">⌘</span><span><strong>Novyn Web</strong><small>Jump in from your browser</small></span><a href="https://novyn-live.onrender.com" target="_blank" rel="noopener">Try it ↗</a></div><div><span class="platform-symbol">▣</span><span><strong>Novyn for Android</strong><small>Get the app from releases</small></span><a href="https://github.com/itsSatyam27/novyn-chat/releases/latest/download/Novyn-Android-ARM64.apk" target="_blank" rel="noopener">Download ↓</a></div></div></div>
+        <div class="device-stage"><div class="device-glow"></div><div class="phone"><div class="phone-notch"></div><div class="phone-status"><span>9:41</span><span>●●● ▰</span></div><div class="phone-head"><span>Good morning</span><b>novyn<span>.</span></b><small>Your conversations, all in one place.</small></div><div class="phone-search">⌕ &nbsp; Search conversations</div><div class="phone-label">RECENT CHATS</div><div class="phone-chat"><i class="p-avatar p1">J</i><span><b>Jamie Wilson</b><small>That sounds great!</small></span><time>10:42</time></div><div class="phone-chat"><i class="p-avatar p2">M</i><span><b>Morgan Lee</b><small>See you soon 😊</small></span><time>9:18</time></div><div class="phone-chat"><i class="p-avatar p3">S</i><span><b>Sam Taylor</b><small>Sent a photo</small></span><time>Yesterday</time></div><div class="phone-tabs"><span>⌂<small>Home</small></span><span>◉<small>Calls</small></span><span>⚙<small>Settings</small></span></div></div><div class="device-caption">A little more connected.</div></div>
+      </div>
+    </section>
+
+    <section class="closing section-wrap" id="about"><img class="closing-mark" src="./apps/web/dist/icons/novyn-badge.svg" alt=""><div class="eyebrow">THIS IS YOUR SPACE</div><h2>Good conversations<br>start <span>with Novyn.</span></h2><p>Come on in. Your next conversation is just a tap away.</p><div class="hero-actions"><a class="button button-primary" href="https://novyn-live.onrender.com" target="_blank" rel="noopener">Try Novyn Web ↗</a><a class="button button-secondary" href="https://github.com/itsSatyam27/novyn-chat/releases/latest/download/Novyn-Android-ARM64.apk" target="_blank" rel="noopener">Download for Android ↓</a></div></section>
+  </main>
+  <footer class="footer"><a class="brand" href="#"><img class="brand-mark" src="./apps/web/dist/icons/novyn-badge.svg" alt=""><span>novyn<span class="brand-dot">.</span></span></a><span>Made for the moments that matter.</span><div><a href="https://novyn-live.onrender.com" target="_blank" rel="noopener">Web app</a><a href="https://github.com/itsSatyam27/novyn-chat" target="_blank" rel="noopener">GitHub</a><a href="https://github.com/itsSatyam27/novyn-chat/releases" target="_blank" rel="noopener">Releases</a><a href="/privacy.html">Privacy</a></div><small>© <span id="year"></span> Novyn. All rights reserved.</small></footer>
+  <script>
+document.getElementById('year').textContent = new Date().getFullYear();
+
+(() => {
+  const params = new URLSearchParams(window.location.search);
+  const rawInvite = (params.get('invite') || '').trim().replace(/^@/, '');
+  const validUsername = /^[A-Za-z0-9_. -]{1,40}$/.test(rawInvite);
+  if (!validUsername) return;
+
+  const username = rawInvite;
+  const promoUrl = new URL('https://itssatyam27.github.io/novyn-chat/');
+  promoUrl.searchParams.set('invite', username);
+  promoUrl.searchParams.set('appOpen', '0');
+  promoUrl.hash = 'invite';
+
+  // Android Chrome understands intent:// links and uses the fallback URL
+  // when Novyn is not installed. The app receives novyn://user/<username>.
+  const intentUrl =
+    'intent://user/' + encodeURIComponent(username) +
+    '#Intent;scheme=novyn;package=com.example.novyn;S.browser_fallback_url=' +
+    encodeURIComponent(promoUrl.toString()) + ';end';
+
+  const banner = document.createElement('section');
+  banner.className = 'invite-banner';
+  banner.id = 'invite';
+  banner.setAttribute('role', 'region');
+  banner.setAttribute('aria-labelledby', 'invite-title');
+
+  const copy = document.createElement('div');
+  copy.className = 'invite-banner-copy';
+
+  const eyebrow = document.createElement('span');
+  eyebrow.className = 'invite-eyebrow';
+  eyebrow.textContent = 'YOU HAVE BEEN INVITED';
+
+  const title = document.createElement('h2');
+  title.id = 'invite-title';
+  title.textContent = '@' + username + ' invited you to Novyn';
+
+  const description = document.createElement('p');
+  description.textContent = 'Open the conversation in Novyn, or get the Android app to join in.';
+
+  copy.append(eyebrow, title, description);
+
+  const actions = document.createElement('div');
+  actions.className = 'invite-banner-actions';
+
+  const openLink = document.createElement('a');
+  openLink.className = 'button button-primary';
+  openLink.href = intentUrl;
+  openLink.textContent = 'Open Novyn';
+  openLink.setAttribute('aria-label', 'Open this invite in the Novyn app');
+
+  const downloadLink = document.createElement('a');
+  downloadLink.className = 'button button-secondary';
+  downloadLink.href = 'https://github.com/itsSatyam27/novyn-chat/releases/latest/download/Novyn-Android-ARM64.apk';
+  downloadLink.textContent = 'Download Android';
+  downloadLink.target = '_blank';
+  downloadLink.rel = 'noopener noreferrer';
+
+  actions.append(openLink, downloadLink);
+  banner.append(copy, actions);
+  document.querySelector('main')?.prepend(banner);
+
+  // Do not auto-launch again on the fallback page. Keeping a visible button
+  // also lets people retry when their browser blocks automatic app launches.
+  const isAndroid = /Android/i.test(navigator.userAgent);
+  const shouldTryOpen = params.get('appOpen') !== '0';
+  if (isAndroid && shouldTryOpen) {
+    window.setTimeout(() => window.location.replace(intentUrl), 250);
+  }
+})();
+
+  </script>
+</body>
+</html>

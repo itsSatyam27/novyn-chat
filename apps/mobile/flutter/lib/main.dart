@@ -21,7 +21,7 @@ import 'services/haptic_service.dart';
 import 'models/chat_models.dart';
 import 'models/user_model.dart';
 import 'theme/novyn_theme.dart';
-import 'screens/splash/splash_screen_v2.dart';
+import 'screens/splash/splash_screen.dart';
 import 'widgets/app_lock_wrapper.dart';
 import 'services/call_overlay_service.dart';
 import 'services/profile_deep_link_service.dart';
@@ -241,7 +241,7 @@ class NovynApp extends StatelessWidget {
                 ),
               );
             },
-            home: const SplashScreenV2(),
+            home: const SplashScreen(),
           );
         },
       ),

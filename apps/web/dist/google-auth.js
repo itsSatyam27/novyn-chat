@@ -1,12 +1,12 @@
 /* Google OAuth for Novyn Chat - Firebase Web SDK */
 
 const firebaseConfig = {
-  apiKey: "AIzaSyB1SjYr_LOS4oJ1sE4_Aws4Jg6faayvHT0",
-  authDomain: "novyn-chat-app.firebaseapp.com",
-  projectId: "novyn-chat-app",
-  storageBucket: "novyn-chat-app.firebasestorage.app",
-  messagingSenderId: "846944364575",
-  appId: "1:846944364575:web:94fd318c693a337d498d2a",
+  apiKey: "AIzaSyByU_NRvExuP6wnxhGqipTanvbMRwPUjYY",
+  authDomain: "chat-novyn.firebaseapp.com",
+  projectId: "chat-novyn",
+  storageBucket: "chat-novyn.firebasestorage.app",
+  messagingSenderId: "587953743769",
+  appId: "1:587953743769:web:96777c7f3a208772da5508",
 };
 
 function initializeFirebaseAuth() {
@@ -73,4 +73,3 @@ function signInWithGoogle() {
       throw mappedError;
     });
 }
-

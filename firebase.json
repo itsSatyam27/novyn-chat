@@ -1,56 +1,15 @@
 {
   "hosting": {
-    "public": ".",
+    "public": "public",
     "ignore": [
       "firebase.json",
-      ".firebaserc",
-      "**/node_modules/**",
-      "apps/**",
-      "backend/**",
-      "android/**",
-      "ios/**",
-      "linux/**",
-      "macos/**",
-      "windows/**",
-      "test/**",
-      "tests/**",
-      "docs/**",
-      "packages/**",
-      "functions/**",
-      "landing/**",
-      "*.md",
-      "*.json",
-      "*.yml",
-      "*.yaml",
-      "*.dart",
-      "*.gradle",
-      "*.properties",
-      "*.xml",
-      "*.kt",
-      "*.java",
-      "*.sh",
-      "*.txt",
-      "*.lock",
-      "*.toml",
       "**/.*",
-      "!**/.well-known/**",
-      "!.well-known/**"
-    ],
-    "headers": [
-      {
-        "source": "**/*.@(css|js|svg)",
-        "headers": [
-          {
-            "key": "Cache-Control",
-            "value": "public,max-age=3600"
-          }
-        ]
-      }
+      "**/node_modules/**"
     ],
     "rewrites": [
       {
-        "source": "/user/**",
-        "destination": "/user/index.html"
+        "source": "**",
+        "destination": "/index.html"
       }
     ]
   }
