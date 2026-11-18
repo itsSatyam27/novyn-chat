@@ -3,8 +3,10 @@ import 'dart:ui' as ui;
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart' hide Message;
-import 'package:flutter_local_notifications/flutter_local_notifications.dart' as fln;
+import 'package:flutter_local_notifications/flutter_local_notifications.dart'
+    hide Message;
+import 'package:flutter_local_notifications/flutter_local_notifications.dart'
+    as fln;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'message_encryption_service.dart';
 import 'firebase_configuration.dart';
@@ -31,15 +33,21 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
     await prefs.reload();
     final callStatus = data['callStatus']?.toString() ?? 'missed';
     final recipient = data['recipient']?.toString().trim().toLowerCase() ?? '';
-    final notificationAccount = (prefs.getString('novyn_notification_account') ?? '').trim().toLowerCase();
+    final notificationAccount =
+        (prefs.getString('novyn_notification_account') ?? '')
+            .trim()
+            .toLowerCase();
     if (recipient.isNotEmpty && recipient != notificationAccount) {
-      debugPrint('[NovynNotifications] Ignored call alert for another account.');
+      debugPrint(
+          '[NovynNotifications] Ignored call alert for another account.');
       return;
     }
     final alertCaller = data['chat']?.toString().trim().toLowerCase() ?? '';
-    if (callStatus == 'missed' && notificationAccount.isNotEmpty &&
+    if (callStatus == 'missed' &&
+        notificationAccount.isNotEmpty &&
         alertCaller == notificationAccount) {
-      debugPrint('[NovynNotifications] Ignored a missed-call alert for the caller account.');
+      debugPrint(
+          '[NovynNotifications] Ignored a missed-call alert for the caller account.');
       return;
     }
     final isIncoming = callStatus == 'incoming';
@@ -48,13 +56,20 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
       android: AndroidInitializationSettings('@drawable/novyn_wings_icon'),
       iOS: DarwinInitializationSettings(),
     ));
-    const incomingChannel = AndroidNotificationChannel('novyn_incoming_calls', 'Incoming calls',
-      description: 'Incoming voice and video calls', importance: Importance.max,
-      playSound: true, enableVibration: true);
-    const missedChannel = AndroidNotificationChannel('novyn_calls', 'Missed calls',
-      description: 'Missed voice and video calls', importance: Importance.max,
-      playSound: true, enableVibration: true);
-    final androidPlugin = plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+    const incomingChannel = AndroidNotificationChannel(
+        'novyn_incoming_calls', 'Incoming calls',
+        description: 'Incoming voice and video calls',
+        importance: Importance.max,
+        playSound: true,
+        enableVibration: true);
+    const missedChannel = AndroidNotificationChannel(
+        'novyn_calls', 'Missed calls',
+        description: 'Missed voice and video calls',
+        importance: Importance.max,
+        playSound: true,
+        enableVibration: true);
+    final androidPlugin = plugin.resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin>();
     await androidPlugin?.createNotificationChannel(incomingChannel);
     await androidPlugin?.createNotificationChannel(missedChannel);
     final caller = data['chat']?.toString() ?? 'Novyn contact';
@@ -64,46 +79,92 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
       return;
     }
     if (!(prefs.getBool('notifications_on') ?? true)) return;
-    final presenceMode = (prefs.getString('active_smart_presence_mode_v1') ?? 'online').toLowerCase();
+    final presenceMode =
+        (prefs.getString('active_smart_presence_mode_v1') ?? 'online')
+            .toLowerCase();
     if (presenceMode == 'busy' || presenceMode == 'invisible') return;
     final dndEnabled = prefs.getBool('do_not_disturb_enabled') ?? false;
     final favoriteIds = (prefs.getStringList('favorite_chat_ids') ?? [])
-        .map((value) => value.toLowerCase()).toSet();
-    if (dndEnabled && !favoriteIds.contains(caller.trim().toLowerCase())) return;
+        .map((value) => value.toLowerCase())
+        .toSet();
+    if (dndEnabled && !favoriteIds.contains(caller.trim().toLowerCase()))
+      return;
     final isVideo = data['isVideo']?.toString() == '1';
-    final title = data['title']?.toString() ?? (isIncoming ? (isVideo ? 'Incoming video call' : 'Incoming voice call') : 'Missed call');
-    final body = data['body']?.toString() ?? (isIncoming ? caller + ' is calling you' : 'You missed a call from ' + caller);
-    await plugin.show(callId.hashCode, title, body, NotificationDetails(
-      android: AndroidNotificationDetails(isIncoming ? 'novyn_incoming_calls' : 'novyn_calls',
-        isIncoming ? 'Incoming calls' : 'Missed calls',
-        channelDescription: 'Voice and video call alerts', importance: Importance.max,
-        priority: Priority.max, category: isIncoming ? AndroidNotificationCategory.call : AndroidNotificationCategory.missedCall,
-        fullScreenIntent: isIncoming, ongoing: isIncoming, autoCancel: !isIncoming,
-        timeoutAfter: isIncoming ? 45000 : null,
-        playSound: true, enableVibration: true, icon: '@drawable/novyn_wings_icon'),
-      iOS: const DarwinNotificationDetails(presentAlert: true, presentBadge: true, presentSound: true),
-    ), payload: 'call:' + callId + '|' + caller + '|' + (isVideo ? '1' : '0'));
+    final title = data['title']?.toString() ??
+        (isIncoming
+            ? (isVideo ? 'Incoming video call' : 'Incoming voice call')
+            : 'Missed call');
+    final body = data['body']?.toString() ??
+        (isIncoming
+            ? caller + ' is calling you'
+            : 'You missed a call from ' + caller);
+    await plugin.show(
+        callId.hashCode,
+        title,
+        body,
+        NotificationDetails(
+          android: AndroidNotificationDetails(
+              isIncoming ? 'novyn_incoming_calls' : 'novyn_calls',
+              isIncoming ? 'Incoming calls' : 'Missed calls',
+              channelDescription: 'Voice and video call alerts',
+              importance: Importance.max,
+              priority: Priority.max,
+              category: isIncoming
+                  ? AndroidNotificationCategory.call
+                  : AndroidNotificationCategory.missedCall,
+              fullScreenIntent: isIncoming,
+              ongoing: isIncoming,
+              autoCancel: !isIncoming,
+              timeoutAfter: isIncoming ? 45000 : null,
+              playSound: true,
+              enableVibration: true,
+              icon: '@drawable/novyn_wings_icon'),
+          iOS: const DarwinNotificationDetails(
+              presentAlert: true, presentBadge: true, presentSound: true),
+        ),
+        payload: 'call:' + callId + '|' + caller + '|' + (isVideo ? '1' : '0'));
     return;
   }
-  if (data['type'] != 'message' || data['kind'] == 'group') return;
+  final notificationType = data['type']?.toString() ?? '';
+  if (notificationType == 'friend_request' ||
+      notificationType == 'friend_request_accepted' ||
+      notificationType == 'friend_request_declined' ||
+      notificationType == 'group_invite') {
+    await NotificationService.showSocialNotification(data);
+    return;
+  }
+  if (notificationType != 'message' || data['kind'] == 'group') return;
 
   final prefs = await SharedPreferences.getInstance();
   // Background FCM runs in its own isolate; refresh the plugin cache before
   // reading account and preview preferences written by the foreground isolate.
   await prefs.reload();
   final notificationsEnabled = prefs.getBool('notifications_on') ?? true;
-  final presenceMode = (prefs.getString('active_smart_presence_mode_v1') ?? 'online').toLowerCase();
-  if (!notificationsEnabled || presenceMode == 'busy' || presenceMode == 'invisible') return;
+  final presenceMode =
+      (prefs.getString('active_smart_presence_mode_v1') ?? 'online')
+          .toLowerCase();
+  if (!notificationsEnabled ||
+      presenceMode == 'busy' ||
+      presenceMode == 'invisible') return;
   // The active mode's notificationsEnabled preference is persisted above.
   // Keep honoring explicit silent payloads (including delayed pushes).
   final sender = (data['chat'] ?? '').toString().trim();
+  final account = (prefs.getString('novyn_notification_account') ?? '')
+      .trim()
+      .toLowerCase();
+  final archivedChats = (prefs.getStringList('novyn_archived_$account') ?? [])
+      .map((value) => value.trim().toLowerCase())
+      .toSet();
+  if (archivedChats.contains(sender.toLowerCase())) return;
   final dndEnabled = prefs.getBool('do_not_disturb_enabled') ?? false;
   final favoriteIds = (prefs.getStringList('favorite_chat_ids') ?? [])
-      .map((value) => value.toLowerCase()).toSet();
+      .map((value) => value.toLowerCase())
+      .toSet();
   if (dndEnabled && !favoriteIds.contains(sender.toLowerCase())) return;
   if (data['silent']?.toString().toLowerCase() == 'true' ||
       data['silent']?.toString() == '1') {
-    debugPrint('[NovynNotifications] Message alert suppressed by a silent push.');
+    debugPrint(
+        '[NovynNotifications] Message alert suppressed by a silent push.');
     return;
   }
 
@@ -112,9 +173,11 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   final previewEnabled = (prefs.getBool('message_preview') ?? true) &&
       data['previewEnabled']?.toString() != '0';
   final hideContent = prefs.getBool('hide_notification_content') ?? false;
-  final account = (prefs.getString('novyn_notification_account') ?? '').trim();
+  final notificationAccount =
+      (prefs.getString('novyn_notification_account') ?? '').trim();
   if (sender.isEmpty) {
-    debugPrint('[NovynNotifications] Background message has no sender chat id.');
+    debugPrint(
+        '[NovynNotifications] Background message has no sender chat id.');
     return;
   }
 
@@ -129,7 +192,7 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
       body = plaintextPreview;
     }
   }
-  if (previewEnabled && !hideContent && account.isNotEmpty) {
+  if (previewEnabled && !hideContent && notificationAccount.isNotEmpty) {
     final ciphertext = data['ciphertext']?.toString() ?? '';
     final iv = data['iv']?.toString() ?? '';
     final peerKey = data['senderPublicKey']?.toString() ?? '';
@@ -146,7 +209,8 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
           iv: iv,
         );
         final encryption = MessageEncryptionService();
-        var decrypted = await encryption.decrypt(encrypted, account, peerKey);
+        var decrypted =
+            await encryption.decrypt(encrypted, notificationAccount, peerKey);
         // Secure storage can take longer to become available in Android's
         // background isolate. Retry with bounded backoff; never expose
         // ciphertext or fall back to plaintext from the server.
@@ -154,25 +218,31 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
         for (final delay in retryDelays) {
           if (!decrypted.needsMessageKey) break;
           await Future<void>.delayed(Duration(milliseconds: delay));
-          decrypted = await encryption.decrypt(encrypted, account, peerKey);
+          decrypted =
+              await encryption.decrypt(encrypted, notificationAccount, peerKey);
         }
         if (!decrypted.needsMessageKey &&
             decrypted.text != '🔒 Encrypted message' &&
             decrypted.text.trim().isNotEmpty) {
           body = decrypted.text.trim();
-          debugPrint('[NovynNotifications] Background message preview decrypted successfully.');
+          debugPrint(
+              '[NovynNotifications] Background message preview decrypted successfully.');
         } else {
-          debugPrint('[NovynNotifications] Message preview key unavailable for this sender/account.');
+          debugPrint(
+              '[NovynNotifications] Message preview key unavailable for this sender/account.');
         }
       } catch (error) {
-        debugPrint('[NovynNotifications] Background preview decryption failed: $error');
+        debugPrint(
+            '[NovynNotifications] Background preview decryption failed: $error');
         // Never expose ciphertext; fall back to a private generic alert.
       }
     } else {
-      debugPrint('[NovynNotifications] Encrypted push is missing preview key material (ciphertext: ${ciphertext.isNotEmpty}, iv: ${iv.isNotEmpty}, sender key: ${peerKey.isNotEmpty}, account: ${account.isNotEmpty}).');
+      debugPrint(
+          '[NovynNotifications] Encrypted push is missing preview key material (ciphertext: ${ciphertext.isNotEmpty}, iv: ${iv.isNotEmpty}, sender key: ${peerKey.isNotEmpty}, account: ${account.isNotEmpty}).');
     }
   } else {
-    debugPrint('[NovynNotifications] Message preview is disabled or content is hidden.');
+    debugPrint(
+        '[NovynNotifications] Message preview is disabled or content is hidden.');
   }
 
   final plugin = FlutterLocalNotificationsPlugin();
@@ -181,24 +251,28 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
     iOS: DarwinInitializationSettings(),
   ));
   const channel = AndroidNotificationChannel(
-    'novyn_messages', 'Messages',
+    'novyn_messages',
+    'Messages',
     description: 'New direct messages from your Novyn contacts',
     importance: Importance.max,
     playSound: true,
     enableVibration: true,
   );
-  await plugin.resolvePlatformSpecificImplementation<
-      AndroidFlutterLocalNotificationsPlugin>()?.createNotificationChannel(channel);
+  await plugin
+      .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin>()
+      ?.createNotificationChannel(channel);
   final timestamp = DateTime.now();
   final senderPerson = fln.Person(name: sender, key: sender);
-  final mePerson = fln.Person(name: 'You', key: account);
+  final mePerson = fln.Person(name: 'You', key: notificationAccount);
   await plugin.show(
     DateTime.now().millisecondsSinceEpoch ~/ 1000,
     sender,
     body,
     NotificationDetails(
       android: AndroidNotificationDetails(
-        'novyn_messages', 'Messages',
+        'novyn_messages',
+        'Messages',
         channelDescription: 'New direct messages from your Novyn contacts',
         importance: Importance.max,
         priority: Priority.high,
@@ -252,15 +326,126 @@ class NotificationService {
   static bool? _lastAlertsEnabled;
   static bool? _lastSoundEnabled;
   static ValueChanged<String>? _activeCallActionHandler;
+  static ValueChanged<String>? _socialNotificationTapHandler;
+  static VoidCallback? _groupNotificationTapHandler;
+  static final Set<String> _archivedChatNotificationIds = <String>{};
   static const int _activeCallNotificationId = 781204;
   static const int _appUpdateNotificationId = 781205;
+  static const int _appUpdateDownloadNotificationId = 781206;
   static ValueChanged<BuildContext>? _appUpdateTapHandler;
+
+  static void setSocialNotificationTapHandler(ValueChanged<String>? handler) {
+    _socialNotificationTapHandler = handler;
+  }
+
+  static void setGroupNotificationTapHandler(VoidCallback? handler) {
+    _groupNotificationTapHandler = handler;
+  }
+
+  static void setChatArchivedForNotifications(String chatId, bool archived) {
+    final normalizedChatId = chatId.trim().toLowerCase();
+    if (normalizedChatId.isEmpty) return;
+    if (archived) {
+      _archivedChatNotificationIds.add(normalizedChatId);
+    } else {
+      _archivedChatNotificationIds.remove(normalizedChatId);
+    }
+    unawaited(_persistArchivedChatsForNotifications());
+  }
+
+  static Future<void> _persistArchivedChatsForNotifications() async {
+    final account = (_presenceAuth?.user?.username ?? _activeUsername ?? '')
+        .trim()
+        .toLowerCase();
+    if (account.isEmpty) return;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(
+      'novyn_archived_$account',
+      _archivedChatNotificationIds.toList()..sort(),
+    );
+  }
+
+  static void _handleSocialTap(String type) {
+    if (type == 'group_invite') {
+      _groupNotificationTapHandler?.call();
+    } else {
+      _socialNotificationTapHandler?.call(type);
+    }
+  }
+
+  static Future<void> showSocialNotification(Map<String, dynamic> data) async {
+    final type = data['type']?.toString() ?? '';
+    const supportedTypes = <String>{
+      'friend_request',
+      'friend_request_accepted',
+      'friend_request_declined',
+      'group_invite',
+    };
+    if (!supportedTypes.contains(type)) return;
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.reload();
+    final account = (prefs.getString('novyn_notification_account') ?? '')
+        .trim()
+        .toLowerCase();
+    final recipient = data['recipient']?.toString().trim().toLowerCase() ?? '';
+    if (account.isEmpty || (recipient.isNotEmpty && recipient != account))
+      return;
+    if (!(prefs.getBool('notifications_on') ?? true)) return;
+    final presence =
+        (prefs.getString('active_smart_presence_mode_v1') ?? 'online')
+            .toLowerCase();
+    if (presence == 'busy' || presence == 'invisible') return;
+
+    final plugin = FlutterLocalNotificationsPlugin();
+    await plugin.initialize(const InitializationSettings(
+      android: AndroidInitializationSettings('@drawable/novyn_wings_icon'),
+      iOS: DarwinInitializationSettings(),
+    ));
+    final android = plugin.resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin>();
+    await android?.createNotificationChannel(const AndroidNotificationChannel(
+      'novyn_social',
+      'Social notifications',
+      description: 'Friend requests and group invitations',
+      importance: Importance.high,
+      playSound: true,
+      enableVibration: true,
+    ));
+    final eventId =
+        data['eventId']?.toString() ?? '$type:${data['from'] ?? ''}';
+    await plugin.show(
+      eventId.hashCode,
+      data['title']?.toString() ?? 'Novyn',
+      data['body']?.toString() ?? 'You have a new notification',
+      const NotificationDetails(
+        android: AndroidNotificationDetails(
+          'novyn_social',
+          'Social notifications',
+          channelDescription: 'Friend requests and group invitations',
+          importance: Importance.high,
+          priority: Priority.high,
+          icon: '@drawable/novyn_wings_icon',
+          autoCancel: true,
+        ),
+        iOS: DarwinNotificationDetails(
+          presentAlert: true,
+          presentBadge: true,
+          presentSound: true,
+        ),
+      ),
+      payload: 'social:$type',
+    );
+  }
 
   static void setAppUpdateTapHandler(ValueChanged<BuildContext>? handler) {
     _appUpdateTapHandler = handler;
   }
 
-  static Future<void> showAppUpdateAvailable() async {
+  static Future<void> showAppUpdateAvailable({
+    int? buildNumber,
+    bool allowRepeat = false,
+  }) async {
     if (!_localNotificationsReady) {
       await _localNotifications.initialize(
         const InitializationSettings(
@@ -281,15 +466,107 @@ class NotificationService {
         enableVibration: true,
       ),
     );
+    final buildText = buildNumber == null ? '' : ' (build $buildNumber)';
     await _localNotifications.show(
       _appUpdateNotificationId,
       'A new Novyn version is available',
-      'Tap to open About Novyn and check for updates.',
+      'Novyn$buildText is ready. Tap to open About Novyn and check for updates.',
+      NotificationDetails(
+        android: AndroidNotificationDetails(
+          'novyn_app_updates',
+          'App updates',
+          channelDescription:
+              'Notifications when a new Novyn version is available',
+          importance: Importance.high,
+          priority: Priority.high,
+          icon: '@drawable/novyn_wings_icon',
+          autoCancel: true,
+          onlyAlertOnce: !allowRepeat,
+        ),
+        iOS: DarwinNotificationDetails(
+          presentAlert: true,
+          presentBadge: true,
+          presentSound: true,
+        ),
+      ),
+      payload: 'app_update',
+    );
+  }
+
+  static Future<void> _ensureUpdateNotificationChannel() async {
+    final android = _localNotifications.resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin>();
+    await android?.createNotificationChannel(const AndroidNotificationChannel(
+      'novyn_app_updates',
+      'App updates',
+      description: 'Notifications for Novyn app updates and downloads',
+      importance: Importance.high,
+      playSound: true,
+      enableVibration: true,
+    ));
+  }
+
+  static String _formatUpdateBytes(int bytes) {
+    if (bytes < 1024 * 1024) {
+      return '${(bytes / 1024).toStringAsFixed(0)} KB';
+    }
+    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+  }
+
+  static Future<void> showUpdateDownloadProgress({
+    required int downloadedBytes,
+    required int totalBytes,
+    required double speedBytesPerSecond,
+  }) async {
+    await _ensureUpdateNotificationChannel();
+    final percent = totalBytes <= 0
+        ? 0
+        : ((downloadedBytes / totalBytes) * 100).round().clamp(0, 100).toInt();
+    final speed = speedBytesPerSecond >= 1024 * 1024
+        ? '${(speedBytesPerSecond / (1024 * 1024)).toStringAsFixed(1)} MB/s'
+        : '${(speedBytesPerSecond / 1024).toStringAsFixed(0)} KB/s';
+    await _localNotifications.show(
+      _appUpdateDownloadNotificationId,
+      'Downloading Novyn update — $percent%',
+      '${_formatUpdateBytes(downloadedBytes)} of ${_formatUpdateBytes(totalBytes)} · $speed',
+      NotificationDetails(
+        android: AndroidNotificationDetails(
+          'novyn_app_updates',
+          'App updates',
+          channelDescription:
+              'Notifications for Novyn app updates and downloads',
+          importance: Importance.low,
+          priority: Priority.low,
+          icon: '@drawable/novyn_wings_icon',
+          showProgress: true,
+          maxProgress: 100,
+          progress: percent,
+          onlyAlertOnce: true,
+          ongoing: true,
+          autoCancel: false,
+        ),
+        iOS: const DarwinNotificationDetails(
+          presentAlert: true,
+          presentBadge: false,
+          presentSound: false,
+        ),
+      ),
+      payload: 'app_update',
+    );
+  }
+
+  static Future<void> showUpdateDownloadComplete() async {
+    await _ensureUpdateNotificationChannel();
+    await _localNotifications.show(
+      _appUpdateDownloadNotificationId,
+      'Novyn update downloaded',
+      'Tap to open About Novyn and install the update.',
       const NotificationDetails(
         android: AndroidNotificationDetails(
           'novyn_app_updates',
           'App updates',
-          channelDescription: 'Notifications when a new Novyn version is available',
+          channelDescription:
+              'Notifications for Novyn app updates and downloads',
           importance: Importance.high,
           priority: Priority.high,
           icon: '@drawable/novyn_wings_icon',
@@ -299,6 +576,37 @@ class NotificationService {
           presentAlert: true,
           presentBadge: true,
           presentSound: true,
+        ),
+      ),
+      payload: 'app_update',
+    );
+  }
+
+  static Future<void> showUpdateDownloadPaused({
+    required int downloadedBytes,
+    required int totalBytes,
+    required String message,
+  }) async {
+    await _ensureUpdateNotificationChannel();
+    await _localNotifications.show(
+      _appUpdateDownloadNotificationId,
+      'Novyn update download paused',
+      '$message (${_formatUpdateBytes(downloadedBytes)} of ${_formatUpdateBytes(totalBytes)})',
+      const NotificationDetails(
+        android: AndroidNotificationDetails(
+          'novyn_app_updates',
+          'App updates',
+          channelDescription:
+              'Notifications for Novyn app updates and downloads',
+          importance: Importance.defaultImportance,
+          priority: Priority.defaultPriority,
+          icon: '@drawable/novyn_wings_icon',
+          autoCancel: true,
+        ),
+        iOS: DarwinNotificationDetails(
+          presentAlert: true,
+          presentBadge: false,
+          presentSound: false,
         ),
       ),
       payload: 'app_update',
@@ -445,8 +753,10 @@ class NotificationService {
       if (settings == null) return;
       await prefs.setBool('notifications_on', settings.notificationsOn);
       await prefs.setBool('message_preview', settings.messagePreview);
-      await prefs.setBool('hide_notification_content', settings.hideNotificationContent);
-      await prefs.setBool('do_not_disturb_enabled', settings.doNotDisturbEnabled);
+      await prefs.setBool(
+          'hide_notification_content', settings.hideNotificationContent);
+      await prefs.setBool(
+          'do_not_disturb_enabled', settings.doNotDisturbEnabled);
       await prefs.setStringList('favorite_chat_ids', settings.favoriteChatIds);
     } catch (_) {
       // The foreground preference store remains the source of truth.
@@ -484,12 +794,18 @@ class NotificationService {
           _appUpdateTapHandler?.call(context);
           return;
         }
+        if (payload.startsWith('social:')) {
+          _handleSocialTap(payload.substring('social:'.length));
+          return;
+        }
         if (payload.startsWith('call:')) {
           final parts = payload.substring(5).split('|');
           if (parts.length >= 3 && parts[0].isNotEmpty) {
-            unawaited(_openIncomingCall(parts[1], parts[0], parts[2] == '1', context));
+            unawaited(_openIncomingCall(
+                parts[1], parts[0], parts[2] == '1', context));
           } else {
-            Navigator.of(context).push(MaterialPageRoute(builder: (_) => const CallsScreen()));
+            Navigator.of(context)
+                .push(MaterialPageRoute(builder: (_) => const CallsScreen()));
           }
         } else {
           unawaited(_openChatFromNotification(payload, context));
@@ -505,8 +821,8 @@ class NotificationService {
       playSound: true,
       enableVibration: true,
     );
-    final androidNotifications = _localNotifications
-        .resolvePlatformSpecificImplementation<
+    final androidNotifications =
+        _localNotifications.resolvePlatformSpecificImplementation<
             AndroidFlutterLocalNotificationsPlugin>();
     await androidNotifications?.createNotificationChannel(channel);
     await androidNotifications?.createNotificationChannel(
@@ -534,7 +850,8 @@ class NotificationService {
     try {
       final active = await _localNotifications.getActiveNotifications();
       for (final notification in active) {
-        if (notification.channelId == 'novyn_incoming_calls' && notification.id != null) {
+        if (notification.channelId == 'novyn_incoming_calls' &&
+            notification.id != null) {
           await _localNotifications.cancel(notification.id!);
         }
       }
@@ -553,8 +870,10 @@ class NotificationService {
     if (!context.mounted ||
         settings == null ||
         !settings.notificationsOn ||
+        _archivedChatNotificationIds.contains(username.trim().toLowerCase()) ||
         (settings.doNotDisturbEnabled &&
-            !settings.favoriteChatIds.contains(username.trim().toLowerCase())) ||
+            !settings.favoriteChatIds
+                .contains(username.trim().toLowerCase())) ||
         (_presenceAuth?.user?.presenceMode == 'busy' ||
             _presenceAuth?.user?.presenceMode == 'invisible')) {
       return;
@@ -605,7 +924,8 @@ class NotificationService {
                       _inAppBannerEntry = null;
                     }
                     if (navigationContext.mounted) {
-                      unawaited(_openChatFromNotification(username, navigationContext));
+                      unawaited(_openChatFromNotification(
+                          username, navigationContext));
                     }
                   },
                   child: Container(
@@ -617,7 +937,9 @@ class NotificationService {
                           : Colors.white,
                       borderRadius: BorderRadius.circular(22),
                       border: Border.all(
-                        color: Theme.of(context).colorScheme.primary
+                        color: Theme.of(context)
+                            .colorScheme
+                            .primary
                             .withValues(alpha: .16),
                       ),
                       boxShadow: [
@@ -635,7 +957,9 @@ class NotificationService {
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
                             border: Border.all(
-                              color: Theme.of(context).colorScheme.primary
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .primary
                                   .withValues(alpha: .55),
                               width: 1.5,
                             ),
@@ -644,7 +968,8 @@ class NotificationService {
                             name: title,
                             photoUrl: senderProfile?.photoUrl ?? '',
                             radius: 24,
-                            fallbackColor: Theme.of(context).colorScheme.primary,
+                            fallbackColor:
+                                Theme.of(context).colorScheme.primary,
                           ),
                         ),
                         const SizedBox(width: 12),
@@ -658,7 +983,8 @@ class NotificationService {
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
-                                  color: Theme.of(context).colorScheme.onSurface,
+                                  color:
+                                      Theme.of(context).colorScheme.onSurface,
                                   fontSize: 14,
                                   fontWeight: FontWeight.w800,
                                 ),
@@ -669,7 +995,9 @@ class NotificationService {
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
-                                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onSurfaceVariant,
                                   fontSize: 13,
                                   height: 1.3,
                                 ),
@@ -724,7 +1052,8 @@ class NotificationService {
         debugPrint('[NovynNotifications] FCM token is not available yet.');
         if (_tokenRetryCount < 3) {
           _tokenRetryCount++;
-          Future.delayed(const Duration(seconds: 3), () => unawaited(_syncDeviceToken()));
+          Future.delayed(
+              const Duration(seconds: 3), () => unawaited(_syncDeviceToken()));
         }
         return;
       }
@@ -735,17 +1064,20 @@ class NotificationService {
         _tokenRetryCount = 0;
         debugPrint('[NovynNotifications] Device token registered with Novyn.');
       } else {
-        debugPrint('[NovynNotifications] Device token registration failed: ${result['message']}');
+        debugPrint(
+            '[NovynNotifications] Device token registration failed: ${result['message']}');
         if (_tokenRetryCount < 3) {
           _tokenRetryCount++;
-          Future.delayed(const Duration(seconds: 3), () => unawaited(_syncDeviceToken()));
+          Future.delayed(
+              const Duration(seconds: 3), () => unawaited(_syncDeviceToken()));
         }
       }
     } catch (error) {
       debugPrint('[NovynNotifications] Device token sync failed: $error');
       if (_tokenRetryCount < 3) {
         _tokenRetryCount++;
-        Future.delayed(const Duration(seconds: 3), () => unawaited(_syncDeviceToken()));
+        Future.delayed(
+            const Duration(seconds: 3), () => unawaited(_syncDeviceToken()));
       }
     } finally {
       _syncingDeviceToken = false;
@@ -793,7 +1125,8 @@ class NotificationService {
       // Keep child preferences independent of the master switch.
       final messagePreview = settings.messagePreview;
       final groupNotifications = settings.groupNotifications;
-      final signature = '$notificationsEnabled|$messagePreview|$groupNotifications';
+      final signature =
+          '$notificationsEnabled|$messagePreview|$groupNotifications';
       if (_lastSyncedPreferences == signature) return;
 
       final result = await socket.updateAccountSettings({
@@ -824,8 +1157,11 @@ class NotificationService {
     final settings = _settings;
     final notificationsEnabled = settings?.notificationsOn ?? true;
     final soundsEnabled = settings?.inAppSounds ?? true;
-    final soundEnabled = notificationsEnabled && soundsEnabled && _presenceAuth?.user?.presenceMode != 'busy';
-    if (_lastAlertsEnabled == notificationsEnabled && _lastSoundEnabled == soundEnabled) return;
+    final soundEnabled = notificationsEnabled &&
+        soundsEnabled &&
+        _presenceAuth?.user?.presenceMode != 'busy';
+    if (_lastAlertsEnabled == notificationsEnabled &&
+        _lastSoundEnabled == soundEnabled) return;
     _lastAlertsEnabled = notificationsEnabled;
     _lastSoundEnabled = soundEnabled;
     _fcm
@@ -870,14 +1206,16 @@ class NotificationService {
       final callId = data['callId']?.toString().trim() ?? '';
       if (caller.isEmpty || callId.isEmpty) return;
       final preferences = _settings;
-      if (preferences == null || !preferences.notificationsOn ||
+      if (preferences == null ||
+          !preferences.notificationsOn ||
           _presenceAuth?.user?.presenceMode == 'busy' ||
           _presenceAuth?.user?.presenceMode == 'invisible') return;
       if (preferences.doNotDisturbEnabled &&
           !preferences.favoriteChatIds.contains(caller.toLowerCase())) {
         return;
       }
-      unawaited(_openIncomingCall(caller, callId, data['isVideo'] == true, context));
+      unawaited(
+          _openIncomingCall(caller, callId, data['isVideo'] == true, context));
     };
     _socket!.onAuthenticated = () {
       unawaited(_syncUserPreferences());
@@ -898,7 +1236,8 @@ class NotificationService {
     });
 
     // 4. App opened from background notification tap
-    _openedSubscription = FirebaseMessaging.onMessageOpenedApp.listen((message) {
+    _openedSubscription =
+        FirebaseMessaging.onMessageOpenedApp.listen((message) {
       if (context.mounted) unawaited(_handleNotificationTap(message, context));
     });
 
@@ -907,15 +1246,22 @@ class NotificationService {
     if (initial != null && context.mounted) {
       unawaited(_handleNotificationTap(initial, context));
     }
-    final localLaunch = await _localNotifications.getNotificationAppLaunchDetails();
-    final localPayload = localLaunch?.notificationResponse?.payload?.trim() ?? '';
-    if (localLaunch?.didNotificationLaunchApp == true && localPayload.isNotEmpty && context.mounted) {
+    final localLaunch =
+        await _localNotifications.getNotificationAppLaunchDetails();
+    final localPayload =
+        localLaunch?.notificationResponse?.payload?.trim() ?? '';
+    if (localLaunch?.didNotificationLaunchApp == true &&
+        localPayload.isNotEmpty &&
+        context.mounted) {
       if (localPayload == 'app_update') {
         _appUpdateTapHandler?.call(context);
+      } else if (localPayload.startsWith('social:')) {
+        _handleSocialTap(localPayload.substring('social:'.length));
       } else if (localPayload.startsWith('call:')) {
         final parts = localPayload.substring(5).split('|');
         if (parts.length >= 3 && parts[0].isNotEmpty) {
-          unawaited(_openIncomingCall(parts[1], parts[0], parts[2] == '1', context));
+          unawaited(
+              _openIncomingCall(parts[1], parts[0], parts[2] == '1', context));
         }
       } else {
         unawaited(_openChatFromNotification(localPayload, context));
@@ -933,10 +1279,19 @@ class NotificationService {
     }
     _activeUsername = uid;
     final prefs = await SharedPreferences.getInstance();
+    _archivedChatNotificationIds
+      ..clear()
+      ..addAll(
+        (prefs.getStringList('novyn_archived_${uid.trim().toLowerCase()}') ??
+                [])
+            .map((value) => value.trim().toLowerCase())
+            .where((value) => value.isNotEmpty),
+      );
     await prefs.setString('novyn_notification_account', uid);
     await prefs.setBool('notifications_on', _settings?.notificationsOn ?? true);
     await prefs.setBool('message_preview', _settings?.messagePreview ?? true);
-    await prefs.setBool('hide_notification_content', _settings?.hideNotificationContent ?? false);
+    await prefs.setBool('hide_notification_content',
+        _settings?.hideNotificationContent ?? false);
     await _syncUserPreferences();
     if (_preferencesLoadedForUser == uid &&
         (_settings?.notificationsOn ?? false) &&
@@ -975,6 +1330,7 @@ class NotificationService {
     _inAppBannerEntry?.remove();
     _inAppBannerEntry = null;
     _activeUsername = null;
+    _archivedChatNotificationIds.clear();
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('novyn_notification_account');
     _lastRegisteredToken = null;
@@ -1001,23 +1357,39 @@ class NotificationService {
   static void _handleForegroundMessage(
       RemoteMessage message, BuildContext context) {
     final type = message.data['type'];
+    if (type == 'friend_request' ||
+        type == 'friend_request_accepted' ||
+        type == 'friend_request_declined' ||
+        type == 'group_invite') {
+      unawaited(showSocialNotification(message.data));
+      return;
+    }
     if (type == 'call') {
       final callStatus = message.data['callStatus']?.toString() ?? 'missed';
-      final recipient = message.data['recipient']?.toString().trim().toLowerCase() ?? '';
-      final notificationAccount = (_presenceAuth?.user?.username ?? _activeUsername ?? '').trim().toLowerCase();
+      final recipient =
+          message.data['recipient']?.toString().trim().toLowerCase() ?? '';
+      final notificationAccount =
+          (_presenceAuth?.user?.username ?? _activeUsername ?? '')
+              .trim()
+              .toLowerCase();
       if (recipient.isNotEmpty && recipient != notificationAccount) {
-        debugPrint('[NovynNotifications] Ignored foreground call alert for another account.');
+        debugPrint(
+            '[NovynNotifications] Ignored foreground call alert for another account.');
         return;
       }
-      final alertCaller = message.data['chat']?.toString().trim().toLowerCase() ?? '';
-      if (callStatus == 'missed' && notificationAccount.isNotEmpty &&
+      final alertCaller =
+          message.data['chat']?.toString().trim().toLowerCase() ?? '';
+      if (callStatus == 'missed' &&
+          notificationAccount.isNotEmpty &&
           alertCaller == notificationAccount) {
-        debugPrint('[NovynNotifications] Ignored a missed-call alert for the caller account.');
+        debugPrint(
+            '[NovynNotifications] Ignored a missed-call alert for the caller account.');
         return;
       }
       final callId = message.data['callId']?.toString() ?? '';
       if (callStatus == 'ended') {
-        if (callId.isNotEmpty) unawaited(_localNotifications.cancel(callId.hashCode));
+        if (callId.isNotEmpty)
+          unawaited(_localNotifications.cancel(callId.hashCode));
         return;
       }
       if (!(_settings?.notificationsOn ?? false) ||
@@ -1026,26 +1398,40 @@ class NotificationService {
       final caller = message.data['chat']?.toString() ?? 'Novyn contact';
       final activeSettings = _settings;
       if (activeSettings?.doNotDisturbEnabled == true &&
-          !activeSettings!.favoriteChatIds.contains(caller.trim().toLowerCase())) return;
+          !activeSettings!.favoriteChatIds
+              .contains(caller.trim().toLowerCase())) return;
       if (_socket?.isConnected == true && callStatus == 'incoming') return;
       final isIncoming = callStatus == 'incoming';
       final isVideo = message.data['isVideo']?.toString() == '1';
       unawaited(_localNotifications.show(
         callId.hashCode,
-        message.data['title']?.toString() ?? (isIncoming ? (isVideo ? 'Incoming video call' : 'Incoming voice call') : 'Missed call'),
-        message.data['body']?.toString() ?? (isIncoming ? caller + ' is calling you' : 'You missed a call from ' + caller),
+        message.data['title']?.toString() ??
+            (isIncoming
+                ? (isVideo ? 'Incoming video call' : 'Incoming voice call')
+                : 'Missed call'),
+        message.data['body']?.toString() ??
+            (isIncoming
+                ? caller + ' is calling you'
+                : 'You missed a call from ' + caller),
         NotificationDetails(
           android: AndroidNotificationDetails(
             isIncoming ? 'novyn_incoming_calls' : 'novyn_calls',
             isIncoming ? 'Incoming calls' : 'Missed calls',
             channelDescription: 'Voice and video call alerts',
-            importance: Importance.max, priority: Priority.max,
-            category: isIncoming ? AndroidNotificationCategory.call : AndroidNotificationCategory.missedCall,
-            fullScreenIntent: isIncoming, ongoing: isIncoming, autoCancel: !isIncoming,
+            importance: Importance.max,
+            priority: Priority.max,
+            category: isIncoming
+                ? AndroidNotificationCategory.call
+                : AndroidNotificationCategory.missedCall,
+            fullScreenIntent: isIncoming,
+            ongoing: isIncoming,
+            autoCancel: !isIncoming,
             timeoutAfter: isIncoming ? 45000 : null,
-            playSound: true, enableVibration: true,
+            playSound: true,
+            enableVibration: true,
           ),
-          iOS: const DarwinNotificationDetails(presentAlert: true, presentBadge: true, presentSound: true),
+          iOS: const DarwinNotificationDetails(
+              presentAlert: true, presentBadge: true, presentSound: true),
         ),
         payload: 'call:' + callId + '|' + caller + '|' + (isVideo ? '1' : '0'),
       ));
@@ -1075,13 +1461,16 @@ class NotificationService {
     final sender = username.trim();
     final settings = _settings;
     if (sender.isEmpty || settings == null || !settings.notificationsOn) return;
+    if (_archivedChatNotificationIds.contains(sender.toLowerCase())) return;
     if (settings.doNotDisturbEnabled &&
         !settings.favoriteChatIds.contains(sender.toLowerCase())) return;
     if (_presenceAuth?.user?.presenceMode == 'busy' ||
         _presenceAuth?.user?.presenceMode == 'invisible') return;
 
     final body = settings.messagePreview && !settings.hideNotificationContent
-        ? (messageBody.trim().isNotEmpty ? messageBody.trim() : 'You have a new message')
+        ? (messageBody.trim().isNotEmpty
+            ? messageBody.trim()
+            : 'You have a new message')
         : 'You have a new message';
     final notificationId = DateTime.now().millisecondsSinceEpoch % 2147483647;
     try {
@@ -1110,7 +1499,8 @@ class NotificationService {
         payload: sender,
       );
     } catch (error) {
-      debugPrint('[NovynNotifications] Foreground system notification failed: $error');
+      debugPrint(
+          '[NovynNotifications] Foreground system notification failed: $error');
     }
   }
 
@@ -1119,15 +1509,30 @@ class NotificationService {
       RemoteMessage message, BuildContext context) async {
     final type = message.data['type'];
 
+    if (type == 'group_invite') {
+      _handleSocialTap('group_invite');
+      return;
+    }
+    if (type == 'friend_request' ||
+        type == 'friend_request_accepted' ||
+        type == 'friend_request_declined') {
+      _handleSocialTap(type.toString());
+      return;
+    }
+
     if (type == 'call') {
       if (!context.mounted) return;
       final caller = message.data['chat']?.toString().trim() ?? '';
       final callId = message.data['callId']?.toString().trim() ?? '';
-      if (message.data['callStatus'] == 'incoming' && caller.isNotEmpty && callId.isNotEmpty) {
-        await _openIncomingCall(caller, callId, message.data['isVideo'] == '1', context);
+      if (message.data['callStatus'] == 'incoming' &&
+          caller.isNotEmpty &&
+          callId.isNotEmpty) {
+        await _openIncomingCall(
+            caller, callId, message.data['isVideo'] == '1', context);
         return;
       }
-      Navigator.of(context).push(MaterialPageRoute(builder: (_) => const CallsScreen()));
+      Navigator.of(context)
+          .push(MaterialPageRoute(builder: (_) => const CallsScreen()));
       return;
     }
 
@@ -1138,18 +1543,24 @@ class NotificationService {
     await _openChatFromNotification(username, context);
   }
 
-  static Future<void> _openIncomingCall(String caller, String callId, bool isVideo, BuildContext context) async {
+  static Future<void> _openIncomingCall(
+      String caller, String callId, bool isVideo, BuildContext context) async {
     try {
       final peer = await context.read<FriendService>().getUser(caller);
       if (peer == null || !context.mounted) return;
-      Navigator.of(context).push(MaterialPageRoute(builder: (_) => CallScreen(
-        peer: peer, callType: isVideo ? 'video' : 'voice', isIncoming: true,
-        callerId: caller, callId: callId,
-      )));
+      Navigator.of(context).push(MaterialPageRoute(
+          builder: (_) => CallScreen(
+                peer: peer,
+                callType: isVideo ? 'video' : 'voice',
+                isIncoming: true,
+                callerId: caller,
+                callId: callId,
+              )));
     } catch (error) {
       debugPrint('[NovynCalls] Could not open incoming call: $error');
     }
   }
+
   static Future<void> _openChatFromNotification(
       String username, BuildContext context) async {
     final target = username.trim();
@@ -1181,7 +1592,8 @@ class NotificationService {
         MaterialPageRoute(builder: (_) => ChatDetailScreen(peer: peer)),
       );
     } catch (error) {
-      debugPrint('[NovynNotifications] Could not open chat from notification: $error');
+      debugPrint(
+          '[NovynNotifications] Could not open chat from notification: $error');
     }
   }
 
