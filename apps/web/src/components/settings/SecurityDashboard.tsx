@@ -4,7 +4,6 @@ import {
   Check,
   Smartphone,
   KeyRound,
-  ArrowRight,
   Lock,
   EyeOff,
   Clock,
@@ -13,9 +12,7 @@ import {
   ChevronRight,
   Fingerprint,
   Trash2,
-  QrCode,
 } from 'lucide-react';
-import { MessageKeyTransferDialog } from '../chat/MessageKeyTransferDialog';
 import { getMyPublicKeyJwk } from '../../services/e2ee';
 import { SettingsToast, type SettingsNotice } from './SettingsToast';
 import type { SettingsMainCategory, SettingsSubSection } from './SettingsPanel';
@@ -27,7 +24,6 @@ export function SecurityDashboard({ onSelectSection }: {
   onSelectSection?: (category: SettingsMainCategory, section: SettingsSubSection) => void;
 } = {}) {
   const { user } = useAuth();
-  const [keysOpen, setKeysOpen] = useState(false);
   const [keysReady, setKeysReady] = useState<boolean | null>(null);
   const [notice, setNotice] = useState<SettingsNotice | null>(null);
 
@@ -142,21 +138,6 @@ export function SecurityDashboard({ onSelectSection }: {
                 )}
               </div>
 
-              {/* Row 3: Keys on Android */}
-              <div className="security-status-row">
-                <div className="security-status-left">
-                  <div className="security-status-icon is-neutral">
-                    <Smartphone size={15} />
-                  </div>
-                  <div className="security-status-info">
-                    <span className="security-status-title">Keys on Android</span>
-                    <span className="security-status-sub">Sync to read chats on phone</span>
-                  </div>
-                </div>
-                <button type="button" className="security-action-btn" onClick={() => setKeysOpen(true)}>
-                  Sync
-                </button>
-              </div>
             </div>
 
             <p className="security-encryption-disclaimer">
@@ -164,92 +145,25 @@ export function SecurityDashboard({ onSelectSection }: {
             </p>
           </article>
 
-          {/* Right Column: Sync Message Keys */}
+          {/* Right Column: Primary phone pairing */}
           <article className="security-card security-card-sync">
             <span className="security-section-tag">
-              <span className="security-tag-dot" style={{ background: '#c084fc', boxShadow: '0 0 8px #c084fc' }} /> KEY TRANSFER &amp; SYNC
+              <span className="security-tag-dot" style={{ background: '#c084fc', boxShadow: '0 0 8px #c084fc' }} /> LINKED DEVICES
             </span>
-
             <div className="security-hero-banner">
-              <div
-                className="security-hero-icon-box"
-                style={{
-                  background: 'rgba(192, 132, 252, 0.15)',
-                  borderColor: 'rgba(192, 132, 252, 0.3)',
-                  color: '#c084fc',
-                }}
-              >
-                <KeyRound size={28} />
+              <div className="security-hero-icon-box" style={{ background: 'rgba(192, 132, 252, 0.15)', borderColor: 'rgba(192, 132, 252, 0.3)', color: '#c084fc' }}>
+                <Smartphone size={28} />
               </div>
               <div className="security-hero-text">
-                <h3>Sync Message Keys</h3>
-                <p>Transfer E2EE keys across devices to decrypt past chat history on mobile or other browsers.</p>
+                <h3>Your phone is the primary device</h3>
+                <p>Pair this browser from Active Sessions in the Novyn mobile app. The phone shares your encryption identity securely during QR pairing.</p>
               </div>
             </div>
-
-            {/* Visual P2P Transfer Bridge */}
-            <div className="security-sync-bridge-card">
-              <div className="security-sync-node">
-                <div className="security-sync-node-icon is-browser">
-                  <Laptop size={18} />
-                </div>
-                <div className="security-sync-node-meta">
-                  <span className="security-sync-node-name">This Browser</span>
-                  <span className="security-sync-node-status">
-                    <span className="sync-status-dot" /> Keys Ready
-                  </span>
-                </div>
-              </div>
-
-              <div className="security-sync-connector">
-                <div className="security-connector-line" />
-                <div className="security-connector-pill">
-                  <ShieldCheck size={11} />
-                  <span>P2P E2EE</span>
-                </div>
-              </div>
-
-              <div className="security-sync-node">
-                <div className="security-sync-node-icon is-phone">
-                  <Smartphone size={18} />
-                </div>
-                <div className="security-sync-node-meta">
-                  <span className="security-sync-node-name">Android Device</span>
-                  <span className="security-sync-node-status is-pending">Pair via QR</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Benefit pills */}
-            <div className="security-sync-benefits">
-              <div className="security-sync-benefit-item">
-                <Check size={12} className="benefit-check" />
-                <span>Zero-knowledge transfer</span>
-              </div>
-              <div className="security-sync-benefit-item">
-                <QrCode size={12} className="benefit-qr" />
-                <span>Instant QR pairing</span>
-              </div>
-              <div className="security-sync-benefit-item">
-                <Check size={12} className="benefit-check" />
-                <span>Restores past chat messages</span>
-              </div>
-            </div>
-
-            {/* Bottom Action Footer */}
             <div className="security-sync-footer">
-              <button
-                type="button"
-                className="security-btn-glow"
-                onClick={() => setKeysOpen(true)}
-                aria-haspopup="dialog"
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}
-              >
-                <KeyRound size={15} /> Open Key Transfer
+              <button type="button" className="security-btn-glow" onClick={() => handleNavigate('privacy-sessions')}>
+                Manage linked devices
               </button>
-              <span className="security-sync-footer-note">
-                Scan QR from your Android phone to sync
-              </span>
+              <span className="security-sync-footer-note">Sign out any browser you no longer use.</span>
             </div>
           </article>
         </div>
@@ -444,7 +358,6 @@ export function SecurityDashboard({ onSelectSection }: {
         </div>
       </div>
 
-      <MessageKeyTransferDialog isOpen={keysOpen} onClose={() => setKeysOpen(false)} />
       {notice && <SettingsToast notice={notice} onDismiss={() => setNotice(null)} />}
     </section>
   );

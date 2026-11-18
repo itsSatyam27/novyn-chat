@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 /// Formats a privacy-approved last-seen timestamp for compact presence labels.
@@ -22,4 +23,75 @@ String formatLastSeenLabel(DateTime? lastSeen, {DateTime? now}) {
   }
   final pattern = seen.year == current.year ? 'd MMM' : 'd MMM yyyy';
   return 'Last seen ${DateFormat(pattern).format(seen)}';
+}
+
+/// Returns the characteristic color for a given presence status:
+/// - 'online': Emerald Green (0xFF10B981)
+/// - 'away': Warm Amber (0xFFF59E0B)
+/// - 'busy' / 'dnd': Rose Crimson (0xFFEC4899)
+/// - 'invisible': Stealth Violet (0xFF8B5CF6)
+/// - 'offline': Slate Grey (0xFF94A3B8)
+Color presenceStatusColor(String? status, {bool isOnline = true}) {
+  if (!isOnline) {
+    return const Color(0xFF94A3B8);
+  }
+  switch (status?.trim().toLowerCase()) {
+    case 'away':
+      return const Color(0xFFF59E0B);
+    case 'busy' || 'dnd':
+      return const Color(0xFFEC4899);
+    case 'invisible':
+      return const Color(0xFF8B5CF6);
+    case 'offline':
+      return const Color(0xFF94A3B8);
+    case 'online':
+    default:
+      return const Color(0xFF10B981);
+  }
+}
+
+/// A sleek vertical indicator strip ("patli patti") placed on the left edge
+/// of chat rows or headers to indicate user presence while keeping avatars clean.
+class PresenceIndicatorBar extends StatelessWidget {
+  final bool isOnline;
+  final String? status;
+  final double width;
+  final double height;
+  final EdgeInsetsGeometry margin;
+
+  const PresenceIndicatorBar({
+    super.key,
+    this.isOnline = true,
+    this.status,
+    this.width = 3.5,
+    this.height = 26.0,
+    this.margin = const EdgeInsets.only(right: 10),
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color = presenceStatusColor(status, isOnline: isOnline);
+    final normalized = status?.trim().toLowerCase();
+    final isOffline = !isOnline || normalized == 'offline';
+
+    return Container(
+      key: const ValueKey('presence-indicator-bar'),
+      width: width,
+      height: height,
+      margin: margin,
+      decoration: BoxDecoration(
+        color: isOffline ? color.withValues(alpha: 0.38) : color,
+        borderRadius: BorderRadius.circular(999),
+        boxShadow: isOffline
+            ? null
+            : [
+                BoxShadow(
+                  color: color.withValues(alpha: 0.35),
+                  blurRadius: 4,
+                  spreadRadius: 0.5,
+                ),
+              ],
+      ),
+    );
+  }
 }

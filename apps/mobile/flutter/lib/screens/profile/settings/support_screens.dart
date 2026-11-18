@@ -23,7 +23,8 @@ class AboutNovynScreen extends StatefulWidget {
 class _AboutNovynScreenState extends State<AboutNovynScreen> {
   bool _checking = true, _downloading = false, _installing = false;
   bool _readySheetOpen = false, _readySheetDismissed = false;
-  String? _status, _apkUrl, _expectedSha256, _downloadedApkPath;
+  String? _status, _apkUrl, _expectedSha256, _downloadedApkPath, _releaseName;
+  List<String> _releaseNotes = const [];
   int? _apkSize;
   int _installedBuild = 0, _latestBuild = 0;
   double _downloadProgress = 0;
@@ -105,6 +106,8 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
         _apkUrl = null;
         _expectedSha256 = null;
         _apkSize = null;
+        _releaseName = null;
+        _releaseNotes = const [];
       });
     }
     try {
@@ -127,6 +130,8 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
         _apkUrl = release.url;
         _expectedSha256 = release.sha256;
         _apkSize = release.size;
+        _releaseName = release.name.isNotEmpty ? release.name : 'Build ${release.build}';
+        _releaseNotes = release.notes;
       }
       setState(() {
         _status = result.release != null ? null : result.message;
@@ -226,7 +231,7 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
                   style: TextStyle(color: Color(0xFF1D1B2B), fontSize: 20,
                     letterSpacing: -.4, fontWeight: FontWeight.w900)),
                 const SizedBox(height: 3),
-                Text('Novyn Beta v1.1 · $sizeMb MB',
+                Text('${_releaseName ?? 'New update'} · $sizeMb MB',
                   style: const TextStyle(color: Color(0xFF777487), fontSize: 13.5,
                     fontWeight: FontWeight.w500)),
                 const SizedBox(height: 14),
@@ -320,6 +325,10 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
     final surface = dark ? const Color(0xFF171622) : Colors.white;
     final border = dark ? const Color(0xFF39345F) : const Color(0xFFE5DFFF);
     final primary = const Color(0xFF7048F8);
+    final updateName = _releaseName ?? 'Build $_latestBuild';
+    final updateNotes = _releaseNotes.isEmpty
+        ? <String>['Build $_latestBuild is ready to download.']
+        : _releaseNotes;
     final activeDownload = !_ready &&
         (_downloading || _paused || _updateService.hasPartialDownload);
 
@@ -431,7 +440,7 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
                                 letterSpacing: -.2, fontWeight: FontWeight.w800)),
                             const SizedBox(height: 3),
                             Text(
-                              _available ? 'Beta v1.1' :
+                              _available ? updateName :
                                 _checking ? 'Looking for the latest version' :
                                 (!_available && _status != null &&
                                   !_status!.toLowerCase().contains('up to date')
@@ -493,10 +502,38 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
                         onTap: _installing ? null : _installUpdate,
                       ),
                     ] else if (_available) ...[
+                      const SizedBox(height: 12),
+                      Container(
+                        padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                        decoration: BoxDecoration(
+                          color: dark ? const Color(0xFF211D32) : const Color(0xFFF6F3FC),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('WHAT’S NEW', style: TextStyle(
+                              color: muted, fontSize: 10.5,
+                              letterSpacing: .8, fontWeight: FontWeight.w800)),
+                            const SizedBox(height: 5),
+                            ...updateNotes.map((note) => Padding(
+                              padding: const EdgeInsets.only(top: 3),
+                              child: _UpdateNote(text: note),
+                            )),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 14),
                       _primaryUpdateButton(
                         label: _updateService.hasPartialDownload ? 'Resume download' : 'Download update',
                         icon: Icons.download_rounded,
                         onTap: _checking ? null : _downloadUpdate,
+                      ),
+                      const SizedBox(height: 2),
+                      TextButton(
+                        onPressed: () => Navigator.of(context).maybePop(),
+                        child: Text('Later', style: TextStyle(color: muted,
+                          fontSize: 13.5, fontWeight: FontWeight.w700)),
                       ),
                     ] else ...[
                       _primaryUpdateButton(
@@ -718,7 +755,7 @@ class _LiquidDownloadProgressState extends State<_LiquidDownloadProgress>
               width: 104,
               height: 104,
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(34),
+                borderRadius: BorderRadius.circular(30),
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
@@ -736,6 +773,17 @@ class _LiquidDownloadProgressState extends State<_LiquidDownloadProgress>
                         child: Text('$pct%', style: const TextStyle(
                           color: Colors.white, fontSize: 25,
                           fontWeight: FontWeight.w900, letterSpacing: -1)),
+                      ),
+                    ),
+                    IgnorePointer(
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(30),
+                          border: Border.all(
+                            color: widget.primary.withValues(alpha: .24),
+                            width: 1.2,
+                          ),
+                        ),
                       ),
                     ),
                   ],
@@ -779,7 +827,7 @@ class _LiquidWavePainter extends CustomPainter {
     final level=size.height*(1-progress);
     final path=Path()..moveTo(0,level);
     for(double x=0;x<=size.width;x+=2){
-      final y=level+math.sin((x/size.width*2*math.pi)+phase)*3.5;
+      final y=level+math.sin((x/size.width*2*math.pi)+phase)*4.5;
       path.lineTo(x,y);
     }
     return path..lineTo(size.width,size.height)
@@ -804,7 +852,7 @@ class _LiquidWaveClipper extends CustomClipper<Path> {
     final level=size.height*(1-progress);
     final path=Path()..moveTo(0,level);
     for(double x=0;x<=size.width;x+=2){
-      final y=level+math.sin((x/size.width*2*math.pi)+phase)*3.5;
+      final y=level+math.sin((x/size.width*2*math.pi)+phase)*4.5;
       path.lineTo(x,y);
     }
     return path..lineTo(size.width,size.height)

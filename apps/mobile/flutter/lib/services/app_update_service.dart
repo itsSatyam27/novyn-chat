@@ -48,12 +48,16 @@ class AppUpdateInfo {
     required this.url,
     required this.sha256,
     required this.size,
+    this.name = '',
+    this.notes = const [],
   });
 
   final int build;
   final String url;
   final String sha256;
   final int size;
+  final String name;
+  final List<String> notes;
 
   String get key => build.toString() + ':' + sha256;
 }
@@ -149,6 +153,7 @@ class AppUpdateService extends ChangeNotifier {
     // Ignore universal releases and select the highest published stable ARM64 build.
     final tagPattern = RegExp(r'^novyn-arm64-build-(\d+)(?:-\d+)*$');
     Map<String, dynamic>? selectedAsset;
+    Map<String, dynamic>? selectedRelease;
     var selectedBuild = -1;
 
     for (final rawRelease in decoded) {
@@ -175,6 +180,7 @@ class AppUpdateService extends ChangeNotifier {
       if (candidateAsset == null) continue;
       selectedBuild = candidateBuild;
       selectedAsset = candidateAsset;
+      selectedRelease = release;
     }
 
     if (selectedAsset == null || selectedBuild < 0) {
@@ -211,6 +217,13 @@ class AppUpdateService extends ChangeNotifier {
       url: url.toString(),
       sha256: digest.substring(7).toLowerCase(),
       size: size,
+      name: (selectedRelease?['name'] ?? '').toString().trim(),
+      notes: (selectedRelease?['body'] ?? '').toString()
+          .split('\n')
+          .map((line) => line.replaceFirst(RegExp(r'^\s*([-*•]|\d+\.)\s*'), '').trim())
+          .where((line) => line.isNotEmpty && !line.startsWith('#'))
+          .take(4)
+          .toList(growable: false),
     );
     await prepareForUpdate(release);
     if (notifyIfAvailable) {

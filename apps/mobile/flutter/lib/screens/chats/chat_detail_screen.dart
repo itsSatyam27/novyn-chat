@@ -820,13 +820,20 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
               onTap: () => _showContactInfo(),
               child: Row(
                 children: [
+                  if (!widget.isGroup)
+                    PresenceIndicatorBar(
+                      isOnline: _peerIsOnline,
+                      status: _peerPresence,
+                      height: 22,
+                      margin: const EdgeInsets.only(right: 8),
+                    ),
                   Hero(
                     tag: 'avatar_${widget.peer.uid}',
                     child: UserAvatar(
                       name: widget.peer.name,
                       photoUrl: widget.peer.photoUrl,
                       radius: 21,
-                      showOnlineIndicator: !widget.isGroup,
+                      showOnlineIndicator: false,
                       isOnline: widget.isGroup ? false : _peerIsOnline,
                       presence: _peerPresence,
                     ),

@@ -18,6 +18,7 @@ import '../../widgets/novyn_ui.dart';
 import '../../theme/novyn_theme.dart';
 import '../calls/call_screen.dart';
 import 'package:novyn/services/haptic_service.dart';
+import '../../utils/presence_utils.dart';
 
 class CallsScreen extends StatefulWidget {
   const CallsScreen({super.key});
@@ -983,9 +984,14 @@ class _CallCard extends StatelessWidget {
         onTap: () => _showHistory(context),
         borderRadius: BorderRadius.circular(22),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+          padding: const EdgeInsets.only(left: 10, right: 14, top: 11, bottom: 11),
           child: Row(
             children: [
+              PresenceIndicatorBar(
+                isOnline: entry.peer.isOnline,
+                status: entry.peer.status,
+                margin: const EdgeInsets.only(right: 10),
+              ),
               GestureDetector(
                 onLongPress: onToggleFavorite,
                 child: Stack(
@@ -995,7 +1001,7 @@ class _CallCard extends StatelessWidget {
                       name: entry.peer.name,
                       photoUrl: entry.peer.photoUrl,
                       radius: 24,
-                      showOnlineIndicator: true,
+                      showOnlineIndicator: false,
                       isOnline: entry.peer.isOnline,
                       presence: entry.peer.status,
                     ),

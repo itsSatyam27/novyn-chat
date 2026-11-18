@@ -95,6 +95,13 @@ Without MongoDB, set `DATA_DIR` to a persistent volume so refresh sessions
 survive restarts. Keep `UPLOADS_DIR` on persistent storage and back it up:
 it contains local uploads and access metadata for new Cloudinary objects.
 
+The read-only admin dashboard is served at `/admin/` on the same origin as the
+API. Set `ADMIN_EMAILS` on the backend to a comma-separated allowlist of exact,
+verified sign-in emails. An allowlisted account must sign in to Novyn before
+opening the dashboard. The dashboard shows aggregate usage, the latest 100 user
+accounts, and the latest 100 feedback submissions; it does not display chat
+messages or provide account-changing moderation actions.
+
 Configure both stable VAPID keys to enable push. Missing keys now disable push
 instead of generating a new subscription identity or logging a private key.
 Production startup fails when a configured MongoDB connection/load fails,

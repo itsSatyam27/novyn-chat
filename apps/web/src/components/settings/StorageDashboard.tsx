@@ -1457,7 +1457,7 @@ export function StorageDashboard() {
 
             <p style={{ margin: '0 0 16px', color: '#94a3b8', fontSize: '0.84rem', lineHeight: 1.55 }}>
               Clearing temporary cache using Novyn's storage controls preserves your cryptographic identity and E2EE keys.
-              Resetting your entire browser site cookies will require restoring your keys via <strong>Security &gt; Sync Message Keys</strong>.
+              Resetting this browser's site storage removes its paired identity. Pair the browser again from your primary phone's Active Sessions screen.
             </p>
           </div>
 

@@ -757,7 +757,7 @@ class _ContactRow extends StatelessWidget {
       photoUrl: user.photoUrl.trim(),
       radius: 26,
       fallbackColor: _avatarColor,
-      showOnlineIndicator: user.isOnline,
+      showOnlineIndicator: false,
       isOnline: user.isOnline,
       presence: user.status,
     );
@@ -767,14 +767,19 @@ class _ContactRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final statusColor = user.isOnline
-        ? const Color(0xFF288C59)
+        ? presenceStatusColor(user.status, isOnline: user.isOnline)
         : theme.colorScheme.onSurfaceVariant;
     return InkWell(
       onTap: onOpenChat,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 11),
+        padding: const EdgeInsets.only(left: 10, right: 15, top: 11, bottom: 11),
         child: Row(
           children: [
+            PresenceIndicatorBar(
+              isOnline: user.isOnline,
+              status: user.status,
+              margin: const EdgeInsets.only(right: 10),
+            ),
             _avatar(),
             const SizedBox(width: 13),
             Expanded(

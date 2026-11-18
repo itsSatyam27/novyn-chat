@@ -24,6 +24,7 @@ import 'starred_messages_screen.dart';
 import '../../widgets/chat_overflow_menu.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:novyn/services/haptic_service.dart';
+import '../../utils/presence_utils.dart';
 
 class ChatsScreen extends StatefulWidget {
   final VoidCallback? onNavigateToPeople;
@@ -1983,7 +1984,7 @@ class _ChatCard extends StatelessWidget {
         photoUrl: preview.peer.photoUrl.trim(),
         radius: 26,
         fallbackColor: color,
-        showOnlineIndicator: !preview.isGroup && preview.peer.isOnline,
+        showOnlineIndicator: false,
         isOnline: preview.peer.isOnline,
         presence: preview.peer.status,
       );
@@ -2028,7 +2029,7 @@ class _ChatCard extends StatelessWidget {
       },
       onLongPress: onOptions == null ? null : () => onOptions!(context),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+        padding: const EdgeInsets.only(left: 10, right: 16, top: 13, bottom: 13),
         child: Row(
           children: [
             if (selectionMode) ...[
@@ -2050,6 +2051,14 @@ class _ChatCard extends StatelessWidget {
                     : null,
               ),
             ],
+            if (!preview.isGroup)
+              PresenceIndicatorBar(
+                isOnline: preview.peer.isOnline,
+                status: preview.peer.status,
+                margin: const EdgeInsets.only(right: 10),
+              )
+            else
+              const SizedBox(width: 13.5),
             _buildAvatar(context),
             const SizedBox(width: 14),
             Expanded(
