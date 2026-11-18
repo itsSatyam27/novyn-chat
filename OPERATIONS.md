@@ -1,3 +1,4 @@
+
 # Running Novyn after the security fixes
 
 ## Local development
@@ -51,15 +52,18 @@ the signing key used by the device or build, and download a fresh
 repo is `com.example.novyn`; if you changed the package ID, update the Firebase app
 and regenerate the config file to match.
 
-The Firebase-hosted admin monitor is at `/admin/` on `chat-novyn.web.app`.
-It signs administrators in with Google using Firebase Authentication and calls
-the Render API for MongoDB-backed usage and feedback data. Configure the API
-with `ADMIN_EMAILS=novynchat.app@gmail.com` and
+The Firebase-hosted admin monitor source is in `public/admin/`. It signs
+administrators in with Google using Firebase Authentication and calls the Render
+API for MongoDB-backed usage and feedback data. Configure the API with
+`ADMIN_EMAILS=novynchat.app@gmail.com` and
 `ADMIN_ALLOWED_ORIGINS=https://chat-novyn.web.app,https://chat-novyn.firebaseapp.com`.
-Google sign-in must be enabled for the `chat-novyn` Firebase project. The GitHub
-Actions deployment needs a `FIREBASE_SERVICE_ACCOUNT_CHAT_NOVYN` secret with
-Hosting deploy permission for that project. The dashboard is read-only and
-does not expose chat message contents.
+The Render API must use the `chat-novyn` Firebase Admin credentials, and Google
+sign-in must be enabled for that Firebase project. Once configured, deploy the
+site with `firebase deploy --only hosting --project chat-novyn`; it will be
+available at `https://chat-novyn.web.app/admin/`. This dashboard is read-only
+and does not expose chat message contents. The existing main-branch Hosting
+workflow intentionally skips admin-only changes, so they cannot publish this
+Firebase dashboard to the old project.
 
 Use Node 24 or newer, install with `npm ci`, and start `npm run dev`.
 On Windows PowerShell with scripts disabled, use `npm.cmd`.

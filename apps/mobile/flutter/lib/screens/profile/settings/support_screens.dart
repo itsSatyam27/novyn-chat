@@ -523,13 +523,13 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
                           ],
                         ),
                       ),
-                      const SizedBox(height: 14),
+                      const SizedBox(height: 18),
                       _primaryUpdateButton(
                         label: _updateService.hasPartialDownload ? 'Resume download' : 'Download update',
                         icon: Icons.download_rounded,
                         onTap: _checking ? null : _downloadUpdate,
                       ),
-                      const SizedBox(height: 2),
+                      const SizedBox(height: 10),
                       TextButton(
                         onPressed: () => Navigator.of(context).maybePop(),
                         child: Text('Later', style: TextStyle(color: muted,
@@ -604,28 +604,33 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
     required IconData icon,
     required Future<void> Function()? onTap,
   }) {
+    final enabled = onTap != null;
     return SizedBox(
-      height: 50,
+      height: 54,
       child: DecoratedBox(
         decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [Color(0xFF8052FF), Color(0xFF6741F4)],
+          gradient: LinearGradient(
+            colors: enabled
+                ? const [Color(0xFF8052FF), Color(0xFF6741F4)]
+                : const [Color(0xFFB7A7ED), Color(0xFFA895E8)],
           ),
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: const [BoxShadow(
-            color: Color(0x337048F8), blurRadius: 16,
-            offset: Offset(0, 5))],
+          borderRadius: BorderRadius.circular(18),
+          boxShadow: enabled
+              ? const [BoxShadow(
+                  color: Color(0x337048F8), blurRadius: 18,
+                  offset: Offset(0, 6))]
+              : const [],
         ),
         child: Material(
           color: Colors.transparent,
           child: InkWell(
             onTap: onTap == null ? null : () => onTap(),
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(18),
             child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-              Icon(icon, color: Colors.white, size: 18),
-              const SizedBox(width: 8),
+              Icon(icon, color: Colors.white.withValues(alpha: enabled ? 1 : .8), size: 19),
+              const SizedBox(width: 10),
               Text(label, style: const TextStyle(color: Colors.white,
-                fontSize: 14.5, fontWeight: FontWeight.w800)),
+                fontSize: 14.5, letterSpacing: .1, fontWeight: FontWeight.w800)),
             ]),
           ),
         ),

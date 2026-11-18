@@ -278,20 +278,6 @@ function setAdminCors(req, res) {
   return true;
 }
 
-function requireAdminToken(req, res) {
-  const authorization = String(req.get("authorization") || "");
-  const tokenMatch = authorization.match(/^Bearer\s+(.+)$/i);
-  if (!tokenMatch) {
-    res.status(401).json({ error: "Firebase sign-in required." });
-    return false;
-  }
-  if (!firebaseAdmin) {
-    res.status(503).json({ error: "Firebase Admin authentication is unavailable." });
-    return false;
-  }
-  return tokenMatch[1];
-}
-
 function mediaMetadata(filename) {
   if (!/^[a-zA-Z0-9_-]+\.[a-zA-Z0-9]+$/.test(filename)) return null;
   try { return JSON.parse(fs.readFileSync(path.join(uploadsDir, `${filename}.metadata.json`), 'utf8')); }
@@ -510,15 +496,20 @@ app.get(
     }
 
     res.set("Cache-Control", "no-store, max-age=0");
-    const idToken = requireAdminToken(req, res);
-    if (!idToken) return;
+    const tokenMatch = String(req.get("authorization") || "").match(/^Bearer\s+(.+)$/i);
+    if (!tokenMatch) {
+      return res.status(401).json({ error: "Firebase sign-in required." });
+    }
     if (!ADMIN_EMAILS.size) {
       return res.status(503).json({ error: "Admin access is not configured on the API." });
+    }
+    if (!firebaseAdmin) {
+      return res.status(503).json({ error: "Firebase Admin authentication is unavailable." });
     }
 
     let decoded;
     try {
-      decoded = await admin.auth(firebaseAdmin).verifyIdToken(idToken);
+      decoded = await admin.auth(firebaseAdmin).verifyIdToken(tokenMatch[1], true);
     } catch {
       return res.status(401).json({ error: "Firebase sign-in has expired or is invalid." });
     }

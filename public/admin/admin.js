@@ -145,10 +145,6 @@
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
-        if (response.status === 401) {
-          await auth.signOut();
-          throw new Error("Your Firebase session expired. Sign in again.");
-        }
         throw new Error(data.error || "Could not load dashboard data.");
       }
 
