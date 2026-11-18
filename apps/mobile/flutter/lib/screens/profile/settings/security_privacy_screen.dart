@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -9,6 +7,7 @@ import 'two_factor_screen.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/socket_service.dart';
 import '../../../widgets/novyn_alert.dart';
+import '../../../widgets/import_message_keys_dialog.dart';
 import '../../security/setup_pin_screen.dart';
 import 'active_sessions_screen.dart';
 import 'email_password_screen.dart';
@@ -139,6 +138,9 @@ class SecurityPrivacyScreen extends StatelessWidget {
             nav(Icons.devices_rounded, const Color(0xFF2A78B8),
               'Active Sessions', 'Sign out of other devices remotely',
               () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ActiveSessionsScreen()))),
+            nav(Icons.key_rounded, const Color(0xFF8B5CF6),
+              'Import message keys', 'Sync encrypted chat history from your Novyn web browser',
+              () => showImportMessageKeys(context)),
             _SecurityPrivacyTile(
               icon: Icons.verified_user_outlined,
               accent: const Color(0xFF7565D9),
@@ -1427,8 +1429,6 @@ class _PrivacyDashboardState extends State<_PrivacyDashboard> {
   bool _typing = true;
   bool _loading = true;
   bool _saving = false;
-  bool _loadError = false;
-  bool _socketWasAuthenticated = false;
 
   @override
   void initState() {
@@ -1437,46 +1437,10 @@ class _PrivacyDashboardState extends State<_PrivacyDashboard> {
         widget.profilePhoto == 'contacts' ? 'friends' : widget.profilePhoto;
     _values['presencePrivacy'] =
         widget.lastSeen == 'contacts' ? 'friends' : widget.lastSeen;
-    _socketWasAuthenticated = widget.socket.isAuthenticated;
-    widget.socket.addListener(_handleSocketStateChanged);
-    if (_socketWasAuthenticated) {
-      _loadAccountSettings();
-    } else {
-      _loading = false;
-      _loadError = true;
-    }
-  }
-
-  void _handleSocketStateChanged() {
-    final authenticated = widget.socket.isAuthenticated;
-    if (authenticated == _socketWasAuthenticated) return;
-    _socketWasAuthenticated = authenticated;
-    if (!mounted) return;
-    if (authenticated) {
-      unawaited(_loadAccountSettings());
-    } else {
-      setState(() => _loadError = true);
-    }
-  }
-
-  @override
-  void dispose() {
-    widget.socket.removeListener(_handleSocketStateChanged);
-    super.dispose();
+    _loadAccountSettings();
   }
 
   Future<void> _loadAccountSettings() async {
-    if (!widget.socket.isAuthenticated) {
-      if (mounted) setState(() {
-        _loading = false;
-        _loadError = true;
-      });
-      return;
-    }
-    if (mounted) setState(() {
-      _loading = true;
-      _loadError = false;
-    });
     try {
       final result = await widget.socket.fetchAccountSettings();
       if (result['ok'] != true || result['settings'] is! Map) {
@@ -1500,7 +1464,6 @@ class _PrivacyDashboardState extends State<_PrivacyDashboard> {
         }
         _typing = data['typingIndicatorsEnabled'] != false;
         _loading = false;
-        _loadError = false;
       });
       final presence = _values['presencePrivacy']!;
       final photo = _values['profilePhotoPrivacy']!;
@@ -1515,11 +1478,12 @@ class _PrivacyDashboardState extends State<_PrivacyDashboard> {
           recordPresenceOverride: false);
     } catch (error) {
       if (!mounted) return;
-      setState(() {
-        _loading = false;
-        _loadError = true;
-      });
-      debugPrint('[NovynPrivacy] Could not load privacy settings: $error');
+      setState(() => _loading = false);
+      NovynAlert.show(
+        context,
+        'Could not load privacy settings: ${error.toString().replaceFirst('Bad state: ', '')}',
+        isError: true,
+      );
     }
   }
 
@@ -1547,10 +1511,6 @@ class _PrivacyDashboardState extends State<_PrivacyDashboard> {
   Future<void> _save(String key, String value) async {
     if (_requireStealthModeOff()) return;
     if (_saving) return;
-    if (!widget.socket.isAuthenticated) {
-      NovynAlert.show(context, 'Novyn is reconnecting. Please try again once connected.', isError: true);
-      return;
-    }
     final previous = _values[key] ?? 'everyone';
     setState(() {
       _saving = true;
@@ -1560,13 +1520,6 @@ class _PrivacyDashboardState extends State<_PrivacyDashboard> {
       final result = await widget.socket.updateAccountSettings({key: value});
       if (result['ok'] != true) throw StateError(
         result['message']?.toString() ?? 'Could not save this privacy setting.');
-      final verification = await widget.socket.fetchAccountSettings();
-      final verifiedSettings = verification['settings'];
-      if (verification['ok'] != true ||
-          verifiedSettings is! Map ||
-          verifiedSettings[key] != value) {
-        throw StateError('The server did not apply this privacy change. Please try again.');
-      }
       if (key == 'presencePrivacy') {
         // Server uses this setting for both online and last-seen visibility.
         await widget.settings.setLastSeenVisibility(value == 'friends' ? 'contacts' : value, recordPresenceOverride: false);
@@ -1590,10 +1543,6 @@ class _PrivacyDashboardState extends State<_PrivacyDashboard> {
   Future<void> _saveToggle(String key, bool value) async {
     if (_requireStealthModeOff()) return;
     if (_saving) return;
-    if (!widget.socket.isAuthenticated) {
-      NovynAlert.show(context, 'Novyn is reconnecting. Please try again once connected.', isError: true);
-      return;
-    }
     final previous = key == 'readReceiptsEnabled'
         ? widget.settings.readReceipts
         : _typing;
@@ -1602,13 +1551,6 @@ class _PrivacyDashboardState extends State<_PrivacyDashboard> {
       final result = await widget.socket.updateAccountSettings({key: value});
       if (result['ok'] != true) throw StateError(
         result['message']?.toString() ?? 'Could not save this privacy setting.');
-      final verification = await widget.socket.fetchAccountSettings();
-      final verifiedSettings = verification['settings'];
-      if (verification['ok'] != true ||
-          verifiedSettings is! Map ||
-          verifiedSettings[key] != value) {
-        throw StateError('The server did not apply this privacy change. Please try again.');
-      }
       if (key == 'readReceiptsEnabled') {
         await widget.settings.setReadReceipts(value, recordPresenceOverride: false);
       } else {
@@ -1871,36 +1813,6 @@ class _PrivacyDashboardState extends State<_PrivacyDashboard> {
           ),
         ),
       ]),
-      if (_loadError)
-        Padding(
-          padding: const EdgeInsets.only(top: 12),
-          child: Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: colors.errorContainer.withValues(alpha: .45),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(Icons.cloud_off_rounded, size: 18, color: colors.error),
-                const SizedBox(width: 9),
-                Expanded(
-                  child: Text(
-                    widget.socket.isAuthenticated
-                        ? 'Privacy settings could not be refreshed. Reopen this page to retry.'
-                        : 'Waiting for a secure connection. Your privacy settings will refresh when Novyn reconnects.',
-                    style: TextStyle(
-                      color: colors.onSurface,
-                      fontSize: 12,
-                      height: 1.4,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
       if (_loading) const Padding(
         padding: EdgeInsets.only(top: 12),
         child: LinearProgressIndicator(minHeight: 2),

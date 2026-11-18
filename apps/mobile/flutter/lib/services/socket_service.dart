@@ -11,6 +11,7 @@ import 'hybrid_db_service.dart';
 import 'api_service.dart';
 import 'media_storage_service.dart';
 import 'backend_contacts.dart';
+import 'message_encryption_service.dart';
 import '../utils/message_pagination.dart';
 import 'security_service.dart';
 import 'sync_service.dart';
@@ -21,7 +22,7 @@ import 'sync_service.dart';
 ///   EMIT  resume_session           — authenticate socket after connect
 ///   EMIT  set_active_chat          — { to, kind }
 ///   EMIT  get_history              — { to, kind }
-///   EMIT  private_message          — { to, toType, text, attachment?, replyTo?, clientTempId }
+///   EMIT  private_message          — { to, toType, text, attachment?, replyTo?, clientTempId, ciphertext?, iv?, isEncrypted? }
 ///   EMIT  typing                   — { to, isTyping, toType }
 ///   EMIT  edit_message             — { messageId, text, to }
 ///   EMIT  unsend_message           — { messageId, to }
@@ -65,7 +66,11 @@ class SocketService extends ChangeNotifier {
 
   bool _stealthModePreference;
   bool _stealthPreferenceSynced = false;
+  // Uses the same ECDH P-256 + AES-GCM-256 wire format as the web client.
+  final encryption = MessageEncryptionService();
+  Future<void>? _identityRegistration;
   Future<void>? _outboxActivation;
+  String? _registeredIdentityAccount;
   bool _isAuthenticated = false;
   bool _hasLoadedConversations = false;
   Completer<void>? _authenticationReady;
@@ -73,6 +78,7 @@ class SocketService extends ChangeNotifier {
   Completer<List<Message>>? _chatHistoryCompleter;
   String? _chatHistoryTarget;
   VoidCallback? onAuthenticated;
+  final Map<String, String> _peerKeys = {};
   final BackendContacts contacts = BackendContacts();
   io.Socket? _socket;
   bool _isConnected = false;
@@ -105,10 +111,6 @@ class SocketService extends ChangeNotifier {
   String? _serverUrl;
   Timer? _reconnectTimer;
   Timer? _pendingOutboxRetryTimer;
-  Timer? _connectionHealthTimer;
-  int _connectionHealthMisses = 0;
-  bool _healthProbeInFlight = false;
-  bool _connectionDegraded = false;
 
   // Messages for the currently open chat (immutable list — replaced on update)
   List<Message> _messages = [];
@@ -193,6 +195,7 @@ class SocketService extends ChangeNotifier {
     _isConnecting = false;
     _isAuthenticated = false;
     _authenticationReady = null;
+    _registeredIdentityAccount = null;
     notifyListeners();
     _doConnect();
   }
@@ -273,7 +276,7 @@ class SocketService extends ChangeNotifier {
     await SyncService().activateAccount(username);
     if (_myUsername?.toLowerCase() != username.trim().toLowerCase()) return;
     for (final pending in SyncService().pendingMessages) {
-      _messageStatuses[pending.tempId] = _isConnected && _isAuthenticated ? 'sending' : 'queued';
+      _messageStatuses[pending.tempId] = 'sending';
     }
     _restorePendingMessagesForOpenChat();
     notifyListeners();
@@ -317,11 +320,6 @@ class SocketService extends ChangeNotifier {
           debugPrint('[NovynOutbox] Message ${pending.tempId} rejected: $reason');
           notifyListeners();
         },
-        onDeferred: (pending) {
-          _messageStatuses[pending.tempId] = 'queued';
-          _messageStatusRevision++;
-          notifyListeners();
-        },
       );
     } catch (error) {
       debugPrint('[NovynOutbox] Flush deferred: $error');
@@ -331,7 +329,7 @@ class SocketService extends ChangeNotifier {
   void _startPendingOutboxRetry() {
     _pendingOutboxRetryTimer?.cancel();
     _pendingOutboxRetryTimer = Timer.periodic(
-      const Duration(seconds: 5),
+      const Duration(seconds: 20),
       (_) {
         if (!_isConnected ||
             !_isAuthenticated ||
@@ -364,10 +362,6 @@ class SocketService extends ChangeNotifier {
       throw StateError('Novyn is reconnecting. The message remains queued.');
     }
 
-    _messageStatuses[pending.tempId] = 'sending';
-    _messageStatusRevision++;
-    notifyListeners();
-
     final payload = <String, dynamic>{
       'to': pending.receiverId,
       'toType': pending.isGroup ? 'group' : 'friend',
@@ -382,6 +376,73 @@ class SocketService extends ChangeNotifier {
             },
       'clientTempId': pending.tempId,
     };
+
+    if (!pending.isGroup) {
+      if (pending.attachment != null) {
+        throw const PendingMessageRejectedException(
+          'Secure media sharing is not enabled yet. Send text-only messages.',
+        );
+      }
+
+      await _registerEncryptionIdentity();
+      if (_registeredIdentityAccount != account.toLowerCase()) {
+        throw StateError('Secure identity registration is pending.');
+      }
+
+      // A contact may have re-created their E2EE identity while this
+      // device was offline. The in-memory peer-key cache can then point to
+      // the old public key, producing ciphertext the recipient can no longer
+      // decrypt. Resolve the authoritative key for every send; never fall
+      // back to a stale cached key when the server has no current key.
+      final keyReply = Completer<Map<String, dynamic>>();
+      connection.emitWithAck(
+        'get_public_key',
+        {'username': pending.receiverId},
+        ack: (dynamic result) {
+          if (!keyReply.isCompleted) {
+            keyReply.complete(result is Map
+                ? Map<String, dynamic>.from(result)
+                : <String, dynamic>{});
+          }
+        },
+      );
+      final keyResult = await keyReply.future.timeout(
+        const Duration(seconds: 8),
+        onTimeout: () => <String, dynamic>{},
+      );
+      final peerPublicKey = keyResult['publicKey']?.toString() ?? '';
+      if (peerPublicKey.isNotEmpty) {
+        _peerKeys[pending.receiverId.toLowerCase()] = peerPublicKey;
+      } else {
+        _peerKeys.remove(pending.receiverId.toLowerCase());
+      }
+      if (peerPublicKey.isEmpty) {
+        throw const PendingMessageDeferredException(
+          'The contact encryption key is not available yet.',
+        );
+      }
+
+      final encrypted = await encryption.encrypt(
+        pending.text,
+        account,
+        pending.receiverId,
+        peerPublicKey,
+      );
+      if (encrypted == null || encrypted['isEncrypted'] != true) {
+        throw const PendingMessageDeferredException(
+          'Message encryption could not complete with the current contact key.',
+        );
+      }
+      payload
+        ..['text'] = '🔒 Encrypted message'
+        ..['isEncrypted'] = true
+        ..['ciphertext'] = encrypted['ciphertext']
+        ..['iv'] = encrypted['iv']
+        ..['senderPublicKey'] = encrypted['senderPublicKey'];
+      if (payload['replyTo'] is Map) {
+        (payload['replyTo'] as Map)['text'] = '🔒 Encrypted message';
+      }
+    }
 
     final acknowledgement = Completer<Map<String, dynamic>>();
     connection.emitWithAck('private_message', payload, ack: (dynamic result) {
@@ -435,6 +496,10 @@ class SocketService extends ChangeNotifier {
       replyToText: pending.replyToText,
       replyToSender: pending.replyToSender,
       attachment: pending.attachment,
+      isEncrypted: !pending.isGroup,
+      ciphertext: payload['ciphertext']?.toString(),
+      iv: payload['iv']?.toString(),
+      senderPublicKey: payload['senderPublicKey']?.toString(),
     );
     final echoAlreadyReceived = _recentOwnMessageEchoIds.remove(messageId);
     if (!echoAlreadyReceived) {
@@ -473,6 +538,7 @@ class SocketService extends ChangeNotifier {
     _isConnected = false;
     _isAuthenticated = false;
     _authenticationReady = null;
+    _registeredIdentityAccount = null;
     _reconnectTimer?.cancel();
 
     // novyn-chat authenticates via cookie on the HTTP handshake,
@@ -498,6 +564,7 @@ class SocketService extends ChangeNotifier {
       _isAuthenticated = false;
       _stealthPreferenceSynced = false;
       _authenticationReady = Completer<void>();
+      _registeredIdentityAccount = null;
       _reconnectTimer?.cancel();
 
       // novyn-chat requires resume_session after connect to authenticate
@@ -511,7 +578,6 @@ class SocketService extends ChangeNotifier {
     });
 
     _socket!.onDisconnect((_) {
-      _stopConnectionHealthMonitor();
       _stopPendingOutboxRetry();
       _isConnecting = false;
       _isConnected = false;
@@ -519,25 +585,25 @@ class SocketService extends ChangeNotifier {
       _isAuthenticated = false;
       // A completed future from an old socket must never authenticate a new one.
       _authenticationReady = null;
+      _registeredIdentityAccount = null;
       notifyListeners();
       if (!_manualDisconnect) _scheduleReconnect(3);
     });
 
     _socket!.onConnectError((_) {
-      _stopConnectionHealthMonitor();
       _stopPendingOutboxRetry();
       _isConnecting = false;
       _isConnected = false;
       SyncService().setOnlineStatus(false);
       _isAuthenticated = false;
       _authenticationReady = null;
+      _registeredIdentityAccount = null;
       notifyListeners();
       if (!_manualDisconnect) _scheduleReconnect(5);
     });
 
     _registerEventHandlers();
     _socket!.on('auth_failed', (data) {
-      _stopConnectionHealthMonitor();
       _stopPendingOutboxRetry();
       _isAuthenticated = false;
       SyncService().setOnlineStatus(false);
@@ -584,9 +650,6 @@ class SocketService extends ChangeNotifier {
       _socket?.emit('app_visibility', {'foreground': true});
     }
     if (_isConnected && _isAuthenticated) {
-      // Probe immediately on resume; background suspension can leave a
-      // transport marked connected even though its application channel died.
-      unawaited(_probeConnectionHealth());
       _requestActiveChatRefresh();
       unawaited(_flushPendingMessageOutbox());
     }
@@ -633,7 +696,7 @@ class SocketService extends ChangeNotifier {
     _socket!.on('register_success', (data) {
       if (data is Map) _handleFriendList(data['friends']);
       _markSocketAuthenticated();
-      unawaited(_flushPendingMessageOutbox());
+      unawaited(_registerEncryptionIdentity().then((_) => _flushPendingMessageOutbox()));
     });
     // ── Initial data + friend list ────────────────────────────────────────
     _socket!.on('init', (data) {
@@ -642,7 +705,7 @@ class SocketService extends ChangeNotifier {
       }
       _markSocketAuthenticated();
       unawaited(
-        _flushPendingMessageOutbox(),
+        _registerEncryptionIdentity().then((_) => _flushPendingMessageOutbox()),
       );
     });
 
@@ -682,6 +745,18 @@ class SocketService extends ChangeNotifier {
       _blockedUsers.removeWhere((value) => value.toLowerCase() == key);
       if (data['blocked'] == true) _blockedUsers.add(username);
       notifyListeners();
+    });
+
+    _socket!.on('peer_public_key_updated', (data) {
+      if (data is Map) {
+        final username = data['username']?.toString() ?? '';
+        _peerKeys[username.toLowerCase()] =
+            data['publicKey']?.toString() ?? '';
+        if (_currentChatWith?.toLowerCase() == username.toLowerCase()) {
+          unawaited(decryptCurrentMessages());
+        }
+        unawaited(_flushPendingMessageOutbox());
+      }
     });
 
     // ── Chat history ──────────────────────────────────────────────────────
@@ -744,18 +819,26 @@ class SocketService extends ChangeNotifier {
                   : 'sent';
         }
         _messageStatusRevision++;
+        final decrypted = await Future.wait(parsed.map((message) {
+          final peerKey = message.isFromMe
+              ? _peerKeys[withUser.toLowerCase()]
+              : (message.senderPublicKey?.isNotEmpty == true
+                  ? message.senderPublicKey
+                  : _peerKeys[withUser.toLowerCase()]);
+          return encryption.decrypt(message, account, peerKey);
+        }));
         if (_myUsername != account ||
             _currentChatWith?.toLowerCase() != withUser.toLowerCase()) {
           return;
         }
         // Merge by message ID instead of replacing the local timeline with
         // only the server's latest page. This preserves older cached messages
-        // and messages received while history was being refreshed.
+        // and messages received while history was being decrypted.
         final merged = <String, Message>{
           for (final message in _messages)
             if (message.id.isNotEmpty) message.id: message,
         };
-        for (final message in parsed) {
+        for (final message in decrypted) {
           if (message.id.isNotEmpty) merged[message.id] = message;
         }
         final timeline = merged.values.toList()
@@ -823,6 +906,14 @@ class SocketService extends ChangeNotifier {
 
       final account = _myUsername;
       if (account == null) return;
+      if (!isGroupMessage) {
+        final peerKey = isOwn
+            ? _peerKeys[chatPartner.toLowerCase()]
+            : (msg.senderPublicKey?.isNotEmpty == true
+                ? msg.senderPublicKey
+                : _peerKeys[chatPartner.toLowerCase()]);
+        msg = await encryption.decrypt(msg, account, peerKey);
+      }
       if (isOwn) {
         _recentOwnMessageEchoIds.add(msgId);
         if (_recentOwnMessageEchoIds.length > 200) {
@@ -876,25 +967,18 @@ class SocketService extends ChangeNotifier {
           }
         }
       } else if (!isOwn) {
-        // While the app is active, Socket.IO owns the in-app alert. In the
-        // background, let the high-priority FCM handler own the system alert;
-        // emitting both paths can create duplicate notifications when Android
-        // keeps the socket process alive for a short time after backgrounding.
-        if (!isGroupMessage && _appForeground) {
+        if (!isGroupMessage) {
           onIncomingMessage?.call(chatPartner, msg.text);
         }
-        // Background notification sound/vibration comes from the OS channel.
-        // Suppress the in-process alert path when relying on FCM.
-        final suppressChatAlert = !_appForeground ||
-            (notificationsMuted?.call(chatPartner) ?? false);
-        if (!suppressChatAlert) {
+        // Sound and vibration remain independent user preferences.
+        if (!(notificationsMuted?.call(chatPartner) ?? false)) {
           unawaited(_playIncomingMessageSound());
-          final vibrate = notificationsVibrate;
-          if (vibrate != null) unawaited(vibrate(chatPartner));
         }
+        final vibrate = notificationsVibrate;
+        if (vibrate != null) unawaited(vibrate(chatPartner));
       }
 
-      // Resolve reply metadata against locally cached originals.
+      // Resolve encrypted reply metadata against locally decrypted originals.
       if (_currentChatWith?.toLowerCase() == chatPartner.toLowerCase()) {
         _messages = _resolveReplyPreviews(_messages);
         HybridDbService.saveMessages(_messages);
@@ -1008,26 +1092,8 @@ class SocketService extends ChangeNotifier {
               ? 'delivered'
               : null;
       if (next == null) return;
-      final deliveredAt = DateTime.tryParse(data['deliveredAt']?.toString() ?? '');
-      final seenAt = DateTime.tryParse(data['seenAt']?.toString() ?? '');
-      var previewChanged = false;
-      _conversations = _conversations.map((chat) {
-        if (chat.lastMessageId != msgId) return chat;
-        previewChanged = true;
-        return chat.copyWith(
-          lastMessageDeliveredAt: deliveredAt ?? chat.lastMessageDeliveredAt,
-          lastMessageSeenAt: seenAt ?? chat.lastMessageSeenAt,
-        );
-      }).toList();
-      if (previewChanged) {
-        unawaited(HybridDbService.saveChats(_conversations));
-      }
-
       final current = _messageStatuses[msgId] ?? 'sent';
-      if (current == 'seen' || (current == 'delivered' && next == 'delivered')) {
-        if (previewChanged) notifyListeners();
-        return;
-      }
+      if (current == 'seen' || (current == 'delivered' && next == 'delivered')) return;
       _messageStatuses[msgId] = next;
       _messageStatusRevision++;
       notifyListeners();
@@ -1228,131 +1294,12 @@ class SocketService extends ChangeNotifier {
     });
   }
 
-  bool get isConnectionDegraded => _connectionDegraded;
-
-  void _stopConnectionHealthMonitor() {
-    _connectionHealthTimer?.cancel();
-    _connectionHealthTimer = null;
-    _connectionHealthMisses = 0;
-    _healthProbeInFlight = false;
-    if (_connectionDegraded) {
-      _connectionDegraded = false;
-      notifyListeners();
-    }
-  }
-
-  void _startConnectionHealthMonitor() {
-    _connectionHealthTimer?.cancel();
-    _connectionHealthMisses = 0;
-    _healthProbeInFlight = false;
-    _connectionDegraded = false;
-    // Weak mobile networks can take several seconds to deliver an ACK.
-    // Probe less aggressively so a delayed response is not mistaken for logout.
-    _connectionHealthTimer = Timer.periodic(
-      const Duration(seconds: 30),
-      (_) => unawaited(_probeConnectionHealth()),
-    );
-    unawaited(_probeConnectionHealth());
-  }
-
-  Future<void> _probeConnectionHealth() async {
-    final connection = _socket;
-    if (!_appForeground ||
-        connection == null ||
-        !_isConnected ||
-        !_isAuthenticated ||
-        _healthProbeInFlight) {
-      return;
-    }
-
-    _healthProbeInFlight = true;
-    final acknowledgement = Completer<bool>();
-    connection.emitWithAck(
-      'client_health_check',
-      {'clientTime': DateTime.now().millisecondsSinceEpoch},
-      ack: (dynamic result) {
-        if (acknowledgement.isCompleted) return;
-        acknowledgement.complete(
-          result is Map &&
-              result['ok'] == true &&
-              result['authenticated'] == true,
-        );
-      },
-    );
-
-    final healthy = await acknowledgement.future.timeout(
-      const Duration(seconds: 18),
-      onTimeout: () => false,
-    );
-    _healthProbeInFlight = false;
-    if (!identical(_socket, connection)) return;
-
-    if (healthy) {
-      _connectionHealthMisses = 0;
-      if (_connectionDegraded) {
-        _connectionDegraded = false;
-        notifyListeners();
-      }
-      return;
-    }
-
-    _connectionHealthMisses++;
-    if (!_connectionDegraded) {
-      _connectionDegraded = true;
-      notifyListeners();
-    }
-    debugPrint(
-      '[NovynSocket] Application health acknowledgement missed '
-      '($_connectionHealthMisses/3).',
-    );
-
-    // A delayed ACK is common on mobile data. Give the application channel
-    // three full probe windows before replacing a half-open transport.
-    if (_connectionHealthMisses >= 3) {
-      _stopConnectionHealthMonitor();
-      _isConnected = false;
-      _isAuthenticated = false;
-      _isConnecting = false;
-      SyncService().setOnlineStatus(false);
-      _socket = null;
-      final wasManualDisconnect = _manualDisconnect;
-      _manualDisconnect = true;
-      connection.dispose();
-      _manualDisconnect = wasManualDisconnect;
-      notifyListeners();
-      if (!_manualDisconnect) _scheduleReconnect(1);
-    }
-  }
-
-  /// A push is a durable hint that a message exists. Refresh server history
-  /// even if the socket transport claims to be connected.
-  void syncMessageFromPush(String peer, {bool isGroup = false}) {
-    final target = peer.trim();
-    if (target.isEmpty) return;
-    final connection = _socket;
-    if (connection == null || !_isConnected || !_isAuthenticated) {
-      setAppForeground(true);
-      return;
-    }
-    connection.emit('get_history', {
-      'to': target,
-      'kind': isGroup ? 'group' : 'friend',
-      'limit': 100,
-    });
-    // Refresh chat previews/unread counts independently of the active timeline.
-    connection.emit('resume_session');
-  }
-
   void _markSocketAuthenticated() {
     if (!_isConnected) return;
     _socketAuthRetryTimer?.cancel();
     _socketAuthRetryTimer = null;
     _socketAuthRetryAttempt = 0;
     _isAuthenticated = true;
-    _startConnectionHealthMonitor();
-    // Consumers such as Privacy settings must be notified after resume_session
-    // is accepted, not only when the raw transport connects.
-    notifyListeners();
     SyncService().setOnlineStatus(true);
     _startPendingOutboxRetry();
     if (!_stealthPreferenceSynced) {
@@ -1400,6 +1347,178 @@ class SocketService extends ChangeNotifier {
     }
   }
 
+  Future<void> _registerEncryptionIdentity() async {
+    final account = _myUsername;
+    final connection = _socket;
+    if (account == null || connection == null || !_isConnected || !_isAuthenticated) return;
+    if (_registeredIdentityAccount == account.toLowerCase()) return;
+    final active = _identityRegistration;
+    if (active != null) return active;
+
+    final task = () async {
+      try {
+        // After reinstall or Clear Storage, do not silently generate and
+        // publish a replacement identity when this account already has a
+        // recoverable key. That would strand new messages on the temporary
+        // identity before the user has a chance to restore the original.
+        if (!await encryption.hasLocalIdentity(account)) {
+          final recoveryReply = Completer<Map<String, dynamic>>();
+          connection.emitWithAck(
+            'get_e2ee_identity_backup',
+            const <String, dynamic>{},
+            ack: (dynamic result) {
+              if (!recoveryReply.isCompleted) {
+                recoveryReply.complete(result is Map
+                    ? Map<String, dynamic>.from(result)
+                    : <String, dynamic>{'ok': false});
+              }
+            },
+          );
+          final recoveryState = await recoveryReply.future.timeout(
+            const Duration(seconds: 8),
+            onTimeout: () => <String, dynamic>{'ok': false},
+          );
+          if (recoveryState['ok'] != true) {
+            throw StateError('Could not verify this account’s E2EE recovery state. Reconnect and try again.');
+          }
+          if (recoveryState['backup'] is Map) {
+            throw StateError('This account has an E2EE recovery backup. Restore it from Settings → Chat Settings before sending messages.');
+          }
+        }
+        final publicKey = await encryption.initializeIdentity(account);
+        if (publicKey.isEmpty || _myUsername != account ||
+            _socket != connection || !_isConnected) return;
+        final completer = Completer<Map<String, dynamic>>();
+        connection.emitWithAck('register_public_key', {'publicKey': publicKey},
+            ack: (dynamic result) {
+          if (!completer.isCompleted) {
+            completer.complete(result is Map
+                ? Map<String, dynamic>.from(result)
+                : <String, dynamic>{'ok': false});
+          }
+        });
+        final result = await completer.future.timeout(
+          const Duration(seconds: 12),
+          onTimeout: () => <String, dynamic>{'ok': false},
+        );
+        if (result['ok'] == true && _myUsername == account && _socket == connection) {
+          _registeredIdentityAccount = account.toLowerCase();
+          unawaited(decryptCurrentMessages());
+        } else {
+          debugPrint('[NovynE2EE] Device identity registration was not confirmed.');
+        }
+      } catch (error) {
+        debugPrint('[NovynE2EE] Identity setup failed: $error');
+        if (error is StateError &&
+            error.message.toString().contains('E2EE recovery backup')) {
+          rethrow;
+        }
+      }
+    }();
+
+    _identityRegistration = task;
+    try {
+      await task;
+    } finally {
+      if (identical(_identityRegistration, task)) _identityRegistration = null;
+    }
+  }
+
+  Future<void> saveE2eeIdentityBackup(String recoveryPassword) async {
+    await _waitForSocketAuthentication();
+    final account = _myUsername;
+    final connection = _socket;
+    if (account == null || connection == null) {
+      throw StateError('Sign in to Novyn before backing up your encryption key.');
+    }
+    await _registerEncryptionIdentity();
+    if (_registeredIdentityAccount != account.toLowerCase()) {
+      throw StateError('Novyn could not verify the active encryption identity.');
+    }
+    final publicKey = await encryption.initializeIdentity(account);
+    final backup = await encryption.exportIdentityRecoveryBackup(
+      account,
+      recoveryPassword,
+    );
+    final completer = Completer<Map<String, dynamic>>();
+    connection.emitWithAck(
+      'save_e2ee_identity_backup',
+      {'publicKey': publicKey, 'backup': backup},
+      ack: (dynamic result) {
+        if (!completer.isCompleted) {
+          completer.complete(result is Map
+              ? Map<String, dynamic>.from(result)
+              : <String, dynamic>{'ok': false});
+        }
+      },
+    );
+    final result = await completer.future.timeout(
+      const Duration(seconds: 12),
+      onTimeout: () => <String, dynamic>{'ok': false},
+    );
+    if (result['ok'] != true) {
+      throw StateError(
+        result['message']?.toString() ?? 'The encrypted recovery backup could not be saved.',
+      );
+    }
+  }
+
+  Future<void> restoreE2eeIdentityBackup(String recoveryPassword) async {
+    await _waitForSocketAuthentication();
+    final account = _myUsername;
+    final connection = _socket;
+    if (account == null || connection == null) {
+      throw StateError('Sign in to Novyn before restoring your encryption key.');
+    }
+    final completer = Completer<Map<String, dynamic>>();
+    connection.emitWithAck(
+      'get_e2ee_identity_backup',
+      const <String, dynamic>{},
+      ack: (dynamic result) {
+        if (!completer.isCompleted) {
+          completer.complete(result is Map
+              ? Map<String, dynamic>.from(result)
+              : <String, dynamic>{'ok': false});
+        }
+      },
+    );
+    final result = await completer.future.timeout(
+      const Duration(seconds: 12),
+      onTimeout: () => <String, dynamic>{'ok': false},
+    );
+    if (result['ok'] != true || result['backup'] is! Map) {
+      throw StateError(
+        result['message']?.toString() ?? 'No E2EE recovery backup exists for this account yet.',
+      );
+    }
+    final backup = Map<String, dynamic>.from(result['backup'] as Map);
+    final restoredPublicKey = await encryption.restoreIdentityRecoveryBackup(
+      backup,
+      account,
+      recoveryPassword,
+    );
+    final serverPublicKey = result['publicKey']?.toString() ?? '';
+    if (!MessageEncryptionService.samePublicKey(restoredPublicKey, serverPublicKey)) {
+      throw StateError('The account recovery backup does not match its registered identity.');
+    }
+
+    // Re-publish the recovered identity and discard peer keys cached against
+    // the temporary identity created on this device before restore.
+    _registeredIdentityAccount = null;
+    _peerKeys.clear();
+    await _registerEncryptionIdentity();
+    if (_registeredIdentityAccount != account.toLowerCase()) {
+      throw StateError('The recovered encryption identity could not be registered.');
+    }
+    if (_currentChatWith != null) {
+      connection.emit('get_history', {
+        'to': _currentChatWith,
+        'kind': _currentChatIsGroup ? 'group' : 'friend',
+      });
+      unawaited(decryptCurrentMessages());
+    }
+  }
+
   // ── Parse friend_list payload into ChatPreview list ───────────────────────
   void _handleFriendList(dynamic data) {
     // Socket.IO callbacks do not await async handlers. Keep failures contained
@@ -1439,11 +1558,9 @@ class SocketService extends ChangeNotifier {
         final displayName = item['displayName']?.toString() ??
             item['name']?.toString() ??
             username;
-        // Legacy encrypted history may no longer contain a readable message body.
+        // The relay keeps the encrypted envelope in lastMessageData. The
+        // legacy lastMessage field may not contain the ciphertext/IV.
         final lastMsg = item['lastMessageData'] ?? item['lastMessage'];
-        final lastMessageData = lastMsg is Map
-            ? Map<String, dynamic>.from(lastMsg)
-            : const <String, dynamic>{};
         final hasConversationActivity =
             (item['lastTimestamp']?.toString().trim().isNotEmpty ?? false) ||
             (lastMsg is Map && lastMsg.isNotEmpty) ||
@@ -1452,6 +1569,10 @@ class SocketService extends ChangeNotifier {
         // in Contacts/Discover, but do not create a Chats row until a first
         // message has actually started the conversation.
         if (!hasConversationActivity) continue;
+
+        if (item['publicKey'] != null) {
+          _peerKeys[username.toLowerCase()] = item['publicKey'].toString();
+        }
 
         final peerModel = UserModel(
           uid: username,
@@ -1473,19 +1594,10 @@ class SocketService extends ChangeNotifier {
           peer: peerModel,
           isGroup: isGroupConversation,
           lastMessage: lastMsg is Map
-              ? (lastMessageData['isEncrypted'] == true
-                  ? 'Previous encrypted message unavailable'
-                  : lastMessageData['text']?.toString() ?? '')
+              ? (lastMsg['isEncrypted'] == true
+                  ? '🔒 Encrypted message'
+                  : lastMsg['text']?.toString() ?? '')
               : lastMsg?.toString() ?? '',
-          lastMessageId: lastMessageData['id']?.toString() ?? '',
-          lastMessageFrom: lastMessageData['from']?.toString() ??
-              item['lastFrom']?.toString() ?? '',
-          lastMessageDeliveredAt: DateTime.tryParse(
-            lastMessageData['deliveredAt']?.toString() ?? '',
-          ),
-          lastMessageSeenAt: DateTime.tryParse(
-            lastMessageData['seenAt']?.toString() ?? '',
-          ),
           // Conversations without a message have no activity time.
           // Keep a stable old sentinel for sorting; the UI hides this value.
           lastTime:
@@ -1495,9 +1607,68 @@ class SocketService extends ChangeNotifier {
         ));
       }
 
+      // Decrypt the latest encrypted previews before publishing the snapshot.
+      // Publishing the placeholder first caused the Chats list to flash
+      // "Encrypted message" while each preview was decrypted asynchronously.
+      for (final item in list) {
+        try {
+          final raw = item['lastMessageData'] ?? item['lastMessage'];
+          if (raw is! Map || raw['isEncrypted'] != true) continue;
+          final peer = item['username']?.toString() ?? '';
+          if (peer.isEmpty) continue;
+
+          final previewIndex = previews.indexWhere(
+            (chat) => chat.peerUid.toLowerCase() == peer.toLowerCase(),
+          );
+          if (previewIndex < 0) continue;
+
+          final previousIndex = _conversations.indexWhere(
+            (chat) => chat.peerUid.toLowerCase() == peer.toLowerCase(),
+          );
+          final incomingTime = previews[previewIndex].lastTime;
+          // Keep an already-decrypted preview visible for the same activity
+          // while refreshing the snapshot; never flash the placeholder again.
+          if (previousIndex >= 0 &&
+              _conversations[previousIndex].lastTime.isAtSameMomentAs(incomingTime) &&
+              _conversations[previousIndex].lastMessage.isNotEmpty &&
+              _conversations[previousIndex].lastMessage != '🔒 Encrypted message') {
+            previews[previewIndex] = previews[previewIndex].copyWith(
+              lastMessage: _conversations[previousIndex].lastMessage,
+            );
+          }
+
+          final decrypted = await encryption.decrypt(
+            Message(
+              id: raw['id']?.toString() ?? '',
+              chatId: peer,
+              text: raw['text']?.toString() ?? '🔒 Encrypted message',
+              isFromMe: raw['from']?.toString().toLowerCase() == account.toLowerCase(),
+              isEncrypted: true,
+              ciphertext: raw['ciphertext']?.toString(),
+              iv: raw['iv']?.toString(),
+              senderPublicKey: raw['senderPublicKey']?.toString(),
+            ),
+            account,
+            raw['from']?.toString().toLowerCase() == account.toLowerCase()
+                ? _peerKeys[peer.toLowerCase()]
+                : (raw['senderPublicKey']?.toString().isNotEmpty == true
+                    ? raw['senderPublicKey']?.toString()
+                    : _peerKeys[peer.toLowerCase()]),
+          );
+          if (_myUsername != account) return;
+          if (!decrypted.needsMessageKey) {
+            previews[previewIndex] = previews[previewIndex].copyWith(
+              lastMessage: decrypted.text,
+            );
+          }
+        } catch (error) {
+          debugPrint('[NovynSocket] Could not decrypt chat preview: $error');
+        }
+      }
+
       if (_myUsername != account) return;
 
-      // Publish the refreshed conversation list.
+      // Publish one stable snapshot only after preview decryption has settled.
       // Local persistence remains asynchronous and does not block first render.
       _conversations = previews;
       _hasLoadedConversations = true;
@@ -1543,6 +1714,9 @@ class SocketService extends ChangeNotifier {
     _peerIsTyping = false;
     _restorePendingMessagesForOpenChat();
     notifyListeners();
+
+    unawaited(decryptCurrentMessages());
+
     // Ask the server whether this chat partner has enabled account-level
     // screenshot protection. Only their preference protects this conversation.
     _activeChatCaptureProtected = false;
@@ -1723,7 +1897,7 @@ class SocketService extends ChangeNotifier {
       isEncrypted: false,
     );
 
-    _messageStatuses[clientTempId] = 'queued';
+    _messageStatuses[clientTempId] = 'sending';
     _messageStatusRevision++;
     _messages = [..._messages, tempMsg];
     notifyListeners();
@@ -1750,13 +1924,14 @@ class SocketService extends ChangeNotifier {
       ));
       await HybridDbService.saveMessage(tempMsg);
 
-      // The durable outbox is the source of truth. Never make the composer
-      // wait for a slow/weak network acknowledgement; flush in the background.
+      // Offline sends are accepted into the durable outbox immediately.
+      // Authenticated reconnect and key registration trigger the actual send.
       if (_isConnected && _isAuthenticated) {
-        unawaited(_flushPendingMessageOutbox());
+        if (!isGroup) await _registerEncryptionIdentity();
+        await _flushPendingMessageOutbox();
       }
     } catch (error) {
-      _messageStatuses[clientTempId] = SyncService().pendingMessages.any((item) => item.tempId == clientTempId) ? 'queued' : 'failed';
+      _messageStatuses[clientTempId] = 'failed';
       _messageStatusRevision++;
       notifyListeners();
       rethrow;
@@ -1947,6 +2122,57 @@ class SocketService extends ChangeNotifier {
     });
   }
 
+  Future<void> decryptCurrentMessages() async {
+    final account = _myUsername;
+    final peer = _currentChatWith;
+    if (account == null || peer == null) return;
+    final snapshot = _messages;
+    final decrypted = await Future.wait(snapshot.map((message) {
+      final peerKey = message.isFromMe
+          ? _peerKeys[peer.toLowerCase()]
+          : (message.senderPublicKey?.isNotEmpty == true
+              ? message.senderPublicKey
+              : _peerKeys[peer.toLowerCase()]);
+      return encryption.decrypt(message, account, peerKey);
+    }));
+    if (_myUsername != account || _currentChatWith != peer) return;
+    final byId = {for (final message in decrypted) message.id: message};
+    _messages = _messages
+        .map((message) => byId[message.id]?.ciphertext == message.ciphertext
+            ? byId[message.id] ?? message
+            : message)
+        .toList();
+    _messages = _resolveReplyPreviews(_messages);
+    await HybridDbService.saveMessages(_messages);
+
+    // Keep the conversation-list preview in sync with the decrypted latest
+    // message. The chat view can decrypt successfully after keys/history load,
+    // while the cached friend-list preview may still contain the ciphertext
+    // placeholder from the initial socket snapshot.
+    if (_messages.isNotEmpty) {
+      final latest = _messages.reduce(
+        (a, b) => a.createdAt.isAfter(b.createdAt) ? a : b,
+      );
+      if (latest.text.isNotEmpty &&
+          latest.text != '🔒 Encrypted message' &&
+          !latest.needsMessageKey) {
+        final previewIndex = _conversations.indexWhere(
+          (chat) => chat.peerUid.toLowerCase() == peer.toLowerCase(),
+        );
+        if (previewIndex >= 0) {
+          final updated = List<ChatPreview>.from(_conversations);
+          updated[previewIndex] = updated[previewIndex].copyWith(
+            lastMessage: latest.text,
+            lastTime: latest.createdAt,
+          );
+          _conversations = updated;
+          await HybridDbService.saveChat(updated[previewIndex]);
+        }
+      }
+    }
+    notifyListeners();
+  }
+
   List<Message> _resolveReplyPreviews(List<Message> messages) {
     final originals = <String, Message>{
       for (final message in messages) message.id: message,
@@ -1957,7 +2183,7 @@ class SocketService extends ChangeNotifier {
       final original = originals[replyId];
       if (original == null ||
           original.text.isEmpty ||
-          original.text == 'Previous encrypted message unavailable') {
+          original.text == '🔒 Encrypted message') {
         return message;
       }
       return message.copyWith(
@@ -1967,6 +2193,23 @@ class SocketService extends ChangeNotifier {
             : (original.isFromMe ? 'You' : original.senderId),
       );
     }).toList();
+  }
+
+  Future<int> importMessageKeys(String file, String password) async {
+    final account = _myUsername;
+    if (account == null) {
+      throw StateError('Sign in before importing message keys.');
+    }
+    final count = await encryption.importKeys(file, password, account);
+    if (_myUsername != account) {
+      throw StateError('Your account changed. Reopen this chat.');
+    }
+    await decryptCurrentMessages();
+    _socket?.emit('resume_session');
+    if (_currentChatWith != null) {
+      _socket?.emit('get_history', {'to': _currentChatWith, 'kind': 'friend'});
+    }
+    return count;
   }
 
   // ── Typing indicators ──────────────────────────────────────────────────────
@@ -2457,18 +2700,10 @@ class SocketService extends ChangeNotifier {
     }
   }
 
-  Future<Map<String, dynamic>> registerFcmToken(
-    String token, {
-    int appBuild = 0,
-    String platform = 'android',
-  }) async {
+  Future<Map<String, dynamic>> registerFcmToken(String token) async {
     _requireConnection();
     final completer = Completer<Map<String, dynamic>>();
-    _socket!.emitWithAck('register_fcm_token', {
-      'token': token,
-      'appBuild': appBuild,
-      'platform': platform,
-    }, ack: (dynamic result) {
+    _socket!.emitWithAck('register_fcm_token', {'token': token}, ack: (dynamic result) {
       completer.complete(result is Map
           ? Map<String, dynamic>.from(result)
           : {'ok': false, 'message': 'The server did not confirm this device.'});
@@ -2479,14 +2714,12 @@ class SocketService extends ChangeNotifier {
     );
   }
 
-  Future<Map<String, dynamic>> clearFcmToken([String? token]) async {
+  Future<Map<String, dynamic>> clearFcmToken() async {
     if (!_isConnected || _socket == null) {
       return {'ok': false, 'message': 'Device is offline.'};
     }
     final completer = Completer<Map<String, dynamic>>();
-    _socket!.emitWithAck('clear_fcm_token', {
-      if (token != null && token.isNotEmpty) 'token': token,
-    }, ack: (dynamic result) {
+    _socket!.emitWithAck('clear_fcm_token', {}, ack: (dynamic result) {
       completer.complete(result is Map
           ? Map<String, dynamic>.from(result)
           : {'ok': false, 'message': 'The server did not confirm device removal.'});
@@ -2763,6 +2996,7 @@ class SocketService extends ChangeNotifier {
   void prependMessages(List<Message> older) {
     _messages = [...older, ..._messages];
     notifyListeners();
+    unawaited(decryptCurrentMessages());
   }
 
   // ── Update conversations preview in memory ────────────────────────────────
@@ -2796,7 +3030,6 @@ class SocketService extends ChangeNotifier {
 
   // ── Disconnect ────────────────────────────────────────────────────────────
   void disconnect() {
-    _stopConnectionHealthMonitor();
     _stopPendingOutboxRetry();
     _socketAuthRetryTimer?.cancel();
     _socketAuthRetryTimer = null;
@@ -2808,8 +3041,11 @@ class SocketService extends ChangeNotifier {
     _outboxActivation = null;
     _isAuthenticated = false;
     _hasLoadedConversations = false;
+    _registeredIdentityAccount = null;
+    _identityRegistration = null;
     _authenticationReady = null;
     onAuthenticated = null;
+    _peerKeys.clear();
     _messageStatuses.clear();
     _messageStatusRevision++;
     _blockedUsers.clear();

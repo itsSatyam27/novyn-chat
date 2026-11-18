@@ -52,10 +52,11 @@ export const SettingsDetailView: React.FC<SettingsDetailViewProps> = ({ activeSu
     'privacy-app-lock',
     'privacy-sessions',
     'privacy-linked-devices',
+    'privacy-message-keys',
   ].includes(activeSubSection);
 
   const detailSubtitle = (() => {
-    if (security) return 'Protect your account and signed-in devices.';
+    if (security) return 'Protect your account and access to encrypted messages.';
     if (activeSubSection === 'privacy-password') return 'Choose a strong password or manage your Novyn master password.';
     if (activeSubSection === 'privacy-two-factor') return 'Set up TOTP authenticator protection and emergency backup codes.';
     if (activeSubSection === 'privacy-app-lock') return 'Protect your screen with a 4-digit PIN code when inactive.';
@@ -92,7 +93,7 @@ export const SettingsDetailView: React.FC<SettingsDetailViewProps> = ({ activeSu
         </div>
       </header>
       <div className="conversations-scroll settings-detail-body" key={activeSubSection}>
-        {security ? <SecurityDashboard onSelectSection={onSelectSection} /> : activeSubSection === 'profile-username' ? <UsernameSettings /> : activeSubSection === 'privacy-password' ? <PasswordSettings /> : activeSubSection === 'privacy-two-factor' ? <TwoFactorSettings /> : activeSubSection === 'privacy-app-lock' ? <AppLockSettings /> : activeSubSection === 'privacy-sessions' ? <ActiveSessionsSettings /> : activeSubSection === 'privacy-controls' ? <PrivacyDashboard /> : privacy ? <MobileManagedSetting setting={mobileManagedSettings[activeSubSection]} /> : activeSubSection === 'appear-accessibility' ? <AccessibilityDashboard /> : storage ? <StorageDashboard /> : activeSubSection === 'appear-language' ? <LanguageDashboard /> : (activeSubSection === 'appear-theme' || activeSubSection === 'appear-wallpaper') ? <AppearanceDashboard /> : ['notif-sounds', 'notif-calls', 'notif-previews'].includes(activeSubSection) ? <SoundDashboard active={isVisible} /> : available ? <WebSettings key={activeSubSection} section={activeSubSection} /> : <MobileManagedSetting setting={mobileManagedSettings[activeSubSection]} />}
+        {security ? <SecurityDashboard onSelectSection={onSelectSection} /> : activeSubSection === 'profile-username' ? <UsernameSettings /> : activeSubSection === 'privacy-password' ? <PasswordSettings /> : activeSubSection === 'privacy-two-factor' ? <TwoFactorSettings /> : activeSubSection === 'privacy-app-lock' ? <AppLockSettings /> : activeSubSection === 'privacy-sessions' ? <ActiveSessionsSettings /> : activeSubSection === 'privacy-linked-devices' ? <WebSettings section="privacy-message-keys" /> : activeSubSection === 'privacy-controls' ? <PrivacyDashboard /> : privacy ? <MobileManagedSetting setting={mobileManagedSettings[activeSubSection]} /> : activeSubSection === 'appear-accessibility' ? <AccessibilityDashboard /> : storage ? <StorageDashboard /> : activeSubSection === 'appear-language' ? <LanguageDashboard /> : (activeSubSection === 'appear-theme' || activeSubSection === 'appear-wallpaper') ? <AppearanceDashboard /> : ['notif-sounds', 'notif-calls', 'notif-previews'].includes(activeSubSection) ? <SoundDashboard active={isVisible} /> : available ? <WebSettings key={activeSubSection} section={activeSubSection} /> : <MobileManagedSetting setting={mobileManagedSettings[activeSubSection]} />}
       </div>
     </div>
   );

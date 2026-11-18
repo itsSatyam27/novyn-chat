@@ -85,8 +85,7 @@ class Message extends HiveObject {
   @HiveField(21)
   final String? senderPublicKey;
 
-  // Retained only to read older local message records; Novyn no longer decrypts message ciphertext.
-  bool get needsMessageKey => isEncrypted && text == 'Previous encrypted message unavailable';
+  bool get needsMessageKey => isEncrypted && text == '?? Encrypted message';
 
   // The shared backend sends emoji -> usernames[], while the mobile UI uses
   // username -> emoji. Preserve the older mobile shape too.

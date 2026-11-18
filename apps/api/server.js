@@ -6,15 +6,6 @@ const http = require("http");
 const express = require("express");
 const multer = require("multer");
 const { createMongoStorage } = require("./server/db/mongo");
-const {
-  collectFcmDevices,
-  registerFcmDevice,
-  removeFcmDevice,
-  createFcmMessage,
-  isInvalidFcmTokenError,
-  isRetryableFcmError,
-  parseAndroidReleaseBuild,
-} = require("./server/notification-utils");
 const { createSocketAuthMiddleware } = require("./server/realtime/socket-auth");
 const { isAllowedSocketOrigin } = require("./server/security/origins");
 const { mediaNames, canReadMedia } = require("./server/security/media-access");
@@ -956,7 +947,7 @@ const MONGODB_MESSAGES_COLLECTION = toDisplayName(process.env.MONGODB_MESSAGES_C
 const MIN_PASSWORD_LENGTH = 12;
 const DELETED_MESSAGE_TEXT = "This message was deleted.";
 const CALL_LOG_PREFIX = "__call_log__:";
-const LEGACY_MESSAGE_UNAVAILABLE = "Previous message unavailable";
+const ENCRYPTED_MESSAGE_PLACEHOLDER = "🔒 Encrypted message";
 const PASSWORD_RESET_CODE_TTL_MS = 15 * 60 * 1000;
 const PASSWORD_RESET_MAX_ATTEMPTS = 5;
 const PASSWORD_RESET_WINDOW_MS = 15 * 60 * 1000;
@@ -1534,7 +1525,6 @@ function createUserRecord(username) {
     mutedUsers: new Set(),
     pushSubs: [],
     fcmToken: "",
-    fcmDevices: [],
     isRegistered: false,
     passwordSalt: "",
     passwordHash: "",
@@ -1553,6 +1543,9 @@ function createUserRecord(username) {
     createdAt: "",
     lastSeenAt: "",
     presenceMode: "online",
+    publicKey: "",
+    e2eeIdentityBackup: "",
+    e2eeIdentityBackupPublicKey: "",
     retentionDays: 0,
     callsEnabled: true,
     callPrivacy: "friends",
@@ -1584,7 +1577,6 @@ function serializeState() {
       mutedUsers: Array.from(user.mutedUsers || []),
       pushSubs: Array.isArray(user.pushSubs) ? user.pushSubs : [],
       fcmToken: toDisplayName(user.fcmToken),
-      fcmDevices: collectFcmDevices(user),
       notificationsEnabled: user.notificationsEnabled !== false,
       messagePreviewEnabled: user.messagePreviewEnabled !== false,
       groupNotificationsEnabled: user.groupNotificationsEnabled !== false,
@@ -1603,6 +1595,9 @@ function serializeState() {
       createdAt: toDisplayName(user.createdAt),
       lastSeenAt: toDisplayName(user.lastSeenAt),
       presenceMode: normalizePresenceMode(user.presenceMode),
+      publicKey: toDisplayName(user.publicKey),
+      e2eeIdentityBackup: toDisplayName(user.e2eeIdentityBackup),
+      e2eeIdentityBackupPublicKey: toDisplayName(user.e2eeIdentityBackupPublicKey),
       retentionDays: 0,
       callsEnabled: user.callsEnabled !== false,
         callPrivacy: user.callPrivacy || "friends", messagePrivacy: user.messagePrivacy || "friends",
@@ -1800,7 +1795,6 @@ async function persistMongoNow() {
               mutedUsers: Array.isArray(entry.mutedUsers) ? entry.mutedUsers : [],
               pushSubs: Array.isArray(entry.pushSubs) ? entry.pushSubs : [],
               fcmToken: toDisplayName(entry.fcmToken),
-              fcmDevices: Array.isArray(entry.fcmDevices) ? entry.fcmDevices : [],
               notificationsEnabled: entry.notificationsEnabled !== false,
               messagePreviewEnabled: entry.messagePreviewEnabled !== false,
               groupNotificationsEnabled: entry.groupNotificationsEnabled !== false,
@@ -1819,6 +1813,9 @@ async function persistMongoNow() {
               createdAt: toDisplayName(entry.createdAt),
               lastSeenAt: toDisplayName(entry.lastSeenAt),
               presenceMode: normalizePresenceMode(entry.presenceMode),
+              publicKey: toDisplayName(entry.publicKey),
+              e2eeIdentityBackup: toDisplayName(entry.e2eeIdentityBackup),
+              e2eeIdentityBackupPublicKey: toDisplayName(entry.e2eeIdentityBackupPublicKey),
               callsEnabled: entry.callsEnabled !== false,
               callPrivacy: entry.callPrivacy || "friends",
               messagePrivacy: entry.messagePrivacy || "friends",
@@ -2299,6 +2296,18 @@ function detachSubscriptionFromAll(endpoint, exceptKey) {
   return changed;
 }
 
+function normalizePushPublicKey(value) {
+  const raw = typeof value === "string" ? value.trim() : "";
+  if (!raw || raw.length > 2048) return "";
+  try {
+    const key = JSON.parse(raw);
+    if (key?.kty === "EC" && key?.crv === "P-256" &&
+        typeof key.x === "string" && typeof key.y === "string" &&
+        key.x.length >= 40 && key.y.length >= 40) return raw;
+  } catch (_) {}
+  return "";
+}
+
 function formatPushBody(text, fallback = "New message") {
   const cleaned = String(text || "").replace(/\s+/g, " ").trim();
   if (!cleaned) return fallback;
@@ -2307,25 +2316,21 @@ function formatPushBody(text, fallback = "New message") {
 }
 
 async function sendPushToUser(userKey, payload) {
-  if (!userKey) return { fcmSentCount: 0 };
+  if (!userKey) return;
   const user = users.get(userKey);
-  if (!user || user.notificationsEnabled === false) return { fcmSentCount: 0 };
-  if (payload?.group === true && user.groupNotificationsEnabled === false) {
-    return { fcmSentCount: 0 };
-  }
-
+  if (!user || user.notificationsEnabled === false) return;
+  if (payload?.group === true && user.groupNotificationsEnabled === false) return;
   const previewEnabled = user.messagePreviewEnabled !== false;
   const safePayload = {
     ...payload,
     ...(payload?.type === "message" && !previewEnabled
       ? { body: payload?.group === true ? "New group message" : "You have a new message" }
       : {}),
-    previewEnabled,
     silent: payload?.silent === true,
   };
   const body = JSON.stringify(safePayload);
 
-  // Browser push keeps the existing web-app delivery path.
+  // Browser push subscriptions (web app).
   if (pushEnabled && Array.isArray(user.pushSubs) && user.pushSubs.length > 0) {
     const remaining = [];
     let changed = false;
@@ -2349,85 +2354,111 @@ async function sendPushToUser(userKey, payload) {
     }
   }
 
-  let fcmSentCount = 0;
+  // Firebase Cloud Messaging (Android/iOS app). The mobile client stores its
+  // current token in Firestore at users/<username>. A missing token is normal.
   if (firebaseAdmin) {
-    const allDevices = collectFcmDevices(user);
-    const updateBuild = safePayload.type === "app_update"
-      ? Math.max(0, Number(safePayload.build) || 0)
-      : 0;
-    const targetDevices = updateBuild > 0
-      ? allDevices.filter((device) =>
-          device.platform === "android" &&
-          device.appBuild < updateBuild &&
-          device.lastNotifiedUpdateBuild < updateBuild)
-      : allDevices;
-    const pending = targetDevices.map((device) => device.token);
-    const invalidTokens = new Set();
-    const deliveredTokens = new Set();
-
-    if (pending.length > 0) {
-      const message = createFcmMessage(userKey, user, safePayload);
-      const messaging = admin.messaging(firebaseAdmin);
-
-      // FCM itself queues accepted messages for offline devices. Retry only
-      // transient send failures; never discard a device for a temporary outage.
-      for (let attempt = 0; attempt < 3 && pending.length > 0; attempt++) {
-        const currentBatch = pending.splice(0, pending.length);
-        let retryBatch = [];
+    try {
+      const token = toDisplayName(user.fcmToken);
+      if (token) {
+        const isEncryptedDirectMessage =
+          safePayload.type === "message" &&
+          safePayload.group !== true &&
+          typeof safePayload.ciphertext === "string" &&
+          typeof safePayload.iv === "string" &&
+          typeof safePayload.senderPublicKey === "string";
+        // Encrypted direct messages use data-only delivery. The recipient app
+        // decrypts locally and creates the visible notification; plaintext
+        // never passes through FCM or this server.
+        const isCallPush = safePayload.type === "call";
+        // Direct-message notifications are rendered by the app's background
+        // handler. Sending an FCM notification payload as well makes Android
+        // auto-display a second, generic alert for the same message.
+        const isDirectMessagePush =
+          safePayload.type === "message" && safePayload.group !== true;
+        const data = {
+          type: toDisplayName(safePayload.type) || "message",
+          url: toDisplayName(safePayload.url),
+          tag: toDisplayName(safePayload.tag),
+          chat: toDisplayName(payload?.group === true ? payload?.groupId : payload?.chat) || "",
+          kind: payload?.group === true ? "group" : "friend",
+          // Keep a data-payload copy so Flutter can honor local preview/privacy
+          // preferences and show plaintext previews when the app is backgrounded.
+          ...(!isCallPush ? {
+            title: toDisplayName(safePayload.title) || "Novyn",
+            body: toDisplayName(safePayload.body) || "You have a new message",
+            previewEnabled: previewEnabled ? "1" : "0",
+          } : {}),
+          ...(isCallPush ? {
+            // Bind every call alert to the account whose token received it.
+            recipient: toDisplayName(user.username) || userKey,
+            callStatus: toDisplayName(safePayload.callStatus) || "missed",
+            callId: toDisplayName(safePayload.callId),
+            isVideo: safePayload.isVideo ? "1" : "0",
+            title: toDisplayName(safePayload.title) || "Incoming call",
+            body: toDisplayName(safePayload.body) || "You have an incoming call",
+          } : {}),
+        };
+        if (isEncryptedDirectMessage) {
+          data.title = toDisplayName(safePayload.title) || "Novyn";
+          data.ciphertext = safePayload.ciphertext;
+          data.iv = safePayload.iv;
+          data.senderPublicKey = safePayload.senderPublicKey;
+          data.messageId = toDisplayName(safePayload.messageId);
+          data.previewEnabled = previewEnabled ? "1" : "0";
+        }
+        const message = {
+          token,
+          ...(!isDirectMessagePush && !isCallPush ? {
+            notification: {
+              title: toDisplayName(safePayload.title) || "Novyn",
+              body: toDisplayName(safePayload.body) || "You have a new message",
+            },
+          } : {}),
+          data,
+          android: {
+            priority: safePayload.silent ? "normal" : "high",
+            ...(isCallPush ? { ttl: 45000 } : {}),
+            ...(!isDirectMessagePush && !isCallPush ? {
+              notification: {
+                tag: toDisplayName(safePayload.tag) || undefined,
+                ...(safePayload.silent ? {} : { sound: "default" }),
+              },
+            } : {}),
+          },
+          apns: {
+            headers: (isDirectMessagePush || isCallPush) ? {
+              "apns-push-type": "background",
+              "apns-priority": "5",
+              ...(isCallPush ? { "apns-expiration": String(Math.floor(Date.now() / 1000) + 45) } : {}),
+            } : undefined,
+            payload: {
+              aps: (isDirectMessagePush || isCallPush)
+                ? { "content-available": 1 }
+                : {
+                    alert: {
+                      title: toDisplayName(safePayload.title) || "Novyn",
+                      body: toDisplayName(safePayload.body) || "You have a new message",
+                    },
+                    ...(safePayload.silent ? {} : { sound: "default" }),
+                  },
+            },
+          },
+        };
+        await admin.messaging(firebaseAdmin).send(message);
+      }
+    } catch (err) {
+      const code = err?.code || err?.errorInfo?.code;
+      if (code === "messaging/registration-token-not-registered" ||
+          code === "messaging/invalid-registration-token") {
         try {
-          const response = await messaging.sendEachForMulticast({
-            ...message,
-            tokens: currentBatch,
-          });
-          response.responses.forEach((result, index) => {
-            const token = currentBatch[index];
-            if (result.success) {
-              fcmSentCount++;
-              deliveredTokens.add(token);
-              return;
-            }
-            const code = result.error?.code || result.error?.errorInfo?.code;
-            if (isInvalidFcmTokenError(code)) {
-              invalidTokens.add(token);
-            } else if (attempt < 2 && (isRetryableFcmError(code) || !code)) {
-              retryBatch.push(token);
-            } else {
-              console.warn("Firebase push notification failed:", code || result.error?.message || "Unknown FCM error");
-            }
-          });
-        } catch (err) {
-          const code = err?.code || err?.errorInfo?.code;
-          if (attempt < 2 && (isRetryableFcmError(code) || !code)) {
-            retryBatch = currentBatch;
-          } else {
-            console.warn("Firebase push notification failed:", code || err?.message || err);
-          }
-        }
-
-        pending.push(...retryBatch);
-        if (pending.length > 0 && attempt < 2) {
-          await new Promise((resolve) => setTimeout(resolve, 300 * (attempt + 1)));
-        }
+          user.fcmToken = "";
+          schedulePersist();
+        } catch (_) {}
+      } else {
+        console.warn("Firebase push notification failed:", code || err?.message || err);
       }
     }
-
-    let changed = false;
-    for (const token of invalidTokens) {
-      changed = removeFcmDevice(user, token) || changed;
-    }
-
-    if (updateBuild > 0 && deliveredTokens.size > 0) {
-      user.fcmDevices = collectFcmDevices(user).map((device) =>
-        deliveredTokens.has(device.token)
-          ? { ...device, lastNotifiedUpdateBuild: updateBuild }
-          : device
-      );
-      changed = true;
-    }
-    if (changed) schedulePersist();
   }
-
-  return { fcmSentCount };
 }
 
 async function appendAbuseReport(entry) {
@@ -2460,8 +2491,7 @@ function hydrateMessage(rawMessage) {
     toKey,
     toType,
     groupId: toType === "group" ? toKey : "",
-    text: message.isEncrypted ? LEGACY_MESSAGE_UNAVAILABLE : withUploadToken(message.text),
-    isEncrypted: Boolean(message.isEncrypted),
+    text: withUploadToken(message.text),
     timestamp: toDisplayName(message.timestamp) || nowIso(),
     deliveredAt: toDisplayName(message.deliveredAt) || null,
     seenAt: toDisplayName(message.seenAt) || null,
@@ -2472,6 +2502,9 @@ function hydrateMessage(rawMessage) {
     reactions: message.reactions || {},
     poll: message.poll || null,
     game: message.game || null,
+    ciphertext: toDisplayName(message.ciphertext) || undefined,
+    iv: toDisplayName(message.iv) || undefined,
+    isEncrypted: Boolean(message.isEncrypted),
   };
   if (toType === "group") {
     hydrated.seenBy = seenBy.length ? seenBy : (fromKey ? [fromKey] : []);
@@ -2546,6 +2579,9 @@ function applyLoadedState(parsed) {
     user.createdAt = toDisplayName(entry.createdAt);
     user.lastSeenAt = toDisplayName(entry.lastSeenAt);
     user.presenceMode = normalizePresenceMode(entry.presenceMode);
+    user.publicKey = toDisplayName(entry.publicKey);
+    user.e2eeIdentityBackup = toDisplayName(entry.e2eeIdentityBackup);
+    user.e2eeIdentityBackupPublicKey = toDisplayName(entry.e2eeIdentityBackupPublicKey);
     user.retentionDays = 0;
     user.callPrivacy = ["everyone", "friends", "nobody"].includes(entry.callPrivacy) ? entry.callPrivacy : "friends";
     user.messagePrivacy = ["everyone", "friends", "nobody"].includes(entry.messagePrivacy) ? entry.messagePrivacy : "friends";
@@ -2561,7 +2597,6 @@ function applyLoadedState(parsed) {
       ? entry.pushSubs.filter((sub) => sub && sub.endpoint && sub.keys)
       : [];
     user.fcmToken = toDisplayName(entry.fcmToken);
-    user.fcmDevices = Array.isArray(entry.fcmDevices) ? entry.fcmDevices : [];
     user.notificationsEnabled = entry.notificationsEnabled !== false;
     user.messagePreviewEnabled = entry.messagePreviewEnabled !== false;
     user.groupNotificationsEnabled = entry.groupNotificationsEnabled !== false;
@@ -2665,6 +2700,27 @@ function applyLoadedState(parsed) {
   }
 }
 
+// Older encrypted messages were stored with both ciphertext and the original body.
+// The ciphertext is sufficient for clients to decrypt, so scrub only the redundant
+// plaintext when both cryptographic fields are present.
+function scrubEncryptedMessagePlaintext() {
+  let scrubbed = 0;
+  for (const conversation of conversations.values()) {
+    for (const message of conversation) {
+      if (!message?.isEncrypted || !message.ciphertext || !message.iv) continue;
+      if (message.text !== ENCRYPTED_MESSAGE_PLACEHOLDER) {
+        message.text = ENCRYPTED_MESSAGE_PLACEHOLDER;
+        scrubbed += 1;
+      }
+      if (message.replyTo?.text && message.replyTo.text !== ENCRYPTED_MESSAGE_PLACEHOLDER) {
+        message.replyTo.text = ENCRYPTED_MESSAGE_PLACEHOLDER;
+        scrubbed += 1;
+      }
+    }
+  }
+  return scrubbed;
+}
+
 async function loadStateFromFile() {
   if (!fs.existsSync(DATA_FILE)) {
     return false;
@@ -2732,7 +2788,6 @@ function toSerializedUserEntry(doc) {
     mutedUsers: Array.isArray(doc?.mutedUsers) ? doc.mutedUsers : [],
     pushSubs: Array.isArray(doc?.pushSubs) ? doc.pushSubs : [],
     fcmToken: toDisplayName(doc?.fcmToken),
-    fcmDevices: Array.isArray(doc?.fcmDevices) ? doc.fcmDevices : [],
     notificationsEnabled: doc?.notificationsEnabled !== false,
     messagePreviewEnabled: doc?.messagePreviewEnabled !== false,
     groupNotificationsEnabled: doc?.groupNotificationsEnabled !== false,
@@ -2751,6 +2806,9 @@ function toSerializedUserEntry(doc) {
     createdAt: toDisplayName(doc?.createdAt),
     lastSeenAt: toDisplayName(doc?.lastSeenAt),
     presenceMode: normalizePresenceMode(doc?.presenceMode),
+    publicKey: toDisplayName(doc?.publicKey),
+    e2eeIdentityBackup: toDisplayName(doc?.e2eeIdentityBackup),
+    e2eeIdentityBackupPublicKey: toDisplayName(doc?.e2eeIdentityBackupPublicKey),
     callsEnabled: doc?.callsEnabled !== false,
     callPrivacy: doc?.callPrivacy || "friends", messagePrivacy: doc?.messagePrivacy || "friends",
     profilePhotoPrivacy: doc?.profilePhotoPrivacy || "everyone", presencePrivacy: doc?.presencePrivacy || "everyone", discoverPrivacy: doc?.discoverPrivacy || "everyone",
@@ -2785,6 +2843,9 @@ function toSerializedMessageEntry(doc) {
     attachment: doc?.attachment || undefined,
     poll: doc?.poll || undefined,
     game: doc?.game || undefined,
+    ciphertext: toDisplayName(doc?.ciphertext) || undefined,
+    iv: toDisplayName(doc?.iv) || undefined,
+    senderPublicKey: normalizePushPublicKey(doc?.senderPublicKey) || undefined,
     isEncrypted: Boolean(doc?.isEncrypted),
     seenBy: Array.isArray(doc?.seenBy) ? doc.seenBy : undefined,
     riddle: doc?.riddle || undefined,
@@ -2967,6 +3028,14 @@ async function loadState() {
 
   if (!loaded) {
     loaded = await loadStateFromFile();
+  }
+
+  if (loaded) {
+    const scrubbed = scrubEncryptedMessagePlaintext();
+    if (scrubbed) {
+      await persistNow();
+      console.log(`Removed plaintext from ${scrubbed} encrypted message field(s).`);
+    }
   }
 
   await loadAuthState();
@@ -3353,6 +3422,10 @@ function createStoredMessage(params = {}) {
   if (params.poll) message.poll = params.poll;
   if (params.game) message.game = params.game;
   if (params.riddle) message.riddle = params.riddle;
+  if (params.ciphertext) message.ciphertext = toDisplayName(params.ciphertext);
+  if (params.iv) message.iv = toDisplayName(params.iv);
+  if (params.isEncrypted) message.isEncrypted = Boolean(params.isEncrypted);
+  if (params.senderPublicKey) message.senderPublicKey = normalizePushPublicKey(params.senderPublicKey);
   const temp = toDisplayName(params.clientTempId).slice(0, 64);
   if (temp) message.clientTempId = temp;
   return message;
@@ -3428,6 +3501,10 @@ function deliverFriendMessage(params = {}) {
     poll: params.poll,
     game: params.game,
     riddle: params.riddle,
+    ciphertext: params.ciphertext,
+    iv: params.iv,
+    isEncrypted: params.isEncrypted,
+    senderPublicKey: params.senderPublicKey,
     clientTempId,
   });
 
@@ -3448,13 +3525,22 @@ function deliverFriendMessage(params = {}) {
     io.to(recipientSocketId).emit("private_message", riddleForViewer(message, toKey));
   }
   if (!isSelf && !recipientViewing && !isMutedBy(friend, fromKey)) {
-    const bodyText = formatPushBody(text);
+    const bodyText = params.isEncrypted === true
+      ? "You have a new message"
+      : formatPushBody(text);
     void sendPushToUser(toKey, {
       type: "message",
-      eventId: `message:${message.id}`,
-      messageId: message.id,
       title: `New message from ${me.username}`,
       body: bodyText,
+      ...(params.isEncrypted === true ? {
+        ciphertext: params.ciphertext,
+        iv: params.iv,
+        // Multi-device accounts can have different private ECDH identities.
+        // Use the sender device's key for this message, not the last account
+        // key registered on the server.
+        senderPublicKey: normalizePushPublicKey(params.senderPublicKey) || normalizePushPublicKey(me.publicKey),
+        messageId: message.id || message.messageId || "",
+      } : {}),
       tag: `msg-${fromKey}`,
       chat: me.username,
       url: `/?source=push&chat=${encodeURIComponent(me.username)}`,
@@ -3550,8 +3636,6 @@ function deliverGroupMessage(params = {}) {
       const bodyText = formatPushBody(text);
       void sendPushToUser(memberKey, {
         type: "message",
-        eventId: `message:${message.id}`,
-        messageId: message.id,
         group: true,
         title: `New message in ${group.name}`,
         body: `${me.username}: ${bodyText}`,
@@ -3898,11 +3982,12 @@ function getConversationSummaryByKey(conversationKey) {
       id: message.id,
       from: message.from,
       to: message.to,
-      text: message.isEncrypted && !message.deletedAt ? LEGACY_MESSAGE_UNAVAILABLE : compact,
+      text: message.isEncrypted && !message.deletedAt ? ENCRYPTED_MESSAGE_PLACEHOLDER : compact,
       timestamp: message.timestamp,
-      deliveredAt: message.deliveredAt || null,
-      seenAt: message.seenAt || null,
       isEncrypted: Boolean(message.isEncrypted && !message.deletedAt),
+      ciphertext: !message.deletedAt ? message.ciphertext : undefined,
+      iv: !message.deletedAt ? message.iv : undefined,
+      senderPublicKey: !message.deletedAt ? message.senderPublicKey : undefined,
       attachment: !message.deletedAt ? message.attachment : undefined,
       isVoice: !message.deletedAt && Boolean(message.isVoice || message.attachment?.kind === 'audio'),
     },
@@ -4100,6 +4185,7 @@ function buildFriendList(forUser) {
       displayName: friend?.displayName || "",
       bio: friend?.bio || "",
       lastSeenAt: blocked || !presenceAllowed ? null : getVisibleLastSeen(friend),
+      publicKey: friend?.publicKey || "",
       muted: isMutedBy(user, friendKey),
       memberCount: 2,
       onlineCount: isOnline ? 1 : 0,
@@ -6135,23 +6221,6 @@ io.on("connection", (socket) => {
     }
     finalizeSocketAuthentication(socket, user);
   });
-
-  // App-level liveness probe. A live Socket.IO transport alone does not prove
-  // that authenticated application events are reaching this server.
-  socket.on("client_health_check", (payload, acknowledge) => {
-    if (typeof acknowledge !== "function") return;
-    const userKey = resolveCurrentUserKey(socket.data.userKey);
-    const user = userKey ? users.get(userKey) : null;
-    if (!user || !user.isRegistered) {
-      acknowledge({ ok: false, authenticated: false });
-      return;
-    }
-    acknowledge({
-      ok: true,
-      authenticated: true,
-      serverTime: Date.now(),
-    });
-  });
   socket.on("register", (payload) => {
     if (!allowSocketAction(socket, "register", 10, 15 * 60 * 1000)) {
       socket.emit("auth_failed", { message: "Too many authentication attempts. Try again later." });
@@ -6661,19 +6730,17 @@ io.on("connection", (socket) => {
       respond({ ok: false, message: "Invalid device notification token." });
       return;
     }
-    const appBuild = Math.max(0, Math.floor(Number(payload?.appBuild) || 0));
-    const platform = payload?.platform === "ios" ? "ios" : "android";
-    registerFcmDevice(users, userKey, user, token, { appBuild, platform });
+    user.fcmToken = token;
     schedulePersist();
     respond({ ok: true });
   });
 
-  socket.on("clear_fcm_token", (payload, callback) => {
+  socket.on("clear_fcm_token", (callback) => {
     const respond = (result) => { if (typeof callback === "function") callback(result); };
     const userKey = socket.data.userKey;
     const user = userKey ? users.get(userKey) : null;
     if (!user) { respond({ ok: false, message: "Sign in again before clearing this device." }); return; }
-    removeFcmDevice(user, toDisplayName(payload?.token));
+    user.fcmToken = "";
     schedulePersist();
     respond({ ok: true });
   });
@@ -7185,15 +7252,6 @@ io.on("connection", (socket) => {
     reply({ ok: true, username: target.username });
     socket.emit("friend_request_sent", { to: target.username });
     emitRequests(targetKey);
-    void sendPushToUser(targetKey, {
-      type: "friend_request",
-      eventId: `friend-request:${userKey}:${Date.now()}`,
-      title: "New friend request",
-      body: `${me.displayName || me.username} sent you a friend request.`,
-      chat: me.username,
-      from: me.username,
-      displayName: me.displayName || me.username,
-    });
     const targetSocket = onlineUsers.get(targetKey);
     if (targetSocket) {
       io.to(targetSocket).emit("friend_request_received", {
@@ -7244,15 +7302,6 @@ io.on("connection", (socket) => {
 
     me.requests.delete(requesterKey);
     emitRequests(userKey);
-    void sendPushToUser(requesterKey, {
-      type: "friend_request_declined",
-      eventId: `friend-declined:${userKey}:${Date.now()}`,
-      title: "Friend request update",
-      body: `${me.displayName || me.username} declined your friend request.`,
-      chat: me.username,
-      from: me.username,
-      displayName: me.displayName || me.username,
-    });
     const requesterSocket = onlineUsers.get(requesterKey);
     if (requesterSocket) {
       io.to(requesterSocket).emit("friend_request_cancelled", { to: me.username });
@@ -7290,15 +7339,6 @@ io.on("connection", (socket) => {
     emitRequests(userKey);
     emitFriendList(userKey);
     emitFriendList(friendKey);
-    void sendPushToUser(friendKey, {
-      type: "friend_request_accepted",
-      eventId: `friend-accepted:${userKey}:${Date.now()}`,
-      title: "Friend request accepted",
-      body: `${me.displayName || me.username} accepted your friend request.`,
-      chat: me.username,
-      from: me.username,
-      displayName: me.displayName || me.username,
-    });
     socket.emit("friend_request_accepted", { by: friend.username });
 
     const friendSocket = onlineUsers.get(friendKey);
@@ -7701,7 +7741,7 @@ io.on("connection", (socket) => {
           return;
         }
         if (item.isEncrypted) {
-          socket.emit("error_message", { message: "This older message is unavailable and cannot be edited." });
+          socket.emit("error_message", { message: "Encrypted messages cannot be edited yet." });
           return;
         }
         item.text = newText;
@@ -8183,13 +8223,25 @@ io.on("connection", (socket) => {
       return;
     }
 
-    const text = withUploadToken(payload?.text || (payload?.attachment ? '[Attachment]' : ''));
+    const isEncrypted = Boolean(payload?.isEncrypted);
+    const ciphertext = toDisplayName(payload?.ciphertext);
+    const iv = toDisplayName(payload?.iv);
+    const senderPublicKey = normalizePushPublicKey(payload?.senderPublicKey);
+    if (isEncrypted && (!ciphertext || !iv || !senderPublicKey)) {
+      rejectMessage("Invalid encrypted message payload.");
+      return;
+    }
+    // Never store a client-supplied plaintext body for an encrypted message.
+    const text = isEncrypted
+      ? ENCRYPTED_MESSAGE_PLACEHOLDER
+      : withUploadToken(payload?.text || (payload?.attachment ? '[Attachment]' : ''));
     const attachment = sanitizeMessageAttachment(payload?.attachment, text);
     const clientTempId = String(payload?.clientTempId || "").trim();
     const safeClientTempId = clientTempId.slice(0, 64);
     const to = toDisplayName(payload?.to);
     const toType = normalizeChatKind(payload?.toType || "friend");
     const replyTo = normalizeReplyPayload(payload?.replyTo);
+    if (isEncrypted && replyTo) replyTo.text = ENCRYPTED_MESSAGE_PLACEHOLDER;
     const rawGame = payload?.game || null;
     let game = null;
     if (rawGame) {
@@ -8244,6 +8296,10 @@ io.on("connection", (socket) => {
       replyTo,
       game,
       poll,
+      ciphertext,
+      iv,
+      isEncrypted,
+      senderPublicKey,
       clientTempId: safeClientTempId,
     });
     if (!result.ok) {
@@ -8334,6 +8390,113 @@ io.on("connection", (socket) => {
       if (senderSocketId) io.to(senderSocketId).emit("riddle_updated", riddleForViewer(message, resolved.targetKey));
     }
     respond({ ok: true, riddle: recipientView.riddle });
+  });
+
+  socket.on("register_public_key", (payload, callback) => {
+    const respond = typeof callback === "function" ? callback : (d) => socket.emit("public_key_registered", d);
+    const userKey = socket.data.userKey;
+    if (!userKey) {
+      respond({ ok: false, message: "Unauthorized" });
+      return;
+    }
+    const publicKey = toDisplayName(payload?.publicKey || payload);
+    if (!publicKey) {
+      respond({ ok: false, message: "Public key is required" });
+      return;
+    }
+    const user = users.get(userKey);
+    if (user) {
+      user.publicKey = publicKey;
+      schedulePersist();
+      // Notify friends of updated public key
+      for (const friendKey of user.friends || []) {
+        const friendSocket = onlineUsers.get(friendKey);
+        if (friendSocket) {
+          io.to(friendSocket).emit("peer_public_key_updated", {
+            username: user.username,
+            publicKey,
+          });
+        }
+      }
+      respond({ ok: true, publicKey });
+    }
+  });
+
+  socket.on("get_public_key", (payload, callback) => {
+    const respond = typeof callback === "function" ? callback : (d) => socket.emit("public_key_response", d);
+    const targetName = toDisplayName(payload?.username || payload?.target || payload);
+    const targetKey = normalizeName(targetName);
+    const target = users.get(targetKey);
+    const publicKey = target?.publicKey || "";
+    respond({ username: target?.username || targetName, publicKey });
+  });
+
+  socket.on("save_e2ee_identity_backup", (payload, callback) => {
+    const respond = typeof callback === "function" ? callback : (data) => socket.emit("e2ee_identity_backup_saved", data);
+    const userKey = socket.data.userKey;
+    const user = userKey ? users.get(userKey) : null;
+    if (!user) {
+      respond({ ok: false, message: "Unauthorized" });
+      return;
+    }
+    const backup = payload?.backup;
+    const publicKey = toDisplayName(payload?.publicKey);
+    if (!backup || typeof backup !== "object" || Array.isArray(backup)) {
+      respond({ ok: false, message: "A valid encrypted identity backup is required." });
+      return;
+    }
+    if (
+      backup.format !== "novyn-e2ee-identity" ||
+      backup.version !== 1 ||
+      normalizeName(backup.username) !== userKey ||
+      backup.publicKey !== publicKey ||
+      !publicKey ||
+      user.publicKey !== publicKey
+    ) {
+      respond({ ok: false, message: "The backup does not match this account's active encryption identity." });
+      return;
+    }
+    let serialized = "";
+    try {
+      serialized = JSON.stringify(backup);
+    } catch (_) {
+      respond({ ok: false, message: "The encrypted identity backup is invalid." });
+      return;
+    }
+    if (serialized.length > 12000) {
+      respond({ ok: false, message: "The encrypted identity backup is too large." });
+      return;
+    }
+    user.e2eeIdentityBackup = serialized;
+    user.e2eeIdentityBackupPublicKey = publicKey;
+    schedulePersist();
+    respond({ ok: true });
+  });
+
+  socket.on("get_e2ee_identity_backup", (_payload, callback) => {
+    const respond = typeof callback === "function" ? callback : (data) => socket.emit("e2ee_identity_backup", data);
+    const userKey = socket.data.userKey;
+    const user = userKey ? users.get(userKey) : null;
+    if (!user) {
+      respond({ ok: false, message: "Unauthorized" });
+      return;
+    }
+    let backup = null;
+    if (user.e2eeIdentityBackup) {
+      try {
+        const parsed = JSON.parse(user.e2eeIdentityBackup);
+        if (parsed && parsed.format === "novyn-e2ee-identity" && normalizeName(parsed.username) === userKey) {
+          backup = parsed;
+        }
+      } catch (_) {
+        backup = null;
+      }
+    }
+    respond({
+      ok: true,
+      backup,
+      publicKey: backup ? toDisplayName(user.e2eeIdentityBackupPublicKey) : "",
+    });
   });
 
   socket.on("schedule_message", (payload) => {
@@ -8703,18 +8866,6 @@ io.on("connection", (socket) => {
       setUnreadCount(member, group.id, 0);
       emitFriendList(memberKey);
       emitGroupInfoToMember(memberKey, group);
-      if (memberKey !== userKey) {
-        void sendPushToUser(memberKey, {
-          type: "group_invite",
-          eventId: `group-invite:${group.id}:${userKey}:${memberKey}`,
-          title: `Added to ${group.name}`,
-          body: `${me.displayName || me.username} added you to the group ${group.name}.`,
-          from: me.username,
-          displayName: me.displayName || me.username,
-          chat: group.id,
-          groupId: group.id,
-        });
-      }
       const memberSocket = onlineUsers.get(memberKey);
       if (memberSocket) {
         io.to(memberSocket).emit("group_created", {
@@ -8756,7 +8907,6 @@ io.on("connection", (socket) => {
 
     const requestedMembers = Array.isArray(payload?.members) ? payload.members : [];
     const added = [];
-    const addedKeys = [];
     for (const rawMember of requestedMembers) {
       const memberKey = normalizeName(rawMember);
       if (!memberKey || group.members.has(memberKey)) continue;
@@ -8771,7 +8921,6 @@ io.on("connection", (socket) => {
       member.groups.add(group.id);
       setUnreadCount(member, group.id, 0);
       added.push(member.username || memberKey);
-      addedKeys.push(memberKey);
     }
 
     if (!added.length) {
@@ -8779,18 +8928,6 @@ io.on("connection", (socket) => {
     }
 
     group.updatedAt = nowIso();
-    for (const memberKey of addedKeys) {
-      void sendPushToUser(memberKey, {
-        type: "group_invite",
-        eventId: `group-invite:${group.id}:${userKey}:${memberKey}`,
-        title: `Added to ${group.name}`,
-        body: `${me.displayName || me.username} added you to the group ${group.name}.`,
-        from: me.username,
-        displayName: me.displayName || me.username,
-        chat: group.id,
-        groupId: group.id,
-      });
-    }
     const allMembers = Array.from(group.members);
     for (const memberKey of allMembers) {
       emitFriendList(memberKey);
@@ -9274,91 +9411,10 @@ function listenWithPortFallback(preferredPort, options = {}) {
   });
 }
 
-
-const APP_UPDATE_RELEASES_API =
-  "https://api.github.com/repos/itsSatyam27/novyn-chat/releases?per_page=50";
-const APP_UPDATE_APK_NAME = "Novyn-Android-ARM64.apk";
-
-async function checkForPublishedAndroidUpdate() {
-  if (!firebaseAdmin) return;
-  const response = await fetch(APP_UPDATE_RELEASES_API, {
-    headers: {
-      Accept: "application/vnd.github+json",
-      "User-Agent": "Novyn-FCM-Update-Notifier",
-    },
-    signal: AbortSignal.timeout(15000),
-  });
-  if (!response.ok) {
-    throw new Error(`GitHub releases lookup failed (HTTP ${response.status}).`);
-  }
-  const releases = await response.json();
-  if (!Array.isArray(releases)) {
-    throw new Error("GitHub returned an invalid releases list.");
-  }
-
-  let latest = null;
-  for (const release of releases) {
-    if (!release || release.draft === true || release.prerelease === true) continue;
-    const build = parseAndroidReleaseBuild(release.tag_name);
-    if (!Number.isSafeInteger(build) || build <= (latest?.build || -1)) continue;
-    const asset = Array.isArray(release.assets)
-      ? release.assets.find((item) => item?.name === APP_UPDATE_APK_NAME)
-      : null;
-    if (!asset) continue;
-    let url;
-    try { url = new URL(String(asset.browser_download_url || "")); } catch (_) { continue; }
-    if (
-      url.protocol !== "https:" ||
-      url.hostname !== "github.com" ||
-      !url.pathname.includes("/itsSatyam27/novyn-chat/releases/download/") ||
-      !url.pathname.endsWith("/" + APP_UPDATE_APK_NAME)
-    ) continue;
-    latest = {
-      build,
-      tag: String(release.tag_name),
-      releaseUrl: String(release.html_url || ""),
-      downloadUrl: url.toString(),
-    };
-  }
-  if (!latest) return;
-
-  for (const [userKey, user] of users.entries()) {
-    if (!user?.isRegistered || user.notificationsEnabled === false) continue;
-    const outdatedDevices = collectFcmDevices(user).filter((device) =>
-      device.platform === "android" &&
-      device.appBuild < latest.build &&
-      device.lastNotifiedUpdateBuild < latest.build
-    );
-    if (!outdatedDevices.length) continue;
-
-    await sendPushToUser(userKey, {
-      type: "app_update",
-      eventId: `app-update:${latest.build}`,
-      title: "A new Novyn update is available",
-      body: `${latest.tag} is ready. Tap to download and install the latest version.`,
-      build: String(latest.build),
-      releaseTag: latest.tag,
-      releaseUrl: latest.releaseUrl,
-    });
-  }
-}
-
-function startAppUpdateNotificationLoop() {
-  const runCheck = () => {
-    void checkForPublishedAndroidUpdate().catch((error) => {
-      console.warn("[NovynUpdates] FCM release check failed:", error?.message || error);
-    });
-  };
-  runCheck();
-  const timer = setInterval(runCheck, 15 * 60 * 1000);
-  if (typeof timer.unref === "function") timer.unref();
-}
-
 async function bootstrap() {
   await loadState();
   queueAllScheduledMessages();
   startRetentionMaintenanceLoop();
-  startAppUpdateNotificationLoop();
 
   const preferredPort = parsePort(process.env.PORT, 3000);
   const activePort = await listenWithPortFallback(preferredPort, {

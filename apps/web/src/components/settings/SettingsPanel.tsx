@@ -24,6 +24,7 @@ export type SettingsSubSection =
   | 'privacy-controls'
   | 'privacy-stealth'
   | 'privacy-two-factor'
+  | 'privacy-message-keys'
   | 'privacy-receipts'
   | 'privacy-retention'
   | 'privacy-sessions'
@@ -93,6 +94,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ activeSubSection, 
     'privacy-sessions',
     'privacy-danger',
     'privacy-linked-devices',
+    'privacy-message-keys',
   ].includes(activeSubSection);
 
   const activeMenuSection = isSecuritySection ? 'security-dashboard'

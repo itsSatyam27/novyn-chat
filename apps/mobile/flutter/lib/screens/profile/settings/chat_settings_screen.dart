@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/chat_backup_service.dart';
 import '../../../services/settings_service.dart';
+import '../../../services/socket_service.dart';
 import '../../../theme/novyn_theme.dart';
 
 class ChatSettingsScreen extends StatefulWidget {
@@ -66,6 +67,17 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
           ),
           _sizeSettingTile(
             context,
+            icon: Icons.text_fields_rounded,
+            title: 'Message text size',
+            subtitle: 'Change the size of message content',
+            value: settings.fontSize,
+            min: 0.85,
+            max: 1.25,
+            divisions: 8,
+            onChanged: settings.setFontSize,
+          ),
+          _sizeSettingTile(
+            context,
             icon: Icons.label_outline_rounded,
             title: 'Chat labels size',
             subtitle: 'Change timestamps, edited tags and link details',
@@ -91,7 +103,7 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    'Your chat backup is protected with a password you choose. It restores locally cached messages, contacts and chat preferences. Keep your backup password safe—Novyn cannot recover it.',
+                    'Your chat backup is encrypted with a password you choose. It restores locally cached messages, contacts and conversation keys. It does not include the account’s private E2EE identity; use E2EE Account Recovery below for that. Keep both recovery passwords safe—Novyn cannot recover them.',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(height: 1.45, color: colors.onSurfaceVariant),
                   ),
                 ),
@@ -113,6 +125,47 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
             subtitle: 'Import a Novyn backup for this account',
             onTap: _working ? null : () => _runBackup(restore: true),
           ),
+          const SizedBox(height: 22),
+          _section('E2EE ACCOUNT RECOVERY'),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: colors.primary.withValues(alpha: .08),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: colors.primary.withValues(alpha: .16)),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.enhanced_encryption_rounded, color: colors.primary),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Save your message identity to your Novyn account as an encrypted backup. Only your recovery password can unlock it; Novyn cannot read your private key. Use the same password after reinstalling or moving to a new phone. This is separate from your Novyn sign-in password.',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      height: 1.45,
+                      color: colors.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          _backupAction(
+            context,
+            icon: Icons.cloud_upload_outlined,
+            title: 'Back up encryption key',
+            subtitle: 'Securely sync this device identity to your account',
+            onTap: _working ? null : () => _runE2eeRecovery(restore: false),
+          ),
+          _backupAction(
+            context,
+            icon: Icons.key_rounded,
+            title: 'Restore encryption key',
+            subtitle: 'Recover your previous identity on this device',
+            onTap: _working ? null : () => _runE2eeRecovery(restore: true),
+          ),
           if (_working) ...[
             const SizedBox(height: 16),
             const Center(child: CircularProgressIndicator()),
@@ -123,6 +176,69 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
       ),
     );
   }
+
+  String _downloadLabel(String value) => switch (value) {
+    'all' => 'All media',
+    'photos' => 'Photos only',
+    _ => 'Never',
+  };
+
+  String _qualityLabel(String value) => switch (value) {
+    'high' => 'High quality',
+    'medium' => 'Balanced',
+    _ => 'Data saver',
+  };
+
+  Widget _choiceTile(BuildContext context, {
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required String value,
+    required Map<String, String> options,
+    required ValueChanged<String> onChanged,
+  }) => Container(
+    margin: const EdgeInsets.only(bottom: 8),
+    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+    decoration: BoxDecoration(
+      color: NovynTheme.cardBg(context),
+      borderRadius: BorderRadius.circular(17),
+      border: Border.all(color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: .55)),
+    ),
+    child: ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: Icon(icon, color: Theme.of(context).colorScheme.primary),
+      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
+      subtitle: Text(subtitle),
+      trailing: const Icon(Icons.expand_more_rounded),
+      onTap: () => showModalBottomSheet<void>(
+        context: context,
+        showDragHandle: true,
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        builder: (sheetContext) => SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(18, 4, 18, 20),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Align(alignment: Alignment.centerLeft, child: Text(
+                title,
+                style: Theme.of(sheetContext).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+              )),
+              const SizedBox(height: 12),
+              ...options.entries.map((entry) => ListTile(
+                title: Text(entry.value),
+                trailing: value == entry.key
+                    ? Icon(Icons.check_circle_rounded, color: Theme.of(sheetContext).colorScheme.primary)
+                    : null,
+                onTap: () {
+                  onChanged(entry.key);
+                  Navigator.pop(sheetContext);
+                },
+              )),
+            ]),
+          ),
+        ),
+      ),
+    ),
+  );
 
   Widget _section(String title) => Padding(
     padding: const EdgeInsets.fromLTRB(4, 12, 4, 10),
@@ -225,16 +341,18 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
         final counts = await ChatBackupService.restoreBackup(
           username: username,
           password: password,
+          encryption: context.read<SocketService>().encryption,
         );
         if (!mounted || counts == null) return;
-        _message('Restored ${counts['messages']} messages, ${counts['chats']} chats and ${counts['contacts']} contacts. Reopen Chats to refresh the list.');
+        _message('Restored ${counts['messages']} messages, ${counts['chats']} chats, ${counts['contacts']} contacts and ${counts['encryptionKeys']} encryption keys. Reopen Chats to refresh the list.');
       } else {
         final saved = await ChatBackupService.exportBackup(
           username: username,
           password: password,
+          encryption: context.read<SocketService>().encryption,
         );
         if (!mounted) return;
-        _message(saved ? 'Password-protected chat backup saved.' : 'Backup export was cancelled.');
+        _message(saved ? 'Encrypted chat backup saved.' : 'Backup export was cancelled.');
       }
     } catch (error) {
       if (!mounted) return;
@@ -242,6 +360,100 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
     } finally {
       if (mounted) setState(() => _working = false);
     }
+  }
+
+  Future<void> _runE2eeRecovery({required bool restore}) async {
+    final username = context.read<AuthService>().user?.username.trim() ?? '';
+    if (username.isEmpty) {
+      _message('Sign in to a Novyn account before using E2EE recovery.');
+      return;
+    }
+    final password = await _askE2eeRecoveryPassword(restore: restore);
+    if (password == null || !mounted) return;
+    setState(() => _working = true);
+    try {
+      final socket = context.read<SocketService>();
+      if (restore) {
+        await socket.restoreE2eeIdentityBackup(password);
+        if (!mounted) return;
+        _message('Your E2EE identity has been restored and re-registered. Reopen chats to decrypt messages.');
+      } else {
+        await socket.saveE2eeIdentityBackup(password);
+        if (!mounted) return;
+        _message('Encrypted E2EE identity backup saved to your Novyn account.');
+      }
+    } catch (error) {
+      if (!mounted) return;
+      _message(error.toString().replaceFirst('FormatException: ', '').replaceFirst('Bad state: ', ''));
+    } finally {
+      if (mounted) setState(() => _working = false);
+    }
+  }
+
+  Future<String?> _askE2eeRecoveryPassword({required bool restore}) async {
+    final controller = TextEditingController();
+    final confirm = TextEditingController();
+    var obscure = true;
+    final result = await showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => AlertDialog(
+          title: Text(restore ? 'Restore encryption identity' : 'Protect encryption identity'),
+          content: Column(mainAxisSize: MainAxisSize.min, children: [
+            Text(restore
+              ? 'Enter the recovery password you used when backing up this account’s E2EE identity.'
+              : 'Create a recovery password with at least 12 characters. You will need this same password after reinstalling or changing phones.'),
+            const SizedBox(height: 14),
+            TextField(
+              controller: controller,
+              obscureText: obscure,
+              autofocus: true,
+              decoration: InputDecoration(
+                labelText: 'E2EE recovery password',
+                suffixIcon: IconButton(
+                  icon: Icon(obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined),
+                  onPressed: () => setDialogState(() => obscure = !obscure),
+                ),
+              ),
+            ),
+            if (!restore) ...[
+              const SizedBox(height: 10),
+              TextField(
+                controller: confirm,
+                obscureText: obscure,
+                decoration: const InputDecoration(labelText: 'Confirm recovery password'),
+              ),
+            ],
+          ]),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () {
+                final password = controller.text;
+                if (password.trim().length < 12 ||
+                    (!restore && password != confirm.text)) {
+                  dialogContext.showNovynAlert(SnackBar(
+                    content: Text(password.trim().length < 12
+                      ? 'Recovery password must be at least 12 characters.'
+                      : 'Recovery passwords do not match.'),
+                  ));
+                  return;
+                }
+                Navigator.pop(dialogContext, password);
+              },
+              child: Text(restore ? 'Restore' : 'Save recovery backup'),
+            ),
+          ],
+        ),
+      ),
+    );
+    controller.dispose();
+    confirm.dispose();
+    return result;
   }
 
   Future<String?> _askBackupPassword({required bool restore}) async {

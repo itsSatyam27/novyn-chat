@@ -1,5 +1,4 @@
 import 'dart:math' as math;
-import 'package:flutter/gestures.dart';
 import '../../widgets/novyn_alert.dart';
 import 'dart:async';
 import 'dart:io';
@@ -125,14 +124,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
   final AudioPlayer _audioPlayer = AudioPlayer();
   bool _loading = true;
   bool _initialPositionReady = false;
-  bool _initialPositionScheduled = false;
   bool _sending = false;
   bool _loadingOlder = false;
   bool _hasMore = true;
   bool _fetchingFromServer =
-      false; // true while both local cache and server history are unresolved
-  bool _cacheReadComplete = false;
-  bool _secondaryCacheReadComplete = false;
+      false; // true only when cache empty + waiting for API
   String? _chatId;
   String? _myUid;
   bool _peerIsOnline = false;
@@ -324,7 +320,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
         _showJumpToLatest = !nearLatest;
       });
     }
-    if (_scroll.position.extentBefore <= 80 &&
+    if (_scroll.position.pixels <= 80 &&
         !_loadingOlder &&
         _hasMore &&
         _chatId != null) {
@@ -389,33 +385,32 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
         ? (widget.peer.uid.isNotEmpty ? widget.peer.uid : widget.peer.username)
         : widget.peer.username;
 
-    final chatId = _chatId!;
-    _cacheReadComplete = false;
-    _secondaryCacheReadComplete = false;
+    final cacheWatch = Stopwatch()..start();
+    List<Message> cachedMessages = [];
+    try {
+      // Render the complete Hive cache first; Drift is warmed and merged later.
+      cachedMessages = await HybridDbService.getCachedMessages(_chatId!)
+          .timeout(const Duration(seconds: 4), onTimeout: () => <Message>[]);
+    } catch (error) {
+      debugPrint('[NovynChat] Local message cache read failed: $error');
+    }
+    debugPrint('[NovynPerf] chat_cache_ms=${cacheWatch.elapsedMilliseconds} count=${cachedMessages.length}');
+    if (!mounted) return;
 
-    // Start the socket request immediately instead of waiting for Hive to scan
-    // the local message box. The screen can now paint its header, composer and
-    // loading/empty state on the first frame while both sources load in parallel.
+    // openChat requests history from the authenticated Socket.IO session and
+    // completes only after the matching conversation response is processed.
+    // Avoid the legacy REST history endpoint, which can return an empty list
+    // independently of the live conversation and race the socket response.
     final historyRequest = socket.openChat(
-      chatId,
-      const <Message>[],
+      _chatId!,
+      cachedMessages,
       isGroup: widget.isGroup,
     );
-
-    if (mounted) {
-      setState(() {
-        _loading = false;
-        // Keep the timeline covered until local cache and server history have
-        // both settled and the first scroll position has been established.
-        _fetchingFromServer = true;
-      });
-    }
-
-    final cacheWatch = Stopwatch()..start();
-    unawaited(_loadLocalChatHistory(chatId, socket, cacheWatch));
-    // Drift may contain rows written by an earlier app version that are not
-    // yet present in Hive. Hydrate those missing IDs in the background too.
-    unawaited(_hydrateIndexedCache(chatId, socket));
+    unawaited(_hydrateIndexedCache(_chatId!, socket));
+    setState(() {
+      _loading = false;
+      _fetchingFromServer = cachedMessages.isEmpty;
+    });
 
     try {
       final history = await historyRequest;
@@ -423,94 +418,39 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
 
       if (history.isNotEmpty) {
         // The socket service has already merged these messages into the
-        // active timeline. Persist the confirmed snapshot in the background.
+        // active timeline. Persist the confirmed snapshot and reveal it.
         unawaited(HybridDbService.saveMessages(history));
-        unawaited(HybridDbService.setLastSync(chatId, DateTime.now()));
+        unawaited(HybridDbService.setLastSync(_chatId!, DateTime.now()));
+        _jumpToLatestImmediately();
+      } else if (socket.messages.isNotEmpty) {
+        // A live message may have arrived while the history request was in flight.
+        _jumpToLatestImmediately();
+      } else {
+        setState(() => _initialPositionReady = true);
       }
 
       final settings = context.read<SettingsService>();
       if (settings.readReceipts && !widget.isGroup) {
-        unawaited(ApiService.markRead(chatId, _myUid!));
+        unawaited(ApiService.markRead(_chatId!, _myUid!));
       }
     } catch (error) {
       debugPrint('[NovynChat] Conversation history load failed: $error');
-      // Initial positioning is coordinated after both cache and server finish.
+      if (mounted) {
+        if (socket.messages.isNotEmpty) {
+          _jumpToLatestImmediately();
+        } else {
+          setState(() => _initialPositionReady = true);
+        }
+      }
     } finally {
-      _refreshInitialHistoryLoadingState(socket);
-    }
-  }
-
-  Future<void> _loadLocalChatHistory(
-    String chatId,
-    SocketService socket,
-    Stopwatch cacheWatch,
-  ) async {
-    try {
-      final cachedMessages = await HybridDbService.getCachedMessages(chatId)
-          .timeout(const Duration(seconds: 4), onTimeout: () => <Message>[]);
-      if (!mounted ||
-          _chatId != chatId ||
-          socket.currentChatWith?.trim().toLowerCase() !=
-              chatId.trim().toLowerCase()) {
-        return;
-      }
-
-      // The network can win the race. Backfill only IDs that are still absent
-      // so an older disk copy never overwrites newer server message state.
-      final existingIds = socket.messages.map((message) => message.id).toSet();
-      final missing = cachedMessages
-          .where((message) => !existingIds.contains(message.id))
-          .toList();
-      if (missing.isNotEmpty) socket.mergeChatHistory(missing);
-
-      debugPrint(
-        '[NovynPerf] chat_cache_ms=${cacheWatch.elapsedMilliseconds} '
-        'count=${cachedMessages.length} backfilled=${missing.length}',
-      );
-    } catch (error) {
-      debugPrint('[NovynChat] Local message cache read failed: $error');
-    } finally {
-      if (mounted && _chatId == chatId) {
-        _cacheReadComplete = true;
-        _refreshInitialHistoryLoadingState(socket);
-      }
-    }
-  }
-
-  void _refreshInitialHistoryLoadingState(SocketService socket) {
-    if (!mounted) return;
-    // The primary local cache is enough to reveal the timeline. The secondary
-    // index is bounded separately, and network history must never keep the
-    // first screen covered: it hydrates the visible timeline in the background.
-    final initialHistoryComplete = _cacheReadComplete &&
-        _secondaryCacheReadComplete;
-    final waiting = socket.messages.isEmpty && !initialHistoryComplete;
-    if (_fetchingFromServer != waiting) {
-      setState(() => _fetchingFromServer = waiting);
-    }
-
-    if (!initialHistoryComplete) return;
-
-    if (socket.messages.isNotEmpty) {
-      // Only position the timeline once both sources have finished merging.
-      // This prevents cached rows arriving after the first frame from causing
-      // the user to see the list at an intermediate offset before it scrolls.
-      if (!_initialPositionScheduled) {
-        _initialPositionScheduled = true;
-        _jumpToLatestImmediately();
-      }
-    } else if (!_initialPositionReady) {
-      setState(() => _initialPositionReady = true);
+      if (mounted) setState(() => _fetchingFromServer = false);
     }
   }
 
   Future<void> _hydrateIndexedCache(String chatId, SocketService socket) async {
     final watch = Stopwatch()..start();
     try {
-      final merged = await HybridDbService.getMessages(chatId).timeout(
-        const Duration(milliseconds: 2500),
-        onTimeout: () => <Message>[],
-      );
+      final merged = await HybridDbService.getMessages(chatId);
       if (!mounted || _chatId != chatId || merged.isEmpty) return;
       // Do not let a late, potentially stale disk mirror overwrite newer
       // socket/server message state; only backfill IDs missing from memory.
@@ -522,11 +462,6 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
       debugPrint('[NovynPerf] chat_secondary_cache_ms=${watch.elapsedMilliseconds} backfilled=${missing.length}');
     } catch (error) {
       debugPrint('[NovynChat] Secondary cache hydration failed: $error');
-    } finally {
-      if (mounted && _chatId == chatId) {
-        _secondaryCacheReadComplete = true;
-        _refreshInitialHistoryLoadingState(socket);
-      }
     }
   }
 
@@ -649,9 +584,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
         _scrollToBottom();
       }
 
-      // sendMessage resolves once the durable outbox accepts the message.
-      // A queued message is not a confirmed delivery, so do not play the
-      // "sent" sound until the server acknowledgement arrives.
+      await pendingSend;
+      if (!mounted) return;
+      _playSentSound();
     } catch (error) {
       if (mounted) {
         // Restore the failed text only when the user has not started another
@@ -675,20 +610,58 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
     }
   }
 
-  // Keep the normal oldest-to-newest timeline. Position it at the latest
-  // message before revealing it, so users never see an intermediate offset.
+  // Opening a conversation should land directly on the newest message.
+  // Avoid animating through the entire history, which feels slow on long chats.
   void _jumpToLatestImmediately() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      if (_scroll.hasClients) {
-        _scroll.jumpTo(_scroll.position.maxScrollExtent);
-      }
-      _isNearLatest = true;
-      setState(() {
-        _initialPositionReady = true;
-        _showJumpToLatest = false;
+    // Keep the message list mounted behind a loading veil while Flutter lays
+    // out variable-height bubbles. This prevents the user seeing the initial
+    // top/middle position before the list reaches the true latest message.
+    _initialPositionReady = false;
+    var attempts = 0;
+    var stableFrames = 0;
+    double? previousExtent;
+
+    void retryAfterLayout() {
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        if (!mounted) return;
+        if (!_scroll.hasClients || !_scroll.position.hasContentDimensions) {
+          if (++attempts < 40) {
+            await Future<void>.delayed(const Duration(milliseconds: 30));
+            if (mounted) retryAfterLayout();
+          } else {
+            setState(() => _initialPositionReady = true);
+          }
+          return;
+        }
+
+        final position = _scroll.position;
+        final extent = position.maxScrollExtent;
+        _scroll.jumpTo(extent);
+
+        if (previousExtent != null &&
+            (extent - previousExtent!).abs() < 1.0 &&
+            (position.maxScrollExtent - position.pixels).abs() < 1.0) {
+          stableFrames++;
+        } else {
+          stableFrames = 0;
+        }
+        previousExtent = extent;
+
+        if (++attempts < 40 && stableFrames < 3) {
+          await Future<void>.delayed(const Duration(milliseconds: 30));
+          if (mounted) retryAfterLayout();
+        } else if (mounted) {
+          _isNearLatest = true;
+          setState(() {
+            _initialPositionReady = true;
+            _showJumpToLatest = false;
+          });
+        }
       });
-    });
+    }
+
+    retryAfterLayout();
+    _isNearLatest = true;
   }
 
   void _scrollToBottom({bool force = false}) {
@@ -1115,13 +1088,13 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(
-                      widget.isGroup ? Icons.groups_rounded : Icons.chat_bubble_outline_rounded,
+                      widget.isGroup ? Icons.groups_rounded : Icons.lock_outline_rounded,
                       color: scheme.primary,
                       size: 17,
                     ),
                     const SizedBox(width: 9),
                     Text(
-                      widget.isGroup ? 'Group conversation' : 'Direct conversation',
+                      widget.isGroup ? 'Group conversation' : 'End-to-end encrypted',
                       style: TextStyle(
                         fontFamily: 'PlusJakartaSans',
                         fontSize: 12,
@@ -1306,17 +1279,16 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
     if (peerIsTyping && _isNearLatest) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom(force: true));
     }
-    final itemCount = timelineIndices.length + 1 + (peerIsTyping ? 1 : 0);
     return ListView.builder(
       controller: _scroll,
       padding: const EdgeInsets.fromLTRB(14, 16, 14, 18),
-      itemCount: itemCount,
+      itemCount: timelineIndices.length + 1 + (peerIsTyping ? 1 : 0), // start marker + date/message rows + typing
       // Performance optimizations
       addAutomaticKeepAlives: false,
       addRepaintBoundaries: true,
-      cacheExtent: 500,
+      cacheExtent: 500, // Cache 500px above/below viewport
       itemBuilder: (context, i) {
-        // Logical item zero is the start marker at the visual top.
+        // Top item: loading indicator or "start of conversation"
         if (i == 0) {
           if (_loadingOlder) {
             return Padding(
@@ -3341,105 +3313,12 @@ ${htmlMessages}
   }
 }
 
-// ── Clickable URLs inside message text ─────────────────────────────────────
-class _LinkifiedMessageText extends StatefulWidget {
-  final String text;
-  final TextStyle style;
-  final Color linkColor;
-
-  const _LinkifiedMessageText({
-    required this.text,
-    required this.style,
-    required this.linkColor,
-  });
-
-  @override
-  State<_LinkifiedMessageText> createState() => _LinkifiedMessageTextState();
-}
-
-class _LinkifiedMessageTextState extends State<_LinkifiedMessageText> {
-  final Map<String, TapGestureRecognizer> _recognizers = {};
-
-  @override
-  void dispose() {
-    for (final recognizer in _recognizers.values) {
-      recognizer.dispose();
-    }
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final pattern = RegExp(
-      r'(?:https?://|www\.)[^\s<>()]+|(?:[a-z0-9-]+\.)+[a-z]{2,}(?:/[^\s<>()]*)?',
-      caseSensitive: false,
-    );
-    final spans = <TextSpan>[];
-    var cursor = 0;
-
-    for (final match in pattern.allMatches(widget.text)) {
-      final rawUrl = match.group(0)!;
-      final url = rawUrl.replaceFirst(RegExp(r'[.,!?;:]+$'), '');
-      if (url.isEmpty) continue;
-      final end = match.start + url.length;
-
-      if (match.start > cursor) {
-        spans.add(TextSpan(text: widget.text.substring(cursor, match.start)));
-      }
-
-      final recognizer = _recognizers.putIfAbsent(url, () {
-        return TapGestureRecognizer()
-          ..onTap = () async {
-            final candidate = url.toLowerCase().startsWith('http')
-                ? url
-                : 'https://$url';
-            final uri = Uri.tryParse(candidate);
-            if (uri == null ||
-                (uri.scheme != 'http' && uri.scheme != 'https') ||
-                uri.host.isEmpty) {
-              return;
-            }
-            try {
-              await launchUrl(uri, mode: LaunchMode.externalApplication);
-            } catch (error) {
-              debugPrint('[NovynChat] Could not open message link: $error');
-            }
-          };
-      });
-      spans.add(TextSpan(
-        text: url,
-        style: TextStyle(
-          color: widget.linkColor,
-          decoration: TextDecoration.underline,
-          decorationColor: widget.linkColor.withValues(alpha: 0.75),
-          fontWeight: FontWeight.w600,
-        ),
-        recognizer: recognizer,
-      ));
-      if (end < match.end) {
-        spans.add(TextSpan(text: widget.text.substring(end, match.end)));
-      }
-      cursor = match.end;
-    }
-
-    if (cursor < widget.text.length) {
-      spans.add(TextSpan(text: widget.text.substring(cursor)));
-    }
-
-    return RichText(text: TextSpan(style: widget.style, children: spans));
-  }
-}
-
 // ── Message Bubble ─────────────────────────────────────────────────────────
 class _MessageBubble extends StatelessWidget {
   static final Map<String, Future<Map<String, dynamic>?>> _linkPreviewCache = {};
 
   String? _extractFirstUrl(String text) {
-    final match = RegExp(
-      r'(?:https?://|www\.)[^\s<>()]+|(?:[a-z0-9-]+\.)+[a-z]{2,}(?:/[^\s<>()]*)?',
-      caseSensitive: false,
-    ).firstMatch(text);
-    return match?.group(0)?.replaceFirst(RegExp(r'[.,!?;:]+$'), '');
+    return RegExp(r'https?://\S+', caseSensitive: false).firstMatch(text)?.group(0);
   }
 
   Widget _buildLinkPreview(BuildContext context, String url) {
@@ -3604,7 +3483,7 @@ class _MessageBubble extends StatelessWidget {
                       children: [
                         // Reply quote
                         if (message.replyToText != null &&
-                            message.replyToText != 'Previous encrypted message unavailable') ...[
+                            message.replyToText != '🔒 Encrypted message') ...[
                           Container(
                             padding: const EdgeInsets.all(8),
                             margin: const EdgeInsets.only(bottom: 6),
@@ -3701,20 +3580,17 @@ class _MessageBubble extends StatelessWidget {
                                 (message.attachment['kind']?.toString().toLowerCase() == 'image' ||
                                     message.attachment['mime']?.toString().toLowerCase().startsWith('image/') == true) &&
                                 (message.text as String).trim() == '[Image]'))
-                          _LinkifiedMessageText(
-                            text: novynEmojiText(message.text as String),
-                            style: TextStyle(
-                              fontFamily: 'PlusJakartaSans',
-                              fontSize: 15,
-                              height: 1.35,
-                              color: isMe
-                                  ? Colors.white
-                                  : Theme.of(context).colorScheme.onSurface,
-                            ),
-                            linkColor: isMe
+                          Text(
+                          novynEmojiText(message.text as String),
+                          style: TextStyle(
+                            fontFamily: 'PlusJakartaSans',
+                            fontSize: 15,
+                            height: 1.35,
+                            color: isMe
                                 ? Colors.white
-                                : Theme.of(context).colorScheme.primary,
+                                : Theme.of(context).colorScheme.onSurface,
                           ),
+                        ),
                         if (context.watch<SettingsService>().chatLinkPreviews &&
                             _extractFirstUrl(message.text as String) != null)
                           _buildLinkPreview(context, _extractFirstUrl(message.text as String)!),
@@ -3795,7 +3671,7 @@ class _MessageBubble extends StatelessWidget {
     const emojis = ['❤️', '😂', '😮', '😢', '👍', '🔥'];
     final scheme = Theme.of(context).colorScheme;
     final canCopy = message.text.toString().trim().isNotEmpty &&
-        message.text.toString() != 'Previous encrypted message unavailable';
+        message.text.toString() != '🔒 Encrypted message';
     final socket = context.read<SocketService>();
     final messageId = message.id.toString();
     final status = socket.messageStatusFor(messageId);
@@ -4463,8 +4339,6 @@ class _MessageBubble extends StatelessWidget {
           height: 20,
           child: CustomPaint(painter: _SendingStatusPainter()),
         );
-      case 'queued':
-        return const Icon(Icons.schedule_rounded, color: muted, size: 14);
       case 'sent':
         return const Icon(Icons.check_rounded, color: muted, size: 15);
       case 'delivered':

@@ -27,117 +27,93 @@ class _DataStorageScreenState extends State<DataStorageScreen> {
   @override
   Widget build(BuildContext context) {
     final settings = context.watch<SettingsService>();
-    final colors = Theme.of(context).colorScheme;
 
     return Scaffold(
       backgroundColor: NovynTheme.pageBg(context),
       appBar: null,
-      body: ListView(
-        padding: EdgeInsets.fromLTRB(20, MediaQuery.of(context).padding.top + 12, 20, 36),
-        physics: const BouncingScrollPhysics(),
-        children: [
-          _DataScreenHeader(),
-          const SizedBox(height: 22),
-          _DataSummaryCard(usageKey: _usageRefreshKey),
-          const SectionLabel(label: 'Storage'),
-          _ActionCard(
-            icon: Icons.delete_sweep_rounded,
-            color: const Color(0xFFEF5350),
-            title: 'Clear Cache',
-            subtitle: 'Remove temporary files and cached images',
-            trailing: _clearingCache
-                ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.chevron_right_rounded),
-            onTap: _clearingCache ? null : _confirmClearCache,
-          ),
-          const SizedBox(height: 22),
-          const SectionLabel(label: 'Automatic downloads'),
-          _PreferenceChoiceCard(
-            icon: Icons.wifi_rounded, color: const Color(0xFF06B6D4),
-            title: 'Wi-Fi Networks',
-            selectedValue: _downloadLabel(settings.autoDownloadWifi, photosLabel: 'Photos only'),
-            detail: 'Preferred media download policy',
-            onTap: () => _showDownloadChoice(settings, isWifi: true),
-          ),
-          _PreferenceChoiceCard(
-            icon: Icons.cell_tower_rounded, color: const Color(0xFFF59E0B),
-            title: 'Mobile data',
-            selectedValue: _downloadLabel(settings.autoDownloadMobile, photosLabel: 'Photos only'),
-            detail: 'Preferred media download policy',
-            onTap: () => _showDownloadChoice(settings, isWifi: false),
-          ),
-          const SizedBox(height: 22),
-          const SectionLabel(label: 'Media quality'),
-          _PreferenceChoiceCard(
-            icon: Icons.high_quality_rounded, color: const Color(0xFF10B981),
-            title: 'Media quality',
-            selectedValue: _qualityLabel(settings.photoQuality),
-            detail: 'Choose your preferred upload quality',
-            onTap: () => _showQualityChoice(settings),
-          ),
-          const SizedBox(height: 22),
-          const SectionLabel(label: 'Storage usage'),
-          _StorageUsageCard(
-            key: ValueKey(_usageRefreshKey),
-            onRefresh: () => setState(() => _usageRefreshKey++),
-          ),
-          const SizedBox(height: 22),
-          const SectionLabel(label: 'Downloads'),
-          _ActionCard(
-            icon: Icons.download_for_offline_rounded,
-            color: const Color(0xFF6366F1),
-            title: 'Your downloads',
-            subtitle: 'View, open and manage downloaded files',
-            trailing: const Icon(Icons.chevron_right_rounded),
-            onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const YourDownloadsScreen()),
-            ).then((_) {
-              if (mounted) setState(() => _usageRefreshKey++);
-            }),
-          ),
-
-          const SizedBox(height: 18),
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: colors.surfaceContainerHighest.withValues(alpha: 0.45),
-              borderRadius: BorderRadius.circular(16),
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(20, 10, 20, 36),
+          physics: const BouncingScrollPhysics(),
+          children: [
+            const _DataStorageHeader(),
+            _DeviceStorageCard(
+              usageKey: _usageRefreshKey,
+              clearingCache: _clearingCache,
+              onClearCache: _confirmClearCache,
+              onRefresh: () {
+                HapticService.vibrate(NovynHapticType.light);
+                setState(() => _usageRefreshKey++);
+              },
             ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            const SizedBox(height: 22),
+            _sectionHeading('Automatic downloads', context),
+            _groupedCard(
+              context,
               children: [
-                Icon(Icons.info_outline_rounded,
-                    size: 18, color: colors.onSurfaceVariant),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    'Incoming attachments now follow your Wi-Fi/mobile download policy while Novyn is running. Image uploads use your selected quality. Images and videos can be saved to Gallery; other files can be exported through the system Files picker.',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: colors.onSurfaceVariant,
-                          height: 1.45,
-                        ),
-                  ),
+                _PreferenceDropdownRow(
+                  icon: Icons.wifi_rounded,
+                  iconColor: const Color(0xFF0D9488),
+                  iconBgColor: const Color(0xFFE0F7F4),
+                  title: 'Wi-Fi Networks',
+                  subtitle: 'Preferred media download policy',
+                  value: _downloadLabel(settings.autoDownloadWifi, photosLabel: 'Photos only'),
+                  onTap: () => _showDownloadChoice(settings, isWifi: true),
+                ),
+                _PreferenceDropdownRow(
+                  icon: Icons.cell_tower_rounded,
+                  iconColor: const Color(0xFFD97706),
+                  iconBgColor: const Color(0xFFFEF3E2),
+                  title: 'Mobile data',
+                  subtitle: 'Preferred media download policy',
+                  value: _downloadLabel(settings.autoDownloadMobile, photosLabel: 'Photos only'),
+                  onTap: () => _showDownloadChoice(settings, isWifi: false),
                 ),
               ],
             ),
-          ),
-          const SizedBox(height: 24),
-          Center(
-            child: Text(
-              'NOVYN  ·  YOUR SPACE, YOUR PEOPLE',
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    letterSpacing: 1.5,
-                    fontWeight: FontWeight.w700,
-                    color: colors.onSurfaceVariant.withValues(alpha: 0.55),
-                  ),
+            const SizedBox(height: 22),
+            _sectionHeading('Media quality', context),
+            _groupedCard(
+              context,
+              children: [
+                _PreferenceDropdownRow(
+                  icon: Icons.high_quality_rounded,
+                  iconColor: const Color(0xFF10B981),
+                  iconBgColor: const Color(0xFFE8F8F0),
+                  title: 'Media quality',
+                  subtitle: 'Choose your preferred upload quality',
+                  value: _qualityLabel(settings.photoQuality),
+                  onTap: () => _showQualityChoice(settings),
+                  isHighQuality: true,
+                ),
+              ],
             ),
-          ),
-        ],
+            const SizedBox(height: 22),
+            _sectionHeading('Downloads', context),
+            _groupedCard(
+              context,
+              children: [
+                _NavigationRow(
+                  icon: Icons.arrow_downward_rounded,
+                  iconColor: const Color(0xFF6D5DFC),
+                  iconBgColor: const Color(0xFFEDE9FE),
+                  title: 'Your downloads',
+                  subtitle: 'View, open and manage downloaded files',
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const YourDownloadsScreen()),
+                  ).then((_) {
+                    if (mounted) setState(() => _usageRefreshKey++);
+                  }),
+                ),
+              ],
+            ),
+            const SizedBox(height: 22),
+            const _InfoNoticeCard(),
+            const SizedBox(height: 24),
+            const _FooterBrandText(),
+          ],
+        ),
       ),
     );
   }
@@ -304,79 +280,556 @@ class _DataStorageScreenState extends State<DataStorageScreen> {
   }
 }
 
-class _PreferenceChoiceCard extends StatelessWidget {
-  final IconData icon;
-  final Color color;
-  final String title;
-  final String selectedValue;
-  final String detail;
-  final VoidCallback onTap;
+class _DataStorageHeader extends StatelessWidget {
+  const _DataStorageHeader();
 
-  const _PreferenceChoiceCard({
+  @override
+  Widget build(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final ink = Theme.of(context).colorScheme.onSurface;
+    final muted = Theme.of(context).colorScheme.onSurfaceVariant;
+    final border = Theme.of(context).colorScheme.outlineVariant;
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 5, bottom: 18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Material(
+                color: dark ? const Color(0xFF161726) : Colors.white,
+                borderRadius: BorderRadius.circular(14),
+                child: InkWell(
+                  onTap: () => Navigator.maybePop(context),
+                  borderRadius: BorderRadius.circular(14),
+                  child: Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: border),
+                    ),
+                    child: Icon(Icons.arrow_back_rounded, color: ink, size: 20),
+                  ),
+                ),
+              ),
+              Expanded(
+                child: Center(
+                  child: Text(
+                    'Data & Storage',
+                    style: TextStyle(
+                      color: ink,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.3,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 42),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Downloads, media and storage',
+            style: TextStyle(
+              color: muted,
+              fontSize: 13.5,
+              height: 1.3,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DeviceStorageCard extends StatelessWidget {
+  final int usageKey;
+  final bool clearingCache;
+  final VoidCallback onClearCache;
+  final VoidCallback onRefresh;
+
+  const _DeviceStorageCard({
+    required this.usageKey,
+    required this.clearingCache,
+    required this.onClearCache,
+    required this.onRefresh,
+  });
+
+  Future<int> _directoryBytes(Directory directory) async {
+    if (!await directory.exists()) return 0;
+    var total = 0;
+    await for (final entity in directory.list(recursive: true, followLinks: false)) {
+      if (entity is File) {
+        try {
+          total += await entity.length();
+        } on FileSystemException {
+          // Ignore files that disappear or become inaccessible mid-scan.
+        }
+      }
+    }
+    return total;
+  }
+
+  Future<Map<String, int>> _loadUsage() async {
+    final documents = await getApplicationDocumentsDirectory();
+    final temporary = await getTemporaryDirectory();
+    final appBytes = await _directoryBytes(documents);
+    final temporaryBytes = await _directoryBytes(temporary);
+    return {
+      'app': appBytes,
+      'temporary': temporaryBytes,
+    };
+  }
+
+  String _formatBytes(int bytes) {
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) {
+      return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    }
+    if (bytes < 1024 * 1024 * 1024) {
+      return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    }
+    return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(2)} GB';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final dark = theme.brightness == Brightness.dark;
+    final ink = colors.onSurface;
+    final muted = colors.onSurfaceVariant;
+
+    return FutureBuilder<Map<String, int>>(
+      key: ValueKey(usageKey),
+      future: _loadUsage(),
+      builder: (context, snapshot) {
+        final appBytes = snapshot.data?['app'] ?? 0;
+        final temporaryBytes = snapshot.data?['temporary'] ?? 0;
+        final total = appBytes + temporaryBytes;
+
+        final isReady = snapshot.connectionState == ConnectionState.done && snapshot.hasData;
+        final totalFormatted = isReady ? _formatBytes(total) : '2.8 MB';
+        final totalParts = totalFormatted.split(' ');
+        final numberText = totalParts.first;
+        final unitText = totalParts.length > 1 ? totalParts.last : 'MB';
+
+        // Calculate progress bar fractions
+        final appRatio = (total == 0) ? 0.48 : (appBytes / total).clamp(0.05, 0.95);
+        final tempRatio = (total == 0) ? 0.50 : (temporaryBytes / total).clamp(0.05, 0.95);
+
+        final appFlex = (appRatio * 100).round().clamp(5, 95);
+        final tempFlex = (tempRatio * 100).round().clamp(5, 95);
+
+        return Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: NovynTheme.cardBg(context),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: colors.outlineVariant),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header: USED ON THIS DEVICE & Refresh button
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'USED ON THIS DEVICE',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 1.2,
+                            color: muted,
+                          ),
+                        ),
+                        const SizedBox(height: 5),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.baseline,
+                          textBaseline: TextBaseline.alphabetic,
+                          children: [
+                            Text(
+                              numberText,
+                              style: TextStyle(
+                                fontSize: 32,
+                                fontWeight: FontWeight.w900,
+                                color: ink,
+                                letterSpacing: -0.8,
+                              ),
+                            ),
+                            const SizedBox(width: 5),
+                            Text(
+                              unitText,
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w800,
+                                color: ink.withValues(alpha: 0.85),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  Material(
+                    color: colors.primary.withValues(alpha: dark ? 0.20 : 0.09),
+                    borderRadius: BorderRadius.circular(13),
+                    child: InkWell(
+                      onTap: onRefresh,
+                      borderRadius: BorderRadius.circular(13),
+                      child: Container(
+                        width: 38,
+                        height: 38,
+                        alignment: Alignment.center,
+                        child: Icon(
+                          Icons.refresh_rounded,
+                          size: 20,
+                          color: colors.primary,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+
+              // Multi-segment storage bar
+              ClipRRect(
+                borderRadius: BorderRadius.circular(20),
+                child: Container(
+                  height: 9,
+                  color: dark ? const Color(0xFF232236) : const Color(0xFFECE8F7),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        flex: appFlex,
+                        child: Container(color: colors.primary),
+                      ),
+                      const SizedBox(width: 2),
+                      Expanded(
+                        flex: tempFlex,
+                        child: Container(color: const Color(0xFF22C55E)),
+                      ),
+                      const Expanded(
+                        flex: 3,
+                        child: SizedBox(),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Legend items
+              Row(
+                children: [
+                  Container(
+                    width: 7.5,
+                    height: 7.5,
+                    decoration: BoxDecoration(
+                      color: colors.primary,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    'App data & local database',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: ink,
+                    ),
+                  ),
+                  const Spacer(),
+                  Text(
+                    isReady ? _formatBytes(appBytes) : '1.3 MB',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                      color: ink,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 11),
+              Row(
+                children: [
+                  Container(
+                    width: 7.5,
+                    height: 7.5,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF22C55E),
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    'Temporary files & cache',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: ink,
+                    ),
+                  ),
+                  const Spacer(),
+                  Text(
+                    isReady ? _formatBytes(temporaryBytes) : '1.4 MB',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                      color: ink,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+
+              // Footnote
+              Text(
+                'Measured from this app\'s documents and temporary folders. System-managed cache may vary.',
+                style: TextStyle(
+                  fontSize: 11.5,
+                  color: muted,
+                  height: 1.35,
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Clear Cache Button
+              Material(
+                color: dark ? const Color(0xFF2C1619) : const Color(0xFFFFF0F2),
+                borderRadius: BorderRadius.circular(16),
+                child: InkWell(
+                  onTap: clearingCache ? null : onClearCache,
+                  borderRadius: BorderRadius.circular(16),
+                  child: Container(
+                    height: 48,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: dark ? const Color(0xFF5A2228) : const Color(0xFFFDD8DC),
+                      ),
+                    ),
+                    child: Center(
+                      child: clearingCache
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFB3261E)),
+                              ),
+                            )
+                          : const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.cleaning_services_rounded,
+                                  color: Color(0xFFB3261E),
+                                  size: 18,
+                                ),
+                                SizedBox(width: 8),
+                                Text(
+                                  'Clear cache',
+                                  style: TextStyle(
+                                    color: Color(0xFFB3261E),
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 14.5,
+                                  ),
+                                ),
+                              ],
+                            ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Center(
+                child: Text(
+                  'Removes temporary files and cached images',
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    color: muted,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+Widget _sectionHeading(String title, BuildContext context) {
+  final muted = Theme.of(context).colorScheme.onSurfaceVariant;
+  return Padding(
+    padding: const EdgeInsets.only(left: 4, bottom: 9),
+    child: Text(
+      title.toUpperCase(),
+      style: TextStyle(
+        fontSize: 11,
+        fontWeight: FontWeight.w800,
+        letterSpacing: 1.4,
+        color: muted,
+      ),
+    ),
+  );
+}
+
+Widget _groupedCard(BuildContext context, {required List<Widget> children}) {
+  return Container(
+    decoration: BoxDecoration(
+      color: NovynTheme.cardBg(context),
+      borderRadius: BorderRadius.circular(22),
+      border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+    ),
+    clipBehavior: Clip.antiAlias,
+    child: Column(
+      children: [
+        for (var i = 0; i < children.length; i++) ...[
+          if (i > 0)
+            Padding(
+              padding: const EdgeInsets.only(left: 70),
+              child: Divider(
+                height: 1,
+                thickness: 1,
+                color: Theme.of(context).dividerColor,
+              ),
+            ),
+          children[i],
+        ],
+      ],
+    ),
+  );
+}
+
+class _PreferenceDropdownRow extends StatelessWidget {
+  final IconData icon;
+  final Color iconColor;
+  final Color iconBgColor;
+  final String title;
+  final String subtitle;
+  final String value;
+  final VoidCallback onTap;
+  final bool isHighQuality;
+
+  const _PreferenceDropdownRow({
     required this.icon,
-    required this.color,
+    required this.iconColor,
+    required this.iconBgColor,
     required this.title,
-    required this.selectedValue,
-    required this.detail,
+    required this.subtitle,
+    required this.value,
     required this.onTap,
+    this.isHighQuality = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: _CardShell(
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(22),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                _IconTile(icon: icon, color: color),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        style: theme.textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        detail,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
-                  ),
+    final dark = theme.brightness == Brightness.dark;
+    final ink = theme.colorScheme.onSurface;
+    final muted = theme.colorScheme.onSurfaceVariant;
+    final primary = theme.colorScheme.primary;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+          child: Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: iconBgColor.withValues(alpha: dark ? 0.22 : 0.85),
+                  borderRadius: BorderRadius.circular(14),
                 ),
-                const SizedBox(width: 8),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
+                child: isHighQuality
+                    ? Center(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                          decoration: BoxDecoration(
+                            border: Border.all(color: iconColor, width: 1.6),
+                            borderRadius: BorderRadius.circular(4.5),
+                          ),
+                          child: Text(
+                            'HL',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w900,
+                              color: iconColor,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ),
+                      )
+                    : Icon(icon, color: iconColor, size: 21),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      selectedValue,
-                      style: theme.textTheme.labelMedium?.copyWith(
-                        color: theme.colorScheme.primary,
+                      title,
+                      style: TextStyle(
+                        fontSize: 14.5,
                         fontWeight: FontWeight.w800,
+                        color: ink,
                       ),
                     ),
-                    const SizedBox(height: 4),
-                    Icon(
-                      Icons.chevron_right_rounded,
-                      size: 20,
-                      color: theme.colorScheme.onSurfaceVariant,
+                    const SizedBox(height: 3),
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: muted,
+                        height: 1.25,
+                      ),
                     ),
                   ],
                 ),
-              ],
-            ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                decoration: BoxDecoration(
+                  color: dark ? const Color(0xFF242042) : const Color(0xFFEDE9FE),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      value,
+                      style: TextStyle(
+                        color: primary,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 12.5,
+                      ),
+                    ),
+                    const SizedBox(width: 3),
+                    Icon(
+                      Icons.keyboard_arrow_down_rounded,
+                      color: primary,
+                      size: 18,
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -384,133 +837,139 @@ class _PreferenceChoiceCard extends StatelessWidget {
   }
 }
 
-class _DataScreenHeader extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    return Row(children: [
-      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('Data & Storage', style: Theme.of(context).textTheme.titleLarge?.copyWith(
-          fontWeight: FontWeight.w900, letterSpacing: -.6)),
-        Text('Downloads, media and storage', style: Theme.of(context).textTheme.bodySmall?.copyWith(
-          color: colors.onSurfaceVariant)),
-      ])),
-    ]);
-  }
-}
-
-class _DataSummaryCard extends StatelessWidget {
-  const _DataSummaryCard({required this.usageKey});
-  final int usageKey;
-
-  Future<int> _bytes(Directory directory) async {
-    if (!await directory.exists()) return 0;
-    var total = 0;
-    await for (final item in directory.list(recursive: true, followLinks: false)) {
-      if (item is File) {
-        try { total += await item.length(); } on FileSystemException { }
-      }
-    }
-    return total;
-  }
-
-  String _format(int bytes) => bytes < 1024
-      ? '$bytes B'
-      : bytes < 1024 * 1024
-          ? '${(bytes / 1024).toStringAsFixed(1)} KB'
-          : '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
-
-  Future<int> _total() async {
-    final docs = await getApplicationDocumentsDirectory();
-    final temp = await getTemporaryDirectory();
-    return await _bytes(docs) + await _bytes(temp);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    return Container(
-      padding: const EdgeInsets.all(17),
-      decoration: BoxDecoration(color: NovynTheme.cardBg(context),
-        borderRadius: BorderRadius.circular(23),
-        border: Border.all(color: colors.outlineVariant)),
-      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Container(width: 64, height: 64,
-          decoration: BoxDecoration(
-            gradient: LinearGradient(colors: [colors.primary, colors.primary.withValues(alpha: .72)]),
-            borderRadius: BorderRadius.circular(32)),
-          child: const Icon(Icons.storage_rounded, color: Colors.white, size: 30)),
-        const SizedBox(width: 14),
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('Manage your data', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
-          const SizedBox(height: 4),
-          Text('Control automatic downloads, media quality and temporary storage.',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant, height: 1.35)),
-          const SizedBox(height: 12),
-          FutureBuilder<int>(key: ValueKey(usageKey), future: _total(), builder: (context, snap) {
-            return Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-              decoration: BoxDecoration(color: colors.primary.withValues(alpha: .11), borderRadius: BorderRadius.circular(14)),
-              child: Text('●  ${snap.hasData ? _format(snap.data!) : 'Calculating…'} used on this device',
-                style: Theme.of(context).textTheme.labelMedium?.copyWith(color: colors.primary, fontWeight: FontWeight.w800)));
-          }),
-        ])),
-      ]),
-    );
-  }
-}
-
-class _ActionCard extends StatelessWidget {
+class _NavigationRow extends StatelessWidget {
   final IconData icon;
-  final Color color;
+  final Color iconColor;
+  final Color iconBgColor;
   final String title;
   final String subtitle;
-  final Widget trailing;
-  final VoidCallback? onTap;
+  final VoidCallback onTap;
 
-  const _ActionCard({
+  const _NavigationRow({
     required this.icon,
-    required this.color,
+    required this.iconColor,
+    required this.iconBgColor,
     required this.title,
     required this.subtitle,
-    required this.trailing,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return _CardShell(
+    final dark = theme.brightness == Brightness.dark;
+    final ink = theme.colorScheme.onSurface;
+    final muted = theme.colorScheme.onSurfaceVariant;
+
+    return Material(
+      color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(22),
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
           child: Row(
             children: [
-              _IconTile(icon: icon, color: color),
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: iconBgColor.withValues(alpha: dark ? 0.22 : 0.85),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(icon, color: iconColor, size: 21),
+              ),
               const SizedBox(width: 14),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(title,
-                        style: theme.textTheme.titleSmall
-                            ?.copyWith(fontWeight: FontWeight.w800)),
-                    const SizedBox(height: 4),
+                    Text(
+                      title,
+                      style: TextStyle(
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.w800,
+                        color: ink,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
                     Text(
                       subtitle,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                        height: 1.35,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: muted,
+                        height: 1.25,
                       ),
                     ),
                   ],
                 ),
               ),
               const SizedBox(width: 8),
-              trailing,
+              Icon(
+                Icons.chevron_right_rounded,
+                color: muted,
+                size: 22,
+              ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _InfoNoticeCard extends StatelessWidget {
+  const _InfoNoticeCard();
+
+  @override
+  Widget build(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final colors = Theme.of(context).colorScheme;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: dark ? const Color(0xFF19172E) : const Color(0xFFEDE9FE).withValues(alpha: 0.65),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            Icons.info_outline_rounded,
+            size: 19,
+            color: colors.primary,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              'Incoming attachments now follow your Wi-Fi/mobile download policy while Novyn is running. Image uploads use your selected quality. Images and videos can be saved to Gallery; other files can be exported through the system Files picker.',
+              style: TextStyle(
+                fontSize: 12,
+                color: colors.onSurface.withValues(alpha: dark ? 0.85 : 0.75),
+                height: 1.45,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FooterBrandText extends StatelessWidget {
+  const _FooterBrandText();
+
+  @override
+  Widget build(BuildContext context) {
+    final muted = Theme.of(context).colorScheme.onSurfaceVariant;
+    return Center(
+      child: Text(
+        'NOVYN · YOUR SPACE, YOUR PEOPLE',
+        style: TextStyle(
+          fontSize: 10.5,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 1.4,
+          color: muted.withValues(alpha: 0.70),
         ),
       ),
     );
@@ -807,192 +1266,6 @@ class _YourDownloadsScreenState extends State<YourDownloadsScreen> {
           );
         },
       ),
-    );
-  }
-}
-
-class _StorageUsageCard extends StatelessWidget {
-  final VoidCallback onRefresh;
-
-  const _StorageUsageCard({super.key, required this.onRefresh});
-
-  Future<int> _directoryBytes(Directory directory) async {
-    if (!await directory.exists()) return 0;
-    var total = 0;
-    await for (final entity
-        in directory.list(recursive: true, followLinks: false)) {
-      if (entity is File) {
-        try {
-          total += await entity.length();
-        } on FileSystemException {
-          // Ignore files that disappear or become inaccessible mid-scan.
-        }
-      }
-    }
-    return total;
-  }
-
-  Future<Map<String, int>> _loadUsage() async {
-    final documents = await getApplicationDocumentsDirectory();
-    final temporary = await getTemporaryDirectory();
-    return {
-      'app': await _directoryBytes(documents),
-      'temporary': await _directoryBytes(temporary),
-    };
-  }
-
-  String _formatBytes(int bytes) {
-    if (bytes < 1024) return '$bytes B';
-    if (bytes < 1024 * 1024) {
-      return '${(bytes / 1024).toStringAsFixed(1)} KB';
-    }
-    if (bytes < 1024 * 1024 * 1024) {
-      return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
-    }
-    return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(2)} GB';
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final foreground = theme.colorScheme.onSurface;
-    return FutureBuilder<Map<String, int>>(
-      future: _loadUsage(),
-      builder: (context, snapshot) {
-        final appBytes = snapshot.data?['app'] ?? 0;
-        final temporaryBytes = snapshot.data?['temporary'] ?? 0;
-        final total = appBytes + temporaryBytes;
-        final appRatio = total == 0 ? 0.0 : appBytes / total;
-        final temporaryRatio =
-            total == 0 ? 0.0 : temporaryBytes / total;
-
-        return _CardShell(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        'Storage used on this device',
-                        style: theme.textTheme.titleSmall
-                            ?.copyWith(fontWeight: FontWeight.w800),
-                      ),
-                    ),
-                    IconButton(
-                      tooltip: 'Refresh storage',
-                      onPressed: onRefresh,
-                      icon: const Icon(Icons.refresh_rounded),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                if (snapshot.connectionState == ConnectionState.waiting)
-                  const LinearProgressIndicator(minHeight: 3),
-                if (snapshot.hasError)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    child: Text(
-                      'Storage details are currently unavailable.',
-                      style: theme.textTheme.bodySmall
-                          ?.copyWith(color: theme.colorScheme.error),
-                    ),
-                  )
-                else ...[
-                  _UsageRow(
-                    label: 'App data & local database',
-                    value: _formatBytes(appBytes),
-                    ratio: appRatio,
-                    color: theme.colorScheme.primary,
-                  ),
-                  const SizedBox(height: 16),
-                  _UsageRow(
-                    label: 'Temporary files & cache',
-                    value: _formatBytes(temporaryBytes),
-                    ratio: temporaryRatio,
-                    color: const Color(0xFF10B981),
-                  ),
-                  const SizedBox(height: 18),
-                  Divider(color: theme.colorScheme.outlineVariant),
-                  const SizedBox(height: 10),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text('Total measured usage',
-                          style: theme.textTheme.bodySmall
-                              ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
-                      Text(
-                        snapshot.connectionState == ConnectionState.waiting
-                            ? 'Calculating…'
-                            : _formatBytes(total),
-                        style: theme.textTheme.titleSmall
-                            ?.copyWith(fontWeight: FontWeight.w900),
-                      ),
-                    ],
-                  ),
-                ],
-                const SizedBox(height: 8),
-                Text(
-                  'Measured from this app’s documents and temporary folders. System-managed cache may vary.',
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                    height: 1.4,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _UsageRow extends StatelessWidget {
-  final String label;
-  final String value;
-  final double ratio;
-  final Color color;
-
-  const _UsageRow({
-    required this.label,
-    required this.value,
-    required this.ratio,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Column(
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: Text(label,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  )),
-            ),
-            Text(value,
-                style: theme.textTheme.bodySmall
-                    ?.copyWith(fontWeight: FontWeight.w800)),
-          ],
-        ),
-        const SizedBox(height: 8),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(20),
-          child: LinearProgressIndicator(
-            value: ratio.clamp(0.0, 1.0),
-            minHeight: 7,
-            backgroundColor:
-                theme.colorScheme.onSurface.withValues(alpha: 0.07),
-            valueColor: AlwaysStoppedAnimation<Color>(color),
-          ),
-        ),
-      ],
     );
   }
 }

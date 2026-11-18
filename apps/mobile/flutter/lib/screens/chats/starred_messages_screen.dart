@@ -68,9 +68,9 @@ class _StarredMessagesScreenState extends State<StarredMessagesScreen> {
 
   String _previewText(Message message) {
     final value = message.text.trim();
-    if (value.isNotEmpty && value != 'Previous encrypted message unavailable') return value;
+    if (value.isNotEmpty && value != '?? Encrypted message') return value;
     if (message.attachment != null) return 'Attachment';
-    if (message.isEncrypted) return 'Previous encrypted message unavailable';
+    if (message.isEncrypted) return 'Encrypted message';
     return 'Message';
   }
 

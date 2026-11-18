@@ -218,7 +218,7 @@ export function StorageDashboard() {
       }
       await refreshStorage();
       setIsCleanModalOpen(false);
-      setNotice({ text: 'Selected cache items cleared successfully. Account sessions and settings preserved.', error: false });
+      setNotice({ text: 'Selected cache items cleared successfully. Encryption keys preserved.', error: false });
     } catch {
       setNotice({ text: 'Could not clear cache.', error: true });
     } finally {
@@ -1446,17 +1446,18 @@ export function StorageDashboard() {
                 <Shield size={20} />
               </div>
               <div className="storage-header-info">
-                <h3 className="storage-keys-title">Browser Data &amp; Privacy</h3>
+                <h3 className="storage-keys-title">Browser Data &amp; Encryption Keys</h3>
                 <p>Understanding site data safety.</p>
               </div>
             </div>
 
             <div className="storage-badge-security-status">
-              <ShieldCheck size={14} /> LOCAL DATA CONTROLS
+              <ShieldCheck size={14} /> ZERO-KNOWLEDGE KEYS PRESERVED
             </div>
 
             <p style={{ margin: '0 0 16px', color: '#94a3b8', fontSize: '0.84rem', lineHeight: 1.55 }}>
-              Use these controls to remove cached thumbnails and temporary drafts. Your sign-in session and account preferences are managed separately.
+              Clearing temporary cache using Novyn's storage controls preserves your cryptographic identity and E2EE keys.
+              Resetting your entire browser site cookies will require restoring your keys via <strong>Security &gt; Sync Message Keys</strong>.
             </p>
           </div>
 
@@ -1469,7 +1470,7 @@ export function StorageDashboard() {
                 navigateTo({ tab: 'settings', category: 'security', subSection: 'security-dashboard' });
               }}
             >
-              <span>Manage account security</span>
+              <span>Manage Keys in Security</span>
               <ArrowRight size={13} />
             </button>
           </div>
@@ -1645,7 +1646,7 @@ export function StorageDashboard() {
                 marginBottom: 18,
               }}
             >
-              <ShieldCheck size={16} /> Account sessions and preferences are kept separate from temporary cache files.
+              <ShieldCheck size={16} /> Encryption keys and login sessions are kept safe.
             </div>
 
             <div style={{ display: 'flex', gap: 12 }}>

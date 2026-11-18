@@ -112,19 +112,35 @@ jobs:
           set -euo pipefail
           APK="apps/mobile/flutter/build/app/outputs/flutter-apk/app-release.apk"
           BUILD_TOOLS="$(find "${ANDROID_HOME}/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)"
+          test -f "${APK}" || (echo "::error::Shorebird APK not found at ${APK}" && exit 1)
           "${BUILD_TOOLS}/apksigner" verify --verbose --print-certs "${APK}"
           BADGING="$("${BUILD_TOOLS}/aapt" dump badging "${APK}")"
-          grep -F "package: name='com.example.novyn'" <<< "${BADGING}"
-          grep -F "versionName='1.0.0-beta'" <<< "${BADGING}"
-          VERSION_CODE="$(sed -n "s/.*versionCode='\\([0-9]*\\)'.*/\\1/p" <<< "${BADGING}" | head -n 1)"
-          test -n "${VERSION_CODE}"
-          test "${VERSION_CODE}" -gt 0
-          test "${VERSION_CODE}" -lt 2100000000
+          if ! grep -Fq "package: name='com.example.novyn'" <<< "${BADGING}"; then
+            echo "::error::Unexpected package ID in APK"
+            exit 1
+          fi
+          if ! grep -Fq "versionName='1.0.0-beta'" <<< "${BADGING}"; then
+            echo "::error::Unexpected version name in APK"
+            exit 1
+          fi
+          VERSION_CODE="$(grep -o "versionCode='[0-9]*'" <<< "${BADGING}" | head -n 1 | tr -cd '0-9' || true)"
+          if ! [[ "${VERSION_CODE}" =~ ^[0-9]+$ ]] || [ "${VERSION_CODE}" -le 0 ] || [ "${VERSION_CODE}" -ge 2100000000 ]; then
+            echo "::error::Could not extract a valid Android versionCode from APK metadata"
+            exit 1
+          fi
           echo "apk_version_code=${VERSION_CODE}" >> "${GITHUB_OUTPUT}"
           unzip -t "${APK}" >/dev/null
-          unzip -Z1 "${APK}" | grep -q '^lib/arm64-v8a/'
-          NON_ARM64_LIBS="$(unzip -Z1 "${APK}" | grep -E '^lib/[^/]+/' | grep -v '^lib/arm64-v8a/' || true)"
-          test -z "${NON_ARM64_LIBS}"
+          APK_LIBS="$(unzip -Z1 "${APK}" | grep -E '^lib/[^/]+/' || true)"
+          if ! grep -q '^lib/arm64-v8a/' <<< "${APK_LIBS}"; then
+            echo "::error::APK does not contain ARM64 native libraries"
+            exit 1
+          fi
+          NON_ARM64_LIBS="$(grep -v '^lib/arm64-v8a/' <<< "${APK_LIBS}" || true)"
+          if [ -n "${NON_ARM64_LIBS}" ]; then
+            echo "::error::APK contains unexpected non-ARM64 native libraries:"
+            printf '%s\n' "${NON_ARM64_LIBS}"
+            exit 1
+          fi
           echo "ARM64-only Shorebird APK package, version, ZIP structure, and signature verified." >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Report ARM64 APK size

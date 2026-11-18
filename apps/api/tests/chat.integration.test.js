@@ -173,6 +173,62 @@ test('localhost discovery, requests, reconnect state, and private media', { time
   bob.socket.emit('accept_friend', 'alice');
   assert.equal((await accepted).by, 'bob');
 
+  // The server stores only the client-encrypted identity envelope, scoped
+  // to the authenticated account, and retains it across a socket reconnect.
+  const recoveryWebCrypto = require('node:crypto').webcrypto;
+  const aliceE2ee = await recoveryWebCrypto.subtle.generateKey(
+    { name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveKey']
+  );
+  const aliceE2eePublicKey = JSON.stringify(
+    await recoveryWebCrypto.subtle.exportKey('jwk', aliceE2ee.publicKey)
+  );
+  assert.equal(
+    (await alice.socket.timeout(3000).emitWithAck(
+      'register_public_key', { publicKey: aliceE2eePublicKey },
+    )).ok,
+    true,
+  );
+  const identityRecoveryEnvelope = {
+    format: 'novyn-e2ee-identity',
+    version: 1,
+    iterations: 210000,
+    username: 'alice',
+    publicKey: aliceE2eePublicKey,
+    salt: Buffer.alloc(16, 1).toString('base64'),
+    iv: Buffer.alloc(12, 2).toString('base64'),
+    ciphertext: Buffer.alloc(48, 3).toString('base64'),
+  };
+  const savedIdentityBackup = await alice.socket.timeout(3000).emitWithAck(
+    'save_e2ee_identity_backup',
+    { publicKey: aliceE2eePublicKey, backup: identityRecoveryEnvelope },
+  );
+  assert.equal(savedIdentityBackup.ok, true);
+  const ownIdentityBackup = await alice.socket.timeout(3000).emitWithAck(
+    'get_e2ee_identity_backup', {},
+  );
+  assert.equal(ownIdentityBackup.ok, true);
+  assert.deepEqual(ownIdentityBackup.backup, identityRecoveryEnvelope);
+  assert.equal(ownIdentityBackup.publicKey, aliceE2eePublicKey);
+  const bobIdentityBackup = await bob.socket.timeout(3000).emitWithAck(
+    'get_e2ee_identity_backup', {},
+  );
+  assert.equal(bobIdentityBackup.ok, true);
+  assert.equal(bobIdentityBackup.backup, null, 'a user cannot read another account?s recovery envelope');
+  await new Promise((resolve) => setTimeout(resolve, 250));
+  const persistedIdentityState = JSON.parse(
+    await fs.readFile(path.join(directory, 'data', 'chat-state.json'), 'utf8'),
+  );
+  const alicePersistedIdentity = persistedIdentityState.users.find((entry) => entry.key === 'alice');
+  assert.equal(alicePersistedIdentity.e2eeIdentityBackup, JSON.stringify(identityRecoveryEnvelope));
+  assert.equal(alicePersistedIdentity.e2eeIdentityBackupPublicKey, aliceE2eePublicKey);
+  alice.socket.disconnect();
+  const restoredAliceIdentitySocket = await connect(alice.cookie);
+  alice.socket = restoredAliceIdentitySocket.socket;
+  const identityBackupAfterReconnect = await alice.socket.timeout(3000).emitWithAck(
+    'get_e2ee_identity_backup', {},
+  );
+  assert.deepEqual(identityBackupAfterReconnect.backup, identityRecoveryEnvelope);
+
   // Profile photos are private media too: Everyone must be viewable by a
   // non-friend, while Friends must allow Bob but deny Eve.
   const avatarForm = new FormData();
@@ -280,43 +336,55 @@ test('localhost discovery, requests, reconnect state, and private media', { time
     }
   }
 
-  // Direct messages now use ordinary text payloads. Both participants receive
-  // readable previews, retries are idempotent, and deleted previews are removed.
-  const plaintext = 'Plain text message preview works';
-  const isPlainSummary = ({ friends }) => friends.some(
-    (friend) => friend.lastMessageData?.text === plaintext,
+  // Both participants receive an encrypted preview envelope, including after a
+  // reload. The relay keeps its legacy placeholder and never returns plaintext.
+  const { webcrypto } = require('node:crypto');
+  const previewKey = await webcrypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+  const plaintext = 'This preview is decrypted only on the device';
+  const ivBytes = webcrypto.getRandomValues(new Uint8Array(12));
+  const ciphertext = Buffer.from(await webcrypto.subtle.encrypt({ name: 'AES-GCM', iv: ivBytes }, previewKey, Buffer.from(plaintext))).toString('base64');
+  const iv = Buffer.from(ivBytes).toString('base64');
+  const senderIdentity = await webcrypto.subtle.generateKey(
+    { name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveKey']
   );
-  const senderSummary = event(alice.socket, 'friend_list_updated', isPlainSummary);
-  const receiverSummary = event(bob.socket, 'friend_list_updated', isPlainSummary);
-  const plainPayload = { to: 'bob', text: plaintext, clientTempId: 'retry-test-1' };
-  const sentAck = await alice.socket.timeout(3000).emitWithAck('private_message', plainPayload);
+  const senderPublicKey = JSON.stringify(
+    await webcrypto.subtle.exportKey('jwk', senderIdentity.publicKey)
+  );
+  const isEncryptedSummary = ({ friends }) => friends.some((friend) => friend.lastMessageData?.ciphertext === ciphertext);
+  const senderSummary = event(alice.socket, 'friend_list_updated', isEncryptedSummary);
+  const receiverSummary = event(bob.socket, 'friend_list_updated', isEncryptedSummary);
+  const encryptedPayload = {
+    to: 'bob', text: plaintext, isEncrypted: true, ciphertext, iv,
+    senderPublicKey, clientTempId: 'retry-test-1'
+  };
+  const sentAck = await alice.socket.timeout(3000).emitWithAck('private_message', encryptedPayload);
   assert.equal(sentAck.ok, true, 'sender receives an explicit successful delivery acknowledgement');
-  const retryAck = await alice.socket.timeout(3000).emitWithAck('private_message', plainPayload);
+  const retryAck = await alice.socket.timeout(3000).emitWithAck('private_message', encryptedPayload);
   assert.equal(retryAck.id, sentAck.id, 'retrying the same client ID does not create another message');
   const failureAck = await alice.socket.timeout(3000).emitWithAck('private_message', { to: 'bob', text: '', clientTempId: 'empty-test' });
   assert.equal(failureAck.ok, false, 'invalid sends receive an actionable failure');
   for (const summary of await Promise.all([senderSummary, receiverSummary])) {
-    const friend = summary.friends.find((entry) => entry.lastMessageData?.text === plaintext);
-    assert.equal(friend.lastMessage, plaintext);
-    assert.equal(friend.lastMessageData.text, plaintext);
-    assert.equal(friend.lastMessageData.isEncrypted, false);
-    assert.equal(friend.lastMessageData.ciphertext, undefined);
-    assert.equal(friend.lastMessageData.iv, undefined);
-    assert.equal(friend.lastMessageData.senderPublicKey, undefined);
+    const friend = summary.friends.find((entry) => entry.lastMessageData?.ciphertext === ciphertext);
+    assert.equal(friend.lastMessage, '?? Encrypted message');
+    assert.equal(friend.lastMessageData.isEncrypted, true);
     assert.ok(friend.lastMessageData.id);
+    assert.equal(friend.lastMessageData.iv, iv);
+    assert.equal(friend.lastMessageData.senderPublicKey, senderPublicKey);
+    assert.ok(!JSON.stringify(friend).includes(plaintext));
+    const decoded = await webcrypto.subtle.decrypt({ name: 'AES-GCM', iv: Buffer.from(friend.lastMessageData.iv, 'base64') }, previewKey, Buffer.from(friend.lastMessageData.ciphertext, 'base64'));
+    assert.equal(Buffer.from(decoded).toString(), plaintext);
   }
   bob.socket.disconnect();
   const reconnectedBob = await connect(bob.cookie);
   bob.socket = reconnectedBob.socket;
   const restoredPreview = reconnectedBob.state.friends.find((friend) => friend.username === 'alice').lastMessageData;
-  assert.equal(restoredPreview.text, plaintext);
-  assert.equal(restoredPreview.ciphertext, undefined);
-  const deletedPreview = event(bob.socket, 'friend_list_updated', ({ friends }) =>
-    friends.some((friend) => friend.lastMessageData?.id === restoredPreview.id && friend.lastMessageData?.text !== plaintext));
+  assert.equal(restoredPreview.ciphertext, ciphertext);
+  assert.equal(restoredPreview.iv, iv);
+  const deletedPreview = event(bob.socket, 'friend_list_updated', ({ friends }) => friends.some((friend) => friend.lastMessageData?.id === restoredPreview.id && !friend.lastMessageData.isEncrypted));
   alice.socket.emit('delete_message', { to: 'bob', messageId: restoredPreview.id });
   const deletedSummary = (await deletedPreview).friends.find((friend) => friend.username === 'alice').lastMessageData;
-  assert.equal(deletedSummary.ciphertext, undefined);
-  assert.notEqual(deletedSummary.text, plaintext);
+  assert.equal(deletedSummary.ciphertext, undefined, 'deleted previews cannot be decrypted again');
+  assert.equal(deletedSummary.iv, undefined);
 
   const form = new FormData();
   form.append('file', new Blob(['private text'], { type: 'text/plain' }), 'private.txt');
