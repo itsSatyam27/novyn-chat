@@ -81,7 +81,6 @@ jobs:
           python3 -m json.tool android/app/google-services.json > /dev/null
 
       - name: Restore Android release signing key
-        if: inputs.action == 'release'
         working-directory: apps/mobile/flutter/android
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}

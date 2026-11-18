@@ -32,7 +32,7 @@ samples, guidance on mobile development, and a full API reference.
 
 Novyn uses Shorebird Code Push for Dart-code updates. The first Shorebird-enabled APK is a **new release** and must be installed by users; after that, compatible Dart changes can be delivered as patches in the background and applied on the next app launch.
 
-The **Novyn Optimized ARM64 APK** workflow now creates an ARM64-only Shorebird release and publishes that APK as the direct GitHub release download. It runs on matching pushes to `main` and `phase-2`, and can also be started manually. The **Novyn Shorebird OTA** workflow can create a manual ARM64 release or publish a patch for an existing release.
+The **Novyn Optimized ARM64 APK** workflow creates an ARM64-only Shorebird release and publishes that APK as the direct GitHub release download. It runs on Android/native, asset, or dependency changes on `main` and `phase-2`, and can also be started manually. Dart source changes under `lib/` on `main` instead trigger **Novyn Shorebird Auto Patch**, which publishes a patch directly to `stable`. The **Novyn Shorebird OTA** workflow remains available for manual releases and patches.
 
 ### One-time setup
 
@@ -45,8 +45,10 @@ The **Novyn Optimized ARM64 APK** workflow now creates an ARM64-only Shorebird r
 
 Run **Novyn Optimized ARM64 APK** from **Actions** (or push a Flutter change to `main` / `phase-2`) and install the signed `Novyn-Android-ARM64.apk` from the generated GitHub Release. This is the ARM64-only Shorebird-enabled APK. For a manually created release instead, run **Novyn Shorebird OTA** with `release` and install the `novyn-shorebird-arm64-release-*` artifact.
 
+After the first release, set the repository variable `SHOREBIRD_RELEASE_VERSION` under **Settings → Secrets and variables → Actions → Variables** to the exact Shorebird release version shown in the workflow summary. Keep it set to the release version used by the APK currently installed by users. When distributing a newer full APK, update this variable to that APK's Shorebird release version.
+
 ### Publish a Dart patch
 
-Run **Novyn Shorebird OTA** with `patch`, enter the exact Shorebird release version shown in the release workflow summary (for example `1.0.0-beta+1790000000`), and select `staging` for testing or `stable` for production. Patch builds must use the same Shorebird release as the installed APK.
+After the baseline APK is installed and the repository variable is set, pushes of Dart source changes under `lib/` to `main` automatically publish a patch to `stable`. Each device that installs a patch counts toward Shorebird's monthly patch-install allowance. To publish manually, run **Novyn Shorebird OTA** with `patch`, enter the exact installed release version, and choose a track.
 
 **Limitations:** OTA patches cover Dart code and Dart dependencies. Native Android/plugin code, Gradle/build configuration, permissions, images, fonts, and other bundled assets still require a new signed APK. Never commit Shorebird API keys or signing credentials.
