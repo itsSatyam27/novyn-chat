@@ -143,6 +143,7 @@ class ApiService {
       'Content-Type': 'application/json',
       if (_cookieHeader.isNotEmpty) 'Cookie': _cookieHeader,
       'x-novyn-csrf': token,
+      if (!kIsWeb) 'x-novyn-client': 'mobile',
       'Accept': 'application/json',
     };
   }
@@ -803,6 +804,41 @@ class ApiService {
           ...Map<String, dynamic>.from(body),
           'httpStatus': response.statusCode,
         };
+      }
+      return {'ok': false, 'message': 'Unexpected server response.'};
+    } catch (_) {
+      return {'ok': false, 'message': 'Could not reach Novyn. Check your connection.'};
+    }
+  }
+
+  static Future<List<Map<String, dynamic>>?> getActiveSessions() async {
+    try {
+      final response = await http
+          .get(Uri.parse('$baseUrl/api/auth/sessions'), headers: await _csrfHeaders())
+          .timeout(const Duration(seconds: 15));
+      if (response.statusCode != 200) return null;
+      final decoded = jsonDecode(response.body);
+      final sessions = decoded is Map ? decoded['sessions'] : null;
+      if (sessions is! List) return null;
+      return sessions
+          .whereType<Map>()
+          .map((item) => Map<String, dynamic>.from(item))
+          .toList();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static Future<Map<String, dynamic>> revokeSession(String sessionId) async {
+    try {
+      final response = await http
+          .post(Uri.parse('$baseUrl/api/auth/revoke-session'),
+              headers: await _csrfHeaders(),
+              body: jsonEncode({'sessionId': sessionId}))
+          .timeout(const Duration(seconds: 15));
+      final decoded = jsonDecode(response.body);
+      if (decoded is Map) {
+        return {...Map<String, dynamic>.from(decoded), 'httpStatus': response.statusCode};
       }
       return {'ok': false, 'message': 'Unexpected server response.'};
     } catch (_) {

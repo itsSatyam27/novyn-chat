@@ -3,7 +3,7 @@ const { normalizeName, toDisplayName } = require("../core/normalization");
 function createAuthSessions({ refreshSessions, refreshByUser, authUserAliases, schedulePersist, aliasTtlMs = 30 * 24 * 60 * 60 * 1000 }) {
   const persist = typeof schedulePersist === "function" ? schedulePersist : () => {};
 
-  function trackRefreshSession(userKey, jti, expiresAt, remember) {
+  function trackRefreshSession(userKey, jti, expiresAt, remember, device = {}) {
     const key = normalizeName(userKey);
     const tokenId = toDisplayName(jti);
     if (!key || !tokenId) return;
@@ -11,6 +11,10 @@ function createAuthSessions({ refreshSessions, refreshByUser, authUserAliases, s
       userKey: key,
       expiresAt: Number(expiresAt) || 0,
       remember: Boolean(remember),
+      deviceName: String(device.deviceName || "Unknown device").slice(0, 100),
+      client: String(device.client || "web").slice(0, 30),
+      createdAt: Number(device.createdAt) || Date.now(),
+      lastActiveAt: Date.now(),
     });
     if (!refreshByUser.has(key)) refreshByUser.set(key, new Set());
     refreshByUser.get(key).add(tokenId);

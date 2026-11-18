@@ -1266,6 +1266,7 @@ function resolveUserFromAuthCookies(authCookies, options = {}) {
   if (accessSession && Number(accessSession.expiresAt) > Date.now()) {
     const resolved = resolveCurrentUserKey(accessPayload.sub);
     if (resolved && resolved === resolveCurrentUserKey(accessSession.userKey)) {
+      accessSession.lastActiveAt = Date.now();
       return { userKey: resolved, via: "access", sessionId: accessPayload.sid };
     }
   }
@@ -1286,6 +1287,7 @@ function resolveUserFromAuthCookies(authCookies, options = {}) {
     return { userKey: "" };
   }
   session.userKey = resolved;
+  session.lastActiveAt = Date.now();
   return {
     userKey: resolved,
     via: "refresh",
@@ -1300,7 +1302,24 @@ function readRememberFlag(value) {
   return ["1", "true", "yes", "on"].includes(toDisplayName(value).toLowerCase());
 }
 
-async function issueAuthTokensForUser(userKey, remember) {
+function describeAuthDevice(req) {
+  const userAgent = toDisplayName(req?.headers?.["user-agent"]);
+  const client = toDisplayName(req?.headers?.["x-novyn-client"]).toLowerCase() || "web";
+  let deviceName = "Web browser";
+  if (client === "mobile") deviceName = /android/i.test(userAgent) ? "Android app" : "Novyn mobile app";
+  else if (/android/i.test(userAgent)) deviceName = "Android device";
+  else if (/iphone|ipad|ipod/i.test(userAgent)) deviceName = "Apple device";
+  else if (/windows/i.test(userAgent)) deviceName = "Windows browser";
+  else if (/macintosh|mac os/i.test(userAgent)) deviceName = "Mac browser";
+  else if (/linux/i.test(userAgent)) deviceName = "Linux browser";
+  if (client === "web") {
+    const browser = /edg\//i.test(userAgent) ? "Edge" : /firefox\//i.test(userAgent) ? "Firefox" : /chrome\//i.test(userAgent) ? "Chrome" : /safari\//i.test(userAgent) ? "Safari" : "Browser";
+    deviceName = `${browser} · ${deviceName}`;
+  }
+  return { deviceName, client, createdAt: Date.now() };
+}
+
+async function issueAuthTokensForUser(userKey, remember, req) {
   const key = normalizeName(userKey);
   if (!key) return null;
   const persistent = Boolean(remember);
@@ -1311,7 +1330,7 @@ async function issueAuthTokensForUser(userKey, remember) {
     jti: refreshTokenId,
     remember: persistent ? 1 : 0,
   });
-  authSessions.trackRefreshSession(key, refreshTokenId, Date.now() + refreshTtl, persistent);
+  authSessions.trackRefreshSession(key, refreshTokenId, Date.now() + refreshTtl, persistent, describeAuthDevice(req));
 
   // Persist the server-side allow-list entry before exposing its refresh cookie.
   // A process restart during the debounce window must not invalidate a newly
@@ -1681,6 +1700,10 @@ function serializeAuthRuntimeState() {
       userKey: normalizeName(entry?.userKey),
       expiresAt: Number(entry?.expiresAt) || 0,
       remember: Boolean(entry?.remember),
+      deviceName: toDisplayName(entry?.deviceName),
+      client: toDisplayName(entry?.client),
+      createdAt: Number(entry?.createdAt) || 0,
+      lastActiveAt: Number(entry?.lastActiveAt) || 0,
     })),
     authUserAliases: Array.from(authUserAliases.entries()).map(([oldKey, entry]) => ({
       oldKey: normalizeName(oldKey),
@@ -1709,6 +1732,10 @@ function applyLoadedAuthRuntimeState(parsed) {
       userKey,
       expiresAt,
       remember: Boolean(rawEntry?.remember),
+      deviceName: toDisplayName(rawEntry?.deviceName || "Unknown device"),
+      client: toDisplayName(rawEntry?.client || "web"),
+      createdAt: Number(rawEntry?.createdAt) || 0,
+      lastActiveAt: Number(rawEntry?.lastActiveAt) || Number(rawEntry?.createdAt) || 0,
     };
     refreshSessions.set(tokenId, entry);
     if (!refreshByUser.has(userKey)) {
@@ -5181,7 +5208,7 @@ app.post("/api/auth/signin", createIpRateLimiter({ getStore: () => httpRateLimit
     });
     return;
   }
-  const tokens = await issueAuthTokensForUser(userKey, remember);
+  const tokens = await issueAuthTokensForUser(userKey, remember, req);
   if (!tokens) {
     res.status(500).json({ message: "Unable to create session." });
     return;
@@ -5205,7 +5232,7 @@ app.post(
     }
     const remember = readRememberFlag(req.body?.remember);
     const userKey = normalizeName(result.user.username);
-    const tokens = await issueAuthTokensForUser(userKey, remember);
+    const tokens = await issueAuthTokensForUser(userKey, remember, req);
     if (!tokens) {
       res.status(500).json({ message: "Unable to create session." });
       return;
@@ -5376,7 +5403,7 @@ app.post(
       return;
     }
 
-    const tokens = await issueAuthTokensForUser(user.username, remember);
+    const tokens = await issueAuthTokensForUser(user.username, remember, req);
     if (!tokens) {
       res.status(500).json({ message: "Unable to create session." });
       return;
@@ -5433,7 +5460,7 @@ app.post(
     }
 
     const remember = challenge.remember === 1;
-    const tokens = await issueAuthTokensForUser(userKey, remember);
+    const tokens = await issueAuthTokensForUser(userKey, remember, req);
     if (!tokens) {
       res.status(500).json({ message: "Unable to create session." });
       return;
@@ -5567,6 +5594,7 @@ app.get("/api/auth/session", async (req, res) => {
     const tokens = await issueAuthTokensForUser(
       auth.userKey,
       Boolean(auth.remember),
+      req,
     );
     if (!tokens) {
       res.status(503).json({ message: "Session service is temporarily unavailable." });
@@ -5658,7 +5686,7 @@ app.post("/api/device-pairing/complete",
       return res.status(410).json({ ok: false, message: "The primary account is no longer available." });
     }
     pairing.completing = true;
-    const tokens = await issueAuthTokensForUser(pairing.userKey, true);
+    const tokens = await issueAuthTokensForUser(pairing.userKey, true, req);
     if (!tokens) {
       pairing.completing = false;
       return res.status(503).json({ ok: false, message: "Could not create the linked session. Retry." });
@@ -5702,7 +5730,7 @@ app.post("/api/auth/refresh", createIpRateLimiter({ getStore: () => httpRateLimi
   const remember = Boolean(session.remember);
   const previousSession = { ...session };
   revokeRefreshSession(refreshPayload.jti);
-  const tokens = await issueAuthTokensForUser(userKey, remember);
+  const tokens = await issueAuthTokensForUser(userKey, remember, req);
   if (!tokens) {
     // Do not strand the user on a failed persistence write: restore the
     // previous refresh entry and keep the existing client cookie pair valid.
@@ -5711,6 +5739,7 @@ app.post("/api/auth/refresh", createIpRateLimiter({ getStore: () => httpRateLimi
       refreshPayload.jti,
       previousSession.expiresAt,
       previousSession.remember,
+      previousSession,
     );
     try {
       await flushAuthStatePersistNow();
@@ -5850,6 +5879,54 @@ app.post("/api/auth/password-reset/confirm",
 
 
 // Revoke every other login session while keeping the device making this request.
+app.get("/api/auth/sessions", requireUser, (req, res) => {
+  const cookies = getAuthCookiesFromHeader(req.headers.cookie);
+  const access = verifyAuthToken(cookies.accessToken, "access");
+  const refresh = verifyAuthToken(cookies.refreshToken, "refresh");
+  const currentSessionId = toDisplayName(refresh?.jti || access?.sid);
+  const userKey = normalizeName(req.userKey);
+  const sessions = Array.from(refreshByUser.get(userKey) || [])
+    .map((id) => ({ id, entry: refreshSessions.get(id) }))
+    .filter(({ entry }) => entry && Number(entry.expiresAt) > Date.now())
+    .map(({ id, entry }) => ({
+      id,
+      deviceName: toDisplayName(entry.deviceName || "Unknown device"),
+      client: toDisplayName(entry.client || "web"),
+      createdAt: Number(entry.createdAt) || 0,
+      lastActiveAt: Number(entry.lastActiveAt) || 0,
+      current: id === currentSessionId,
+    }))
+    .sort((a, b) => Number(b.current) - Number(a.current) || b.lastActiveAt - a.lastActiveAt);
+  res.json({ ok: true, sessions });
+});
+
+app.post("/api/auth/revoke-session",
+  createIpRateLimiter({ getStore: () => httpRateLimits }, "auth-revoke-session", 30, 15 * 60 * 1000),
+  requireCsrf,
+  requireUser,
+  (req, res) => {
+    const targetId = toDisplayName(req.body?.sessionId);
+    const cookies = getAuthCookiesFromHeader(req.headers.cookie);
+    const access = verifyAuthToken(cookies.accessToken, "access");
+    const refresh = verifyAuthToken(cookies.refreshToken, "refresh");
+    const currentSessionId = toDisplayName(refresh?.jti || access?.sid);
+    const target = refreshSessions.get(targetId);
+    if (!targetId || !target || normalizeName(target.userKey) !== normalizeName(req.userKey)) {
+      res.status(404).json({ ok: false, message: "That session is no longer active." });
+      return;
+    }
+    if (targetId === currentSessionId) {
+      res.status(400).json({ ok: false, message: "Use Sign out to end the current session." });
+      return;
+    }
+    revokeRefreshSession(targetId);
+    for (const client of io.sockets.sockets.values()) {
+      if (client.data.sessionId === targetId) client.disconnect(true);
+    }
+    res.json({ ok: true });
+  }
+);
+
 app.post("/api/auth/revoke-sessions",
   createIpRateLimiter({ getStore: () => httpRateLimits }, "auth-revoke-sessions", 20, 15 * 60 * 1000),
   requireCsrf,

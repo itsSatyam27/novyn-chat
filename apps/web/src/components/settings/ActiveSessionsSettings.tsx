@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Laptop, Smartphone, Monitor, ShieldCheck, LogOut, Globe, Clock, Check } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { triggerHaptic } from '../../services/capacitor';
@@ -31,8 +31,46 @@ export const ActiveSessionsSettings: React.FC = () => {
   const [notice, setNotice] = useState<SettingsNotice | null>(null);
   const [isTerminating, setIsTerminating] = useState(false);
   const [revokedOther, setRevokedOther] = useState(false);
+  const [sessions, setSessions] = useState<Array<{ id: string; deviceName: string; current: boolean; lastActiveAt: number }>>([]);
+  const [sessionsLoaded, setSessionsLoaded] = useState(false);
+  const [revokingId, setRevokingId] = useState<string | null>(null);
 
   const client = detectClientEnv();
+
+  const loadSessions = async () => {
+    try {
+      const response = await fetch('/api/auth/sessions', { credentials: 'include' });
+      if (!response.ok) throw new Error('Unable to load sessions');
+      const data = await response.json();
+      setSessions(Array.isArray(data.sessions) ? data.sessions : []);
+    } catch {
+      setNotice({ text: 'Could not load active devices. Refresh the page to retry.', error: true });
+    } finally {
+      setSessionsLoaded(true);
+    }
+  };
+
+  useEffect(() => { void loadSessions(); }, []);
+
+  const revokeSession = async (sessionId: string) => {
+    setRevokingId(sessionId);
+    try {
+      const response = await fetch('/api/auth/revoke-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ sessionId }),
+      });
+      const data = await response.json();
+      if (!response.ok || data.ok !== true) throw new Error(data.message || 'Could not sign out this device.');
+      setSessions((current) => current.filter((item) => item.id !== sessionId));
+      setNotice({ text: 'Device signed out.', error: false });
+    } catch (error) {
+      setNotice({ text: error instanceof Error ? error.message : 'Could not sign out this device.', error: true });
+    } finally {
+      setRevokingId(null);
+    }
+  };
 
   const handleRevokeOtherSessions = async () => {
     setIsTerminating(true);
@@ -190,7 +228,7 @@ export const ActiveSessionsSettings: React.FC = () => {
           Other Sessions
         </span>
 
-        <div
+        {!sessionsLoaded ? <div style={{ padding: 20, textAlign: 'center', color: 'var(--text-muted)' }}>Loading active devices…</div> : sessions.filter((session) => !session.current).length === 0 ? <div
           style={{
             padding: '20px 16px',
             borderRadius: 14,
@@ -206,7 +244,20 @@ export const ActiveSessionsSettings: React.FC = () => {
             No other active sessions
           </strong>
           You are currently only signed in on this {client.isMobile ? 'mobile device' : 'browser'}.
-        </div>
+        </div> : <div style={{ display: 'grid', gap: 10 }}>
+          {sessions.filter((session) => !session.current).map((session) => (
+            <div key={session.id} style={{ padding: 14, borderRadius: 14, background: 'var(--bg-app)', border: '1px solid var(--border-color, rgba(255,255,255,.12))', display: 'flex', alignItems: 'center', gap: 12 }}>
+              <Laptop size={21} style={{ color: '#a78bfa', flexShrink: 0 }} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <strong style={{ display: 'block', color: 'var(--text-main)', fontSize: '.9rem' }}>{session.deviceName || 'Unknown device'}</strong>
+                <span style={{ color: 'var(--text-muted)', fontSize: '.75rem' }}>Signed in on this Novyn account</span>
+              </div>
+              <button type="button" disabled={revokingId === session.id} onClick={() => void revokeSession(session.id)} style={{ border: 0, borderRadius: 10, padding: '9px 11px', color: '#fca5a5', background: 'rgba(239,68,68,.12)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <LogOut size={15} /> {revokingId === session.id ? 'Signing out…' : 'Sign out'}
+              </button>
+            </div>
+          ))}
+        </div>}
       </div>
 
       {/* Security Recommendation */}
