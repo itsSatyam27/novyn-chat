@@ -104,7 +104,6 @@ jobs:
           args: >-
             --artifact=apk
             --build-number=${{ steps.build-meta.outputs.build_code }}
-            --
             --target-platform=android-arm64
 
       - name: Verify ARM64 APK package and signature

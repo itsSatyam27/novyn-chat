@@ -113,7 +113,6 @@ jobs:
           args: >-
             --artifact=apk
             --build-number=${{ github.run_number }}
-            --
             --target-platform=android-arm64
 
       - name: Upload Shorebird release APK

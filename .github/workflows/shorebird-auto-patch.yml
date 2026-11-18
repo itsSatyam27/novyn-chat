@@ -118,9 +118,6 @@ jobs:
           working-directory: apps/mobile/flutter
           release-version: ${{ vars.SHOREBIRD_RELEASE_VERSION }}
           track: stable
-          args: >-
-            --
-            --target-platform=android-arm64
 
       - name: Summarize patch
         if: steps.change-scope.outputs.dart_only == 'true'
