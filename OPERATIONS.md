@@ -51,6 +51,16 @@ the signing key used by the device or build, and download a fresh
 repo is `com.example.novyn`; if you changed the package ID, update the Firebase app
 and regenerate the config file to match.
 
+The Firebase-hosted admin monitor is at `/admin/` on `chat-novyn.web.app`.
+It signs administrators in with Google using Firebase Authentication and calls
+the Render API for MongoDB-backed usage and feedback data. Configure the API
+with `ADMIN_EMAILS=novynchat.app@gmail.com` and
+`ADMIN_ALLOWED_ORIGINS=https://chat-novyn.web.app,https://chat-novyn.firebaseapp.com`.
+Google sign-in must be enabled for the `chat-novyn` Firebase project. The GitHub
+Actions deployment needs a `FIREBASE_SERVICE_ACCOUNT_CHAT_NOVYN` secret with
+Hosting deploy permission for that project. The dashboard is read-only and
+does not expose chat message contents.
+
 Use Node 24 or newer, install with `npm ci`, and start `npm run dev`.
 On Windows PowerShell with scripts disabled, use `npm.cmd`.
 The backend listens on port 3000; Vite proxies API, uploads, and Socket.IO there.
@@ -94,13 +104,6 @@ collection and existing `auth-state.json` sessions are migrated automatically.
 Without MongoDB, set `DATA_DIR` to a persistent volume so refresh sessions
 survive restarts. Keep `UPLOADS_DIR` on persistent storage and back it up:
 it contains local uploads and access metadata for new Cloudinary objects.
-
-The read-only admin dashboard is served at `/admin/` on the same origin as the
-API. Set `ADMIN_EMAILS` on the backend to a comma-separated allowlist of exact,
-verified sign-in emails. An allowlisted account must sign in to Novyn before
-opening the dashboard. The dashboard shows aggregate usage, the latest 100 user
-accounts, and the latest 100 feedback submissions; it does not display chat
-messages or provide account-changing moderation actions.
 
 Configure both stable VAPID keys to enable push. Missing keys now disable push
 instead of generating a new subscription identity or logging a private key.

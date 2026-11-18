@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#090d16">
+    <meta name="robots" content="noindex, nofollow">
+    <title>Novyn Admin</title>
+    <link rel="icon" href="/icons/novyn-badge.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="/admin/admin.css">
+  </head>
+  <body>
+    <main class="shell">
+      <header class="topbar">
+        <a class="brand" href="/" aria-label="Novyn home">
+          <span class="brand-mark">N</span>
+          <span><small>NOVYN</small><strong>Admin monitor</strong></span>
+        </a>
+        <div id="account-actions" class="account-actions" hidden>
+          <span id="admin-email" class="account-email"></span>
+          <button id="refresh-button" class="button button-muted" type="button">Refresh</button>
+          <button id="signout-button" class="button button-muted" type="button">Sign out</button>
+        </div>
+      </header>
+
+      <section id="signed-out" class="auth-card">
+        <div class="auth-icon">N</div>
+        <p class="eyebrow">PRIVATE ADMIN AREA</p>
+        <h1>Monitor Novyn</h1>
+        <p class="muted">Sign in with an allowlisted Google account to view app activity and feedback.</p>
+        <button id="signin-button" class="button button-primary" type="button">Continue with Google</button>
+        <p id="auth-error" class="error" role="alert" hidden></p>
+      </section>
+
+      <section id="dashboard" hidden>
+        <div class="page-heading">
+          <div>
+            <p class="eyebrow">OVERVIEW</p>
+            <h1>App monitor</h1>
+            <p class="muted">Usage and user feedback. Refreshes automatically every 30 seconds.</p>
+          </div>
+          <p id="updated-at" class="updated"></p>
+        </div>
+        <p id="dashboard-error" class="notice" role="status" hidden></p>
+
+        <div class="metrics">
+          <article class="metric"><span>Registered users</span><strong id="metric-users">—</strong><small id="metric-new-users">—</small></article>
+          <article class="metric"><span>Online now</span><strong id="metric-online">—</strong><small>Connected accounts</small></article>
+          <article class="metric"><span>Conversations</span><strong id="metric-conversations">—</strong><small><b id="metric-messages">—</b> messages</small></article>
+          <article class="metric"><span>Groups</span><strong id="metric-groups">—</strong><small>Created groups</small></article>
+          <article class="metric"><span>Feedback</span><strong id="metric-feedback">—</strong><small>Submissions received</small></article>
+        </div>
+
+        <section class="panel">
+          <div class="panel-heading">
+            <div><p class="eyebrow">ACCOUNTS</p><h2>Latest users <small id="user-total"></small></h2></div>
+            <label class="search"><span aria-hidden="true">⌕</span><input id="user-search" type="search" placeholder="Search users" autocomplete="off"></label>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>User</th><th>Email</th><th>Joined</th><th>Last seen</th><th>Status</th></tr></thead>
+              <tbody id="users-body"></tbody>
+            </table>
+          </div>
+          <p class="panel-note">Latest 100 accounts · Read-only</p>
+        </section>
+
+        <section class="panel">
+          <div class="panel-heading">
+            <div><p class="eyebrow">INBOX</p><h2>Recent feedback <small id="feedback-total"></small></h2></div>
+          </div>
+          <div id="feedback-list" class="feedback-list"></div>
+          <p class="panel-note">Latest 100 submissions · Private chat messages are not shown</p>
+        </section>
+      </section>
+
+      <footer>Novyn Admin <span>·</span> Firebase Authentication <span>·</span> App data from Novyn API</footer>
+    </main>
+
+    <script>
+      window.NOVYN_ADMIN_CONFIG = {
+        apiBaseUrl: "https://novyn-live.onrender.com",
+        firebase: {
+          apiKey: "AIzaSyByU_NRvExuP6wnxhGqipTanvbMRwPUjYY",
+          authDomain: "chat-novyn.firebaseapp.com",
+          projectId: "chat-novyn",
+          storageBucket: "chat-novyn.firebasestorage.app",
+          messagingSenderId: "587953743769",
+          appId: "1:587953743769:web:96777c7f3a208772da5508"
+        }
+      };
+    </script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+    <script src="/admin/admin.js" defer></script>
+  </body>
+</html>

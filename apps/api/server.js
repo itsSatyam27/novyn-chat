@@ -254,16 +254,42 @@ function requireUser(req, res, next) {
   next();
 }
 
-function requireAdmin(req, res, next) {
-  return requireUser(req, res, () => {
-    const user = users.get(req.userKey);
-    const email = normalizeEmail(user?.email || "");
-    if (!email || !ADMIN_EMAILS.has(email) || !(user?.emailVerified === true || user?.googleUid)) {
-      return res.status(403).json({ error: "Admin access required." });
-    }
-    res.set("Cache-Control", "no-store, max-age=0");
-    next();
-  });
+const ADMIN_EMAILS = new Set(
+  String(process.env.ADMIN_EMAILS || "")
+    .split(",")
+    .map(normalizeEmail)
+    .filter(Boolean)
+);
+const ADMIN_ALLOWED_ORIGINS = new Set(
+  String(process.env.ADMIN_ALLOWED_ORIGINS || "")
+    .split(",")
+    .map((origin) => origin.trim().replace(/\/+$/, ""))
+    .filter(Boolean)
+);
+
+function setAdminCors(req, res) {
+  const origin = String(req.get("origin") || "").replace(/\/+$/, "");
+  if (!origin || !ADMIN_ALLOWED_ORIGINS.has(origin)) return false;
+  res.set("Access-Control-Allow-Origin", origin);
+  res.set("Access-Control-Allow-Methods", "GET, OPTIONS");
+  res.set("Access-Control-Allow-Headers", "Authorization, Content-Type");
+  res.set("Access-Control-Max-Age", "600");
+  res.vary("Origin");
+  return true;
+}
+
+function requireAdminToken(req, res) {
+  const authorization = String(req.get("authorization") || "");
+  const tokenMatch = authorization.match(/^Bearer\s+(.+)$/i);
+  if (!tokenMatch) {
+    res.status(401).json({ error: "Firebase sign-in required." });
+    return false;
+  }
+  if (!firebaseAdmin) {
+    res.status(503).json({ error: "Firebase Admin authentication is unavailable." });
+    return false;
+  }
+  return tokenMatch[1];
 }
 
 function mediaMetadata(filename) {
@@ -467,6 +493,134 @@ app.get("/downloads/:filename", (req, res) => {
   res.setHeader("Cache-Control", "public, max-age=3600");
   res.sendFile(filePath);
 });
+
+app.options("/api/admin/dashboard", (req, res) => {
+  if (!setAdminCors(req, res)) {
+    return res.status(403).end();
+  }
+  return res.status(204).end();
+});
+
+app.get(
+  "/api/admin/dashboard",
+  createIpRateLimiter({ getStore: () => httpRateLimits }, "admin-dashboard", 60, 60 * 1000),
+  async (req, res) => {
+    if (!setAdminCors(req, res)) {
+      return res.status(403).json({ error: "Admin dashboard origin is not allowed." });
+    }
+
+    res.set("Cache-Control", "no-store, max-age=0");
+    const idToken = requireAdminToken(req, res);
+    if (!idToken) return;
+    if (!ADMIN_EMAILS.size) {
+      return res.status(503).json({ error: "Admin access is not configured on the API." });
+    }
+
+    let decoded;
+    try {
+      decoded = await admin.auth(firebaseAdmin).verifyIdToken(idToken);
+    } catch {
+      return res.status(401).json({ error: "Firebase sign-in has expired or is invalid." });
+    }
+
+    const email = normalizeEmail(decoded.email || "");
+    if (
+      !email ||
+      decoded.email_verified !== true ||
+      decoded.firebase?.sign_in_provider !== "google.com" ||
+      !ADMIN_EMAILS.has(email)
+    ) {
+      return res.status(403).json({ error: "This verified Google account is not an administrator." });
+    }
+
+    const registeredUsers = Array.from(users.values()).filter((user) => user?.isRegistered);
+    const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    const feedbackCollection = mongoStorage?.getCollection("feedback");
+
+    try {
+      let feedback;
+      let feedbackCount;
+      if (feedbackCollection) {
+        [feedback, feedbackCount] = await Promise.all([
+          feedbackCollection.find({}, {
+            projection: {
+              id: 1,
+              type: 1,
+              message: 1,
+              rating: 1,
+              email: 1,
+              fromUser: 1,
+              createdAt: 1,
+            },
+          }).sort({ createdAt: -1 }).limit(100).toArray(),
+          feedbackCollection.countDocuments(),
+        ]);
+      } else {
+        let rawFeedback = "";
+        try {
+          rawFeedback = await fsp.readFile(path.join(DATA_DIR, "feedback.log"), "utf8");
+        } catch (error) {
+          if (error?.code !== "ENOENT") throw error;
+        }
+        const entries = rawFeedback
+          .split(/\r?\n/)
+          .filter(Boolean)
+          .map((line) => JSON.parse(line));
+        feedbackCount = entries.length;
+        feedback = entries.slice(-100).reverse();
+      }
+
+      res.json({
+        generatedAt: nowIso(),
+        admin: { email },
+        metrics: {
+          registeredUsers: registeredUsers.length,
+          onlineUsers: registeredUsers.reduce(
+            (count, user) => count + (onlineUsers.has(normalizeName(user.username)) ? 1 : 0),
+            0
+          ),
+          newUsersLast7Days: registeredUsers.filter((user) => {
+            const createdAt = Date.parse(user.createdAt || "");
+            return Number.isFinite(createdAt) && createdAt >= weekAgo;
+          }).length,
+          conversations: conversations.size,
+          messages: Array.from(conversations.values()).reduce(
+            (count, messages) => count + (Array.isArray(messages) ? messages.length : 0),
+            0
+          ),
+          groups: groups.size,
+          feedback: feedbackCount,
+        },
+        users: registeredUsers
+          .map((user) => ({
+            username: toDisplayName(user.username),
+            displayName: toDisplayName(user.displayName || user.username),
+            email: normalizeEmail(user.email || ""),
+            createdAt: toDisplayName(user.createdAt),
+            lastSeenAt: toDisplayName(user.lastSeenAt),
+            isGoogleUser: Boolean(user.googleUid),
+            isOnline: onlineUsers.has(normalizeName(user.username)),
+          }))
+          .sort((a, b) => Date.parse(b.createdAt || "") - Date.parse(a.createdAt || ""))
+          .slice(0, 100),
+        feedback: feedback.map((entry) => ({
+          id: toDisplayName(entry.id || entry._id),
+          type: toDisplayName(entry.type || "general"),
+          message: toDisplayName(entry.message),
+          rating: entry.rating != null && Number.isFinite(Number(entry.rating))
+            ? Number(entry.rating)
+            : null,
+          email: normalizeEmail(entry.email || ""),
+          fromUser: toDisplayName(entry.fromUser || "anonymous"),
+          createdAt: toDisplayName(entry.createdAt),
+        })),
+      });
+    } catch (error) {
+      console.warn("[NovynAdmin] Failed to load dashboard data:", error?.message || error);
+      res.status(503).json({ error: "Admin dashboard data is temporarily unavailable." });
+    }
+  }
+);
 
 // ── Feedback Endpoint ─────────────────────────────────────────────────────
 
@@ -996,12 +1150,6 @@ const MONGODB_USERS_COLLECTION = toDisplayName(process.env.MONGODB_USERS_COLLECT
 const MONGODB_CONVERSATIONS_COLLECTION =
   toDisplayName(process.env.MONGODB_CONVERSATIONS_COLLECTION) || "conversations";
 const MONGODB_MESSAGES_COLLECTION = toDisplayName(process.env.MONGODB_MESSAGES_COLLECTION) || "messages";
-const ADMIN_EMAILS = new Set(
-  String(process.env.ADMIN_EMAILS || "")
-    .split(",")
-    .map(normalizeEmail)
-    .filter(Boolean)
-);
 const MIN_PASSWORD_LENGTH = 12;
 const DELETED_MESSAGE_TEXT = "This message was deleted.";
 const CALL_LOG_PREFIX = "__call_log__:";
@@ -6147,103 +6295,6 @@ app.post(
 // Email is sent to the configured Novyn inbox and, when supplied, a receipt is
 // sent to the submitter. The optional reply address is never treated as a
 // delivery destination unless the user explicitly supplied it.
-app.get(
-  "/api/admin/dashboard",
-  createIpRateLimiter({ getStore: () => httpRateLimits }, "admin-dashboard", 60, 60 * 1000),
-  requireAdmin,
-  async (req, res) => {
-  const registeredUsers = Array.from(users.values()).filter((user) => user?.isRegistered);
-  const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
-  const feedbackCollection = mongoStorage?.getCollection("feedback");
-
-  try {
-    let feedback;
-    let feedbackCount;
-    if (feedbackCollection) {
-      [feedback, feedbackCount] = await Promise.all([
-        feedbackCollection.find({}, {
-          projection: {
-            id: 1,
-            type: 1,
-            message: 1,
-            rating: 1,
-            email: 1,
-            fromUser: 1,
-            createdAt: 1,
-          },
-        }).sort({ createdAt: -1 }).limit(100).toArray(),
-        feedbackCollection.countDocuments(),
-      ]);
-    } else {
-      let rawFeedback = "";
-      try {
-        rawFeedback = await fsp.readFile(path.join(DATA_DIR, "feedback.log"), "utf8");
-      } catch (error) {
-        if (error?.code !== "ENOENT") throw error;
-      }
-      const entries = rawFeedback
-        .split(/\r?\n/)
-        .filter(Boolean)
-        .map((line) => JSON.parse(line));
-      feedbackCount = entries.length;
-      feedback = entries.slice(-100).reverse();
-    }
-
-    res.json({
-      generatedAt: nowIso(),
-      admin: {
-        username: users.get(req.userKey)?.username || req.userKey,
-        email: normalizeEmail(users.get(req.userKey)?.email || ""),
-      },
-      metrics: {
-        registeredUsers: registeredUsers.length,
-        onlineUsers: registeredUsers.reduce(
-          (count, user) => count + (onlineUsers.has(normalizeName(user.username)) ? 1 : 0),
-          0
-        ),
-        newUsersLast7Days: registeredUsers.filter((user) => {
-          const createdAt = Date.parse(user.createdAt || "");
-          return Number.isFinite(createdAt) && createdAt >= weekAgo;
-        }).length,
-        conversations: conversations.size,
-        messages: Array.from(conversations.values()).reduce(
-          (count, messages) => count + (Array.isArray(messages) ? messages.length : 0),
-          0
-        ),
-        groups: groups.size,
-        feedback: feedbackCount,
-      },
-      users: registeredUsers
-        .map((user) => ({
-          username: toDisplayName(user.username),
-          displayName: toDisplayName(user.displayName || user.username),
-          email: normalizeEmail(user.email || ""),
-          createdAt: toDisplayName(user.createdAt),
-          lastSeenAt: toDisplayName(user.lastSeenAt),
-          isGoogleUser: Boolean(user.googleUid),
-          isOnline: onlineUsers.has(normalizeName(user.username)),
-        }))
-        .sort((a, b) => Date.parse(b.createdAt || "") - Date.parse(a.createdAt || ""))
-        .slice(0, 100),
-      feedback: feedback.map((entry) => ({
-        id: toDisplayName(entry.id || entry._id),
-        type: toDisplayName(entry.type || "general"),
-        message: toDisplayName(entry.message),
-        rating: entry.rating != null && Number.isFinite(Number(entry.rating))
-          ? Number(entry.rating)
-          : null,
-        email: normalizeEmail(entry.email || ""),
-        fromUser: toDisplayName(entry.fromUser || "anonymous"),
-        createdAt: toDisplayName(entry.createdAt),
-      })),
-    });
-  } catch (error) {
-    console.warn("[NovynAdmin] Failed to load dashboard data:", error?.message || error);
-    res.status(503).json({ error: "Admin dashboard data is temporarily unavailable." });
-  }
-  }
-);
-
 {
   const FEEDBACK_TO_EMAIL = toDisplayName(process.env.FEEDBACK_TO_EMAIL || "");
   const allowedTypes = new Set(["general", "bug", "feature", "praise"]);
