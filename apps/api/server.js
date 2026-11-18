@@ -247,7 +247,7 @@ function signUploadToken(filename) {
 
 function requireUser(req, res, next) {
   const auth = resolveUserFromAuthCookies(getAuthCookiesFromHeader(req.headers.cookie), { allowRefreshFallback: true });
-  if (!auth.userKey || !users.get(auth.userKey)?.isRegistered) {
+  if (!auth.userKey || !users.get(auth.userKey)?.isRegistered || users.get(auth.userKey)?.isSuspended) {
     return res.status(401).json({ error: 'Sign in required.' });
   }
   req.userKey = auth.userKey;
@@ -271,11 +271,50 @@ function setAdminCors(req, res) {
   const origin = String(req.get("origin") || "").replace(/\/+$/, "");
   if (!origin || !ADMIN_ALLOWED_ORIGINS.has(origin)) return false;
   res.set("Access-Control-Allow-Origin", origin);
-  res.set("Access-Control-Allow-Methods", "GET, OPTIONS");
+  res.set("Access-Control-Allow-Methods", "GET, PATCH, DELETE, OPTIONS");
   res.set("Access-Control-Allow-Headers", "Authorization, Content-Type");
   res.set("Access-Control-Max-Age", "600");
   res.vary("Origin");
   return true;
+}
+
+async function requireAdmin(req, res, next) {
+  if (!setAdminCors(req, res)) {
+    res.status(403).json({ error: "Admin dashboard origin is not allowed." });
+    return;
+  }
+  res.set("Cache-Control", "no-store, max-age=0");
+  const tokenMatch = String(req.get("authorization") || "").match(/^Bearer\s+(.+)$/i);
+  if (!tokenMatch) {
+    res.status(401).json({ error: "Firebase sign-in required." });
+    return;
+  }
+  if (!ADMIN_EMAILS.size) {
+    res.status(503).json({ error: "Admin access is not configured on the API." });
+    return;
+  }
+  if (!firebaseAdmin) {
+    res.status(503).json({ error: "Firebase Admin authentication is unavailable." });
+    return;
+  }
+
+  try {
+    const decoded = await admin.auth(firebaseAdmin).verifyIdToken(tokenMatch[1], true);
+    const email = normalizeEmail(decoded.email || "");
+    if (
+      !email ||
+      decoded.email_verified !== true ||
+      decoded.firebase?.sign_in_provider !== "google.com" ||
+      !ADMIN_EMAILS.has(email)
+    ) {
+      res.status(403).json({ error: "This verified Google account is not an administrator." });
+      return;
+    }
+    req.adminEmail = email;
+    next();
+  } catch {
+    res.status(401).json({ error: "Firebase sign-in has expired or is invalid." });
+  }
 }
 
 function mediaMetadata(filename) {
@@ -490,40 +529,8 @@ app.options("/api/admin/dashboard", (req, res) => {
 app.get(
   "/api/admin/dashboard",
   createIpRateLimiter({ getStore: () => httpRateLimits }, "admin-dashboard", 60, 60 * 1000),
+  requireAdmin,
   async (req, res) => {
-    if (!setAdminCors(req, res)) {
-      return res.status(403).json({ error: "Admin dashboard origin is not allowed." });
-    }
-
-    res.set("Cache-Control", "no-store, max-age=0");
-    const tokenMatch = String(req.get("authorization") || "").match(/^Bearer\s+(.+)$/i);
-    if (!tokenMatch) {
-      return res.status(401).json({ error: "Firebase sign-in required." });
-    }
-    if (!ADMIN_EMAILS.size) {
-      return res.status(503).json({ error: "Admin access is not configured on the API." });
-    }
-    if (!firebaseAdmin) {
-      return res.status(503).json({ error: "Firebase Admin authentication is unavailable." });
-    }
-
-    let decoded;
-    try {
-      decoded = await admin.auth(firebaseAdmin).verifyIdToken(tokenMatch[1], true);
-    } catch {
-      return res.status(401).json({ error: "Firebase sign-in has expired or is invalid." });
-    }
-
-    const email = normalizeEmail(decoded.email || "");
-    if (
-      !email ||
-      decoded.email_verified !== true ||
-      decoded.firebase?.sign_in_provider !== "google.com" ||
-      !ADMIN_EMAILS.has(email)
-    ) {
-      return res.status(403).json({ error: "This verified Google account is not an administrator." });
-    }
-
     const registeredUsers = Array.from(users.values()).filter((user) => user?.isRegistered);
     const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
     const feedbackCollection = mongoStorage?.getCollection("feedback");
@@ -563,7 +570,7 @@ app.get(
 
       res.json({
         generatedAt: nowIso(),
-        admin: { email },
+        admin: { email: req.adminEmail },
         metrics: {
           registeredUsers: registeredUsers.length,
           onlineUsers: registeredUsers.reduce(
@@ -591,6 +598,7 @@ app.get(
             lastSeenAt: toDisplayName(user.lastSeenAt),
             isGoogleUser: Boolean(user.googleUid),
             isOnline: onlineUsers.has(normalizeName(user.username)),
+            isSuspended: user.isSuspended === true,
           }))
           .sort((a, b) => Date.parse(b.createdAt || "") - Date.parse(a.createdAt || ""))
           .slice(0, 100),
@@ -609,6 +617,108 @@ app.get(
     } catch (error) {
       console.warn("[NovynAdmin] Failed to load dashboard data:", error?.message || error);
       res.status(503).json({ error: "Admin dashboard data is temporarily unavailable." });
+    }
+  }
+);
+
+function handleAdminOptions(req, res) {
+  if (!setAdminCors(req, res)) return res.status(403).end();
+  return res.status(204).end();
+}
+
+app.options("/api/admin/users/:username", handleAdminOptions);
+app.options("/api/admin/users/:username/suspension", handleAdminOptions);
+
+app.patch(
+  "/api/admin/users/:username",
+  createIpRateLimiter({ getStore: () => httpRateLimits }, "admin-user-edit", 30, 60 * 1000),
+  requireAdmin,
+  async (req, res) => {
+    const userKey = normalizeName(req.params.username);
+    const user = users.get(userKey);
+    if (!user?.isRegistered) return res.status(404).json({ error: "User not found." });
+    if (ADMIN_EMAILS.has(normalizeEmail(user.email || ""))) {
+      return res.status(403).json({ error: "Admin accounts cannot be changed here." });
+    }
+
+    const requestedUsername = normalizeHandleInput(req.body?.username);
+    if (!/^[a-z0-9_]{3,24}$/.test(requestedUsername)) {
+      return res.status(400).json({ error: "Use 3–24 lowercase letters, numbers, or underscores." });
+    }
+
+    let result;
+    try {
+      result = applyUsernameChange(userKey, requestedUsername);
+      if (!result.ok) return res.status(409).json({ error: result.message });
+      await flushStatePersistNow();
+      await flushAuthStatePersistNow();
+      console.info(`[NovynAdmin] ${req.adminEmail} changed username ${userKey} -> ${result.newKey}`);
+      res.json({ ok: true, username: result.newUsername });
+    } catch (error) {
+      if (result?.ok) {
+        result.rollback();
+        try {
+          await flushStatePersistNow();
+          await flushAuthStatePersistNow();
+        } catch (rollbackError) {
+          console.error("[NovynAdmin] Failed to persist username rollback:", rollbackError?.message || rollbackError);
+        }
+      }
+      console.error("[NovynAdmin] Failed to update username:", error?.message || error);
+      res.status(503).json({ error: "Username could not be saved. Please refresh and retry." });
+    }
+  }
+);
+
+app.patch(
+  "/api/admin/users/:username/suspension",
+  createIpRateLimiter({ getStore: () => httpRateLimits }, "admin-user-suspension", 30, 60 * 1000),
+  requireAdmin,
+  async (req, res) => {
+    const userKey = normalizeName(req.params.username);
+    const user = users.get(userKey);
+    if (!user?.isRegistered) return res.status(404).json({ error: "User not found." });
+    if (ADMIN_EMAILS.has(normalizeEmail(user.email || ""))) {
+      return res.status(403).json({ error: "Admin accounts cannot be suspended here." });
+    }
+    if (typeof req.body?.suspended !== "boolean") {
+      return res.status(400).json({ error: "A boolean suspended value is required." });
+    }
+
+    try {
+      await setUserSuspended(userKey, req.body.suspended);
+      console.info(`[NovynAdmin] ${req.adminEmail} ${req.body.suspended ? "suspended" : "restored"} ${userKey}`);
+      res.json({ ok: true, isSuspended: user.isSuspended === true });
+    } catch (error) {
+      console.error("[NovynAdmin] Failed to change account suspension:", error?.message || error);
+      res.status(503).json({ error: "Account status could not be saved. Please refresh and retry." });
+    }
+  }
+);
+
+app.delete(
+  "/api/admin/users/:username",
+  createIpRateLimiter({ getStore: () => httpRateLimits }, "admin-user-delete", 5, 60 * 60 * 1000),
+  requireAdmin,
+  async (req, res) => {
+    const userKey = normalizeName(req.params.username);
+    const user = users.get(userKey);
+    if (!user?.isRegistered) return res.status(404).json({ error: "User not found." });
+    if (ADMIN_EMAILS.has(normalizeEmail(user.email || ""))) {
+      return res.status(403).json({ error: "Admin accounts cannot be deleted here." });
+    }
+    const confirmation = normalizeHandleInput(req.body?.confirmation);
+    if (confirmation !== userKey) {
+      return res.status(400).json({ error: `Type @${user.username} to confirm permanent deletion.` });
+    }
+
+    try {
+      await removeUserAccount(userKey);
+      console.info(`[NovynAdmin] ${req.adminEmail} permanently deleted ${userKey} and associated chat data`);
+      res.json({ ok: true });
+    } catch (error) {
+      console.error("[NovynAdmin] Failed to delete account:", error?.message || error);
+      res.status(503).json({ error: error?.publicMessage || "Account deletion could not be completed. Please retry." });
     }
   }
 );
@@ -1422,7 +1532,11 @@ function resolveUserFromAuthCookies(authCookies, options = {}) {
   const accessSession = accessPayload?.sid && refreshSessions.get(accessPayload.sid);
   if (accessSession && Number(accessSession.expiresAt) > Date.now()) {
     const resolved = resolveCurrentUserKey(accessPayload.sub);
-    if (resolved && resolved === resolveCurrentUserKey(accessSession.userKey)) {
+    if (
+      resolved &&
+      resolved === resolveCurrentUserKey(accessSession.userKey) &&
+      users.get(resolved)?.isSuspended !== true
+    ) {
       accessSession.lastActiveAt = Date.now();
       return { userKey: resolved, via: "access", sessionId: accessPayload.sid };
     }
@@ -1439,7 +1553,7 @@ function resolveUserFromAuthCookies(authCookies, options = {}) {
   }
 
   const resolved = resolveCurrentUserKey(session.userKey || refreshPayload.sub);
-  if (!resolved) {
+  if (!resolved || users.get(resolved)?.isSuspended === true) {
     revokeRefreshSession(refreshPayload.jti);
     return { userKey: "" };
   }
@@ -1478,7 +1592,7 @@ function describeAuthDevice(req) {
 
 async function issueAuthTokensForUser(userKey, remember, req) {
   const key = normalizeName(userKey);
-  if (!key) return null;
+  if (!key || users.get(key)?.isSuspended === true) return null;
   const persistent = Boolean(remember);
   const refreshTtl = persistent ? AUTH_REFRESH_REMEMBER_TTL_MS : AUTH_REFRESH_SESSION_TTL_MS;
   const refreshTokenId = crypto.randomBytes(16).toString("hex");
@@ -1742,6 +1856,7 @@ function createUserRecord(username) {
     pushSubs: [],
     fcmToken: "",
     isRegistered: false,
+    isSuspended: false,
     passwordSalt: "",
     passwordHash: "",
     stealthModeEnabled: false,
@@ -1797,6 +1912,7 @@ function serializeState() {
       messagePreviewEnabled: user.messagePreviewEnabled !== false,
       groupNotificationsEnabled: user.groupNotificationsEnabled !== false,
       isRegistered: Boolean(user.isRegistered),
+      isSuspended: user.isSuspended === true,
       passwordSalt: toDisplayName(user.passwordSalt),
       passwordHash: toDisplayName(user.passwordHash),
       stealthModeEnabled: user.stealthModeEnabled === true,
@@ -2023,6 +2139,7 @@ async function persistMongoNow() {
               messagePreviewEnabled: entry.messagePreviewEnabled !== false,
               groupNotificationsEnabled: entry.groupNotificationsEnabled !== false,
               isRegistered: Boolean(entry.isRegistered),
+              isSuspended: entry.isSuspended === true,
               passwordSalt: toDisplayName(entry.passwordSalt),
               passwordHash: toDisplayName(entry.passwordHash),
               stealthModeEnabled: entry.stealthModeEnabled === true,
@@ -2795,6 +2912,7 @@ function applyLoadedState(parsed) {
     user.blockedUsers = new Set((entry.blockedUsers || []).map(normalizeName).filter(Boolean));
     user.mutedUsers = new Set((entry.mutedUsers || []).map(normalizeName).filter(Boolean));
     user.isRegistered = Boolean(entry.isRegistered);
+    user.isSuspended = entry.isSuspended === true;
     user.passwordSalt = toDisplayName(entry.passwordSalt);
     user.passwordHash = toDisplayName(entry.passwordHash);
     user.stealthModeEnabled = entry.stealthModeEnabled === true;
@@ -3024,6 +3142,7 @@ function toSerializedUserEntry(doc) {
     messagePreviewEnabled: doc?.messagePreviewEnabled !== false,
     groupNotificationsEnabled: doc?.groupNotificationsEnabled !== false,
     isRegistered: Boolean(doc?.isRegistered),
+    isSuspended: doc?.isSuspended === true,
     passwordSalt: toDisplayName(doc?.passwordSalt),
     passwordHash: toDisplayName(doc?.passwordHash),
     stealthModeEnabled: doc?.stealthModeEnabled === true,
@@ -3957,6 +4076,16 @@ function applyUsernameChange(userKey, newUsername) {
     target.clear();
     for (const [key, value] of entries) target.set(key, value);
   };
+  const rollback = () => {
+    restoreMap(users, snapshot.users);
+    restoreMap(conversations, snapshot.conversations);
+    restoreMap(groups, snapshot.groups);
+    restoreMap(scheduledMessages, snapshot.scheduledMessages);
+    restoreMap(onlineUsers, snapshot.onlineUsers);
+    restoreMap(refreshSessions, snapshot.refreshSessions);
+    restoreMap(refreshByUser, snapshot.refreshByUser);
+    restoreMap(authUserAliases, snapshot.authUserAliases);
+  };
 
   try {
 
@@ -4080,16 +4209,10 @@ function applyUsernameChange(userKey, newUsername) {
     newKey,
     oldUsername,
     newUsername: desired,
+    rollback,
   };
   } catch (error) {
-    restoreMap(users, snapshot.users);
-    restoreMap(conversations, snapshot.conversations);
-    restoreMap(groups, snapshot.groups);
-    restoreMap(scheduledMessages, snapshot.scheduledMessages);
-    restoreMap(onlineUsers, snapshot.onlineUsers);
-    restoreMap(refreshSessions, snapshot.refreshSessions);
-    restoreMap(refreshByUser, snapshot.refreshByUser);
-    restoreMap(authUserAliases, snapshot.authUserAliases);
+    rollback();
     throw error;
   }
 }
@@ -4767,6 +4890,212 @@ function revokeAllRefreshSessionsForUser(rawUserKey) {
   }
 }
 
+async function setUserSuspended(rawUserKey, suspended, { disconnectSockets = true } = {}) {
+  const userKey = normalizeName(rawUserKey);
+  const user = users.get(userKey);
+  if (!user?.isRegistered) throw new Error("User not found.");
+
+  if (user.isSuspended !== suspended) {
+    const previousSuspended = user.isSuspended === true;
+    user.isSuspended = suspended;
+    try {
+      await flushStatePersistNow();
+    } catch (error) {
+      user.isSuspended = previousSuspended;
+      throw error;
+    }
+  }
+
+  if (!suspended) return;
+
+  revokeAllRefreshSessionsForUser(userKey);
+  const peerKey = clearCallPair(userKey);
+  if (peerKey && onlineUsers.has(peerKey)) {
+    io.to(onlineUsers.get(peerKey)).emit("call_ended", {
+      by: userKey,
+      reason: "ended",
+    });
+  }
+  if (disconnectSockets) {
+    for (const socket of io.sockets.sockets.values()) {
+      if (normalizeName(socket.data?.userKey) === userKey) socket.disconnect(true);
+    }
+    onlineUsers.delete(userKey);
+    emitStatusToFriends(userKey);
+    emitDiscoverOnlineToAll();
+  }
+  await flushAuthStatePersistNow();
+}
+
+async function removeUserMedia(rawUserKey) {
+  const userKey = normalizeName(rawUserKey);
+  let filenames;
+  try {
+    filenames = await fsp.readdir(uploadsDir);
+  } catch (error) {
+    if (error?.code === "ENOENT") return;
+    throw error;
+  }
+
+  for (const metadataFilename of filenames.filter((name) => name.endsWith(".metadata.json"))) {
+    const filename = metadataFilename.slice(0, -".metadata.json".length);
+    const metadata = mediaMetadata(filename);
+    if (resolveCurrentUserKey(normalizeName(metadata?.ownerKey)) !== userKey) continue;
+
+    if (metadata.remote?.publicId) {
+      if (!cloudinary?.uploader?.destroy) {
+        throw new Error("Cloud media storage is unavailable.");
+      }
+      const result = await cloudinary.uploader.destroy(metadata.remote.publicId, {
+        resource_type: metadata.remote.resourceType || "image",
+        type: "authenticated",
+        invalidate: true,
+      });
+      if (result?.result === "error") throw new Error("Cloud media could not be removed.");
+    }
+
+    for (const ownedFilename of [filename, metadataFilename]) {
+      try {
+        await fsp.unlink(path.join(uploadsDir, ownedFilename));
+      } catch (error) {
+        if (error?.code !== "ENOENT") throw error;
+      }
+    }
+  }
+}
+
+async function removeUserAccount(rawUserKey, { disconnectSockets = true } = {}) {
+  const userKey = normalizeName(rawUserKey);
+  const user = users.get(userKey);
+  if (!user?.isRegistered) throw new Error("User not found.");
+
+  await setUserSuspended(userKey, true, { disconnectSockets });
+
+  if (user.googleUid) {
+    if (!firebaseAdmin) {
+      const error = new Error("Firebase Admin authentication is unavailable.");
+      error.publicMessage = "The account remains suspended because its linked Google identity could not be removed.";
+      throw error;
+    }
+    for (const firebaseApp of [firebaseAdmin, firebaseLegacyAdmin].filter(Boolean)) {
+      try {
+        await admin.auth(firebaseApp).deleteUser(user.googleUid);
+      } catch (error) {
+        if (error?.code !== "auth/user-not-found") {
+          const deletionError = new Error("Could not delete the linked Firebase identity.");
+          deletionError.publicMessage = "The account remains suspended because its linked Google identity could not be removed.";
+          throw deletionError;
+        }
+      }
+    }
+  }
+
+  try {
+    await removeUserMedia(userKey);
+  } catch (error) {
+    const cleanupError = new Error("Could not remove the account's uploaded media.");
+    cleanupError.cause = error;
+    cleanupError.publicMessage = "The account remains suspended because its uploaded media could not be fully removed.";
+    throw cleanupError;
+  }
+
+  const callPeerKey = clearCallPair(userKey);
+  if (callPeerKey && onlineUsers.has(callPeerKey)) {
+    io.to(onlineUsers.get(callPeerKey)).emit("call_ended", { by: userKey, reason: "ended" });
+  }
+
+  const impacted = new Set();
+  for (const [otherKey, other] of users) {
+    if (!other || otherKey === userKey) continue;
+    let touched = false;
+    for (const set of [other.friends, other.requests, other.blockedUsers, other.mutedUsers]) {
+      if (set instanceof Set && set.delete(userKey)) touched = true;
+    }
+    if (other.unread instanceof Map && other.unread.delete(userKey)) touched = true;
+    if (touched) impacted.add(otherKey);
+  }
+
+  for (const [groupId, group] of groups) {
+    if (!(group.members instanceof Set) || !group.members.delete(userKey)) continue;
+    if (group.admins instanceof Set) group.admins.delete(userKey);
+    if (group.ownerKey === userKey) {
+      const nextOwner = [...(group.admins || [])][0] || [...group.members][0];
+      if (!nextOwner) {
+        groups.delete(groupId);
+        const groupConversationKey = getGroupConversationKey(groupId);
+        conversations.delete(groupConversationKey);
+        conversationWallpapers.delete(groupConversationKey);
+        continue;
+      }
+      group.ownerKey = nextOwner;
+      if (group.admins instanceof Set) group.admins.add(nextOwner);
+    }
+    group.updatedAt = nowIso();
+    for (const memberKey of group.members) {
+      impacted.add(memberKey);
+      emitGroupInfoToMember(memberKey, group);
+    }
+  }
+
+  for (const [conversationKey, history] of conversations) {
+    if (!isGroupConversationKey(conversationKey) &&
+        conversationKey.split("::").includes(userKey)) {
+      conversations.delete(conversationKey);
+      conversationWallpapers.delete(conversationKey);
+      continue;
+    }
+    if (isGroupConversationKey(conversationKey) && Array.isArray(history)) {
+      const retained = history.filter((message) =>
+        normalizeName(message?.fromKey || message?.from || "") !== userKey
+      );
+      if (retained.length !== history.length) conversations.set(conversationKey, retained);
+    }
+  }
+
+  for (const [scheduledId, scheduled] of scheduledMessages) {
+    if (normalizeName(scheduled.fromKey) !== userKey && normalizeName(scheduled.toKey) !== userKey) continue;
+    const timer = scheduledMessageTimers.get(scheduledId);
+    if (timer) clearTimeout(timer);
+    scheduledMessageTimers.delete(scheduledId);
+    scheduledMessages.delete(scheduledId);
+  }
+
+  revokeAllRefreshSessionsForUser(userKey);
+  for (const [oldKey, alias] of authUserAliases) {
+    if (oldKey === userKey || normalizeName(alias?.newKey) === userKey) authUserAliases.delete(oldKey);
+  }
+  passwordResetTokens.forEach((entry, id) => {
+    if (normalizeName(entry?.userKey) === userKey) passwordResetTokens.delete(id);
+  });
+  emailChangeTokens.forEach((entry, id) => {
+    if (normalizeName(entry?.userKey) === userKey) emailChangeTokens.delete(id);
+  });
+  passwordResetByUser.delete(userKey);
+  emailChangeByUser.delete(userKey);
+  onlineUsers.delete(userKey);
+  users.delete(userKey);
+
+  try {
+    await flushStatePersistNow();
+    await flushAuthStatePersistNow();
+  } catch (error) {
+    error.publicMessage = "Account cleanup could not be fully saved. Contact support before retrying.";
+    throw error;
+  }
+
+  impacted.forEach((key) => {
+    emitFriendList(key);
+    emitRequests(key);
+  });
+  emitDiscoverOnlineToAll();
+  if (disconnectSockets) {
+    for (const socket of io.sockets.sockets.values()) {
+      if (normalizeName(socket.data?.userKey) === userKey) socket.disconnect(true);
+    }
+  }
+  return true;
+}
+
 function emitGroupListUpdatesForUser(username) {
   const userKey = normalizeName(username);
   const user = users.get(userKey);
@@ -5091,6 +5420,9 @@ function authenticateSigninPayload(payload) {
     if (!user || !user.isRegistered) {
       return { ok: false, status: 401, message: "Email doesn't exist. Sign up.", suggestions: [] };
     }
+    if (user.isSuspended === true) {
+      return { ok: false, status: 403, message: "This account is suspended. Contact support.", suggestions: [] };
+    }
     if (!verifyPassword(password, user.passwordSalt, user.passwordHash)) {
       return { ok: false, status: 401, message: "Incorrect password.", suggestions: [] };
     }
@@ -5107,6 +5439,9 @@ function authenticateSigninPayload(payload) {
       message: "Username doesn't exist. Sign up.",
       suggestions,
     };
+  }
+  if (user.isSuspended === true) {
+    return { ok: false, status: 403, message: "This account is suspended. Contact support.", suggestions: [] };
   }
 
   if (!user.passwordSalt || !user.passwordHash) {
@@ -5450,6 +5785,10 @@ app.post(
 
     let user = findUserByGoogleUid(googleUid) || findUserByEmail(email);
     let linkedExisting = Boolean(user);
+    if (user?.isSuspended === true) {
+      res.status(403).json({ message: "This account is suspended. Contact support." });
+      return;
+    }
 
     if (!user && linkIdentifier && linkPassword) {
       const linkedAuth = authenticateSigninPayload({
@@ -6541,7 +6880,8 @@ io.on("connection", (socket) => {
   socket.use((packet, next) => {
     const userKey = normalizeName(socket.data.userKey || '');
     const session = socket.data.sessionId && refreshSessions.get(socket.data.sessionId);
-    if (userKey && ((socket.data.sessionId && (!session || session.expiresAt <= Date.now())) ||
+    if (userKey && (users.get(userKey)?.isSuspended === true ||
+      (socket.data.sessionId && (!session || session.expiresAt <= Date.now())) ||
       socket.data.passwordHashSnapshot !== users.get(userKey)?.passwordHash)) {
       socket.emit('auth_failed', { message: 'Session expired. Please sign in again.' });
       socket.disconnect(true);
@@ -6577,7 +6917,7 @@ io.on("connection", (socket) => {
       return;
     }
     const user = users.get(userKey);
-    if (!user || !user.isRegistered) {
+    if (!user || !user.isRegistered || user.isSuspended === true) {
       socket.emit("auth_failed", { message: "Session expired. Please sign in again." });
       return;
     }
@@ -7379,121 +7719,14 @@ io.on("connection", (socket) => {
       return;
     }
 
-    // Remove the linked Google identity too, otherwise the same Firebase
-    // account could sign in again and recreate a deleted Novyn account.
-    if (user.googleUid) {
-      if (!firebaseAdmin) {
-        socket.emit("account_deletion_failed", {
-          message: "Google identity deletion is unavailable right now. Please try again later.",
-        });
-        return;
-      }
-      for (const firebaseApp of [firebaseLegacyAdmin, firebaseAdmin].filter(Boolean)) {
-        try {
-          await admin.auth(firebaseApp).deleteUser(user.googleUid);
-        } catch (error) {
-          if (error?.code !== "auth/user-not-found") {
-            socket.emit("account_deletion_failed", {
-              message: "Could not remove the linked Google identity. Your account was not deleted.",
-            });
-            return;
-          }
-        }
-      }
+    try {
+      await removeUserAccount(userKey, { disconnectSockets: false });
+    } catch (error) {
+      socket.emit("account_deletion_failed", {
+        message: error?.publicMessage || "Could not delete the account. Please try again later.",
+      });
+      return;
     }
-
-    const callPeerKey = clearCallPair(userKey);
-    if (callPeerKey && onlineUsers.has(callPeerKey)) {
-      io.to(onlineUsers.get(callPeerKey)).emit("call_ended", { by: userKey, reason: "ended" });
-    }
-
-    const impacted = new Set();
-    users.forEach((other, otherKey) => {
-      if (!other || otherKey === userKey) return;
-      let touched = false;
-      if (other.friends && other.friends.has(userKey)) {
-        other.friends.delete(userKey);
-        touched = true;
-      }
-      if (other.requests && other.requests.has(userKey)) {
-        other.requests.delete(userKey);
-        touched = true;
-      }
-      if (other.unread && other.unread.has(userKey)) {
-        other.unread.delete(userKey);
-        touched = true;
-      }
-      if (other.blockedUsers instanceof Set && other.blockedUsers.has(userKey)) {
-        other.blockedUsers.delete(userKey);
-        touched = true;
-      }
-      if (other.mutedUsers instanceof Set && other.mutedUsers.has(userKey)) {
-        other.mutedUsers.delete(userKey);
-        touched = true;
-      }
-      if (touched) impacted.add(otherKey);
-    });
-
-    for (const [groupId, group] of groups.entries()) {
-      if (!(group.members instanceof Set) || !group.members.has(userKey)) continue;
-      group.members.delete(userKey);
-      if (group.admins instanceof Set) group.admins.delete(userKey);
-      if (group.ownerKey === userKey) {
-        const nextOwner = [...(group.admins || [])][0] || [...(group.members || [])][0];
-        if (nextOwner) {
-          group.ownerKey = nextOwner;
-          if (group.admins instanceof Set) group.admins.add(nextOwner);
-        } else {
-          groups.delete(groupId);
-          conversations.delete(getGroupConversationKey(groupId));
-          continue;
-        }
-      }
-      group.updatedAt = nowIso();
-      for (const memberKey of group.members) {
-        impacted.add(memberKey);
-        emitGroupInfoToMember(memberKey, group);
-      }
-    }
-
-    // Delete private conversation histories involving this account. For
-    // surviving groups, remove messages authored by the deleted account while
-    // retaining the rest of the group's shared history.
-    for (const [conversationKey, history] of conversations.entries()) {
-      if (!isGroupConversationKey(conversationKey) &&
-          conversationKey.split("::").includes(userKey)) {
-        conversations.delete(conversationKey);
-        continue;
-      }
-      if (isGroupConversationKey(conversationKey) && Array.isArray(history)) {
-        const retained = history.filter((message) =>
-          normalizeName(message?.fromKey || message?.from || "") !== userKey
-        );
-        if (retained.length !== history.length) {
-          conversations.set(conversationKey, retained);
-        }
-      }
-    }
-
-    for (const [scheduledId, scheduled] of scheduledMessages.entries()) {
-      if (scheduled.fromKey === userKey || scheduled.toKey === userKey) {
-        const timer = scheduledMessageTimers.get(scheduledId);
-        if (timer) clearTimeout(timer);
-        scheduledMessageTimers.delete(scheduledId);
-        scheduledMessages.delete(scheduledId);
-      }
-    }
-
-    revokeAllRefreshSessionsForUser(userKey);
-    onlineUsers.delete(userKey);
-    users.delete(userKey);
-    schedulePersist();
-
-    impacted.forEach((key) => {
-      emitFriendList(key);
-      emitRequests(key);
-    });
-    emitDiscoverOnlineToAll();
 
     socket.emit("account_deleted", { success: true });
     setTimeout(() => {

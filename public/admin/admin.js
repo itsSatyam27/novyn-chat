@@ -20,6 +20,9 @@
   let currentUser = null;
   let refreshTimer = null;
   let requestInFlight = false;
+  let reloadAfterRequest = false;
+  const dashboardWaiters = [];
+  let actionInFlight = false;
 
   const auth = firebase.initializeApp(config.firebase).auth();
   const formatDate = (value) => {
@@ -31,11 +34,19 @@
 
   function showError(element, message) {
     element.textContent = message;
+    element.classList.remove("success");
+    element.hidden = false;
+  }
+
+  function showSuccess(element, message) {
+    element.textContent = message;
+    element.classList.add("success");
     element.hidden = false;
   }
 
   function clearError(element) {
     element.textContent = "";
+    element.classList.remove("success");
     element.hidden = true;
   }
 
@@ -61,7 +72,7 @@
       const row = document.createElement("tr");
       const cell = document.createElement("td");
       cell.className = "empty";
-      cell.colSpan = 5;
+      cell.colSpan = 6;
       cell.textContent = "No users match that search.";
       row.append(cell);
       elements.usersBody.append(row);
@@ -88,11 +99,86 @@
       }
       const status = document.createElement("td");
       const pill = document.createElement("span");
-      pill.className = `pill${user.isOnline ? " online" : ""}`;
-      pill.textContent = user.isOnline ? "Online" : user.isGoogleUser ? "Google" : "Offline";
+      pill.className = `pill${user.isSuspended ? " suspended" : user.isOnline ? " online" : ""}`;
+      pill.textContent = user.isSuspended ? "Suspended" : user.isOnline ? "Online" : user.isGoogleUser ? "Google" : "Offline";
       status.append(pill);
       row.append(status);
+
+      const actions = document.createElement("td");
+      actions.className = "user-actions";
+      const isAdminAccount = user.email?.toLowerCase() === "novynchat.app@gmail.com";
+      const edit = document.createElement("button");
+      edit.className = "button button-muted action-button";
+      edit.type = "button";
+      edit.textContent = "Edit";
+      edit.disabled = actionInFlight || isAdminAccount;
+      edit.setAttribute("aria-label", `Edit username for @${user.username}`);
+      edit.addEventListener("click", () => {
+        const username = window.prompt("Enter the new username:", user.username);
+        if (username === null || username.trim() === user.username) return;
+        void updateUser(user, "PATCH", "", { username: username.trim() });
+      });
+
+      const suspension = document.createElement("button");
+      suspension.className = "button button-muted action-button";
+      suspension.type = "button";
+      suspension.textContent = user.isSuspended ? "Restore" : "Suspend";
+      suspension.disabled = actionInFlight || isAdminAccount;
+      suspension.setAttribute("aria-label", `${user.isSuspended ? "Restore" : "Suspend"} @${user.username}`);
+      suspension.addEventListener("click", () => {
+        const action = user.isSuspended ? "restore" : "suspend";
+        if (!window.confirm(`${action === "suspend" ? "Suspend" : "Restore"} @${user.username}?`)) return;
+        void updateUser(user, "PATCH", "/suspension", { suspended: !user.isSuspended });
+      });
+
+      const remove = document.createElement("button");
+      remove.className = "button button-danger action-button";
+      remove.type = "button";
+      remove.textContent = "Delete";
+      remove.disabled = actionInFlight || isAdminAccount;
+      remove.setAttribute("aria-label", `Permanently delete @${user.username}`);
+      remove.addEventListener("click", () => {
+        const confirmation = window.prompt(
+          `Permanently delete @${user.username} and associated chat data? This cannot be undone.\n\nType the username to confirm:`
+        );
+        if (confirmation === null) return;
+        void updateUser(user, "DELETE", "", { confirmation });
+      });
+      actions.append(edit, suspension, remove);
+      row.append(actions);
       elements.usersBody.append(row);
+    }
+  }
+
+  async function updateUser(user, method, suffix, body) {
+    if (!currentUser || actionInFlight) return;
+    actionInFlight = true;
+    renderUsers(currentUsers);
+    clearError(elements.dashboardError);
+    try {
+      const token = await currentUser.getIdToken(true);
+      const response = await fetch(
+        `${config.apiBaseUrl}/api/admin/users/${encodeURIComponent(user.username)}${suffix}`,
+        {
+          method,
+          headers: {
+            Authorization: "Bearer " + token,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(body),
+          cache: "no-store",
+        }
+      );
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Could not update this account.");
+      const refreshed = await loadDashboard();
+      if (refreshed) showSuccess(elements.dashboardError, `Account @${data.username || user.username} updated.`);
+      else showError(elements.dashboardError, "The change was saved, but the dashboard could not refresh. Try Refresh.");
+    } catch (error) {
+      showError(elements.dashboardError, error.message || "Could not update this account.");
+    } finally {
+      actionInFlight = false;
+      renderUsers(currentUsers);
     }
   }
 
@@ -133,7 +219,11 @@
   }
 
   async function loadDashboard() {
-    if (!currentUser || requestInFlight) return;
+    if (!currentUser) return false;
+    if (requestInFlight) {
+      reloadAfterRequest = true;
+      return new Promise((resolve) => dashboardWaiters.push(resolve));
+    }
     requestInFlight = true;
     elements.refresh.disabled = true;
     try {
@@ -162,11 +252,18 @@
       renderUsers(data.users);
       renderFeedback(data.feedback);
       clearError(elements.dashboardError);
+      return true;
     } catch (error) {
       showError(elements.dashboardError, error.message || "Could not load dashboard data.");
+      return false;
     } finally {
       requestInFlight = false;
       elements.refresh.disabled = false;
+      if (reloadAfterRequest) {
+        reloadAfterRequest = false;
+        const waiters = dashboardWaiters.splice(0);
+        void loadDashboard().then((refreshed) => waiters.forEach((resolve) => resolve(refreshed)));
+      }
     }
   }
 

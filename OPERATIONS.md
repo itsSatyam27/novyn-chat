@@ -58,12 +58,17 @@ API for MongoDB-backed usage and feedback data. Configure the API with
 `ADMIN_EMAILS=novynchat.app@gmail.com` and
 `ADMIN_ALLOWED_ORIGINS=https://chat-novyn.web.app,https://chat-novyn.firebaseapp.com`.
 The Render API must use the `chat-novyn` Firebase Admin credentials, and Google
-sign-in must be enabled for that Firebase project. Once configured, deploy the
-site with `firebase deploy --only hosting --project chat-novyn`; it will be
-available at `https://chat-novyn.web.app/admin/`. This dashboard is read-only
-and does not expose chat message contents. The existing main-branch Hosting
-workflow intentionally skips admin-only changes, so they cannot publish this
-Firebase dashboard to the old project.
+sign-in must be enabled for that Firebase project. Deploy the updated API
+service on Render before publishing the dashboard with
+`firebase deploy --only hosting --project chat-novyn`; it will be available at
+`https://chat-novyn.web.app/admin/`. Administrators can edit usernames, suspend
+or restore accounts, and permanently delete accounts with their associated chat
+data and uploaded media. Suspension revokes active sessions; deletion also
+removes the linked Firebase identity. Admin accounts cannot be changed through
+these controls.
+The dashboard does not expose chat message contents. The existing main-branch
+Hosting workflow intentionally skips admin-only changes, so it cannot publish
+this Firebase dashboard to the old project.
 
 Use Node 24 or newer, install with `npm ci`, and start `npm run dev`.
 On Windows PowerShell with scripts disabled, use `npm.cmd`.

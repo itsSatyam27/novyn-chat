@@ -145,4 +145,29 @@ test('newly issued auth session survives an immediate backend process restart', 
   const restoredBody = await restored.json();
   assert.equal(restoredBody.authenticated, true);
   assert.equal(restoredBody.username, 'restart_user');
+
+  const persistedStatePath = path.join(dataDirectory, 'chat-state.json');
+  const persistedState = JSON.parse(await fs.readFile(persistedStatePath, 'utf8'));
+  const persistedUser = persistedState.users.find((entry) => entry.key === 'restart_user');
+  assert.ok(persistedUser, 'registered user must be present in persisted state');
+  persistedUser.isSuspended = true;
+  await fs.writeFile(persistedStatePath, JSON.stringify(persistedState));
+
+  await stopBackend(backend);
+  backend = await startBackend();
+
+  const suspendedSession = await fetch(`${base}/api/auth/session`, {
+    headers: { Cookie: cookie },
+  });
+  assert.equal(suspendedSession.status, 401, await suspendedSession.clone().text());
+
+  const suspendedSignin = await fetch(`${base}/api/auth/signin`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      identifier: 'restart_user',
+      password: 'Persistent-session-test-123!',
+    }),
+  });
+  assert.equal(suspendedSignin.status, 403, await suspendedSignin.clone().text());
 });
