@@ -70,7 +70,6 @@ apps/mobile/flutter/build/
 apps/mobile/flutter/android/build/
 apps/mobile/flutter/.dart_tool/
 apps/mobile/flutter/.flutter-plugins-dependencies
-apps/mobile/flutter/pubspec.lock
 
 # ── Public downloads (APK served to users — not source) ──────────────────────
 apps/web/public/downloads/*.apk

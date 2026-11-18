@@ -18,11 +18,19 @@ concurrency:
 
 jobs:
   build-arm64:
-    name: Build optimized ARM64 release APK
+    name: Build optimized ARM64 Shorebird release APK
     runs-on: ubuntu-latest
+    env:
+      SHOREBIRD_TOKEN: ${{ secrets.SHOREBIRD_TOKEN }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Verify Shorebird project setup
+        run: |
+          set -euo pipefail
+          test -f apps/mobile/flutter/shorebird.yaml || (echo "::error::Missing apps/mobile/flutter/shorebird.yaml" && exit 1)
+          test -n "${SHOREBIRD_TOKEN}" || (echo "::error::Missing SHOREBIRD_TOKEN secret" && exit 1)
 
       - name: Set up Java
         uses: actions/setup-java@v4
@@ -35,6 +43,11 @@ jobs:
         with:
           flutter-version: "3.47.9"
           channel: stable
+          cache: true
+
+      - name: Set up Shorebird
+        uses: shorebirdtech/setup-shorebird@v1
+        with:
           cache: true
 
       - name: Restore Firebase configuration
@@ -86,15 +99,24 @@ jobs:
           echo "build_code=${BUILD_CODE}" >> "${GITHUB_OUTPUT}"
           echo "Novyn Android build code: ${BUILD_CODE}" >> "${GITHUB_STEP_SUMMARY}"
 
-      - name: Build split release APKs
-        working-directory: apps/mobile/flutter
-        run: flutter build apk --release --split-per-abi --build-number="${{ steps.build-meta.outputs.build_code }}"
+      - name: Create ARM64 Shorebird release
+        uses: shorebirdtech/shorebird-release@v1
+        id: shorebird-release
+        with:
+          flutter-version: 3.47.9
+          platform: android
+          working-directory: apps/mobile/flutter
+          args: >-
+            --artifact=apk
+            --build-number=${{ steps.build-meta.outputs.build_code }}
+            --
+            --target-platform=android-arm64
 
       - name: Verify ARM64 APK package and signature
         id: apk-verify
         run: |
           set -euo pipefail
-          APK="apps/mobile/flutter/build/app/outputs/flutter-apk/app-arm64-v8a-release.apk"
+          APK="apps/mobile/flutter/build/app/outputs/flutter-apk/app-release.apk"
           BUILD_TOOLS="$(find "${ANDROID_HOME}/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)"
           "${BUILD_TOOLS}/apksigner" verify --verbose --print-certs "${APK}"
           BADGING="$("${BUILD_TOOLS}/aapt" dump badging "${APK}")"
@@ -107,13 +129,15 @@ jobs:
           echo "apk_version_code=${VERSION_CODE}" >> "${GITHUB_OUTPUT}"
           unzip -t "${APK}" >/dev/null
           unzip -Z1 "${APK}" | grep -q '^lib/arm64-v8a/'
-          echo "APK package, version, ARM64 payload, ZIP structure, and signature verified." >> "${GITHUB_STEP_SUMMARY}"
+          NON_ARM64_LIBS="$(unzip -Z1 "${APK}" | grep -E '^lib/[^/]+/' | grep -v '^lib/arm64-v8a/' || true)"
+          test -z "${NON_ARM64_LIBS}"
+          echo "ARM64-only Shorebird APK package, version, ZIP structure, and signature verified." >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Report ARM64 APK size
         id: apk-size
         run: |
           set -euo pipefail
-          APK="apps/mobile/flutter/build/app/outputs/flutter-apk/app-arm64-v8a-release.apk"
+          APK="apps/mobile/flutter/build/app/outputs/flutter-apk/app-release.apk"
           test -f "$APK"
           BYTES=$(stat -c%s "$APK")
           MIB=$(awk -v bytes="$BYTES" 'BEGIN { printf "%.1f", bytes / 1048576 }')
@@ -121,9 +145,11 @@ jobs:
           {
             echo "## Novyn ARM64 APK"
             echo ""
-            echo "- File: app-arm64-v8a-release.apk"
+            echo "- File: Novyn-Android-ARM64.apk"
             echo "- Size: **${MIB} MiB**"
             echo "- Build: ${GITHUB_RUN_NUMBER}"
+            echo "- Shorebird release: ${{ steps.shorebird-release.outputs.release-version }}"
+            echo "- OTA patches: enabled for compatible Dart-code changes"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Publish direct ARM64 APK release
@@ -131,7 +157,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          SOURCE_APK="apps/mobile/flutter/build/app/outputs/flutter-apk/app-arm64-v8a-release.apk"
+          SOURCE_APK="apps/mobile/flutter/build/app/outputs/flutter-apk/app-release.apk"
           RELEASE_DIR="release-assets"
           RELEASE_APK="${RELEASE_DIR}/Novyn-Android-ARM64.apk"
           mkdir -p "${RELEASE_DIR}"
@@ -150,13 +176,13 @@ jobs:
             --repo "${GITHUB_REPOSITORY}" \
             --target "${GITHUB_SHA}" \
             --title "Novyn Android ARM64 APK — ${MB} MB" \
-            --notes "Signed ARM64-v8a Android release APK. Direct download; no ZIP extraction required." \
+            --notes "Signed ARM64-v8a Android release APK with Shorebird OTA enabled for compatible Dart-code updates. Direct download; no ZIP extraction required." \
             "${RELEASE_CHANNEL_ARGS[@]}"
 
       - name: Upload ARM64 APK
         uses: actions/upload-artifact@v4
         with:
           name: novyn-arm64-release-apk
-          path: apps/mobile/flutter/build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
+          path: apps/mobile/flutter/build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
           retention-days: 30

@@ -81,4 +81,5 @@ flutter:
     - assets/audio/
     - assets/images/
     - assets/icons/
+    - shorebird.yaml
 
