@@ -74,3 +74,6 @@ apps/mobile/flutter/.flutter-plugins-dependencies
 # ── Public downloads (APK served to users — not source) ──────────────────────
 apps/web/public/downloads/*.apk
 apps/web/public/downloads/*.aab
+
+# Firebase CLI local deployment cache
+.firebase/
