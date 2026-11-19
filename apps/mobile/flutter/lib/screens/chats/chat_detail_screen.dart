@@ -404,7 +404,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
       // Render the complete Hive cache first; Drift is warmed and merged later.
       cachedMessages = await HybridDbService.getCachedMessages(_chatId!)
           .timeout(const Duration(seconds: 4), onTimeout: () => <Message>[]);
-    } catch (error) {
+    } catch (_) {
       debugPrint('[NovynChat] Local message cache read failed: $error');
     }
     debugPrint(
@@ -808,10 +808,10 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
       backgroundColor: Colors.transparent,
       surfaceTintColor: Colors.transparent,
       elevation: 0,
-      toolbarHeight: 78,
+      toolbarHeight: 72,
       scrolledUnderElevation: 0,
       flexibleSpace: Container(
-        margin: const EdgeInsets.fromLTRB(10, 8, 10, 6),
+        margin: const EdgeInsets.fromLTRB(10, 7, 10, 5),
         decoration: BoxDecoration(
           color: scheme.surface,
           borderRadius: BorderRadius.circular(24),
@@ -828,7 +828,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
         ),
       ),
       automaticallyImplyLeading: false,
-      titleSpacing: 8,
+      titleSpacing: 5,
       title: Row(
         children: [
           _ChatHeaderButton(
@@ -837,7 +837,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
             tooltip: 'Back',
             onTap: () => Navigator.pop(context),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 6),
           Expanded(
             child: GestureDetector(
               behavior: HitTestBehavior.opaque,
@@ -849,21 +849,21 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
                       isOnline: _peerIsOnline,
                       status: _peerPresence,
                       width: 4,
-                      height: 44,
-                      margin: const EdgeInsets.only(right: 12),
+                      height: 40,
+                      margin: const EdgeInsets.only(right: 9),
                     ),
                   Hero(
                     tag: 'avatar_${widget.peer.uid}',
                     child: UserAvatar(
                       name: widget.peer.name,
                       photoUrl: widget.peer.photoUrl,
-                      radius: 22,
+                      radius: 20,
                       showOnlineIndicator: false,
                       isOnline: widget.isGroup ? false : _peerIsOnline,
                       presence: _peerPresence,
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 10),
                   Expanded(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -876,12 +876,12 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
                           style: TextStyle(
                             fontFamily: 'PlusJakartaSans',
                             fontWeight: FontWeight.w700,
-                            fontSize: 17,
+                            fontSize: 16,
                             color: scheme.onSurface,
                           ),
                         ),
                         SizedBox(
-                          height: 18,
+                          height: 17,
                           child: AnimatedSwitcher(
                             duration: const Duration(milliseconds: 320),
                             switchInCurve: Curves.easeOutCubic,
@@ -910,7 +910,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
                                 softWrap: false,
                                 style: TextStyle(
                                   fontFamily: 'PlusJakartaSans',
-                                  fontSize: 13,
+                                  fontSize: 12,
                                   height: 1.1,
                                   fontWeight: FontWeight.w500,
                                   color: peerStatusColor,
@@ -926,7 +926,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
               ),
             ),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 4),
           if (!widget.isGroup) ...[
             _ChatHeaderButton(
               icon: Icons.call_rounded,
@@ -934,14 +934,14 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
               tooltip: 'Voice call',
               onTap: () => _startCall('voice'),
             ),
-            const SizedBox(width: 6),
+            const SizedBox(width: 3),
             _ChatHeaderButton(
               icon: Icons.videocam_rounded,
               color: accent,
               tooltip: 'Video call',
               onTap: () => _startCall('video'),
             ),
-            const SizedBox(width: 6),
+            const SizedBox(width: 3),
           ],
           _ChatHeaderButton(
             key: _headerMenuButtonKey,
@@ -950,7 +950,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
             tooltip: 'More options',
             onTap: _showHeaderMenu,
           ),
-          const SizedBox(width: 4),
+          const SizedBox(width: 2),
         ],
       ),
     );
@@ -967,28 +967,34 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
     final anchor = buttonTopLeft & button.size;
     final overlayRect = Offset.zero & overlay.size;
     final itemCount = widget.isGroup ? 5 : 8;
-    final menuHeight = itemCount * 48.0 + (widget.isGroup ? 12 : 29);
-    final menuWidth = math.min(324.0, overlay.size.width - 20).toDouble();
+    final menuHeight = itemCount * 44.0 + (widget.isGroup ? 12 : 29);
+    final availableHeight = math.max(1.0, overlay.size.height - 16).toDouble();
+    final menuWidth = math.min(288.0, overlay.size.width - 16).toDouble();
     final right = overlay.size.width - anchor.right;
     var top = anchor.bottom + 8;
-    if (top + menuHeight > overlay.size.height - 8) {
-      top = math.max(8, anchor.top - menuHeight - 8).toDouble();
+    if (top + math.min(menuHeight, availableHeight) > overlay.size.height - 8) {
+      top = math.max(
+        8,
+        anchor.top - math.min(menuHeight, availableHeight) - 8,
+      ).toDouble();
     }
     final left = (overlay.size.width - right - menuWidth)
         .clamp(8.0, overlay.size.width - menuWidth - 8)
         .toDouble();
     final menuRect = Rect.fromLTWH(left, top, menuWidth, menuHeight);
     final scheme = Theme.of(context).colorScheme;
-    final blocked = _socketService.blockedUsers.any(
-      (name) => name.toLowerCase() == widget.peer.username.toLowerCase(),
-    );
+    final blocked = _isPeerBlocked();
     final selected = await showMenu<String>(
       context: context,
       position: RelativeRect.fromRect(menuRect, overlayRect),
       color: scheme.surface,
       elevation: 18,
-      constraints: BoxConstraints.tightFor(width: menuWidth),
-      menuPadding: const EdgeInsets.symmetric(vertical: 6),
+      constraints: BoxConstraints(
+        minWidth: menuWidth,
+        maxWidth: menuWidth,
+        maxHeight: availableHeight,
+      ),
+      menuPadding: const EdgeInsets.symmetric(vertical: 5),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(22),
         side: BorderSide(color: scheme.primary.withValues(alpha: .18)),
@@ -1067,7 +1073,13 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
         _showSharedMedia();
         break;
       case 'mute':
-        _toggleMute();
+        await _toggleMute();
+        break;
+      case 'mute-on':
+        await _setPeerMuted(true);
+        break;
+      case 'mute-off':
+        await _setPeerMuted(false);
         break;
       case 'wallpaper':
         _showWallpaperPicker();
@@ -1095,28 +1107,28 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
     final scheme = Theme.of(context).colorScheme;
     return PopupMenuItem<String>(
       value: value,
-      height: 48,
+      height: 44,
       padding: EdgeInsets.zero,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14),
+        padding: const EdgeInsets.symmetric(horizontal: 12),
         child: Row(
           children: [
             Container(
-              width: 40,
-              height: 40,
+              width: 36,
+              height: 36,
               decoration: BoxDecoration(
                 color: tint.withValues(alpha: .12),
-                borderRadius: BorderRadius.circular(13),
+                borderRadius: BorderRadius.circular(12),
               ),
-              child: Icon(icon, color: tint, size: 20),
+              child: Icon(icon, color: tint, size: 18),
             ),
-            const SizedBox(width: 13),
+            const SizedBox(width: 11),
             Expanded(
               child: Text(
                 title,
                 style: TextStyle(
                   color: danger ? tint : scheme.onSurface,
-                  fontSize: 14,
+                  fontSize: 13,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -1131,27 +1143,17 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
     );
   }
 
-  Widget _buildMuteSwitch(ColorScheme scheme) => AnimatedContainer(
-        duration: const Duration(milliseconds: 160),
-        width: 43,
-        height: 25,
-        padding: const EdgeInsets.all(3),
-        decoration: BoxDecoration(
-          color: _peerMuted
-              ? scheme.primary
-              : scheme.onSurfaceVariant.withValues(alpha: .22),
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: AnimatedAlign(
-          duration: const Duration(milliseconds: 160),
-          alignment: _peerMuted ? Alignment.centerRight : Alignment.centerLeft,
-          child: Container(
-            width: 19,
-            height: 19,
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              shape: BoxShape.circle,
-            ),
+  Widget _buildMuteSwitch(ColorScheme scheme) => SizedBox(
+        width: 48,
+        height: 38,
+        child: Transform.scale(
+          scale: .78,
+          child: Switch.adaptive(
+            value: _peerMuted,
+            activeTrackColor: scheme.primary,
+            onChanged: (muted) {
+              Navigator.of(context).pop(muted ? 'mute-on' : 'mute-off');
+            },
           ),
         ),
       );
@@ -3916,33 +3918,66 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
     final preferences = await SharedPreferences.getInstance();
     final key = 'novyn_mute_${widget.peer.username.toLowerCase()}';
     if (!mounted) return;
-    setState(() => _peerMuted = preferences.getBool(key) ?? false);
+    final muted = preferences.getBool(key) ?? false;
+    setState(() => _peerMuted = muted);
+    try {
+      _socketService.setMute(widget.peer.username, muted: muted);
+    } catch (_) {
+      // Keep local preferences available while offline; retry next chat open.
+    }
   }
 
   Future<void> _toggleMute() async {
     final preferences = await SharedPreferences.getInstance();
     final key = 'novyn_mute_${widget.peer.username.toLowerCase()}';
-    final nextMuted = !(preferences.getBool(key) ?? false);
-    _socketService.setMute(widget.peer.username, muted: nextMuted);
-    await preferences.setBool(key, nextMuted);
+    final nextMuted = !(preferences.getBool(key) ?? _peerMuted);
+    await _setPeerMuted(nextMuted);
+  }
+
+  Future<void> _setPeerMuted(bool muted) async {
+    final key = 'novyn_mute_${widget.peer.username.toLowerCase()}';
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.setBool(key, muted);
     if (!mounted) return;
-    setState(() => _peerMuted = nextMuted);
+    setState(() => _peerMuted = muted);
+    try {
+      _socketService.setMute(widget.peer.username, muted: muted);
+    } catch (_) {
+      // Keep this device's preference; server sync is retried on chat open.
+    }
     NovynToast.show(
       context,
-      nextMuted
+      muted
           ? 'Notifications muted for this contact'
           : 'Notifications unmuted for this contact',
     );
   }
 
+  bool _isPeerBlocked() {
+    String normalize(String value) =>
+        value.trim().replaceFirst(RegExp(r'^@+'), '').toLowerCase();
+    final peer = normalize(widget.peer.username);
+    return peer.isNotEmpty &&
+        _socketService.blockedUsers.any((name) => normalize(name) == peer);
+  }
+
   Future<void> _toggleBlock({bool closeProfileOnSuccess = false}) async {
-    final blocked = _socketService.blockedUsers.any(
-      (name) => name.toLowerCase() == widget.peer.username.toLowerCase(),
-    );
-    final result = await _socketService.setBlockedUser(
-      widget.peer.username,
-      blocked: !blocked,
-    );
+    final blocked = _isPeerBlocked();
+    late final Map<String, dynamic> result;
+    try {
+      result = await _socketService.setBlockedUser(
+        widget.peer.username,
+        blocked: !blocked,
+      );
+    } catch (error) {
+      if (!mounted) return;
+      NovynAlert.show(
+        context,
+        'Could not update block status. Check your connection and try again.',
+        isError: true,
+      );
+      return;
+    }
     if (!mounted) return;
     if (result['ok'] == true) {
       NovynAlert.showEvent(
@@ -3975,9 +4010,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
   }
 
   Future<void> _confirmToggleBlock() async {
-    final blocked = _socketService.blockedUsers.any(
-      (name) => name.toLowerCase() == widget.peer.username.toLowerCase(),
-    );
+    final blocked = _isPeerBlocked();
     final action = blocked ? 'Unblock' : 'Block';
     final confirmed = await showDialog<bool>(
       context: context,
@@ -4199,10 +4232,7 @@ ${htmlMessages}
             Navigator.pop(context);
             _showWallpaperPicker();
           },
-          initiallyBlocked: context.read<SocketService>().blockedUsers.any(
-                (name) =>
-                    name.toLowerCase() == widget.peer.username.toLowerCase(),
-              ),
+          initiallyBlocked: _isPeerBlocked(),
           onMute: () => _toggleMute(),
           onBlock: () => _toggleBlock(closeProfileOnSuccess: true),
           onClearChat: _clearChatHistory,
