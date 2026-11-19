@@ -11,13 +11,13 @@ import 'quick_toggle_customization_screen.dart';
 class AppearanceScreen extends StatelessWidget {
   const AppearanceScreen({super.key});
 
-  static const _callMiniStyles = <(String, String, IconData)>[
-    ('floating_bar', 'Floating bar', Icons.view_agenda_rounded),
-    ('compact_pill', 'Compact pill', Icons.horizontal_rule_rounded),
-    ('glass_card', 'Glass card', Icons.blur_on_rounded),
-    ('accent_strip', 'Accent strip', Icons.view_carousel_rounded),
-    ('avatar_bubble', 'Avatar bubble', Icons.account_circle_rounded),
-    ('video_focus', 'Video focus', Icons.video_camera_front_rounded),
+  static const _callMiniStyles = <(String, String)>[
+    ('top_banner', 'Top call banner'),
+    ('floating_avatar', 'Floating avatar'),
+    ('compact_pill', 'Compact call pill'),
+    ('bottom_bar', 'Bottom control bar'),
+    ('video_card', 'Video mini card'),
+    ('edge_chip', 'Edge call chip'),
   ];
 
   static const _accents = <(String, Color)>[
@@ -221,7 +221,6 @@ class AppearanceScreen extends StatelessWidget {
                   _CallMiniStyleChoice(
                     id: style.$1,
                     label: style.$2,
-                    icon: style.$3,
                     selected: settings.callMiniStyle == style.$1,
                     onTap: () => settings.setCallMiniStyle(style.$1),
                   ),
@@ -268,14 +267,12 @@ class _CallMiniStyleChoice extends StatelessWidget {
   const _CallMiniStyleChoice({
     required this.id,
     required this.label,
-    required this.icon,
     required this.selected,
     required this.onTap,
   });
 
   final String id;
   final String label;
-  final IconData icon;
   final bool selected;
   final VoidCallback onTap;
 
@@ -302,19 +299,10 @@ class _CallMiniStyleChoice extends StatelessWidget {
           ),
           child: Row(
             children: [
-              Container(
-                width: 38,
-                height: 28,
-                decoration: BoxDecoration(
-                  color: selected ? colors.primary : colors.surfaceContainerHighest,
-                  borderRadius: BorderRadius.circular(
-                    id == 'compact_pill' ? 18 : id == 'avatar_bubble' ? 14 : 9,
-                  ),
-                ),
-                child: Icon(icon, size: 17, color: selected ? Colors.white : colors.onSurfaceVariant),
-              ),
+              Expanded(child: _CallMiniStylePreview(id: id)),
               const SizedBox(width: 12),
-              Expanded(
+              SizedBox(
+                width: 112,
                 child: Text(label, style: const TextStyle(fontWeight: FontWeight.w700)),
               ),
               if (selected) Icon(Icons.check_circle_rounded, color: colors.primary, size: 20),
@@ -322,6 +310,150 @@ class _CallMiniStyleChoice extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _CallMiniStylePreview extends StatelessWidget {
+  const _CallMiniStylePreview({required this.id});
+  final String id;
+
+  @override
+  Widget build(BuildContext context) {
+    const green = Color(0xFF18A979);
+    const coral = Color(0xFFE94A54);
+    const ink = Color(0xFF151515);
+    Widget avatar({double size = 25}) => Container(
+          width: size,
+          height: size,
+          alignment: Alignment.center,
+          decoration: const BoxDecoration(color: Color(0xFFD87958), shape: BoxShape.circle),
+          child: Text('R', style: TextStyle(color: Colors.white, fontSize: size * .52, fontWeight: FontWeight.w800)),
+        );
+    Widget endButton({double size = 22}) => Container(
+          width: size,
+          height: size,
+          decoration: const BoxDecoration(color: coral, shape: BoxShape.circle),
+          child: const Icon(Icons.call_end_rounded, size: 12, color: Colors.white),
+        );
+    Widget darkPill({required Widget child, double height = 38}) => Container(
+          height: height,
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          decoration: BoxDecoration(color: ink, borderRadius: BorderRadius.circular(height / 2)),
+          child: child,
+        );
+
+    return Container(
+      height: 58,
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: const Color(0xFFF1F0EA),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: switch (id) {
+        'top_banner' => Align(
+            alignment: Alignment.topCenter,
+            child: Container(
+              height: 25,
+              color: green,
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Row(children: [
+                const Icon(Icons.call_rounded, size: 12, color: Colors.white),
+                const SizedBox(width: 5),
+                const Expanded(child: Text('Tap to return to call', style: TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.w700))),
+                const Text('02:14', style: TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.w700)),
+              ]),
+            ),
+          ),
+        'floating_avatar' => Align(
+            alignment: Alignment.centerRight,
+            child: Padding(
+              padding: const EdgeInsets.only(right: 20),
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                Container(
+                  padding: const EdgeInsets.all(3),
+                  decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: green, width: 3)),
+                  child: avatar(size: 27),
+                ),
+                const SizedBox(height: 2),
+                darkPill(height: 17, child: const Row(children: [
+                  Icon(Icons.circle, size: 5, color: green),
+                  SizedBox(width: 4),
+                  Text('02:14', style: TextStyle(color: Colors.white, fontSize: 7)),
+                ])),
+              ]),
+            ),
+          ),
+        'compact_pill' => Center(
+            child: darkPill(
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                avatar(size: 24),
+                const SizedBox(width: 6),
+                const Icon(Icons.graphic_eq_rounded, color: green, size: 20),
+                const SizedBox(width: 8),
+                const Text('02:14', style: TextStyle(color: Colors.white, fontSize: 9)),
+                const SizedBox(width: 7),
+                endButton(),
+              ]),
+            ),
+          ),
+        'bottom_bar' => Align(
+            alignment: Alignment.bottomCenter,
+            child: Padding(
+              padding: const EdgeInsets.all(5),
+              child: darkPill(
+                height: 43,
+                child: Row(children: [
+                  avatar(size: 30),
+                  const SizedBox(width: 7),
+                  const Expanded(child: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('Riya Shah', style: TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.w700)),
+                    Text('On call · 02:14', style: TextStyle(color: green, fontSize: 7)),
+                  ])),
+                  const Icon(Icons.mic_none_rounded, color: Colors.white, size: 16),
+                  const SizedBox(width: 6),
+                  endButton(size: 28),
+                ]),
+              ),
+            ),
+          ),
+        'video_card' => Align(
+            alignment: Alignment.centerRight,
+            child: Container(
+              width: 48,
+              height: 53,
+              margin: const EdgeInsets.only(right: 16),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(colors: [Color(0xFF62564B), Color(0xFFD48664)], begin: Alignment.topLeft, end: Alignment.bottomRight),
+                borderRadius: BorderRadius.circular(13),
+                border: Border.all(color: Colors.white, width: 2),
+              ),
+              child: Column(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
+                Container(padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2), decoration: const BoxDecoration(color: ink, borderRadius: BorderRadius.all(Radius.circular(10))), child: const Text('02:14', style: TextStyle(color: Colors.white, fontSize: 7))),
+                avatar(size: 22),
+                Row(mainAxisAlignment: MainAxisAlignment.center, children: [const Icon(Icons.mic_none_rounded, size: 10, color: Colors.white), const SizedBox(width: 4), endButton(size: 17)]),
+              ]),
+            ),
+          ),
+        _ => Align(
+            alignment: Alignment.centerLeft,
+            child: Padding(
+              padding: const EdgeInsets.only(left: 0),
+              child: darkPill(
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  avatar(size: 27),
+                  const SizedBox(width: 6),
+                  const Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('Riya', style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w700)),
+                    Text('02:14', style: TextStyle(color: green, fontSize: 8)),
+                  ]),
+                  const SizedBox(width: 8),
+                  endButton(size: 26),
+                ]),
+              ),
+            ),
+          ),
+      },
     );
   }
 }

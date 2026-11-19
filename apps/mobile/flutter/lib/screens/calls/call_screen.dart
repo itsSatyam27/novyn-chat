@@ -2235,7 +2235,13 @@ class _CallMiniWindow extends StatefulWidget {
 
 class _CallMiniWindowState extends State<_CallMiniWindow> {
   Offset? _position;
-  String _style = 'floating_bar';
+  String _style = 'top_banner';
+  String? _positionedForStyle;
+
+  static const _green = Color(0xFF18A979);
+  static const _coral = Color(0xFFE94A54);
+  static const _ink = Color(0xFF151515);
+  static const _paper = Color(0xFFF7F5EF);
 
   @override
   void didChangeDependencies() {
@@ -2247,28 +2253,30 @@ class _CallMiniWindowState extends State<_CallMiniWindow> {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final availableWidth =
-            (constraints.maxWidth - 16).clamp(1.0, double.infinity).toDouble();
-        final preferredWidth = switch (_style) {
-          'compact_pill' => 286.0,
-          'avatar_bubble' => 270.0,
-          _ => 320.0,
+        final screenWidth = constraints.maxWidth;
+        final width = switch (_style) {
+          'top_banner' => screenWidth,
+          'floating_avatar' => 104.0,
+          'compact_pill' => 306.0.clamp(1.0, screenWidth - 20).toDouble(),
+          'bottom_bar' => 380.0.clamp(1.0, screenWidth - 24).toDouble(),
+          'video_card' => 158.0.clamp(1.0, screenWidth - 20).toDouble(),
+          _ => 264.0.clamp(1.0, screenWidth - 12).toDouble(),
         };
-        final width = preferredWidth.clamp(1.0, availableWidth).toDouble();
-        final height = widget.isVideo
-            ? (_style == 'video_focus' ? 164.0 : 148.0)
-            : (_style == 'compact_pill' ? 88.0 : 112.0);
+        final height = switch (_style) {
+          'top_banner' => 58.0,
+          'floating_avatar' => 132.0,
+          'compact_pill' => 76.0,
+          'bottom_bar' => 92.0,
+          'video_card' => 224.0,
+          _ => 78.0,
+        };
         final radius = switch (_style) {
-          'compact_pill' => 44.0,
-          'glass_card' => 28.0,
-          'video_focus' => 24.0,
-          _ => 20.0,
-        };
-        final miniColor = switch (_style) {
-          'glass_card' => const Color(0xDD25243A),
-          'accent_strip' => const Color(0xFF1B1B32),
-          'video_focus' => const Color(0xFF101321),
-          _ => const Color(0xFF15182B),
+          'top_banner' => 0.0,
+          'floating_avatar' => 52.0,
+          'compact_pill' => 40.0,
+          'bottom_bar' => 36.0,
+          'video_card' => 25.0,
+          _ => 39.0,
         };
         final maxX = (constraints.maxWidth - width - 10)
             .clamp(0.0, double.infinity)
@@ -2276,8 +2284,17 @@ class _CallMiniWindowState extends State<_CallMiniWindow> {
         final maxY = (constraints.maxHeight - height - 20)
             .clamp(0.0, double.infinity)
             .toDouble();
-        final minX = maxX >= 8 ? 8.0 : 0.0;
-        final minY = maxY >= 8 ? 8.0 : 0.0;
+        final minX = _style == 'top_banner' ? 0.0 : 6.0.clamp(0.0, maxX);
+        final minY = 6.0.clamp(0.0, maxY);
+        if (_positionedForStyle != _style) {
+          _position = switch (_style) {
+            'top_banner' => Offset(0, MediaQuery.paddingOf(context).top + 4),
+            'floating_avatar' => Offset(maxX, (constraints.maxHeight * .38).clamp(minY, maxY).toDouble()),
+            'edge_chip' => Offset(0, maxY),
+            _ => Offset(maxX, maxY),
+          };
+          _positionedForStyle = _style;
+        }
         _position ??= Offset(maxX, maxY);
         final position = Offset(
           _position!.dx.clamp(minX, maxX).toDouble(),
@@ -2294,62 +2311,32 @@ class _CallMiniWindowState extends State<_CallMiniWindow> {
                 onPanUpdate: (details) {
                   setState(() {
                     _position = Offset(
-                      (position.dx + details.delta.dx).clamp(minX, maxX).toDouble(),
-                      (position.dy + details.delta.dy).clamp(minY, maxY).toDouble(),
+                      (position.dx + details.delta.dx)
+                          .clamp(minX, maxX)
+                          .toDouble(),
+                      (position.dy + details.delta.dy)
+                          .clamp(minY, maxY)
+                          .toDouble(),
                     );
                   });
                 },
                 child: Material(
                   color: Colors.transparent,
-                  elevation: 18,
+                  elevation: _style == 'top_banner' ? 8 : 18,
                   borderRadius: BorderRadius.circular(radius),
-                  child: Container(
+                  child: SizedBox(
                     width: width,
                     height: height,
-                    clipBehavior: Clip.antiAlias,
-                    decoration: BoxDecoration(
-                      color: miniColor,
-                      borderRadius: BorderRadius.circular(radius),
-                      border: Border.all(
-                        color: _style == 'glass_card'
-                            ? Colors.white.withValues(alpha: .38)
-                            : Colors.white.withValues(alpha: 0.22),
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.35),
-                          blurRadius: 22,
-                          offset: const Offset(0, 8),
-                        ),
-                      ],
-                    ),
-                    child: Stack(
-                      children: [
-                        if (_style == 'accent_strip')
-                          Positioned(
-                            left: 0,
-                            top: 16,
-                            bottom: 16,
-                            child: Container(
-                              width: 4,
-                              decoration: BoxDecoration(
-                                color: Theme.of(context).colorScheme.primary,
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                            ),
-                          ),
-                        Padding(
-                          padding: EdgeInsets.only(
-                            left: _style == 'accent_strip' ? 4 : 0,
-                          ),
-                          child: ListenableBuilder(
-                            listenable: widget.webrtc,
-                            builder: (context, _) => widget.isVideo
-                                ? _buildVideoMini()
-                                : _buildVoiceMini(),
-                          ),
-                        ),
-                      ],
+                    child: ListenableBuilder(
+                      listenable: widget.webrtc,
+                      builder: (context, _) => switch (_style) {
+                        'top_banner' => _buildTopBanner(),
+                        'floating_avatar' => _buildFloatingAvatar(),
+                        'compact_pill' => _buildCompactPill(),
+                        'bottom_bar' => _buildBottomBar(),
+                        'video_card' => _buildVideoCard(),
+                        _ => _buildEdgeChip(),
+                      },
                     ),
                   ),
                 ),
@@ -2361,129 +2348,287 @@ class _CallMiniWindowState extends State<_CallMiniWindow> {
     );
   }
 
-  Widget _buildVideoMini() {
-    const actionSize = 30.0;
-    return Row(
-      children: [
-        ClipRRect(
-          borderRadius: const BorderRadius.horizontal(left: Radius.circular(18)),
-          child: SizedBox(
-            width: 92,
-            height: double.infinity,
-            child: widget.webrtc.remoteStream != null
-                ? RTCVideoView(
-                    widget.webrtc.remoteRenderer,
-                    objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
-                  )
-                : ColoredBox(
-                    color: const Color(0xFF20243D),
-                    child: Center(
-                      child: UserAvatar(
-                        name: widget.peer.name,
-                        photoUrl: widget.peer.photoUrl,
-                        radius: 36,
-                      ),
-                    ),
-                  ),
-          ),
-        ),
-        Expanded(
+  Widget _buildTopBanner() => Material(
+        color: _green,
+        child: InkWell(
+          onTap: widget.onExpand,
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(10, 8, 8, 8),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            padding: const EdgeInsets.symmetric(horizontal: 18),
+            child: Row(
               children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        widget.peer.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
-                      ),
-                    ),
-                    _PipAction(icon: Icons.open_in_full_rounded, onTap: widget.onExpand, size: 28),
-                  ],
-                ),
-                ValueListenableBuilder<int>(
-                  valueListenable: widget.seconds,
-                  builder: (_, secs, __) => Text(
-                    widget.state == CallState.connected ? _format(secs) : 'Calling…',
-                    style: const TextStyle(color: Colors.white60, fontSize: 10.5),
+                const Icon(Icons.call_rounded, color: Colors.white, size: 25),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Tap to return to call',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w700),
                   ),
                 ),
-                const Spacer(),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    _PipAction(icon: widget.muted ? Icons.mic_off_rounded : Icons.mic_rounded, onTap: widget.onToggleMute, size: actionSize),
-                    _PipAction(icon: widget.speakerOn ? Icons.volume_up_rounded : Icons.volume_off_rounded, onTap: widget.onToggleSpeaker, size: actionSize),
-                    _PipAction(icon: Icons.call_end_rounded, color: const Color(0xFFEF4444), onTap: widget.onEnd, size: actionSize),
-                    _PipAction(icon: widget.cameraOff ? Icons.videocam_off_rounded : Icons.videocam_rounded, onTap: widget.onToggleCamera, size: actionSize),
-                  ],
-                ),
+                _timerText(color: Colors.white, size: 15, bold: true),
+                const SizedBox(width: 8),
+                Icon(widget.isVideo ? Icons.videocam_rounded : Icons.call_rounded,
+                    color: Colors.white70, size: 18),
               ],
             ),
           ),
         ),
-      ],
-    );
-  }
+      );
 
-  Widget _buildVoiceMini() {
-    final actionSize = _style == 'compact_pill' ||
-            MediaQuery.sizeOf(context).width < 360
-        ? 27.0
-        : _style == 'avatar_bubble' ? 32.0 : 30.0;
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 8),
-      child: Row(
-        children: [
-          UserAvatar(
-            name: widget.peer.name,
-            photoUrl: widget.peer.photoUrl,
-            radius: _style == 'avatar_bubble' ? 25 : 21,
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  widget.peer.name,
-                  maxLines: 1,
-                  softWrap: false,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
-                ),
-                const SizedBox(height: 4),
-                ValueListenableBuilder<int>(
-                  valueListenable: widget.seconds,
-                  builder: (_, secs, __) => Text(
-                    widget.state == CallState.connected ? _format(secs) : 'Calling…',
-                    maxLines: 1,
-                    softWrap: false,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: Colors.white60, fontSize: 10.5),
+  Widget _buildFloatingAvatar() => Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Material(
+              color: _paper,
+              shape: const CircleBorder(),
+              elevation: 9,
+              child: InkWell(
+                customBorder: const CircleBorder(),
+                onTap: widget.onExpand,
+                child: Container(
+                  width: 82,
+                  height: 82,
+                  padding: const EdgeInsets.all(5),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(color: _green, width: 4),
                   ),
+                  child: _avatar(64),
                 ),
+              ),
+            ),
+            const SizedBox(height: 5),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+              decoration: BoxDecoration(color: _ink, borderRadius: BorderRadius.circular(20)),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                const Icon(Icons.circle, color: _green, size: 7),
+                const SizedBox(width: 5),
+                _timerText(color: Colors.white, size: 12),
+              ]),
+            ),
+          ],
+        ),
+      );
+
+  Widget _buildCompactPill() => Material(
+        color: _ink,
+        borderRadius: BorderRadius.circular(40),
+        elevation: 12,
+        child: InkWell(
+          onTap: widget.onExpand,
+          borderRadius: BorderRadius.circular(40),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(11, 9, 10, 9),
+            child: Row(
+              children: [
+                _avatar(42),
+                const SizedBox(width: 11),
+                Expanded(child: _waveform()),
+                const SizedBox(width: 9),
+                _timerText(color: Colors.white, size: 14),
+                const SizedBox(width: 12),
+                _callAction(Icons.call_end_rounded, widget.onEnd,
+                    size: 47, background: _coral),
               ],
             ),
           ),
-          const SizedBox(width: 6),
-          _PipAction(icon: widget.muted ? Icons.mic_off_rounded : Icons.mic_rounded, onTap: widget.onToggleMute, size: actionSize),
-          const SizedBox(width: 3),
-          _PipAction(icon: widget.speakerOn ? Icons.volume_up_rounded : Icons.volume_off_rounded, onTap: widget.onToggleSpeaker, size: actionSize),
-          const SizedBox(width: 3),
-          _PipAction(icon: Icons.call_end_rounded, color: const Color(0xFFEF4444), onTap: widget.onEnd, size: actionSize),
-          const SizedBox(width: 3),
-          _PipAction(icon: Icons.open_in_full_rounded, onTap: widget.onExpand, size: actionSize),
+        ),
+      );
+
+  Widget _buildBottomBar() => Material(
+        color: _ink,
+        borderRadius: BorderRadius.circular(35),
+        elevation: 16,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 11, 12, 11),
+          child: Row(
+            children: [
+              _avatar(66),
+              const SizedBox(width: 13),
+              Expanded(
+                child: InkWell(
+                  onTap: widget.onExpand,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(widget.peer.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w700)),
+                      const SizedBox(height: 3),
+                      Row(children: [
+                        Text(widget.state == CallState.connected ? 'On call · ' : 'Calling · ',
+                            style: const TextStyle(color: _green, fontSize: 13, fontWeight: FontWeight.w600)),
+                        _timerText(color: _green, size: 13, isStateful: false),
+                      ]),
+                    ],
+                  ),
+                ),
+              ),
+              _callAction(widget.muted ? Icons.mic_off_rounded : Icons.mic_rounded,
+                  widget.onToggleMute, size: 52, background: const Color(0xFF383838)),
+              const SizedBox(width: 11),
+              _callAction(Icons.call_end_rounded, widget.onEnd,
+                  size: 58, background: _coral),
+            ],
+          ),
+        ),
+      );
+
+  Widget _buildVideoCard() => Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(25),
+        elevation: 16,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(25),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              if (widget.isVideo && widget.webrtc.remoteStream != null)
+                RTCVideoView(widget.webrtc.remoteRenderer,
+                    objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover)
+              else
+                const DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [Color(0xFF62564B), Color(0xFFD48664)],
+                    ),
+                  ),
+                ),
+              Positioned(
+                top: 11,
+                left: 11,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+                  decoration: BoxDecoration(color: _ink, borderRadius: BorderRadius.circular(22)),
+                  child: _timerText(color: Colors.white, size: 13, bold: true),
+                ),
+              ),
+              Center(child: _avatar(72)),
+              Positioned(
+                bottom: 12,
+                left: 0,
+                right: 0,
+                child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                  _callAction(widget.muted ? Icons.mic_off_rounded : Icons.mic_rounded,
+                      widget.onToggleMute, size: 43, background: Colors.white24),
+                  const SizedBox(width: 12),
+                  _callAction(Icons.call_end_rounded, widget.onEnd,
+                      size: 48, background: _coral),
+                  if (widget.isVideo) ...[
+                    const SizedBox(width: 12),
+                    _callAction(widget.cameraOff ? Icons.videocam_off_rounded : Icons.videocam_rounded,
+                        widget.onToggleCamera, size: 43, background: Colors.white24),
+                  ],
+                ]),
+              ),
+            ],
+          ),
+        ),
+      );
+
+  Widget _buildEdgeChip() => Material(
+        color: _ink,
+        borderRadius: BorderRadius.circular(39),
+        elevation: 12,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(8, 8, 9, 8),
+          child: Row(
+            children: [
+              _avatar(58),
+              const SizedBox(width: 10),
+              Expanded(
+                child: InkWell(
+                  onTap: widget.onExpand,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(widget.peer.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700)),
+                      _timerText(color: _green, size: 13),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 7),
+              _callAction(Icons.call_end_rounded, widget.onEnd,
+                  size: 49, background: _coral),
+            ],
+          ),
+        ),
+      );
+
+  Widget _avatar(double size) => UserAvatar(
+        name: widget.peer.name,
+        photoUrl: widget.peer.photoUrl,
+        radius: size / 2,
+      );
+
+  Widget _waveform() => Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [for (final height in const [13.0, 22.0, 31.0, 20.0, 12.0])
+          Container(
+            width: 4,
+            height: height,
+            margin: const EdgeInsets.symmetric(horizontal: 2),
+            decoration: BoxDecoration(color: _green, borderRadius: BorderRadius.circular(4)),
+          ),
         ],
+      );
+
+  Widget _timerText({
+    required Color color,
+    required double size,
+    bool bold = false,
+    bool isStateful = true,
+  }) {
+    final textStyle = TextStyle(color: color, fontSize: size, fontWeight: bold ? FontWeight.w800 : FontWeight.w500);
+    if (!isStateful) {
+      return ValueListenableBuilder<int>(
+        valueListenable: widget.seconds,
+        builder: (_, seconds, __) => Text(
+          widget.state == CallState.connected ? _format(seconds) : '00:00',
+          style: textStyle,
+        ),
+      );
+    }
+    return ValueListenableBuilder<int>(
+      valueListenable: widget.seconds,
+      builder: (_, seconds, __) => Text(
+        widget.state == CallState.connected ? _format(seconds) : 'Calling…',
+        maxLines: 1,
+        style: textStyle,
       ),
     );
   }
+
+  Widget _callAction(
+    IconData icon,
+    VoidCallback onTap, {
+    required double size,
+    required Color background,
+  }) => Material(
+        color: background,
+        shape: const CircleBorder(),
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: onTap,
+          child: SizedBox(
+            width: size,
+            height: size,
+            child: Icon(icon, color: Colors.white, size: size * .48),
+          ),
+        ),
+      );
 
   String _format(int seconds) {
     final m = (seconds % 3600) ~/ 60;

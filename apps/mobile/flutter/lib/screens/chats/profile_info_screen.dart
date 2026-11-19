@@ -12,7 +12,6 @@ class ProfileInfoScreen extends StatelessWidget {
   final VoidCallback? onSharedMedia;
   final VoidCallback? onPinnedMessages;
   final VoidCallback? onWallpaper;
-  final VoidCallback? onQuickEmojis;
   final bool initiallyBlocked;
   final bool initiallyMuted;
   final VoidCallback? onMute;
@@ -30,7 +29,6 @@ class ProfileInfoScreen extends StatelessWidget {
     this.onSharedMedia,
     this.onPinnedMessages,
     this.onWallpaper,
-    this.onQuickEmojis,
     this.initiallyBlocked = false,
     this.initiallyMuted = false,
     this.onMute,
@@ -284,8 +282,6 @@ class ProfileInfoScreen extends StatelessWidget {
                 if (onWallpaper != null)
                   SizedBox(width: tileWidth, child: _FeatureTile(icon: Icons.palette_outlined, title: 'Chat wallpaper', subtitle: 'Personalise this chat', tint: const Color(0xFFFCE8F1), accent: const Color(0xFFC92B72), onTap: onWallpaper!)),
                 SizedBox(width: tileWidth, child: _FeatureTile(icon: Icons.qr_code_2_rounded, title: 'QR code', subtitle: 'Scannable profile', tint: const Color(0xFFEEE9FF), accent: const Color(0xFF6554D9), onTap: () => _showContactQr(context))),
-                if (onQuickEmojis != null)
-                  SizedBox(width: tileWidth, child: _FeatureTile(icon: Icons.emoji_emotions_outlined, title: 'Quick reactions', subtitle: 'Manage chat reactions', tint: const Color(0xFFE5F7F2), accent: const Color(0xFF168B75), onTap: onQuickEmojis!)),
               ],
             );
           }),
@@ -326,13 +322,22 @@ class ProfileInfoScreen extends StatelessWidget {
               _SettingsTile(icon: initiallyBlocked ? Icons.lock_open_rounded : Icons.block_rounded,
                 title: initiallyBlocked ? 'Unblock contact' : 'Block contact',
                 subtitle: initiallyBlocked ? 'Allow this contact to reach you' : 'Stop messages and calls from this contact',
-                tint: const Color(0xFFFCE8E8), accent: const Color(0xFFC52D25), danger: true, onTap: onBlock!),
+                tint: const Color(0xFFFCE8E8), accent: const Color(0xFFC52D25), danger: true,
+                onTap: () => _confirmContactAction(
+                  context,
+                  initiallyBlocked ? 'Unblock ${user.name}?' : 'Block ${user.name}?',
+                  initiallyBlocked
+                      ? 'This contact will be able to message and call you again.'
+                      : 'This contact will no longer be able to message or call you.',
+                  initiallyBlocked ? 'Unblock' : 'Block',
+                  onBlock!,
+                )),
             if (onBlock != null && onClearChat != null) const _SettingsDivider(danger: true),
             if (onClearChat != null)
               _SettingsTile(icon: Icons.delete_outline_rounded, title: 'Clear chat history',
                 subtitle: 'Remove messages from this conversation',
                 tint: const Color(0xFFFCE8E8), accent: const Color(0xFFC52D25), danger: true,
-                onTap: () => _confirmContactAction(context, 'Clear chat history?', 'This clears the conversation history from your account and cannot be undone.', 'Clear', onClearChat!)),
+                onTap: () => _confirmContactAction(context, 'Clear chat history?', 'This clears the conversation with ${user.name} from this device and cannot be undone.', 'Clear chat', onClearChat!)),
             if ((onBlock != null || onClearChat != null) && onRemoveFriend != null) const _SettingsDivider(danger: true),
             if (onRemoveFriend != null)
               _SettingsTile(icon: Icons.person_remove_alt_1_rounded, title: 'Remove contact',

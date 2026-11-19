@@ -30,6 +30,7 @@ import '../../services/settings_service.dart';
 import '../../services/media_storage_service.dart';
 import '../../widgets/user_avatar.dart';
 import '../../utils/presence_utils.dart';
+import '../../utils/quick_reaction_preferences.dart';
 import '../../widgets/novyn_toast.dart';
 import 'profile_info_screen.dart';
 import 'group_info_screen.dart';
@@ -127,6 +128,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
   final TextEditingController _ctrl = TextEditingController();
   final FocusNode _messageFocusNode = FocusNode();
   final ScrollController _scroll = ScrollController();
+  final GlobalKey _headerMenuButtonKey = GlobalKey();
   final AudioPlayer _audioPlayer = AudioPlayer();
   bool _loading = true;
   bool _sending = false;
@@ -153,18 +155,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
   bool _suppressNextCountScroll = false;
   int _voiceSeconds = 0;
   String? _voiceRecordingPath;
-  static const List<String> _defaultQuickEmojis = [
-    'baddie',
-    'dead_hasna',
-    'sigma_stone',
-    'melting',
-    'clown_moment',
-    'ghosted',
-    'cutie',
-    'savage'
-  ];
-  static const List<String> _emojiChoices = novynCustomEmojiNames;
-  List<String> _quickEmojis = List<String>.from(_defaultQuickEmojis);
+  bool _peerMuted = false;
+  List<String> _quickEmojis =
+      List<String>.from(defaultQuickReactionEmojis);
 
   @override
   void initState() {
@@ -182,6 +175,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
     _peerLastSeen = widget.peer.lastSeen;
     _schedulePeerLastSeenReveal();
     _loadQuickEmojis();
+    _loadPeerMutePreference();
     _initializeChatAccess();
     _scroll.addListener(_onScroll);
 
@@ -797,9 +791,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;
-    final accent = isDark
-        ? Theme.of(context).colorScheme.primary
-        : Theme.of(context).colorScheme.primary;
+    final accent = scheme.primary;
     final peerStatusLabel = widget.isGroup
         ? (widget.peer.bio.isNotEmpty ? widget.peer.bio : 'Group conversation')
         : _peerStatusLabel();
@@ -813,19 +805,30 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
                 : const Color(0xFF10B981),
           };
     return AppBar(
-      backgroundColor: scheme.surface,
+      backgroundColor: Colors.transparent,
       surfaceTintColor: Colors.transparent,
       elevation: 0,
-      toolbarHeight: 72,
+      toolbarHeight: 78,
       scrolledUnderElevation: 0,
-      shape: Border(
-        bottom: BorderSide(
-          color: scheme.outlineVariant.withValues(alpha: .45),
-          width: .7,
+      flexibleSpace: Container(
+        margin: const EdgeInsets.fromLTRB(10, 8, 10, 6),
+        decoration: BoxDecoration(
+          color: scheme.surface,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(
+            color: scheme.outlineVariant.withValues(alpha: .35),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: isDark ? .22 : .07),
+              blurRadius: 18,
+              offset: const Offset(0, 5),
+            ),
+          ],
         ),
       ),
       automaticallyImplyLeading: false,
-      titleSpacing: 12,
+      titleSpacing: 8,
       title: Row(
         children: [
           _ChatHeaderButton(
@@ -845,15 +848,16 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
                     PresenceIndicatorBar(
                       isOnline: _peerIsOnline,
                       status: _peerPresence,
-                      height: 22,
-                      margin: const EdgeInsets.only(right: 8),
+                      width: 4,
+                      height: 44,
+                      margin: const EdgeInsets.only(right: 12),
                     ),
                   Hero(
                     tag: 'avatar_${widget.peer.uid}',
                     child: UserAvatar(
                       name: widget.peer.name,
                       photoUrl: widget.peer.photoUrl,
-                      radius: 21,
+                      radius: 22,
                       showOnlineIndicator: false,
                       isOnline: widget.isGroup ? false : _peerIsOnline,
                       presence: _peerPresence,
@@ -923,23 +927,10 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
             ),
           ),
           const SizedBox(width: 8),
-          _ChatHeaderButton(
-            icon: Icons.search_rounded,
-            iconSize: 18,
-            compact: true,
-            filled: true,
-            tooltip: 'Search messages',
-            onTap: () => showSearch<String>(
-              context: context,
-              delegate: _MessageSearchDelegate(peer: widget.peer),
-            ),
-          ),
-          const SizedBox(width: 6),
           if (!widget.isGroup) ...[
             _ChatHeaderButton(
               icon: Icons.call_rounded,
               color: accent,
-              filled: true,
               tooltip: 'Voice call',
               onTap: () => _startCall('voice'),
             ),
@@ -947,22 +938,223 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
             _ChatHeaderButton(
               icon: Icons.videocam_rounded,
               color: accent,
-              filled: true,
               tooltip: 'Video call',
               onTap: () => _startCall('video'),
             ),
             const SizedBox(width: 6),
           ],
           _ChatHeaderButton(
-            icon: Icons.info_rounded,
-            filled: true,
-            tooltip: widget.isGroup ? 'Group info' : 'Contact info',
-            onTap: () => _showContactInfo(),
+            key: _headerMenuButtonKey,
+            icon: Icons.more_vert_rounded,
+            color: accent,
+            tooltip: 'More options',
+            onTap: _showHeaderMenu,
           ),
+          const SizedBox(width: 4),
         ],
       ),
     );
   }
+
+  Future<void> _showHeaderMenu() async {
+    final buttonContext = _headerMenuButtonKey.currentContext;
+    if (buttonContext == null) return;
+    final button = buttonContext.findRenderObject() as RenderBox?;
+    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox?;
+    if (button == null || overlay == null || !mounted) return;
+
+    final buttonTopLeft = button.localToGlobal(Offset.zero, ancestor: overlay);
+    final anchor = buttonTopLeft & button.size;
+    final overlayRect = Offset.zero & overlay.size;
+    final itemCount = widget.isGroup ? 5 : 8;
+    final menuHeight = itemCount * 48.0 + (widget.isGroup ? 12 : 29);
+    final menuWidth = math.min(324.0, overlay.size.width - 20).toDouble();
+    final right = overlay.size.width - anchor.right;
+    var top = anchor.bottom + 8;
+    if (top + menuHeight > overlay.size.height - 8) {
+      top = math.max(8, anchor.top - menuHeight - 8).toDouble();
+    }
+    final left = (overlay.size.width - right - menuWidth)
+        .clamp(8.0, overlay.size.width - menuWidth - 8)
+        .toDouble();
+    final menuRect = Rect.fromLTWH(left, top, menuWidth, menuHeight);
+    final scheme = Theme.of(context).colorScheme;
+    final blocked = _socketService.blockedUsers.any(
+      (name) => name.toLowerCase() == widget.peer.username.toLowerCase(),
+    );
+    final selected = await showMenu<String>(
+      context: context,
+      position: RelativeRect.fromRect(menuRect, overlayRect),
+      color: scheme.surface,
+      elevation: 18,
+      constraints: BoxConstraints.tightFor(width: menuWidth),
+      menuPadding: const EdgeInsets.symmetric(vertical: 6),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(22),
+        side: BorderSide(color: scheme.primary.withValues(alpha: .18)),
+      ),
+      items: [
+        _headerMenuItem(
+          value: 'info',
+          icon: widget.isGroup ? Icons.groups_rounded : Icons.person_outline_rounded,
+          title: widget.isGroup ? 'Group info' : 'View profile',
+          tint: const Color(0xFF705DF4),
+        ),
+        _headerMenuItem(
+          value: 'search',
+          icon: Icons.search_rounded,
+          title: 'Search in chat',
+          tint: const Color(0xFF2684D9),
+        ),
+        _headerMenuItem(
+          value: 'shared',
+          icon: Icons.photo_library_outlined,
+          title: 'Shared media',
+          tint: const Color(0xFF4388D7),
+        ),
+        if (!widget.isGroup)
+          _headerMenuItem(
+            value: 'mute',
+            icon: _peerMuted ? Icons.notifications_active_outlined : Icons.notifications_off_outlined,
+            title: 'Mute',
+            tint: const Color(0xFFB8791E),
+            trailing: _buildMuteSwitch(scheme),
+          ),
+        _headerMenuItem(
+          value: 'wallpaper',
+          icon: Icons.palette_outlined,
+          title: 'Chat wallpaper',
+          tint: const Color(0xFFC83C77),
+        ),
+        _headerMenuItem(
+          value: 'export',
+          icon: Icons.file_upload_outlined,
+          title: 'Export chat',
+          tint: const Color(0xFF13856F),
+        ),
+        if (!widget.isGroup) const PopupMenuDivider(height: 13),
+        if (!widget.isGroup)
+          _headerMenuItem(
+            value: 'clear',
+            icon: Icons.delete_outline_rounded,
+            title: 'Clear chat history',
+            tint: const Color(0xFFE3453B),
+            danger: true,
+          ),
+        if (!widget.isGroup)
+          _headerMenuItem(
+            value: 'block',
+            icon: blocked ? Icons.lock_open_rounded : Icons.block_rounded,
+            title: blocked ? 'Unblock contact' : 'Block contact',
+            tint: const Color(0xFFE3453B),
+            danger: true,
+          ),
+      ],
+    );
+
+    if (!mounted || selected == null) return;
+    switch (selected) {
+      case 'info':
+        _showContactInfo();
+        break;
+      case 'search':
+        showSearch<String>(
+          context: context,
+          delegate: _MessageSearchDelegate(peer: widget.peer),
+        );
+        break;
+      case 'shared':
+        _showSharedMedia();
+        break;
+      case 'mute':
+        _toggleMute();
+        break;
+      case 'wallpaper':
+        _showWallpaperPicker();
+        break;
+      case 'export':
+        _exportChat();
+        break;
+      case 'clear':
+        _confirmClearChat();
+        break;
+      case 'block':
+        _confirmToggleBlock();
+        break;
+    }
+  }
+
+  PopupMenuEntry<String> _headerMenuItem({
+    required String value,
+    required IconData icon,
+    required String title,
+    required Color tint,
+    Widget? trailing,
+    bool danger = false,
+  }) {
+    final scheme = Theme.of(context).colorScheme;
+    return PopupMenuItem<String>(
+      value: value,
+      height: 48,
+      padding: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: tint.withValues(alpha: .12),
+                borderRadius: BorderRadius.circular(13),
+              ),
+              child: Icon(icon, color: tint, size: 20),
+            ),
+            const SizedBox(width: 13),
+            Expanded(
+              child: Text(
+                title,
+                style: TextStyle(
+                  color: danger ? tint : scheme.onSurface,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            if (trailing != null) trailing,
+            if (value == 'info')
+              Icon(Icons.chevron_right_rounded,
+                  color: scheme.onSurfaceVariant.withValues(alpha: .7), size: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMuteSwitch(ColorScheme scheme) => AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        width: 43,
+        height: 25,
+        padding: const EdgeInsets.all(3),
+        decoration: BoxDecoration(
+          color: _peerMuted
+              ? scheme.primary
+              : scheme.onSurfaceVariant.withValues(alpha: .22),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: AnimatedAlign(
+          duration: const Duration(milliseconds: 160),
+          alignment: _peerMuted ? Alignment.centerRight : Alignment.centerLeft,
+          child: Container(
+            width: 19,
+            height: 19,
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+            ),
+          ),
+        ),
+      );
 
   Widget _buildEmptyChat() {
     final theme = Theme.of(context);
@@ -1608,15 +1800,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
     );
   }
 
-  String get _quickEmojiPreferenceKey =>
-      'novyn_quick_emojis_${widget.peer.username.toLowerCase()}';
-
   Future<void> _loadQuickEmojis() async {
     final prefs = await SharedPreferences.getInstance();
-    final saved = prefs.getStringList(_quickEmojiPreferenceKey);
-    if (!mounted || saved == null || saved.isEmpty) return;
-    final valid = saved.where(novynCustomEmojis.containsKey).toList();
-    if (valid.isNotEmpty) setState(() => _quickEmojis = valid);
+    final saved = prefs.getStringList(quickReactionEmojisPreferenceKey);
+    if (!mounted) return;
+    setState(() => _quickEmojis = normalizeQuickReactionEmojis(saved));
   }
 
   void _insertQuickEmoji(String emoji) {
@@ -1638,7 +1826,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
   }
 
   void _showQuickEmojiPicker() {
-    final emojis = _quickEmojis.isEmpty ? _defaultQuickEmojis : _quickEmojis;
+    final emojis = _quickEmojis.isEmpty
+        ? defaultQuickReactionEmojis
+        : _quickEmojis;
     showModalBottomSheet<void>(
       context: context,
       backgroundColor: Colors.transparent,
@@ -1671,14 +1861,6 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
                               fontSize: 17,
                               fontWeight: FontWeight.w800,
                               color: scheme.onSurface))),
-                  TextButton.icon(
-                    onPressed: () {
-                      Navigator.pop(sheetContext);
-                      _showQuickEmojiSettings();
-                    },
-                    icon: const Icon(Icons.tune_rounded, size: 17),
-                    label: const Text('Customise'),
-                  ),
                 ]),
                 const SizedBox(height: 8),
                 GridView.count(
@@ -1706,120 +1888,6 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
                       .toList(),
                 ),
               ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  void _showQuickEmojiSettings() {
-    final selected = Set<String>.from(_quickEmojis);
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (sheetContext) {
-        final scheme = Theme.of(sheetContext).colorScheme;
-        return StatefulBuilder(
-          builder: (context, refresh) => SafeArea(
-            child: Container(
-              height: MediaQuery.of(context).size.height * .72,
-              margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-              padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
-              decoration: BoxDecoration(
-                color: scheme.surface,
-                borderRadius: BorderRadius.circular(26),
-                border:
-                    Border.all(color: scheme.primary.withValues(alpha: .18)),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Choose your Novyn emojis',
-                      style: TextStyle(
-                          fontFamily: 'PlusJakartaSans',
-                          fontSize: 18,
-                          fontWeight: FontWeight.w800,
-                          color: scheme.onSurface)),
-                  const SizedBox(height: 5),
-                  Text('Select up to 8 custom emojis for this chat',
-                      style: TextStyle(
-                          fontFamily: 'PlusJakartaSans',
-                          fontSize: 12,
-                          color: scheme.onSurfaceVariant)),
-                  const SizedBox(height: 16),
-                  Expanded(
-                    child: GridView.builder(
-                      itemCount: _emojiChoices.length,
-                      gridDelegate:
-                          const SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: 6,
-                              mainAxisSpacing: 8,
-                              crossAxisSpacing: 8),
-                      itemBuilder: (_, index) {
-                        final emoji = _emojiChoices[index];
-                        final active = selected.contains(emoji);
-                        return Material(
-                          color: active
-                              ? scheme.primary.withValues(alpha: .16)
-                              : scheme.surfaceContainerHighest
-                                  .withValues(alpha: .55),
-                          borderRadius: BorderRadius.circular(13),
-                          child: InkWell(
-                            borderRadius: BorderRadius.circular(13),
-                            onTap: () => refresh(() {
-                              if (active) {
-                                selected.remove(emoji);
-                              } else if (selected.length < 8) {
-                                selected.add(emoji);
-                              } else {
-                                NovynAlert.show(context,
-                                    'You can select up to 8 quick emojis.',
-                                    isError: true,
-                                    title: 'Emoji limit reached',
-                                    icon: Icons.emoji_emotions_rounded,
-                                    tone: NovynAlertTone.warning);
-                              }
-                            }),
-                            child:
-                                Stack(alignment: Alignment.center, children: [
-                              Text(novynCustomEmojis[emoji] ?? '',
-                                  style: const TextStyle(fontSize: 25)),
-                              if (active)
-                                Positioned(
-                                    right: 3,
-                                    top: 3,
-                                    child: Icon(Icons.check_circle_rounded,
-                                        size: 12, color: scheme.primary)),
-                            ]),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton(
-                      onPressed: selected.isEmpty
-                          ? null
-                          : () async {
-                              final next = selected.toList();
-                              final prefs =
-                                  await SharedPreferences.getInstance();
-                              await prefs.setStringList(
-                                  _quickEmojiPreferenceKey, next);
-                              if (!mounted) return;
-                              setState(() => _quickEmojis = next);
-                              if (sheetContext.mounted)
-                                Navigator.pop(sheetContext);
-                            },
-                      child: Text('Save ${selected.length}/8 emojis'),
-                    ),
-                  ),
-                ],
-              ),
             ),
           ),
         );
@@ -3844,6 +3912,253 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
     );
   }
 
+  Future<void> _loadPeerMutePreference() async {
+    final preferences = await SharedPreferences.getInstance();
+    final key = 'novyn_mute_${widget.peer.username.toLowerCase()}';
+    if (!mounted) return;
+    setState(() => _peerMuted = preferences.getBool(key) ?? false);
+  }
+
+  Future<void> _toggleMute() async {
+    final preferences = await SharedPreferences.getInstance();
+    final key = 'novyn_mute_${widget.peer.username.toLowerCase()}';
+    final nextMuted = !(preferences.getBool(key) ?? false);
+    _socketService.setMute(widget.peer.username, muted: nextMuted);
+    await preferences.setBool(key, nextMuted);
+    if (!mounted) return;
+    setState(() => _peerMuted = nextMuted);
+    NovynToast.show(
+      context,
+      nextMuted
+          ? 'Notifications muted for this contact'
+          : 'Notifications unmuted for this contact',
+    );
+  }
+
+  Future<void> _toggleBlock({bool closeProfileOnSuccess = false}) async {
+    final blocked = _socketService.blockedUsers.any(
+      (name) => name.toLowerCase() == widget.peer.username.toLowerCase(),
+    );
+    final result = await _socketService.setBlockedUser(
+      widget.peer.username,
+      blocked: !blocked,
+    );
+    if (!mounted) return;
+    if (result['ok'] == true) {
+      NovynAlert.showEvent(
+        context,
+        blocked
+            ? NovynAlertEvent.userUnblocked(widget.peer.name)
+            : NovynAlertEvent.userBlocked(widget.peer.name),
+      );
+      if (closeProfileOnSuccess) Navigator.pop(context);
+    } else {
+      NovynAlert.show(
+        context,
+        result['message']?.toString() ?? 'Could not update block status',
+        isError: true,
+      );
+    }
+  }
+
+  Future<void> _clearChatHistory() async {
+    final socket = context.read<SocketService>();
+    final oldMessages = List.of(socket.messages);
+    socket.clearChat(widget.peer.username);
+    for (final message in oldMessages) {
+      await HybridDbService.deleteMessage(message.id);
+    }
+    await HybridDbService.setLastSync(widget.peer.username, DateTime.now());
+    if (mounted) {
+      NovynAlert.showEvent(context, NovynAlertEvent.chatCleared);
+    }
+  }
+
+  Future<void> _confirmToggleBlock() async {
+    final blocked = _socketService.blockedUsers.any(
+      (name) => name.toLowerCase() == widget.peer.username.toLowerCase(),
+    );
+    final action = blocked ? 'Unblock' : 'Block';
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text('$action ${widget.peer.name}?'),
+        content: Text(
+          blocked
+              ? 'This contact will be able to message and call you again.'
+              : 'This contact will no longer be able to message or call you.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            style: FilledButton.styleFrom(
+              backgroundColor: blocked
+                  ? Theme.of(context).colorScheme.primary
+                  : Theme.of(context).colorScheme.error,
+            ),
+            child: Text(action),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && mounted) await _toggleBlock();
+  }
+
+  Future<void> _confirmClearChat() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Clear chat history?'),
+        content: Text(
+          'This clears the conversation with ${widget.peer.name} from this device and cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ),
+            child: const Text('Clear chat'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && mounted) await _clearChatHistory();
+  }
+
+  Future<void> _exportChat() async {
+    final format = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 18, 20, 22),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Export chat',
+                style: Theme.of(context)
+                    .textTheme
+                    .titleLarge
+                    ?.copyWith(fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Choose a format to save this conversation.',
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+              const SizedBox(height: 16),
+              ListTile(
+                leading: const Icon(Icons.description_outlined),
+                title: const Text('HTML file'),
+                subtitle: const Text('Formatted chat transcript'),
+                onTap: () => Navigator.pop(sheetContext, 'html'),
+              ),
+              ListTile(
+                leading: const Icon(Icons.text_snippet_outlined),
+                title: const Text('Text file (.txt)'),
+                subtitle: const Text('Simple readable plain text'),
+                onTap: () => Navigator.pop(sheetContext, 'txt'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (format == null || !mounted) return;
+
+    final peerProtectsChat =
+        context.read<SocketService>().activeChatCaptureProtected;
+    final messages = context
+        .read<SocketService>()
+        .messages
+        .where((message) => !peerProtectsChat || message.isFromMe)
+        .toList();
+    final title = 'Novyn chat with ${widget.peer.name}';
+    final plainLines = messages.map((message) {
+      final sender = message.isFromMe
+          ? 'You'
+          : (widget.isGroup ? message.senderId : widget.peer.name);
+      final stamp = message.createdAt.toLocal().toString().substring(0, 16);
+      final body = message.text.trim().isNotEmpty ? message.text : '[Attachment]';
+      return '[$stamp] $sender: $body';
+    }).join('\n');
+
+    String escapeHtml(String value) => value
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
+
+    final htmlMessages = messages.map((message) {
+      final sender = message.isFromMe ? 'You' : widget.peer.name;
+      final stamp = message.createdAt.toLocal().toString().substring(0, 16);
+      final body = message.text.trim().isNotEmpty ? message.text : '[Attachment]';
+      return '<article class="message ${message.isFromMe ? 'mine' : ''}"><span class="meta">${escapeHtml(sender)} · ${escapeHtml(stamp)}</span>${escapeHtml(body)}</article>';
+    }).join('\\n');
+
+    final content = format == 'html'
+        ? '''<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${escapeHtml(title)}</title>
+<style>
+*{box-sizing:border-box}body{margin:0;padding:24px;background:#f4f0ff;color:#211d43;font:15px Arial,sans-serif}
+main{max-width:760px;margin:0 auto;background:#fff;border:1px solid #e8e1fa;border-radius:20px;overflow:hidden}
+header{padding:24px;background:linear-gradient(120deg,#d5ccfa,#eeeaff)}
+h1{margin:0 0 6px;font-size:22px}header p{margin:0;color:#625b82}
+section{padding:18px}.message{padding:13px 15px;margin:0 0 10px;border-radius:14px;background:#f7f5fc;white-space:pre-wrap;overflow-wrap:anywhere}
+.message.mine{background:#eeeaff}.meta{display:block;margin-bottom:5px;color:#716b8b;font-size:12px}
+</style></head><body><main><header><h1>${escapeHtml(title)}</h1>
+<p>@${escapeHtml(widget.peer.username)} · Exported from Novyn</p></header><section>
+${htmlMessages}
+</section></main></body></html>'''
+        : 'Novyn chat with ${widget.peer.name} (@${widget.peer.username})\nExported: ${DateTime.now().toLocal()}\n\n$plainLines';
+
+    try {
+      final directory = await getTemporaryDirectory();
+      final safeName =
+          widget.peer.username.replaceAll(RegExp(r'[^a-zA-Z0-9_-]'), '_');
+      final extension = format == 'html' ? 'html' : 'txt';
+      final file = File('${directory.path}/novyn_chat_$safeName.$extension');
+      await file.writeAsString(content, flush: true);
+      await Share.shareXFiles(
+        [
+          XFile(
+            file.path,
+            mimeType: format == 'html' ? 'text/html' : 'text/plain',
+          ),
+        ],
+        text: title,
+        subject: title,
+      );
+    } catch (error) {
+      if (mounted) {
+        NovynAlert.show(
+          context,
+          'Could not export chat: $error',
+          isError: true,
+          title: 'Chat export failed',
+          icon: Icons.ios_share_rounded,
+        );
+      }
+    }
+  }
+
   Future<void> _showContactInfo() async {
     if (widget.isGroup) {
       await _showGroupInfo();
@@ -3884,65 +4199,13 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
             Navigator.pop(context);
             _showWallpaperPicker();
           },
-          onQuickEmojis: () {
-            Navigator.pop(context);
-            _showQuickEmojiSettings();
-          },
           initiallyBlocked: context.read<SocketService>().blockedUsers.any(
                 (name) =>
                     name.toLowerCase() == widget.peer.username.toLowerCase(),
               ),
-          onMute: () async {
-            final socket = context.read<SocketService>();
-            final prefs = await SharedPreferences.getInstance();
-            final key = 'novyn_mute_${widget.peer.username.toLowerCase()}';
-            final nextMuted = !(prefs.getBool(key) ?? false);
-            socket.setMute(widget.peer.username, muted: nextMuted);
-            await prefs.setBool(key, nextMuted);
-            if (!mounted) return;
-            NovynToast.show(
-                context,
-                nextMuted
-                    ? 'Notifications muted for this contact'
-                    : 'Notifications unmuted for this contact');
-          },
-          onBlock: () async {
-            final socket = context.read<SocketService>();
-            final blocked = socket.blockedUsers.any(
-              (name) =>
-                  name.toLowerCase() == widget.peer.username.toLowerCase(),
-            );
-            final result = await socket.setBlockedUser(widget.peer.username,
-                blocked: !blocked);
-            if (!mounted) return;
-            if (result['ok'] == true) {
-              NovynAlert.showEvent(
-                  context,
-                  blocked
-                      ? NovynAlertEvent.userUnblocked(widget.peer.name)
-                      : NovynAlertEvent.userBlocked(widget.peer.name));
-            } else {
-              NovynAlert.show(
-                  context,
-                  result['message']?.toString() ??
-                      'Could not update block status',
-                  isError: true);
-            }
-            if (result['ok'] == true) Navigator.pop(context);
-          },
-          onClearChat: () async {
-            final socket = context.read<SocketService>();
-            final oldMessages = socket.messages;
-            socket.clearChat(widget.peer.username);
-            for (final message in oldMessages) {
-              await HybridDbService.deleteMessage(message.id);
-            }
-            await HybridDbService.setLastSync(
-                widget.peer.username, DateTime.now());
-            if (mounted) {
-              NovynAlert.showEvent(context, NovynAlertEvent.chatCleared);
-            }
-          },
+          onMute: () => _toggleMute(),
+          onBlock: () => _toggleBlock(closeProfileOnSuccess: true),
+          onClearChat: _clearChatHistory,
           onRemoveFriend: () async {
             final socket = context.read<SocketService>();
             socket.removeFriend(widget.peer.username);
@@ -3955,130 +4218,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
               Navigator.pop(context);
             }
           },
-          onExportChat: () async {
-            final format = await showModalBottomSheet<String>(
-              context: context,
-              backgroundColor: Theme.of(context).colorScheme.surface,
-              shape: const RoundedRectangleBorder(
-                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-              ),
-              builder: (sheetContext) => SafeArea(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 18, 20, 22),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Export chat',
-                          style: Theme.of(context)
-                              .textTheme
-                              .titleLarge
-                              ?.copyWith(fontWeight: FontWeight.w800)),
-                      const SizedBox(height: 6),
-                      Text('Choose a format to save this conversation.',
-                          style: Theme.of(context).textTheme.bodyMedium),
-                      const SizedBox(height: 16),
-                      ListTile(
-                        leading: const Icon(Icons.description_outlined),
-                        title: const Text('HTML file'),
-                        subtitle: const Text('Formatted chat transcript'),
-                        onTap: () => Navigator.pop(sheetContext, 'html'),
-                      ),
-                      ListTile(
-                        leading: const Icon(Icons.text_snippet_outlined),
-                        title: const Text('Text file (.txt)'),
-                        subtitle: const Text('Simple readable plain text'),
-                        onTap: () => Navigator.pop(sheetContext, 'txt'),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            );
-            if (format == null || !mounted) return;
-            // If the other participant enabled Stealth Mode, include only
-            // messages authored by the current user. Your own Stealth Mode
-            // never prevents you from exporting the full conversation.
-            final peerProtectsChat =
-                context.read<SocketService>().activeChatCaptureProtected;
-            final messages = context
-                .read<SocketService>()
-                .messages
-                .where((message) => !peerProtectsChat || message.isFromMe)
-                .toList();
-            final title = 'Novyn chat with ${widget.peer.name}';
-            final plainLines = messages.map((message) {
-              final sender = message.isFromMe
-                  ? 'You'
-                  : (widget.isGroup ? message.senderId : widget.peer.name);
-              final stamp =
-                  message.createdAt.toLocal().toString().substring(0, 16);
-              final body = message.text.trim().isNotEmpty
-                  ? message.text
-                  : '[Attachment]';
-              return '[$stamp] $sender: $body';
-            }).join('\n');
-
-            String escapeHtml(String value) => value
-                .replaceAll('&', '&amp;')
-                .replaceAll('<', '&lt;')
-                .replaceAll('>', '&gt;')
-                .replaceAll('"', '&quot;')
-                .replaceAll("'", '&#39;');
-
-            final htmlMessages = messages.map((message) {
-              final sender = message.isFromMe ? 'You' : widget.peer.name;
-              final stamp =
-                  message.createdAt.toLocal().toString().substring(0, 16);
-              final body = message.text.trim().isNotEmpty
-                  ? message.text
-                  : '[Attachment]';
-              return '<article class="message ${message.isFromMe ? 'mine' : ''}"><span class="meta">${escapeHtml(sender)} · ${escapeHtml(stamp)}</span>${escapeHtml(body)}</article>';
-            }).join('\\n');
-
-            final content = format == 'html'
-                ? '''<!doctype html>
-<html lang="en"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${escapeHtml(title)}</title>
-<style>
-*{box-sizing:border-box}body{margin:0;padding:24px;background:#f4f0ff;color:#211d43;font:15px Arial,sans-serif}
-main{max-width:760px;margin:0 auto;background:#fff;border:1px solid #e8e1fa;border-radius:20px;overflow:hidden}
-header{padding:24px;background:linear-gradient(120deg,#d5ccfa,#eeeaff)}
-h1{margin:0 0 6px;font-size:22px}header p{margin:0;color:#625b82}
-section{padding:18px}.message{padding:13px 15px;margin:0 0 10px;border-radius:14px;background:#f7f5fc;white-space:pre-wrap;overflow-wrap:anywhere}
-.message.mine{background:#eeeaff}.meta{display:block;margin-bottom:5px;color:#716b8b;font-size:12px}
-</style></head><body><main><header><h1>${escapeHtml(title)}</h1>
-<p>@${escapeHtml(widget.peer.username)} · Exported from Novyn</p></header><section>
-${htmlMessages}
-</section></main></body></html>'''
-                : 'Novyn chat with ${widget.peer.name} (@${widget.peer.username})\nExported: ${DateTime.now().toLocal()}\n\n$plainLines';
-
-            try {
-              final directory = await getTemporaryDirectory();
-              final safeName = widget.peer.username
-                  .replaceAll(RegExp(r'[^a-zA-Z0-9_-]'), '_');
-              final extension = format == 'html' ? 'html' : 'txt';
-              final file =
-                  File('${directory.path}/novyn_chat_$safeName.$extension');
-              await file.writeAsString(content, flush: true);
-              await Share.shareXFiles(
-                [
-                  XFile(file.path,
-                      mimeType: format == 'html' ? 'text/html' : 'text/plain')
-                ],
-                text: title,
-                subject: title,
-              );
-            } catch (error) {
-              if (mounted) {
-                NovynAlert.show(context, 'Could not export chat: $error',
-                    isError: true,
-                    title: 'Chat export failed',
-                    icon: Icons.ios_share_rounded);
-              }
-            }
-          },
+          onExportChat: _exportChat,
         ),
       ),
     );
@@ -6499,13 +6639,12 @@ class _HighlightedText extends StatelessWidget {
 // ── Header square button (web-style) ─────────────────────────────────────────
 class _ChatHeaderButton extends StatelessWidget {
   const _ChatHeaderButton({
+    super.key,
     required this.icon,
     required this.onTap,
     this.color,
     this.iconSize = 20,
     this.tooltip,
-    this.filled = false,
-    this.compact = false,
   });
 
   final IconData icon;
@@ -6513,8 +6652,6 @@ class _ChatHeaderButton extends StatelessWidget {
   final Color? color;
   final double iconSize;
   final String? tooltip;
-  final bool filled;
-  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -6526,13 +6663,11 @@ class _ChatHeaderButton extends StatelessWidget {
         behavior: HitTestBehavior.opaque,
         onTap: onTap,
         child: Material(
-          color: filled
-              ? scheme.primary.withValues(alpha: 0.10)
-              : Colors.transparent,
+          color: Colors.transparent,
           shape: const CircleBorder(),
           child: SizedBox(
-            width: compact ? 34 : 40,
-            height: compact ? 36 : 40,
+            width: 40,
+            height: 40,
             child: Center(
                 child:
                     Icon(icon, size: iconSize, color: color ?? scheme.primary)),

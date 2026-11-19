@@ -193,7 +193,7 @@ class SettingsService extends ChangeNotifier {
   bool _accentColorEnabled = true;
   String _dockStyle = 'slide_pill';
   String _alertStyle = 'snackbar';
-  String _callMiniStyle = 'floating_bar';
+  String _callMiniStyle = 'top_banner';
   bool _twoFactorAuth = false;
   String _lastSeenVisibility = 'everyone'; // 'everyone', 'contacts', 'nobody'
   String _profilePhotoVisibility = 'everyone'; // 'everyone', 'contacts', 'nobody'
@@ -570,13 +570,20 @@ class SettingsService extends ChangeNotifier {
     _alertStyle = alertStyles.contains(savedAlertStyle) ? savedAlertStyle : 'snackbar';
     if (_alertStyle != savedAlertStyle) await _prefs.setString(_kAlertStyle, _alertStyle);
     const callMiniStyles = {
-      'floating_bar', 'compact_pill', 'glass_card',
-      'accent_strip', 'avatar_bubble', 'video_focus',
+      'top_banner', 'floating_avatar', 'compact_pill',
+      'bottom_bar', 'video_card', 'edge_chip',
     };
-    final savedCallMiniStyle = _prefs.getString(_kCallMiniStyle) ?? 'floating_bar';
+    const legacyCallMiniStyles = <String, String>{
+      'floating_bar': 'top_banner',
+      'glass_card': 'video_card',
+      'accent_strip': 'top_banner',
+      'avatar_bubble': 'floating_avatar',
+      'video_focus': 'video_card',
+    };
+    final savedCallMiniStyle = _prefs.getString(_kCallMiniStyle) ?? 'top_banner';
     _callMiniStyle = callMiniStyles.contains(savedCallMiniStyle)
         ? savedCallMiniStyle
-        : 'floating_bar';
+        : legacyCallMiniStyles[savedCallMiniStyle] ?? 'top_banner';
     if (_callMiniStyle != savedCallMiniStyle) {
       await _prefs.setString(_kCallMiniStyle, _callMiniStyle);
     }
@@ -866,8 +873,8 @@ class SettingsService extends ChangeNotifier {
 
   Future<void> setCallMiniStyle(String style) async {
     const allowed = {
-      'floating_bar', 'compact_pill', 'glass_card',
-      'accent_strip', 'avatar_bubble', 'video_focus',
+      'top_banner', 'floating_avatar', 'compact_pill',
+      'bottom_bar', 'video_card', 'edge_chip',
     };
     if (!allowed.contains(style) || _callMiniStyle == style) return;
     _callMiniStyle = style;
@@ -1473,7 +1480,7 @@ class SettingsService extends ChangeNotifier {
     _accentColorEnabled = true;
     _dockStyle = 'slide_pill';
     _alertStyle = 'snackbar';
-    _callMiniStyle = 'floating_bar';
+    _callMiniStyle = 'top_banner';
     _twoFactorAuth = false;
     _lastSeenVisibility = 'everyone';
     _profilePhotoVisibility = 'everyone';

@@ -1307,6 +1307,11 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
                   padding: const EdgeInsets.symmetric(horizontal: 18),
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
+                    border: Border.all(
+                      color: _selectedTab == item.$1
+                          ? colors.primary
+                          : colors.outlineVariant.withValues(alpha: .6),
+                    ),
                     color: _selectedTab == item.$1
                         ? colors.primary
                         : colors.surface,
