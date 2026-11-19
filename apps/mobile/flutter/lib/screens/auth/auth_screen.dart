@@ -1083,77 +1083,7 @@ class _RegisterTabState extends State<_RegisterTab> {
     );
   }
 
-  
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => Dialog(
-        backgroundColor: Colors.white,
-        surfaceTintColor: Colors.transparent,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
-        child: Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(28),
-            border: Border.all(color: _kLine),
-          ),
-          padding: const EdgeInsets.all(32),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Stack(alignment: Alignment.center, children: [
-                Container(
-                  width: 80,
-                  height: 80,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: RadialGradient(colors: [
-                      _kGreen.withValues(alpha: 0.3),
-                      Colors.transparent,
-                    ]),
-                  ),
-                ),
-                Container(
-                  width: 60,
-                  height: 60,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: _kGreen.withValues(alpha: 0.15),
-                    border: Border.all(color: _kGreen.withValues(alpha: 0.4)),
-                    boxShadow: [BoxShadow(color: _kGreen.withValues(alpha: 0.3), blurRadius: 20)],
-                  ),
-                  child: const Icon(Icons.check_rounded, color: _kGreen, size: 30),
-                ),
-              ]),
-              const SizedBox(height: 20),
-              Text(
-                'Account Created!',
-                style: GoogleFonts.inter(fontSize: 22, fontWeight: FontWeight.w800, color: _kText),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Welcome to Novyn,\n@${_usernameCtrl.text.trim().toLowerCase()}',
-                textAlign: TextAlign.center,
-                style: const TextStyle(fontFamily: 'Inter', fontSize: 14, color: _kSub, height: 1.5),
-              ),
-              const SizedBox(height: 28),
-              _PrimaryButton(
-                label: 'Start Chatting',
-                loading: false,
-                onTap: () => Navigator.of(context).pushAndRemoveUntil(
-                  PageRouteBuilder(
-                    pageBuilder:        (_, __, ___) => const AuthSuccessScreen(),
-                    transitionsBuilder: (_, anim, __, child) => FadeTransition(opacity: anim, child: child),
-                    transitionDuration: const Duration(milliseconds: 400),
-                  ),
-                  (_) => false,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
+
 
   @override
   Widget build(BuildContext context) {
