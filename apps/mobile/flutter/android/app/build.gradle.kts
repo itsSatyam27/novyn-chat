@@ -56,11 +56,9 @@ android {
         versionCode = flutter.versionCode
         versionName = flutter.versionName
 
-        if (requestedAndroidAbis.isNotEmpty()) {
-            ndk {
-                abiFilters.addAll(requestedAndroidAbis)
-            }
-        }
+        // ABI selection is handled by Flutter's --target-platform / --split-per-abi
+        // arguments. Do not set ndk.abiFilters here: AGP rejects combining
+        // ndk abiFilters with Flutter's split ABI APK configuration.
     }
 
     packaging {
