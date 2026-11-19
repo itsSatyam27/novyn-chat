@@ -1,7 +1,7 @@
 {
-  "name": "novyn-chat",
+  "name": "mello",
   "version": "1.0.0",
-  "description": "Simple web chat app with friends and real-time messaging",
+  "description": "Mello — lightweight, privacy-focused cross-platform chat app",
   "main": "apps/api/server.js",
   "scripts": {
     "test": "node --test apps/api/tests/*.test.js",
