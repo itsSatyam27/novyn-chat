@@ -146,6 +146,10 @@ test('newly issued auth session survives an immediate backend process restart', 
   assert.equal(restoredBody.authenticated, true);
   assert.equal(restoredBody.username, 'restart_user');
 
+  // Stop first so graceful shutdown cannot overwrite the suspended state
+  // that this test is about to inject into the persisted snapshot.
+  await stopBackend(backend);
+
   const persistedStatePath = path.join(dataDirectory, 'chat-state.json');
   const persistedState = JSON.parse(await fs.readFile(persistedStatePath, 'utf8'));
   const persistedUser = persistedState.users.find((entry) => entry.key === 'restart_user');
@@ -153,7 +157,6 @@ test('newly issued auth session survives an immediate backend process restart', 
   persistedUser.isSuspended = true;
   await fs.writeFile(persistedStatePath, JSON.stringify(persistedState));
 
-  await stopBackend(backend);
   backend = await startBackend();
 
   const suspendedSession = await fetch(`${base}/api/auth/session`, {
