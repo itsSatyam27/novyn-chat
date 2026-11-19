@@ -404,7 +404,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
       // Render the complete Hive cache first; Drift is warmed and merged later.
       cachedMessages = await HybridDbService.getCachedMessages(_chatId!)
           .timeout(const Duration(seconds: 4), onTimeout: () => <Message>[]);
-    } catch (_) {
+    } catch (error) {
       debugPrint('[NovynChat] Local message cache read failed: $error');
     }
     debugPrint(
@@ -3969,7 +3969,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
         widget.peer.username,
         blocked: !blocked,
       );
-    } catch (error) {
+    } catch (_) {
       if (!mounted) return;
       NovynAlert.show(
         context,
