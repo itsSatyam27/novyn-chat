@@ -659,7 +659,18 @@ class ApiService {
             headers: await _csrfHeaders(),
           )
           .timeout(const Duration(seconds: 10));
-      await _storeSessionCookie(res);
+      // A single backend 401 is not enough to discard the refresh cookie.
+      // Session lookups can briefly miss on a restarting or out-of-sync API
+      // instance; preserving the cookie lets AuthService retry and confirm
+      // the rejection before it signs the user out. Successful refreshes and
+      // all non-auth responses still persist cookie rotations normally.
+      if (res.statusCode != 401 && res.statusCode != 403) {
+        await _storeSessionCookie(res);
+      } else {
+        debugPrint(
+          '[NovynSession] Refresh rejected (${res.statusCode}); keeping the saved session for retry.',
+        );
+      }
       return res.statusCode;
     } catch (error) {
       debugPrint('[NovynSession] Session refresh deferred: $error');

@@ -418,6 +418,9 @@ class AuthService extends ChangeNotifier {
     int expectedGeneration,
   ) async {
     if (expectedGeneration != _sessionMutationGeneration) return;
+    debugPrint(
+      '[NovynAuth] Clearing local sign-in after 3 consecutive background refresh rejections.',
+    );
     final invalidationGeneration = ++_sessionMutationGeneration;
     await _setSignedOutMarker(true);
     if (invalidationGeneration != _sessionMutationGeneration) return;
@@ -650,7 +653,9 @@ class AuthService extends ChangeNotifier {
           if (refreshStatus == 401 || refreshStatus == 403) {
             definitiveRejections++;
             if (definitiveRejections >= 3) {
-              await _setSignedOutMarker(true);
+              debugPrint(
+                '[NovynAuth] Clearing local sign-in after 3 consecutive refresh rejections.',
+              );
               await _setSignedOutMarker(true);
               await ApiService.clearSession();
               await _clearCachedIdentity();
