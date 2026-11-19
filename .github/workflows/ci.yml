@@ -56,6 +56,46 @@ jobs:
           flutter-version: "3.47.9"
           channel: stable
           cache: true
+      - name: Install Android NDK (retry corrupted downloads)
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDK_ROOT="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-}}"
+          if [[ -z "${SDK_ROOT}" ]]; then
+            echo "::error::Android SDK root was not provided by the runner"
+            exit 1
+          fi
+          SDKMANAGER="${SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager"
+          if [[ ! -x "${SDKMANAGER}" ]]; then
+            SDKMANAGER="$(command -v sdkmanager || true)"
+          fi
+          if [[ -z "${SDKMANAGER}" || ! -x "${SDKMANAGER}" ]]; then
+            echo "::error::Android sdkmanager was not found"
+            exit 1
+          fi
+          NDK_VERSION="28.2.13676358"
+          NDK_DIR="${SDK_ROOT}/ndk/${NDK_VERSION}"
+          if [[ -f "${NDK_DIR}/source.properties" ]]; then
+            echo "Android NDK ${NDK_VERSION} is already installed"
+            exit 0
+          fi
+          yes | "${SDKMANAGER}" --sdk_root="${SDK_ROOT}" --licenses >/dev/null 2>&1 || true
+          for attempt in 1 2 3; do
+            echo "Installing Android NDK ${NDK_VERSION} (attempt ${attempt}/3)"
+            rm -rf "${NDK_DIR}" "${SDK_ROOT}/.temp" "${HOME}/.android/cache"
+            if "${SDKMANAGER}" --sdk_root="${SDK_ROOT}" --install "ndk;${NDK_VERSION}"; then
+              if [[ -f "${NDK_DIR}/source.properties" ]]; then
+                echo "Android NDK ${NDK_VERSION} installed successfully"
+                cat "${NDK_DIR}/source.properties"
+                exit 0
+              fi
+            fi
+            if [[ "${attempt}" -lt 3 ]]; then
+              sleep $((attempt * 10))
+            fi
+          done
+          echo "::error::Could not install Android NDK ${NDK_VERSION} after 3 attempts"
+          exit 1
       - name: Restore Firebase configuration
         working-directory: apps/mobile/flutter
         env:
