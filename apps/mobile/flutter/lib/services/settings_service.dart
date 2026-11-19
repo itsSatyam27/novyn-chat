@@ -939,8 +939,8 @@ class SettingsService extends ChangeNotifier {
   Future<void> setReduceMotion(bool v) async {
     if (_reduceMotion == v) return;
     _reduceMotion = v;
-    // Update MediaQuery/TickerMode immediately so the accessibility control
-    // never waits on a disk write before reflecting the user's choice.
+    // Update MediaQuery immediately so the accessibility control never waits
+    // on a disk write before reflecting the user's choice.
     notifyListeners();
     await _prefs.setBool(_kReduceMotion, v);
   }

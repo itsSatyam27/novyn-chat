@@ -221,21 +221,18 @@ class NovynApp extends StatelessWidget {
                   textScaler: TextScaler.linear(systemTextScale * s.fontSize),
                   disableAnimations: s.reduceMotion,
                 ),
-                child: TickerMode(
-                  enabled: !s.reduceMotion,
-                  child: SessionLifecycleGuard(
-                    child: AppLockWrapper(
-                      child: Stack(
-                        fit: StackFit.expand,
-                        children: [
-                          child!,
-                          ValueListenableBuilder<Widget?>(
-                            valueListenable: CallOverlayService.miniCall,
-                            builder: (context, miniCall, _) =>
-                                miniCall ?? const SizedBox.shrink(),
-                          ),
-                        ],
-                      ),
+                child: SessionLifecycleGuard(
+                  child: AppLockWrapper(
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        child!,
+                        ValueListenableBuilder<Widget?>(
+                          valueListenable: CallOverlayService.miniCall,
+                          builder: (context, miniCall, _) =>
+                              miniCall ?? const SizedBox.shrink(),
+                        ),
+                      ],
                     ),
                   ),
                 ),

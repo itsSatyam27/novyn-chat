@@ -5403,7 +5403,7 @@ function queueAllScheduledMessages() {
   }
 }
 
-function authenticateSigninPayload(payload) {
+async function authenticateSigninPayload(payload) {
   const identifier = toDisplayName(payload?.identifier || payload?.email || payload?.username || "");
   const password = toDisplayName(payload?.password || "");
   const isEmail = identifier.includes("@");
@@ -5423,7 +5423,7 @@ function authenticateSigninPayload(payload) {
     if (user.isSuspended === true) {
       return { ok: false, status: 403, message: "This account is suspended. Contact support.", suggestions: [] };
     }
-    if (!verifyPassword(password, user.passwordSalt, user.passwordHash)) {
+    if (!(await verifyPassword(password, user.passwordSalt, user.passwordHash))) {
       return { ok: false, status: 401, message: "Incorrect password.", suggestions: [] };
     }
     return { ok: true, user };
@@ -5446,14 +5446,14 @@ function authenticateSigninPayload(payload) {
 
   if (!user.passwordSalt || !user.passwordHash) {
     return { ok: false, status: 401, message: 'Password sign-in is unavailable for this account. Use Google sign-in or reset your password.', suggestions: [] };
-  } else if (!verifyPassword(password, user.passwordSalt, user.passwordHash)) {
+  } else if (!(await verifyPassword(password, user.passwordSalt, user.passwordHash))) {
     return { ok: false, status: 401, message: "Incorrect password.", suggestions };
   }
 
   return { ok: true, user };
 }
 
-function authenticateSignupPayload(payload) {
+async function authenticateSignupPayload(payload) {
   const email = normalizeEmail(payload?.email || "");
   const displayName = toDisplayName(payload?.name || payload?.displayName || "");
   const usernameInput = toDisplayName(payload?.username || "");
@@ -5484,7 +5484,7 @@ function authenticateSignupPayload(payload) {
   }
 
   const user = getOrCreateUser(requestedHandle);
-  const secret = createPasswordSecret(password);
+  const secret = await createPasswordSecret(password);
   user.passwordSalt = secret.passwordSalt;
   user.passwordHash = secret.passwordHash;
   user.isRegistered = true;
@@ -5579,7 +5579,7 @@ app.post("/api/auth/2fa/enable", requireUser, requireCsrf, (req, res) => {
   res.json({ enabled: true, backupCodes });
 });
 
-app.post("/api/auth/2fa/disable", requireUser, requireCsrf, (req, res) => {
+app.post("/api/auth/2fa/disable", requireUser, requireCsrf, async (req, res) => {
   const user = users.get(req.userKey);
   if (!user || !user.twoFactorEnabled || !user.twoFactorSecret) {
     return res.status(409).json({ message: "Two-factor authentication is not enabled." });
@@ -5587,7 +5587,7 @@ app.post("/api/auth/2fa/disable", requireUser, requireCsrf, (req, res) => {
   const currentPassword = toDisplayName(req.body?.currentPassword);
   const code = toDisplayName(req.body?.code).replace(/\s+/g, "");
   if (user.passwordHash && user.passwordSalt) {
-    if (!currentPassword || !verifyPassword(currentPassword, user.passwordSalt, user.passwordHash)) {
+    if (!currentPassword || !(await verifyPassword(currentPassword, user.passwordSalt, user.passwordHash))) {
       return res.status(401).json({ message: "Incorrect current password." });
     }
   } else if (!verifyTotpCode(decryptTotpSecret(user.twoFactorSecret), code)) {
@@ -5608,7 +5608,7 @@ app.post(
   createIpRateLimiter({ getStore: () => httpRateLimits }, "profile-update", 40, 15 * 60 * 1000),
   requireCsrf,
   requireUser,
-  (req, res) => {
+  async (req, res) => {
     const userKey = req.userKey;
     const user = users.get(userKey);
     if (!user || !user.isRegistered) {
@@ -5677,7 +5677,7 @@ app.post(
 );
 
 app.post("/api/auth/signin", createIpRateLimiter({ getStore: () => httpRateLimits }, "auth-signin", 25, 15 * 60 * 1000), requireCsrf, async (req, res) => {
-  const result = authenticateSigninPayload(req.body || {});
+  const result = await authenticateSigninPayload(req.body || {});
   if (!result.ok) {
     res.status(result.status || 401).json({
       message: result.message || "Authentication failed.",
@@ -5717,7 +5717,7 @@ app.post(
   createIpRateLimiter({ getStore: () => httpRateLimits }, "auth-signup", 20, 15 * 60 * 1000),
   requireCsrf,
   async (req, res) => {
-    const result = authenticateSignupPayload(req.body || {});
+    const result = await authenticateSignupPayload(req.body || {});
     if (!result.ok) {
       res.status(result.status || 400).json({ message: result.message || "Unable to sign up." });
       return;
@@ -5791,7 +5791,7 @@ app.post(
     }
 
     if (!user && linkIdentifier && linkPassword) {
-      const linkedAuth = authenticateSigninPayload({
+      const linkedAuth = await authenticateSigninPayload({
         identifier: linkIdentifier,
         password: linkPassword,
       });

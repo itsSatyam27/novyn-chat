@@ -71,12 +71,8 @@ class AccessibilityScreen extends StatelessWidget {
     final settings = context.watch<SettingsService>();
     final level = _fontLevel(settings.fontSize);
 
-    // Reduced motion silences tickers globally. Keep this screen's controls
-    // interactive and self-contained so the user can always turn it back off.
-    return TickerMode(
-      enabled: true,
-      child: Scaffold(
-        backgroundColor: NovynTheme.pageBg(context),
+    return Scaffold(
+      backgroundColor: NovynTheme.pageBg(context),
         body: SafeArea(
           child: ListView(
             physics: const BouncingScrollPhysics(),
@@ -118,7 +114,6 @@ class AccessibilityScreen extends StatelessWidget {
             ],
           ),
         ),
-      ),
     );
   }
 }
