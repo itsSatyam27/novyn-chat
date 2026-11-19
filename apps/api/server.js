@@ -6086,6 +6086,11 @@ app.get("/api/auth/session", async (req, res) => {
     res.status(401).json({ message: "Session expired." });
     return;
   }
+  if (user.isSuspended === true) {
+    clearAuthCookies(res);
+    res.status(401).json({ message: "This account is suspended." });
+    return;
+  }
   if (auth.via === "refresh") {
     const tokens = await issueAuthTokensForUser(
       auth.userKey,
