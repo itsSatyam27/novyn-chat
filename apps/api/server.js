@@ -9922,6 +9922,12 @@ io.on("connection", (socket) => {
               isTyping: false,
               toType: "friend",
             });
+            io.to(friendSocket).emit("voice_activity", {
+              from: user.username,
+              isSpeaking: false,
+              toType: "friend",
+              to: user.username,
+            });
           }
         }
         for (const groupKey of user.groups || []) {
@@ -9934,6 +9940,12 @@ io.on("connection", (socket) => {
             io.to(memberSocket).emit("typing", {
               from: user.username,
               isTyping: false,
+              toType: "group",
+              to: group.id,
+            });
+            io.to(memberSocket).emit("voice_activity", {
+              from: user.username,
+              isSpeaking: false,
               toType: "group",
               to: group.id,
             });

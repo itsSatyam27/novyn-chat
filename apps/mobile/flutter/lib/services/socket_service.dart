@@ -24,6 +24,7 @@ import 'sync_service.dart';
 ///   EMIT  get_history              — { to, kind }
 ///   EMIT  private_message          — { to, toType, text, attachment?, replyTo?, clientTempId, ciphertext?, iv?, isEncrypted? }
 ///   EMIT  typing                   — { to, isTyping, toType }
+///   EMIT  voice_activity           — { to, isSpeaking, toType }
 ///   EMIT  edit_message             — { messageId, text, to }
 ///   EMIT  unsend_message           — { messageId, to }
 ///   EMIT  add_reaction             — { messageId, emoji, to, toType }
@@ -48,6 +49,7 @@ import 'sync_service.dart';
 ///   ON    message_edited           — { messageId, text }
 ///   ON    reaction_updated         — { messageId, reactions }
 ///   ON    typing                   — { from, isTyping }
+///   ON    voice_activity           — { from, isSpeaking, toType, to? }
 ///   ON    user_status              — { username, online, presence, lastSeenAt }
 ///   ON    call_incoming            — { from, fromDisplayName, isVideo }
 ///   ON    call_accepted
@@ -96,8 +98,10 @@ class SocketService extends ChangeNotifier {
   final Map<String, DateTime> _messageSeenAt = {};
   final Set<String> _recentOwnMessageEchoIds = <String>{};
   int get messageStatusRevision => _messageStatusRevision;
-  String messageStatusFor(String messageId) => _messageStatuses[messageId] ?? 'sent';
-  DateTime? messageDeliveredAtFor(String messageId) => _messageDeliveredAt[messageId];
+  String messageStatusFor(String messageId) =>
+      _messageStatuses[messageId] ?? 'sent';
+  DateTime? messageDeliveredAtFor(String messageId) =>
+      _messageDeliveredAt[messageId];
   DateTime? messageSeenAtFor(String messageId) => _messageSeenAt[messageId];
 
   void _captureMessageStatusTimes(String id, Map data) {
@@ -124,6 +128,11 @@ class SocketService extends ChangeNotifier {
 
   // Typing
   bool _peerIsTyping = false;
+  bool _peerIsRecordingVoice = false;
+  final Map<String, Set<String>> _voiceUsersInChats = {};
+  String? _voiceActivityTargetKey;
+  String? _voiceActivityTargetUsername;
+  bool _voiceActivityTargetIsGroup = false;
   Timer? _typingStopTimer;
   String? _typingTargetKey;
   String? _typingTargetUsername;
@@ -131,14 +140,24 @@ class SocketService extends ChangeNotifier {
 
   // Typing across other chats: peerUsername → true
   final Map<String, bool> _typingInChats = {};
+  final Map<String, Map<String, String>> _typingUsersInChats = {};
   Map<String, bool> get typingInChats => Map.unmodifiable(_typingInChats);
+
+  String typingUsersSignature(String conversationKey) {
+    final users = _typingUsersInChats[conversationKey.toLowerCase()];
+    if (users == null || users.isEmpty) return '';
+    final names = users.values.toList()
+      ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+    return names.join('\u0000');
+  }
 
   // Conversations list (mirrors novyn-chat's friend_list)
   List<ChatPreview> _conversations = [];
   List<ChatPreview> get conversations => List.unmodifiable(_conversations);
   Map<String, dynamic>? _latestGroupInfo;
-  Map<String, dynamic>? get latestGroupInfo =>
-      _latestGroupInfo == null ? null : Map<String, dynamic>.from(_latestGroupInfo!);
+  Map<String, dynamic>? get latestGroupInfo => _latestGroupInfo == null
+      ? null
+      : Map<String, dynamic>.from(_latestGroupInfo!);
   List<String> _blockedUsers = [];
   List<String> get blockedUsers => List.unmodifiable(_blockedUsers);
 
@@ -167,10 +186,12 @@ class SocketService extends ChangeNotifier {
     }
     return _messagesView!;
   }
+
   bool get isConnected => _isConnected;
   bool get isAuthenticated => _isAuthenticated;
   bool get hasLoadedConversations => _hasLoadedConversations;
   bool get peerIsTyping => _peerIsTyping;
+  bool get peerIsRecordingVoice => _peerIsRecordingVoice;
   String? get currentChatWith => _currentChatWith;
   bool get activeChatCaptureProtected => _activeChatCaptureProtected;
   String? get myUsername => _myUsername;
@@ -181,8 +202,10 @@ class SocketService extends ChangeNotifier {
   Future<void> reconnectWithCurrentSession() async {
     final username = _myUsername;
     final serverUrl = _serverUrl;
-    if (username == null || username.isEmpty ||
-        serverUrl == null || serverUrl.isEmpty) {
+    if (username == null ||
+        username.isEmpty ||
+        serverUrl == null ||
+        serverUrl.isEmpty) {
       return;
     }
     // Refresh only the transport. Keep the in-memory chat, contacts and
@@ -217,7 +240,8 @@ class SocketService extends ChangeNotifier {
   }
 
   void _scheduleSocketAuthRecovery({Duration delay = Duration.zero}) {
-    if (_manualDisconnect || _isAuthenticated || _refreshingSocketSession) return;
+    if (_manualDisconnect || _isAuthenticated || _refreshingSocketSession)
+      return;
     if (_socketAuthRetryTimer?.isActive == true) return;
     _socketAuthRetryTimer = Timer(delay, () {
       _socketAuthRetryTimer = null;
@@ -226,7 +250,8 @@ class SocketService extends ChangeNotifier {
   }
 
   Future<void> _refreshAfterSocketAuthFailure() async {
-    if (_refreshingSocketSession || _manualDisconnect || _isAuthenticated) return;
+    if (_refreshingSocketSession || _manualDisconnect || _isAuthenticated)
+      return;
     _refreshingSocketSession = true;
     var retryAfterTransientFailure = false;
     try {
@@ -244,7 +269,8 @@ class SocketService extends ChangeNotifier {
       retryAfterTransientFailure =
           status == null || status == 429 || (status != null && status >= 500);
     } catch (error) {
-      debugPrint('[NovynSocket] Session refresh after auth failure failed: $error');
+      debugPrint(
+          '[NovynSocket] Session refresh after auth failure failed: $error');
       retryAfterTransientFailure = true;
     } finally {
       _refreshingSocketSession = false;
@@ -257,7 +283,8 @@ class SocketService extends ChangeNotifier {
 
   void connect(String serverUrl, String username) {
     _manualDisconnect = false;
-    if (_socket != null && _myUsername != null &&
+    if (_socket != null &&
+        _myUsername != null &&
         _myUsername!.toLowerCase() != username.toLowerCase()) {
       disconnect();
     }
@@ -288,16 +315,16 @@ class SocketService extends ChangeNotifier {
     if (peer == null) return;
 
     final existingIds = _messages.map((message) => message.id).toSet();
-    final restored = SyncService().pendingMessages
+    final restored = SyncService()
+        .pendingMessages
         .where((pending) =>
             pending.isGroup == _currentChatIsGroup &&
             pending.chatId.toLowerCase() == peer.toLowerCase() &&
             !existingIds.contains(pending.tempId))
         .map((pending) {
-          _messageStatuses[pending.tempId] = 'sending';
-          return pending.toLocalMessage();
-        })
-        .toList(growable: false);
+      _messageStatuses[pending.tempId] = 'sending';
+      return pending.toLocalMessage();
+    }).toList(growable: false);
     if (restored.isEmpty) return;
 
     _messages = [..._messages, ...restored]
@@ -317,7 +344,8 @@ class SocketService extends ChangeNotifier {
         onRejected: (pending, reason) {
           _messageStatuses[pending.tempId] = 'failed';
           _messageStatusRevision++;
-          debugPrint('[NovynOutbox] Message ${pending.tempId} rejected: $reason');
+          debugPrint(
+              '[NovynOutbox] Message ${pending.tempId} rejected: $reason');
           notifyListeners();
         },
       );
@@ -348,8 +376,7 @@ class SocketService extends ChangeNotifier {
 
   Future<void> _sendPendingMessage(PendingMessage pending) async {
     final account = _myUsername;
-    if (account == null ||
-        pending.accountId != account.trim().toLowerCase()) {
+    if (account == null || pending.accountId != account.trim().toLowerCase()) {
       throw const PendingMessageRejectedException(
         'The signed-in account changed before this message could be sent.',
       );
@@ -450,7 +477,10 @@ class SocketService extends ChangeNotifier {
       acknowledgement.complete(
         result is Map
             ? Map<String, dynamic>.from(result)
-            : <String, dynamic>{'ok': false, 'message': 'Unexpected server response.'},
+            : <String, dynamic>{
+                'ok': false,
+                'message': 'Unexpected server response.'
+              },
       );
     });
 
@@ -482,7 +512,8 @@ class SocketService extends ChangeNotifier {
       );
     }
     if (_myUsername != account || _socket != connection) {
-      throw StateError('The account or connection changed after send acknowledgement.');
+      throw StateError(
+          'The account or connection changed after send acknowledgement.');
     }
 
     final acknowledged = Message(
@@ -581,6 +612,8 @@ class SocketService extends ChangeNotifier {
       _stopPendingOutboxRetry();
       _isConnecting = false;
       _isConnected = false;
+      _voiceUsersInChats.clear();
+      _peerIsRecordingVoice = false;
       SyncService().setOnlineStatus(false);
       _isAuthenticated = false;
       // A completed future from an old socket must never authenticate a new one.
@@ -594,6 +627,8 @@ class SocketService extends ChangeNotifier {
       _stopPendingOutboxRetry();
       _isConnecting = false;
       _isConnected = false;
+      _voiceUsersInChats.clear();
+      _peerIsRecordingVoice = false;
       SyncService().setOnlineStatus(false);
       _isAuthenticated = false;
       _authenticationReady = null;
@@ -658,8 +693,11 @@ class SocketService extends ChangeNotifier {
   void _requestActiveChatRefresh() {
     final peer = _currentChatWith;
     final connection = _socket;
-    if (peer == null || peer.isEmpty || connection == null ||
-        !_isConnected || !_isAuthenticated) return;
+    if (peer == null ||
+        peer.isEmpty ||
+        connection == null ||
+        !_isConnected ||
+        !_isAuthenticated) return;
     final kind = _currentChatIsGroup ? 'group' : 'friend';
     connection.emit('set_active_chat', {'to': peer, 'kind': kind});
     if (!_currentChatIsGroup) {
@@ -696,7 +734,8 @@ class SocketService extends ChangeNotifier {
     _socket!.on('register_success', (data) {
       if (data is Map) _handleFriendList(data['friends']);
       _markSocketAuthenticated();
-      unawaited(_registerEncryptionIdentity().then((_) => _flushPendingMessageOutbox()));
+      unawaited(_registerEncryptionIdentity()
+          .then((_) => _flushPendingMessageOutbox()));
     });
     // ── Initial data + friend list ────────────────────────────────────────
     _socket!.on('init', (data) {
@@ -750,8 +789,7 @@ class SocketService extends ChangeNotifier {
     _socket!.on('peer_public_key_updated', (data) {
       if (data is Map) {
         final username = data['username']?.toString() ?? '';
-        _peerKeys[username.toLowerCase()] =
-            data['publicKey']?.toString() ?? '';
+        _peerKeys[username.toLowerCase()] = data['publicKey']?.toString() ?? '';
         if (_currentChatWith?.toLowerCase() == username.toLowerCase()) {
           unawaited(decryptCurrentMessages());
         }
@@ -795,12 +833,18 @@ class SocketService extends ChangeNotifier {
             replyToText: m['replyTo']?['text']?.toString(),
             replyToSender: m['replyTo']?['from']?.toString(),
             edited: m['edited'] == true,
-            attachment: m['attachment'] is Map ? Map<String, dynamic>.from(m['attachment']) : null,
-            poll: m['poll'] is Map ? Map<String, dynamic>.from(m['poll']) : null,
+            attachment: m['attachment'] is Map
+                ? Map<String, dynamic>.from(m['attachment'])
+                : null,
+            poll:
+                m['poll'] is Map ? Map<String, dynamic>.from(m['poll']) : null,
             pinnedAt: m['pinnedAt']?.toString(),
             pinnedBy: m['pinnedBy']?.toString(),
-            riddle: m['riddle'] is Map ? Map<String, dynamic>.from(m['riddle']) : null,
-            game: m['game'] is Map ? Map<String, dynamic>.from(m['game']) : null,
+            riddle: m['riddle'] is Map
+                ? Map<String, dynamic>.from(m['riddle'])
+                : null,
+            game:
+                m['game'] is Map ? Map<String, dynamic>.from(m['game']) : null,
           );
         }).toList();
 
@@ -808,7 +852,8 @@ class SocketService extends ChangeNotifier {
         if (account == null) return;
         for (final raw in historyList) {
           if (raw is! Map) continue;
-          final id = raw['id']?.toString() ?? raw['messageId']?.toString() ?? '';
+          final id =
+              raw['id']?.toString() ?? raw['messageId']?.toString() ?? '';
           if (id.isEmpty) continue;
           _captureMessageStatusTimes(id, raw);
           final explicit = raw['status']?.toString().toLowerCase();
@@ -877,7 +922,9 @@ class SocketService extends ChangeNotifier {
       final isOwn = sender.toLowerCase() == _myUsername?.toLowerCase();
       final isGroupMessage = data['toType']?.toString() == 'group';
       final chatPartner = isGroupMessage
-          ? (data['groupId']?.toString() ?? data['toKey']?.toString() ?? receiver)
+          ? (data['groupId']?.toString() ??
+              data['toKey']?.toString() ??
+              receiver)
           : (isOwn ? receiver : sender);
 
       var msg = Message(
@@ -896,12 +943,20 @@ class SocketService extends ChangeNotifier {
         replyToId: data['replyTo']?['id']?.toString(),
         replyToText: data['replyTo']?['text']?.toString(),
         replyToSender: data['replyTo']?['from']?.toString(),
-        attachment: data['attachment'] is Map ? Map<String, dynamic>.from(data['attachment']) : null,
-        poll: data['poll'] is Map ? Map<String, dynamic>.from(data['poll']) : null,
+        attachment: data['attachment'] is Map
+            ? Map<String, dynamic>.from(data['attachment'])
+            : null,
+        poll: data['poll'] is Map
+            ? Map<String, dynamic>.from(data['poll'])
+            : null,
         pinnedAt: data['pinnedAt']?.toString(),
         pinnedBy: data['pinnedBy']?.toString(),
-        riddle: data['riddle'] is Map ? Map<String, dynamic>.from(data['riddle']) : null,
-        game: data['game'] is Map ? Map<String, dynamic>.from(data['game']) : null,
+        riddle: data['riddle'] is Map
+            ? Map<String, dynamic>.from(data['riddle'])
+            : null,
+        game: data['game'] is Map
+            ? Map<String, dynamic>.from(data['game'])
+            : null,
       );
 
       final account = _myUsername;
@@ -946,7 +1001,7 @@ class SocketService extends ChangeNotifier {
       await HybridDbService.saveMessage(msg);
       if (!isOwn && msg.attachment != null) {
         unawaited(MediaStorageService.handleIncomingAttachment(
-          msg.attachment, msg.id));
+            msg.attachment, msg.id));
       }
 
       // Update the open chat message list
@@ -1005,7 +1060,8 @@ class SocketService extends ChangeNotifier {
       final index = _messages.indexWhere((message) => message.id == messageId);
       if (index == -1) return;
       final updated = List<Message>.from(_messages);
-      updated[index] = updated[index].copyWith(game: Map<String, dynamic>.from(rawGame));
+      updated[index] =
+          updated[index].copyWith(game: Map<String, dynamic>.from(rawGame));
       _messages = updated;
       HybridDbService.saveMessage(updated[index]);
       notifyListeners();
@@ -1013,13 +1069,15 @@ class SocketService extends ChangeNotifier {
 
     _socket!.on('riddle_updated', (data) {
       if (data is! Map) return;
-      final messageId = data['id']?.toString() ?? data['messageId']?.toString() ?? '';
+      final messageId =
+          data['id']?.toString() ?? data['messageId']?.toString() ?? '';
       final rawRiddle = data['riddle'];
       if (messageId.isEmpty || rawRiddle is! Map) return;
       final index = _messages.indexWhere((message) => message.id == messageId);
       if (index == -1) return;
       final updated = List<Message>.from(_messages);
-      updated[index] = updated[index].copyWith(riddle: Map<String, dynamic>.from(rawRiddle));
+      updated[index] =
+          updated[index].copyWith(riddle: Map<String, dynamic>.from(rawRiddle));
       _messages = updated;
       HybridDbService.saveMessage(updated[index]);
       notifyListeners();
@@ -1032,7 +1090,8 @@ class SocketService extends ChangeNotifier {
       if (index == -1) return;
       final updated = List<Message>.from(_messages);
       updated[index] = updated[index].copyWith(
-        pinnedAt: data['pinnedAt']?.toString() ?? DateTime.now().toIso8601String(),
+        pinnedAt:
+            data['pinnedAt']?.toString() ?? DateTime.now().toIso8601String(),
         pinnedBy: data['pinnedBy']?.toString() ?? '',
       );
       _messages = updated;
@@ -1082,18 +1141,21 @@ class SocketService extends ChangeNotifier {
     // ── Message status (delivered / seen) ──────────────────────────────────
     _socket!.on('message_status', (data) {
       if (data is! Map) return;
-      final msgId = data['id']?.toString() ?? data['messageId']?.toString() ?? '';
+      final msgId =
+          data['id']?.toString() ?? data['messageId']?.toString() ?? '';
       if (msgId.isEmpty) return;
       _captureMessageStatusTimes(msgId, data);
       final explicit = data['status']?.toString().toLowerCase();
-      final next = data['seenAt'] != null || explicit == 'seen' || explicit == 'read'
-          ? 'seen'
-          : data['deliveredAt'] != null || explicit == 'delivered'
-              ? 'delivered'
-              : null;
+      final next =
+          data['seenAt'] != null || explicit == 'seen' || explicit == 'read'
+              ? 'seen'
+              : data['deliveredAt'] != null || explicit == 'delivered'
+                  ? 'delivered'
+                  : null;
       if (next == null) return;
       final current = _messageStatuses[msgId] ?? 'sent';
-      if (current == 'seen' || (current == 'delivered' && next == 'delivered')) return;
+      if (current == 'seen' || (current == 'delivered' && next == 'delivered'))
+        return;
       _messageStatuses[msgId] = next;
       _messageStatusRevision++;
       notifyListeners();
@@ -1145,16 +1207,58 @@ class SocketService extends ChangeNotifier {
       final from = data['from']?.toString() ?? '';
       final isTyping = data['isTyping'] == true;
       final isGroupTyping = data['toType']?.toString() == 'group';
-      final conversationKey = isGroupTyping
-          ? (data['to']?.toString() ?? '')
-          : from;
+      final conversationKey =
+          isGroupTyping ? (data['to']?.toString() ?? '') : from;
       if (conversationKey.isEmpty) return;
+      final normalizedKey = conversationKey.toLowerCase();
+      final usernameKey = from.trim().toLowerCase();
+      final typingUsers = _typingUsersInChats.putIfAbsent(
+        normalizedKey,
+        () => <String, String>{},
+      );
+      if (usernameKey.isNotEmpty) {
+        if (isTyping) {
+          typingUsers[usernameKey] = from.trim();
+        } else {
+          typingUsers.remove(usernameKey);
+        }
+      }
+      if (typingUsers.isEmpty) _typingUsersInChats.remove(normalizedKey);
 
       if (_currentChatWith != null &&
           conversationKey.toLowerCase() == _currentChatWith!.toLowerCase()) {
         _peerIsTyping = isTyping;
       }
-      _typingInChats[conversationKey.toLowerCase()] = isTyping;
+      _typingInChats[normalizedKey] =
+          isGroupTyping ? typingUsers.isNotEmpty : isTyping;
+      notifyListeners();
+    });
+
+    _socket!.on('voice_activity', (data) {
+      if (data is! Map) return;
+      final from = data['from']?.toString().trim() ?? '';
+      final isSpeaking = data['isSpeaking'] == true;
+      final isGroupActivity = data['toType']?.toString() == 'group';
+      final conversationKey =
+          isGroupActivity ? (data['to']?.toString() ?? '') : from;
+      if (conversationKey.isEmpty || from.isEmpty) return;
+
+      final normalizedKey = conversationKey.toLowerCase();
+      final userKey = from.toLowerCase();
+      final activeUsers = _voiceUsersInChats.putIfAbsent(
+        normalizedKey,
+        () => <String>{},
+      );
+      if (isSpeaking) {
+        activeUsers.add(userKey);
+      } else {
+        activeUsers.remove(userKey);
+      }
+      if (activeUsers.isEmpty) _voiceUsersInChats.remove(normalizedKey);
+
+      if (_currentChatWith?.toLowerCase() == normalizedKey) {
+        _peerIsRecordingVoice = activeUsers.isNotEmpty;
+      }
       notifyListeners();
     });
 
@@ -1167,7 +1271,8 @@ class SocketService extends ChangeNotifier {
       final online = data['online'] == true;
       final presence = data['presence']?.toString();
       final hasLastSeenAt = data.containsKey('lastSeenAt');
-      final lastSeenAt = DateTime.tryParse(data['lastSeenAt']?.toString() ?? '');
+      final lastSeenAt =
+          DateTime.tryParse(data['lastSeenAt']?.toString() ?? '');
       final normalized = username.toLowerCase();
 
       // Keep every Flutter surface in sync: contacts, cached chat previews,
@@ -1229,7 +1334,8 @@ class SocketService extends ChangeNotifier {
       if (username.isEmpty) return;
       contacts.updateProfile(profile);
       _conversations = _conversations.map((chat) {
-        if (chat.isGroup || chat.peerUid.toLowerCase() != username.toLowerCase()) return chat;
+        if (chat.isGroup ||
+            chat.peerUid.toLowerCase() != username.toLowerCase()) return chat;
         final updatedPeer = chat.peer.copyWith(
           name: profile['displayName']?.toString(),
           bio: profile['bio']?.toString(),
@@ -1256,17 +1362,21 @@ class SocketService extends ChangeNotifier {
     });
 
     _socket!.on('call_ended', (data) {
-      onCallEndedCallback?.call(data is Map ? Map<String, dynamic>.from(data) : {});
+      onCallEndedCallback
+          ?.call(data is Map ? Map<String, dynamic>.from(data) : {});
     });
 
     _socket!.on('call_media_upgrade_request', (data) {
-      onCallMediaUpgradeRequestCallback?.call(data is Map ? Map<String, dynamic>.from(data) : {});
+      onCallMediaUpgradeRequestCallback
+          ?.call(data is Map ? Map<String, dynamic>.from(data) : {});
     });
     _socket!.on('call_media_upgrade_response', (data) {
-      onCallMediaUpgradeResponseCallback?.call(data is Map ? Map<String, dynamic>.from(data) : {});
+      onCallMediaUpgradeResponseCallback
+          ?.call(data is Map ? Map<String, dynamic>.from(data) : {});
     });
     _socket!.on('call_screen_share_changed', (data) {
-      onCallScreenShareChangedCallback?.call(data is Map ? Map<String, dynamic>.from(data) : {});
+      onCallScreenShareChangedCallback
+          ?.call(data is Map ? Map<String, dynamic>.from(data) : {});
     });
 
     // ── WebRTC signaling ──────────────────────────────────────────────────
@@ -1312,6 +1422,9 @@ class SocketService extends ChangeNotifier {
     // A chat can be opened while the app is resuming and the socket is still
     // unauthenticated. Re-request its state only after session authentication.
     _requestActiveChatRefresh();
+    if (_voiceActivityTargetUsername != null) {
+      _emitVoiceActivity(true);
+    }
     final ready = _authenticationReady;
     if (ready != null && !ready.isCompleted) ready.complete();
     onAuthenticated?.call();
@@ -1325,7 +1438,8 @@ class SocketService extends ChangeNotifier {
     final deadline = DateTime.now().add(const Duration(seconds: 30));
     while (!_isConnected || !_isAuthenticated) {
       if (_manualDisconnect) {
-        throw StateError('Reconnect to Novyn before changing account settings.');
+        throw StateError(
+            'Reconnect to Novyn before changing account settings.');
       }
       if (DateTime.now().isAfter(deadline)) {
         throw StateError(
@@ -1343,14 +1457,18 @@ class SocketService extends ChangeNotifier {
   Future<void> _requireAuthenticatedConnection() async {
     await _waitForSocketAuthentication();
     if (_socket == null || !_isConnected || !_isAuthenticated) {
-      throw StateError('Novyn is reconnecting securely. Please try again in a moment.');
+      throw StateError(
+          'Novyn is reconnecting securely. Please try again in a moment.');
     }
   }
 
   Future<void> _registerEncryptionIdentity() async {
     final account = _myUsername;
     final connection = _socket;
-    if (account == null || connection == null || !_isConnected || !_isAuthenticated) return;
+    if (account == null ||
+        connection == null ||
+        !_isConnected ||
+        !_isAuthenticated) return;
     if (_registeredIdentityAccount == account.toLowerCase()) return;
     final active = _identityRegistration;
     if (active != null) return active;
@@ -1379,15 +1497,19 @@ class SocketService extends ChangeNotifier {
             onTimeout: () => <String, dynamic>{'ok': false},
           );
           if (recoveryState['ok'] != true) {
-            throw StateError('Could not verify this account’s E2EE recovery state. Reconnect and try again.');
+            throw StateError(
+                'Could not verify this account’s E2EE recovery state. Reconnect and try again.');
           }
           if (recoveryState['backup'] is Map) {
-            throw StateError('This account has an E2EE recovery backup. Restore it from Settings → Chat Settings before sending messages.');
+            throw StateError(
+                'This account has an E2EE recovery backup. Restore it from Settings → Chat Settings before sending messages.');
           }
         }
         final publicKey = await encryption.initializeIdentity(account);
-        if (publicKey.isEmpty || _myUsername != account ||
-            _socket != connection || !_isConnected) return;
+        if (publicKey.isEmpty ||
+            _myUsername != account ||
+            _socket != connection ||
+            !_isConnected) return;
         final completer = Completer<Map<String, dynamic>>();
         connection.emitWithAck('register_public_key', {'publicKey': publicKey},
             ack: (dynamic result) {
@@ -1401,11 +1523,14 @@ class SocketService extends ChangeNotifier {
           const Duration(seconds: 12),
           onTimeout: () => <String, dynamic>{'ok': false},
         );
-        if (result['ok'] == true && _myUsername == account && _socket == connection) {
+        if (result['ok'] == true &&
+            _myUsername == account &&
+            _socket == connection) {
           _registeredIdentityAccount = account.toLowerCase();
           unawaited(decryptCurrentMessages());
         } else {
-          debugPrint('[NovynE2EE] Device identity registration was not confirmed.');
+          debugPrint(
+              '[NovynE2EE] Device identity registration was not confirmed.');
         }
       } catch (error) {
         debugPrint('[NovynE2EE] Identity setup failed: $error');
@@ -1429,11 +1554,13 @@ class SocketService extends ChangeNotifier {
     final account = _myUsername;
     final connection = _socket;
     if (account == null || connection == null) {
-      throw StateError('Sign in to Novyn before backing up your encryption key.');
+      throw StateError(
+          'Sign in to Novyn before backing up your encryption key.');
     }
     await _registerEncryptionIdentity();
     if (_registeredIdentityAccount != account.toLowerCase()) {
-      throw StateError('Novyn could not verify the active encryption identity.');
+      throw StateError(
+          'Novyn could not verify the active encryption identity.');
     }
     final publicKey = await encryption.initializeIdentity(account);
     final backup = await encryption.exportIdentityRecoveryBackup(
@@ -1458,7 +1585,8 @@ class SocketService extends ChangeNotifier {
     );
     if (result['ok'] != true) {
       throw StateError(
-        result['message']?.toString() ?? 'The encrypted recovery backup could not be saved.',
+        result['message']?.toString() ??
+            'The encrypted recovery backup could not be saved.',
       );
     }
   }
@@ -1468,7 +1596,8 @@ class SocketService extends ChangeNotifier {
     final account = _myUsername;
     final connection = _socket;
     if (account == null || connection == null) {
-      throw StateError('Sign in to Novyn before restoring your encryption key.');
+      throw StateError(
+          'Sign in to Novyn before restoring your encryption key.');
     }
     final completer = Completer<Map<String, dynamic>>();
     connection.emitWithAck(
@@ -1488,7 +1617,8 @@ class SocketService extends ChangeNotifier {
     );
     if (result['ok'] != true || result['backup'] is! Map) {
       throw StateError(
-        result['message']?.toString() ?? 'No E2EE recovery backup exists for this account yet.',
+        result['message']?.toString() ??
+            'No E2EE recovery backup exists for this account yet.',
       );
     }
     final backup = Map<String, dynamic>.from(result['backup'] as Map);
@@ -1498,8 +1628,10 @@ class SocketService extends ChangeNotifier {
       recoveryPassword,
     );
     final serverPublicKey = result['publicKey']?.toString() ?? '';
-    if (!MessageEncryptionService.samePublicKey(restoredPublicKey, serverPublicKey)) {
-      throw StateError('The account recovery backup does not match its registered identity.');
+    if (!MessageEncryptionService.samePublicKey(
+        restoredPublicKey, serverPublicKey)) {
+      throw StateError(
+          'The account recovery backup does not match its registered identity.');
     }
 
     // Re-publish the recovered identity and discard peer keys cached against
@@ -1508,7 +1640,8 @@ class SocketService extends ChangeNotifier {
     _peerKeys.clear();
     await _registerEncryptionIdentity();
     if (_registeredIdentityAccount != account.toLowerCase()) {
-      throw StateError('The recovered encryption identity could not be registered.');
+      throw StateError(
+          'The recovered encryption identity could not be registered.');
     }
     if (_currentChatWith != null) {
       connection.emit('get_history', {
@@ -1527,19 +1660,24 @@ class SocketService extends ChangeNotifier {
   }
 
   Future<void> _applyFriendList(dynamic data) async {
-    final rawList = data is List ? data : (data is Map ? data['friends'] : null);
+    final rawList =
+        data is List ? data : (data is Map ? data['friends'] : null);
     if (rawList is! List) return;
     final account = _myUsername;
     if (account == null || account.isEmpty) return;
 
     try {
-      final list = rawList.whereType<Map>().map((item) {
-        try {
-          return Map<String, dynamic>.from(item);
-        } catch (_) {
-          return null;
-        }
-      }).whereType<Map<String, dynamic>>().toList();
+      final list = rawList
+          .whereType<Map>()
+          .map((item) {
+            try {
+              return Map<String, dynamic>.from(item);
+            } catch (_) {
+              return null;
+            }
+          })
+          .whereType<Map<String, dynamic>>()
+          .toList();
 
       final peers = <UserModel>[];
       final previews = <ChatPreview>[];
@@ -1551,7 +1689,7 @@ class SocketService extends ChangeNotifier {
         // the conversation kind or there is no direct username.
         final isGroupConversation =
             item['kind']?.toString().toLowerCase() == 'group' ||
-            (directUsername.isEmpty && groupId.isNotEmpty);
+                (directUsername.isEmpty && groupId.isNotEmpty);
         final username = directUsername.isNotEmpty ? directUsername : groupId;
         if (username.isEmpty) continue;
 
@@ -1563,8 +1701,8 @@ class SocketService extends ChangeNotifier {
         final lastMsg = item['lastMessageData'] ?? item['lastMessage'];
         final hasConversationActivity =
             (item['lastTimestamp']?.toString().trim().isNotEmpty ?? false) ||
-            (lastMsg is Map && lastMsg.isNotEmpty) ||
-            (lastMsg != null && lastMsg.toString().trim().isNotEmpty);
+                (lastMsg is Map && lastMsg.isNotEmpty) ||
+                (lastMsg != null && lastMsg.toString().trim().isNotEmpty);
         // The server friend list also contains accepted contacts. Keep those
         // in Contacts/Discover, but do not create a Chats row until a first
         // message has actually started the conversation.
@@ -1629,9 +1767,12 @@ class SocketService extends ChangeNotifier {
           // Keep an already-decrypted preview visible for the same activity
           // while refreshing the snapshot; never flash the placeholder again.
           if (previousIndex >= 0 &&
-              _conversations[previousIndex].lastTime.isAtSameMomentAs(incomingTime) &&
+              _conversations[previousIndex]
+                  .lastTime
+                  .isAtSameMomentAs(incomingTime) &&
               _conversations[previousIndex].lastMessage.isNotEmpty &&
-              _conversations[previousIndex].lastMessage != '🔒 Encrypted message') {
+              _conversations[previousIndex].lastMessage !=
+                  '🔒 Encrypted message') {
             previews[previewIndex] = previews[previewIndex].copyWith(
               lastMessage: _conversations[previousIndex].lastMessage,
             );
@@ -1642,7 +1783,8 @@ class SocketService extends ChangeNotifier {
               id: raw['id']?.toString() ?? '',
               chatId: peer,
               text: raw['text']?.toString() ?? '🔒 Encrypted message',
-              isFromMe: raw['from']?.toString().toLowerCase() == account.toLowerCase(),
+              isFromMe: raw['from']?.toString().toLowerCase() ==
+                  account.toLowerCase(),
               isEncrypted: true,
               ciphertext: raw['ciphertext']?.toString(),
               iv: raw['iv']?.toString(),
@@ -1712,6 +1854,8 @@ class SocketService extends ChangeNotifier {
     _chatWallpaper = '';
     _messages = List<Message>.from(cachedHistory);
     _peerIsTyping = false;
+    _peerIsRecordingVoice =
+        _voiceUsersInChats[peerUsername.toLowerCase()]?.isNotEmpty == true;
     _restorePendingMessagesForOpenChat();
     notifyListeners();
 
@@ -1722,32 +1866,37 @@ class SocketService extends ChangeNotifier {
     _activeChatCaptureProtected = false;
     unawaited(SecurityService.setSafeMode(false));
     final connection = _socket;
-    connection?.emit('set_active_chat', {'to': peerUsername, 'kind': isGroup ? 'group' : 'friend'});
+    connection?.emit('set_active_chat',
+        {'to': peerUsername, 'kind': isGroup ? 'group' : 'friend'});
     if (connection != null && !isGroup) {
       connection.emitWithAck('get_chat_protection', {'to': peerUsername},
-        ack: (dynamic result) {
-          if (_socket != connection ||
-              _currentChatWith?.toLowerCase() != peerUsername.toLowerCase()) return;
-          final protected = result is Map && result['ok'] == true &&
-              result['protected'] == true;
-          _activeChatCaptureProtected = protected;
-          unawaited(SecurityService.setSafeMode(protected));
-        });
+          ack: (dynamic result) {
+        if (_socket != connection ||
+            _currentChatWith?.toLowerCase() != peerUsername.toLowerCase())
+          return;
+        final protected = result is Map &&
+            result['ok'] == true &&
+            result['protected'] == true;
+        _activeChatCaptureProtected = protected;
+        unawaited(SecurityService.setSafeMode(protected));
+      });
     }
-    connection?.emit('get_history', {'to': peerUsername, 'kind': isGroup ? 'group' : 'friend'});
-    connection?.emit('get_chat_wallpaper', {'to': peerUsername, 'toType': isGroup ? 'group' : 'friend'});
+    connection?.emit('get_history',
+        {'to': peerUsername, 'kind': isGroup ? 'group' : 'friend'});
+    connection?.emit('get_chat_wallpaper',
+        {'to': peerUsername, 'toType': isGroup ? 'group' : 'friend'});
 
     return historyRequest.future
         .timeout(
-          const Duration(seconds: 12),
-          onTimeout: () => List<Message>.unmodifiable(_messages),
-        )
+      const Duration(seconds: 12),
+      onTimeout: () => List<Message>.unmodifiable(_messages),
+    )
         .whenComplete(() {
-          if (identical(_chatHistoryCompleter, historyRequest)) {
-            _chatHistoryCompleter = null;
-            _chatHistoryTarget = null;
-          }
-        });
+      if (identical(_chatHistoryCompleter, historyRequest)) {
+        _chatHistoryCompleter = null;
+        _chatHistoryTarget = null;
+      }
+    });
   }
 
   Future<void> _syncStealthModePreference() async {
@@ -1755,7 +1904,8 @@ class SocketService extends ChangeNotifier {
       await updateStealthMode(_stealthModePreference);
     } catch (error) {
       _stealthPreferenceSynced = false;
-      debugPrint('[NovynSecurity] Could not sync saved Stealth Mode preference: $error');
+      debugPrint(
+          '[NovynSecurity] Could not sync saved Stealth Mode preference: $error');
     }
   }
 
@@ -1767,13 +1917,13 @@ class SocketService extends ChangeNotifier {
     }
     final completer = Completer<Map<String, dynamic>>();
     connection.emitWithAck('update_profile', {'stealthModeEnabled': enabled},
-      ack: (dynamic result) {
-        if (!completer.isCompleted) {
-          completer.complete(result is Map
-              ? Map<String, dynamic>.from(result)
-              : <String, dynamic>{'ok': false});
-        }
-      });
+        ack: (dynamic result) {
+      if (!completer.isCompleted) {
+        completer.complete(result is Map
+            ? Map<String, dynamic>.from(result)
+            : <String, dynamic>{'ok': false});
+      }
+    });
     final result = await completer.future.timeout(
       const Duration(seconds: 12),
       onTimeout: () => <String, dynamic>{'ok': false},
@@ -1787,6 +1937,7 @@ class SocketService extends ChangeNotifier {
 
   void closeChat({bool notify = true}) {
     if (_typingTargetKey != null) _stopActiveTyping();
+    stopVoiceActivity();
     final pendingHistory = _chatHistoryCompleter;
     if (pendingHistory != null && !pendingHistory.isCompleted) {
       pendingHistory.complete(const <Message>[]);
@@ -1799,6 +1950,7 @@ class SocketService extends ChangeNotifier {
     unawaited(SecurityService.setSafeMode(false));
     _messages = [];
     _peerIsTyping = false;
+    _peerIsRecordingVoice = false;
 
     // ChatDetailScreen calls closeChat while its own Provider subscription is
     // being disposed. Notifying listeners during that unmount pass causes an
@@ -1806,8 +1958,10 @@ class SocketService extends ChangeNotifier {
     if (notify) notifyListeners();
   }
 
-  Future<bool> loadOlderHistory(String peerUsername, String beforeMessageId, {bool isGroup = false}) async {
-    if (beforeMessageId.isEmpty || !_isConnected || !_isAuthenticated) return false;
+  Future<bool> loadOlderHistory(String peerUsername, String beforeMessageId,
+      {bool isGroup = false}) async {
+    if (beforeMessageId.isEmpty || !_isConnected || !_isAuthenticated)
+      return false;
     _olderHistoryCompleter?.complete(false);
     final completer = Completer<bool>();
     _olderHistoryCompleter = completer;
@@ -1905,7 +2059,8 @@ class SocketService extends ChangeNotifier {
     try {
       await (_outboxActivation ?? SyncService().activateAccount(account));
       if (_myUsername != account) {
-        throw StateError('Your account changed before this message was queued.');
+        throw StateError(
+            'Your account changed before this message was queued.');
       }
       // Persist the retry record before mirroring the optimistic bubble. If the
       // process stops immediately after queueing, openChat rebuilds the bubble.
@@ -1938,7 +2093,8 @@ class SocketService extends ChangeNotifier {
     }
   }
 
-  void sendGameChallenge(String gameType, String peerUsername, {bool isGroup = false}) {
+  void sendGameChallenge(String gameType, String peerUsername,
+      {bool isGroup = false}) {
     _requireConnection();
     _socket!.emit('private_message', {
       'to': peerUsername,
@@ -1984,7 +2140,8 @@ class SocketService extends ChangeNotifier {
     });
     final result = await completer.future.timeout(
       const Duration(seconds: 12),
-      onTimeout: () => {'ok': false, 'message': 'Game move timed out. Please retry.'},
+      onTimeout: () =>
+          {'ok': false, 'message': 'Game move timed out. Please retry.'},
     );
     if (result['ok'] != true) {
       throw StateError(result['message']?.toString() ?? 'Game move failed.');
@@ -2061,7 +2218,8 @@ class SocketService extends ChangeNotifier {
     return result;
   }
 
-  void setChatWallpaper(String wallpaper, String peerUsername, {bool isGroup = false}) {
+  void setChatWallpaper(String wallpaper, String peerUsername,
+      {bool isGroup = false}) {
     _requireConnection();
     _socket!.emit('set_chat_wallpaper', {
       'to': peerUsername,
@@ -2070,7 +2228,8 @@ class SocketService extends ChangeNotifier {
     });
   }
 
-  void pinMessage(String messageId, String peerUsername, {bool isGroup = false}) {
+  void pinMessage(String messageId, String peerUsername,
+      {bool isGroup = false}) {
     _requireConnection();
     _socket!.emit('pin_message', {
       'messageId': messageId,
@@ -2079,7 +2238,8 @@ class SocketService extends ChangeNotifier {
     });
   }
 
-  void unpinMessage(String messageId, String peerUsername, {bool isGroup = false}) {
+  void unpinMessage(String messageId, String peerUsername,
+      {bool isGroup = false}) {
     _requireConnection();
     _socket!.emit('unpin_message', {
       'messageId': messageId,
@@ -2111,7 +2271,8 @@ class SocketService extends ChangeNotifier {
     });
   }
 
-  void forwardMessage(Message message, String targetUsername, {bool isGroup = false}) {
+  void forwardMessage(Message message, String targetUsername,
+      {bool isGroup = false}) {
     _requireConnection();
     _socket!.emit('private_message', {
       'to': targetUsername,
@@ -2256,6 +2417,43 @@ class SocketService extends ChangeNotifier {
     _typingTargetIsGroup = false;
   }
 
+  void startVoiceActivity(String peerUsername, {bool isGroup = false}) {
+    final username = peerUsername.trim();
+    if (username.isEmpty) return;
+    final key = '${isGroup ? 'group' : 'friend'}:${username.toLowerCase()}';
+    if (_voiceActivityTargetKey == key) return;
+    stopVoiceActivity();
+    _voiceActivityTargetKey = key;
+    _voiceActivityTargetUsername = username;
+    _voiceActivityTargetIsGroup = isGroup;
+    _emitVoiceActivity(true);
+  }
+
+  void stopVoiceActivity() {
+    final username = _voiceActivityTargetUsername;
+    if (username == null) return;
+    _emitVoiceActivity(false);
+    _voiceActivityTargetKey = null;
+    _voiceActivityTargetUsername = null;
+    _voiceActivityTargetIsGroup = false;
+  }
+
+  void _emitVoiceActivity(bool isSpeaking) {
+    final username = _voiceActivityTargetUsername;
+    final connection = _socket;
+    if (username == null ||
+        connection == null ||
+        !_isConnected ||
+        !_isAuthenticated) {
+      return;
+    }
+    connection.emit('voice_activity', {
+      'to': username,
+      'isSpeaking': isSpeaking,
+      'toType': _voiceActivityTargetIsGroup ? 'group' : 'friend',
+    });
+  }
+
   // ── Edit / Unsend ─────────────────────────────────────────────────────────
   void editMessage(String messageId, String newText, String peerUsername) {
     _socket?.emit('edit_message', {
@@ -2324,13 +2522,16 @@ class SocketService extends ChangeNotifier {
   Future<void> cancelFriendRequest(String username) async {
     _requireConnection();
     final completer = Completer<void>();
-    _socket!.emitWithAck('cancel_friend_request', username, ack: (dynamic data) {
+    _socket!.emitWithAck('cancel_friend_request', username,
+        ack: (dynamic data) {
       if (data is Map && data['ok'] == true) {
         contacts.applyEvent('friend_request_cancelled', {'to': username});
         if (!completer.isCompleted) completer.complete();
       } else if (!completer.isCompleted) {
         completer.completeError(StateError(
-          data is Map ? data['message']?.toString() ?? 'Could not cancel request.' : 'Could not cancel request.',
+          data is Map
+              ? data['message']?.toString() ?? 'Could not cancel request.'
+              : 'Could not cancel request.',
         ));
       }
     });
@@ -2346,7 +2547,9 @@ class SocketService extends ChangeNotifier {
         completer.complete();
       } else {
         completer.completeError(StateError(
-          data is Map ? data['message']?.toString() ?? 'Could not accept request.' : 'Could not accept request.',
+          data is Map
+              ? data['message']?.toString() ?? 'Could not accept request.'
+              : 'Could not accept request.',
         ));
       }
     });
@@ -2362,7 +2565,9 @@ class SocketService extends ChangeNotifier {
         completer.complete();
       } else {
         completer.completeError(StateError(
-          data is Map ? data['message']?.toString() ?? 'Could not decline request.' : 'Could not decline request.',
+          data is Map
+              ? data['message']?.toString() ?? 'Could not decline request.'
+              : 'Could not decline request.',
         ));
       }
     });
@@ -2416,7 +2621,8 @@ class SocketService extends ChangeNotifier {
   Future<Map<String, dynamic>> markAllConversationsAsRead() async {
     await _requireAuthenticatedConnection();
     final completer = Completer<Map<String, dynamic>>();
-    _socket!.emitWithAck('mark_all_read', <String, dynamic>{}, ack: (dynamic result) {
+    _socket!.emitWithAck('mark_all_read', <String, dynamic>{},
+        ack: (dynamic result) {
       if (completer.isCompleted) return;
       completer.complete(result is Map
           ? Map<String, dynamic>.from(result)
@@ -2442,10 +2648,12 @@ class SocketService extends ChangeNotifier {
 
   void _requireConnection() {
     if (!_isConnected || _socket == null) {
-      throw StateError('Connect to Novyn before sending messages or changing contacts.');
+      throw StateError(
+          'Connect to Novyn before sending messages or changing contacts.');
     }
     if (!_isAuthenticated) {
-      throw StateError('Novyn is verifying your session. Please wait and try again.');
+      throw StateError(
+          'Novyn is verifying your session. Please wait and try again.');
     }
   }
 
@@ -2485,19 +2693,26 @@ class SocketService extends ChangeNotifier {
     });
   }
 
-  void updateCallScreenShare(String toUsername, String callId, String? streamId) {
+  void updateCallScreenShare(
+      String toUsername, String callId, String? streamId) {
     _socket?.emit('call_screen_share_state', {
-      'to': toUsername, 'callId': callId, 'streamId': streamId,
+      'to': toUsername,
+      'callId': callId,
+      'streamId': streamId,
     });
   }
 
   void requestCallMediaUpgrade(String toUsername, String callId) {
-    _socket?.emit('call_media_upgrade_request', {'to': toUsername, 'callId': callId});
+    _socket?.emit(
+        'call_media_upgrade_request', {'to': toUsername, 'callId': callId});
   }
 
-  void respondCallMediaUpgrade(String toUsername, String callId, {required bool accepted}) {
+  void respondCallMediaUpgrade(String toUsername, String callId,
+      {required bool accepted}) {
     _socket?.emit('call_media_upgrade_response', {
-      'to': toUsername, 'callId': callId, 'accepted': accepted,
+      'to': toUsername,
+      'callId': callId,
+      'accepted': accepted,
     });
   }
 
@@ -2517,9 +2732,8 @@ class SocketService extends ChangeNotifier {
       'Echo' => 'audio/call_ring.mp3',
       _ => 'audio/notification.mp3',
     };
-    final volume = (messageSoundVolume?.call() ?? 0.8)
-        .clamp(0.0, 1.0)
-        .toDouble();
+    final volume =
+        (messageSoundVolume?.call() ?? 0.8).clamp(0.0, 1.0).toDouble();
     try {
       await _audioPlayer.setAudioContext(AudioContext(
         android: AudioContextAndroid(
@@ -2534,21 +2748,23 @@ class SocketService extends ChangeNotifier {
       // A missing sound asset must not interrupt message delivery.
     }
   }
+
   bool _changingPassword = false;
 
   Future<Map<String, dynamic>> requestEmailChangeCode(String email) async {
     _requireConnection();
     final completer = Completer<Map<String, dynamic>>();
     _socket!.emitWithAck('request_email_change_code', {'email': email.trim()},
-      ack: (dynamic data) {
-        if (!completer.isCompleted) {
-          completer.complete(data is Map
+        ack: (dynamic data) {
+      if (!completer.isCompleted) {
+        completer.complete(data is Map
             ? Map<String, dynamic>.from(data)
             : {'ok': false, 'message': 'Unexpected server response.'});
-        }
-      });
+      }
+    });
     return completer.future.timeout(const Duration(seconds: 20),
-      onTimeout: () => {'ok': false, 'message': 'Email request timed out. Try again.'});
+        onTimeout: () =>
+            {'ok': false, 'message': 'Email request timed out. Try again.'});
   }
 
   Future<Map<String, dynamic>> verifyEmailChangeCode({
@@ -2558,16 +2774,18 @@ class SocketService extends ChangeNotifier {
     _requireConnection();
     final completer = Completer<Map<String, dynamic>>();
     _socket!.emitWithAck('verify_email_change_code', {
-      'email': email.trim(), 'code': code.trim(),
+      'email': email.trim(),
+      'code': code.trim(),
     }, ack: (dynamic data) {
       if (!completer.isCompleted) {
         completer.complete(data is Map
-          ? Map<String, dynamic>.from(data)
-          : {'ok': false, 'message': 'Unexpected server response.'});
+            ? Map<String, dynamic>.from(data)
+            : {'ok': false, 'message': 'Unexpected server response.'});
       }
     });
     return completer.future.timeout(const Duration(seconds: 20),
-      onTimeout: () => {'ok': false, 'message': 'Verification timed out. Try again.'});
+        onTimeout: () =>
+            {'ok': false, 'message': 'Verification timed out. Try again.'});
   }
 
   Future<void> changeUsername({
@@ -2580,17 +2798,22 @@ class SocketService extends ChangeNotifier {
     void succeeded(dynamic data) {
       if (!completer.isCompleted) completer.complete();
     }
+
     void failed(dynamic data) {
       if (!completer.isCompleted) {
         final message = data is Map ? data['message']?.toString() : null;
-        completer.completeError(StateError(message ?? 'Could not change username.'));
+        completer
+            .completeError(StateError(message ?? 'Could not change username.'));
       }
     }
+
     void disconnected(dynamic _) {
       if (!completer.isCompleted) {
-        completer.completeError(StateError('Connection lost before the username change was confirmed.'));
+        completer.completeError(StateError(
+            'Connection lost before the username change was confirmed.'));
       }
     }
+
     connection.on('username_changed', succeeded);
     connection.on('username_change_failed', failed);
     connection.on('disconnect', disconnected);
@@ -2600,7 +2823,8 @@ class SocketService extends ChangeNotifier {
         'currentPassword': currentPassword,
       });
       await completer.future.timeout(const Duration(seconds: 20),
-        onTimeout: () => throw StateError('Username change timed out. Check your connection and try again.'));
+          onTimeout: () => throw StateError(
+              'Username change timed out. Check your connection and try again.'));
     } finally {
       connection.off('username_changed', succeeded);
       connection.off('username_change_failed', failed);
@@ -2608,7 +2832,8 @@ class SocketService extends ChangeNotifier {
     }
   }
 
-  Future<void> changePassword(String currentPassword, String newPassword) async {
+  Future<void> changePassword(
+      String currentPassword, String newPassword) async {
     _requireConnection();
     if (_changingPassword) {
       throw StateError('A password change is already in progress.');
@@ -2623,13 +2848,15 @@ class SocketService extends ChangeNotifier {
     void failed(dynamic data) {
       if (!confirmed.isCompleted) {
         final message = data is Map ? data['message']?.toString() : null;
-        confirmed.completeError(StateError(message ?? 'Could not change your password.'));
+        confirmed.completeError(
+            StateError(message ?? 'Could not change your password.'));
       }
     }
 
     void disconnected(dynamic _) {
       if (!confirmed.isCompleted) {
-        confirmed.completeError(StateError('Connection lost before the password change was confirmed. Please sign in again.'));
+        confirmed.completeError(StateError(
+            'Connection lost before the password change was confirmed. Please sign in again.'));
       }
     }
 
@@ -2643,7 +2870,8 @@ class SocketService extends ChangeNotifier {
       });
       await confirmed.future.timeout(const Duration(seconds: 15));
     } on TimeoutException {
-      throw StateError('Could not confirm the password change. Check your connection and try signing in again.');
+      throw StateError(
+          'Could not confirm the password change. Check your connection and try signing in again.');
     } finally {
       connection.off('password_changed', succeeded);
       connection.off('password_change_failed', failed);
@@ -2662,14 +2890,17 @@ class SocketService extends ChangeNotifier {
     void deleted(dynamic _) {
       if (!completer.isCompleted) completer.complete();
     }
+
     void failed(dynamic data) {
       if (!completer.isCompleted) {
         final message = data is Map ? data['message']?.toString() : null;
         completer.completeError(StateError(
-          message ?? 'Account deletion was rejected. Check your confirmation and password.',
+          message ??
+              'Account deletion was rejected. Check your confirmation and password.',
         ));
       }
     }
+
     void disconnected(dynamic _) {
       if (!completer.isCompleted) {
         completer.completeError(StateError(
@@ -2703,14 +2934,19 @@ class SocketService extends ChangeNotifier {
   Future<Map<String, dynamic>> registerFcmToken(String token) async {
     _requireConnection();
     final completer = Completer<Map<String, dynamic>>();
-    _socket!.emitWithAck('register_fcm_token', {'token': token}, ack: (dynamic result) {
+    _socket!.emitWithAck('register_fcm_token', {'token': token},
+        ack: (dynamic result) {
       completer.complete(result is Map
           ? Map<String, dynamic>.from(result)
-          : {'ok': false, 'message': 'The server did not confirm this device.'});
+          : {
+              'ok': false,
+              'message': 'The server did not confirm this device.'
+            });
     });
     return completer.future.timeout(
       const Duration(seconds: 10),
-      onTimeout: () => {'ok': false, 'message': 'Device registration timed out.'},
+      onTimeout: () =>
+          {'ok': false, 'message': 'Device registration timed out.'},
     );
   }
 
@@ -2722,7 +2958,10 @@ class SocketService extends ChangeNotifier {
     _socket!.emitWithAck('clear_fcm_token', {}, ack: (dynamic result) {
       completer.complete(result is Map
           ? Map<String, dynamic>.from(result)
-          : {'ok': false, 'message': 'The server did not confirm device removal.'});
+          : {
+              'ok': false,
+              'message': 'The server did not confirm device removal.'
+            });
     });
     return completer.future.timeout(
       const Duration(seconds: 5),
@@ -2737,7 +2976,8 @@ class SocketService extends ChangeNotifier {
   }) async {
     await _requireAuthenticatedConnection();
     final account = _myUsername;
-    if (account == null) return {'ok': false, 'message': 'Sign in on this phone first.'};
+    if (account == null)
+      return {'ok': false, 'message': 'Sign in on this phone first.'};
     final encryptedIdentity = await encryption.exportIdentityForPairing(
       account,
       browserPublicKey,
@@ -2752,12 +2992,16 @@ class SocketService extends ChangeNotifier {
       if (!completer.isCompleted) {
         completer.complete(result is Map
             ? Map<String, dynamic>.from(result)
-            : {'ok': false, 'message': 'The server did not confirm device pairing.'});
+            : {
+                'ok': false,
+                'message': 'The server did not confirm device pairing.'
+              });
       }
     });
     return completer.future.timeout(
       const Duration(seconds: 12),
-      onTimeout: () => {'ok': false, 'message': 'Device pairing timed out. Try again.'},
+      onTimeout: () =>
+          {'ok': false, 'message': 'Device pairing timed out. Try again.'},
     );
   }
 
@@ -2777,7 +3021,10 @@ class SocketService extends ChangeNotifier {
     }, ack: (dynamic result) {
       completer.complete(result is Map
           ? Map<String, dynamic>.from(result)
-          : {'ok': false, 'message': 'The server did not confirm this change.'});
+          : {
+              'ok': false,
+              'message': 'The server did not confirm this change.'
+            });
     });
     final result = await completer.future.timeout(
       const Duration(seconds: 10),
@@ -2795,24 +3042,33 @@ class SocketService extends ChangeNotifier {
   Future<Map<String, dynamic>> fetchAccountSettings() async {
     await _requireAuthenticatedConnection();
     final completer = Completer<Map<String, dynamic>>();
-    _socket!.emitWithAck('get_account_settings', <String, dynamic>{}, ack: (dynamic result) {
+    _socket!.emitWithAck('get_account_settings', <String, dynamic>{},
+        ack: (dynamic result) {
       completer.complete(result is Map
           ? Map<String, dynamic>.from(result)
-          : {'ok': false, 'message': 'The server did not return account settings.'});
+          : {
+              'ok': false,
+              'message': 'The server did not return account settings.'
+            });
     });
     return completer.future.timeout(
       const Duration(seconds: 10),
-      onTimeout: () => {'ok': false, 'message': 'Loading account settings timed out.'},
+      onTimeout: () =>
+          {'ok': false, 'message': 'Loading account settings timed out.'},
     );
   }
 
-  Future<Map<String, dynamic>> updateAccountSettings(Map<String, dynamic> changes) async {
+  Future<Map<String, dynamic>> updateAccountSettings(
+      Map<String, dynamic> changes) async {
     await _requireAuthenticatedConnection();
     final completer = Completer<Map<String, dynamic>>();
     _socket!.emitWithAck('update_profile', changes, ack: (dynamic result) {
       completer.complete(result is Map
           ? Map<String, dynamic>.from(result)
-          : {'ok': false, 'message': 'The server did not confirm this setting.'});
+          : {
+              'ok': false,
+              'message': 'The server did not confirm this setting.'
+            });
     });
     return completer.future.timeout(
       const Duration(seconds: 10),
@@ -2831,9 +3087,7 @@ class SocketService extends ChangeNotifier {
         if (result is Map && result['ok'] == true) {
           confirmed.complete();
         } else {
-          final message = result is Map
-              ? result['message']?.toString()
-              : null;
+          final message = result is Map ? result['message']?.toString() : null;
           confirmed.completeError(StateError(
             message?.isNotEmpty == true
                 ? message!
@@ -2896,18 +3150,26 @@ class SocketService extends ChangeNotifier {
       throw StateError('Connect to Novyn to load group information.');
     }
     final acknowledgement = Completer<Map<String, dynamic>>();
-    connection.emitWithAck('get_group_info', {'groupId': groupId}, ack: (dynamic result) {
+    connection.emitWithAck('get_group_info', {'groupId': groupId},
+        ack: (dynamic result) {
       if (acknowledgement.isCompleted) return;
       acknowledgement.complete(result is Map
           ? Map<String, dynamic>.from(result)
-          : <String, dynamic>{'ok': false, 'message': 'Unexpected server response.'});
+          : <String, dynamic>{
+              'ok': false,
+              'message': 'Unexpected server response.'
+            });
     });
     final result = await acknowledgement.future.timeout(
       const Duration(seconds: 12),
-      onTimeout: () => <String, dynamic>{'ok': false, 'message': 'Loading group information timed out.'},
+      onTimeout: () => <String, dynamic>{
+        'ok': false,
+        'message': 'Loading group information timed out.'
+      },
     );
     if (result['ok'] != true || result['group'] is! Map) {
-      throw StateError(result['message']?.toString() ?? 'Could not load group information.');
+      throw StateError(
+          result['message']?.toString() ?? 'Could not load group information.');
     }
     _latestGroupInfo = Map<String, dynamic>.from(result['group'] as Map);
     notifyListeners();
@@ -2925,11 +3187,17 @@ class SocketService extends ChangeNotifier {
       if (completer.isCompleted) return;
       completer.complete(response is Map
           ? Map<String, dynamic>.from(response)
-          : <String, dynamic>{'ok': false, 'message': 'The server did not confirm this group update.'});
+          : <String, dynamic>{
+              'ok': false,
+              'message': 'The server did not confirm this group update.'
+            });
     });
     final result = await completer.future.timeout(
       const Duration(seconds: 12),
-      onTimeout: () => <String, dynamic>{'ok': false, 'message': 'Group update timed out. Please retry.'},
+      onTimeout: () => <String, dynamic>{
+        'ok': false,
+        'message': 'Group update timed out. Please retry.'
+      },
     );
     final group = result['group'];
     if (group is Map) {
@@ -2942,28 +3210,31 @@ class SocketService extends ChangeNotifier {
   Future<Map<String, dynamic>> addGroupMembers(
     String groupId,
     List<String> usernames,
-  ) => _groupAction('add_group_members', {
-    'groupId': groupId,
-    'members': usernames,
-  });
+  ) =>
+      _groupAction('add_group_members', {
+        'groupId': groupId,
+        'members': usernames,
+      });
 
   Future<Map<String, dynamic>> removeGroupMember(
     String groupId,
     String username,
-  ) => _groupAction('remove_group_member', {
-    'groupId': groupId,
-    'username': username,
-  });
+  ) =>
+      _groupAction('remove_group_member', {
+        'groupId': groupId,
+        'username': username,
+      });
 
   Future<Map<String, dynamic>> setGroupMemberRole(
     String groupId,
     String username, {
     required String role,
-  }) => _groupAction('set_group_member_role', {
-    'groupId': groupId,
-    'username': username,
-    'role': role,
-  });
+  }) =>
+      _groupAction('set_group_member_role', {
+        'groupId': groupId,
+        'username': username,
+        'role': role,
+      });
 
   Future<Map<String, dynamic>> leaveGroup(String groupId) =>
       _groupAction('leave_group', {'groupId': groupId});
@@ -2994,19 +3265,28 @@ class SocketService extends ChangeNotifier {
       if (acknowledgement.isCompleted) return;
       acknowledgement.complete(result is Map
           ? Map<String, dynamic>.from(result)
-          : <String, dynamic>{'ok': false, 'message': 'Unexpected server response.'});
+          : <String, dynamic>{
+              'ok': false,
+              'message': 'Unexpected server response.'
+            });
     });
     final result = await acknowledgement.future.timeout(
       const Duration(seconds: 15),
-      onTimeout: () => <String, dynamic>{'ok': false, 'message': 'Group creation timed out. Please try again.'},
+      onTimeout: () => <String, dynamic>{
+        'ok': false,
+        'message': 'Group creation timed out. Please try again.'
+      },
     );
     if (result['ok'] != true) {
-      throw StateError(result['message']?.toString() ?? 'Could not create group.');
+      throw StateError(
+          result['message']?.toString() ?? 'Could not create group.');
     }
     final group = result['group'];
-    final id = group is Map ? group['id']?.toString() : result['groupId']?.toString();
+    final id =
+        group is Map ? group['id']?.toString() : result['groupId']?.toString();
     if (id == null || id.isEmpty) {
-      throw StateError('The server created no group ID. Refresh your chats and try again.');
+      throw StateError(
+          'The server created no group ID. Refresh your chats and try again.');
     }
     return id;
   }
@@ -3087,10 +3367,14 @@ class SocketService extends ChangeNotifier {
     _currentChatIsGroup = false;
     _chatWallpaper = '';
     _peerIsTyping = false;
+    _peerIsRecordingVoice = false;
     _typingInChats.clear();
+    _typingUsersInChats.clear();
+    _voiceUsersInChats.clear();
     contacts.clear();
     _reconnectTimer?.cancel();
     _stopActiveTyping();
+    stopVoiceActivity();
     _socket?.dispose();
     _reconnectTimer?.cancel();
     _socket = null;

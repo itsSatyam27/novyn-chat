@@ -1192,9 +1192,15 @@ class NotificationService {
     await _initializeLocalNotifications(context);
     _socket!.onIncomingMessage = (username, body) {
       if (!context.mounted) return;
-      if (WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed) {
-        // Keep the branded PR #95 banner for active use; system alerts are
-        // used when the app is not currently visible.
+      final lifecycleState = WidgetsBinding.instance.lifecycleState;
+      if (lifecycleState == AppLifecycleState.paused ||
+          lifecycleState == AppLifecycleState.hidden ||
+          lifecycleState == AppLifecycleState.detached) {
+        // Background alerts are rendered by FCM; showing from both transports
+        // creates duplicate notifications when the socket remains connected.
+        return;
+      }
+      if (lifecycleState == AppLifecycleState.resumed) {
         unawaited(showInAppMessage(username, body, context));
       } else {
         unawaited(_showForegroundMessageNotification(username, body));

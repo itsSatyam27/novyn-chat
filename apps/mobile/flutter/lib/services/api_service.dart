@@ -36,6 +36,7 @@ class ApiService {
   // so we store and forward them manually.
   static String? _sessionCookie;
   static String? _csrfToken;
+  static Future<void>? _csrfBootstrapInFlight;
   // Widgets with session-protected media can retry when the cookie jar changes.
   static final ValueNotifier<int> sessionRevision = ValueNotifier<int>(0);
 
@@ -120,18 +121,7 @@ class ApiService {
     // resume. Restore the secure cookie jar before building request headers.
     await initializeSessionStorage();
 
-    if (_csrfToken == null) {
-      // The CSRF bootstrap GET must carry the existing auth cookie too;
-      // otherwise a cold-start upload can obtain a CSRF token without the
-      // authenticated session cookie required by /upload-file and /upload-voice.
-      final response = await http
-          .get(
-            Uri.parse('$baseUrl/api/auth/session'),
-            headers: _authHeaders,
-          )
-          .timeout(const Duration(seconds: 15));
-      await _storeSessionCookie(response);
-    }
+    if (_csrfToken == null) await _bootstrapCsrfToken();
 
     final token = _csrfToken;
     if (token == null || token.isEmpty) {
@@ -146,6 +136,56 @@ class ApiService {
       if (!kIsWeb) 'x-novyn-client': 'mobile',
       'Accept': 'application/json',
     };
+  }
+
+  static Future<void> _bootstrapCsrfToken() {
+    if (_csrfToken != null && _csrfToken!.isNotEmpty) {
+      return Future<void>.value();
+    }
+    final pending = _csrfBootstrapInFlight;
+    if (pending != null) return pending;
+
+    final task = _requestCsrfBootstrap();
+    _csrfBootstrapInFlight = task;
+    return task.whenComplete(() {
+      if (identical(_csrfBootstrapInFlight, task)) {
+        _csrfBootstrapInFlight = null;
+      }
+    });
+  }
+
+  static Future<void> _requestCsrfBootstrap() async {
+    final started = Stopwatch()..start();
+    Object? lastError;
+    var attempt = 0;
+    while (started.elapsed < const Duration(seconds: 95)) {
+      try {
+        final response = await http
+            .get(
+              Uri.parse('$baseUrl/api/auth/session'),
+              headers: _authHeaders,
+            )
+            .timeout(const Duration(seconds: 30));
+        await _storeSessionCookie(response);
+        if (_csrfToken != null && _csrfToken!.isNotEmpty) return;
+        lastError = HttpException(
+          'CSRF bootstrap returned HTTP ${response.statusCode} without a token.',
+        );
+        if (response.statusCode < 500 && response.statusCode != 429) break;
+      } catch (error) {
+        lastError = error;
+        if (error is SocketException && attempt >= 2) break;
+      }
+
+      final backoffSeconds = attempt < 3 ? (1 << attempt) : 8;
+      attempt++;
+      await Future<void>.delayed(Duration(seconds: backoffSeconds));
+    }
+
+    debugPrint('[NovynAuth] CSRF bootstrap failed: $lastError');
+    throw StateError(
+      'Novyn is taking longer to wake up. Wait a minute, then try again.',
+    );
   }
 
   static Future<http.Response> _sendMultipartUpload({
@@ -389,7 +429,7 @@ class ApiService {
                 'username': username.trim().toLowerCase(),
             }),
           )
-          .timeout(const Duration(seconds: 30));
+          .timeout(const Duration(seconds: 75));
 
       if (res.statusCode == 200) {
         await _storeSessionCookie(res);
@@ -402,8 +442,19 @@ class ApiService {
       } catch (_) {
         return {'message': 'Server error (${res.statusCode})'};
       }
-    } catch (e) {
-      return {'message': 'Network error: $e'};
+    } on TimeoutException {
+      return {
+        'message': 'Novyn is taking longer to wake up. Wait a minute, then try again.',
+      };
+    } on SocketException {
+      return {
+        'message': 'Could not reach the Novyn server. Please try again shortly.',
+      };
+    } on StateError catch (error) {
+      return {'message': error.message};
+    } catch (error) {
+      debugPrint('[NovynAuth] Sign-in request failed: $error');
+      return {'message': 'Could not reach the Novyn server. Please try again.'};
     }
   }
 
@@ -424,7 +475,7 @@ class ApiService {
               'remember': remember,
             }),
           )
-          .timeout(const Duration(seconds: 30));
+          .timeout(const Duration(seconds: 75));
 
       if (res.statusCode == 200) {
         await _storeSessionCookie(res);
@@ -435,8 +486,19 @@ class ApiService {
       } catch (_) {
         return {'message': 'Server error (${res.statusCode})'};
       }
-    } catch (e) {
-      return {'message': 'Network error: $e'};
+    } on TimeoutException {
+      return {
+        'message': 'Novyn is taking longer to wake up. Wait a minute, then try again.',
+      };
+    } on SocketException {
+      return {
+        'message': 'Could not reach the Novyn server. Please try again shortly.',
+      };
+    } on StateError catch (error) {
+      return {'message': error.message};
+    } catch (error) {
+      debugPrint('[NovynAuth] Sign-in request failed: $error');
+      return {'message': 'Could not reach the Novyn server. Please try again.'};
     }
   }
 

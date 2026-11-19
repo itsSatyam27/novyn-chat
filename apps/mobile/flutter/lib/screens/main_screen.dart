@@ -49,6 +49,9 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   DateTime? _lastUpdateCheck;
   StreamSubscription<String>? _profileLinkSubscription;
   StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
+  bool _networkWasUnavailable = false;
+  bool _networkRecoveryInProgress = false;
+  bool _forceSocketRecoveryPending = false;
 
   late final List<Widget> _screens;
 
@@ -142,21 +145,45 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   }
 
   void _handleConnectivityChanged(List<ConnectivityResult> results) {
-    if (!results.any((result) => result != ConnectivityResult.none)) return;
-    unawaited(_restoreSessionAndRecover());
+    final online = results.any((result) => result != ConnectivityResult.none);
+    if (!online) {
+      _networkWasUnavailable = true;
+      return;
+    }
+    final networkReturned = _networkWasUnavailable;
+    _networkWasUnavailable = false;
+    unawaited(_restoreSessionAndRecover(forceSocketReconnect: networkReturned));
   }
 
-  Future<void> _restoreSessionAndRecover() async {
+  Future<void> _restoreSessionAndRecover({bool forceSocketReconnect = false}) async {
     if (!mounted || !widget.managePresence) return;
-    final auth = _authService ?? context.read<AuthService>();
-    // Connectivity alone does not guarantee that the persisted HTTP session
-    // is still valid. Re-check/refresh it before rebuilding Socket.IO.
-    await auth.restoreSessionOnResume();
-    if (!mounted) return;
-    _recoverSocketIfNeeded();
+    if (_networkRecoveryInProgress) {
+      _forceSocketRecoveryPending =
+          _forceSocketRecoveryPending || forceSocketReconnect;
+      return;
+    }
+    _networkRecoveryInProgress = true;
+    var forceReconnect = forceSocketReconnect;
+    try {
+      do {
+        _forceSocketRecoveryPending = false;
+        final auth = _authService ?? context.read<AuthService>();
+        // Revalidate/refresh the REST session before rebuilding Socket.IO.
+        await auth.restoreSessionOnResume();
+        if (!mounted) return;
+        _recoverSocketIfNeeded(forceReconnect: forceReconnect);
+        forceReconnect = _forceSocketRecoveryPending;
+      } while (mounted && forceReconnect);
+    } finally {
+      _networkRecoveryInProgress = false;
+      if (mounted && _forceSocketRecoveryPending) {
+        _forceSocketRecoveryPending = false;
+        unawaited(_restoreSessionAndRecover(forceSocketReconnect: true));
+      }
+    }
   }
 
-  void _recoverSocketIfNeeded() {
+  void _recoverSocketIfNeeded({bool forceReconnect = false}) {
     if (!mounted || !widget.managePresence) return;
     final auth = _authService ?? context.read<AuthService>();
     final username = auth.user?.username.trim();
@@ -173,7 +200,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     // A Socket.IO transport can stay marked connected after it has lost its
     // authenticated session. Replace it when internet returns so account
     // privacy and profile mutations do not remain stuck behind a stale socket.
-    if (!socket.isAuthenticated) {
+    if (forceReconnect || !socket.isAuthenticated) {
       unawaited(socket.reconnectWithCurrentSession());
     }
   }

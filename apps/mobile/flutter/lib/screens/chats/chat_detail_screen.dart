@@ -42,7 +42,8 @@ String _mimeForFile(String filename) {
   final name = filename.toLowerCase();
   if (name.endsWith('.pdf')) return 'application/pdf';
   if (name.endsWith('.doc')) return 'application/msword';
-  if (name.endsWith('.docx')) return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+  if (name.endsWith('.docx'))
+    return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
   if (name.endsWith('.txt')) return 'text/plain';
   if (name.endsWith('.csv')) return 'text/csv';
   if (name.endsWith('.zip')) return 'application/zip';
@@ -67,12 +68,14 @@ class _ChatContentSnapshot {
   const _ChatContentSnapshot({
     required this.messages,
     required this.peerIsTyping,
+    required this.peerIsRecordingVoice,
     required this.chatWallpaper,
     required this.messageStatusRevision,
   });
 
   final List<Message> messages;
   final bool peerIsTyping;
+  final bool peerIsRecordingVoice;
   final String chatWallpaper;
   final int messageStatusRevision;
 
@@ -81,6 +84,7 @@ class _ChatContentSnapshot {
     if (identical(this, other)) return true;
     if (other is! _ChatContentSnapshot ||
         peerIsTyping != other.peerIsTyping ||
+        peerIsRecordingVoice != other.peerIsRecordingVoice ||
         chatWallpaper != other.chatWallpaper ||
         messageStatusRevision != other.messageStatusRevision ||
         messages.length != other.messages.length) {
@@ -93,6 +97,7 @@ class _ChatContentSnapshot {
   int get hashCode => Object.hash(
         identityHashCode(messages),
         peerIsTyping,
+        peerIsRecordingVoice,
         chatWallpaper,
         messageStatusRevision,
       );
@@ -114,7 +119,8 @@ class ChatDetailScreen extends StatefulWidget {
   State<ChatDetailScreen> createState() => _ChatDetailScreenState();
 }
 
-class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBindingObserver, TickerProviderStateMixin {
+class _ChatDetailScreenState extends State<ChatDetailScreen>
+    with WidgetsBindingObserver, TickerProviderStateMixin {
   late final AnimationController _typingAnimation;
   late final SocketService _socketService;
   bool _appIsForeground = true;
@@ -123,7 +129,6 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
   final ScrollController _scroll = ScrollController();
   final AudioPlayer _audioPlayer = AudioPlayer();
   bool _loading = true;
-  bool _initialPositionReady = false;
   bool _sending = false;
   bool _loadingOlder = false;
   bool _hasMore = true;
@@ -148,7 +153,16 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
   bool _suppressNextCountScroll = false;
   int _voiceSeconds = 0;
   String? _voiceRecordingPath;
-  static const List<String> _defaultQuickEmojis = ['baddie', 'dead_hasna', 'sigma_stone', 'melting', 'clown_moment', 'ghosted', 'cutie', 'savage'];
+  static const List<String> _defaultQuickEmojis = [
+    'baddie',
+    'dead_hasna',
+    'sigma_stone',
+    'melting',
+    'clown_moment',
+    'ghosted',
+    'cutie',
+    'savage'
+  ];
   static const List<String> _emojiChoices = novynCustomEmojiNames;
   List<String> _quickEmojis = List<String>.from(_defaultQuickEmojis);
 
@@ -194,8 +208,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
         try {
           final prefs = await SharedPreferences.getInstance();
           final lockedChats =
-              prefs.getStringList('novyn_locked_chats_$username') ?? const <String>[];
-          if (lockedChats.map((value) => value.trim().toLowerCase()).contains(peerUsername)) {
+              prefs.getStringList('novyn_locked_chats_$username') ??
+                  const <String>[];
+          if (lockedChats
+              .map((value) => value.trim().toLowerCase())
+              .contains(peerUsername)) {
             final settings = context.read<SettingsService>();
             if (!settings.appLockEnabled ||
                 settings.appLockPin == null ||
@@ -203,7 +220,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                 !settings.secureStorageAvailable) {
               if (mounted) {
                 context.showNovynAlert(const SnackBar(
-                  content: Text('This chat is locked. Restore App Lock in Security & Privacy to unlock it.'),
+                  content: Text(
+                      'This chat is locked. Restore App Lock in Security & Privacy to unlock it.'),
                   behavior: SnackBarBehavior.floating,
                 ));
                 Navigator.of(context).pop();
@@ -227,7 +245,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
           debugPrint('[NovynChatLock] Could not verify chat access: $error');
           if (mounted) {
             context.showNovynAlert(const SnackBar(
-              content: Text('Could not verify this chat lock. Please try again.'),
+              content:
+                  Text('Could not verify this chat lock. Please try again.'),
               behavior: SnackBarBehavior.floating,
             ));
             Navigator.of(context).pop();
@@ -240,7 +259,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
   }
 
   bool _isOfflinePresenceState() =>
-      !_peerIsOnline || _peerPresence == 'offline' || _peerPresence == 'invisible';
+      !_peerIsOnline ||
+      _peerPresence == 'offline' ||
+      _peerPresence == 'invisible';
 
   String _peerStatusLabel() {
     if (_peerPresence == 'away') return 'Away';
@@ -257,10 +278,12 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
     _presenceTransitionTimer?.cancel();
     _lastSeenRefreshTimer?.cancel();
     _showPeerLastSeen = false;
-    if (widget.isGroup || !_isOfflinePresenceState() || _peerLastSeen == null) return;
+    if (widget.isGroup || !_isOfflinePresenceState() || _peerLastSeen == null)
+      return;
     // Keep Offline visible briefly, then transition inside a fixed-height slot.
     _presenceTransitionTimer = Timer(const Duration(milliseconds: 850), () {
-      if (!mounted || !_isOfflinePresenceState() || _peerLastSeen == null) return;
+      if (!mounted || !_isOfflinePresenceState() || _peerLastSeen == null)
+        return;
       setState(() => _showPeerLastSeen = true);
       _lastSeenRefreshTimer = Timer.periodic(const Duration(minutes: 1), (_) {
         if (mounted && _showPeerLastSeen) setState(() {});
@@ -270,8 +293,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
 
   void _handlePeerPresenceChanged() {
     if (!mounted || widget.isGroup) return;
-    final currentPeer =
-        _socketService.contacts.findUser(widget.peer.username);
+    final currentPeer = _socketService.contacts.findUser(widget.peer.username);
     if (currentPeer == null) return;
 
     final nextOnline = currentPeer.isOnline;
@@ -335,12 +357,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
     if (messages.isEmpty) return;
 
     setState(() => _loadingOlder = true);
-    final previousExtent = _scroll.hasClients
-        ? _scroll.position.maxScrollExtent
-        : 0.0;
-    final previousPixels = _scroll.hasClients
-        ? _scroll.position.pixels
-        : 0.0;
+    final previousExtent =
+        _scroll.hasClients ? _scroll.position.maxScrollExtent : 0.0;
+    final previousPixels = _scroll.hasClients ? _scroll.position.pixels : 0.0;
 
     try {
       final hasMore = await socket.loadOlderHistory(
@@ -394,7 +413,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
     } catch (error) {
       debugPrint('[NovynChat] Local message cache read failed: $error');
     }
-    debugPrint('[NovynPerf] chat_cache_ms=${cacheWatch.elapsedMilliseconds} count=${cachedMessages.length}');
+    debugPrint(
+        '[NovynPerf] chat_cache_ms=${cacheWatch.elapsedMilliseconds} count=${cachedMessages.length}');
     if (!mounted) return;
 
     // openChat requests history from the authenticated Socket.IO session and
@@ -425,8 +445,6 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
       } else if (socket.messages.isNotEmpty) {
         // A live message may have arrived while the history request was in flight.
         _jumpToLatestImmediately();
-      } else {
-        setState(() => _initialPositionReady = true);
       }
 
       final settings = context.read<SettingsService>();
@@ -438,8 +456,6 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
       if (mounted) {
         if (socket.messages.isNotEmpty) {
           _jumpToLatestImmediately();
-        } else {
-          setState(() => _initialPositionReady = true);
         }
       }
     } finally {
@@ -455,11 +471,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
       // Do not let a late, potentially stale disk mirror overwrite newer
       // socket/server message state; only backfill IDs missing from memory.
       final existingIds = socket.messages.map((message) => message.id).toSet();
-      final missing = merged
-          .where((message) => !existingIds.contains(message.id))
-          .toList();
+      final missing =
+          merged.where((message) => !existingIds.contains(message.id)).toList();
       if (missing.isNotEmpty) socket.mergeChatHistory(missing);
-      debugPrint('[NovynPerf] chat_secondary_cache_ms=${watch.elapsedMilliseconds} backfilled=${missing.length}');
+      debugPrint(
+          '[NovynPerf] chat_secondary_cache_ms=${watch.elapsedMilliseconds} backfilled=${missing.length}');
     } catch (error) {
       debugPrint('[NovynChat] Secondary cache hydration failed: $error');
     }
@@ -468,7 +484,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
   void _syncTypingAnimation() {
     if (!mounted) return;
     final shouldAnimate = _appIsForeground &&
-        (_socketService.peerIsTyping || _isRecordingVoice);
+        (_socketService.peerIsTyping ||
+            _socketService.peerIsRecordingVoice ||
+            _isRecordingVoice);
     if (shouldAnimate) {
       if (!_typingAnimation.isAnimating) _typingAnimation.repeat();
     } else if (_typingAnimation.isAnimating) {
@@ -514,6 +532,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
     _presenceTransitionTimer?.cancel();
     _lastSeenRefreshTimer?.cancel();
     if (_isRecordingVoice) unawaited(_voiceRecorder.stop());
+    _socketService.stopVoiceActivity();
     unawaited(_voiceRecorder.dispose());
     _socketService.removeListener(_syncTypingAnimation);
     _socketService.contacts.removeListener(_handlePeerPresenceChanged);
@@ -597,7 +616,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
           error is StateError
               ? error.message.toString()
               : error is TimeoutException
-                  ? (error.message ?? 'Message delivery was not confirmed. Check your connection.')
+                  ? (error.message ??
+                      'Message delivery was not confirmed. Check your connection.')
                   : 'Could not send message: $error',
           isError: true,
           title: 'Message not sent',
@@ -613,10 +633,6 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
   // Opening a conversation should land directly on the newest message.
   // Avoid animating through the entire history, which feels slow on long chats.
   void _jumpToLatestImmediately() {
-    // Keep the message list mounted behind a loading veil while Flutter lays
-    // out variable-height bubbles. This prevents the user seeing the initial
-    // top/middle position before the list reaches the true latest message.
-    _initialPositionReady = false;
     var attempts = 0;
     var stableFrames = 0;
     double? previousExtent;
@@ -628,8 +644,6 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
           if (++attempts < 40) {
             await Future<void>.delayed(const Duration(milliseconds: 30));
             if (mounted) retryAfterLayout();
-          } else {
-            setState(() => _initialPositionReady = true);
           }
           return;
         }
@@ -652,10 +666,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
           if (mounted) retryAfterLayout();
         } else if (mounted) {
           _isNearLatest = true;
-          setState(() {
-            _initialPositionReady = true;
-            _showJumpToLatest = false;
-          });
+          if (_showJumpToLatest) setState(() => _showJumpToLatest = false);
         }
       });
     }
@@ -694,6 +705,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
       (service) => _ChatContentSnapshot(
         messages: service.messages,
         peerIsTyping: service.peerIsTyping,
+        peerIsRecordingVoice: service.peerIsRecordingVoice,
         chatWallpaper: service.chatWallpaper,
         messageStatusRevision: service.messageStatusRevision,
       ),
@@ -713,22 +725,20 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                 children: [
                   Positioned.fill(
                     child: _loading
-                        ? Center(child: CircularProgressIndicator(color: Theme.of(context).colorScheme.primary))
+                        ? Center(
+                            child: CircularProgressIndicator(
+                                color: Theme.of(context).colorScheme.primary))
                         : messages.isEmpty
-                            ? _fetchingFromServer ? _buildLoadingShimmer() : _buildEmptyChat()
-                            : _buildMessageList(messages, snapshot.peerIsTyping),
+                            ? _fetchingFromServer
+                                ? _buildLoadingShimmer()
+                                : _buildEmptyChat()
+                            : _buildMessageList(
+                                messages,
+                                snapshot.peerIsTyping,
+                                peerIsRecordingVoice:
+                                    snapshot.peerIsRecordingVoice,
+                              ),
                   ),
-                  if (!_initialPositionReady && messages.isNotEmpty)
-                    Positioned.fill(
-                      child: ColoredBox(
-                        color: Theme.of(context).colorScheme.surface,
-                        child: Center(
-                          child: CircularProgressIndicator(
-                            color: Theme.of(context).colorScheme.primary,
-                          ),
-                        ),
-                      ),
-                    ),
                   if (_showJumpToLatest && messages.isNotEmpty)
                     Positioned(
                       right: 18,
@@ -749,13 +759,20 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                             customBorder: const CircleBorder(),
                             onTap: _jumpToLatest,
                             child: Container(
-                              width: 44, height: 44,
+                              width: 44,
+                              height: 44,
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
-                                border: Border.all(color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.18)),
+                                border: Border.all(
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .primary
+                                        .withValues(alpha: 0.18)),
                               ),
-                              child: Icon(Icons.keyboard_double_arrow_down_rounded,
-                                color: Theme.of(context).colorScheme.primary, size: 23),
+                              child: Icon(
+                                  Icons.keyboard_double_arrow_down_rounded,
+                                  color: Theme.of(context).colorScheme.primary,
+                                  size: 23),
                             ),
                           ),
                         ),
@@ -780,7 +797,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;
-    final accent = isDark ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.primary;
+    final accent = isDark
+        ? Theme.of(context).colorScheme.primary
+        : Theme.of(context).colorScheme.primary;
     final peerStatusLabel = widget.isGroup
         ? (widget.peer.bio.isNotEmpty ? widget.peer.bio : 'Group conversation')
         : _peerStatusLabel();
@@ -789,7 +808,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
         : switch (_peerPresence) {
             'away' => const Color(0xFFF59E0B),
             'busy' || 'dnd' => const Color(0xFFEC4899),
-            _ => _isOfflinePresenceState() ? scheme.onSurfaceVariant : const Color(0xFF10B981),
+            _ => _isOfflinePresenceState()
+                ? scheme.onSurfaceVariant
+                : const Color(0xFF10B981),
           };
     return AppBar(
       backgroundColor: scheme.surface,
@@ -871,7 +892,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                               ));
                               return FadeTransition(
                                 opacity: animation,
-                                child: SlideTransition(position: slide, child: child),
+                                child: SlideTransition(
+                                    position: slide, child: child),
                               );
                             },
                             child: Align(
@@ -998,7 +1020,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                     ],
                   ),
                 ),
-                Icon(Icons.chevron_right_rounded, color: scheme.onSurfaceVariant, size: 24),
+                Icon(Icons.chevron_right_rounded,
+                    color: scheme.onSurfaceVariant, size: 24),
               ],
             ),
           ),
@@ -1011,7 +1034,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
         final compact = constraints.maxHeight < 650;
         final illustrationSize = compact ? 160.0 : 188.0;
         return SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(parent: ClampingScrollPhysics()),
+          physics: const AlwaysScrollableScrollPhysics(
+              parent: ClampingScrollPhysics()),
           padding: EdgeInsets.fromLTRB(16, compact ? 6 : 12, 16, 12),
           child: Column(
             children: [
@@ -1075,7 +1099,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
               ),
               const SizedBox(height: 3),
               Text(
-                widget.isGroup ? 'Group conversation' : '@${widget.peer.username}',
+                widget.isGroup
+                    ? 'Group conversation'
+                    : '@${widget.peer.username}',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontFamily: 'PlusJakartaSans',
@@ -1086,7 +1112,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
               ),
               const SizedBox(height: 12),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                 decoration: BoxDecoration(
                   color: scheme.primary.withValues(alpha: dark ? .18 : .10),
                   borderRadius: BorderRadius.circular(24),
@@ -1095,13 +1122,17 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(
-                      widget.isGroup ? Icons.groups_rounded : Icons.lock_outline_rounded,
+                      widget.isGroup
+                          ? Icons.groups_rounded
+                          : Icons.lock_outline_rounded,
                       color: scheme.primary,
                       size: 17,
                     ),
                     const SizedBox(width: 9),
                     Text(
-                      widget.isGroup ? 'Group conversation' : 'End-to-end encrypted',
+                      widget.isGroup
+                          ? 'Group conversation'
+                          : 'End-to-end encrypted',
                       style: TextStyle(
                         fontFamily: 'PlusJakartaSans',
                         fontSize: 12,
@@ -1134,7 +1165,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: scheme.primary.withValues(alpha: dark ? .02 : .045),
+                      color:
+                          scheme.primary.withValues(alpha: dark ? .02 : .045),
                       blurRadius: 22,
                       offset: const Offset(0, 7),
                     ),
@@ -1150,10 +1182,12 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                       accent: scheme.primary,
                       onTap: () {
                         unawaited(context.read<SocketService>().sendMessage(
-                          '👋',
-                          widget.peer.uid.isNotEmpty ? widget.peer.uid : widget.peer.username,
-                          isGroup: widget.isGroup,
-                        ));
+                              '👋',
+                              widget.peer.uid.isNotEmpty
+                                  ? widget.peer.uid
+                                  : widget.peer.username,
+                              isGroup: widget.isGroup,
+                            ));
                       },
                     ),
                     Divider(
@@ -1254,14 +1288,19 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
   List<Message>? _timelineSource;
   List<int> _timelineIndices = const <int>[];
 
-  Widget _buildMessageList(List<Message> messages, bool peerIsTyping) {
+  Widget _buildMessageList(
+    List<Message> messages,
+    bool peerIsTyping, {
+    bool peerIsRecordingVoice = false,
+  }) {
     if (messages.length > _lastMessageCount) {
       final addedMessages = messages.length - _lastMessageCount;
       _lastMessageCount = messages.length;
       if (_suppressNextCountScroll) {
         _suppressNextCountScroll = false;
       } else if (_isNearLatest || addedMessages == messages.length) {
-        WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom(force: true));
+        WidgetsBinding.instance
+            .addPostFrameCallback((_) => _scrollToBottom(force: true));
       } else if (mounted && !_showJumpToLatest) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted) setState(() => _showJumpToLatest = true);
@@ -1272,7 +1311,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
       final indices = <int>[];
       for (var index = 0; index < messages.length; index++) {
         if (index == 0 ||
-            !_isSameChatDay(messages[index - 1].createdAt, messages[index].createdAt)) {
+            !_isSameChatDay(
+                messages[index - 1].createdAt, messages[index].createdAt)) {
           // Negative entries represent a date divider for the following message.
           indices.add(-index - 1);
         }
@@ -1284,12 +1324,15 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
     final timelineIndices = _timelineIndices;
     final socket = context.read<SocketService>();
     if (peerIsTyping && _isNearLatest) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom(force: true));
+      WidgetsBinding.instance
+          .addPostFrameCallback((_) => _scrollToBottom(force: true));
     }
     return ListView.builder(
       controller: _scroll,
       padding: const EdgeInsets.fromLTRB(14, 16, 14, 18),
-      itemCount: timelineIndices.length + 1 + (peerIsTyping ? 1 : 0), // start marker + date/message rows + typing
+      itemCount: timelineIndices.length +
+          1 +
+          (peerIsTyping || peerIsRecordingVoice ? 1 : 0),
       // Performance optimizations
       addAutomaticKeepAlives: false,
       addRepaintBoundaries: true,
@@ -1320,7 +1363,10 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                   padding:
                       const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
                   decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+                    color: Theme.of(context)
+                        .colorScheme
+                        .primary
+                        .withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
@@ -1340,8 +1386,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
         }
 
         final timelinePosition = i - 1;
-        if (peerIsTyping && timelinePosition == timelineIndices.length) {
-          return _buildTypingIndicator();
+        if ((peerIsTyping || peerIsRecordingVoice) &&
+            timelinePosition == timelineIndices.length) {
+          return _buildTypingIndicator(
+            isVoiceRecording: peerIsRecordingVoice,
+          );
         }
         final timelineItem = timelineIndices[timelinePosition];
         if (timelineItem < 0) {
@@ -1357,13 +1406,14 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                 (msgIndex == 0 ||
                     messages[msgIndex - 1].isFromMe ||
                     (widget.isGroup &&
-                        messages[msgIndex - 1].senderId != messages[msgIndex].senderId)),
+                        messages[msgIndex - 1].senderId !=
+                            messages[msgIndex].senderId)),
             peer: widget.peer,
             isGroup: widget.isGroup,
             messageStatus: socket.messageStatusFor(messages[msgIndex].id),
             myUid: _myUid ?? '',
             onReply: _startReply,
-          onForward: _showForwardDialog,
+            onForward: _showForwardDialog,
           ),
         );
       },
@@ -1383,8 +1433,18 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
     final messageDay = DateTime(local.year, local.month, local.day);
     final scheme = Theme.of(context).colorScheme;
     const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
     final label = messageDay == today
         ? 'Today'
@@ -1415,7 +1475,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
     );
   }
 
-  Widget _buildTypingIndicator() {
+  Widget _buildTypingIndicator({bool isVoiceRecording = false}) {
     final scheme = Theme.of(context).colorScheme;
     return TweenAnimationBuilder<double>(
       tween: Tween(begin: 0, end: 1),
@@ -1433,51 +1493,114 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            UserAvatar(name: widget.peer.name, photoUrl: widget.peer.photoUrl, radius: 13),
+            UserAvatar(
+                name: widget.peer.name,
+                photoUrl: widget.peer.photoUrl,
+                radius: 13),
             const SizedBox(width: 8),
             Container(
-              width: 58,
+              width: isVoiceRecording ? 170 : 58,
               height: 38,
               alignment: Alignment.center,
               decoration: BoxDecoration(
                 color: scheme.surface,
                 borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(17), topRight: Radius.circular(17),
-                  bottomRight: Radius.circular(17), bottomLeft: Radius.circular(5),
+                  topLeft: Radius.circular(17),
+                  topRight: Radius.circular(17),
+                  bottomRight: Radius.circular(17),
+                  bottomLeft: Radius.circular(5),
                 ),
                 boxShadow: [
-                  BoxShadow(color: Colors.black.withValues(alpha: 0.05),
-                    blurRadius: 10, offset: const Offset(0, 3)),
+                  BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.05),
+                      blurRadius: 10,
+                      offset: const Offset(0, 3)),
                 ],
               ),
-              child: AnimatedBuilder(
-                animation: _typingAnimation,
-                builder: (context, _) => Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: List.generate(3, (index) {
-                    final phase = (_typingAnimation.value + index * .22) % 1.0;
-                    final wave = math.sin(phase * math.pi * 2);
-                    final lift = (wave + 1) / 2;
-                    return Padding(
-                      padding: EdgeInsets.only(right: index == 2 ? 0 : 5),
-                      child: Transform.translate(
-                        offset: Offset(0, -4 * lift),
-                        child: Opacity(
-                          opacity: .45 + .55 * lift,
-                          child: Container(
-                            width: 6,
-                            height: 6,
-                            decoration: BoxDecoration(
+              child: isVoiceRecording
+                  ? Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        AnimatedBuilder(
+                          animation: _typingAnimation,
+                          builder: (context, child) => Transform.scale(
+                            scale: .85 + (_typingAnimation.value * .3),
+                            child: Icon(
+                              Icons.mic_rounded,
+                              size: 17,
                               color: scheme.primary,
-                              shape: BoxShape.circle,
                             ),
                           ),
                         ),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Recording voice',
+                          style: TextStyle(
+                            fontFamily: 'PlusJakartaSans',
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: scheme.onSurface,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        SizedBox(
+                          width: 30,
+                          height: 18,
+                          child: AnimatedBuilder(
+                            animation: _typingAnimation,
+                            builder: (context, child) => Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: List.generate(4, (index) {
+                                final wave = math
+                                    .sin(
+                                      (_typingAnimation.value * math.pi * 2) +
+                                          (index * .9),
+                                    )
+                                    .abs();
+                                return Container(
+                                  width: 3,
+                                  height: 4 + (wave * 12),
+                                  decoration: BoxDecoration(
+                                    color: scheme.primary,
+                                    borderRadius: BorderRadius.circular(3),
+                                  ),
+                                );
+                              }),
+                            ),
+                          ),
+                        ),
+                      ],
+                    )
+                  : AnimatedBuilder(
+                      animation: _typingAnimation,
+                      builder: (context, _) => Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: List.generate(3, (index) {
+                          final phase =
+                              (_typingAnimation.value + index * .22) % 1.0;
+                          final wave = math.sin(phase * math.pi * 2);
+                          final lift = (wave + 1) / 2;
+                          return Padding(
+                            padding: EdgeInsets.only(right: index == 2 ? 0 : 5),
+                            child: Transform.translate(
+                              offset: Offset(0, -4 * lift),
+                              child: Opacity(
+                                opacity: .45 + .55 * lift,
+                                child: Container(
+                                  width: 6,
+                                  height: 6,
+                                  decoration: BoxDecoration(
+                                    color: scheme.primary,
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          );
+                        }),
                       ),
-                    );
-                  }),
-                ),
-              ),
+                    ),
             ),
           ],
         ),
@@ -1499,8 +1622,12 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
   void _insertQuickEmoji(String emoji) {
     final current = _ctrl.value;
     final selection = current.selection;
-    final start = selection.isValid ? selection.start.clamp(0, current.text.length).toInt() : current.text.length;
-    final end = selection.isValid ? selection.end.clamp(start, current.text.length).toInt() : current.text.length;
+    final start = selection.isValid
+        ? selection.start.clamp(0, current.text.length).toInt()
+        : current.text.length;
+    final end = selection.isValid
+        ? selection.end.clamp(start, current.text.length).toInt()
+        : current.text.length;
     final glyph = novynCustomEmojis[emoji] ?? emoji;
     final updated = current.text.replaceRange(start, end, glyph);
     _ctrl.value = TextEditingValue(
@@ -1526,13 +1653,24 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
               color: scheme.surface,
               borderRadius: BorderRadius.circular(26),
               border: Border.all(color: scheme.primary.withValues(alpha: .18)),
-              boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: .12), blurRadius: 24, offset: const Offset(0, 8))],
+              boxShadow: [
+                BoxShadow(
+                    color: Colors.black.withValues(alpha: .12),
+                    blurRadius: 24,
+                    offset: const Offset(0, 8))
+              ],
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Row(children: [
-                  Expanded(child: Text('Novyn emojis', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 17, fontWeight: FontWeight.w800, color: scheme.onSurface))),
+                  Expanded(
+                      child: Text('Novyn emojis',
+                          style: TextStyle(
+                              fontFamily: 'PlusJakartaSans',
+                              fontSize: 17,
+                              fontWeight: FontWeight.w800,
+                              color: scheme.onSurface))),
                   TextButton.icon(
                     onPressed: () {
                       Navigator.pop(sheetContext);
@@ -1549,18 +1687,23 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                   mainAxisSpacing: 8,
                   crossAxisSpacing: 8,
                   physics: const NeverScrollableScrollPhysics(),
-                  children: emojis.map((emoji) => Material(
-                    color: scheme.primary.withValues(alpha: .08),
-                    borderRadius: BorderRadius.circular(16),
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(16),
-                      onTap: () {
-                        _insertQuickEmoji(emoji);
-                        Navigator.pop(sheetContext);
-                      },
-                      child: Center(child: Text(novynCustomEmojis[emoji] ?? '', style: const TextStyle(fontSize: 30)),),
-                    ),
-                  )).toList(),
+                  children: emojis
+                      .map((emoji) => Material(
+                            color: scheme.primary.withValues(alpha: .08),
+                            borderRadius: BorderRadius.circular(16),
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(16),
+                              onTap: () {
+                                _insertQuickEmoji(emoji);
+                                Navigator.pop(sheetContext);
+                              },
+                              child: Center(
+                                child: Text(novynCustomEmojis[emoji] ?? '',
+                                    style: const TextStyle(fontSize: 30)),
+                              ),
+                            ),
+                          ))
+                      .toList(),
                 ),
               ],
             ),
@@ -1587,24 +1730,41 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
               decoration: BoxDecoration(
                 color: scheme.surface,
                 borderRadius: BorderRadius.circular(26),
-                border: Border.all(color: scheme.primary.withValues(alpha: .18)),
+                border:
+                    Border.all(color: scheme.primary.withValues(alpha: .18)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Choose your Novyn emojis', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 18, fontWeight: FontWeight.w800, color: scheme.onSurface)),
+                  Text('Choose your Novyn emojis',
+                      style: TextStyle(
+                          fontFamily: 'PlusJakartaSans',
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                          color: scheme.onSurface)),
                   const SizedBox(height: 5),
-                  Text('Select up to 8 custom emojis for this chat', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 12, color: scheme.onSurfaceVariant)),
+                  Text('Select up to 8 custom emojis for this chat',
+                      style: TextStyle(
+                          fontFamily: 'PlusJakartaSans',
+                          fontSize: 12,
+                          color: scheme.onSurfaceVariant)),
                   const SizedBox(height: 16),
                   Expanded(
                     child: GridView.builder(
                       itemCount: _emojiChoices.length,
-                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 6, mainAxisSpacing: 8, crossAxisSpacing: 8),
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 6,
+                              mainAxisSpacing: 8,
+                              crossAxisSpacing: 8),
                       itemBuilder: (_, index) {
                         final emoji = _emojiChoices[index];
                         final active = selected.contains(emoji);
                         return Material(
-                          color: active ? scheme.primary.withValues(alpha: .16) : scheme.surfaceContainerHighest.withValues(alpha: .55),
+                          color: active
+                              ? scheme.primary.withValues(alpha: .16)
+                              : scheme.surfaceContainerHighest
+                                  .withValues(alpha: .55),
                           borderRadius: BorderRadius.circular(13),
                           child: InkWell(
                             borderRadius: BorderRadius.circular(13),
@@ -1614,12 +1774,24 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                               } else if (selected.length < 8) {
                                 selected.add(emoji);
                               } else {
-                                NovynAlert.show(context, 'You can select up to 8 quick emojis.', isError: true, title: 'Emoji limit reached', icon: Icons.emoji_emotions_rounded, tone: NovynAlertTone.warning);
+                                NovynAlert.show(context,
+                                    'You can select up to 8 quick emojis.',
+                                    isError: true,
+                                    title: 'Emoji limit reached',
+                                    icon: Icons.emoji_emotions_rounded,
+                                    tone: NovynAlertTone.warning);
                               }
                             }),
-                            child: Stack(alignment: Alignment.center, children: [
-                              Text(novynCustomEmojis[emoji] ?? '', style: const TextStyle(fontSize: 25)),
-                              if (active) Positioned(right: 3, top: 3, child: Icon(Icons.check_circle_rounded, size: 12, color: scheme.primary)),
+                            child:
+                                Stack(alignment: Alignment.center, children: [
+                              Text(novynCustomEmojis[emoji] ?? '',
+                                  style: const TextStyle(fontSize: 25)),
+                              if (active)
+                                Positioned(
+                                    right: 3,
+                                    top: 3,
+                                    child: Icon(Icons.check_circle_rounded,
+                                        size: 12, color: scheme.primary)),
                             ]),
                           ),
                         );
@@ -1630,14 +1802,19 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                   SizedBox(
                     width: double.infinity,
                     child: FilledButton(
-                      onPressed: selected.isEmpty ? null : () async {
-                        final next = selected.toList();
-                        final prefs = await SharedPreferences.getInstance();
-                        await prefs.setStringList(_quickEmojiPreferenceKey, next);
-                        if (!mounted) return;
-                        setState(() => _quickEmojis = next);
-                        if (sheetContext.mounted) Navigator.pop(sheetContext);
-                      },
+                      onPressed: selected.isEmpty
+                          ? null
+                          : () async {
+                              final next = selected.toList();
+                              final prefs =
+                                  await SharedPreferences.getInstance();
+                              await prefs.setStringList(
+                                  _quickEmojiPreferenceKey, next);
+                              if (!mounted) return;
+                              setState(() => _quickEmojis = next);
+                              if (sheetContext.mounted)
+                                Navigator.pop(sheetContext);
+                            },
                       child: Text('Save ${selected.length}/8 emojis'),
                     ),
                   ),
@@ -1658,16 +1835,17 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        if (_uploadingAttachment)
-          const LinearProgressIndicator(minHeight: 2),
+        if (_uploadingAttachment) const LinearProgressIndicator(minHeight: 2),
         if (_isRecordingVoice)
           Container(
             margin: const EdgeInsets.fromLTRB(12, 8, 12, 0),
             padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
             decoration: BoxDecoration(
-              color: theme.colorScheme.primary.withValues(alpha: isDark ? .15 : .07),
+              color: theme.colorScheme.primary
+                  .withValues(alpha: isDark ? .15 : .07),
               borderRadius: BorderRadius.circular(17),
-              border: Border.all(color: theme.colorScheme.primary.withValues(alpha: .20)),
+              border: Border.all(
+                  color: theme.colorScheme.primary.withValues(alpha: .20)),
             ),
             child: Row(
               children: [
@@ -1682,7 +1860,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                         color: theme.colorScheme.primary.withValues(alpha: .14),
                         shape: BoxShape.circle,
                       ),
-                      child: Icon(Icons.mic_rounded, color: theme.colorScheme.primary, size: 19),
+                      child: Icon(Icons.mic_rounded,
+                          color: theme.colorScheme.primary, size: 19),
                     ),
                   ),
                 ),
@@ -1694,15 +1873,48 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                     children: [
                       Row(
                         children: [
-                          Text('Recording voice', style: TextStyle(
-                            fontFamily: 'PlusJakartaSans', fontSize: 12,
-                            fontWeight: FontWeight.w700, color: theme.colorScheme.onSurface,
-                          )),
+                          AnimatedBuilder(
+                            animation: _typingAnimation,
+                            builder: (context, child) => Transform.scale(
+                              scale: .85 + (_typingAnimation.value * .3),
+                              child: Container(
+                                width: 7,
+                                height: 7,
+                                decoration: BoxDecoration(
+                                  color: theme.colorScheme.error.withValues(
+                                    alpha: .55 + (_typingAnimation.value * .45),
+                                  ),
+                                  shape: BoxShape.circle,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: theme.colorScheme.error.withValues(
+                                        alpha: .15 +
+                                            (_typingAnimation.value * .25),
+                                      ),
+                                      blurRadius:
+                                          3 + (_typingAnimation.value * 3),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 7),
+                          Text('Recording voice',
+                              style: TextStyle(
+                                fontFamily: 'PlusJakartaSans',
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: theme.colorScheme.onSurface,
+                              )),
                           const SizedBox(width: 8),
-                          Text(_formatVoiceDuration(_voiceSeconds), style: TextStyle(
-                            fontFamily: 'PlusJakartaSans', fontSize: 11,
-                            fontWeight: FontWeight.w700, color: theme.colorScheme.primary,
-                          )),
+                          Text(_formatVoiceDuration(_voiceSeconds),
+                              style: TextStyle(
+                                fontFamily: 'PlusJakartaSans',
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: theme.colorScheme.primary,
+                              )),
                         ],
                       ),
                       const SizedBox(height: 7),
@@ -1710,15 +1922,20 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                         animation: _typingAnimation,
                         builder: (context, child) => Row(
                           children: List.generate(18, (index) {
-                            final wave = math.sin(
-                              (_typingAnimation.value * math.pi * 2) + (index * .58),
-                            ).abs();
+                            final wave = math
+                                .sin(
+                                  (_typingAnimation.value * math.pi * 2) +
+                                      (index * .58),
+                                )
+                                .abs();
                             return Expanded(
                               child: Container(
                                 height: 4 + (wave * 11),
-                                margin: const EdgeInsets.symmetric(horizontal: 1.2),
+                                margin:
+                                    const EdgeInsets.symmetric(horizontal: 1.2),
                                 decoration: BoxDecoration(
-                                  color: theme.colorScheme.primary.withValues(alpha: .30 + (wave * .65)),
+                                  color: theme.colorScheme.primary
+                                      .withValues(alpha: .30 + (wave * .65)),
                                   borderRadius: BorderRadius.circular(4),
                                 ),
                               ),
@@ -1735,12 +1952,15 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                   visualDensity: VisualDensity.compact,
                   onPressed: _cancelVoiceNote,
                   icon: Icon(Icons.delete_outline_rounded,
-                    size: 20, color: theme.colorScheme.error),
+                      size: 20, color: theme.colorScheme.error),
                 ),
-                Text('Tap stop to send', style: TextStyle(
-                  fontFamily: 'PlusJakartaSans', fontSize: 10,
-                  fontWeight: FontWeight.w600, color: theme.colorScheme.onSurfaceVariant,
-                )),
+                Text('Tap stop to send',
+                    style: TextStyle(
+                      fontFamily: 'PlusJakartaSans',
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    )),
               ],
             ),
           ),
@@ -1752,7 +1972,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
             decoration: BoxDecoration(
               color: theme.colorScheme.primary.withValues(alpha: 0.07),
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: theme.colorScheme.primary.withValues(alpha: 0.16)),
+              border: Border.all(
+                  color: theme.colorScheme.primary.withValues(alpha: 0.16)),
             ),
             child: Row(
               children: [
@@ -1779,7 +2000,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                         ),
                       ),
                       Text(
-                        (_replyingTo!.text?.toString().trim().isNotEmpty == true)
+                        (_replyingTo!.text?.toString().trim().isNotEmpty ==
+                                true)
                             ? _replyingTo!.text.toString()
                             : 'Attachment',
                         style: TextStyle(
@@ -1811,7 +2033,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
           // Keep the composer surface transparent so the chat wallpaper
           // continues behind it instead of painting a full-width opaque strip.
           decoration: const BoxDecoration(color: Colors.transparent),
-          padding: EdgeInsets.fromLTRB(12, 10, 12, MediaQuery.of(context).viewInsets.bottom > 0 ? 10 : 12),
+          padding: EdgeInsets.fromLTRB(12, 10, 12,
+              MediaQuery.of(context).viewInsets.bottom > 0 ? 10 : 12),
           child: Row(
             // Keep the action buttons pinned to the bottom typing baseline.
             // The multiline field grows upward without moving either button.
@@ -1834,7 +2057,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                       shape: BoxShape.circle,
                       boxShadow: [
                         BoxShadow(
-                          color: theme.colorScheme.primary.withValues(alpha: isDark ? 0.04 : 0.06),
+                          color: theme.colorScheme.primary
+                              .withValues(alpha: isDark ? 0.04 : 0.06),
                           blurRadius: 12,
                           offset: const Offset(0, 3),
                         ),
@@ -1854,10 +2078,14 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                   constraints: const BoxConstraints(minHeight: 50),
                   decoration: BoxDecoration(
                     color: isDark
-                        ? theme.colorScheme.surfaceContainerHighest.withValues(alpha: .42)
-                        : theme.colorScheme.surfaceContainerHighest.withValues(alpha: .62),
+                        ? theme.colorScheme.surfaceContainerHighest
+                            .withValues(alpha: .42)
+                        : theme.colorScheme.surfaceContainerHighest
+                            .withValues(alpha: .62),
                     borderRadius: BorderRadius.circular(25),
-                    border: Border.all(color: theme.colorScheme.outlineVariant.withValues(alpha: .55)),
+                    border: Border.all(
+                        color: theme.colorScheme.outlineVariant
+                            .withValues(alpha: .55)),
                     boxShadow: [
                       BoxShadow(
                         color: const Color(0xFF3F358B)
@@ -1877,23 +2105,30 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                           focusNode: _messageFocusNode,
                           maxLines: 4,
                           minLines: 1,
-                          textInputAction: context.read<SettingsService>().chatEnterToSend ? TextInputAction.send : TextInputAction.newline,
+                          textInputAction:
+                              context.read<SettingsService>().chatEnterToSend
+                                  ? TextInputAction.send
+                                  : TextInputAction.newline,
                           cursorColor: Theme.of(context).colorScheme.primary,
                           style: TextStyle(
                             fontFamily: 'PlusJakartaSans',
-                            fontSize: 15 * context.watch<SettingsService>().fontSize,
+                            fontSize:
+                                15 * context.watch<SettingsService>().fontSize,
                             color: theme.colorScheme.onSurface,
                           ),
                           onChanged: (v) {
                             setState(() {});
                             if (v.isNotEmpty) {
-                              socket.startTyping(widget.peer.uid, isGroup: widget.isGroup);
+                              socket.startTyping(widget.peer.uid,
+                                  isGroup: widget.isGroup);
                             } else {
-                              socket.stopTyping(widget.peer.uid, isGroup: widget.isGroup);
+                              socket.stopTyping(widget.peer.uid,
+                                  isGroup: widget.isGroup);
                             }
                           },
                           onSubmitted: (_) {
-                            if (context.read<SettingsService>().chatEnterToSend) _send();
+                            if (context.read<SettingsService>().chatEnterToSend)
+                              _send();
                           },
                           decoration: InputDecoration(
                             hintText: 'Message...',
@@ -1911,8 +2146,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                               tooltip: 'Add emoji',
                               visualDensity: VisualDensity.compact,
                               onPressed: _showQuickEmojiPicker,
-                              icon: Icon(Icons.emoji_emotions_outlined, size: 19,
-                                color: theme.colorScheme.onSurfaceVariant),
+                              icon: Icon(Icons.emoji_emotions_outlined,
+                                  size: 19,
+                                  color: theme.colorScheme.onSurfaceVariant),
                             ),
                           ),
                         ),
@@ -1926,7 +2162,13 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
 
               // ── Mic / Send button ──────────────────────────────────────
               GestureDetector(
-                onTap: _uploadingAttachment ? null : hasText ? _send : _isRecordingVoice ? _stopVoiceNote : _startVoiceNote,
+                onTap: _uploadingAttachment
+                    ? null
+                    : hasText
+                        ? _send
+                        : _isRecordingVoice
+                            ? _stopVoiceNote
+                            : _startVoiceNote,
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 200),
                   curve: Curves.easeInOut,
@@ -1935,15 +2177,25 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       colors: hasText
-                          ? [Theme.of(context).colorScheme.primary, Color.lerp(Theme.of(context).colorScheme.primary, Colors.black, 0.14)!]
-                          : [Theme.of(context).colorScheme.primary, Color.lerp(Theme.of(context).colorScheme.primary, Colors.black, 0.10)!],
+                          ? [
+                              Theme.of(context).colorScheme.primary,
+                              Color.lerp(Theme.of(context).colorScheme.primary,
+                                  Colors.black, 0.14)!
+                            ]
+                          : [
+                              Theme.of(context).colorScheme.primary,
+                              Color.lerp(Theme.of(context).colorScheme.primary,
+                                  Colors.black, 0.10)!
+                            ],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                     ),
                     shape: BoxShape.circle,
                     boxShadow: [
                       BoxShadow(
-                        color: Theme.of(context).colorScheme.primary
+                        color: Theme.of(context)
+                            .colorScheme
+                            .primary
                             .withValues(alpha: _isRecordingVoice ? 0.28 : 0.20),
                         blurRadius: 10,
                         offset: const Offset(0, 4),
@@ -1957,7 +2209,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                       child: child,
                     ),
                     child: Icon(
-                      hasText ? Icons.send_rounded : (_isRecordingVoice ? Icons.stop_rounded : Icons.mic_rounded),
+                      hasText
+                          ? Icons.send_rounded
+                          : (_isRecordingVoice
+                              ? Icons.stop_rounded
+                              : Icons.mic_rounded),
                       key: ValueKey('$hasText-$_isRecordingVoice'),
                       color: Colors.white,
                       size: 21,
@@ -1975,7 +2231,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
   Future<void> _handleAttachment(String type) async {
     if (_uploadingAttachment) return;
     if (type.toLowerCase() == 'gifs' || type.toLowerCase() == 'stickers') {
-      await _showGifPicker(type: type.toLowerCase() == 'stickers' ? 'stickers' : 'gifs');
+      await _showGifPicker(
+          type: type.toLowerCase() == 'stickers' ? 'stickers' : 'gifs');
       return;
     }
     if (type.toLowerCase() == 'poll') {
@@ -1994,7 +2251,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
       Uint8List? bytes;
       String filename = 'attachment';
       String mime = 'application/octet-stream';
-      if (type.toLowerCase().contains('photo') || type.toLowerCase().contains('image') || type.toLowerCase().contains('video')) {
+      if (type.toLowerCase().contains('photo') ||
+          type.toLowerCase().contains('image') ||
+          type.toLowerCase().contains('video')) {
         final picked = await _imagePicker.pickMedia();
         if (picked == null) return;
         bytes = await picked.readAsBytes();
@@ -2014,7 +2273,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
         filename = file.name;
         mime = _mimeForFile(filename);
       }
-      if (bytes == null || bytes.isEmpty) throw StateError('Could not read the selected file.');
+      if (bytes == null || bytes.isEmpty)
+        throw StateError('Could not read the selected file.');
       if (!mounted) return;
       final selectedBytes = bytes;
 
@@ -2030,9 +2290,12 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
               ? '${(selectedBytes.length / 1024).toStringAsFixed(0)} KB'
               : '${(selectedBytes.length / (1024 * 1024)).toStringAsFixed(1)} MB';
           return AlertDialog(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
             title: const Text('Review attachment',
-              style: TextStyle(fontFamily: 'PlusJakartaSans', fontWeight: FontWeight.w800)),
+                style: TextStyle(
+                    fontFamily: 'PlusJakartaSans',
+                    fontWeight: FontWeight.w800)),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -2040,37 +2303,47 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                 if (isImage)
                   ClipRRect(
                     borderRadius: BorderRadius.circular(14),
-                    child: Image.memory(selectedBytes, height: 190, width: double.infinity,
+                    child: Image.memory(
+                      selectedBytes,
+                      height: 190,
+                      width: double.infinity,
                       fit: BoxFit.cover,
                       errorBuilder: (_, __, ___) => Container(
-                        height: 120, alignment: Alignment.center,
+                        height: 120,
+                        alignment: Alignment.center,
                         color: scheme.surfaceContainerHighest,
-                        child: const Icon(Icons.broken_image_outlined, size: 36),
+                        child:
+                            const Icon(Icons.broken_image_outlined, size: 36),
                       ),
                     ),
                   )
                 else
                   Container(
-                    height: 112, width: double.infinity,
+                    height: 112,
+                    width: double.infinity,
                     decoration: BoxDecoration(
                       color: scheme.primary.withValues(alpha: .08),
                       borderRadius: BorderRadius.circular(14),
                     ),
                     child: Icon(
                       isVideo
-                        ? Icons.play_circle_outline_rounded
-                        : mime.startsWith('audio/')
-                            ? Icons.headphones_rounded
-                            : Icons.insert_drive_file_rounded,
-                      size: 46, color: scheme.primary,
+                          ? Icons.play_circle_outline_rounded
+                          : mime.startsWith('audio/')
+                              ? Icons.headphones_rounded
+                              : Icons.insert_drive_file_rounded,
+                      size: 46,
+                      color: scheme.primary,
                     ),
                   ),
                 const SizedBox(height: 12),
-                Text(filename, maxLines: 2, overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontWeight: FontWeight.w700)),
+                Text(filename,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontWeight: FontWeight.w700)),
                 const SizedBox(height: 4),
                 Text('$sizeLabel · ${mime.toUpperCase()}',
-                  style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
+                    style: TextStyle(
+                        fontSize: 12, color: scheme.onSurfaceVariant)),
               ],
             ),
             actions: [
@@ -2091,9 +2364,14 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
 
       // Apply the selected Data & Storage photo-quality preference to actual
       // image bytes before upload. Non-image attachments are never recompressed.
-      if (mime.startsWith('image/') && !filename.toLowerCase().endsWith('.gif')) {
+      if (mime.startsWith('image/') &&
+          !filename.toLowerCase().endsWith('.gif')) {
         final quality = context.read<SettingsService>().photoQuality;
-        final jpegQuality = quality == 'low' ? 55 : quality == 'medium' ? 75 : 90;
+        final jpegQuality = quality == 'low'
+            ? 55
+            : quality == 'medium'
+                ? 75
+                : 90;
         final compressed = await FlutterImageCompress.compressWithList(
           bytes,
           minWidth: quality == 'low' ? 1280 : 1920,
@@ -2111,21 +2389,42 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
       }
       final url = await ApiService.uploadMedia(bytes, filename, mime);
       if (!mounted) return;
-      if (url == null || url.isEmpty) throw StateError('Upload failed. Please try again.');
-      final kind = mime.startsWith('image/') ? 'image' : mime.startsWith('video/') ? 'video' : mime.startsWith('audio/') ? 'audio' : 'file';
+      if (url == null || url.isEmpty)
+        throw StateError('Upload failed. Please try again.');
+      final kind = mime.startsWith('image/')
+          ? 'image'
+          : mime.startsWith('video/')
+              ? 'video'
+              : mime.startsWith('audio/')
+                  ? 'audio'
+                  : 'file';
       await context.read<SocketService>().sendMessage(
-        '',
-        widget.peer.uid.isNotEmpty ? widget.peer.uid : widget.peer.username,
-        attachment: {'url': url, 'name': filename, 'mime': mime, 'size': bytes.length, 'kind': kind},
-        replyToId: _replyingTo?.id?.toString(),
-        replyToText: _replyingTo?.text?.toString(),
-        replyToSender: _replyingTo?.isFromMe == true ? 'You' : widget.peer.name,
-        isGroup: widget.isGroup,
-      );
+            '',
+            widget.peer.uid.isNotEmpty ? widget.peer.uid : widget.peer.username,
+            attachment: {
+              'url': url,
+              'name': filename,
+              'mime': mime,
+              'size': bytes.length,
+              'kind': kind
+            },
+            replyToId: _replyingTo?.id?.toString(),
+            replyToText: _replyingTo?.text?.toString(),
+            replyToSender:
+                _replyingTo?.isFromMe == true ? 'You' : widget.peer.name,
+            isGroup: widget.isGroup,
+          );
       if (mounted) setState(() => _replyingTo = null);
     } catch (error) {
       if (mounted) {
-        NovynAlert.show(context, error is StateError ? error.message.toString() : 'Could not attach this file.', isError: true, title: 'Attachment failed', icon: Icons.attach_file_rounded);
+        NovynAlert.show(
+            context,
+            error is StateError
+                ? error.message.toString()
+                : 'Could not attach this file.',
+            isError: true,
+            title: 'Attachment failed',
+            icon: Icons.attach_file_rounded);
       }
     } finally {
       if (mounted) setState(() => _uploadingAttachment = false);
@@ -2142,7 +2441,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
       builder: (sheetContext) => StatefulBuilder(
         builder: (context, refresh) {
           final chats = socket.conversations.where((chat) {
-            if (chat.peerUid.toLowerCase() == widget.peer.uid.toLowerCase()) return false;
+            if (chat.peerUid.toLowerCase() == widget.peer.uid.toLowerCase())
+              return false;
             final query = search.text.trim().toLowerCase();
             return query.isEmpty ||
                 chat.peer.name.toLowerCase().contains(query) ||
@@ -2153,16 +2453,29 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
             decoration: BoxDecoration(
               color: Theme.of(context).colorScheme.surface,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(24)),
             ),
             child: Column(
               children: [
-                Container(width: 38, height: 4, decoration: BoxDecoration(color: Colors.grey.withValues(alpha: 0.4), borderRadius: BorderRadius.circular(4))),
+                Container(
+                    width: 38,
+                    height: 4,
+                    decoration: BoxDecoration(
+                        color: Colors.grey.withValues(alpha: 0.4),
+                        borderRadius: BorderRadius.circular(4))),
                 const SizedBox(height: 14),
                 Row(
                   children: [
-                    const Expanded(child: Text('Forward message', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 17, fontWeight: FontWeight.w700))),
-                    IconButton(onPressed: () => Navigator.pop(sheetContext), icon: Icon(Icons.close_rounded)),
+                    const Expanded(
+                        child: Text('Forward message',
+                            style: TextStyle(
+                                fontFamily: 'PlusJakartaSans',
+                                fontSize: 17,
+                                fontWeight: FontWeight.w700))),
+                    IconButton(
+                        onPressed: () => Navigator.pop(sheetContext),
+                        icon: Icon(Icons.close_rounded)),
                   ],
                 ),
                 TextField(
@@ -2172,7 +2485,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                     hintText: 'Search friends',
                     prefixIcon: Icon(Icons.search_rounded),
                     filled: true,
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: BorderSide.none),
                   ),
                 ),
                 const SizedBox(height: 10),
@@ -2191,8 +2506,14 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                                 radius: 22,
                                 isOnline: chat.peer.isOnline,
                               ),
-                              title: Text(chat.peer.name, style: TextStyle(fontFamily: 'PlusJakartaSans', fontWeight: FontWeight.w600)),
-                              subtitle: Text('@${chat.peer.username}', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 12)),
+                              title: Text(chat.peer.name,
+                                  style: TextStyle(
+                                      fontFamily: 'PlusJakartaSans',
+                                      fontWeight: FontWeight.w600)),
+                              subtitle: Text('@${chat.peer.username}',
+                                  style: TextStyle(
+                                      fontFamily: 'PlusJakartaSans',
+                                      fontSize: 12)),
                               trailing: Icon(Icons.send_rounded, size: 18),
                               onTap: () {
                                 socket.forwardMessage(
@@ -2201,7 +2522,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                                   isGroup: chat.isGroup,
                                 );
                                 Navigator.pop(sheetContext);
-                                NovynAlert.show(this.context, 'Forwarded to ${chat.peer.name}.', title: 'Message forwarded', icon: Icons.forward_rounded, tone: NovynAlertTone.success);
+                                NovynAlert.show(this.context,
+                                    'Forwarded to ${chat.peer.name}.',
+                                    title: 'Message forwarded',
+                                    icon: Icons.forward_rounded,
+                                    tone: NovynAlertTone.success);
                               },
                             );
                           },
@@ -2218,7 +2543,12 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
 
   Future<void> _showCreateRiddleDialog() async {
     if (widget.isGroup) {
-      NovynAlert.show(context, 'Riddle Lock is currently available in direct chats only.', isError: true, title: 'Direct chats only', icon: Icons.lock_rounded, tone: NovynAlertTone.warning);
+      NovynAlert.show(
+          context, 'Riddle Lock is currently available in direct chats only.',
+          isError: true,
+          title: 'Direct chats only',
+          icon: Icons.lock_rounded,
+          tone: NovynAlertTone.warning);
       return;
     }
     final secret = TextEditingController();
@@ -2228,114 +2558,263 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
     var maxTries = 3;
     await showDialog<void>(
       context: context,
-      builder: (dialogContext) => StatefulBuilder(builder: (context, refresh) => AlertDialog(
-        title: const Row(children: [Icon(Icons.lock_outline_rounded, size: 21), SizedBox(width: 9), Text('Lock a message')]),
-        content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
-          TextField(controller: secret, maxLength: 250, maxLines: 3, decoration: const InputDecoration(labelText: 'Secret message')),
-          TextField(controller: question, maxLength: 160, decoration: const InputDecoration(labelText: 'Riddle question')),
-          TextField(controller: answer, maxLength: 80, obscureText: true, decoration: const InputDecoration(labelText: 'Answer')),
-          TextField(controller: hint, maxLength: 160, decoration: const InputDecoration(labelText: 'Hint (optional)')),
-          const SizedBox(height: 8),
-          Row(children: [const Text('Attempts', style: TextStyle(fontFamily: 'PlusJakartaSans', fontWeight: FontWeight.w600)), const Spacer(), ChoiceChip(label: const Text('3'), selected: maxTries == 3, onSelected: (_) => refresh(() => maxTries = 3)), const SizedBox(width: 8), ChoiceChip(label: const Text('5'), selected: maxTries == 5, onSelected: (_) => refresh(() => maxTries = 5))]),
-          const Text('For fun only. Do not use this for passwords or private information.', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 11, color: Color(0xFF94A3B8))),
-        ])),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel')),
-          FilledButton.icon(
-            onPressed: () async {
-              if (secret.text.trim().isEmpty || question.text.trim().isEmpty || answer.text.trim().isEmpty) return;
-              final result = await context.read<SocketService>().sendRiddle(
-                peerUsername: widget.peer.uid.isNotEmpty ? widget.peer.uid : widget.peer.username,
-                secret: secret.text.trim(), question: question.text.trim(), answer: answer.text.trim(),
-                hint: hint.text.trim().isEmpty ? null : hint.text.trim(), maxTries: maxTries,
-                isGroup: widget.isGroup,
-              );
-              if (!mounted) return;
-              if (result['ok'] == true) {
-                Navigator.pop(dialogContext);
-              } else {
-                NovynAlert.show(this.context, result['message']?.toString() ?? 'Could not send riddle.', isError: true, title: 'Could not send riddle', icon: Icons.lock_rounded);
-              }
-            },
-            icon: Icon(Icons.lock_rounded, size: 17), label: const Text('Lock & send'),
-          ),
-        ],
-      )),
+      builder: (dialogContext) => StatefulBuilder(
+          builder: (context, refresh) => AlertDialog(
+                title: const Row(children: [
+                  Icon(Icons.lock_outline_rounded, size: 21),
+                  SizedBox(width: 9),
+                  Text('Lock a message')
+                ]),
+                content: SingleChildScrollView(
+                    child: Column(mainAxisSize: MainAxisSize.min, children: [
+                  TextField(
+                      controller: secret,
+                      maxLength: 250,
+                      maxLines: 3,
+                      decoration:
+                          const InputDecoration(labelText: 'Secret message')),
+                  TextField(
+                      controller: question,
+                      maxLength: 160,
+                      decoration:
+                          const InputDecoration(labelText: 'Riddle question')),
+                  TextField(
+                      controller: answer,
+                      maxLength: 80,
+                      obscureText: true,
+                      decoration: const InputDecoration(labelText: 'Answer')),
+                  TextField(
+                      controller: hint,
+                      maxLength: 160,
+                      decoration:
+                          const InputDecoration(labelText: 'Hint (optional)')),
+                  const SizedBox(height: 8),
+                  Row(children: [
+                    const Text('Attempts',
+                        style: TextStyle(
+                            fontFamily: 'PlusJakartaSans',
+                            fontWeight: FontWeight.w600)),
+                    const Spacer(),
+                    ChoiceChip(
+                        label: const Text('3'),
+                        selected: maxTries == 3,
+                        onSelected: (_) => refresh(() => maxTries = 3)),
+                    const SizedBox(width: 8),
+                    ChoiceChip(
+                        label: const Text('5'),
+                        selected: maxTries == 5,
+                        onSelected: (_) => refresh(() => maxTries = 5))
+                  ]),
+                  const Text(
+                      'For fun only. Do not use this for passwords or private information.',
+                      style: TextStyle(
+                          fontFamily: 'PlusJakartaSans',
+                          fontSize: 11,
+                          color: Color(0xFF94A3B8))),
+                ])),
+                actions: [
+                  TextButton(
+                      onPressed: () => Navigator.pop(dialogContext),
+                      child: const Text('Cancel')),
+                  FilledButton.icon(
+                    onPressed: () async {
+                      if (secret.text.trim().isEmpty ||
+                          question.text.trim().isEmpty ||
+                          answer.text.trim().isEmpty) return;
+                      final result =
+                          await context.read<SocketService>().sendRiddle(
+                                peerUsername: widget.peer.uid.isNotEmpty
+                                    ? widget.peer.uid
+                                    : widget.peer.username,
+                                secret: secret.text.trim(),
+                                question: question.text.trim(),
+                                answer: answer.text.trim(),
+                                hint: hint.text.trim().isEmpty
+                                    ? null
+                                    : hint.text.trim(),
+                                maxTries: maxTries,
+                                isGroup: widget.isGroup,
+                              );
+                      if (!mounted) return;
+                      if (result['ok'] == true) {
+                        Navigator.pop(dialogContext);
+                      } else {
+                        NovynAlert.show(
+                            this.context,
+                            result['message']?.toString() ??
+                                'Could not send riddle.',
+                            isError: true,
+                            title: 'Could not send riddle',
+                            icon: Icons.lock_rounded);
+                      }
+                    },
+                    icon: Icon(Icons.lock_rounded, size: 17),
+                    label: const Text('Lock & send'),
+                  ),
+                ],
+              )),
     );
-    secret.dispose(); question.dispose(); answer.dispose(); hint.dispose();
+    secret.dispose();
+    question.dispose();
+    answer.dispose();
+    hint.dispose();
   }
+
   Future<void> _showGameLauncher() async {
     final games = <Map<String, dynamic>>[
-      {'id': 'tictactoe', 'title': 'Tic-Tac-Toe', 'subtitle': 'Three in a row', 'icon': Icons.grid_3x3_rounded},
-      {'id': 'rps', 'title': 'Rock, Paper, Scissors', 'subtitle': 'A quick showdown', 'icon': Icons.back_hand_rounded},
-      {'id': 'connect4', 'title': 'Connect 4', 'subtitle': 'Line up four chips', 'icon': Icons.circle_rounded},
-      {'id': 'doodle', 'title': 'Doodle Duel', 'subtitle': 'Draw and guess', 'icon': Icons.draw_rounded},
-      {'id': 'numberclash', 'title': 'Number Clash', 'subtitle': 'Pick a number', 'icon': Icons.pin_rounded},
-      {'id': 'updown', 'title': 'Up or Down', 'subtitle': 'Predict the next card', 'icon': Icons.trending_up_rounded},
+      {
+        'id': 'tictactoe',
+        'title': 'Tic-Tac-Toe',
+        'subtitle': 'Three in a row',
+        'icon': Icons.grid_3x3_rounded
+      },
+      {
+        'id': 'rps',
+        'title': 'Rock, Paper, Scissors',
+        'subtitle': 'A quick showdown',
+        'icon': Icons.back_hand_rounded
+      },
+      {
+        'id': 'connect4',
+        'title': 'Connect 4',
+        'subtitle': 'Line up four chips',
+        'icon': Icons.circle_rounded
+      },
+      {
+        'id': 'doodle',
+        'title': 'Doodle Duel',
+        'subtitle': 'Draw and guess',
+        'icon': Icons.draw_rounded
+      },
+      {
+        'id': 'numberclash',
+        'title': 'Number Clash',
+        'subtitle': 'Pick a number',
+        'icon': Icons.pin_rounded
+      },
+      {
+        'id': 'updown',
+        'title': 'Up or Down',
+        'subtitle': 'Predict the next card',
+        'icon': Icons.trending_up_rounded
+      },
     ];
     final socket = context.read<SocketService>();
     await showModalBottomSheet<void>(
-      context: context, backgroundColor: Colors.transparent,
-      isScrollControlled: true, useSafeArea: true,
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      useSafeArea: true,
       builder: (sheetContext) {
         final theme = Theme.of(sheetContext);
         final scheme = theme.colorScheme;
         return Container(
           margin: const EdgeInsets.fromLTRB(10, 0, 10, 10),
-          constraints: BoxConstraints(maxHeight: MediaQuery.of(sheetContext).size.height * .82),
+          constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(sheetContext).size.height * .82),
           padding: const EdgeInsets.fromLTRB(18, 12, 18, 18),
           decoration: BoxDecoration(
-            color: scheme.surface, borderRadius: BorderRadius.circular(28),
-            border: Border.all(color: scheme.outlineVariant.withValues(alpha: .65)),
-            boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: .16), blurRadius: 24, offset: const Offset(0, -5))],
+            color: scheme.surface,
+            borderRadius: BorderRadius.circular(28),
+            border:
+                Border.all(color: scheme.outlineVariant.withValues(alpha: .65)),
+            boxShadow: [
+              BoxShadow(
+                  color: Colors.black.withValues(alpha: .16),
+                  blurRadius: 24,
+                  offset: const Offset(0, -5))
+            ],
           ),
           child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Center(child: Container(width: 38, height: 4, decoration: BoxDecoration(
-              color: scheme.onSurfaceVariant.withValues(alpha: .32), borderRadius: BorderRadius.circular(8)))),
+            Center(
+                child: Container(
+                    width: 38,
+                    height: 4,
+                    decoration: BoxDecoration(
+                        color: scheme.onSurfaceVariant.withValues(alpha: .32),
+                        borderRadius: BorderRadius.circular(8)))),
             const SizedBox(height: 16),
             Row(children: [
-              Container(width: 42, height: 42,
-                decoration: BoxDecoration(color: scheme.primaryContainer, borderRadius: BorderRadius.circular(14)),
-                child: Icon(Icons.sports_esports_rounded, color: scheme.onPrimaryContainer)),
+              Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                      color: scheme.primaryContainer,
+                      borderRadius: BorderRadius.circular(14)),
+                  child: Icon(Icons.sports_esports_rounded,
+                      color: scheme.onPrimaryContainer)),
               const SizedBox(width: 12),
-              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('Play together', style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
-                Text(widget.isGroup ? 'Choose a game for this group' : 'Challenge ${widget.peer.name}',
-                  style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
-              ])),
-              IconButton(onPressed: () => Navigator.pop(sheetContext), icon: const Icon(Icons.close_rounded)),
+              Expanded(
+                  child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                    Text('Play together',
+                        style: theme.textTheme.titleLarge
+                            ?.copyWith(fontWeight: FontWeight.w800)),
+                    Text(
+                        widget.isGroup
+                            ? 'Choose a game for this group'
+                            : 'Challenge ${widget.peer.name}',
+                        style: theme.textTheme.bodySmall
+                            ?.copyWith(color: scheme.onSurfaceVariant)),
+                  ])),
+              IconButton(
+                  onPressed: () => Navigator.pop(sheetContext),
+                  icon: const Icon(Icons.close_rounded)),
             ]),
             const SizedBox(height: 14),
-            Flexible(child: GridView.builder(
-              shrinkWrap: true, itemCount: games.length,
+            Flexible(
+                child: GridView.builder(
+              shrinkWrap: true,
+              itemCount: games.length,
               gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2, mainAxisSpacing: 12, crossAxisSpacing: 12, childAspectRatio: 1.28),
+                  crossAxisCount: 2,
+                  mainAxisSpacing: 12,
+                  crossAxisSpacing: 12,
+                  childAspectRatio: 1.28),
               itemBuilder: (context, index) {
                 final item = games[index];
                 final tint = index.isEven ? scheme.primary : scheme.tertiary;
                 return Material(
-                  color: scheme.surfaceContainerLow, borderRadius: BorderRadius.circular(18),
+                  color: scheme.surfaceContainerLow,
+                  borderRadius: BorderRadius.circular(18),
                   child: InkWell(
                     borderRadius: BorderRadius.circular(18),
                     onTap: () {
                       try {
-                        socket.sendGameChallenge(item['id'] as String,
-                          widget.peer.uid.isNotEmpty ? widget.peer.uid : widget.peer.username,
-                          isGroup: widget.isGroup);
+                        socket.sendGameChallenge(
+                            item['id'] as String,
+                            widget.peer.uid.isNotEmpty
+                                ? widget.peer.uid
+                                : widget.peer.username,
+                            isGroup: widget.isGroup);
                         Navigator.pop(sheetContext);
-                        NovynAlert.show(this.context, '${item['title']} challenge sent.', title: 'Challenge sent', icon: Icons.sports_esports_rounded, tone: NovynAlertTone.success);
+                        NovynAlert.show(
+                            this.context, '${item['title']} challenge sent.',
+                            title: 'Challenge sent',
+                            icon: Icons.sports_esports_rounded,
+                            tone: NovynAlertTone.success);
                       } catch (error) {
-                        NovynAlert.show(this.context, error is StateError ? error.message.toString() : 'Could not start the game.', isError: true, title: 'Could not start game', icon: Icons.sports_esports_rounded);
+                        NovynAlert.show(
+                            this.context,
+                            error is StateError
+                                ? error.message.toString()
+                                : 'Could not start the game.',
+                            isError: true,
+                            title: 'Could not start game',
+                            icon: Icons.sports_esports_rounded);
                       }
                     },
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 12),
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
                           Container(
-                            width: 42, height: 42,
+                            width: 42,
+                            height: 42,
                             decoration: BoxDecoration(
                               color: tint.withValues(alpha: .14),
                               borderRadius: BorderRadius.circular(14),
@@ -2348,7 +2827,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                             maxLines: 2,
                             textAlign: TextAlign.center,
                             overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w800),
+                            style: theme.textTheme.labelLarge
+                                ?.copyWith(fontWeight: FontWeight.w800),
                           ),
                           const SizedBox(height: 3),
                           Text(
@@ -2357,7 +2837,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                             textAlign: TextAlign.center,
                             overflow: TextOverflow.ellipsis,
                             style: theme.textTheme.bodySmall?.copyWith(
-                              color: scheme.onSurfaceVariant, fontSize: 10,
+                              color: scheme.onSurfaceVariant,
+                              fontSize: 10,
                             ),
                           ),
                         ],
@@ -2400,37 +2881,40 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                   ),
                 ),
                 const SizedBox(height: 12),
-                ...List.generate(options.length, (index) => Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: options[index],
-                          maxLength: 200,
-                          decoration: InputDecoration(
-                            labelText: 'Option ${index + 1}',
-                            counterText: '',
+                ...List.generate(
+                    options.length,
+                    (index) => Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: TextField(
+                                  controller: options[index],
+                                  maxLength: 200,
+                                  decoration: InputDecoration(
+                                    labelText: 'Option ${index + 1}',
+                                    counterText: '',
+                                  ),
+                                ),
+                              ),
+                              if (options.length > 2)
+                                IconButton(
+                                  tooltip: 'Remove option',
+                                  onPressed: () => refresh(() {
+                                    final removed = options.removeAt(index);
+                                    removed.dispose();
+                                  }),
+                                  icon: Icon(Icons.close_rounded),
+                                ),
+                            ],
                           ),
-                        ),
-                      ),
-                      if (options.length > 2)
-                        IconButton(
-                          tooltip: 'Remove option',
-                          onPressed: () => refresh(() {
-                  final removed = options.removeAt(index);
-                  removed.dispose();
-                }),
-                          icon: Icon(Icons.close_rounded),
-                        ),
-                    ],
-                  ),
-                )),
+                        )),
                 if (options.length < 8)
                   Align(
                     alignment: Alignment.centerLeft,
                     child: TextButton.icon(
-                      onPressed: () => refresh(() => options.add(TextEditingController())),
+                      onPressed: () =>
+                          refresh(() => options.add(TextEditingController())),
                       icon: Icon(Icons.add_rounded, size: 18),
                       label: const Text('Add option'),
                     ),
@@ -2446,21 +2930,33 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
             FilledButton.icon(
               onPressed: () {
                 final cleanQuestion = question.text.trim();
-                final cleanOptions = options.map((item) => item.text.trim()).where((item) => item.isNotEmpty).toList();
+                final cleanOptions = options
+                    .map((item) => item.text.trim())
+                    .where((item) => item.isNotEmpty)
+                    .toList();
                 if (cleanQuestion.isEmpty || cleanOptions.length < 2) {
-                  NovynAlert.show(dialogContext, 'Add a question and at least two options.', isError: true, title: 'Incomplete poll', icon: Icons.poll_rounded);
+                  NovynAlert.show(
+                      dialogContext, 'Add a question and at least two options.',
+                      isError: true,
+                      title: 'Incomplete poll',
+                      icon: Icons.poll_rounded);
                   return;
                 }
                 if (cleanOptions.toSet().length != cleanOptions.length) {
-                  NovynAlert.show(dialogContext, 'Poll options must be unique.', isError: true, title: 'Duplicate options', icon: Icons.poll_rounded);
+                  NovynAlert.show(dialogContext, 'Poll options must be unique.',
+                      isError: true,
+                      title: 'Duplicate options',
+                      icon: Icons.poll_rounded);
                   return;
                 }
                 context.read<SocketService>().createPoll(
-                  cleanQuestion,
-                  cleanOptions,
-                  widget.peer.uid.isNotEmpty ? widget.peer.uid : widget.peer.username,
-                  isGroup: widget.isGroup,
-                );
+                      cleanQuestion,
+                      cleanOptions,
+                      widget.peer.uid.isNotEmpty
+                          ? widget.peer.uid
+                          : widget.peer.username,
+                      isGroup: widget.isGroup,
+                    );
                 Navigator.pop(dialogContext);
               },
               icon: Icon(Icons.send_rounded, size: 17),
@@ -2489,19 +2985,24 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
           final url = item['url']?.toString() ?? '';
           if (url.isEmpty) return;
           await context.read<SocketService>().sendMessage(
-            '',
-            widget.peer.uid.isNotEmpty ? widget.peer.uid : widget.peer.username,
-            attachment: {
-              'url': url,
-              'name': item['title']?.toString().isNotEmpty == true ? item['title'].toString() : 'GIF',
-              'mime': 'image/gif',
-              'kind': 'image',
-            },
-            replyToId: _replyingTo?.id?.toString(),
-            replyToText: _replyingTo?.text?.toString(),
-            replyToSender: _replyingTo?.isFromMe == true ? 'You' : widget.peer.name,
-            isGroup: widget.isGroup,
-          );
+                '',
+                widget.peer.uid.isNotEmpty
+                    ? widget.peer.uid
+                    : widget.peer.username,
+                attachment: {
+                  'url': url,
+                  'name': item['title']?.toString().isNotEmpty == true
+                      ? item['title'].toString()
+                      : 'GIF',
+                  'mime': 'image/gif',
+                  'kind': 'image',
+                },
+                replyToId: _replyingTo?.id?.toString(),
+                replyToText: _replyingTo?.text?.toString(),
+                replyToSender:
+                    _replyingTo?.isFromMe == true ? 'You' : widget.peer.name,
+                isGroup: widget.isGroup,
+              );
           if (mounted) setState(() => _replyingTo = null);
         },
       ),
@@ -2509,20 +3010,24 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
     search.dispose();
   }
 
-
-
   Future<void> _startVoiceNote() async {
     if (_isRecordingVoice || _uploadingAttachment) return;
     try {
       final allowed = await _voiceRecorder.hasPermission();
       if (!allowed) {
         if (mounted) {
-          NovynAlert.show(context, 'Microphone permission is required to record voice notes.', isError: true, title: 'Microphone permission needed', icon: Icons.mic_off_rounded, tone: NovynAlertTone.warning);
+          NovynAlert.show(context,
+              'Microphone permission is required to record voice notes.',
+              isError: true,
+              title: 'Microphone permission needed',
+              icon: Icons.mic_off_rounded,
+              tone: NovynAlertTone.warning);
         }
         return;
       }
       final directory = await getTemporaryDirectory();
-      final path = '${directory.path}/novyn_voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
+      final path =
+          '${directory.path}/novyn_voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
       await _voiceRecorder.start(
         const RecordConfig(
           encoder: AudioEncoder.aacLc,
@@ -2535,7 +3040,12 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
         await _voiceRecorder.stop();
         return;
       }
-      HapticService.vibrate(NovynHapticType.medium, category: HapticCategory.chat);
+      HapticService.vibrate(NovynHapticType.medium,
+          category: HapticCategory.chat);
+      _socketService.startVoiceActivity(
+        widget.peer.uid.isNotEmpty ? widget.peer.uid : widget.peer.username,
+        isGroup: widget.isGroup,
+      );
       setState(() {
         _isRecordingVoice = true;
         _voiceSeconds = 0;
@@ -2550,7 +3060,10 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
       });
     } catch (error) {
       if (mounted) {
-        NovynAlert.show(context, 'Could not start recording: $error', isError: true, title: 'Recording failed', icon: Icons.mic_off_rounded);
+        NovynAlert.show(context, 'Could not start recording: $error',
+            isError: true,
+            title: 'Recording failed',
+            icon: Icons.mic_off_rounded);
       }
     }
   }
@@ -2565,33 +3078,38 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
       _isRecordingVoice = false;
       _uploadingAttachment = true;
     });
+    _socketService.stopVoiceActivity();
     _syncTypingAnimation();
     try {
       final recordedPath = await _voiceRecorder.stop();
       final filePath = recordedPath ?? path;
       if (filePath == null) throw StateError('Voice recording was not saved.');
       final file = File(filePath);
-      if (!await file.exists()) throw StateError('Voice recording file was not found.');
+      if (!await file.exists())
+        throw StateError('Voice recording file was not found.');
       final bytes = await file.readAsBytes();
       if (bytes.isEmpty) throw StateError('Voice recording is empty.');
-      final url = await ApiService.uploadVoice(bytes, 'voice_note.m4a', 'audio/mp4');
-      if (url == null || url.isEmpty) throw StateError('Voice note upload failed. Please try again.');
+      final url =
+          await ApiService.uploadVoice(bytes, 'voice_note.m4a', 'audio/mp4');
+      if (url == null || url.isEmpty)
+        throw StateError('Voice note upload failed. Please try again.');
       await context.read<SocketService>().sendMessage(
-        '',
-        widget.peer.uid.isNotEmpty ? widget.peer.uid : widget.peer.username,
-        attachment: {
-          'url': url,
-          'name': 'Voice message',
-          'mime': 'audio/mp4',
-          'size': bytes.length,
-          'kind': 'audio',
-          'duration': duration,
-        },
-        replyToId: _replyingTo?.id?.toString(),
-        replyToText: _replyingTo?.text?.toString(),
-        replyToSender: _replyingTo?.isFromMe == true ? 'You' : widget.peer.name,
-        isGroup: widget.isGroup,
-      );
+            '',
+            widget.peer.uid.isNotEmpty ? widget.peer.uid : widget.peer.username,
+            attachment: {
+              'url': url,
+              'name': 'Voice message',
+              'mime': 'audio/mp4',
+              'size': bytes.length,
+              'kind': 'audio',
+              'duration': duration,
+            },
+            replyToId: _replyingTo?.id?.toString(),
+            replyToText: _replyingTo?.text?.toString(),
+            replyToSender:
+                _replyingTo?.isFromMe == true ? 'You' : widget.peer.name,
+            isGroup: widget.isGroup,
+          );
       if (mounted) {
         setState(() => _replyingTo = null);
         _scrollToBottom(force: true);
@@ -2599,7 +3117,14 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
       await file.delete();
     } catch (error) {
       if (mounted) {
-        NovynAlert.show(context, error is StateError ? error.message.toString() : 'Could not send voice note.', isError: true, title: 'Voice message not sent', icon: Icons.mic_off_rounded);
+        NovynAlert.show(
+            context,
+            error is StateError
+                ? error.message.toString()
+                : 'Could not send voice note.',
+            isError: true,
+            title: 'Voice message not sent',
+            icon: Icons.mic_off_rounded);
       }
     } finally {
       if (mounted) {
@@ -2615,6 +3140,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
     if (!_isRecordingVoice) return;
     _voiceTimer?.cancel();
     _voiceTimer = null;
+    _socketService.stopVoiceActivity();
     final path = _voiceRecordingPath;
     try {
       await _voiceRecorder.stop();
@@ -2646,7 +3172,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
   }
 
   void _startCall(String type) {
-    HapticService.vibrate(NovynHapticType.medium, category: HapticCategory.chat);
+    HapticService.vibrate(NovynHapticType.medium,
+        category: HapticCategory.chat);
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -2659,8 +3186,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
   }
 
   Future<void> _showPinnedMessages() async {
-    final pinned = context.read<SocketService>().messages
-        .where((message) => message.pinnedAt != null && message.pinnedAt!.isNotEmpty)
+    final pinned = context
+        .read<SocketService>()
+        .messages
+        .where((message) =>
+            message.pinnedAt != null && message.pinnedAt!.isNotEmpty)
         .toList()
         .reversed
         .toList();
@@ -2675,17 +3205,28 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
             padding: const EdgeInsets.fromLTRB(18, 12, 18, 20),
             decoration: BoxDecoration(
               color: Theme.of(sheetContext).colorScheme.surface,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(24)),
             ),
             child: Column(
               children: [
-                Container(width: 38, height: 4,
-                  decoration: BoxDecoration(color: Colors.grey.withValues(alpha: .4), borderRadius: BorderRadius.circular(4))),
+                Container(
+                    width: 38,
+                    height: 4,
+                    decoration: BoxDecoration(
+                        color: Colors.grey.withValues(alpha: .4),
+                        borderRadius: BorderRadius.circular(4))),
                 const SizedBox(height: 14),
                 Row(children: [
-                  const Expanded(child: Text('Pinned messages',
-                    style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 17, fontWeight: FontWeight.w700))),
-                  IconButton(onPressed: () => Navigator.pop(sheetContext), icon: const Icon(Icons.close_rounded)),
+                  const Expanded(
+                      child: Text('Pinned messages',
+                          style: TextStyle(
+                              fontFamily: 'PlusJakartaSans',
+                              fontSize: 17,
+                              fontWeight: FontWeight.w700))),
+                  IconButton(
+                      onPressed: () => Navigator.pop(sheetContext),
+                      icon: const Icon(Icons.close_rounded)),
                 ]),
                 Expanded(
                   child: pinned.isEmpty
@@ -2697,17 +3238,26 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                             final message = pinned[index];
                             final preview = message.text.trim().isNotEmpty
                                 ? message.text
-                                : (message.attachment?['name']?.toString() ?? 'Attachment');
+                                : (message.attachment?['name']?.toString() ??
+                                    'Attachment');
                             return ListTile(
                               contentPadding: EdgeInsets.zero,
                               leading: CircleAvatar(
-                                backgroundColor: Theme.of(context).colorScheme.primary.withValues(alpha: .10),
-                                child: Icon(Icons.push_pin_rounded, color: Theme.of(context).colorScheme.primary, size: 19),
+                                backgroundColor: Theme.of(context)
+                                    .colorScheme
+                                    .primary
+                                    .withValues(alpha: .10),
+                                child: Icon(Icons.push_pin_rounded,
+                                    color:
+                                        Theme.of(context).colorScheme.primary,
+                                    size: 19),
                               ),
-                              title: Text(preview, maxLines: 2, overflow: TextOverflow.ellipsis),
+                              title: Text(preview,
+                                  maxLines: 2, overflow: TextOverflow.ellipsis),
                               subtitle: Text(
                                 '${message.isFromMe ? 'You' : (widget.isGroup ? message.senderId : widget.peer.name)} · ${message.createdAt.toLocal().toString().substring(0, 16)}',
-                                maxLines: 1, overflow: TextOverflow.ellipsis,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               ),
                               trailing: IconButton(
                                 tooltip: 'Unpin message',
@@ -2715,13 +3265,22 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                                 onPressed: () {
                                   try {
                                     context.read<SocketService>().unpinMessage(
-                                      message.id,
-                                      widget.peer.uid.isNotEmpty ? widget.peer.uid : widget.peer.username,
-                                      isGroup: widget.isGroup,
-                                    );
+                                          message.id,
+                                          widget.peer.uid.isNotEmpty
+                                              ? widget.peer.uid
+                                              : widget.peer.username,
+                                          isGroup: widget.isGroup,
+                                        );
                                     refreshPinned(() => pinned.removeAt(index));
                                   } catch (error) {
-                                    NovynAlert.show(context, error is StateError ? error.message : 'Could not unpin message.', isError: true, title: 'Could not unpin message', icon: Icons.push_pin_rounded);
+                                    NovynAlert.show(
+                                        context,
+                                        error is StateError
+                                            ? error.message
+                                            : 'Could not unpin message.',
+                                        isError: true,
+                                        title: 'Could not unpin message',
+                                        icon: Icons.push_pin_rounded);
                                   }
                                 },
                               ),
@@ -2738,7 +3297,13 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
   }
 
   Future<void> _showSharedMedia() async {
-    final messages = context.read<SocketService>().messages.where((message) => message.attachment is Map).toList().reversed.toList();
+    final messages = context
+        .read<SocketService>()
+        .messages
+        .where((message) => message.attachment is Map)
+        .toList()
+        .reversed
+        .toList();
     var activeTab = 0;
     var searchQuery = '';
     await showModalBottomSheet<void>(
@@ -2749,37 +3314,80 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
         final media = messages.where((message) {
           final attachment = message.attachment as Map;
           final mime = attachment['mime']?.toString().toLowerCase() ?? '';
-          return attachment['kind'] == 'image' || attachment['kind'] == 'video' || mime.startsWith('image/') || mime.startsWith('video/');
+          return attachment['kind'] == 'image' ||
+              attachment['kind'] == 'video' ||
+              mime.startsWith('image/') ||
+              mime.startsWith('video/');
         }).toList();
         final docs = messages.where((message) {
           final attachment = message.attachment as Map;
           final mime = attachment['mime']?.toString().toLowerCase() ?? '';
-          return attachment['kind'] == 'file' && !mime.startsWith('audio/') && !mime.startsWith('image/') && !mime.startsWith('video/') && (attachment['name']?.toString() ?? '').toLowerCase().contains(searchQuery);
+          return attachment['kind'] == 'file' &&
+              !mime.startsWith('audio/') &&
+              !mime.startsWith('image/') &&
+              !mime.startsWith('video/') &&
+              (attachment['name']?.toString() ?? '')
+                  .toLowerCase()
+                  .contains(searchQuery);
         }).toList();
         final voice = messages.where((message) {
           final attachment = message.attachment as Map;
           final mime = attachment['mime']?.toString().toLowerCase() ?? '';
           return attachment['kind'] == 'audio' || mime.startsWith('audio/');
         }).toList();
-        final activeItems = activeTab == 0 ? media : activeTab == 1 ? docs : voice;
+        final activeItems = activeTab == 0
+            ? media
+            : activeTab == 1
+                ? docs
+                : voice;
         return Container(
           height: MediaQuery.of(context).size.height * 0.76,
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 18),
-          decoration: BoxDecoration(color: Theme.of(context).colorScheme.surface, borderRadius: const BorderRadius.vertical(top: Radius.circular(24))),
+          decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surface,
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(24))),
           child: Column(children: [
-            Container(width: 38, height: 4, decoration: BoxDecoration(color: Colors.grey.withValues(alpha: 0.4), borderRadius: BorderRadius.circular(4))),
+            Container(
+                width: 38,
+                height: 4,
+                decoration: BoxDecoration(
+                    color: Colors.grey.withValues(alpha: 0.4),
+                    borderRadius: BorderRadius.circular(4))),
             const SizedBox(height: 14),
-            Row(children: [const Expanded(child: Text('Shared media & files', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 17, fontWeight: FontWeight.w700))), IconButton(onPressed: () => Navigator.pop(sheetContext), icon: Icon(Icons.close_rounded))]),
             Row(children: [
-              _sharedMediaTab('Media', media.length, 0, activeTab, (v) => refresh(() => activeTab = v)),
+              const Expanded(
+                  child: Text('Shared media & files',
+                      style: TextStyle(
+                          fontFamily: 'PlusJakartaSans',
+                          fontSize: 17,
+                          fontWeight: FontWeight.w700))),
+              IconButton(
+                  onPressed: () => Navigator.pop(sheetContext),
+                  icon: Icon(Icons.close_rounded))
+            ]),
+            Row(children: [
+              _sharedMediaTab('Media', media.length, 0, activeTab,
+                  (v) => refresh(() => activeTab = v)),
               const SizedBox(width: 7),
-              _sharedMediaTab('Documents', docs.length, 1, activeTab, (v) => refresh(() => activeTab = v)),
+              _sharedMediaTab('Documents', docs.length, 1, activeTab,
+                  (v) => refresh(() => activeTab = v)),
               const SizedBox(width: 7),
-              _sharedMediaTab('Voice', voice.length, 2, activeTab, (v) => refresh(() => activeTab = v)),
+              _sharedMediaTab('Voice', voice.length, 2, activeTab,
+                  (v) => refresh(() => activeTab = v)),
             ]),
             if (activeTab == 1) ...[
               const SizedBox(height: 10),
-              TextField(onChanged: (value) => refresh(() => searchQuery = value.toLowerCase()), decoration: InputDecoration(hintText: 'Search files', prefixIcon: Icon(Icons.search_rounded), filled: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none))),
+              TextField(
+                  onChanged: (value) =>
+                      refresh(() => searchQuery = value.toLowerCase()),
+                  decoration: InputDecoration(
+                      hintText: 'Search files',
+                      prefixIcon: Icon(Icons.search_rounded),
+                      filled: true,
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none))),
             ],
             const SizedBox(height: 10),
             Expanded(
@@ -2788,20 +3396,48 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                   : activeTab == 0
                       ? GridView.builder(
                           itemCount: activeItems.length,
-                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 3, crossAxisSpacing: 8, mainAxisSpacing: 8),
+                          gridDelegate:
+                              const SliverGridDelegateWithFixedCrossAxisCount(
+                                  crossAxisCount: 3,
+                                  crossAxisSpacing: 8,
+                                  mainAxisSpacing: 8),
                           itemBuilder: (context, index) {
-                            final attachment = activeItems[index].attachment as Map;
+                            final attachment =
+                                activeItems[index].attachment as Map;
                             final url = attachment['url']?.toString() ?? '';
-                            final mime = attachment['mime']?.toString().toLowerCase() ?? '';
+                            final mime =
+                                attachment['mime']?.toString().toLowerCase() ??
+                                    '';
                             return InkWell(
                               onTap: () {
                                 if (mime.startsWith('image/')) {
-                                  showDialog<void>(context: context, builder: (_) => Dialog(backgroundColor: Colors.transparent, child: InteractiveViewer(child: Image.network(url))));
+                                  showDialog<void>(
+                                      context: context,
+                                      builder: (_) => Dialog(
+                                          backgroundColor: Colors.transparent,
+                                          child: InteractiveViewer(
+                                              child: Image.network(url))));
                                 } else {
-                                  launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+                                  launchUrl(Uri.parse(url),
+                                      mode: LaunchMode.externalApplication);
                                 }
                               },
-                              child: ClipRRect(borderRadius: BorderRadius.circular(10), child: mime.startsWith('image/') ? Image.network(url, fit: BoxFit.cover, errorBuilder: (_, __, ___) => Icon(Icons.broken_image_outlined)) : Container(color: Theme.of(context).colorScheme.surfaceContainerHighest, child: const Center(child: Icon(Icons.play_circle_outline_rounded, size: 30)))),
+                              child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(10),
+                                  child: mime.startsWith('image/')
+                                      ? Image.network(url,
+                                          fit: BoxFit.cover,
+                                          errorBuilder: (_, __, ___) =>
+                                              Icon(Icons.broken_image_outlined))
+                                      : Container(
+                                          color: Theme.of(context)
+                                              .colorScheme
+                                              .surfaceContainerHighest,
+                                          child: const Center(
+                                              child: Icon(
+                                                  Icons
+                                                      .play_circle_outline_rounded,
+                                                  size: 30)))),
                             );
                           },
                         )
@@ -2809,11 +3445,26 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                           itemCount: activeItems.length,
                           separatorBuilder: (_, __) => const Divider(height: 1),
                           itemBuilder: (context, index) {
-                            final attachment = activeItems[index].attachment as Map;
+                            final attachment =
+                                activeItems[index].attachment as Map;
                             final url = attachment['url']?.toString() ?? '';
-                            final name = attachment['name']?.toString() ?? 'Attachment';
+                            final name =
+                                attachment['name']?.toString() ?? 'Attachment';
                             final isVoice = activeTab == 2;
-                            return ListTile(leading: Icon(isVoice ? Icons.mic_none_rounded : Icons.insert_drive_file_outlined), title: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis), subtitle: Text(isVoice ? 'Voice message' : name.split('.').last.toUpperCase()), trailing: Icon(Icons.open_in_new_rounded, size: 18), onTap: () => launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication));
+                            return ListTile(
+                                leading: Icon(isVoice
+                                    ? Icons.mic_none_rounded
+                                    : Icons.insert_drive_file_outlined),
+                                title: Text(name,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis),
+                                subtitle: Text(isVoice
+                                    ? 'Voice message'
+                                    : name.split('.').last.toUpperCase()),
+                                trailing:
+                                    Icon(Icons.open_in_new_rounded, size: 18),
+                                onTap: () => launchUrl(Uri.parse(url),
+                                    mode: LaunchMode.externalApplication));
                           },
                         ),
             ),
@@ -2823,10 +3474,27 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
     );
   }
 
-  Widget _sharedMediaTab(String label, int count, int index, int active, ValueChanged<int> onSelected) {
+  Widget _sharedMediaTab(String label, int count, int index, int active,
+      ValueChanged<int> onSelected) {
     final selected = active == index;
-    return Expanded(child: OutlinedButton(onPressed: () => onSelected(index), style: OutlinedButton.styleFrom(backgroundColor: selected ? Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.08) : null, foregroundColor: Theme.of(context).colorScheme.onSurface, padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 10)), child: Text('$label $count', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 11))));
+    return Expanded(
+        child: OutlinedButton(
+            onPressed: () => onSelected(index),
+            style: OutlinedButton.styleFrom(
+                backgroundColor: selected
+                    ? Theme.of(context)
+                        .colorScheme
+                        .onSurface
+                        .withValues(alpha: 0.08)
+                    : null,
+                foregroundColor: Theme.of(context).colorScheme.onSurface,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 4, vertical: 10)),
+            child: Text('$label $count',
+                style:
+                    TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 11))));
   }
+
   BoxDecoration _wallpaperDecoration(String wallpaper) {
     final value = wallpaper.trim();
     final defaultBg = Theme.of(context).brightness == Brightness.dark
@@ -2845,7 +3513,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
       );
     }
     if (value.startsWith('http://') || value.startsWith('https://')) {
-      return BoxDecoration(image: DecorationImage(image: NetworkImage(value), fit: BoxFit.cover, opacity: 0.13));
+      return BoxDecoration(
+          image: DecorationImage(
+              image: NetworkImage(value), fit: BoxFit.cover, opacity: 0.13));
     }
     if (value.startsWith('#') && value.length == 7) {
       final color = Color(int.parse('FF' + value.substring(1), radix: 16));
@@ -2885,8 +3555,10 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
             padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
             decoration: BoxDecoration(
               color: scheme.surface,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-              border: Border.all(color: scheme.outlineVariant.withValues(alpha: .6)),
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(28)),
+              border: Border.all(
+                  color: scheme.outlineVariant.withValues(alpha: .6)),
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -2912,7 +3584,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                         color: scheme.primary.withValues(alpha: .12),
                         borderRadius: BorderRadius.circular(14),
                       ),
-                      child: Icon(Icons.wallpaper_rounded, color: scheme.primary),
+                      child:
+                          Icon(Icons.wallpaper_rounded, color: scheme.primary),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -2920,9 +3593,15 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text('Chat wallpaper',
-                            style: Theme.of(sheetContext).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
+                              style: Theme.of(sheetContext)
+                                  .textTheme
+                                  .titleLarge
+                                  ?.copyWith(fontWeight: FontWeight.w800)),
                           Text('Personalise your conversation background',
-                            style: Theme.of(sheetContext).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
+                              style: Theme.of(sheetContext)
+                                  .textTheme
+                                  .bodySmall
+                                  ?.copyWith(color: scheme.onSurfaceVariant)),
                         ],
                       ),
                     ),
@@ -2930,14 +3609,20 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                 ),
                 const SizedBox(height: 18),
                 Text('PRESETS',
-                  style: Theme.of(sheetContext).textTheme.labelSmall?.copyWith(
-                    color: scheme.primary, fontWeight: FontWeight.w800, letterSpacing: 1.2)),
+                    style: Theme.of(sheetContext)
+                        .textTheme
+                        .labelSmall
+                        ?.copyWith(
+                            color: scheme.primary,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 1.2)),
                 const SizedBox(height: 12),
                 Flexible(
                   child: GridView.builder(
                     shrinkWrap: true,
                     itemCount: presets.length,
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
                       crossAxisCount: 3,
                       crossAxisSpacing: 12,
                       mainAxisSpacing: 14,
@@ -2946,22 +3631,26 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                     itemBuilder: (context, index) {
                       final preset = presets[index];
                       final value = preset['value']!;
-                      final selected = context.watch<SocketService>().chatWallpaper == value;
+                      final selected =
+                          context.watch<SocketService>().chatWallpaper == value;
                       final color = value.isEmpty
                           ? (Theme.of(context).brightness == Brightness.dark
                               ? const Color(0xFF0B0B17)
                               : const Color(0xFFF7F6FF))
-                          : Color(int.parse('FF${value.substring(1)}', radix: 16));
+                          : Color(
+                              int.parse('FF${value.substring(1)}', radix: 16));
                       final foreground = color.computeLuminance() < .35
                           ? Colors.white
                           : const Color(0xFF29243D);
                       return InkWell(
                         onTap: () {
                           context.read<SocketService>().setChatWallpaper(
-                            value,
-                            widget.peer.uid.isNotEmpty ? widget.peer.uid : widget.peer.username,
-                            isGroup: widget.isGroup,
-                          );
+                                value,
+                                widget.peer.uid.isNotEmpty
+                                    ? widget.peer.uid
+                                    : widget.peer.username,
+                                isGroup: widget.isGroup,
+                              );
                           Navigator.pop(sheetContext);
                         },
                         borderRadius: BorderRadius.circular(16),
@@ -2976,7 +3665,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                                   color: color,
                                   borderRadius: BorderRadius.circular(16),
                                   border: Border.all(
-                                    color: selected ? scheme.primary : scheme.outlineVariant,
+                                    color: selected
+                                        ? scheme.primary
+                                        : scheme.outlineVariant,
                                     width: selected ? 2.2 : 1,
                                   ),
                                 ),
@@ -2985,30 +3676,39 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                                     Align(
                                       alignment: Alignment.topLeft,
                                       child: Container(
-                                        width: 35, height: 13,
+                                        width: 35,
+                                        height: 13,
                                         decoration: BoxDecoration(
-                                          color: foreground.withValues(alpha: .12),
-                                          borderRadius: BorderRadius.circular(8),
+                                          color:
+                                              foreground.withValues(alpha: .12),
+                                          borderRadius:
+                                              BorderRadius.circular(8),
                                         ),
                                       ),
                                     ),
                                     Align(
                                       alignment: Alignment.centerLeft,
                                       child: Container(
-                                        width: 43, height: 17,
+                                        width: 43,
+                                        height: 17,
                                         decoration: BoxDecoration(
-                                          color: foreground.withValues(alpha: .16),
-                                          borderRadius: BorderRadius.circular(10),
+                                          color:
+                                              foreground.withValues(alpha: .16),
+                                          borderRadius:
+                                              BorderRadius.circular(10),
                                         ),
                                       ),
                                     ),
                                     Align(
                                       alignment: Alignment.bottomRight,
                                       child: Container(
-                                        width: 42, height: 17,
+                                        width: 42,
+                                        height: 17,
                                         decoration: BoxDecoration(
-                                          color: scheme.primary.withValues(alpha: .78),
-                                          borderRadius: BorderRadius.circular(10),
+                                          color: scheme.primary
+                                              .withValues(alpha: .78),
+                                          borderRadius:
+                                              BorderRadius.circular(10),
                                         ),
                                       ),
                                     ),
@@ -3016,7 +3716,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                                       Align(
                                         alignment: Alignment.topRight,
                                         child: Icon(Icons.check_circle_rounded,
-                                          color: scheme.primary, size: 18),
+                                            color: scheme.primary, size: 18),
                                       ),
                                   ],
                                 ),
@@ -3024,10 +3724,18 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                             ),
                             const SizedBox(height: 6),
                             Text(preset['name']!,
-                              maxLines: 1, overflow: TextOverflow.ellipsis,
-                              style: Theme.of(sheetContext).textTheme.labelSmall?.copyWith(
-                                fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
-                                color: selected ? scheme.primary : scheme.onSurface)),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: Theme.of(sheetContext)
+                                    .textTheme
+                                    .labelSmall
+                                    ?.copyWith(
+                                        fontWeight: selected
+                                            ? FontWeight.w800
+                                            : FontWeight.w600,
+                                        color: selected
+                                            ? scheme.primary
+                                            : scheme.onSurface)),
                           ],
                         ),
                       );
@@ -3046,38 +3754,59 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                               imageQuality: 82,
                             );
                             if (picked == null || !sheetContext.mounted) return;
-                            if (mounted) setState(() => _uploadingAttachment = true);
+                            if (mounted)
+                              setState(() => _uploadingAttachment = true);
                             try {
                               final bytes = await picked.readAsBytes();
                               final url = await ApiService.uploadMedia(
-                                bytes, picked.name, _mimeForFile(picked.name),
+                                bytes,
+                                picked.name,
+                                _mimeForFile(picked.name),
                               );
-                              if (url == null) throw StateError('Wallpaper upload failed.');
+                              if (url == null)
+                                throw StateError('Wallpaper upload failed.');
                               if (!mounted || !sheetContext.mounted) return;
                               context.read<SocketService>().setChatWallpaper(
-                                url,
-                                widget.peer.uid.isNotEmpty ? widget.peer.uid : widget.peer.username,
-                              );
+                                    url,
+                                    widget.peer.uid.isNotEmpty
+                                        ? widget.peer.uid
+                                        : widget.peer.username,
+                                  );
                               Navigator.pop(sheetContext);
                             } catch (error) {
                               if (mounted) {
-                                NovynAlert.show(context, error is StateError ? error.message.toString() : 'Could not upload wallpaper. Please try again.', isError: true, title: 'Wallpaper upload failed', icon: Icons.wallpaper_rounded);
+                                NovynAlert.show(
+                                    context,
+                                    error is StateError
+                                        ? error.message.toString()
+                                        : 'Could not upload wallpaper. Please try again.',
+                                    isError: true,
+                                    title: 'Wallpaper upload failed',
+                                    icon: Icons.wallpaper_rounded);
                               }
                             } finally {
-                              if (mounted) setState(() => _uploadingAttachment = false);
+                              if (mounted)
+                                setState(() => _uploadingAttachment = false);
                             }
                           },
                     icon: _uploadingAttachment
-                        ? const SizedBox(width: 18, height: 18,
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
                             child: CircularProgressIndicator(strokeWidth: 2))
                         : Icon(Icons.photo_library_outlined),
-                    label: Text(_uploadingAttachment ? 'Uploading wallpaper…' : 'Choose from gallery'),
+                    label: Text(_uploadingAttachment
+                        ? 'Uploading wallpaper…'
+                        : 'Choose from gallery'),
                   ),
                 ),
                 const SizedBox(height: 4),
                 Center(
                   child: Text('Wallpaper is saved for this conversation.',
-                    style: Theme.of(sheetContext).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
+                      style: Theme.of(sheetContext)
+                          .textTheme
+                          .bodySmall
+                          ?.copyWith(color: scheme.onSurfaceVariant)),
                 ),
               ],
             ),
@@ -3133,7 +3862,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
           initiallyMuted: initiallyMuted,
           // Only the other participant's protection blocks exporting this chat.
           // Your own Stealth Mode protects your privacy without locking you out.
-          chatProtected: context.read<SocketService>().activeChatCaptureProtected,
+          chatProtected:
+              context.read<SocketService>().activeChatCaptureProtected,
           onVoiceCall: () {
             Navigator.pop(context);
             _startCall('voice');
@@ -3159,8 +3889,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
             _showQuickEmojiSettings();
           },
           initiallyBlocked: context.read<SocketService>().blockedUsers.any(
-            (name) => name.toLowerCase() == widget.peer.username.toLowerCase(),
-          ),
+                (name) =>
+                    name.toLowerCase() == widget.peer.username.toLowerCase(),
+              ),
           onMute: () async {
             final socket = context.read<SocketService>();
             final prefs = await SharedPreferences.getInstance();
@@ -3169,23 +3900,33 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
             socket.setMute(widget.peer.username, muted: nextMuted);
             await prefs.setBool(key, nextMuted);
             if (!mounted) return;
-            NovynToast.show(context, nextMuted
-                ? 'Notifications muted for this contact'
-                : 'Notifications unmuted for this contact');
+            NovynToast.show(
+                context,
+                nextMuted
+                    ? 'Notifications muted for this contact'
+                    : 'Notifications unmuted for this contact');
           },
           onBlock: () async {
             final socket = context.read<SocketService>();
             final blocked = socket.blockedUsers.any(
-              (name) => name.toLowerCase() == widget.peer.username.toLowerCase(),
+              (name) =>
+                  name.toLowerCase() == widget.peer.username.toLowerCase(),
             );
-            final result = await socket.setBlockedUser(widget.peer.username, blocked: !blocked);
+            final result = await socket.setBlockedUser(widget.peer.username,
+                blocked: !blocked);
             if (!mounted) return;
             if (result['ok'] == true) {
-              NovynAlert.showEvent(context, blocked
-                  ? NovynAlertEvent.userUnblocked(widget.peer.name)
-                  : NovynAlertEvent.userBlocked(widget.peer.name));
+              NovynAlert.showEvent(
+                  context,
+                  blocked
+                      ? NovynAlertEvent.userUnblocked(widget.peer.name)
+                      : NovynAlertEvent.userBlocked(widget.peer.name));
             } else {
-              NovynAlert.show(context, result['message']?.toString() ?? 'Could not update block status', isError: true);
+              NovynAlert.show(
+                  context,
+                  result['message']?.toString() ??
+                      'Could not update block status',
+                  isError: true);
             }
             if (result['ok'] == true) Navigator.pop(context);
           },
@@ -3196,7 +3937,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
             for (final message in oldMessages) {
               await HybridDbService.deleteMessage(message.id);
             }
-            await HybridDbService.setLastSync(widget.peer.username, DateTime.now());
+            await HybridDbService.setLastSync(
+                widget.peer.username, DateTime.now());
             if (mounted) {
               NovynAlert.showEvent(context, NovynAlertEvent.chatCleared);
             }
@@ -3227,9 +3969,14 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Export chat', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
+                      Text('Export chat',
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleLarge
+                              ?.copyWith(fontWeight: FontWeight.w800)),
                       const SizedBox(height: 6),
-                      Text('Choose a format to save this conversation.', style: Theme.of(context).textTheme.bodyMedium),
+                      Text('Choose a format to save this conversation.',
+                          style: Theme.of(context).textTheme.bodyMedium),
                       const SizedBox(height: 16),
                       ListTile(
                         leading: const Icon(Icons.description_outlined),
@@ -3254,14 +4001,21 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
             // never prevents you from exporting the full conversation.
             final peerProtectsChat =
                 context.read<SocketService>().activeChatCaptureProtected;
-            final messages = context.read<SocketService>().messages
+            final messages = context
+                .read<SocketService>()
+                .messages
                 .where((message) => !peerProtectsChat || message.isFromMe)
                 .toList();
             final title = 'Novyn chat with ${widget.peer.name}';
             final plainLines = messages.map((message) {
-              final sender = message.isFromMe ? 'You' : (widget.isGroup ? message.senderId : widget.peer.name);
-              final stamp = message.createdAt.toLocal().toString().substring(0, 16);
-              final body = message.text.trim().isNotEmpty ? message.text : '[Attachment]';
+              final sender = message.isFromMe
+                  ? 'You'
+                  : (widget.isGroup ? message.senderId : widget.peer.name);
+              final stamp =
+                  message.createdAt.toLocal().toString().substring(0, 16);
+              final body = message.text.trim().isNotEmpty
+                  ? message.text
+                  : '[Attachment]';
               return '[$stamp] $sender: $body';
             }).join('\n');
 
@@ -3274,8 +4028,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
 
             final htmlMessages = messages.map((message) {
               final sender = message.isFromMe ? 'You' : widget.peer.name;
-              final stamp = message.createdAt.toLocal().toString().substring(0, 16);
-              final body = message.text.trim().isNotEmpty ? message.text : '[Attachment]';
+              final stamp =
+                  message.createdAt.toLocal().toString().substring(0, 16);
+              final body = message.text.trim().isNotEmpty
+                  ? message.text
+                  : '[Attachment]';
               return '<article class="message ${message.isFromMe ? 'mine' : ''}"><span class="meta">${escapeHtml(sender)} · ${escapeHtml(stamp)}</span>${escapeHtml(body)}</article>';
             }).join('\\n');
 
@@ -3299,18 +4056,26 @@ ${htmlMessages}
 
             try {
               final directory = await getTemporaryDirectory();
-              final safeName = widget.peer.username.replaceAll(RegExp(r'[^a-zA-Z0-9_-]'), '_');
+              final safeName = widget.peer.username
+                  .replaceAll(RegExp(r'[^a-zA-Z0-9_-]'), '_');
               final extension = format == 'html' ? 'html' : 'txt';
-              final file = File('${directory.path}/novyn_chat_$safeName.$extension');
+              final file =
+                  File('${directory.path}/novyn_chat_$safeName.$extension');
               await file.writeAsString(content, flush: true);
               await Share.shareXFiles(
-                [XFile(file.path, mimeType: format == 'html' ? 'text/html' : 'text/plain')],
+                [
+                  XFile(file.path,
+                      mimeType: format == 'html' ? 'text/html' : 'text/plain')
+                ],
                 text: title,
                 subject: title,
               );
             } catch (error) {
               if (mounted) {
-                NovynAlert.show(context, 'Could not export chat: $error', isError: true, title: 'Chat export failed', icon: Icons.ios_share_rounded);
+                NovynAlert.show(context, 'Could not export chat: $error',
+                    isError: true,
+                    title: 'Chat export failed',
+                    icon: Icons.ios_share_rounded);
               }
             }
           },
@@ -3322,44 +4087,103 @@ ${htmlMessages}
 
 // ── Message Bubble ─────────────────────────────────────────────────────────
 class _MessageBubble extends StatelessWidget {
-  static final Map<String, Future<Map<String, dynamic>?>> _linkPreviewCache = {};
+  static final Map<String, Future<Map<String, dynamic>?>> _linkPreviewCache =
+      {};
 
   String? _extractFirstUrl(String text) {
-    return RegExp(r'https?://\S+', caseSensitive: false).firstMatch(text)?.group(0);
+    return RegExp(r'https?://\S+', caseSensitive: false)
+        .firstMatch(text)
+        ?.group(0);
   }
 
   Widget _buildLinkPreview(BuildContext context, String url) {
-    final future = _linkPreviewCache.putIfAbsent(url, () => ApiService.getLinkPreview(url));
-    return FutureBuilder<Map<String, dynamic>?>(future: future, builder: (context, snapshot) {
-      final data = snapshot.data;
-      if (data == null || ((data['title']?.toString().isEmpty ?? true) && (data['image']?.toString().isEmpty ?? true))) return const SizedBox.shrink();
-      final image = data['image']?.toString() ?? '';
-      return InkWell(
-        onTap: () => launchUrl(Uri.parse(data['url']?.toString() ?? url), mode: LaunchMode.externalApplication),
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          width: 245,
-          margin: const EdgeInsets.only(top: 8),
-          clipBehavior: Clip.antiAlias,
-          decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.06), borderRadius: BorderRadius.circular(12), border: Border.all(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.12))),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            if (image.isNotEmpty) Image.network(image, width: 245, height: 112, fit: BoxFit.cover, errorBuilder: (_, __, ___) => const SizedBox.shrink()),
-            Padding(
-              padding: const EdgeInsets.all(10),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(data['siteName']?.toString() ?? data['domain']?.toString() ?? 'Link', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 10 * context.watch<SettingsService>().chatLabelSize, fontWeight: FontWeight.w700, color: Color(0xFF94A3B8))),
-                const SizedBox(height: 4),
-                Text(data['title']?.toString() ?? url, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 12 * context.watch<SettingsService>().chatLabelSize, fontWeight: FontWeight.w700)),
-                if ((data['description']?.toString() ?? '').isNotEmpty) ...[
-                  const SizedBox(height: 3),
-                  Text(data['description'].toString(), maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 10 * context.watch<SettingsService>().chatLabelSize, color: Color(0xFF94A3B8))),
-                ],
-              ]),
+    final future = _linkPreviewCache.putIfAbsent(
+        url, () => ApiService.getLinkPreview(url));
+    return FutureBuilder<Map<String, dynamic>?>(
+        future: future,
+        builder: (context, snapshot) {
+          final data = snapshot.data;
+          if (data == null ||
+              ((data['title']?.toString().isEmpty ?? true) &&
+                  (data['image']?.toString().isEmpty ?? true)))
+            return const SizedBox.shrink();
+          final image = data['image']?.toString() ?? '';
+          return InkWell(
+            onTap: () => launchUrl(Uri.parse(data['url']?.toString() ?? url),
+                mode: LaunchMode.externalApplication),
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              width: 245,
+              margin: const EdgeInsets.only(top: 8),
+              clipBehavior: Clip.antiAlias,
+              decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.06),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                      color: Theme.of(context)
+                          .colorScheme
+                          .onSurface
+                          .withValues(alpha: 0.12))),
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (image.isNotEmpty)
+                      Image.network(image,
+                          width: 245,
+                          height: 112,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) =>
+                              const SizedBox.shrink()),
+                    Padding(
+                      padding: const EdgeInsets.all(10),
+                      child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                                data['siteName']?.toString() ??
+                                    data['domain']?.toString() ??
+                                    'Link',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                    fontFamily: 'PlusJakartaSans',
+                                    fontSize: 10 *
+                                        context
+                                            .watch<SettingsService>()
+                                            .chatLabelSize,
+                                    fontWeight: FontWeight.w700,
+                                    color: Color(0xFF94A3B8))),
+                            const SizedBox(height: 4),
+                            Text(data['title']?.toString() ?? url,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                    fontFamily: 'PlusJakartaSans',
+                                    fontSize: 12 *
+                                        context
+                                            .watch<SettingsService>()
+                                            .chatLabelSize,
+                                    fontWeight: FontWeight.w700)),
+                            if ((data['description']?.toString() ?? '')
+                                .isNotEmpty) ...[
+                              const SizedBox(height: 3),
+                              Text(data['description'].toString(),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                      fontFamily: 'PlusJakartaSans',
+                                      fontSize: 10 *
+                                          context
+                                              .watch<SettingsService>()
+                                              .chatLabelSize,
+                                      color: Color(0xFF94A3B8))),
+                            ],
+                          ]),
+                    ),
+                  ]),
             ),
-          ]),
-        ),
-      );
-    });
+          );
+        });
   }
 
   final dynamic message;
@@ -3385,7 +4209,8 @@ class _MessageBubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isMe = message.isFromMe as bool;
-    final time = _formatTime(message.createdAt, context.read<SettingsService>().timeFormat);
+    final time = _formatTime(
+        message.createdAt, context.read<SettingsService>().timeFormat);
     final reactions = Map<String, String>.from(message.reactions ?? {});
     final labelScale = context.watch<SettingsService>().chatLabelSize;
 
@@ -3497,7 +4322,9 @@ class _MessageBubble extends StatelessWidget {
                             decoration: BoxDecoration(
                               color: isMe
                                   ? Colors.white.withValues(alpha: 0.15)
-                                  : Theme.of(context).colorScheme.primary
+                                  : Theme.of(context)
+                                      .colorScheme
+                                      .primary
                                       .withValues(alpha: 0.08),
                               borderRadius: BorderRadius.circular(8),
                               border: Border(
@@ -3516,7 +4343,10 @@ class _MessageBubble extends StatelessWidget {
                                   message.replyToSender ?? '',
                                   style: TextStyle(
                                     fontFamily: 'PlusJakartaSans',
-                                    fontSize: 11 * context.watch<SettingsService>().chatLabelSize,
+                                    fontSize: 11 *
+                                        context
+                                            .watch<SettingsService>()
+                                            .chatLabelSize,
                                     fontWeight: FontWeight.w700,
                                     color: isMe
                                         ? Colors.white.withValues(alpha: 0.9)
@@ -3528,7 +4358,10 @@ class _MessageBubble extends StatelessWidget {
                                   message.replyToText ?? '',
                                   style: TextStyle(
                                     fontFamily: 'PlusJakartaSans',
-                                    fontSize: 12 * context.watch<SettingsService>().chatLabelSize,
+                                    fontSize: 12 *
+                                        context
+                                            .watch<SettingsService>()
+                                            .chatLabelSize,
                                     color: isMe
                                         ? Colors.white.withValues(alpha: 0.7)
                                         : const Color(0xFF64748B),
@@ -3548,16 +4381,25 @@ class _MessageBubble extends StatelessWidget {
                               children: [
                                 Icon(Icons.push_pin_rounded, size: 11),
                                 SizedBox(width: 4),
-                                Text('Pinned message', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 10 * context.watch<SettingsService>().chatLabelSize, fontWeight: FontWeight.w700)),
+                                Text('Pinned message',
+                                    style: TextStyle(
+                                        fontFamily: 'PlusJakartaSans',
+                                        fontSize: 10 *
+                                            context
+                                                .watch<SettingsService>()
+                                                .chatLabelSize,
+                                        fontWeight: FontWeight.w700)),
                               ],
                             ),
                           ),
                         if (message.game is Map) ...[
                           GameMessageCard(
                             messageId: message.id.toString(),
-                            game: Map<String, dynamic>.from(message.game as Map),
+                            game:
+                                Map<String, dynamic>.from(message.game as Map),
                             currentUsername: myUid,
-                            peerUsername: peer.uid.isNotEmpty ? peer.uid : peer.username,
+                            peerUsername:
+                                peer.uid.isNotEmpty ? peer.uid : peer.username,
                             isGroup: isGroup,
                           ),
                           const SizedBox(height: 6),
@@ -3566,9 +4408,12 @@ class _MessageBubble extends StatelessWidget {
                           RiddleMessageCard(
                             messageId: message.id.toString(),
                             fromUsername: isGroup
-                                ? (peer.uid.isNotEmpty ? peer.uid : peer.username)
+                                ? (peer.uid.isNotEmpty
+                                    ? peer.uid
+                                    : peer.username)
                                 : message.senderId.toString(),
-                            riddle: Map<String, dynamic>.from(message.riddle as Map),
+                            riddle: Map<String, dynamic>.from(
+                                message.riddle as Map),
                             isMe: isMe,
                             isGroup: isGroup,
                           ),
@@ -3578,29 +4423,39 @@ class _MessageBubble extends StatelessWidget {
                           _buildPollCard(context, message.poll as Map),
                           const SizedBox(height: 6),
                         ],
-                        if (message.attachment is Map && message.attachment['url'] != null) ...[
-                          _buildAttachmentPreview(context, message.attachment as Map),
+                        if (message.attachment is Map &&
+                            message.attachment['url'] != null) ...[
+                          _buildAttachmentPreview(
+                              context, message.attachment as Map),
                           const SizedBox(height: 6),
                         ],
                         if ((message.text as String).isNotEmpty &&
                             !((message.attachment is Map) &&
-                                (message.attachment['kind']?.toString().toLowerCase() == 'image' ||
-                                    message.attachment['mime']?.toString().toLowerCase().startsWith('image/') == true) &&
+                                (message.attachment['kind']
+                                            ?.toString()
+                                            .toLowerCase() ==
+                                        'image' ||
+                                    message.attachment['mime']
+                                            ?.toString()
+                                            .toLowerCase()
+                                            .startsWith('image/') ==
+                                        true) &&
                                 (message.text as String).trim() == '[Image]'))
                           Text(
-                          novynEmojiText(message.text as String),
-                          style: TextStyle(
-                            fontFamily: 'PlusJakartaSans',
-                            fontSize: 15,
-                            height: 1.35,
-                            color: isMe
-                                ? Colors.white
-                                : Theme.of(context).colorScheme.onSurface,
+                            novynEmojiText(message.text as String),
+                            style: TextStyle(
+                              fontFamily: 'PlusJakartaSans',
+                              fontSize: 15,
+                              height: 1.35,
+                              color: isMe
+                                  ? Colors.white
+                                  : Theme.of(context).colorScheme.onSurface,
+                            ),
                           ),
-                        ),
                         if (context.watch<SettingsService>().chatLinkPreviews &&
                             _extractFirstUrl(message.text as String) != null)
-                          _buildLinkPreview(context, _extractFirstUrl(message.text as String)!),
+                          _buildLinkPreview(context,
+                              _extractFirstUrl(message.text as String)!),
                         if (message.edited == true)
                           Padding(
                             padding: const EdgeInsets.only(top: 2),
@@ -3608,7 +4463,10 @@ class _MessageBubble extends StatelessWidget {
                               'edited',
                               style: TextStyle(
                                 fontFamily: 'PlusJakartaSans',
-                                fontSize: 10 * context.watch<SettingsService>().chatLabelSize,
+                                fontSize: 10 *
+                                    context
+                                        .watch<SettingsService>()
+                                        .chatLabelSize,
                                 fontStyle: FontStyle.italic,
                                 color: isMe
                                     ? Colors.white.withValues(alpha: 0.5)
@@ -3644,7 +4502,8 @@ class _MessageBubble extends StatelessWidget {
                           'edited',
                           style: TextStyle(
                             fontFamily: 'PlusJakartaSans',
-                            fontSize: 10 * context.watch<SettingsService>().chatLabelSize,
+                            fontSize: 10 *
+                                context.watch<SettingsService>().chatLabelSize,
                             fontStyle: FontStyle.italic,
                             color: Color(0xFF94A3B8),
                           ),
@@ -3654,7 +4513,8 @@ class _MessageBubble extends StatelessWidget {
                       time,
                       style: TextStyle(
                         fontFamily: 'PlusJakartaSans',
-                        fontSize: 10 * context.watch<SettingsService>().chatLabelSize,
+                        fontSize:
+                            10 * context.watch<SettingsService>().chatLabelSize,
                         color: Color(0xFF94A3B8),
                       ),
                     ),
@@ -3674,7 +4534,8 @@ class _MessageBubble extends StatelessWidget {
   }
 
   void _showReactionPicker(BuildContext context) {
-    HapticService.vibrate(NovynHapticType.medium, category: HapticCategory.chat);
+    HapticService.vibrate(NovynHapticType.medium,
+        category: HapticCategory.chat);
     const emojis = ['❤️', '😂', '😮', '😢', '👍', '🔥'];
     final scheme = Theme.of(context).colorScheme;
     final canCopy = message.text.toString().trim().isNotEmpty &&
@@ -3687,22 +4548,36 @@ class _MessageBubble extends StatelessWidget {
     final timeFormat = context.read<SettingsService>().timeFormat;
     final sentAt = message.createdAt as DateTime;
 
-    Widget statusLine(IconData icon, String label, DateTime? timestamp, {bool active = true}) {
-      final color = active ? const Color(0xFF128C7E) : scheme.onSurfaceVariant.withValues(alpha: .55);
+    Widget statusLine(IconData icon, String label, DateTime? timestamp,
+        {bool active = true}) {
+      final color = active
+          ? const Color(0xFF128C7E)
+          : scheme.onSurfaceVariant.withValues(alpha: .55);
       return Padding(
         padding: const EdgeInsets.only(top: 7),
         child: Row(
           children: [
             Icon(icon, size: 15, color: color),
             const SizedBox(width: 8),
-            Expanded(child: Text(label, style: TextStyle(
-              fontFamily: 'PlusJakartaSans', fontSize: 11,
-              fontWeight: FontWeight.w600, color: scheme.onSurfaceVariant,
-            ))),
+            Expanded(
+                child: Text(label,
+                    style: TextStyle(
+                      fontFamily: 'PlusJakartaSans',
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: scheme.onSurfaceVariant,
+                    ))),
             Text(
-              timestamp == null ? (active ? 'Recorded' : '—') : _formatTime(timestamp, timeFormat),
-              style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 11,
-                fontWeight: FontWeight.w700, color: active ? scheme.onSurface : scheme.onSurfaceVariant.withValues(alpha: .55)),
+              timestamp == null
+                  ? (active ? 'Recorded' : '—')
+                  : _formatTime(timestamp, timeFormat),
+              style: TextStyle(
+                  fontFamily: 'PlusJakartaSans',
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: active
+                      ? scheme.onSurface
+                      : scheme.onSurfaceVariant.withValues(alpha: .55)),
             ),
           ],
         ),
@@ -3722,15 +4597,20 @@ class _MessageBubble extends StatelessWidget {
         return SafeArea(
           child: Container(
             margin: const EdgeInsets.fromLTRB(10, 0, 10, 10),
-            constraints: BoxConstraints(maxHeight: MediaQuery.of(sheetContext).size.height * .90),
+            constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(sheetContext).size.height * .90),
             decoration: BoxDecoration(
               color: sheetScheme.surface,
               borderRadius: BorderRadius.circular(28),
-              border: Border.all(color: sheetScheme.outlineVariant.withValues(alpha: .65)),
-              boxShadow: [BoxShadow(
-                color: Colors.black.withValues(alpha: .20),
-                blurRadius: 28, offset: const Offset(0, -6),
-              )],
+              border: Border.all(
+                  color: sheetScheme.outlineVariant.withValues(alpha: .65)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: .20),
+                  blurRadius: 28,
+                  offset: const Offset(0, -6),
+                )
+              ],
             ),
             child: SingleChildScrollView(
               padding: const EdgeInsets.fromLTRB(18, 12, 18, 20),
@@ -3738,8 +4618,10 @@ class _MessageBubble extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Center(child: Container(
-                    width: 38, height: 4,
+                  Center(
+                      child: Container(
+                    width: 38,
+                    height: 4,
                     decoration: BoxDecoration(
                       color: sheetScheme.onSurfaceVariant.withValues(alpha: .3),
                       borderRadius: BorderRadius.circular(4),
@@ -3747,44 +4629,66 @@ class _MessageBubble extends StatelessWidget {
                   )),
                   const SizedBox(height: 15),
                   Row(children: [
-                    Expanded(child: Text('Message options', style: TextStyle(
-                      fontFamily: 'PlusJakartaSans', fontSize: 19,
-                      fontWeight: FontWeight.w800, color: sheetScheme.onSurface,
-                    ))),
+                    Expanded(
+                        child: Text('Message options',
+                            style: TextStyle(
+                              fontFamily: 'PlusJakartaSans',
+                              fontSize: 19,
+                              fontWeight: FontWeight.w800,
+                              color: sheetScheme.onSurface,
+                            ))),
                     IconButton(
                       visualDensity: VisualDensity.compact,
                       onPressed: () => Navigator.pop(sheetContext),
-                      icon: Icon(Icons.close_rounded, color: sheetScheme.onSurfaceVariant),
+                      icon: Icon(Icons.close_rounded,
+                          color: sheetScheme.onSurfaceVariant),
                     ),
                   ]),
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: sheetScheme.surfaceContainerHighest.withValues(alpha: .55),
+                      color: sheetScheme.surfaceContainerHighest
+                          .withValues(alpha: .55),
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: sheetScheme.outlineVariant.withValues(alpha: .5)),
+                      border: Border.all(
+                          color:
+                              sheetScheme.outlineVariant.withValues(alpha: .5)),
                     ),
-                    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Container(
-                        width: 3, height: 38,
-                        decoration: BoxDecoration(color: sheetScheme.primary, borderRadius: BorderRadius.circular(3)),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(child: Column(
+                    child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(message.isFromMe ? 'You' : peer.name, style: TextStyle(
-                            fontFamily: 'PlusJakartaSans', fontSize: 11,
-                            fontWeight: FontWeight.w800, color: sheetScheme.primary,
+                          Container(
+                            width: 3,
+                            height: 38,
+                            decoration: BoxDecoration(
+                                color: sheetScheme.primary,
+                                borderRadius: BorderRadius.circular(3)),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                              child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(message.isFromMe ? 'You' : peer.name,
+                                  style: TextStyle(
+                                    fontFamily: 'PlusJakartaSans',
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w800,
+                                    color: sheetScheme.primary,
+                                  )),
+                              const SizedBox(height: 3),
+                              Text(preview,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontFamily: 'PlusJakartaSans',
+                                    fontSize: 13,
+                                    color: sheetScheme.onSurface,
+                                  )),
+                            ],
                           )),
-                          const SizedBox(height: 3),
-                          Text(preview, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(
-                            fontFamily: 'PlusJakartaSans', fontSize: 13, color: sheetScheme.onSurface,
-                          )),
-                        ],
-                      )),
-                    ]),
+                        ]),
                   ),
                   if (message.isFromMe as bool) ...[
                     const SizedBox(height: 12),
@@ -3794,59 +4698,85 @@ class _MessageBubble extends StatelessWidget {
                       decoration: BoxDecoration(
                         color: sheetScheme.surfaceContainerLow,
                         borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: sheetScheme.outlineVariant.withValues(alpha: .55)),
+                        border: Border.all(
+                            color: sheetScheme.outlineVariant
+                                .withValues(alpha: .55)),
                       ),
-                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Text('MESSAGE INFO', style: TextStyle(
-                          fontFamily: 'PlusJakartaSans', fontSize: 9,
-                          letterSpacing: 1.1, fontWeight: FontWeight.w800,
-                          color: sheetScheme.onSurfaceVariant,
-                        )),
-                        statusLine(Icons.check_rounded, 'Sent', sentAt),
-                        statusLine(Icons.done_all_rounded, 'Delivered', deliveredAt,
-                          active: status == 'delivered' || status == 'seen'),
-                        statusLine(Icons.done_all_rounded, 'Seen', seenAt, active: status == 'seen'),
-                      ]),
+                      child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('MESSAGE INFO',
+                                style: TextStyle(
+                                  fontFamily: 'PlusJakartaSans',
+                                  fontSize: 9,
+                                  letterSpacing: 1.1,
+                                  fontWeight: FontWeight.w800,
+                                  color: sheetScheme.onSurfaceVariant,
+                                )),
+                            statusLine(Icons.check_rounded, 'Sent', sentAt),
+                            statusLine(Icons.done_all_rounded, 'Delivered',
+                                deliveredAt,
+                                active:
+                                    status == 'delivered' || status == 'seen'),
+                            statusLine(Icons.done_all_rounded, 'Seen', seenAt,
+                                active: status == 'seen'),
+                          ]),
                     ),
                   ],
                   const SizedBox(height: 14),
-                  Text('QUICK REACTIONS', style: TextStyle(
-                    fontFamily: 'PlusJakartaSans', fontSize: 9,
-                    letterSpacing: 1.1, fontWeight: FontWeight.w800,
-                    color: sheetScheme.onSurfaceVariant,
-                  )),
+                  Text('QUICK REACTIONS',
+                      style: TextStyle(
+                        fontFamily: 'PlusJakartaSans',
+                        fontSize: 9,
+                        letterSpacing: 1.1,
+                        fontWeight: FontWeight.w800,
+                        color: sheetScheme.onSurfaceVariant,
+                      )),
                   const SizedBox(height: 8),
                   Row(
-                    children: emojis.map((emoji) => Expanded(child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 3),
-                      child: Material(
-                        color: sheetScheme.surfaceContainerHighest.withValues(alpha: .7),
-                        borderRadius: BorderRadius.circular(14),
-                        child: InkWell(
-                          borderRadius: BorderRadius.circular(14),
-                          onTap: () {
-                            Navigator.pop(sheetContext);
-                            _toggleReaction(context, emoji);
-                          },
-                          child: SizedBox(height: 46, child: Center(
-                            child: Text(emoji, style: const TextStyle(fontSize: 23)),
-                          )),
-                        ),
-                      ),
-                    ))).toList(),
+                    children: emojis
+                        .map((emoji) => Expanded(
+                                child: Padding(
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 3),
+                              child: Material(
+                                color: sheetScheme.surfaceContainerHighest
+                                    .withValues(alpha: .7),
+                                borderRadius: BorderRadius.circular(14),
+                                child: InkWell(
+                                  borderRadius: BorderRadius.circular(14),
+                                  onTap: () {
+                                    Navigator.pop(sheetContext);
+                                    _toggleReaction(context, emoji);
+                                  },
+                                  child: SizedBox(
+                                      height: 46,
+                                      child: Center(
+                                        child: Text(emoji,
+                                            style:
+                                                const TextStyle(fontSize: 23)),
+                                      )),
+                                ),
+                              ),
+                            )))
+                        .toList(),
                   ),
                   const SizedBox(height: 12),
-                  Divider(height: 1, color: sheetScheme.outlineVariant.withValues(alpha: .7)),
+                  Divider(
+                      height: 1,
+                      color: sheetScheme.outlineVariant.withValues(alpha: .7)),
                   if (canCopy)
                     _ActionItem(
                       icon: Icons.copy_rounded,
                       label: 'Copy text',
                       color: sheetScheme.primary,
                       onTap: () async {
-                        await Clipboard.setData(ClipboardData(text: message.text.toString()));
+                        await Clipboard.setData(
+                            ClipboardData(text: message.text.toString()));
                         if (!sheetContext.mounted) return;
                         Navigator.pop(sheetContext);
-                        NovynAlert.showEvent(context, NovynAlertEvent.textCopied);
+                        NovynAlert.showEvent(
+                            context, NovynAlertEvent.textCopied);
                       },
                     ),
                   _ActionItem(
@@ -3870,23 +4800,33 @@ class _MessageBubble extends StatelessWidget {
                   _ActionItem(
                     icon: Icons.push_pin_outlined,
                     label: (message.pinnedAt?.toString().isNotEmpty ?? false)
-                        ? 'Unpin message' : 'Pin message',
+                        ? 'Unpin message'
+                        : 'Pin message',
                     color: sheetScheme.onSurfaceVariant,
                     onTap: () {
                       Navigator.pop(sheetContext);
                       if (message.pinnedAt?.toString().isNotEmpty ?? false) {
-                        socket.unpinMessage(message.id.toString(), peer.uid.isNotEmpty ? peer.uid : peer.username);
-                        NovynAlert.show(context, 'Removed from the top of this chat.', title: 'Message unpinned', icon: Icons.push_pin_outlined, tone: NovynAlertTone.neutral);
+                        socket.unpinMessage(message.id.toString(),
+                            peer.uid.isNotEmpty ? peer.uid : peer.username);
+                        NovynAlert.show(
+                            context, 'Removed from the top of this chat.',
+                            title: 'Message unpinned',
+                            icon: Icons.push_pin_outlined,
+                            tone: NovynAlertTone.neutral);
                       } else {
-                        socket.pinMessage(message.id.toString(), peer.uid.isNotEmpty ? peer.uid : peer.username);
-                        NovynAlert.showEvent(context, NovynAlertEvent.messagePinned);
+                        socket.pinMessage(message.id.toString(),
+                            peer.uid.isNotEmpty ? peer.uid : peer.username);
+                        NovynAlert.showEvent(
+                            context, NovynAlertEvent.messagePinned);
                       }
                     },
                   ),
                   if (message.isFromMe as bool) ...[
-                    if (!(message.id as String).startsWith('tmp_') && !message.isEncrypted)
+                    if (!(message.id as String).startsWith('tmp_') &&
+                        !message.isEncrypted)
                       _ActionItem(
-                        icon: Icons.edit_rounded, label: 'Edit',
+                        icon: Icons.edit_rounded,
+                        label: 'Edit',
                         color: const Color(0xFF0EA5E9),
                         onTap: () {
                           Navigator.pop(sheetContext);
@@ -3894,7 +4834,8 @@ class _MessageBubble extends StatelessWidget {
                         },
                       ),
                     _ActionItem(
-                      icon: Icons.delete_rounded, label: 'Delete for everyone',
+                      icon: Icons.delete_rounded,
+                      label: 'Delete for everyone',
                       color: const Color(0xFFEF4444),
                       onTap: () {
                         Navigator.pop(sheetContext);
@@ -3922,7 +4863,8 @@ class _MessageBubble extends StatelessWidget {
 
   Widget _buildPollCard(BuildContext context, Map poll) {
     final rawOptions = poll['options'];
-    final options = rawOptions is List ? rawOptions.whereType<Map>().toList() : <Map>[];
+    final options =
+        rawOptions is List ? rawOptions.whereType<Map>().toList() : <Map>[];
     final scheme = Theme.of(context).colorScheme;
     final totalVotes = options.fold<int>(0, (sum, option) {
       final votes = option['votes'];
@@ -3943,45 +4885,83 @@ class _MessageBubble extends StatelessWidget {
             children: [
               Icon(Icons.poll_rounded, size: 17),
               const SizedBox(width: 7),
-              Text('POLL', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 10 * context.watch<SettingsService>().chatLabelSize, fontWeight: FontWeight.w800, letterSpacing: 1)),
+              Text('POLL',
+                  style: TextStyle(
+                      fontFamily: 'PlusJakartaSans',
+                      fontSize:
+                          10 * context.watch<SettingsService>().chatLabelSize,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1)),
               const Spacer(),
-              Text('$totalVotes votes', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 10 * context.watch<SettingsService>().chatLabelSize, color: scheme.onSurfaceVariant)),
+              Text('$totalVotes votes',
+                  style: TextStyle(
+                      fontFamily: 'PlusJakartaSans',
+                      fontSize:
+                          10 * context.watch<SettingsService>().chatLabelSize,
+                      color: scheme.onSurfaceVariant)),
             ],
           ),
           const SizedBox(height: 8),
           Text(
             poll['question']?.toString() ?? 'Poll',
-            style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 14, fontWeight: FontWeight.w700),
+            style: TextStyle(
+                fontFamily: 'PlusJakartaSans',
+                fontSize: 14,
+                fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 10),
           ...options.map((option) {
-            final votes = option['votes'] is List ? List<String>.from(option['votes'].map((v) => v.toString())) : <String>[];
+            final votes = option['votes'] is List
+                ? List<String>.from(option['votes'].map((v) => v.toString()))
+                : <String>[];
             final count = votes.length;
-            final selected = votes.any((vote) => vote.toLowerCase() == myUid.toLowerCase());
+            final selected =
+                votes.any((vote) => vote.toLowerCase() == myUid.toLowerCase());
             final ratio = totalVotes == 0 ? 0.0 : count / totalVotes;
             return Padding(
               padding: const EdgeInsets.only(bottom: 7),
               child: InkWell(
                 onTap: () => context.read<SocketService>().votePoll(
-                  message.id.toString(),
-                  option['id']?.toString() ?? '',
-                  peer.uid.isNotEmpty ? peer.uid : peer.username,
-                  isGroup: isGroup,
-                ),
+                      message.id.toString(),
+                      option['id']?.toString() ?? '',
+                      peer.uid.isNotEmpty ? peer.uid : peer.username,
+                      isGroup: isGroup,
+                    ),
                 borderRadius: BorderRadius.circular(9),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 9),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 9, vertical: 9),
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(9),
-                    border: Border.all(color: selected ? scheme.primary : scheme.outlineVariant),
+                    border: Border.all(
+                        color:
+                            selected ? scheme.primary : scheme.outlineVariant),
                   ),
                   child: Column(
                     children: [
                       Row(
                         children: [
-                          Expanded(child: Text(option['text']?.toString() ?? '', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 12 * context.watch<SettingsService>().chatLabelSize, fontWeight: FontWeight.w600))),
-                          Text('$count', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 11 * context.watch<SettingsService>().chatLabelSize, color: Color(0xFF94A3B8))),
-                          if (selected) const Padding(padding: EdgeInsets.only(left: 5), child: Icon(Icons.check_circle, size: 14)),
+                          Expanded(
+                              child: Text(option['text']?.toString() ?? '',
+                                  style: TextStyle(
+                                      fontFamily: 'PlusJakartaSans',
+                                      fontSize: 12 *
+                                          context
+                                              .watch<SettingsService>()
+                                              .chatLabelSize,
+                                      fontWeight: FontWeight.w600))),
+                          Text('$count',
+                              style: TextStyle(
+                                  fontFamily: 'PlusJakartaSans',
+                                  fontSize: 11 *
+                                      context
+                                          .watch<SettingsService>()
+                                          .chatLabelSize,
+                                  color: Color(0xFF94A3B8))),
+                          if (selected)
+                            const Padding(
+                                padding: EdgeInsets.only(left: 5),
+                                child: Icon(Icons.check_circle, size: 14)),
                         ],
                       ),
                       const SizedBox(height: 5),
@@ -3999,22 +4979,41 @@ class _MessageBubble extends StatelessWidget {
               ),
             );
           }),
-          const Text('Tap an option to vote or change your vote', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 9, color: Color(0xFF94A3B8))),
+          const Text('Tap an option to vote or change your vote',
+              style: TextStyle(
+                  fontFamily: 'PlusJakartaSans',
+                  fontSize: 9,
+                  color: Color(0xFF94A3B8))),
         ],
       ),
     );
   }
 
-  Future<void> _downloadAttachment(BuildContext context, String url, String name) async {
+  Future<void> _downloadAttachment(
+      BuildContext context, String url, String name) async {
     try {
       final file = await ApiService.downloadMedia(url, name);
-      final kind = _mimeForFile(name).startsWith('image/') ? 'image' : _mimeForFile(name).startsWith('video/') ? 'video' : 'file';
+      final kind = _mimeForFile(name).startsWith('image/')
+          ? 'image'
+          : _mimeForFile(name).startsWith('video/')
+              ? 'video'
+              : 'file';
       final saved = await MediaStorageService.exportToDevice(file, kind);
       if (!context.mounted || !saved) return;
-      NovynAlert.show(context, kind == 'image' || kind == 'video' ? 'Saved to your Gallery and Novyn Downloads.' : 'Saved using the system Files picker.', title: 'Saved', icon: Icons.download_done_rounded, tone: NovynAlertTone.success);
+      NovynAlert.show(
+          context,
+          kind == 'image' || kind == 'video'
+              ? 'Saved to your Gallery and Novyn Downloads.'
+              : 'Saved using the system Files picker.',
+          title: 'Saved',
+          icon: Icons.download_done_rounded,
+          tone: NovynAlertTone.success);
     } catch (error) {
       if (!context.mounted) return;
-      NovynAlert.show(context, 'Download failed: ' + error.toString(), isError: true, title: 'Download failed', icon: Icons.download_rounded);
+      NovynAlert.show(context, 'Download failed: ' + error.toString(),
+          isError: true,
+          title: 'Download failed',
+          icon: Icons.download_rounded);
     }
   }
 
@@ -4029,13 +5028,20 @@ class _MessageBubble extends StatelessWidget {
     final fileHint = name.toLowerCase();
     final isImage = rawKind == 'image' ||
         mime.startsWith('image/') ||
-        const ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.heic']
-            .any((extension) => mediaPath.endsWith(extension) || fileHint.endsWith(extension));
+        const ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.heic'].any(
+            (extension) =>
+                mediaPath.endsWith(extension) || fileHint.endsWith(extension));
     final isVideo = rawKind == 'video' ||
         mime.startsWith('video/') ||
-        const ['.mp4', '.mov', '.webm', '.m4v']
-            .any((extension) => mediaPath.endsWith(extension) || fileHint.endsWith(extension));
-    final kind = isImage ? 'image' : isVideo ? 'video' : rawKind.isNotEmpty ? rawKind : 'file';
+        const ['.mp4', '.mov', '.webm', '.m4v'].any((extension) =>
+            mediaPath.endsWith(extension) || fileHint.endsWith(extension));
+    final kind = isImage
+        ? 'image'
+        : isVideo
+            ? 'video'
+            : rawKind.isNotEmpty
+                ? rawKind
+                : 'file';
 
     if (kind == 'audio' && url.isNotEmpty) {
       return Column(
@@ -4063,7 +5069,8 @@ class _MessageBubble extends StatelessWidget {
         decoration: BoxDecoration(
           color: scheme.surfaceContainerHighest.withValues(alpha: 0.42),
           borderRadius: BorderRadius.circular(17),
-          border: Border.all(color: scheme.outlineVariant.withValues(alpha: 0.55)),
+          border:
+              Border.all(color: scheme.outlineVariant.withValues(alpha: 0.55)),
         ),
         padding: const EdgeInsets.all(4),
         child: ClipRRect(
@@ -4088,13 +5095,15 @@ class _MessageBubble extends StatelessWidget {
                             leading: IconButton(
                               tooltip: 'Close image',
                               icon: const Icon(Icons.close_rounded),
-                              onPressed: () => Navigator.of(viewerContext).pop(),
+                              onPressed: () =>
+                                  Navigator.of(viewerContext).pop(),
                             ),
                             actions: [
                               IconButton(
                                 tooltip: 'Download image',
                                 icon: const Icon(Icons.download_rounded),
-                                onPressed: () => _downloadAttachment(context, url, name),
+                                onPressed: () =>
+                                    _downloadAttachment(context, url, name),
                               ),
                               const SizedBox(width: 8),
                             ],
@@ -4110,9 +5119,12 @@ class _MessageBubble extends StatelessWidget {
                                 errorBuilder: (_, __, ___) => const Column(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    Icon(Icons.broken_image_outlined, color: Colors.white70, size: 42),
+                                    Icon(Icons.broken_image_outlined,
+                                        color: Colors.white70, size: 42),
                                     SizedBox(height: 10),
-                                    Text('Image unavailable', style: TextStyle(color: Colors.white70)),
+                                    Text('Image unavailable',
+                                        style:
+                                            TextStyle(color: Colors.white70)),
                                   ],
                                 ),
                               ),
@@ -4128,7 +5140,8 @@ class _MessageBubble extends StatelessWidget {
                     width: 236,
                     height: 188,
                     fit: BoxFit.cover,
-                    frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+                    frameBuilder:
+                        (context, child, frame, wasSynchronouslyLoaded) {
                       if (wasSynchronouslyLoaded || frame != null) return child;
                       return SizedBox(
                         width: 236,
@@ -4147,11 +5160,13 @@ class _MessageBubble extends StatelessWidget {
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.broken_image_outlined, size: 34, color: scheme.onSurfaceVariant),
+                          Icon(Icons.broken_image_outlined,
+                              size: 34, color: scheme.onSurfaceVariant),
                           const SizedBox(height: 7),
                           Text(
                             'Image unavailable',
-                            style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12),
+                            style: TextStyle(
+                                color: scheme.onSurfaceVariant, fontSize: 12),
                           ),
                         ],
                       ),
@@ -4182,13 +5197,18 @@ class _MessageBubble extends StatelessWidget {
                     final uri = Uri.tryParse(url);
                     if (uri == null) return;
                     try {
-                      final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+                      final opened = await launchUrl(uri,
+                          mode: LaunchMode.externalApplication);
                       if (!opened && context.mounted) {
-                        NovynToast.show(context, 'No app could open this attachment.', isError: true);
+                        NovynToast.show(
+                            context, 'No app could open this attachment.',
+                            isError: true);
                       }
                     } catch (_) {
                       if (context.mounted) {
-                        NovynToast.show(context, 'Could not open this attachment.', isError: true);
+                        NovynToast.show(
+                            context, 'Could not open this attachment.',
+                            isError: true);
                       }
                     }
                   },
@@ -4238,7 +5258,8 @@ class _MessageBubble extends StatelessWidget {
       builder: (_) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: const Text('Edit message',
-            style: TextStyle(fontFamily: 'PlusJakartaSans', fontWeight: FontWeight.w700)),
+            style: TextStyle(
+                fontFamily: 'PlusJakartaSans', fontWeight: FontWeight.w700)),
         content: TextField(
           controller: ctrl,
           autofocus: true,
@@ -4272,14 +5293,16 @@ class _MessageBubble extends StatelessWidget {
             },
             child: Text('Save',
                 style: TextStyle(
-                    color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.w700)),
+                    color: Theme.of(context).colorScheme.primary,
+                    fontWeight: FontWeight.w700)),
           ),
         ],
       ),
     );
   }
 
-  Future<void> _deleteMessage(BuildContext context, {required bool forEveryone}) async {
+  Future<void> _deleteMessage(BuildContext context,
+      {required bool forEveryone}) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -4295,7 +5318,8 @@ class _MessageBubble extends StatelessWidget {
           ),
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, true),
-            style: TextButton.styleFrom(foregroundColor: const Color(0xFFEF4444)),
+            style:
+                TextButton.styleFrom(foregroundColor: const Color(0xFFEF4444)),
             child: const Text('Delete'),
           ),
         ],
@@ -4386,7 +5410,9 @@ class _SendingStatusPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()..color = color..style = PaintingStyle.fill;
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.fill;
     final center = Offset(size.width / 2, size.height / 2);
     const count = 8;
     for (var i = 0; i < count; i++) {
@@ -4394,7 +5420,8 @@ class _SendingStatusPainter extends CustomPainter {
       final radius = size.width * .37;
       final dotRadius = i.isEven ? 1.8 : 1.35;
       canvas.drawCircle(
-        Offset(center.dx + radius * math.cos(angle), center.dy + radius * math.sin(angle)),
+        Offset(center.dx + radius * math.cos(angle),
+            center.dy + radius * math.sin(angle)),
         dotRadius,
         paint..color = color.withValues(alpha: .42 + (i / count) * .58),
       );
@@ -4509,7 +5536,10 @@ class _GifPickerSheetState extends State<_GifPickerSheet> {
     if (!mounted) return;
     final raw = result['items'];
     final incoming = raw is List
-        ? raw.whereType<Map>().map((item) => Map<String, dynamic>.from(item)).toList()
+        ? raw
+            .whereType<Map>()
+            .map((item) => Map<String, dynamic>.from(item))
+            .toList()
         : <Map<String, dynamic>>[];
     setState(() {
       if (append) {
@@ -4545,38 +5575,64 @@ class _GifPickerSheetState extends State<_GifPickerSheet> {
       ),
       child: Column(
         children: [
-          Container(width: 38, height: 4, decoration: BoxDecoration(color: scheme.onSurfaceVariant.withValues(alpha: .32), borderRadius: BorderRadius.circular(4))),
+          Container(
+              width: 38,
+              height: 4,
+              decoration: BoxDecoration(
+                  color: scheme.onSurfaceVariant.withValues(alpha: .32),
+                  borderRadius: BorderRadius.circular(4))),
           const SizedBox(height: 14),
           Row(
             children: [
               Container(
-                width: 38, height: 38,
+                width: 38,
+                height: 38,
                 decoration: BoxDecoration(
                   color: scheme.primaryContainer,
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(Icons.gif_box_rounded, size: 21, color: scheme.onPrimaryContainer),
+                child: Icon(Icons.gif_box_rounded,
+                    size: 21, color: scheme.onPrimaryContainer),
               ),
               const SizedBox(width: 10),
-              Expanded(child: Column(
+              Expanded(
+                  child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('GIFs & Stickers', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
-                  Text('Find the perfect reaction', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
+                  Text('GIFs & Stickers',
+                      style: Theme.of(context)
+                          .textTheme
+                          .titleMedium
+                          ?.copyWith(fontWeight: FontWeight.w800)),
+                  Text('Find the perfect reaction',
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodySmall
+                          ?.copyWith(color: scheme.onSurfaceVariant)),
                 ],
               )),
-              IconButton(onPressed: () => Navigator.pop(context), icon: Icon(Icons.close_rounded, color: scheme.onSurfaceVariant)),
+              IconButton(
+                  onPressed: () => Navigator.pop(context),
+                  icon: Icon(Icons.close_rounded,
+                      color: scheme.onSurfaceVariant)),
             ],
           ),
           TextField(
             controller: _search,
             textInputAction: TextInputAction.search,
-            onSubmitted: (_) { _category = ''; _load(); },
+            onSubmitted: (_) {
+              _category = '';
+              _load();
+            },
             decoration: InputDecoration(
               hintText: 'Search on GIPHY',
               prefixIcon: Icon(Icons.search_rounded),
               suffixIcon: IconButton(
-                onPressed: () { _search.clear(); _category = ''; _load(); },
+                onPressed: () {
+                  _search.clear();
+                  _category = '';
+                  _load();
+                },
                 icon: Icon(Icons.close_rounded, size: 18),
               ),
               filled: true,
@@ -4586,11 +5642,13 @@ class _GifPickerSheetState extends State<_GifPickerSheet> {
               hintStyle: TextStyle(color: scheme.onSurfaceVariant),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(16),
-                borderSide: BorderSide(color: scheme.outlineVariant.withValues(alpha: .6)),
+                borderSide: BorderSide(
+                    color: scheme.outlineVariant.withValues(alpha: .6)),
               ),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(16),
-                borderSide: BorderSide(color: scheme.outlineVariant.withValues(alpha: .6)),
+                borderSide: BorderSide(
+                    color: scheme.outlineVariant.withValues(alpha: .6)),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(16),
@@ -4613,14 +5671,26 @@ class _GifPickerSheetState extends State<_GifPickerSheet> {
               child: ListView(
                 scrollDirection: Axis.horizontal,
                 children: [
-                  for (final category in const ['Trending', 'Reaction', 'Funny', 'Love', 'Thumbs up', 'Party'])
+                  for (final category in const [
+                    'Trending',
+                    'Reaction',
+                    'Funny',
+                    'Love',
+                    'Thumbs up',
+                    'Party'
+                  ])
                     Padding(
                       padding: const EdgeInsets.only(right: 7),
                       child: ChoiceChip(
                         label: Text(category),
-                        selected: _category.toLowerCase() == (category == 'Trending' ? '' : category.toLowerCase()),
+                        selected: _category.toLowerCase() ==
+                            (category == 'Trending'
+                                ? ''
+                                : category.toLowerCase()),
                         onSelected: (_) {
-                          _category = category == 'Trending' ? '' : category.toLowerCase();
+                          _category = category == 'Trending'
+                              ? ''
+                              : category.toLowerCase();
                           _search.clear();
                           _load();
                         },
@@ -4637,10 +5707,12 @@ class _GifPickerSheetState extends State<_GifPickerSheet> {
                 : _error != null
                     ? Center(child: Text(_error!, textAlign: TextAlign.center))
                     : _items.isEmpty
-                        ? const Center(child: Text('No results. Try another search.'))
+                        ? const Center(
+                            child: Text('No results. Try another search.'))
                         : GridView.builder(
                             itemCount: _items.length,
-                            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                            gridDelegate:
+                                const SliverGridDelegateWithFixedCrossAxisCount(
                               crossAxisCount: 3,
                               crossAxisSpacing: 8,
                               mainAxisSpacing: 8,
@@ -4648,7 +5720,9 @@ class _GifPickerSheetState extends State<_GifPickerSheet> {
                             ),
                             itemBuilder: (context, index) {
                               final item = _items[index];
-                              final preview = item['previewUrl']?.toString() ?? item['url']?.toString() ?? '';
+                              final preview = item['previewUrl']?.toString() ??
+                                  item['url']?.toString() ??
+                                  '';
                               return InkWell(
                                 onTap: () => widget.onSelect(item),
                                 borderRadius: BorderRadius.circular(10),
@@ -4656,27 +5730,41 @@ class _GifPickerSheetState extends State<_GifPickerSheet> {
                                   decoration: BoxDecoration(
                                     color: scheme.surfaceContainerLow,
                                     borderRadius: BorderRadius.circular(14),
-                                    border: Border.all(color: scheme.outlineVariant.withValues(alpha: .45)),
+                                    border: Border.all(
+                                        color: scheme.outlineVariant
+                                            .withValues(alpha: .45)),
                                   ),
                                   clipBehavior: Clip.antiAlias,
                                   child: Image.network(
                                     preview,
-                                    fit: _type == 'stickers' ? BoxFit.contain : BoxFit.cover,
-                                    loadingBuilder: (context, child, progress) => progress == null
-                                        ? child
-                                        : Center(
-                                            child: SizedBox(
-                                              width: 20, height: 20,
-                                              child: CircularProgressIndicator(
-                                                strokeWidth: 2,
-                                                value: progress.expectedTotalBytes == null
-                                                    ? null
-                                                    : progress.cumulativeBytesLoaded / progress.expectedTotalBytes!,
-                                              ),
-                                            ),
-                                          ),
+                                    fit: _type == 'stickers'
+                                        ? BoxFit.contain
+                                        : BoxFit.cover,
+                                    loadingBuilder:
+                                        (context, child, progress) =>
+                                            progress == null
+                                                ? child
+                                                : Center(
+                                                    child: SizedBox(
+                                                      width: 20,
+                                                      height: 20,
+                                                      child:
+                                                          CircularProgressIndicator(
+                                                        strokeWidth: 2,
+                                                        value: progress
+                                                                    .expectedTotalBytes ==
+                                                                null
+                                                            ? null
+                                                            : progress
+                                                                    .cumulativeBytesLoaded /
+                                                                progress
+                                                                    .expectedTotalBytes!,
+                                                      ),
+                                                    ),
+                                                  ),
                                     errorBuilder: (_, __, ___) => Center(
-                                      child: Icon(Icons.broken_image_outlined, color: scheme.onSurfaceVariant),
+                                      child: Icon(Icons.broken_image_outlined,
+                                          color: scheme.onSurfaceVariant),
                                     ),
                                   ),
                                 ),
@@ -4689,7 +5777,11 @@ class _GifPickerSheetState extends State<_GifPickerSheet> {
               onPressed: _loadingMore ? null : () => _load(append: true),
               child: Text(_loadingMore ? 'Loading…' : 'Load more'),
             ),
-          Text('Powered by GIPHY', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 10 * context.watch<SettingsService>().chatLabelSize, color: scheme.onSurfaceVariant)),
+          Text('Powered by GIPHY',
+              style: TextStyle(
+                  fontFamily: 'PlusJakartaSans',
+                  fontSize: 10 * context.watch<SettingsService>().chatLabelSize,
+                  color: scheme.onSurfaceVariant)),
         ],
       ),
     );
@@ -4706,8 +5798,11 @@ class _GifPickerSheetState extends State<_GifPickerSheet> {
         _load();
       },
       style: OutlinedButton.styleFrom(
-        backgroundColor: selected ? Theme.of(context).colorScheme.primaryContainer : null,
-        foregroundColor: selected ? Theme.of(context).colorScheme.onPrimaryContainer : Theme.of(context).colorScheme.onSurface,
+        backgroundColor:
+            selected ? Theme.of(context).colorScheme.primaryContainer : null,
+        foregroundColor: selected
+            ? Theme.of(context).colorScheme.onPrimaryContainer
+            : Theme.of(context).colorScheme.onSurface,
       ),
       child: Text(label),
     );
@@ -4728,77 +5823,141 @@ class _AttachmentButton extends StatelessWidget {
     _MenuItem(icon: Icons.photo_library_rounded, label: 'Media'),
     _MenuItem(icon: Icons.insert_drive_file_rounded, label: 'Document'),
     _MenuItem(icon: Icons.headphones_rounded, label: 'Sound'),
-    _MenuItem(icon: Icons.location_on_rounded, label: 'Location', enabled: false),
+    _MenuItem(
+        icon: Icons.location_on_rounded, label: 'Location', enabled: false),
   ];
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return Material(
-      color: scheme.primary.withValues(alpha: .10), shape: const CircleBorder(),
+      color: scheme.primary.withValues(alpha: .10),
+      shape: const CircleBorder(),
       child: InkWell(
         customBorder: const CircleBorder(),
         onTap: () {
-          HapticService.vibrate(NovynHapticType.light, category: HapticCategory.chat);
+          HapticService.vibrate(NovynHapticType.light,
+              category: HapticCategory.chat);
           showModalBottomSheet<void>(
-            context: context, backgroundColor: Colors.transparent,
-            isScrollControlled: true, useSafeArea: true,
+            context: context,
+            backgroundColor: Colors.transparent,
+            isScrollControlled: true,
+            useSafeArea: true,
             builder: (sheetContext) {
               final theme = Theme.of(sheetContext);
               final colors = theme.colorScheme;
-              final tints = <Color>[colors.primary, colors.secondary, colors.tertiary];
+              final tints = <Color>[
+                colors.primary,
+                colors.secondary,
+                colors.tertiary
+              ];
               return Container(
                 margin: const EdgeInsets.fromLTRB(10, 0, 10, 10),
                 padding: const EdgeInsets.fromLTRB(18, 12, 18, 20),
                 decoration: BoxDecoration(
-                  color: colors.surface, borderRadius: BorderRadius.circular(28),
-                  border: Border.all(color: colors.outlineVariant.withValues(alpha: .65)),
-                  boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: .16), blurRadius: 24, offset: const Offset(0, -5))],
+                  color: colors.surface,
+                  borderRadius: BorderRadius.circular(28),
+                  border: Border.all(
+                      color: colors.outlineVariant.withValues(alpha: .65)),
+                  boxShadow: [
+                    BoxShadow(
+                        color: Colors.black.withValues(alpha: .16),
+                        blurRadius: 24,
+                        offset: const Offset(0, -5))
+                  ],
                 ),
                 child: Column(mainAxisSize: MainAxisSize.min, children: [
-                  Center(child: Container(width: 38, height: 4, decoration: BoxDecoration(
-                    color: colors.onSurfaceVariant.withValues(alpha: .32), borderRadius: BorderRadius.circular(8)))),
+                  Center(
+                      child: Container(
+                          width: 38,
+                          height: 4,
+                          decoration: BoxDecoration(
+                              color: colors.onSurfaceVariant
+                                  .withValues(alpha: .32),
+                              borderRadius: BorderRadius.circular(8)))),
                   const SizedBox(height: 15),
                   Row(children: [
-                    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text('Share something', style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
-                      const SizedBox(height: 3),
-                      Text('Make the conversation more fun', style: theme.textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant)),
-                    ])),
-                    IconButton(tooltip: 'Close', onPressed: () => Navigator.pop(sheetContext), icon: const Icon(Icons.close_rounded)),
+                    Expanded(
+                        child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                          Text('Share something',
+                              style: theme.textTheme.titleLarge
+                                  ?.copyWith(fontWeight: FontWeight.w800)),
+                          const SizedBox(height: 3),
+                          Text('Make the conversation more fun',
+                              style: theme.textTheme.bodySmall
+                                  ?.copyWith(color: colors.onSurfaceVariant)),
+                        ])),
+                    IconButton(
+                        tooltip: 'Close',
+                        onPressed: () => Navigator.pop(sheetContext),
+                        icon: const Icon(Icons.close_rounded)),
                   ]),
                   const SizedBox(height: 12),
                   GridView.builder(
-                    shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), itemCount: _items.length,
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 3, mainAxisSpacing: 10, crossAxisSpacing: 10, childAspectRatio: 1.12),
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: _items.length,
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 3,
+                            mainAxisSpacing: 10,
+                            crossAxisSpacing: 10,
+                            childAspectRatio: 1.12),
                     itemBuilder: (context, index) {
                       final item = _items[index];
                       final tint = tints[index % tints.length];
                       return Material(
-                        color: item.enabled ? colors.surfaceContainerLow : colors.surfaceContainer,
+                        color: item.enabled
+                            ? colors.surfaceContainerLow
+                            : colors.surfaceContainer,
                         borderRadius: BorderRadius.circular(18),
                         child: InkWell(
                           borderRadius: BorderRadius.circular(18),
                           onTap: () {
                             Navigator.pop(sheetContext);
                             if (!item.enabled) {
-                              NovynAlert.show(context, '${item.label} sharing is not available yet.', title: 'Coming soon', icon: Icons.hourglass_top_rounded, tone: NovynAlertTone.neutral);
+                              NovynAlert.show(context,
+                                  '${item.label} sharing is not available yet.',
+                                  title: 'Coming soon',
+                                  icon: Icons.hourglass_top_rounded,
+                                  tone: NovynAlertTone.neutral);
                               return;
                             }
-                            onSelected(item.label == 'Media' ? 'image' : item.label.toLowerCase());
+                            onSelected(item.label == 'Media'
+                                ? 'image'
+                                : item.label.toLowerCase());
                           },
-                          child: Opacity(opacity: item.enabled ? 1 : .48,
-                            child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                              Container(width: 48, height: 48,
-                                decoration: BoxDecoration(color: tint.withValues(alpha: .14), borderRadius: BorderRadius.circular(15)),
-                                child: Icon(item.icon, color: tint, size: 23)),
-                              const SizedBox(height: 7),
-                              Text(item.label, maxLines: 1, overflow: TextOverflow.ellipsis,
-                                style: theme.textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w700)),
-                              if (!item.enabled) Text('Coming soon',
-                                style: theme.textTheme.labelSmall?.copyWith(color: colors.onSurfaceVariant, fontSize: 8)),
-                            ])),
+                          child: Opacity(
+                              opacity: item.enabled ? 1 : .48,
+                              child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Container(
+                                        width: 48,
+                                        height: 48,
+                                        decoration: BoxDecoration(
+                                            color: tint.withValues(alpha: .14),
+                                            borderRadius:
+                                                BorderRadius.circular(15)),
+                                        child: Icon(item.icon,
+                                            color: tint, size: 23)),
+                                    const SizedBox(height: 7),
+                                    Text(item.label,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: theme.textTheme.labelMedium
+                                            ?.copyWith(
+                                                fontWeight: FontWeight.w700)),
+                                    if (!item.enabled)
+                                      Text('Coming soon',
+                                          style: theme.textTheme.labelSmall
+                                              ?.copyWith(
+                                                  color:
+                                                      colors.onSurfaceVariant,
+                                                  fontSize: 8)),
+                                  ])),
                         ),
                       );
                     },
@@ -4808,7 +5967,11 @@ class _AttachmentButton extends StatelessWidget {
             },
           );
         },
-        child: SizedBox(width: 40, height: 40, child: Icon(Icons.grid_view_rounded, size: 20, color: scheme.primary)),
+        child: SizedBox(
+            width: 40,
+            height: 40,
+            child:
+                Icon(Icons.grid_view_rounded, size: 20, color: scheme.primary)),
       ),
     );
   }
@@ -4818,7 +5981,8 @@ class _MenuItem {
   final IconData icon;
   final String label;
   final bool enabled;
-  const _MenuItem({required this.icon, required this.label, this.enabled = true});
+  const _MenuItem(
+      {required this.icon, required this.label, this.enabled = true});
 }
 
 // ── Spark Icon Painter ─────────────────────────────────────────────────────
@@ -4910,12 +6074,18 @@ class _ReactionsRow extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
               color: isMine
-                  ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.15)
+                  ? Theme.of(context)
+                      .colorScheme
+                      .primary
+                      .withValues(alpha: 0.15)
                   : Theme.of(context).colorScheme.surface,
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
                 color: isMine
-                    ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.4)
+                    ? Theme.of(context)
+                        .colorScheme
+                        .primary
+                        .withValues(alpha: 0.4)
                     : Theme.of(context)
                         .colorScheme
                         .onSurface
@@ -4978,7 +6148,8 @@ class _SwipeToReplyState extends State<_SwipeToReply> {
           setState(() => _drag = (_drag + d.delta.dx).clamp(0, 60));
           if (_drag >= 50 && !_triggered) {
             _triggered = true;
-            HapticService.vibrate(NovynHapticType.light, category: HapticCategory.chat);
+            HapticService.vibrate(NovynHapticType.light,
+                category: HapticCategory.chat);
             widget.onSwipe();
           }
         }
@@ -5086,12 +6257,14 @@ class _MessageSearchDelegate extends SearchDelegate<String> {
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         scrolledUnderElevation: 0,
-        iconTheme: IconThemeData(color: Theme.of(context).colorScheme.onSurface),
+        iconTheme:
+            IconThemeData(color: Theme.of(context).colorScheme.onSurface),
       ),
       textTheme: Theme.of(context).textTheme,
       inputDecorationTheme: InputDecorationTheme(
         border: InputBorder.none,
-        hintStyle: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+        hintStyle:
+            TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
       ),
     );
   }
@@ -5353,10 +6526,16 @@ class _ChatHeaderButton extends StatelessWidget {
         behavior: HitTestBehavior.opaque,
         onTap: onTap,
         child: Material(
-          color: filled ? scheme.primary.withValues(alpha: 0.10) : Colors.transparent,
+          color: filled
+              ? scheme.primary.withValues(alpha: 0.10)
+              : Colors.transparent,
           shape: const CircleBorder(),
-          child: SizedBox(width: compact ? 34 : 40, height: compact ? 36 : 40,
-            child: Center(child: Icon(icon, size: iconSize, color: color ?? scheme.primary)),
+          child: SizedBox(
+            width: compact ? 34 : 40,
+            height: compact ? 36 : 40,
+            child: Center(
+                child:
+                    Icon(icon, size: iconSize, color: color ?? scheme.primary)),
           ),
         ),
       ),
@@ -5385,4 +6564,3 @@ class _ChatEmptyRingsPainter extends CustomPainter {
   bool shouldRepaint(covariant _ChatEmptyRingsPainter oldDelegate) =>
       oldDelegate.ring != ring;
 }
-

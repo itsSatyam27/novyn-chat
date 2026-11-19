@@ -336,6 +336,49 @@ test('localhost discovery, requests, reconnect state, and private media', { time
     }
   }
 
+  const voiceStarted = event(
+    alice.socket,
+    'voice_activity',
+    value => value.from === 'bob' && value.isSpeaking === true,
+  );
+  bob.socket.emit('voice_activity', {
+    to: 'alice',
+    toType: 'friend',
+    isSpeaking: true,
+  });
+  assert.equal((await voiceStarted).toType, 'friend');
+  const voiceStopped = event(
+    alice.socket,
+    'voice_activity',
+    value => value.from === 'bob' && value.isSpeaking === false,
+  );
+  bob.socket.emit('voice_activity', {
+    to: 'alice',
+    toType: 'friend',
+    isSpeaking: false,
+  });
+  await voiceStopped;
+
+  const voiceStoppedOnDisconnect = event(
+    alice.socket,
+    'voice_activity',
+    value => value.from === 'bob' && value.isSpeaking === false,
+  );
+  bob.socket.emit('voice_activity', {
+    to: 'alice',
+    toType: 'friend',
+    isSpeaking: true,
+  });
+  await event(
+    alice.socket,
+    'voice_activity',
+    value => value.from === 'bob' && value.isSpeaking === true,
+  );
+  bob.socket.disconnect();
+  await voiceStoppedOnDisconnect;
+  const voiceActivityReconnect = await connect(bob.cookie);
+  bob.socket = voiceActivityReconnect.socket;
+
   // Both participants receive an encrypted preview envelope, including after a
   // reload. The relay keeps its legacy placeholder and never returns plaintext.
   const { webcrypto } = require('node:crypto');

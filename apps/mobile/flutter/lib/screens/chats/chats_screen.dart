@@ -2007,12 +2007,30 @@ class _ChatCard extends StatelessWidget {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
     final hasUnread = preview.unreadCount > 0;
+    final typingKey = (preview.isGroup ? preview.peerUid : preview.peer.username)
+        .trim()
+        .toLowerCase();
+    final typingUsers = typingKey.isNotEmpty
+        ? context.select<SocketService, String>(
+            (service) => service.typingUsersSignature(typingKey),
+          )
+        : '';
+    final isTyping = typingUsers.isNotEmpty;
+    final typingNames = isTyping ? typingUsers.split('\u0000') : const <String>[];
+    final typingPreview = !preview.isGroup
+        ? 'Typing…'
+        : typingNames.length == 1
+            ? '${typingNames.first} is typing…'
+            : typingNames.length == 2
+                ? '${typingNames[0]} and ${typingNames[1]} are typing…'
+                : '${typingNames.first} and ${typingNames.length - 1} others are typing…';
     final titleColor = colors.onSurface;
     final metaColor = colors.onSurfaceVariant;
     final currentUsername = context.read<SocketService>().myUsername
         ?.trim()
         .toLowerCase() ?? '';
-    final showOutgoingReceipt = !preview.isGroup &&
+    final showOutgoingReceipt = !isTyping &&
+        !preview.isGroup &&
         preview.lastMessageId.isNotEmpty &&
         currentUsername.isNotEmpty &&
         preview.lastMessageFrom.trim().toLowerCase() == currentUsername;
@@ -2117,16 +2135,24 @@ class _ChatCard extends StatelessWidget {
                       ],
                       Expanded(
                         child: Text(
-                          preview.lastMessage.isEmpty
-                              ? 'Tap to chat'
-                              : preview.lastMessage,
+                          isTyping
+                              ? typingPreview
+                              : preview.lastMessage.isEmpty
+                                  ? 'Tap to chat'
+                                  : preview.lastMessage,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             fontFamily: 'PlusJakartaSans',
                             fontSize: 14.5,
-                            color: hasUnread ? titleColor : metaColor,
-                            fontWeight: hasUnread ? FontWeight.w500 : FontWeight.w400,
+                            color: isTyping
+                                ? colors.primary
+                                : hasUnread
+                                    ? titleColor
+                                    : metaColor,
+                            fontWeight: isTyping || hasUnread
+                                ? FontWeight.w500
+                                : FontWeight.w400,
                           ),
                         ),
                       ),
