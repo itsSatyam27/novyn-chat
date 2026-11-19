@@ -7,21 +7,21 @@ import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../services/auth_service.dart';
 import '../../services/settings_service.dart';
-import '../main_screen.dart';
+import 'auth_success_screen.dart';
 
 // ── Palette constants ───────────────────────────────────────────────────────
-const _kBg = Color(0xFFF3F0FB);
-const _kAccent = Color(0xFF6C4DF6);
-const _kAccentDim = Color(0xFF5B3FE0);
-const _kGlow = Color(0xFF6C4DF6);
-const _kGreen = Color(0xFF15803D);
-const _kRed = Color(0xFFC62828);
+const _kBg = Color(0xFF090C19);
+const _kAccent = Color(0xFF8C78FF);
+const _kAccentDim = Color(0xFFB6A9FF);
+const _kGlow = Color(0xFF826BFF);
+const _kGreen = Color(0xFF55D6AE);
+const _kRed = Color(0xFFFF718E);
 const _kPink = Color(0xFFE9A7CD);
-const _kText = Color(0xFF1C1B29);
-const _kSub = Color(0xFF6B6880);
-const _kLine = Color(0xFFE4DFFB);
-const _kField = Color(0xFFF6F4FD);
-const _kSegment = Color(0xFFE8E2FA);
+const _kText = Color(0xFFF5F3FF);
+const _kSub = Color(0xFFA7A6C2);
+const _kLine = Color(0xFF343650);
+const _kField = Color(0xFF171B2E);
+const _kSegment = Color(0xFF1A1E34);
 
 class AuthScreen extends StatefulWidget {
   /// Opens directly on sign-in (0) or account creation (1).
@@ -134,10 +134,10 @@ class _AuthScreenState extends State<AuthScreen>
                       width: double.infinity,
                       margin: EdgeInsets.fromLTRB(16, keyboardOpen ? 0 : 4, 16, 12),
                       decoration: BoxDecoration(
-                        color: Colors.white,
+                        color: const Color(0xE612172B),
                         borderRadius: BorderRadius.circular(28),
-                        border: Border.all(color: Colors.white.withValues(alpha: .9)),
-                        boxShadow: const [BoxShadow(color: Color(0x1F6C4DF6), blurRadius: 30, offset: Offset(0, 10))],
+                        border: Border.all(color: const Color(0xFF363A5A)),
+                        boxShadow: const [BoxShadow(color: Color(0x665F4BCE), blurRadius: 36, offset: Offset(0, 14))],
                       ),
                       child: Column(
                         children: [
@@ -273,7 +273,7 @@ class _LoginTabState extends State<_LoginTab> {
   void _navigateToMain() {
     Navigator.of(context).pushAndRemoveUntil(
       PageRouteBuilder(
-        pageBuilder:        (_, __, ___) => const MainScreen(),
+        pageBuilder:        (_, __, ___) => const AuthSuccessScreen(),
         transitionsBuilder: (_, anim, __, child) => FadeTransition(opacity: anim, child: child),
         transitionDuration: const Duration(milliseconds: 400),
       ),
@@ -1041,7 +1041,7 @@ class _RegisterTabState extends State<_RegisterTab> {
       if (verified == true) {
         Navigator.of(context).pushAndRemoveUntil(
           PageRouteBuilder<void>(
-            pageBuilder: (_, __, ___) => const MainScreen(),
+            pageBuilder: (_, __, ___) => const AuthSuccessScreen(),
             transitionsBuilder: (_, animation, __, child) =>
                 FadeTransition(opacity: animation, child: child),
             transitionDuration: const Duration(milliseconds: 400),
@@ -1058,7 +1058,7 @@ class _RegisterTabState extends State<_RegisterTab> {
     if (error == null) {
       Navigator.of(context).pushAndRemoveUntil(
         PageRouteBuilder<void>(
-          pageBuilder: (_, __, ___) => const MainScreen(),
+          pageBuilder: (_, __, ___) => const AuthSuccessScreen(),
           transitionsBuilder: (_, animation, __, child) =>
               FadeTransition(opacity: animation, child: child),
           transitionDuration: const Duration(milliseconds: 400),
@@ -1072,6 +1072,18 @@ class _RegisterTabState extends State<_RegisterTab> {
 
 
   void _showSuccess() {
+    Navigator.of(context).pushAndRemoveUntil(
+      PageRouteBuilder<void>(
+        pageBuilder: (_, __, ___) => const AuthSuccessScreen(isNewAccount: true),
+        transitionsBuilder: (_, animation, __, child) =>
+            FadeTransition(opacity: animation, child: child),
+        transitionDuration: const Duration(milliseconds: 480),
+      ),
+      (_) => false,
+    );
+  }
+
+  
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -1129,7 +1141,7 @@ class _RegisterTabState extends State<_RegisterTab> {
                 loading: false,
                 onTap: () => Navigator.of(context).pushAndRemoveUntil(
                   PageRouteBuilder(
-                    pageBuilder:        (_, __, ___) => const MainScreen(),
+                    pageBuilder:        (_, __, ___) => const AuthSuccessScreen(),
                     transitionsBuilder: (_, anim, __, child) => FadeTransition(opacity: anim, child: child),
                     transitionDuration: const Duration(milliseconds: 400),
                   ),
@@ -1361,7 +1373,7 @@ class _FieldState extends State<_Field> {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
       decoration: BoxDecoration(
-        color: _focused ? const Color(0xFFF1EEFC) : _kField,
+        color: _focused ? const Color(0xFF242440) : _kField,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: _focused ? _kAccent : _kLine,
@@ -1394,7 +1406,7 @@ class _FieldState extends State<_Field> {
           style: const TextStyle(
             fontFamily: 'Inter',
             fontSize:   15,
-            color:      Color(0xFF211D42),
+            color:      _kText,
             height:     1.4,
           ),
           decoration: InputDecoration(
@@ -1437,7 +1449,7 @@ class _EyeToggle extends StatelessWidget {
   Widget build(BuildContext context) => IconButton(
         icon: Icon(
           obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined,
-          color: const Color(0xFF686487),
+          color: _kSub,
           size: 20,
         ),
         onPressed: onToggle,
