@@ -24,10 +24,10 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _C {
-  static const bg = Color(0xFFF7F4FF);
-  static const primary = Color(0xFF6C4DF6);
-  static const text = Color(0xFF1C1B29);
-  static const sub = Color(0xFF5B5873);
+  static const bg = Color(0xFF080B18);
+  static const primary = Color(0xFF927CFF);
+  static const text = Color(0xFFF6F3FF);
+  static const sub = Color(0xFFAAA8C7);
 }
 
 class _Bubble {
@@ -144,10 +144,10 @@ class _SplashScreenState extends State<SplashScreen>
     final bottomInset = MediaQuery.paddingOf(context).bottom;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.dark.copyWith(
+      value: SystemUiOverlayStyle.light.copyWith(
         statusBarColor: Colors.transparent,
         systemNavigationBarColor: _C.bg,
-        systemNavigationBarIconBrightness: Brightness.dark,
+        systemNavigationBarIconBrightness: Brightness.light,
       ),
       child: Scaffold(
         backgroundColor: _C.bg,
@@ -162,7 +162,7 @@ class _SplashScreenState extends State<SplashScreen>
                   left: -90,
                   top: -60,
                   size: 320,
-                  color: const Color(0xFFB9A8FF),
+                  color: const Color(0xFF806BFF),
                   dx: math.sin(t) * 30,
                   dy: math.cos(t) * 24,
                 ),
@@ -170,7 +170,7 @@ class _SplashScreenState extends State<SplashScreen>
                   right: -110,
                   top: size.height * .27,
                   size: 300,
-                  color: const Color(0xFFFFC6E0),
+                  color: const Color(0xFF4D6BC5),
                   dx: -math.sin(t) * 28,
                   dy: math.cos(t) * 20,
                 ),
@@ -178,7 +178,7 @@ class _SplashScreenState extends State<SplashScreen>
                   left: -100,
                   top: size.height * .62,
                   size: 300,
-                  color: const Color(0xFFBFE2FF),
+                  color: const Color(0xFF7056C8),
                   dx: math.cos(t) * 26,
                   dy: -math.sin(t) * 26,
                 ),
@@ -186,7 +186,7 @@ class _SplashScreenState extends State<SplashScreen>
                   right: -70,
                   bottom: -80,
                   size: 280,
-                  color: const Color(0xFFFFDFC4),
+                  color: const Color(0xFF354A8A),
                   dx: -math.cos(t) * 24,
                   dy: math.sin(t) * 22,
                 ),
@@ -260,9 +260,9 @@ class _SplashScreenState extends State<SplashScreen>
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 9),
               decoration: BoxDecoration(
-                color: Colors.white.withAlpha(184),
+                color: const Color(0xFF1D2140).withAlpha(226),
                 borderRadius: BorderRadius.circular(18),
-                border: Border.all(color: Colors.white.withAlpha(230)),
+                border: Border.all(color: const Color(0xFF8E7AFF).withAlpha(95)),
                 boxShadow: const [
                   BoxShadow(
                     color: Color(0x1F6C4DF6),
@@ -276,7 +276,7 @@ class _SplashScreenState extends State<SplashScreen>
                 style: TextStyle(
                   fontSize: bubble.fontSize,
                   fontWeight: FontWeight.w600,
-                  color: const Color(0xFF4A4670),
+                  color: const Color(0xFFE2DEFF),
                 ),
               ),
             ),
@@ -320,7 +320,7 @@ class _SplashScreenState extends State<SplashScreen>
           child: Transform.translate(
             offset: Offset(0, 14 * (1 - taglineOpacity)),
             child: const Text(
-              'Your space, your people',
+              'Your conversations. Your space. Your control.',
               style: TextStyle(
                 fontSize: 15.5,
                 fontWeight: FontWeight.w500,
