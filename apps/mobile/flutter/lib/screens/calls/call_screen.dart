@@ -30,6 +30,8 @@ class CallScreen extends StatefulWidget {
   final bool isIncoming;
   final String? callerId;
   final String? callId;
+  final DateTime? callExpiresAt;
+  final bool autoAccept;
 
   const CallScreen({
     super.key,
@@ -38,6 +40,8 @@ class CallScreen extends StatefulWidget {
     this.isIncoming = false,
     this.callerId,
     this.callId,
+    this.callExpiresAt,
+    this.autoAccept = false,
   });
 
   @override
@@ -45,7 +49,7 @@ class CallScreen extends StatefulWidget {
 }
 
 class _CallScreenState extends State<CallScreen>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   CallState _state = CallState.calling;
   bool _muted = false;
   bool _speakerOn = false;
@@ -101,6 +105,7 @@ class _CallScreenState extends State<CallScreen>
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
 
     _pulseCtrl = AnimationController(
       vsync: this,
@@ -158,12 +163,24 @@ class _CallScreenState extends State<CallScreen>
       );
     }
 
-    // Auto-cancel/reject after 45 seconds if no answer
-    _callTimeoutTimer = Timer(const Duration(seconds: 45), () {
-      if (_state == CallState.calling && mounted) {
-        widget.isIncoming ? _rejectCall() : _endCall();
-      }
-    });
+    // Honor the original server deadline so tapping an old push cannot
+    // restart the incoming call's 45-second ring window.
+    final ringTimeLeft = widget.callExpiresAt == null
+        ? const Duration(seconds: 45)
+        : widget.callExpiresAt!.difference(DateTime.now());
+    if (ringTimeLeft <= Duration.zero) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _state != CallState.ended) {
+          widget.isIncoming ? _rejectCall() : _endCall();
+        }
+      });
+    } else {
+      _callTimeoutTimer = Timer(ringTimeLeft, () {
+        if (_state == CallState.calling && mounted) {
+          widget.isIncoming ? _rejectCall() : _endCall();
+        }
+      });
+    }
 
     // Set initial PiP position (top-right) after first frame
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -177,6 +194,43 @@ class _CallScreenState extends State<CallScreen>
         });
       }
     });
+    if (widget.autoAccept) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _state == CallState.calling) unawaited(_acceptCall());
+      });
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed &&
+        widget.isIncoming &&
+        _state == CallState.calling &&
+        !_hasLoggedCall) {
+      if (widget.callExpiresAt != null &&
+          !widget.callExpiresAt!.isAfter(DateTime.now())) {
+        _rejectCall();
+      } else {
+        unawaited(_revalidateIncomingCall());
+      }
+    }
+  }
+
+  Future<void> _revalidateIncomingCall() async {
+    final socket = context.read<SocketService>();
+    for (var attempt = 0;
+        attempt < 24 && !(socket.isConnected && socket.isAuthenticated);
+        attempt++) {
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+      if (!mounted || _state != CallState.calling) return;
+    }
+    if (!mounted || _state != CallState.calling) return;
+    final status = await socket.checkCallStatus(_peerId, _callId);
+    if (!mounted || _state != CallState.calling || status == null) return;
+    if (status != 'ringing') {
+      _stopRingtone();
+      _handleCallEnded(logStatus: 'missed', logCall: false);
+    }
   }
 
   Future<void> _applyVideoSpeakerDefault() async {
@@ -368,7 +422,9 @@ class _CallScreenState extends State<CallScreen>
     final socket = context.read<SocketService>();
 
     // Peer accepted → start WebRTC as caller
-    socket.onCallAccepted((_) async {
+    socket.onCallAccepted((data) async {
+      if (data['callId']?.toString().isNotEmpty == true &&
+          data['callId']?.toString() != _callId) return;
       if (!mounted) return;
       _callTimeoutTimer?.cancel();
       _stopRingtone();
@@ -483,6 +539,8 @@ class _CallScreenState extends State<CallScreen>
     };
 
     socket.onCallEnded((data) {
+      final endedCallId = data['callId']?.toString() ?? '';
+      if (endedCallId.isNotEmpty && endedCallId != _callId) return;
       _stopRingtone();
       final reason = data['reason']?.toString();
       final status = _state == CallState.connected
@@ -581,10 +639,15 @@ class _CallScreenState extends State<CallScreen>
     });
   }
 
-  void _handleCallEnded({required String logStatus, String? reason}) {
+  void _handleCallEnded({
+    required String logStatus,
+    String? reason,
+    bool logCall = true,
+  }) {
     _timer?.cancel();
     _audioRouteSubscription?.cancel();
     _callTimeoutTimer?.cancel();
+    unawaited(NotificationService.clearIncomingCallNotification(_callId));
     if (!mounted || _hasLoggedCall) return;
     _hasLoggedCall = true;
     unawaited(NotificationService.clearActiveCallNotification());
@@ -604,14 +667,16 @@ class _CallScreenState extends State<CallScreen>
 
     final auth = context.read<AuthService>();
     final myUsername = auth.user?.username ?? '';
-    ApiService.logCall(
-      callerId:   widget.isIncoming ? _peerId : myUsername,
-      receiverId: widget.isIncoming ? myUsername : _peerId,
-      type:       widget.callType,
-      status:     logStatus,
-      duration:   _seconds.value,
-      callId:     _callId,
-    );
+    if (logCall) {
+      ApiService.logCall(
+        callerId: widget.isIncoming ? _peerId : myUsername,
+        receiverId: widget.isIncoming ? myUsername : _peerId,
+        type: widget.callType,
+        status: logStatus,
+        duration: _seconds.value,
+        callId: _callId,
+      );
+    }
 
     Future.delayed(const Duration(milliseconds: 1200), () {
       if (!mounted) return;
@@ -845,10 +910,21 @@ class _CallScreenState extends State<CallScreen>
   }
 
   Future<void> _acceptCall() async {
+    if (_state != CallState.calling || _hasLoggedCall) return;
+    if (widget.callExpiresAt != null &&
+        !widget.callExpiresAt!.isAfter(DateTime.now())) {
+      _rejectCall();
+      return;
+    }
     HapticService.vibrate(NovynHapticType.medium, category: HapticCategory.calls);
     try {
       await _ensureLocalMedia();
       if (!mounted) return;
+      if (widget.callExpiresAt != null &&
+          !widget.callExpiresAt!.isAfter(DateTime.now())) {
+        _rejectCall();
+        return;
+      }
       _stopRingtone();
       await _applyVideoSpeakerDefault();
       context.read<SocketService>().acceptCall(widget.callerId ?? _peerId, _callId);
@@ -865,6 +941,7 @@ class _CallScreenState extends State<CallScreen>
   }
 
   void _rejectCall() {
+    if (_state == CallState.ended || _hasLoggedCall) return;
     HapticService.vibrate(NovynHapticType.medium, category: HapticCategory.calls);
     _stopRingtone();
     context.read<SocketService>().rejectCall(widget.callerId ?? _peerId, _callId);
@@ -873,6 +950,7 @@ class _CallScreenState extends State<CallScreen>
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _removeMiniOverlay();
     NotificationService.setActiveCallActionHandler(null);
     unawaited(NotificationService.clearActiveCallNotification());
@@ -2157,6 +2235,13 @@ class _CallMiniWindow extends StatefulWidget {
 
 class _CallMiniWindowState extends State<_CallMiniWindow> {
   Offset? _position;
+  String _style = 'floating_bar';
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _style = context.watch<SettingsService>().callMiniStyle;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -2164,8 +2249,27 @@ class _CallMiniWindowState extends State<_CallMiniWindow> {
       builder: (context, constraints) {
         final availableWidth =
             (constraints.maxWidth - 16).clamp(1.0, double.infinity).toDouble();
-        final width = 320.0.clamp(1.0, availableWidth).toDouble();
-        final height = widget.isVideo ? 148.0 : 112.0;
+        final preferredWidth = switch (_style) {
+          'compact_pill' => 286.0,
+          'avatar_bubble' => 270.0,
+          _ => 320.0,
+        };
+        final width = preferredWidth.clamp(1.0, availableWidth).toDouble();
+        final height = widget.isVideo
+            ? (_style == 'video_focus' ? 164.0 : 148.0)
+            : (_style == 'compact_pill' ? 88.0 : 112.0);
+        final radius = switch (_style) {
+          'compact_pill' => 44.0,
+          'glass_card' => 28.0,
+          'video_focus' => 24.0,
+          _ => 20.0,
+        };
+        final miniColor = switch (_style) {
+          'glass_card' => const Color(0xDD25243A),
+          'accent_strip' => const Color(0xFF1B1B32),
+          'video_focus' => const Color(0xFF101321),
+          _ => const Color(0xFF15182B),
+        };
         final maxX = (constraints.maxWidth - width - 10)
             .clamp(0.0, double.infinity)
             .toDouble();
@@ -2198,15 +2302,19 @@ class _CallMiniWindowState extends State<_CallMiniWindow> {
                 child: Material(
                   color: Colors.transparent,
                   elevation: 18,
-                  borderRadius: BorderRadius.circular(20),
+                  borderRadius: BorderRadius.circular(radius),
                   child: Container(
                     width: width,
                     height: height,
                     clipBehavior: Clip.antiAlias,
                     decoration: BoxDecoration(
-                      color: const Color(0xFF15182B),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: Colors.white.withValues(alpha: 0.22)),
+                      color: miniColor,
+                      borderRadius: BorderRadius.circular(radius),
+                      border: Border.all(
+                        color: _style == 'glass_card'
+                            ? Colors.white.withValues(alpha: .38)
+                            : Colors.white.withValues(alpha: 0.22),
+                      ),
                       boxShadow: [
                         BoxShadow(
                           color: Colors.black.withValues(alpha: 0.35),
@@ -2215,11 +2323,33 @@ class _CallMiniWindowState extends State<_CallMiniWindow> {
                         ),
                       ],
                     ),
-                    child: ListenableBuilder(
-                      listenable: widget.webrtc,
-                      builder: (context, _) => widget.isVideo
-                          ? _buildVideoMini()
-                          : _buildVoiceMini(),
+                    child: Stack(
+                      children: [
+                        if (_style == 'accent_strip')
+                          Positioned(
+                            left: 0,
+                            top: 16,
+                            bottom: 16,
+                            child: Container(
+                              width: 4,
+                              decoration: BoxDecoration(
+                                color: Theme.of(context).colorScheme.primary,
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                            ),
+                          ),
+                        Padding(
+                          padding: EdgeInsets.only(
+                            left: _style == 'accent_strip' ? 4 : 0,
+                          ),
+                          child: ListenableBuilder(
+                            listenable: widget.webrtc,
+                            builder: (context, _) => widget.isVideo
+                                ? _buildVideoMini()
+                                : _buildVoiceMini(),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -2302,7 +2432,10 @@ class _CallMiniWindowState extends State<_CallMiniWindow> {
   }
 
   Widget _buildVoiceMini() {
-    final actionSize = MediaQuery.sizeOf(context).width < 360 ? 28.0 : 30.0;
+    final actionSize = _style == 'compact_pill' ||
+            MediaQuery.sizeOf(context).width < 360
+        ? 27.0
+        : _style == 'avatar_bubble' ? 32.0 : 30.0;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 8),
       child: Row(
@@ -2310,7 +2443,7 @@ class _CallMiniWindowState extends State<_CallMiniWindow> {
           UserAvatar(
             name: widget.peer.name,
             photoUrl: widget.peer.photoUrl,
-            radius: 21,
+            radius: _style == 'avatar_bubble' ? 25 : 21,
           ),
           const SizedBox(width: 8),
           Expanded(

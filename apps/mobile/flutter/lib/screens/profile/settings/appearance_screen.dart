@@ -11,6 +11,15 @@ import 'quick_toggle_customization_screen.dart';
 class AppearanceScreen extends StatelessWidget {
   const AppearanceScreen({super.key});
 
+  static const _callMiniStyles = <(String, String, IconData)>[
+    ('floating_bar', 'Floating bar', Icons.view_agenda_rounded),
+    ('compact_pill', 'Compact pill', Icons.horizontal_rule_rounded),
+    ('glass_card', 'Glass card', Icons.blur_on_rounded),
+    ('accent_strip', 'Accent strip', Icons.view_carousel_rounded),
+    ('avatar_bubble', 'Avatar bubble', Icons.account_circle_rounded),
+    ('video_focus', 'Video focus', Icons.video_camera_front_rounded),
+  ];
+
   static const _accents = <(String, Color)>[
     ('Indigo', Color(0xFF6D5DFC)),
     ('Violet', Color(0xFF8B5CF6)),
@@ -192,6 +201,33 @@ class AppearanceScreen extends StatelessWidget {
               MaterialPageRoute(builder: (_) => const AlertCustomizationScreen()),
             ),
           ),
+          const SizedBox(height: 24),
+          _SectionHeading(
+            title: 'Minimized call',
+            subtitle: 'Choose the floating controls shown while you browse Novyn',
+            trailing: _ValuePill(
+              _callMiniStyles
+                  .firstWhere((item) => item.$1 == settings.callMiniStyle,
+                      orElse: () => _callMiniStyles.first)
+                  .$2,
+            ),
+          ),
+          const SizedBox(height: 12),
+          _SurfaceCard(
+            padding: const EdgeInsets.all(10),
+            child: Column(
+              children: [
+                for (final style in _callMiniStyles)
+                  _CallMiniStyleChoice(
+                    id: style.$1,
+                    label: style.$2,
+                    icon: style.$3,
+                    selected: settings.callMiniStyle == style.$1,
+                    onTap: () => settings.setCallMiniStyle(style.$1),
+                  ),
+              ],
+            ),
+          ),
           const SizedBox(height: 18),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -226,6 +262,68 @@ class AppearanceScreen extends StatelessWidget {
     ThemeMode.dark => 'Dark',
     ThemeMode.system => 'System',
   };
+}
+
+class _CallMiniStyleChoice extends StatelessWidget {
+  const _CallMiniStyleChoice({
+    required this.id,
+    required this.label,
+    required this.icon,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String id;
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: '$label minimized call style',
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          margin: const EdgeInsets.symmetric(vertical: 3),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+          decoration: BoxDecoration(
+            color: selected ? colors.primary.withValues(alpha: .09) : Colors.transparent,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: selected ? colors.primary.withValues(alpha: .45) : Colors.transparent,
+            ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 38,
+                height: 28,
+                decoration: BoxDecoration(
+                  color: selected ? colors.primary : colors.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(
+                    id == 'compact_pill' ? 18 : id == 'avatar_bubble' ? 14 : 9,
+                  ),
+                ),
+                child: Icon(icon, size: 17, color: selected ? Colors.white : colors.onSurfaceVariant),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(label, style: const TextStyle(fontWeight: FontWeight.w700)),
+              ),
+              if (selected) Icon(Icons.check_circle_rounded, color: colors.primary, size: 20),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _AppearanceHero extends StatelessWidget {

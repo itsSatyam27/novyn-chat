@@ -2672,6 +2672,28 @@ class SocketService extends ChangeNotifier {
     _socket?.emit('call_accept', {'to': fromUsername, 'callId': callId});
   }
 
+  Future<String?> checkCallStatus(String peerUsername, String callId) async {
+    final socket = _socket;
+    if (socket == null || !_isConnected || !_isAuthenticated) return null;
+    final response = Completer<String?>();
+    socket.emitWithAck(
+      'call_check',
+      {'to': peerUsername, 'callId': callId},
+      ack: (dynamic data) {
+        if (response.isCompleted) return;
+        if (data is Map && data['callId']?.toString() == callId) {
+          response.complete(data['status']?.toString());
+        } else {
+          response.complete(null);
+        }
+      },
+    );
+    return response.future.timeout(
+      const Duration(seconds: 4),
+      onTimeout: () => null,
+    );
+  }
+
   void rejectCall(String fromUsername, String callId) {
     endCall(fromUsername, callId: callId, reason: 'Call declined');
   }

@@ -285,6 +285,11 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
             isIncoming: true,
             callerId: callerId,
             callId: data['callId']?.toString(),
+            callExpiresAt: int.tryParse(data['callExpiresAt']?.toString() ?? '') == null
+                ? null
+                : DateTime.fromMillisecondsSinceEpoch(
+                    int.parse(data['callExpiresAt'].toString()),
+                  ),
           ),
         ),
       );

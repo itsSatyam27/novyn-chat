@@ -79,6 +79,7 @@ function registerCallHandlers(socket, deps) {
     const to = toDisplayName(payload?.to);
     const isVideo = Boolean(payload?.isVideo);
     const callId = toDisplayName(payload?.callId).slice(0, 128);
+    const callExpiresAt = Date.now() + RING_TIMEOUT_MS;
     if (!to || !callId) return;
     if (normalizeName(to) === normalizeName(userKey)) {
       socket.emit("call_ended", { callId, reason: "You cannot call yourself." });
@@ -122,6 +123,7 @@ function registerCallHandlers(socket, deps) {
         fromDisplayName: callerDisplayName,
         isVideo,
         callId,
+        callExpiresAt,
       });
       // Also wake a backgrounded mobile client through high-priority FCM.
       // The foreground app ignores this duplicate when its live socket is active.
@@ -133,6 +135,7 @@ function registerCallHandlers(socket, deps) {
         chat: callerName,
         kind: "friend",
         callId,
+        callExpiresAt,
         isVideo,
         tag: "incoming-call-" + callId,
       })).catch((error) => {
@@ -157,6 +160,7 @@ function registerCallHandlers(socket, deps) {
         chat: callerName,
         kind: "friend",
         callId,
+        callExpiresAt,
         isVideo,
         tag: "incoming-call-" + callId,
       })).catch((error) => {
@@ -174,7 +178,10 @@ function registerCallHandlers(socket, deps) {
 
     const friendKey = normalizeName(to);
     const active = activeCalls.get(userKey);
-    if (!active || active.peerKey !== friendKey || active.callId !== callId) return;
+    if (!active || active.peerKey !== friendKey || active.callId !== callId) {
+      socket.emit("call_ended", { callId, reason: "This call has already ended." });
+      return;
+    }
     const me = users.get(userKey);
     const caller = users.get(friendKey);
     if (me?.callsEnabled === false || caller?.callsEnabled === false) {
@@ -193,6 +200,28 @@ function registerCallHandlers(socket, deps) {
     if (friendSocketId) {
       io.to(friendSocketId).emit("call_accepted", { from: userKey, callId });
     }
+  });
+
+  socket.on("call_check", (payload, acknowledge) => {
+    if (typeof acknowledge !== "function") return;
+    const userKey = socket.data.userKey;
+    if (!userKey) {
+      acknowledge({ active: false });
+      return;
+    }
+    const peerKey = normalizeName(toDisplayName(payload?.to));
+    const callId = toDisplayName(payload?.callId).slice(0, 128);
+    const active = activeCalls.get(userKey);
+    const isActive = Boolean(
+      peerKey && callId && active && active.peerKey === peerKey &&
+      active.callId === callId &&
+      (active.status === "ringing" || active.status === "connected")
+    );
+    acknowledge({
+      callId,
+      active: isActive,
+      status: isActive ? active.status : "ended",
+    });
   });
 
   socket.on("call_end", (payload) => {

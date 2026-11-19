@@ -136,7 +136,7 @@ function createFcmMessage(userKey, user, payload = {}) {
   };
 
   const optionalFields = [
-    "url", "tag", "groupId", "callStatus", "callId", "isVideo",
+    "url", "tag", "groupId", "callStatus", "callId", "callExpiresAt", "isVideo",
     "previewEnabled", "from", "displayName", "action", "build",
     "releaseTag", "releaseUrl",
   ];

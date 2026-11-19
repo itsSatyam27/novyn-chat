@@ -21,6 +21,37 @@ import '../screens/calls/calls_screen.dart';
 import '../screens/calls/call_screen.dart';
 import '../widgets/user_avatar.dart';
 
+int _callNotificationId(String callId) {
+  var hash = 0x811c9dc5;
+  for (final unit in callId.codeUnits) {
+    hash ^= unit;
+    hash = (hash * 0x01000193) & 0x7fffffff;
+  }
+  return hash == 0 ? 1 : hash;
+}
+
+DateTime? _callExpiryFromData(Map<String, dynamic> data) {
+  final raw = data['callExpiresAt']?.toString();
+  final milliseconds = int.tryParse(raw ?? '');
+  if (milliseconds == null || milliseconds <= 0) return null;
+  return DateTime.fromMillisecondsSinceEpoch(milliseconds);
+}
+
+const _incomingCallActions = <AndroidNotificationAction>[
+  AndroidNotificationAction(
+    'incoming_call_answer',
+    'Answer',
+    showsUserInterface: true,
+    cancelNotification: true,
+  ),
+  AndroidNotificationAction(
+    'incoming_call_decline',
+    'Decline',
+    showsUserInterface: true,
+    cancelNotification: true,
+  ),
+];
+
 // Top-level handler — must be a top-level function
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
@@ -74,10 +105,13 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
     await androidPlugin?.createNotificationChannel(missedChannel);
     final caller = data['chat']?.toString() ?? 'Novyn contact';
     final callId = data['callId']?.toString() ?? '';
+    final callExpiresAt = _callExpiryFromData(data);
     if (callStatus == 'ended') {
-      if (callId.isNotEmpty) await plugin.cancel(callId.hashCode);
+      if (callId.isNotEmpty) await plugin.cancel(_callNotificationId(callId));
       return;
     }
+    if (isIncoming && callExpiresAt != null &&
+        !callExpiresAt.isAfter(DateTime.now())) return;
     if (!(prefs.getBool('notifications_on') ?? true)) return;
     final presenceMode =
         (prefs.getString('active_smart_presence_mode_v1') ?? 'online')
@@ -90,6 +124,9 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
     if (dndEnabled && !favoriteIds.contains(caller.trim().toLowerCase()))
       return;
     final isVideo = data['isVideo']?.toString() == '1';
+    final incomingTimeoutMs = callExpiresAt == null
+        ? 45000
+        : callExpiresAt.difference(DateTime.now()).inMilliseconds.clamp(1, 45000).toInt();
     final title = data['title']?.toString() ??
         (isIncoming
             ? (isVideo ? 'Incoming video call' : 'Incoming voice call')
@@ -99,7 +136,7 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
             ? caller + ' is calling you'
             : 'You missed a call from ' + caller);
     await plugin.show(
-        callId.hashCode,
+        _callNotificationId(callId),
         title,
         body,
         NotificationDetails(
@@ -115,14 +152,15 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
               fullScreenIntent: isIncoming,
               ongoing: isIncoming,
               autoCancel: !isIncoming,
-              timeoutAfter: isIncoming ? 45000 : null,
+              timeoutAfter: isIncoming ? incomingTimeoutMs : null,
+              actions: isIncoming ? _incomingCallActions : const [],
               playSound: true,
               enableVibration: true,
               icon: '@drawable/novyn_wings_icon'),
           iOS: const DarwinNotificationDetails(
               presentAlert: true, presentBadge: true, presentSound: true),
         ),
-        payload: 'call:' + callId + '|' + caller + '|' + (isVideo ? '1' : '0'));
+        payload: 'call:' + callId + '|' + caller + '|' + (isVideo ? '1' : '0') + '|' + (callExpiresAt?.millisecondsSinceEpoch.toString() ?? ''));
     return;
   }
   final notificationType = data['type']?.toString() ?? '';
@@ -280,7 +318,6 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
         styleInformation: fln.MessagingStyleInformation(
           mePerson,
           messages: [fln.Message(body, timestamp, senderPerson)],
-          conversationTitle: sender,
           groupConversation: false,
         ),
         icon: '@drawable/novyn_wings_icon',
@@ -619,6 +656,15 @@ class NotificationService {
     _activeCallActionHandler = handler;
   }
 
+  static Future<void> clearIncomingCallNotification(String callId) async {
+    if (callId.trim().isEmpty) return;
+    try {
+      await _localNotifications.cancel(_callNotificationId(callId));
+    } catch (error) {
+      debugPrint('[NovynCalls] Could not clear incoming notification: $error');
+    }
+  }
+
   /// Schedules a local reminder while the application process is alive.
   /// Force-stopping the app clears this in-process timer.
   static Future<void> scheduleCallReminder({
@@ -784,6 +830,15 @@ class NotificationService {
       ),
       onDidReceiveNotificationResponse: (response) {
         final actionId = response.actionId ?? '';
+        if (actionId == 'incoming_call_answer' ||
+            actionId == 'incoming_call_decline') {
+          unawaited(_handleIncomingCallAction(
+            actionId,
+            response.payload,
+            context,
+          ));
+          return;
+        }
         if (actionId.startsWith('call_')) {
           _activeCallActionHandler?.call(actionId);
           return;
@@ -802,7 +857,12 @@ class NotificationService {
           final parts = payload.substring(5).split('|');
           if (parts.length >= 3 && parts[0].isNotEmpty) {
             unawaited(_openIncomingCall(
-                parts[1], parts[0], parts[2] == '1', context));
+              parts[1],
+              parts[0],
+              parts[2] == '1',
+              context,
+              expiresAt: parts.length > 3 ? int.tryParse(parts[3]) : null,
+            ));
           } else {
             Navigator.of(context)
                 .push(MaterialPageRoute(builder: (_) => const CallsScreen()));
@@ -1221,7 +1281,14 @@ class NotificationService {
         return;
       }
       unawaited(
-          _openIncomingCall(caller, callId, data['isVideo'] == true, context));
+        _openIncomingCall(
+          caller,
+          callId,
+          data['isVideo'] == true,
+          context,
+          expiresAt: int.tryParse(data['callExpiresAt']?.toString() ?? ''),
+        ),
+      );
     };
     _socket!.onAuthenticated = () {
       unawaited(_syncUserPreferences());
@@ -1259,7 +1326,16 @@ class NotificationService {
     if (localLaunch?.didNotificationLaunchApp == true &&
         localPayload.isNotEmpty &&
         context.mounted) {
-      if (localPayload == 'app_update') {
+      final response = localLaunch?.notificationResponse;
+      final actionId = response?.actionId ?? '';
+      if (actionId == 'incoming_call_answer' ||
+          actionId == 'incoming_call_decline') {
+        unawaited(_handleIncomingCallAction(
+          actionId,
+          localPayload,
+          context,
+        ));
+      } else if (localPayload == 'app_update') {
         _appUpdateTapHandler?.call(context);
       } else if (localPayload.startsWith('social:')) {
         _handleSocialTap(localPayload.substring('social:'.length));
@@ -1267,7 +1343,13 @@ class NotificationService {
         final parts = localPayload.substring(5).split('|');
         if (parts.length >= 3 && parts[0].isNotEmpty) {
           unawaited(
-              _openIncomingCall(parts[1], parts[0], parts[2] == '1', context));
+              _openIncomingCall(
+            parts[1],
+            parts[0],
+            parts[2] == '1',
+            context,
+            expiresAt: parts.length > 3 ? int.tryParse(parts[3]) : null,
+          ));
         }
       } else {
         unawaited(_openChatFromNotification(localPayload, context));
@@ -1395,7 +1477,7 @@ class NotificationService {
       final callId = message.data['callId']?.toString() ?? '';
       if (callStatus == 'ended') {
         if (callId.isNotEmpty)
-          unawaited(_localNotifications.cancel(callId.hashCode));
+          unawaited(_localNotifications.cancel(_callNotificationId(callId)));
         return;
       }
       if (!(_settings?.notificationsOn ?? false) ||
@@ -1408,9 +1490,24 @@ class NotificationService {
               .contains(caller.trim().toLowerCase())) return;
       if (_socket?.isConnected == true && callStatus == 'incoming') return;
       final isIncoming = callStatus == 'incoming';
+      final callExpiresAt = _callExpiryFromData(message.data);
+      if (isIncoming && callExpiresAt != null &&
+          !callExpiresAt.isAfter(DateTime.now())) {
+        if (callId.isNotEmpty) {
+          unawaited(clearIncomingCallNotification(callId));
+        }
+        return;
+      }
       final isVideo = message.data['isVideo']?.toString() == '1';
+      final incomingTimeoutMs = callExpiresAt == null
+          ? 45000
+          : callExpiresAt
+              .difference(DateTime.now())
+              .inMilliseconds
+              .clamp(1, 45000)
+              .toInt();
       unawaited(_localNotifications.show(
-        callId.hashCode,
+        _callNotificationId(callId),
         message.data['title']?.toString() ??
             (isIncoming
                 ? (isVideo ? 'Incoming video call' : 'Incoming voice call')
@@ -1432,14 +1529,15 @@ class NotificationService {
             fullScreenIntent: isIncoming,
             ongoing: isIncoming,
             autoCancel: !isIncoming,
-            timeoutAfter: isIncoming ? 45000 : null,
+            timeoutAfter: isIncoming ? incomingTimeoutMs : null,
+            actions: isIncoming ? _incomingCallActions : const [],
             playSound: true,
             enableVibration: true,
           ),
           iOS: const DarwinNotificationDetails(
               presentAlert: true, presentBadge: true, presentSound: true),
         ),
-        payload: 'call:' + callId + '|' + caller + '|' + (isVideo ? '1' : '0'),
+        payload: 'call:' + callId + '|' + caller + '|' + (isVideo ? '1' : '0') + '|' + (callExpiresAt?.millisecondsSinceEpoch.toString() ?? ''),
       ));
       return;
     }
@@ -1533,8 +1631,14 @@ class NotificationService {
       if (message.data['callStatus'] == 'incoming' &&
           caller.isNotEmpty &&
           callId.isNotEmpty) {
+        final expiry = _callExpiryFromData(message.data);
         await _openIncomingCall(
-            caller, callId, message.data['isVideo'] == '1', context);
+          caller,
+          callId,
+          message.data['isVideo'] == '1',
+          context,
+          expiresAt: expiry?.millisecondsSinceEpoch,
+        );
         return;
       }
       Navigator.of(context)
@@ -1549,21 +1653,92 @@ class NotificationService {
     await _openChatFromNotification(username, context);
   }
 
+  static final Set<String> _openingCallIds = <String>{};
+
+  static Future<void> _handleIncomingCallAction(
+    String actionId,
+    String? rawPayload,
+    BuildContext context,
+  ) async {
+    final payload = rawPayload?.trim() ?? '';
+    if (!context.mounted || !payload.startsWith('call:')) return;
+    final parts = payload.substring(5).split('|');
+    if (parts.length < 3 || parts[0].isEmpty || parts[1].isEmpty) return;
+    final callId = parts[0];
+    final caller = parts[1];
+    final isVideo = parts[2] == '1';
+    final expiresAt = parts.length > 3 ? int.tryParse(parts[3]) : null;
+    await clearIncomingCallNotification(callId);
+    if (expiresAt != null && expiresAt <= DateTime.now().millisecondsSinceEpoch) {
+      return;
+    }
+
+    final socket = _socket;
+    for (var attempt = 0;
+        attempt < 60 &&
+            !(socket?.isConnected == true && socket?.isAuthenticated == true);
+        attempt++) {
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+      if (!context.mounted) return;
+    }
+    if (socket?.isConnected != true || socket?.isAuthenticated != true) {
+      if (context.mounted) {
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+          const SnackBar(content: Text('Could not connect to answer this call.')),
+        );
+      }
+      return;
+    }
+
+    if (actionId == 'incoming_call_decline') {
+      socket!.rejectCall(caller, callId);
+      return;
+    }
+    await _openIncomingCall(
+      caller,
+      callId,
+      isVideo,
+      context,
+      expiresAt: expiresAt,
+      autoAccept: true,
+    );
+  }
+
   static Future<void> _openIncomingCall(
-      String caller, String callId, bool isVideo, BuildContext context) async {
+    String caller,
+    String callId,
+    bool isVideo,
+    BuildContext context, {
+    int? expiresAt,
+    bool autoAccept = false,
+  }) async {
+    if (callId.trim().isEmpty || !_openingCallIds.add(callId)) return;
+    if (expiresAt != null &&
+        expiresAt <= DateTime.now().millisecondsSinceEpoch) {
+      await clearIncomingCallNotification(callId);
+      _openingCallIds.remove(callId);
+      return;
+    }
     try {
       final peer = await context.read<FriendService>().getUser(caller);
       if (peer == null || !context.mounted) return;
-      Navigator.of(context).push(MaterialPageRoute(
-          builder: (_) => CallScreen(
-                peer: peer,
-                callType: isVideo ? 'video' : 'voice',
-                isIncoming: true,
-                callerId: caller,
-                callId: callId,
-              )));
+      await Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => CallScreen(
+          peer: peer,
+          callType: isVideo ? 'video' : 'voice',
+          isIncoming: true,
+          callerId: caller,
+          callId: callId,
+          callExpiresAt: expiresAt == null
+              ? null
+              : DateTime.fromMillisecondsSinceEpoch(expiresAt),
+          autoAccept: autoAccept,
+        ),
+      ));
     } catch (error) {
       debugPrint('[NovynCalls] Could not open incoming call: $error');
+    } finally {
+      _openingCallIds.remove(callId);
     }
   }
 
