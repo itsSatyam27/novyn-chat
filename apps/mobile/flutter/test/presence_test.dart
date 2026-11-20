@@ -1,9 +1,14 @@
 import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:novyn/services/auth_service.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  setUp(() {
+    SharedPreferences.setMockInitialValues({});
+  });
 
   Future<AuthService> createAuth(Future<void> Function(String) save) async {
     final auth = AuthService(
@@ -34,6 +39,24 @@ void main() {
     await failed;
     expect(auth.user!.presenceMode, 'online');
     expect(auth.updatingPresence, isFalse);
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getString('novyn_notification_presence_mode'), 'online');
+    auth.dispose();
+  });
+
+
+  test('Offline alias saves the supported Invisible presence mode', () async {
+    String? sent;
+    final auth = await createAuth((mode) async {
+      sent = mode;
+    });
+
+    await auth.updateStatus('Offline');
+
+    expect(sent, 'invisible');
+    expect(auth.user!.presenceMode, 'invisible');
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getString('novyn_notification_presence_mode'), 'invisible');
     auth.dispose();
   });
 
