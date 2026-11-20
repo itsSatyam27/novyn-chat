@@ -1416,6 +1416,23 @@ class NotificationService {
         await settings.hydrateSmartPresenceModeFromServer(activeMode, values);
         await settings.applySmartPresenceLocalPolicy(activeMode);
         await settings.hydrateNotificationPreferencesFromServer(values);
+        final mutedValues = values['mutedChats'];
+        if (mutedValues is List) {
+          final mutedIds = mutedValues
+              .map((value) => value.toString().trim().toLowerCase())
+              .where((value) => value.isNotEmpty)
+              .toSet();
+          final local = await SharedPreferences.getInstance();
+          await local.reload();
+          const mutePrefix = 'novyn_mute_';
+          for (final key in local.getKeys().where((key) => key.startsWith(mutePrefix))) {
+            final chatId = key.substring(mutePrefix.length).toLowerCase();
+            await local.setBool(key, mutedIds.contains(chatId));
+          }
+          for (final chatId in mutedIds) {
+            await local.setBool(mutePrefix + chatId, true);
+          }
+        }
         _preferencesLoadedForUser = username;
         await _syncBackgroundPreviewPreferences();
         if (settings.notificationsOn &&
