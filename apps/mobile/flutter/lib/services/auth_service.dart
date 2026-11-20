@@ -1192,7 +1192,10 @@ class AuthService extends ChangeNotifier {
   // Screens call auth.updateStatus('Online'|'Away'|'Busy'|'Invisible').
   // Update locally, wait for server confirmation, and undo failed saves.
   Future<void> updateStatus(String status) async {
-    final mode = status.trim().toLowerCase();
+    final requestedMode = status.trim().toLowerCase();
+    // "Offline" is the user-facing meaning of Invisible, not a distinct
+    // server presence mode. Normalize legacy callers to the supported value.
+    final mode = requestedMode == 'offline' ? 'invisible' : requestedMode;
     if (!['online', 'away', 'busy', 'invisible'].contains(mode)) {
       throw ArgumentError.value(status, 'status', 'Unknown presence mode');
     }
@@ -1209,7 +1212,10 @@ class AuthService extends ChangeNotifier {
       // ChangeNotifier. Persist the selected mode so Busy is respected even
       // when the app is backgrounded or its socket temporarily disconnects.
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('novyn_notification_presence_mode', mode);
+      final persisted = await prefs.setString('novyn_notification_presence_mode', mode);
+      if (!persisted) {
+        throw StateError('Your device could not save the selected status.');
+      }
       if (savePresencePolicy != null) {
         final policy = presencePolicy?.call(mode) ?? const <String, dynamic>{};
         await savePresencePolicy!(mode, policy);
