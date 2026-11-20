@@ -1545,10 +1545,9 @@ class NotificationService {
           !preferences.favoriteChatIds.contains(caller.toLowerCase())) {
         return;
       }
-      final isVideo = data['isVideo'] == true;
-      if (!preferences.notificationPreference(
-        isVideo ? 'videoCallsEnabled' : 'voiceCallsEnabled',
-      )) return;
+      // This callback opens the active in-app call UI. The per-category
+      // notification preference only suppresses alert delivery, not calls
+      // while the app is already connected.
       unawaited(
         _openIncomingCall(
           caller,
