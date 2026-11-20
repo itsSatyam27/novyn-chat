@@ -138,7 +138,6 @@ class _SoundVibrationScreenState extends State<SoundVibrationScreen> {
   Widget build(BuildContext context) {
     final settings = context.watch<SettingsService>();
     final dark = Theme.of(context).brightness == Brightness.dark;
-    final ink = NovynTheme.textPrimary(context);
     final muted = NovynTheme.textSecondary(context);
 
     return Scaffold(
