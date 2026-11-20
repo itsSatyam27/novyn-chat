@@ -167,7 +167,10 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   if (notificationType == 'friend_request' ||
       notificationType == 'friend_request_accepted' ||
       notificationType == 'friend_request_declined' ||
-      notificationType == 'group_invite') {
+      notificationType == 'group_invite' ||
+      notificationType == 'game_invitation' ||
+      notificationType == 'game_turn' ||
+      notificationType == 'game_result') {
     await NotificationService.showSocialNotification(data);
     return;
   }
@@ -417,6 +420,9 @@ class NotificationService {
       'friend_request_accepted',
       'friend_request_declined',
       'group_invite',
+      'game_invitation',
+      'game_turn',
+      'game_result',
     };
     if (!supportedTypes.contains(type)) return;
 
@@ -1448,7 +1454,10 @@ class NotificationService {
     if (type == 'friend_request' ||
         type == 'friend_request_accepted' ||
         type == 'friend_request_declined' ||
-        type == 'group_invite') {
+        type == 'group_invite' ||
+        type == 'game_invitation' ||
+        type == 'game_turn' ||
+        type == 'game_result') {
       unawaited(showSocialNotification(message.data));
       return;
     }
