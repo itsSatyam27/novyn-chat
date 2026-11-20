@@ -10126,21 +10126,28 @@ io.on("connection", (socket) => {
     if (isGroup) {
       const groupId = normalizeGroupId(payload?.groupId || payload?.username);
       const group = groups.get(groupId);
-      if (!user || !group || !isGroupMember(group, userKey)) {
+      const alreadyMuted = user?.mutedUsers instanceof Set &&
+        user.mutedUsers.has(groupId);
+      if (!user || ((!group || !isGroupMember(group, userKey)) &&
+          !(muted === false && alreadyMuted))) {
         respond({ ok: false, message: "You can only mute notifications for a group you belong to." });
         return;
       }
-      muteKey = group.id;
-      targetLabel = group.name || group.id;
+      muteKey = groupId;
+      targetLabel = group?.name || groupId;
     } else {
       const targetKey = normalizeName(payload?.username);
       const target = users.get(targetKey);
-      if (!user || !target || targetKey === userKey || !user.friends.has(targetKey)) {
+      const alreadyMuted = user?.mutedUsers instanceof Set &&
+        user.mutedUsers.has(targetKey);
+      if (!user || targetKey === userKey ||
+          ((!target || !user.friends.has(targetKey)) &&
+              !(muted === false && alreadyMuted))) {
         respond({ ok: false, message: "You can only update notifications for a contact." });
         return;
       }
       muteKey = targetKey;
-      targetLabel = target.username || targetKey;
+      targetLabel = target?.username || targetKey;
     }
     if (!(user.mutedUsers instanceof Set)) user.mutedUsers = new Set();
     if (muted) user.mutedUsers.add(muteKey);
