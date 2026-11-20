@@ -202,6 +202,12 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
     if (dndEnabled && !favoriteIds.contains(caller.trim().toLowerCase()))
       return;
     final isVideo = data['isVideo']?.toString() == '1';
+    if (!_preferenceEnabled(
+      prefs,
+      isIncoming
+          ? (isVideo ? 'notification_video_calls' : 'notification_voice_calls')
+          : 'notification_missed_calls',
+    )) return;
     final incomingTimeoutMs = callExpiresAt == null
         ? 45000
         : callExpiresAt.difference(DateTime.now()).inMilliseconds.clamp(1, 45000).toInt();
@@ -249,7 +255,13 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
     await NotificationService.showSocialNotification(data);
     return;
   }
-  if (notificationType != 'message' || data['kind'] == 'group') return;
+  if (notificationType == 'game_invitation' ||
+      notificationType == 'game_turn' ||
+      notificationType == 'game_result') {
+    await NotificationService.showGameNotification(data);
+    return;
+  }
+  if (notificationType != 'message') return;
 
   final prefs = await SharedPreferences.getInstance();
   // Background FCM runs in its own isolate; refresh the plugin cache before
@@ -262,7 +274,15 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   if (!notificationsEnabled ||
       presenceMode == 'busy' ||
       presenceMode == 'invisible') return;
-  // The active mode's notificationsEnabled preference is persisted above.
+  final isGroup = data['kind'] == 'group';
+  final mentionOrReply = data['mentionOrReply']?.toString() == '1' ||
+      data['mentionOrReply']?.toString().toLowerCase() == 'true';
+  if (!_canDisplayNotification(
+    prefs,
+    notificationType,
+    isGroup: isGroup,
+    mentionOrReply: mentionOrReply,
+  )) return;
   // Keep honoring explicit silent payloads (including delayed pushes).
   final sender = (data['chat'] ?? '').toString().trim();
   final account = (prefs.getString('novyn_notification_account') ?? '')
@@ -272,6 +292,7 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
       .map((value) => value.trim().toLowerCase())
       .toSet();
   if (archivedChats.contains(sender.toLowerCase())) return;
+  if (prefs.getBool('novyn_mute_${sender.toLowerCase()}') == true) return;
   final dndEnabled = prefs.getBool('do_not_disturb_enabled') ?? false;
   final favoriteIds = (prefs.getStringList('favorite_chat_ids') ?? [])
       .map((value) => value.toLowerCase())
@@ -297,7 +318,7 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
     return;
   }
 
-  var body = 'You have a new message';
+  var body = isGroup ? 'New group message' : 'You have a new message';
   if (previewEnabled && !hideContent) {
     // Plaintext Flutter messages carry a safe preview in the FCM data payload.
     // Older encrypted messages still use the legacy local decryption path below.
@@ -308,7 +329,7 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
       body = plaintextPreview;
     }
   }
-  if (previewEnabled && !hideContent && notificationAccount.isNotEmpty) {
+  if (previewEnabled && !hideContent && notificationAccount.isNotEmpty && !isGroup) {
     final ciphertext = data['ciphertext']?.toString() ?? '';
     final iv = data['iv']?.toString() ?? '';
     final peerKey = data['senderPublicKey']?.toString() ?? '';
@@ -366,13 +387,16 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
     android: AndroidInitializationSettings('@drawable/novyn_wings_icon'),
     iOS: DarwinInitializationSettings(),
   ));
-  const channel = AndroidNotificationChannel(
-    'novyn_messages',
-    'Messages',
-    description: 'New direct messages from your Novyn contacts',
+  final sound = _preferenceEnabled(prefs, 'notification_sound_enabled');
+  final vibration = _preferenceEnabled(prefs, 'notification_vibration_enabled');
+  final channelId = _notificationChannelVariant('novyn_messages', sound, vibration);
+  final channel = AndroidNotificationChannel(
+    channelId,
+    isGroup ? 'Group messages' : 'Direct messages',
+    description: 'New messages from your Novyn conversations',
     importance: Importance.max,
-    playSound: true,
-    enableVibration: true,
+    playSound: sound,
+    enableVibration: vibration,
   );
   await plugin
       .resolvePlatformSpecificImplementation<
@@ -387,29 +411,31 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
     body,
     NotificationDetails(
       android: AndroidNotificationDetails(
-        'novyn_messages',
-        'Messages',
-        channelDescription: 'New direct messages from your Novyn contacts',
+        channelId,
+        isGroup ? 'Group messages' : 'Direct messages',
+        channelDescription: 'New messages from your Novyn conversations',
         importance: Importance.max,
         priority: Priority.high,
         category: AndroidNotificationCategory.message,
         styleInformation: fln.MessagingStyleInformation(
           mePerson,
           messages: [fln.Message(body, timestamp, senderPerson)],
-          groupConversation: false,
+          groupConversation: isGroup,
         ),
+        playSound: sound,
+        enableVibration: vibration,
         icon: '@drawable/novyn_wings_icon',
         ticker: '$sender: $body',
         onlyAlertOnce: false,
         autoCancel: true,
       ),
-      iOS: const DarwinNotificationDetails(
+      iOS: DarwinNotificationDetails(
         presentAlert: true,
         presentBadge: true,
-        presentSound: true,
+        presentSound: sound,
       ),
     ),
-    payload: sender,
+    payload: isGroup ? 'group:$sender' : sender,
   );
 }
 
