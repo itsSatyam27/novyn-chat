@@ -78,7 +78,7 @@ class _SetupPinScreenState extends State<SetupPinScreen> {
     HapticService.vibrate(NovynHapticType.light, category: HapticCategory.buttons);
     final next = _activePin + digit;
     setState(() {
-      if (widget.isChanging && _step == 0) {
+      if (widget.isVerifyingOnly || (widget.isChanging && _step == 0)) {
         _currentPin = next;
       } else if ((widget.isChanging && _step == 1) ||
           (!widget.isChanging && _step == 0)) {
@@ -202,7 +202,7 @@ class _SetupPinScreenState extends State<SetupPinScreen> {
     setState(() {
       if (_activePin.isNotEmpty) {
         final next = _activePin.substring(0, _activePin.length - 1);
-        if (widget.isChanging && _step == 0) {
+        if (widget.isVerifyingOnly || (widget.isChanging && _step == 0)) {
           _currentPin = next;
         } else if ((widget.isChanging && _step == 1) ||
             (!widget.isChanging && _step == 0)) {
@@ -235,7 +235,13 @@ class _SetupPinScreenState extends State<SetupPinScreen> {
           onPressed: _saving ? null : () => Navigator.maybePop(context),
           icon: const Icon(Icons.close_rounded),
         ),
-        title: Text(widget.isChanging ? 'Change PIN' : 'App Lock PIN'),
+        title: Text(
+          widget.isVerifyingOnly
+              ? 'Verify PIN'
+              : widget.isChanging
+                  ? 'Change PIN'
+                  : 'App Lock PIN',
+        ),
         centerTitle: true,
       ),
       body: SafeArea(
