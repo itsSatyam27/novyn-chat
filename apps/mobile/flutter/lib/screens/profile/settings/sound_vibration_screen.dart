@@ -145,27 +145,26 @@ class _SoundVibrationScreenState extends State<SoundVibrationScreen> {
       backgroundColor: NovynTheme.pageBg(context),
       body: SafeArea(
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(20, 14, 20, 30),
+          padding: const EdgeInsets.fromLTRB(20, 10, 20, 30),
           physics: const BouncingScrollPhysics(),
           children: [
-            Padding(
-              padding: const EdgeInsets.only(left: 4),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Sound & Vibration', style: TextStyle(
-                    fontFamily: NovynTheme.fontFamily,
-                    fontSize: 26, fontWeight: FontWeight.w800,
-                    height: 1.15, letterSpacing: -.3, color: ink,
-                  )),
-                  const SizedBox(height: 4),
-                  Text('Tones, previews and haptics', style: TextStyle(
-                    fontSize: 13.5, fontWeight: FontWeight.w500, color: muted,
-                  )),
-                ],
-              ),
+            _ScreenHeader(
+              title: 'Sound & Vibration',
+              onBack: () => Navigator.maybePop(context),
             ),
             const SizedBox(height: 10),
+            Padding(
+              padding: const EdgeInsets.only(left: 4),
+              child: Text(
+                'Tones, previews and haptics',
+                style: TextStyle(
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w500,
+                  color: muted,
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
 
             const _SectionLabel('Messages'),
             _SoundCard(
@@ -743,3 +742,60 @@ class _NvSlider extends StatelessWidget {
       min: 0, max: 100, onChanged: onChanged),
   );
 }
+
+class _ScreenHeader extends StatelessWidget {
+  final String title;
+  final VoidCallback onBack;
+
+  const _ScreenHeader({required this.title, required this.onBack});
+
+  @override
+  Widget build(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final ink = Theme.of(context).colorScheme.onSurface;
+    final border = Theme.of(context).colorScheme.outlineVariant;
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 4, bottom: 8),
+      child: Row(
+        children: [
+          Material(
+            color: dark ? const Color(0xFF161726) : Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            child: InkWell(
+              onTap: () {
+                HapticService.vibrate(NovynHapticType.light);
+                onBack();
+              },
+              borderRadius: BorderRadius.circular(14),
+              child: Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: border),
+                ),
+                child: Icon(Icons.arrow_back_rounded, color: ink, size: 20),
+              ),
+            ),
+          ),
+          Expanded(
+            child: Center(
+              child: Text(
+                title,
+                style: TextStyle(
+                  color: ink,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.3,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 42),
+        ],
+      ),
+    );
+  }
+}
+

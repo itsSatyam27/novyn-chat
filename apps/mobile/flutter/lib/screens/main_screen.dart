@@ -309,6 +309,11 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     if (widget.managePresence && _authService?.user != null) {
       _authService!.setOnline(false);
     }
+    try {
+      final socket = context.read<SocketService>();
+      socket.onCallInviteCallback = null;
+      socket.onUserStatusChanged = null;
+    } catch (_) {}
     widget.onCallHostExit?.call();
     super.dispose();
   }

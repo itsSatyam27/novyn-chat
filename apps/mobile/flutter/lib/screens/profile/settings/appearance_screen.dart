@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:novyn/services/haptic_service.dart';
 import '../../../services/settings_service.dart';
 import '../../../services/auth_service.dart';
 import '../../../theme/novyn_theme.dart';
@@ -43,15 +44,17 @@ class AppearanceScreen extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: NovynTheme.pageBg(context),
-      appBar: AppBar(
-        title: const Text('Appearance'),
-        backgroundColor: NovynTheme.pageBg(context),
-        surfaceTintColor: Colors.transparent,
-      ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(18, 8, 18, 32),
-        children: [
-          _AppearanceHero(
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(20, 10, 20, 32),
+          physics: const BouncingScrollPhysics(),
+          children: [
+            _ScreenHeader(
+              title: 'Appearance',
+              onBack: () => Navigator.maybePop(context),
+            ),
+            const SizedBox(height: 14),
+            _AppearanceHero(
             themeMode: settings.themeMode,
             accent: accent,
             accentName: accentName,
@@ -1035,3 +1038,60 @@ class _DockStyleTile extends StatelessWidget {
     );
   }
 }
+
+class _ScreenHeader extends StatelessWidget {
+  final String title;
+  final VoidCallback onBack;
+
+  const _ScreenHeader({required this.title, required this.onBack});
+
+  @override
+  Widget build(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final ink = Theme.of(context).colorScheme.onSurface;
+    final border = Theme.of(context).colorScheme.outlineVariant;
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 4, bottom: 8),
+      child: Row(
+        children: [
+          Material(
+            color: dark ? const Color(0xFF161726) : Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            child: InkWell(
+              onTap: () {
+                HapticService.vibrate(NovynHapticType.light);
+                onBack();
+              },
+              borderRadius: BorderRadius.circular(14),
+              child: Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: border),
+                ),
+                child: Icon(Icons.arrow_back_rounded, color: ink, size: 20),
+              ),
+            ),
+          ),
+          Expanded(
+            child: Center(
+              child: Text(
+                title,
+                style: TextStyle(
+                  color: ink,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.3,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 42),
+        ],
+      ),
+    );
+  }
+}
+
