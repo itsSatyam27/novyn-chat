@@ -30,7 +30,9 @@ import 'settings/appearance_screen.dart';
 import 'settings/quick_toggle_customization_screen.dart';
 import 'settings/quick_toggle_layout.dart';
 import 'settings/chat_settings_screen.dart';
-import 'settings/support_screens.dart';
+import 'settings/about_novyn_screen.dart';
+import 'settings/help_support_screen.dart';
+import 'settings/feedback_screen.dart';
 import 'package:novyn/services/haptic_service.dart';
 
 class ProfileScreen extends StatelessWidget {

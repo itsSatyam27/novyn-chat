@@ -22,7 +22,7 @@ import '../services/settings_service.dart';
 import '../services/app_update_service.dart';
 import '../services/profile_deep_link_service.dart';
 import 'profile/public_profile_screen.dart';
-import 'profile/settings/support_screens.dart';
+import 'profile/settings/about_novyn_screen.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({
