@@ -65,8 +65,8 @@ import 'sync_service.dart';
 typedef IncomingMessageCallback = void Function(
   String sender,
   String body, {
-  bool isGroup,
-  bool mentionOrReply,
+  bool? isGroup,
+  bool? mentionOrReply,
 });
 
 class SocketService extends ChangeNotifier {
