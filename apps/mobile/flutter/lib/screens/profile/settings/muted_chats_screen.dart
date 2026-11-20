@@ -3,7 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:novyn/services/haptic_service.dart';
 
-import '../../../models/chat_preview.dart';
+import '../../../services/friend_service.dart';
 import '../../../services/socket_service.dart';
 import '../../../theme/novyn_theme.dart';
 import '../../../widgets/novyn_alert.dart';
@@ -27,67 +27,135 @@ class MutedChatsScreen extends StatefulWidget {
   State<MutedChatsScreen> createState() => _MutedChatsScreenState();
 }
 
+class _MutedChatEntry {
+  const _MutedChatEntry({
+    required this.id,
+    required this.title,
+    required this.subtitle,
+    required this.isGroup,
+  });
+
+  final String id;
+  final String title;
+  final String subtitle;
+  final bool isGroup;
+}
+
 class _MutedChatsScreenState extends State<MutedChatsScreen> {
   bool _loading = true;
   bool _saving = false;
-  List<ChatPreview> _mutedChats = <ChatPreview>[];
+  List<_MutedChatEntry> _mutedChats = <_MutedChatEntry>[];
 
-  String _muteId(ChatPreview chat) =>
-      chat.isGroup ? (chat.peer.uid.isNotEmpty ? chat.peer.uid : chat.chatId) : chat.peer.username;
+  String _storageKey(String id) => 'novyn_mute_${id.trim().toLowerCase()}';
 
-  String _storageKey(ChatPreview chat) =>
-      'novyn_mute_${_muteId(chat).trim().toLowerCase()}';
-
-  @override
-  void initState() {
-    super.initState();
-    _loadMutedChats();
-  }
-
-  Future<void> _loadMutedChats() async {
+  Future<void> initLoad() async {
     if (mounted) setState(() => _loading = true);
     final socket = context.read<SocketService>();
     final prefs = await SharedPreferences.getInstance();
     await prefs.reload();
 
-    final remote = await socket.fetchAccountSettings();
-    final remoteSettings = remote['settings'] is Map
-        ? Map<String, dynamic>.from(remote['settings'] as Map)
-        : <String, dynamic>{};
-    final remoteIds = (remoteSettings['mutedChats'] is List
-            ? remoteSettings['mutedChats'] as List
-            : const <dynamic>[])
-        .map((value) => value.toString().trim().toLowerCase())
-        .where((value) => value.isNotEmpty)
-        .toSet();
+    try {
+      final remote = await socket.fetchAccountSettings();
+      final remoteSettings = remote['settings'] is Map
+          ? Map<String, dynamic>.from(remote['settings'] as Map)
+          : <String, dynamic>{};
+      final values = remoteSettings['mutedChats'];
+      if (remote['ok'] == true && values is List) {
+        final ids = values
+            .map((value) => value.toString().trim())
+            .where((value) => value.isNotEmpty)
+            .toSet()
+            .toList()
+          ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
 
-    final chats = socket.conversations;
-    final muted = <ChatPreview>[];
-    for (final chat in chats) {
-      final id = _muteId(chat).trim().toLowerCase();
-      if (id.isEmpty) continue;
-      final isMuted = remote['ok'] == true
-          ? remoteIds.contains(id)
-          : (prefs.getBool(_storageKey(chat)) ?? false);
-      await prefs.setBool(_storageKey(chat), isMuted);
-      if (isMuted) muted.add(chat);
+        final entries = await Future.wait(ids.map((id) async {
+          final isGroup = id.startsWith('grp_');
+          if (isGroup) {
+            try {
+              final group = await socket.getGroupInfo(id);
+              final name = group['name']?.toString().trim();
+              return _MutedChatEntry(
+                id: id,
+                title: name?.isNotEmpty == true ? name! : 'Group chat',
+                subtitle: 'Group conversation',
+                isGroup: true,
+              );
+            } catch (_) {
+              return _MutedChatEntry(
+                id: id,
+                title: 'Group chat',
+                subtitle: id,
+                isGroup: true,
+              );
+            }
+          }
+
+          try {
+            final peer = await context.read<FriendService>().getUser(id);
+            return _MutedChatEntry(
+              id: id,
+              title: peer?.name.trim().isNotEmpty == true ? peer!.name.trim() : id,
+              subtitle: '@$id',
+              isGroup: false,
+            );
+          } catch (_) {
+            return _MutedChatEntry(
+              id: id,
+              title: id,
+              subtitle: 'Novyn contact',
+              isGroup: false,
+            );
+          }
+        }));
+
+        for (final id in ids) {
+          await prefs.setBool(_storageKey(id), true);
+        }
+        if (!mounted) return;
+        setState(() {
+          _mutedChats = entries;
+          _loading = false;
+        });
+        return;
+      }
+    } catch (_) {
+      // Use the local cache when offline; server state wins when available.
+    }
+
+    final fallback = <_MutedChatEntry>[];
+    for (final chat in socket.conversations) {
+      final id = chat.isGroup
+          ? (chat.peer.uid.isNotEmpty ? chat.peer.uid : chat.chatId)
+          : chat.peer.username;
+      if (prefs.getBool(_storageKey(id)) != true) continue;
+      fallback.add(_MutedChatEntry(
+        id: id,
+        title: chat.peer.name.trim().isNotEmpty ? chat.peer.name.trim() : id,
+        subtitle: chat.isGroup ? 'Group conversation' : '@${chat.peer.username}',
+        isGroup: chat.isGroup,
+      ));
     }
 
     if (!mounted) return;
     setState(() {
-      _mutedChats = muted;
+      _mutedChats = fallback;
       _loading = false;
     });
   }
 
-  Future<void> _unmute(ChatPreview chat) async {
+  @override
+  void initState() {
+    super.initState();
+    initLoad();
+  }
+
+  Future<void> _unmute(_MutedChatEntry chat) async {
     if (_saving) return;
     setState(() => _saving = true);
-    final id = _muteId(chat);
     final prefs = await SharedPreferences.getInstance();
     try {
       final result = await context.read<SocketService>().setMute(
-            id,
+            chat.id,
             muted: false,
             isGroup: chat.isGroup,
           );
@@ -95,11 +163,12 @@ class _MutedChatsScreenState extends State<MutedChatsScreen> {
         throw StateError(result['message']?.toString() ??
             'The server did not confirm this mute change.');
       }
-      await prefs.setBool(_storageKey(chat), false);
+      await prefs.setBool(_storageKey(chat.id), false);
       if (!mounted) return;
       setState(() {
-        _mutedChats.removeWhere((item) =>
-            _muteId(item).toLowerCase() == id.toLowerCase());
+        _mutedChats.removeWhere(
+          (item) => item.id.toLowerCase() == chat.id.toLowerCase(),
+        );
       });
       NovynToast.show(context, 'Notifications unmuted');
     } catch (error) {
@@ -126,7 +195,7 @@ class _MutedChatsScreenState extends State<MutedChatsScreen> {
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : RefreshIndicator(
-              onRefresh: _loadMutedChats,
+              onRefresh: initLoad,
               child: _mutedChats.isEmpty
                   ? ListView(
                       physics: const AlwaysScrollableScrollPhysics(),
@@ -159,39 +228,51 @@ class _MutedChatsScreenState extends State<MutedChatsScreen> {
                       separatorBuilder: (_, __) => const SizedBox(height: 9),
                       itemBuilder: (context, index) {
                         final chat = _mutedChats[index];
-                        final title = chat.peer.name.trim().isNotEmpty
-                            ? chat.peer.name.trim()
-                            : chat.peer.username;
                         return Container(
                           decoration: BoxDecoration(
                             color: isDark ? const Color(0xFF1E1C2E) : Colors.white,
                             borderRadius: BorderRadius.circular(20),
                             border: Border.all(
-                              color: isDark ? const Color(0xFF2C2844) : const Color(0xFFEDE9F6),
+                              color: isDark
+                                  ? const Color(0xFF2C2844)
+                                  : const Color(0xFFEDE9F6),
                             ),
                           ),
                           child: ListTile(
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 5,
+                            ),
                             leading: CircleAvatar(
                               radius: 22,
-                              backgroundColor: chat.peer.avatarColor.withValues(alpha: .16),
+                              backgroundColor: scheme.primaryContainer,
                               child: chat.isGroup
-                                  ? Icon(Icons.groups_rounded, color: chat.peer.avatarColor)
+                                  ? Icon(Icons.groups_rounded,
+                                      color: scheme.onPrimaryContainer)
                                   : Text(
-                                      chat.peer.initials,
+                                      chat.title.trim().isEmpty
+                                          ? '?'
+                                          : chat.title.trim()[0].toUpperCase(),
                                       style: TextStyle(
-                                        color: chat.peer.avatarColor,
+                                        color: scheme.onPrimaryContainer,
                                         fontWeight: FontWeight.w800,
                                       ),
                                     ),
                             ),
-                            title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
-                            subtitle: Text(chat.isGroup ? 'Group conversation' : '@${chat.peer.username}'),
+                            title: Text(
+                              chat.title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            subtitle: Text(chat.subtitle),
                             trailing: TextButton(
-                              onPressed: _saving ? null : () {
-                                HapticService.vibrate(NovynHapticType.selection);
-                                _unmute(chat);
-                              },
+                              onPressed: _saving
+                                  ? null
+                                  : () {
+                                      HapticService.vibrate(
+                                          NovynHapticType.selection);
+                                      _unmute(chat);
+                                    },
                               child: const Text('Unmute'),
                             ),
                           ),
