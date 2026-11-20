@@ -62,6 +62,13 @@ import 'sync_service.dart';
 ///   ON    friend_removed           — { username }
 ///   ON    error_message            — { message }
 
+typedef IncomingMessageCallback = void Function(
+  String sender,
+  String body, {
+  bool isGroup,
+  bool mentionOrReply,
+});
+
 class SocketService extends ChangeNotifier {
   SocketService({bool initialStealthModeEnabled = false})
       : _stealthModePreference = initialStealthModeEnabled;
@@ -173,7 +180,7 @@ class SocketService extends ChangeNotifier {
 
   // Status and foreground message callbacks
   Function(String username, bool isOnline)? onUserStatusChanged;
-  Function(String sender, String body)? onIncomingMessage;
+  IncomingMessageCallback? onIncomingMessage;
   VoidCallback? onConnected;
 
   // Cache the read-only view while the immutable backing list is unchanged.
@@ -1022,9 +1029,16 @@ class SocketService extends ChangeNotifier {
           }
         }
       } else if (!isOwn) {
-        if (!isGroupMessage) {
-          onIncomingMessage?.call(chatPartner, msg.text);
-        }
+        final mentionOrReply = data['replyTo'] != null ||
+            msg.text.toLowerCase().contains(
+              '@${(_myUsername ?? '').trim().toLowerCase()}',
+            );
+        onIncomingMessage?.call(
+          chatPartner,
+          msg.text,
+          isGroup: isGroupMessage,
+          mentionOrReply: mentionOrReply,
+        );
         // Sound and vibration remain independent user preferences.
         if (!(notificationsMuted?.call(chatPartner) ?? false)) {
           unawaited(_playIncomingMessageSound());
