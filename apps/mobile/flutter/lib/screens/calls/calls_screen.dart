@@ -108,21 +108,40 @@ class _CallsScreenState extends State<CallsScreen> with WidgetsBindingObserver {
     if (!mounted) return;
     setState(() {
       _myUsername = username;
-      _favoriteUsernames = (prefs.getStringList(_favKey(username)) ?? <String>[]).toSet();
+      _favoriteUsernames = (prefs.getStringList(_favKey(username)) ?? <String>[]).take(5).toSet();
       _dismissedAt = dismissed;
     });
   }
 
-  Future<void> _toggleFavorite(UserModel peer) async {
+  Future<bool> _toggleFavorite(UserModel peer) async {
     final username = _myUsername ?? context.read<AuthService>().user?.username;
-    if (username == null) return;
+    if (username == null) return false;
     final next = Set<String>.from(_favoriteUsernames);
     final key = peer.username.toLowerCase();
-    if (!next.add(key)) next.remove(key);
+    if (next.contains(key)) {
+      next.remove(key);
+    } else {
+      if (next.length >= 5) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).hideCurrentSnackBar();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('You can add up to 5 quick call contacts only'),
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
+        return false;
+      }
+      next.add(key);
+    }
     final prefs = await SharedPreferences.getInstance();
     await prefs.setStringList(_favKey(username), next.toList());
-    if (!mounted) return;
+    if (!mounted) return false;
     setState(() => _favoriteUsernames = next);
+    return true;
   }
 
   Future<void> _saveDismissed(String username) async {
@@ -515,9 +534,12 @@ class _CallsScreenState extends State<CallsScreen> with WidgetsBindingObserver {
     return Scaffold(
       backgroundColor: pageBackground,
       body: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+        child: SlidableAutoCloseBehavior(
+          closeWhenOpened: true,
+          closeWhenTapped: true,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
             NovynHeader(
               title: 'Calls',
               titleSize: 36,
@@ -577,6 +599,7 @@ class _CallsScreenState extends State<CallsScreen> with WidgetsBindingObserver {
                       : _buildList(visible),
             ),
           ],
+        ),
         ),
       ),
     );
@@ -670,6 +693,7 @@ class _CallsScreenState extends State<CallsScreen> with WidgetsBindingObserver {
     }
     final quickFriends = byUsername.values
         .where((peer) => _favoriteUsernames.contains(peer.username.toLowerCase()))
+        .take(5)
         .toList()
       ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
 
@@ -709,7 +733,7 @@ class _CallsScreenState extends State<CallsScreen> with WidgetsBindingObserver {
                                 fontWeight: FontWeight.w700,
                                 color: theme.colorScheme.onSurface)),
                         const SizedBox(height: 2),
-                        Text('Star people you call often',
+                        Text('Star people you call often (up to 5)',
                             style: TextStyle(
                                 fontFamily: 'PlusJakartaSans',
                                 fontSize: 12.5,
@@ -733,9 +757,11 @@ class _CallsScreenState extends State<CallsScreen> with WidgetsBindingObserver {
       );
     }
 
+    final canAddMore = quickFriends.length < 5;
+
     return Container(
       margin: const EdgeInsets.fromLTRB(20, 8, 20, 8),
-      padding: const EdgeInsets.fromLTRB(16, 10, 8, 12),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
       decoration: BoxDecoration(
         color: theme.colorScheme.surface,
         borderRadius: BorderRadius.circular(24),
@@ -745,33 +771,58 @@ class _CallsScreenState extends State<CallsScreen> with WidgetsBindingObserver {
         children: [
           Row(
             children: [
-              Expanded(
+              Text(
+                'QUICK CALL',
+                style: TextStyle(
+                  fontFamily: 'PlusJakartaSans',
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 1.2,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                decoration: BoxDecoration(
+                  color: accent.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(10),
+                ),
                 child: Text(
-                  'QUICK CALL',
+                  '${quickFriends.length}/5',
                   style: TextStyle(
                     fontFamily: 'PlusJakartaSans',
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    letterSpacing: 1.25,
-                    color: theme.colorScheme.onSurfaceVariant,
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w700,
+                    color: accent,
                   ),
                 ),
               ),
+              const Spacer(),
               TextButton(
                 onPressed: _showQuickCallPicker,
-                style: TextButton.styleFrom(minimumSize: const Size(48, 44)),
+                style: TextButton.styleFrom(
+                  minimumSize: const Size(40, 32),
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
                 child: const Text('Edit', style: TextStyle(fontWeight: FontWeight.w700)),
               ),
             ],
           ),
+          const SizedBox(height: 10),
           SizedBox(
             height: 82,
-            child: ListView(
+            child: ListView.separated(
               scrollDirection: Axis.horizontal,
-              children: [
-                for (final peer in quickFriends)
-                  SizedBox(
-                    width: 68,
+              physics: const BouncingScrollPhysics(),
+              itemCount: quickFriends.length + (canAddMore ? 1 : 0),
+              separatorBuilder: (_, __) => const SizedBox(width: 14),
+              itemBuilder: (context, index) {
+                if (index < quickFriends.length) {
+                  final peer = quickFriends[index];
+                  return SizedBox(
+                    width: 62,
                     child: Semantics(
                       button: true,
                       label: 'Call ${_displayName(peer.name)}',
@@ -782,6 +833,7 @@ class _CallsScreenState extends State<CallsScreen> with WidgetsBindingObserver {
                         ),
                         onLongPress: () => _toggleFavorite(peer),
                         child: Column(
+                          mainAxisSize: MainAxisSize.min,
                           children: [
                             UserAvatar(name: peer.name, photoUrl: peer.photoUrl, radius: 24),
                             const SizedBox(height: 6),
@@ -789,6 +841,7 @@ class _CallsScreenState extends State<CallsScreen> with WidgetsBindingObserver {
                               _displayName(peer.name).split(' ').first,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
+                              textAlign: TextAlign.center,
                               style: TextStyle(
                                 fontFamily: 'PlusJakartaSans',
                                 fontSize: 11,
@@ -800,12 +853,14 @@ class _CallsScreenState extends State<CallsScreen> with WidgetsBindingObserver {
                         ),
                       ),
                     ),
-                  ),
-                SizedBox(
-                  width: 68,
+                  );
+                }
+                return SizedBox(
+                  width: 62,
                   child: GestureDetector(
                     onTap: _showQuickCallPicker,
                     child: Column(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
                         Container(
                           width: 48,
@@ -817,18 +872,23 @@ class _CallsScreenState extends State<CallsScreen> with WidgetsBindingObserver {
                           child: Icon(Icons.add_rounded, size: 25, color: accent),
                         ),
                         const SizedBox(height: 6),
-                        Text('Add',
-                            style: TextStyle(
-                              fontFamily: 'PlusJakartaSans',
-                              fontSize: 11,
-                              fontWeight: FontWeight.w500,
-                              color: theme.colorScheme.onSurface,
-                            )),
+                        Text(
+                          'Add',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontFamily: 'PlusJakartaSans',
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500,
+                            color: theme.colorScheme.onSurface,
+                          ),
+                        ),
                       ],
                     ),
                   ),
-                ),
-              ],
+                );
+              },
             ),
           ),
         ],
@@ -1005,11 +1065,30 @@ class _CallsScreenState extends State<CallsScreen> with WidgetsBindingObserver {
                   padding: const EdgeInsets.fromLTRB(20, 18, 20, 12),
                   child: Row(children: [
                     Expanded(
-                      child: Text('Add quick call',
-                          style: Theme.of(sheetContext)
-                              .textTheme
-                              .titleLarge
-                              ?.copyWith(fontWeight: FontWeight.w600)),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'Quick call',
+                            style: Theme.of(sheetContext)
+                                .textTheme
+                                .titleLarge
+                                ?.copyWith(fontWeight: FontWeight.w600),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '${_favoriteUsernames.length}/5 selected',
+                            style: TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w500,
+                              color: _favoriteUsernames.length >= 5
+                                  ? Theme.of(sheetContext).colorScheme.primary
+                                  : Theme.of(sheetContext).colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                     Text('${friends.length} friends',
                         style: TextStyle(color: Theme.of(sheetContext).colorScheme.onSurfaceVariant)),
@@ -1032,7 +1111,7 @@ class _CallsScreenState extends State<CallsScreen> with WidgetsBindingObserver {
                                 tooltip: favorite ? 'Remove from quick call' : 'Add to quick call',
                                 onPressed: () async {
                                   await _toggleFavorite(peer);
-                                  refresh(() {});
+                                  if (mounted) refresh(() {});
                                 },
                                 icon: Icon(
                                   favorite ? Icons.star_rounded : Icons.star_outline_rounded,
@@ -1342,9 +1421,17 @@ class _CallCard extends StatelessWidget {
       child: Semantics(
         button: true,
         label: '${isMissed ? 'Missed ' : isIncoming ? 'Incoming ' : 'Outgoing '}${isVideo ? 'video' : 'voice'} call, $name, ${_formatTime(entry.createdAt)}',
-        child: InkWell(
-          onTap: () => _showHistory(context),
-          child: Padding(
+        child: Builder(
+          builder: (cardContext) => InkWell(
+            onTap: () {
+              final slidable = Slidable.of(cardContext);
+              if (slidable != null && slidable.animation.value > 0) {
+                slidable.close();
+                return;
+              }
+              _showHistory(context);
+            },
+            child: Padding(
             padding: const EdgeInsets.only(left: 10, right: 14, top: 11, bottom: 11),
             child: Row(
               children: [
@@ -1478,6 +1565,7 @@ class _CallCard extends StatelessWidget {
               ],
             ),
           ),
+        ),
         ),
       ),
     );

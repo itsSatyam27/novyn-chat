@@ -787,11 +787,34 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
     );
   }
 
+  Color _headerBackdrop(String wallpaper, bool dark) {
+    final v = wallpaper.trim();
+    if (v.startsWith('#') && v.length == 7) {
+      return Color(int.parse('FF${v.substring(1)}', radix: 16));
+    }
+    return dark ? const Color(0xFF0B0B17) : const Color(0xFFF9F7FF);
+  }
+
+  bool _isSameMinute(DateTime a, DateTime b) {
+    final x = a.toLocal();
+    final y = b.toLocal();
+    return x.year == y.year &&
+        x.month == y.month &&
+        x.day == y.day &&
+        x.hour == y.hour &&
+        x.minute == y.minute;
+  }
+
   PreferredSizeWidget _buildAppBar(SocketService socket) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;
     final accent = scheme.primary;
+    final topInset = MediaQuery.paddingOf(context).top;
+    const cardHeight = 60.0;
+    const gapTop = 6.0;
+    const gapBottom = 6.0;
+
     final peerStatusLabel = widget.isGroup
         ? (widget.peer.bio.isNotEmpty ? widget.peer.bio : 'Group conversation')
         : _peerStatusLabel();
@@ -804,259 +827,186 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
                 ? scheme.onSurfaceVariant
                 : const Color(0xFF10B981),
           };
-    return AppBar(
-      backgroundColor: Colors.transparent,
-      surfaceTintColor: Colors.transparent,
-      elevation: 0,
-      toolbarHeight: 72,
-      scrolledUnderElevation: 0,
-      flexibleSpace: Container(
-        // Keep the intentional breathing room above the floating header.
-        margin: const EdgeInsets.fromLTRB(10, 15, 10, 5),
-        decoration: BoxDecoration(
-          color: scheme.surface,
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(
-            color: scheme.outlineVariant.withValues(alpha: .35),
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: isDark ? .22 : .07),
-              blurRadius: 18,
-              offset: const Offset(0, 5),
+
+    return PreferredSize(
+      // The status-bar inset is added here, once, instead of inside a flexibleSpace.
+      preferredSize: Size.fromHeight(topInset + gapTop + cardHeight + gapBottom),
+      child: ColoredBox(
+        color: _headerBackdrop(socket.chatWallpaper, isDark),
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(10, topInset + gapTop, 10, gapBottom),
+          child: Container(
+            height: cardHeight,
+            decoration: BoxDecoration(
+              color: scheme.surface,
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(color: scheme.outlineVariant.withValues(alpha: .35)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: isDark ? .22 : .06),
+                  blurRadius: 16,
+                  offset: const Offset(0, 4),
+                ),
+              ],
             ),
-          ],
-        ),
-      ),
-      automaticallyImplyLeading: false,
-      titleSpacing: 5,
-      title: Row(
-        children: [
-          _ChatHeaderButton(
-            icon: Icons.arrow_back_ios_new_rounded,
-            iconSize: 17,
-            tooltip: 'Back',
-            onTap: () => Navigator.pop(context),
-          ),
-          const SizedBox(width: 6),
-          Expanded(
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: () => _showContactInfo(),
-              child: Row(
-                children: [
-                  if (!widget.isGroup)
-                    PresenceIndicatorBar(
-                      isOnline: _peerIsOnline,
-                      status: _peerPresence,
-                      width: 4,
-                      height: 28,
-                      margin: const EdgeInsets.only(right: 9),
-                    ),
-                  Hero(
-                    tag: 'avatar_${widget.peer.uid}',
-                    child: UserAvatar(
-                      name: widget.peer.name,
-                      photoUrl: widget.peer.photoUrl,
-                      radius: 20,
-                      showOnlineIndicator: false,
-                      isOnline: widget.isGroup ? false : _peerIsOnline,
-                      presence: _peerPresence,
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.start,
+            child: Row(
+              children: [
+                _ChatHeaderButton(
+                  icon: Icons.arrow_back_ios_new_rounded,
+                  iconSize: 18,
+                  tooltip: 'Back',
+                  onTap: () => Navigator.pop(context),
+                ),
+                Expanded(
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: _showContactInfo,
+                    child: Row(
                       children: [
-                        Text(
-                          widget.peer.name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontFamily: 'PlusJakartaSans',
-                            fontWeight: FontWeight.w700,
-                            fontSize: 16,
-                            color: scheme.onSurface,
+                        if (!widget.isGroup)
+                          PresenceIndicatorBar(
+                            isOnline: _peerIsOnline,
+                            status: _peerPresence,
+                            width: 4,
+                            height: 24,
+                            margin: const EdgeInsets.only(right: 8),
+                          ),
+                        Hero(
+                          tag: 'avatar_${widget.peer.uid}',
+                          child: UserAvatar(
+                            name: widget.peer.name,
+                            photoUrl: widget.peer.photoUrl,
+                            radius: 18,
+                            showOnlineIndicator: false,
+                            isOnline: widget.isGroup ? false : _peerIsOnline,
+                            presence: _peerPresence,
                           ),
                         ),
-                        SizedBox(
-                          height: 17,
-                          child: AnimatedSwitcher(
-                            duration: const Duration(milliseconds: 320),
-                            switchInCurve: Curves.easeOutCubic,
-                            switchOutCurve: Curves.easeInCubic,
-                            transitionBuilder: (child, animation) {
-                              final slide = Tween<Offset>(
-                                begin: const Offset(0, .18),
-                                end: Offset.zero,
-                              ).animate(CurvedAnimation(
-                                parent: animation,
-                                curve: Curves.easeOutCubic,
-                              ));
-                              return FadeTransition(
-                                opacity: animation,
-                                child: SlideTransition(
-                                    position: slide, child: child),
-                              );
-                            },
-                            child: Align(
-                              key: ValueKey(peerStatusLabel),
-                              alignment: Alignment.centerLeft,
-                              child: Text(
-                                peerStatusLabel,
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                widget.peer.name,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                softWrap: false,
                                 style: TextStyle(
                                   fontFamily: 'PlusJakartaSans',
-                                  fontSize: 12,
-                                  height: 1.1,
-                                  fontWeight: FontWeight.w500,
-                                  color: peerStatusColor,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 15,
+                                  height: 1.15,
+                                  color: scheme.onSurface,
                                 ),
                               ),
-                            ),
+                              SizedBox(
+                                height: 16,
+                                child: AnimatedSwitcher(
+                                  duration: const Duration(milliseconds: 320),
+                                  switchInCurve: Curves.easeOutCubic,
+                                  switchOutCurve: Curves.easeInCubic,
+                                  transitionBuilder: (child, animation) {
+                                    final slide = Tween<Offset>(
+                                      begin: const Offset(0, .18),
+                                      end: Offset.zero,
+                                    ).animate(CurvedAnimation(
+                                        parent: animation, curve: Curves.easeOutCubic));
+                                    return FadeTransition(
+                                      opacity: animation,
+                                      child: SlideTransition(position: slide, child: child),
+                                    );
+                                  },
+                                  child: Align(
+                                    key: ValueKey(peerStatusLabel),
+                                    alignment: Alignment.centerLeft,
+                                    child: Text(
+                                      peerStatusLabel,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      softWrap: false,
+                                      style: TextStyle(
+                                        fontFamily: 'PlusJakartaSans',
+                                        fontSize: 11.5,
+                                        height: 1.1,
+                                        fontWeight: FontWeight.w500,
+                                        color: peerStatusColor,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ],
                     ),
                   ),
+                ),
+                if (!widget.isGroup) ...[
+                  _ChatHeaderButton(
+                    icon: Icons.call_rounded,
+                    color: accent,
+                    tooltip: 'Voice call',
+                    onTap: () => _startCall('voice'),
+                  ),
+                  _ChatHeaderButton(
+                    icon: Icons.videocam_rounded,
+                    color: accent,
+                    tooltip: 'Video call',
+                    onTap: () => _startCall('video'),
+                  ),
                 ],
-              ),
+                _ChatHeaderButton(
+                  key: _headerMenuButtonKey,
+                  icon: Icons.more_vert_rounded,
+                  color: accent,
+                  tooltip: 'More options',
+                  onTap: _showHeaderMenu,
+                ),
+                const SizedBox(width: 2),
+              ],
             ),
           ),
-          const SizedBox(width: 4),
-          if (!widget.isGroup) ...[
-            _ChatHeaderButton(
-              icon: Icons.call_rounded,
-              color: accent,
-              tooltip: 'Voice call',
-              onTap: () => _startCall('voice'),
-            ),
-            const SizedBox(width: 3),
-            _ChatHeaderButton(
-              icon: Icons.videocam_rounded,
-              color: accent,
-              tooltip: 'Video call',
-              onTap: () => _startCall('video'),
-            ),
-            const SizedBox(width: 3),
-          ],
-          _ChatHeaderButton(
-            key: _headerMenuButtonKey,
-            icon: Icons.more_vert_rounded,
-            color: accent,
-            tooltip: 'More options',
-            onTap: _showHeaderMenu,
-          ),
-          const SizedBox(width: 2),
-        ],
+        ),
       ),
     );
   }
 
   Future<void> _showHeaderMenu() async {
     final buttonContext = _headerMenuButtonKey.currentContext;
-    if (buttonContext == null) return;
-    final button = buttonContext.findRenderObject() as RenderBox?;
-    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox?;
-    if (button == null || overlay == null || !mounted) return;
+    if (buttonContext == null || !mounted) return;
+    final box = buttonContext.findRenderObject() as RenderBox?;
+    if (box == null) return;
+    final anchor = box.localToGlobal(Offset.zero) & box.size;
 
-    final buttonTopLeft = button.localToGlobal(Offset.zero, ancestor: overlay);
-    final anchor = buttonTopLeft & button.size;
-    final overlayRect = Offset.zero & overlay.size;
-    final itemCount = widget.isGroup ? 5 : 8;
-    final menuHeight = itemCount * 44.0 + (widget.isGroup ? 12 : 29);
-    final availableHeight = math.max(1.0, overlay.size.height - 16).toDouble();
-    final menuWidth = math.min(288.0, overlay.size.width - 16).toDouble();
-    final right = overlay.size.width - anchor.right;
-    var top = anchor.bottom + 8;
-    if (top + math.min(menuHeight, availableHeight) > overlay.size.height - 8) {
-      top = math.max(
-        8,
-        anchor.top - math.min(menuHeight, availableHeight) - 8,
-      ).toDouble();
-    }
-    final left = (overlay.size.width - right - menuWidth)
-        .clamp(8.0, overlay.size.width - menuWidth - 8)
-        .toDouble();
-    final menuRect = Rect.fromLTWH(left, top, menuWidth, menuHeight);
-    final scheme = Theme.of(context).colorScheme;
-    final blocked = _isPeerBlocked();
-    final selected = await showMenu<String>(
+    final selected = await showGeneralDialog<String>(
       context: context,
-      position: RelativeRect.fromRect(menuRect, overlayRect),
-      color: scheme.surface,
-      elevation: 18,
-      constraints: BoxConstraints(
-        minWidth: menuWidth,
-        maxWidth: menuWidth,
-        maxHeight: availableHeight,
+      barrierDismissible: true,
+      barrierLabel: 'Close menu',
+      barrierColor: Colors.black.withValues(alpha: .14),
+      transitionDuration: const Duration(milliseconds: 220),
+      pageBuilder: (dialogContext, _, __) => _ChatMenuPopover(
+        anchor: anchor,
+        isGroup: widget.isGroup,
+        muted: _peerMuted,
+        blocked: _isPeerBlocked(),
       ),
-      menuPadding: const EdgeInsets.symmetric(vertical: 5),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(22),
-        side: BorderSide(color: scheme.primary.withValues(alpha: .18)),
-      ),
-      items: [
-        _headerMenuItem(
-          value: 'info',
-          icon: widget.isGroup ? Icons.groups_rounded : Icons.person_outline_rounded,
-          title: widget.isGroup ? 'Group info' : 'View profile',
-          tint: const Color(0xFF705DF4),
-        ),
-        _headerMenuItem(
-          value: 'search',
-          icon: Icons.search_rounded,
-          title: 'Search in chat',
-          tint: const Color(0xFF2684D9),
-        ),
-        _headerMenuItem(
-          value: 'shared',
-          icon: Icons.photo_library_outlined,
-          title: 'Shared media',
-          tint: const Color(0xFF4388D7),
-        ),
-        if (!widget.isGroup)
-          _headerMenuItem(
-            value: 'mute',
-            icon: _peerMuted ? Icons.notifications_active_outlined : Icons.notifications_off_outlined,
-            title: 'Mute',
-            tint: const Color(0xFFB8791E),
-            trailing: _buildMuteSwitch(scheme),
+      transitionBuilder: (context, animation, _, child) {
+        final curved = CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOutCubic,
+          reverseCurve: Curves.easeIn,
+        );
+        return FadeTransition(
+          opacity: curved,
+          child: ScaleTransition(
+            scale: Tween<double>(begin: .92, end: 1).animate(curved),
+            alignment: Alignment.topRight,
+            child: child,
           ),
-        _headerMenuItem(
-          value: 'wallpaper',
-          icon: Icons.palette_outlined,
-          title: 'Chat wallpaper',
-          tint: const Color(0xFFC83C77),
-        ),
-        _headerMenuItem(
-          value: 'export',
-          icon: Icons.file_upload_outlined,
-          title: 'Export chat',
-          tint: const Color(0xFF13856F),
-        ),
-        if (!widget.isGroup) const PopupMenuDivider(height: 13),
-        if (!widget.isGroup)
-          _headerMenuItem(
-            value: 'clear',
-            icon: Icons.delete_outline_rounded,
-            title: 'Clear chat history',
-            tint: const Color(0xFFE3453B),
-            danger: true,
-          ),
-        if (!widget.isGroup)
-          _headerMenuItem(
-            value: 'block',
-            icon: blocked ? Icons.lock_open_rounded : Icons.block_rounded,
-            title: blocked ? 'Unblock contact' : 'Block contact',
-            tint: const Color(0xFFE3453B),
-            danger: true,
-          ),
-      ],
+        );
+      },
     );
 
     if (!mounted || selected == null) return;
@@ -1096,68 +1046,6 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
         break;
     }
   }
-
-  PopupMenuEntry<String> _headerMenuItem({
-    required String value,
-    required IconData icon,
-    required String title,
-    required Color tint,
-    Widget? trailing,
-    bool danger = false,
-  }) {
-    final scheme = Theme.of(context).colorScheme;
-    return PopupMenuItem<String>(
-      value: value,
-      height: 44,
-      padding: EdgeInsets.zero,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        child: Row(
-          children: [
-            Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
-                color: tint.withValues(alpha: .12),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(icon, color: tint, size: 18),
-            ),
-            const SizedBox(width: 11),
-            Expanded(
-              child: Text(
-                title,
-                style: TextStyle(
-                  color: danger ? tint : scheme.onSurface,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-            if (trailing != null) trailing,
-            if (value == 'info')
-              Icon(Icons.chevron_right_rounded,
-                  color: scheme.onSurfaceVariant.withValues(alpha: .7), size: 20),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildMuteSwitch(ColorScheme scheme) => SizedBox(
-        width: 48,
-        height: 38,
-        child: Transform.scale(
-          scale: .78,
-          child: Switch.adaptive(
-            value: _peerMuted,
-            activeTrackColor: scheme.primary,
-            onChanged: (muted) {
-              Navigator.of(context).pop(muted ? 'mute-on' : 'mute-off');
-            },
-          ),
-        ),
-      );
 
   Widget _buildEmptyChat() {
     final theme = Theme.of(context);
@@ -1593,19 +1481,26 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
           return _buildDateSeparator(messages[dateMessageIndex].createdAt);
         }
         final msgIndex = timelineItem;
+        final current = messages[msgIndex];
+        final next = msgIndex + 1 < messages.length ? messages[msgIndex + 1] : null;
+        // last bubble of a run from the same sender
+        final lastInGroup = next == null ||
+            next.isFromMe != current.isFromMe ||
+            (widget.isGroup && next.senderId != current.senderId);
+        // show time + tick only at the end of a run or when the minute changes
+        final showMeta = lastInGroup ||
+            next == null ||
+            !_isSameMinute(current.createdAt, next.createdAt) ||
+            (current.reactions ?? {}).isNotEmpty;
         return _SwipeToReply(
-          onSwipe: () => _startReply(messages[msgIndex]),
+          onSwipe: () => _startReply(current),
           child: _MessageBubble(
-            message: messages[msgIndex],
-            showAvatar: !messages[msgIndex].isFromMe &&
-                (msgIndex == 0 ||
-                    messages[msgIndex - 1].isFromMe ||
-                    (widget.isGroup &&
-                        messages[msgIndex - 1].senderId !=
-                            messages[msgIndex].senderId)),
+            message: current,
+            showAvatar: !current.isFromMe && lastInGroup,
+            showMeta: showMeta,
             peer: widget.peer,
             isGroup: widget.isGroup,
-            messageStatus: socket.messageStatusFor(messages[msgIndex].id),
+            messageStatus: socket.messageStatusFor(current.id),
             myUid: _myUid ?? '',
             onReply: _startReply,
             onForward: _showForwardDialog,
@@ -4359,6 +4254,7 @@ class _MessageBubble extends StatelessWidget {
 
   final dynamic message;
   final bool showAvatar;
+  final bool showMeta;
   final UserModel peer;
   final bool isGroup;
   final String messageStatus;
@@ -4369,6 +4265,7 @@ class _MessageBubble extends StatelessWidget {
   const _MessageBubble({
     required this.message,
     required this.showAvatar,
+    this.showMeta = true,
     required this.peer,
     this.isGroup = false,
     this.messageStatus = 'sent',
@@ -4386,7 +4283,7 @@ class _MessageBubble extends StatelessWidget {
     final labelScale = context.watch<SettingsService>().chatLabelSize;
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
+      padding: EdgeInsets.only(bottom: showMeta ? 8 : 3),
       child: Row(
         mainAxisAlignment:
             isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
@@ -4662,39 +4559,41 @@ class _MessageBubble extends StatelessWidget {
                   ),
 
                 // ── Time + tick ─────────────────────────────────────────
-                const SizedBox(height: 3),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (message.edited == true)
-                      Padding(
-                        padding: const EdgeInsets.only(right: 4),
-                        child: Text(
-                          'edited',
-                          style: TextStyle(
-                            fontFamily: 'PlusJakartaSans',
-                            fontSize: 10 *
-                                context.watch<SettingsService>().chatLabelSize,
-                            fontStyle: FontStyle.italic,
-                            color: Color(0xFF94A3B8),
+                if (showMeta) ...[
+                  const SizedBox(height: 3),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (message.edited == true)
+                        Padding(
+                          padding: const EdgeInsets.only(right: 4),
+                          child: Text(
+                            'edited',
+                            style: TextStyle(
+                              fontFamily: 'PlusJakartaSans',
+                              fontSize: 10 *
+                                  context.watch<SettingsService>().chatLabelSize,
+                              fontStyle: FontStyle.italic,
+                              color: Color(0xFF94A3B8),
+                            ),
                           ),
                         ),
+                      Text(
+                        time,
+                        style: TextStyle(
+                          fontFamily: 'PlusJakartaSans',
+                          fontSize:
+                              10 * context.watch<SettingsService>().chatLabelSize,
+                          color: Color(0xFF94A3B8),
+                        ),
                       ),
-                    Text(
-                      time,
-                      style: TextStyle(
-                        fontFamily: 'PlusJakartaSans',
-                        fontSize:
-                            10 * context.watch<SettingsService>().chatLabelSize,
-                        color: Color(0xFF94A3B8),
-                      ),
-                    ),
-                    if (isMe) ...[
-                      const SizedBox(width: 3),
-                      _buildTick(context, message),
+                      if (isMe) ...[
+                        const SizedBox(width: 3),
+                        _buildTick(context, message),
+                      ],
                     ],
-                  ],
-                ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -6668,13 +6567,15 @@ class _HighlightedText extends StatelessWidget {
 }
 
 // ── Header square button (web-style) ─────────────────────────────────────────
+/// Header icon button: 44px tap target, same look as before.
 class _ChatHeaderButton extends StatelessWidget {
   const _ChatHeaderButton({
     super.key,
     required this.icon,
     required this.onTap,
     this.color,
-    this.iconSize = 20,
+    this.iconSize = 21,
+    this.size = 44,
     this.tooltip,
   });
 
@@ -6682,6 +6583,7 @@ class _ChatHeaderButton extends StatelessWidget {
   final VoidCallback onTap;
   final Color? color;
   final double iconSize;
+  final double size;
   final String? tooltip;
 
   @override
@@ -6693,15 +6595,204 @@ class _ChatHeaderButton extends StatelessWidget {
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: onTap,
-        child: Material(
-          color: Colors.transparent,
-          shape: const CircleBorder(),
-          child: SizedBox(
-            width: 40,
-            height: 40,
-            child: Center(
-                child:
-                    Icon(icon, size: iconSize, color: color ?? scheme.primary)),
+        child: SizedBox(
+          width: size,
+          height: size,
+          child: Center(child: Icon(icon, size: iconSize, color: color ?? scheme.primary)),
+        ),
+      ),
+    );
+  }
+}
+
+/// Animated popover anchored under the ⋮ button.
+/// Pops a String value: info | search | shared | mute | mute-on | mute-off |
+/// wallpaper | export | clear | block
+class _ChatMenuPopover extends StatelessWidget {
+  const _ChatMenuPopover({
+    required this.anchor,
+    required this.isGroup,
+    required this.muted,
+    required this.blocked,
+  });
+
+  final Rect anchor;
+  final bool isGroup;
+  final bool muted;
+  final bool blocked;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final media = MediaQuery.of(context);
+    final width = math.min(264.0, media.size.width - 24).toDouble();
+    final top = anchor.bottom + 6;
+    final maxHeight = math.max(120.0, media.size.height - top - media.padding.bottom - 12).toDouble();
+    const danger = Color(0xFFE3453B);
+
+    Widget divider() => Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 14),
+          child: Divider(height: 1, color: scheme.outlineVariant.withValues(alpha: .6)),
+        );
+
+    return Stack(
+      children: [
+        Positioned(
+          top: top,
+          right: 10,
+          width: width,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxHeight: maxHeight),
+            child: Material(
+              color: scheme.surface,
+              elevation: 14,
+              shadowColor: Colors.black.withValues(alpha: .28),
+              borderRadius: BorderRadius.circular(22),
+              clipBehavior: Clip.antiAlias,
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _MenuRow(
+                      value: 'info',
+                      icon: isGroup ? Icons.groups_rounded : Icons.person_outline_rounded,
+                      title: isGroup ? 'Group info' : 'View profile',
+                      tint: const Color(0xFF705DF4),
+                      chevron: true,
+                    ),
+                    divider(),
+                    const _MenuRow(
+                      value: 'search',
+                      icon: Icons.search_rounded,
+                      title: 'Search in chat',
+                      tint: Color(0xFF2684D9),
+                    ),
+                    const _MenuRow(
+                      value: 'shared',
+                      icon: Icons.photo_library_outlined,
+                      title: 'Shared media',
+                      tint: Color(0xFF4388D7),
+                    ),
+                    const _MenuRow(
+                      value: 'wallpaper',
+                      icon: Icons.palette_outlined,
+                      title: 'Chat wallpaper',
+                      tint: Color(0xFFC83C77),
+                    ),
+                    if (!isGroup)
+                      _MenuRow(
+                        value: 'mute',
+                        icon: muted
+                            ? Icons.notifications_active_outlined
+                            : Icons.notifications_off_outlined,
+                        title: 'Mute',
+                        tint: const Color(0xFFB8791E),
+                        trailing: Transform.scale(
+                          scale: .78,
+                          child: Switch.adaptive(
+                            value: muted,
+                            activeTrackColor: scheme.primary,
+                            onChanged: (v) =>
+                                Navigator.of(context).pop(v ? 'mute-on' : 'mute-off'),
+                          ),
+                        ),
+                      ),
+                    const _MenuRow(
+                      value: 'export',
+                      icon: Icons.file_upload_outlined,
+                      title: 'Export chat',
+                      tint: Color(0xFF13856F),
+                    ),
+                    if (!isGroup) ...[
+                      divider(),
+                      const _MenuRow(
+                        value: 'clear',
+                        icon: Icons.delete_outline_rounded,
+                        title: 'Clear chat history',
+                        tint: danger,
+                        danger: true,
+                      ),
+                      _MenuRow(
+                        value: 'block',
+                        icon: blocked ? Icons.lock_open_rounded : Icons.block_rounded,
+                        title: blocked ? 'Unblock contact' : 'Block contact',
+                        tint: danger,
+                        danger: true,
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _MenuRow extends StatelessWidget {
+  const _MenuRow({
+    required this.value,
+    required this.icon,
+    required this.title,
+    required this.tint,
+    this.trailing,
+    this.chevron = false,
+    this.danger = false,
+  });
+
+  final String value;
+  final IconData icon;
+  final String title;
+  final Color tint;
+  final Widget? trailing;
+  final bool chevron;
+  final bool danger;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return InkWell(
+      // Soft violet feedback instead of the default grey highlight.
+      highlightColor: scheme.primary.withValues(alpha: .08),
+      splashColor: scheme.primary.withValues(alpha: .10),
+      onTap: () => Navigator.of(context).pop(value),
+      child: SizedBox(
+        height: 48,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Row(
+            children: [
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: tint.withValues(alpha: .12),
+                  borderRadius: BorderRadius.circular(11),
+                ),
+                child: Icon(icon, color: tint, size: 17),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontFamily: 'PlusJakartaSans',
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w600,
+                    color: danger ? tint : scheme.onSurface,
+                  ),
+                ),
+              ),
+              if (trailing != null) trailing!,
+              if (chevron)
+                Icon(Icons.chevron_right_rounded,
+                    size: 20, color: scheme.onSurfaceVariant.withValues(alpha: .7)),
+            ],
           ),
         ),
       ),
