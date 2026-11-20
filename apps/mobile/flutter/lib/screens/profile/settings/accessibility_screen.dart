@@ -86,7 +86,7 @@ class AccessibilityScreen extends StatelessWidget {
             const SizedBox(height: 10),
 
             // DISPLAY Section
-            _sectionHeader('DISPLAY'),
+            _sectionHeader(context, 'DISPLAY'),
             _groupedCard(
               context,
               children: [
@@ -207,7 +207,7 @@ class AccessibilityScreen extends StatelessWidget {
             const SizedBox(height: 24),
 
             // MOTION Section
-            _sectionHeader('MOTION'),
+            _sectionHeader(context, 'MOTION'),
             _groupedCard(
               context,
               children: [
@@ -254,7 +254,7 @@ class AccessibilityScreen extends StatelessWidget {
     );
   }
 
-  static Widget _sectionHeader(String title) {
+  static Widget _sectionHeader(BuildContext context, String title) {
     return Padding(
       padding: const EdgeInsets.only(left: 4, bottom: 9),
       child: Text(
@@ -263,7 +263,7 @@ class AccessibilityScreen extends StatelessWidget {
           fontSize: 11.5,
           fontWeight: FontWeight.w700,
           letterSpacing: 1.2,
-          color: Color(0xFF6246EA),
+          color: Theme.of(context).colorScheme.primary,
         ),
       ),
     );
@@ -304,13 +304,14 @@ class AccessibilityScreen extends StatelessWidget {
   static Widget _groupedCard(BuildContext context, {required List<Widget> children}) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final cardBg = isDark ? const Color(0xFF1E1C2E) : Colors.white;
-    final border = isDark ? const Color(0xFF2C2844) : const Color(0xFFEDE9F6);
+    final border = Theme.of(context).colorScheme.outlineVariant;
+    final highContrast = context.watch<SettingsService>().highContrast;
 
     return Container(
       decoration: BoxDecoration(
         color: cardBg,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: border),
+        border: Border.all(color: border, width: highContrast ? 2 : 1),
         boxShadow: isDark
             ? null
             : [
@@ -332,7 +333,7 @@ class AccessibilityScreen extends StatelessWidget {
                 thickness: 1,
                 indent: 68,
                 endIndent: 16,
-                color: isDark ? const Color(0xFF28253E) : const Color(0xFFF3F0F8),
+                color: Theme.of(context).colorScheme.outlineVariant,
               ),
           ],
         ],

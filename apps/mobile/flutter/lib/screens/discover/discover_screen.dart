@@ -67,6 +67,14 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                   titleSize: 36,
                   titleWeight: FontWeight.w600,
                   actions: [
+                    if (Navigator.of(context).canPop())
+                      NovynIconButton(
+                        icon: Icons.arrow_back_rounded,
+                        size: 56,
+                        radius: 20,
+                        iconSize: 23,
+                        onTap: () => Navigator.of(context).pop(),
+                      ),
                     PopupMenuButton<String>(
                       tooltip: 'Discover options',
                       child: Container(

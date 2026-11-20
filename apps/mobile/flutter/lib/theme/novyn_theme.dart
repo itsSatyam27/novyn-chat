@@ -51,16 +51,22 @@ class NovynTheme {
   static ThemeData _build(Brightness brightness, Color accent, bool highContrast) {
     final dark = brightness == Brightness.dark;
     final ink = dark ? _dInk : _lInk;
-    final meta = dark ? _dMeta : _lMeta;
+    final meta = highContrast
+        ? (dark ? const Color(0xFFE8E7F0) : const Color(0xFF373544))
+        : (dark ? _dMeta : _lMeta);
     final surface = dark ? _dSurface : _lSurface;
-    final field = dark ? _dField : _lField;
+    final field = highContrast
+        ? (dark ? const Color(0xFF090A10) : Colors.white)
+        : (dark ? _dField : _lField);
     // Accent-derived tokens keep selected states, borders and surfaces
     // in sync with the user's chosen colour.
     final border = highContrast
-        ? accent.withValues(alpha: dark ? .90 : .85)
+        ? (dark ? const Color(0xFFB9B6C8) : const Color(0xFF514E5D))
         : accent.withValues(alpha: dark ? .24 : .18);
     final accentContainer = Color.lerp(surface, accent, dark ? .24 : .12)!;
-    final accentDivider = accent.withValues(alpha: dark ? .16 : .12);
+    final accentDivider = highContrast
+        ? border
+        : accent.withValues(alpha: dark ? .16 : .12);
     final strongMeta = highContrast
         ? (dark ? const Color(0xFFE4E1FF) : const Color(0xFF37334F))
         : meta;
@@ -81,7 +87,7 @@ class NovynTheme {
         dark ? .10 : .055,
       )!,
       onSurfaceVariant: strongMeta,
-      outline: highContrast ? strongMeta : meta,
+      outline: highContrast ? border : meta,
       outlineVariant: border,
       error: const Color(0xFFFF5C7A),
     );
@@ -94,7 +100,7 @@ class NovynTheme {
 
     OutlineInputBorder outline(Color c, [double w = 1]) => OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(color: c, width: w),
+          borderSide: BorderSide(color: c, width: highContrast ? (w < 1.5 ? 2 : 2.5) : w),
         );
 
     return ThemeData(
@@ -110,7 +116,7 @@ class NovynTheme {
         elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20),
-          side: BorderSide(color: border),
+          side: BorderSide(color: border, width: highContrast ? 2 : 1),
         ),
       ),
       appBarTheme: AppBarTheme(
@@ -133,7 +139,7 @@ class NovynTheme {
         focusedBorder: outline(accent, 1.5),
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        hintStyle: TextStyle(color: dark ? const Color(0xFF827F98) : meta),
+        hintStyle: TextStyle(color: meta, fontWeight: highContrast ? FontWeight.w600 : FontWeight.normal),
       ),
       bottomSheetTheme: BottomSheetThemeData(
         backgroundColor: surface,
@@ -147,7 +153,7 @@ class NovynTheme {
         surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(24),
-          side: BorderSide(color: border),
+          side: BorderSide(color: border, width: highContrast ? 2 : 1),
         ),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(

@@ -1,4 +1,6 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:novyn/theme/novyn_theme.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:novyn/services/settings_service.dart';
 
@@ -33,6 +35,22 @@ void main() {
       await settings.load();
 
       expect(settings.fontSize, 1.0);
+    });
+  });
+
+  group('High contrast theme', () {
+    test('uses stronger semantic outlines and input borders', () {
+      final theme = NovynTheme.lightTheme(
+        accent: const Color(0xFF008577),
+        highContrast: true,
+      );
+
+      expect(theme.colorScheme.outlineVariant, const Color(0xFF514E5D));
+      final inputBorder =
+          theme.inputDecorationTheme.enabledBorder as OutlineInputBorder;
+      expect(inputBorder.borderSide.width, 2);
+      final cardShape = theme.cardTheme.shape as RoundedRectangleBorder;
+      expect(cardShape.side.width, 2);
     });
   });
 }

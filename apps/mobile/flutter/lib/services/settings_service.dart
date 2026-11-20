@@ -907,7 +907,7 @@ class SettingsService extends ChangeNotifier {
   }
 
   Future<void> setFontSize(double v) async {
-    v = v.clamp(0.85, 1.25).toDouble();
+    v = v.clamp(0.75, 1.25).toDouble();
     _fontSize = v;
     await _prefs.setDouble(_kFontSize, v);
     notifyListeners();

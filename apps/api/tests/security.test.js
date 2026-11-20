@@ -25,13 +25,13 @@ test('production CSRF rejects missing tokens and cross-site origins', (t) => {
   }
 });
 
-test('password records expose signup fields and reject wrong passwords', () => {
-  const { passwordSalt, passwordHash } = createPasswordSecret('correct-password');
+test('password records expose signup fields and reject wrong passwords', async () => {
+  const { passwordSalt, passwordHash } = await createPasswordSecret('correct-password');
   assert.ok(passwordSalt);
   assert.ok(passwordHash);
-  assert.equal(verifyPassword('correct-password', passwordSalt, passwordHash), true);
-  assert.equal(verifyPassword('wrong-password', passwordSalt, passwordHash), false);
-  assert.equal(verifyPassword('anything', '', ''), false);
+  assert.equal(await verifyPassword('correct-password', passwordSalt, passwordHash), true);
+  assert.equal(await verifyPassword('wrong-password', passwordSalt, passwordHash), false);
+  assert.equal(await verifyPassword('anything', '', ''), false);
 });
 
 test('development allows exact loopback origins; production requires the allowlist', () => {

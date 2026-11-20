@@ -6081,7 +6081,7 @@ app.get("/api/auth/session", async (req, res) => {
     return;
   }
   const user = users.get(auth.userKey);
-  if (!user || !user.isRegistered) {
+  if (!user || !user.isRegistered || user.isSuspended === true) {
     clearAuthCookies(res);
     res.status(401).json({ message: "Session expired." });
     return;
@@ -6313,7 +6313,7 @@ app.post("/api/auth/password-reset/request",
 app.post("/api/auth/password-reset/confirm",
   createIpRateLimiter({ getStore: () => httpRateLimits }, "auth-password-reset-confirm", 30, 15 * 60 * 1000),
   requireCsrf,
-  (req, res) => {
+  async (req, res) => {
     pruneExpiredPasswordResetTokens();
     const identifier = toDisplayName(req.body?.identifier || req.body?.email || req.body?.username || "");
     const token = toDisplayName(req.body?.code || req.body?.token || "");
@@ -6362,7 +6362,7 @@ app.post("/api/auth/password-reset/confirm",
       });
       return;
     }
-    const secret = createPasswordSecret(newPassword);
+    const secret = await createPasswordSecret(newPassword);
     user.passwordSalt = secret.passwordSalt;
     user.passwordHash = secret.passwordHash;
     user.isRegistered = true;
@@ -6923,7 +6923,7 @@ io.on("connection", (socket) => {
     }
     finalizeSocketAuthentication(socket, user);
   });
-  socket.on("register", (payload) => {
+  socket.on("register", async (payload) => {
     if (!allowSocketAction(socket, "register", 10, 15 * 60 * 1000)) {
       socket.emit("auth_failed", { message: "Too many authentication attempts. Try again later." });
       return;
@@ -6953,7 +6953,7 @@ io.on("connection", (socket) => {
           socket.emit("auth_failed", { message: "Password is required." });
           return;
         }
-        if (!verifyPassword(password, existingByEmail.passwordSalt, existingByEmail.passwordHash)) {
+        if (!(await verifyPassword(password, existingByEmail.passwordSalt, existingByEmail.passwordHash))) {
           socket.emit("auth_failed", { message: "Incorrect password." });
           return;
         }
@@ -6984,7 +6984,7 @@ io.on("connection", (socket) => {
         }
         const username = requestedHandle;
         user = getOrCreateUser(username);
-        const secret = createPasswordSecret(password);
+        const secret = await createPasswordSecret(password);
         user.passwordSalt = secret.passwordSalt;
         user.passwordHash = secret.passwordHash;
         user.isRegistered = true;
@@ -7032,7 +7032,7 @@ io.on("connection", (socket) => {
       if (!existing.passwordSalt || !existing.passwordHash) {
         socket.emit('auth_failed', { message: 'Use Google sign-in or reset your password for this account.' });
         return;
-      } else if (!verifyPassword(password, existing.passwordSalt, existing.passwordHash)) {
+      } else if (!(await verifyPassword(password, existing.passwordSalt, existing.passwordHash))) {
         socket.emit("auth_failed", {
           message: "Incorrect password.",
           suggestions,
@@ -7113,7 +7113,7 @@ io.on("connection", (socket) => {
     });
   });
 
-  socket.on("reset_password", (payload) => {
+  socket.on("reset_password", async (payload) => {
     if (!allowSocketAction(socket, 'reset_password', 30, 15 * 60 * 1000)) {
       return socket.emit('password_reset_failed', { message: 'Too many attempts. Try again later.' });
     }
@@ -7172,7 +7172,7 @@ io.on("connection", (socket) => {
       return;
     }
 
-    const secret = createPasswordSecret(newPassword);
+    const secret = await createPasswordSecret(newPassword);
     user.passwordSalt = secret.passwordSalt;
     user.passwordHash = secret.passwordHash;
     user.isRegistered = true;
@@ -7563,7 +7563,7 @@ io.on("connection", (socket) => {
     emitDiscoverOnlineToAll();
   });
 
-  socket.on("change_username", (payload) => {
+  socket.on("change_username", async (payload) => {
     try {
     const userKey = socket.data.userKey;
     if (!userKey) return;
@@ -7584,7 +7584,7 @@ io.on("connection", (socket) => {
 
     const hasExistingPassword = Boolean(user.passwordHash && user.passwordSalt);
     if (hasExistingPassword) {
-      if (!currentPassword || !verifyPassword(currentPassword, user.passwordSalt, user.passwordHash)) {
+      if (!currentPassword || !(await verifyPassword(currentPassword, user.passwordSalt, user.passwordHash))) {
         socket.emit("username_change_failed", { message: "Incorrect password." });
         return;
       }
@@ -7654,7 +7654,7 @@ io.on("connection", (socket) => {
     }
   });
 
-  socket.on("change_password", (payload) => {
+  socket.on("change_password", async (payload) => {
     const userKey = socket.data.userKey;
     if (!userKey) return;
     const user = users.get(userKey);
@@ -7668,7 +7668,7 @@ io.on("connection", (socket) => {
 
     const hasExistingPassword = Boolean(user.passwordHash && user.passwordSalt);
     if (hasExistingPassword) {
-      if (!currentPassword || !verifyPassword(currentPassword, user.passwordSalt, user.passwordHash)) {
+      if (!currentPassword || !(await verifyPassword(currentPassword, user.passwordSalt, user.passwordHash))) {
         socket.emit("password_change_failed", { message: "Incorrect current password." });
         return;
       }
@@ -7680,7 +7680,7 @@ io.on("connection", (socket) => {
       return;
     }
 
-    const secret = createPasswordSecret(nextPassword);
+    const secret = await createPasswordSecret(nextPassword);
     user.passwordSalt = secret.passwordSalt;
     user.passwordHash = secret.passwordHash;
     revokeAllRefreshSessionsForUser(userKey);
@@ -7714,7 +7714,7 @@ io.on("connection", (socket) => {
       return;
     }
     if (hasExistingPassword &&
-        (!currentPassword || !verifyPassword(currentPassword, user.passwordSalt, user.passwordHash))) {
+        (!currentPassword || !(await verifyPassword(currentPassword, user.passwordSalt, user.passwordHash)))) {
       socket.emit("account_deletion_failed", { message: "Incorrect password." });
       return;
     }
@@ -7734,7 +7734,7 @@ io.on("connection", (socket) => {
     }, 500);
   });
 
-  socket.on("enable_2fa", (payload) => {
+  socket.on("enable_2fa", async (payload) => {
     const userKey = socket.data.userKey;
     if (!userKey) return;
     const user = users.get(userKey);
@@ -7760,7 +7760,7 @@ io.on("connection", (socket) => {
     socket.emit("2fa_status", { enabled: true, backupCodesCount: backupCodes.length, backupCodes });
   });
 
-  socket.on("disable_2fa", (payload) => {
+  socket.on("disable_2fa", async (payload) => {
     const userKey = socket.data.userKey;
     if (!userKey) return;
     const user = users.get(userKey);
@@ -7772,7 +7772,7 @@ io.on("connection", (socket) => {
     const hasExistingPassword = Boolean(user.passwordHash && user.passwordSalt);
     if (hasExistingPassword) {
       const currentPassword = toDisplayName(payload?.currentPassword || payload?.password);
-      if (!currentPassword || !verifyPassword(currentPassword, user.passwordSalt, user.passwordHash)) {
+      if (!currentPassword || !(await verifyPassword(currentPassword, user.passwordSalt, user.passwordHash))) {
         socket.emit("2fa_error", { message: "Incorrect password." });
         return;
       }
