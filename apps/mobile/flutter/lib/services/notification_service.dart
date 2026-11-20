@@ -11,6 +11,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'message_encryption_service.dart';
 import 'firebase_configuration.dart';
 import '../models/chat_models.dart';
+import '../models/user_model.dart';
 import 'package:provider/provider.dart';
 import 'auth_service.dart';
 import 'settings_service.dart';
@@ -1644,9 +1645,6 @@ class NotificationService {
         return;
       }
       final isVideo = message.data['isVideo']?.toString() == '1';
-      final callPreferenceKey = isIncoming
-          ? (isVideo ? 'notification_video_calls' : 'notification_voice_calls')
-          : 'notification_missed_calls';
       if (!(_settings?.notificationPreference(
             isVideo ? 'videoCallsEnabled' : 'voiceCallsEnabled',
           ) ?? true) && isIncoming) return;
@@ -1964,16 +1962,20 @@ class NotificationService {
         return;
       }
 
-      final peer = isGroup
-          ? socket.conversations
-              .where((chat) =>
-                  chat.isGroup &&
-                  (chat.chatId.toLowerCase() == target.toLowerCase() ||
-                      chat.peerUid.toLowerCase() == target.toLowerCase() ||
-                      chat.peer.uid.toLowerCase() == target.toLowerCase()))
-              .map((chat) => chat.peer)
-              .firstOrNull
-          : await context.read<FriendService>().getUser(target);
+      UserModel? peer;
+      if (isGroup) {
+        for (final conversation in socket.conversations) {
+          if (conversation.isGroup &&
+              (conversation.chatId.toLowerCase() == target.toLowerCase() ||
+                  conversation.peerUid.toLowerCase() == target.toLowerCase() ||
+                  conversation.peer.uid.toLowerCase() == target.toLowerCase())) {
+            peer = conversation.peer;
+            break;
+          }
+        }
+      } else {
+        peer = await context.read<FriendService>().getUser(target);
+      }
       if (peer == null || !context.mounted) return;
 
       // A notification must take the user to the conversation, not leave an
