@@ -6,7 +6,7 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('Accessibility font-size default', () {
-    test('uses Small (85%) when no preference has been saved', () async {
+    test('uses Default (85%) when no preference has been saved', () async {
       SharedPreferences.setMockInitialValues({});
       final settings = SettingsService();
 
