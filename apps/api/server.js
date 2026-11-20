@@ -2747,6 +2747,12 @@ async function sendPushToUser(userKey, payload) {
   const user = users.get(userKey);
   if (!user || user.notificationsEnabled === false) return;
   if (!shouldDeliverNotification(user, payload)) return;
+  if (["message", "game_invitation", "game_turn", "game_result"].includes(String(payload?.type || ""))) {
+    const conversationKey = payload?.group === true
+      ? normalizeGroupId(payload?.groupId || payload?.chat)
+      : normalizeName(payload?.chat || payload?.from);
+    if (conversationKey && isMutedBy(user, conversationKey)) return;
+  }
   const previewEnabled = user.messagePreviewEnabled !== false;
   const safePayload = {
     ...payload,
