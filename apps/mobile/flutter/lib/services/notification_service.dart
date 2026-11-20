@@ -1748,6 +1748,23 @@ class NotificationService {
               ) ?? true)) return;
       if (!isIncoming &&
           !(_settings?.notificationPreference('missedCallsEnabled') ?? true)) return;
+      final sound = _settings?.notificationPreference('notificationSoundEnabled') ?? true;
+      final vibration = _settings?.notificationPreference('notificationVibrationEnabled') ?? true;
+      final channelId = _notificationChannelVariant(
+        isIncoming ? 'novyn_incoming_calls' : 'novyn_calls',
+        sound,
+        vibration,
+      );
+      final android = _localNotifications.resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin>();
+      unawaited(android?.createNotificationChannel(AndroidNotificationChannel(
+        channelId,
+        isIncoming ? 'Incoming calls' : 'Missed calls',
+        description: 'Voice and video call alerts',
+        importance: Importance.max,
+        playSound: sound,
+        enableVibration: vibration,
+      )) ?? Future<void>.value());
       final incomingTimeoutMs = callExpiresAt == null
           ? 45000
           : callExpiresAt
@@ -1767,7 +1784,7 @@ class NotificationService {
                 : 'You missed a call from ' + caller),
         NotificationDetails(
           android: AndroidNotificationDetails(
-            isIncoming ? 'novyn_incoming_calls' : 'novyn_calls',
+            channelId,
             isIncoming ? 'Incoming calls' : 'Missed calls',
             channelDescription: 'Voice and video call alerts',
             importance: Importance.max,
@@ -1780,11 +1797,11 @@ class NotificationService {
             autoCancel: !isIncoming,
             timeoutAfter: isIncoming ? incomingTimeoutMs : null,
             actions: isIncoming ? _incomingCallActions : const [],
-            playSound: true,
-            enableVibration: true,
+            playSound: sound,
+            enableVibration: vibration,
           ),
-          iOS: const DarwinNotificationDetails(
-              presentAlert: true, presentBadge: true, presentSound: true),
+          iOS: DarwinNotificationDetails(
+              presentAlert: true, presentBadge: true, presentSound: sound),
         ),
         payload: 'call:' + callId + '|' + caller + '|' + (isVideo ? '1' : '0') + '|' + (callExpiresAt?.millisecondsSinceEpoch.toString() ?? ''),
       ));
