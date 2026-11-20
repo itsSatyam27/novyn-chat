@@ -86,11 +86,15 @@ class _MutedChatsScreenState extends State<MutedChatsScreen> {
     final id = _muteId(chat);
     final prefs = await SharedPreferences.getInstance();
     try {
-      context.read<SocketService>().setMute(
+      final result = await context.read<SocketService>().setMute(
             id,
             muted: false,
             isGroup: chat.isGroup,
           );
+      if (result['ok'] != true) {
+        throw StateError(result['message']?.toString() ??
+            'The server did not confirm this mute change.');
+      }
       await prefs.setBool(_storageKey(chat), false);
       if (!mounted) return;
       setState(() {
