@@ -1057,14 +1057,7 @@ class SocketService extends ChangeNotifier {
       final messageId = data['messageId']?.toString() ?? '';
       final rawGame = data['game'];
       if (messageId.isEmpty || rawGame is! Map) return;
-      final index = _messages.indexWhere((message) => message.id == messageId);
-      if (index == -1) return;
-      final updated = List<Message>.from(_messages);
-      updated[index] =
-          updated[index].copyWith(game: Map<String, dynamic>.from(rawGame));
-      _messages = updated;
-      HybridDbService.saveMessage(updated[index]);
-      notifyListeners();
+      _applyGameUpdate(messageId, rawGame);
     });
 
     _socket!.on('riddle_updated', (data) {
@@ -2081,19 +2074,50 @@ class SocketService extends ChangeNotifier {
     }
   }
 
-  void sendGameChallenge(String gameType, String peerUsername,
-      {bool isGroup = false}) {
+  Future<void> sendGameChallenge(String gameType, String peerUsername,
+      {bool isGroup = false}) async {
     _requireConnection();
-    _socket!.emit('private_message', {
-      'to': peerUsername,
-      'toType': isGroup ? 'group' : 'friend',
-      'text': '🎮 Started a game of ${_gameTitle(gameType)}!',
-      'clientTempId': 'tmp_game_${DateTime.now().millisecondsSinceEpoch}',
-      'game': {
-        'id': 'game_${DateTime.now().millisecondsSinceEpoch}',
-        'gameType': gameType,
+    final connection = _socket!;
+    final timestamp = DateTime.now().microsecondsSinceEpoch.toString();
+    final response = Completer<Map<String, dynamic>>();
+
+    connection.emitWithAck(
+      'private_message',
+      {
+        'to': peerUsername,
+        'toType': isGroup ? 'group' : 'friend',
+        'text': '🎮 Started a game of ' + _gameTitle(gameType) + '!',
+        'clientTempId': 'tmp_game_' + timestamp,
+        'game': {
+          'id': 'game_' + timestamp,
+          'gameType': gameType,
+        },
       },
-    });
+      ack: (dynamic result) {
+        if (response.isCompleted) return;
+        response.complete(
+          result is Map
+              ? Map<String, dynamic>.from(result)
+              : <String, dynamic>{
+                  'ok': false,
+                  'message': 'Could not send the game invitation.',
+                },
+        );
+      },
+    );
+
+    final result = await response.future.timeout(
+      const Duration(seconds: 12),
+      onTimeout: () => <String, dynamic>{
+        'ok': false,
+        'message': 'Game invitation timed out. Please retry.',
+      },
+    );
+    if (result['ok'] != true) {
+      throw StateError(
+        result['message']?.toString() ?? 'Could not send the game invitation.',
+      );
+    }
   }
 
   String _gameTitle(String type) {
@@ -2106,6 +2130,17 @@ class SocketService extends ChangeNotifier {
       'updown': 'Up or Down',
     };
     return titles[type] ?? 'Game';
+  }
+
+  void _applyGameUpdate(String messageId, Map rawGame) {
+    final index = _messages.indexWhere((message) => message.id == messageId);
+    if (index == -1) return;
+    final updated = List<Message>.from(_messages);
+    updated[index] =
+        updated[index].copyWith(game: Map<String, dynamic>.from(rawGame));
+    _messages = updated;
+    HybridDbService.saveMessage(updated[index]);
+    notifyListeners();
   }
 
   Future<Map<String, dynamic>> makeGameMove(
@@ -2122,6 +2157,7 @@ class SocketService extends ChangeNotifier {
       'toType': isGroup ? 'group' : 'friend',
       'moveData': moveData,
     }, ack: (dynamic result) {
+      if (completer.isCompleted) return;
       completer.complete(result is Map
           ? Map<String, dynamic>.from(result)
           : {'ok': false, 'message': 'Could not update the game.'});
@@ -2134,6 +2170,8 @@ class SocketService extends ChangeNotifier {
     if (result['ok'] != true) {
       throw StateError(result['message']?.toString() ?? 'Game move failed.');
     }
+    final rawGame = result['game'];
+    if (rawGame is Map) _applyGameUpdate(messageId, rawGame);
     return result;
   }
 
