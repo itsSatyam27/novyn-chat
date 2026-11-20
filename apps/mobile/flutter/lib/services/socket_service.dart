@@ -1029,10 +1029,10 @@ class SocketService extends ChangeNotifier {
           }
         }
       } else if (!isOwn) {
+        final ownUsername = (_myUsername ?? '').trim().toLowerCase();
         final mentionOrReply = data['replyTo'] != null ||
-            msg.text.toLowerCase().contains(
-              '@${(_myUsername ?? '').trim().toLowerCase()}',
-            );
+            (ownUsername.isNotEmpty &&
+                msg.text.toLowerCase().contains('@' + ownUsername));
         onIncomingMessage?.call(
           chatPartner,
           msg.text,
