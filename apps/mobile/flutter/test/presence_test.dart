@@ -25,12 +25,15 @@ void main() {
 
   test('canonical status waits for confirmation and rolls back failed saves', () async {
     final confirmation = Completer<void>();
+    final requestStarted = Completer<void>();
     String? sent;
     final auth = await createAuth((mode) {
       sent = mode;
+      if (!requestStarted.isCompleted) requestStarted.complete();
       return confirmation.future;
     });
     final saving = auth.updateStatus('Away');
+    await requestStarted.future;
     expect(sent, 'away');
     expect(auth.user!.presenceMode, 'away');
     expect(auth.updatingPresence, isTrue);
