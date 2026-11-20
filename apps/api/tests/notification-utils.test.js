@@ -124,6 +124,46 @@ test("social notifications remain data-only for account and preference filtering
   assert.equal(social.data.recipient, "alice");
 });
 
+test("game notification events are data-only and retain game routing metadata", () => {
+  for (const type of ["game_invitation", "game_turn", "game_result"]) {
+    const game = createFcmMessage("alice", { username: "alice" }, {
+      type,
+      eventId: type + ":game-7",
+      gameId: "game-7",
+      gameType: "tic_tac_toe",
+      chat: "room-1",
+      group: true,
+      groupId: "room-1",
+      title: "Your turn",
+      body: "It's your turn",
+      soundEnabled: false,
+      vibrationEnabled: true,
+      mentionOrReply: true,
+    });
+    assert.equal(game.notification, undefined);
+    assert.equal(game.data.type, type);
+    assert.equal(game.data.eventId, type + ":game-7");
+    assert.equal(game.data.gameId, "game-7");
+    assert.equal(game.data.gameType, "tic_tac_toe");
+    assert.equal(game.data.kind, "group");
+    assert.equal(game.data.groupId, "room-1");
+    assert.equal(game.data.soundEnabled, "false");
+    assert.equal(game.data.vibrationEnabled, "true");
+    assert.equal(game.data.mentionOrReply, "true");
+  }
+});
+
+test("notification presentation preferences are forwarded as FCM data", () => {
+  const message = createFcmMessage("alice", { username: "alice" }, {
+    type: "friend_request",
+    soundEnabled: false,
+    vibrationEnabled: false,
+  });
+  assert.equal(message.data.soundEnabled, "false");
+  assert.equal(message.data.vibrationEnabled, "false");
+  assert.equal(message.notification, undefined);
+});
+
 test("recognizes current and legacy ARM64 APK release tags", () => {
   assert.equal(parseAndroidReleaseBuild("novyn-arm64-build-62-1"), 62);
   assert.equal(parseAndroidReleaseBuild("novyn-apk-47-1"), 47);
