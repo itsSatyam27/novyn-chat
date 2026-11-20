@@ -6313,7 +6313,7 @@ app.post("/api/auth/password-reset/request",
 app.post("/api/auth/password-reset/confirm",
   createIpRateLimiter({ getStore: () => httpRateLimits }, "auth-password-reset-confirm", 30, 15 * 60 * 1000),
   requireCsrf,
-  (req, res) => {
+  async (req, res) => {
     pruneExpiredPasswordResetTokens();
     const identifier = toDisplayName(req.body?.identifier || req.body?.email || req.body?.username || "");
     const token = toDisplayName(req.body?.code || req.body?.token || "");
