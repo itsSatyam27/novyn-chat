@@ -381,8 +381,8 @@ class ProfileScreen extends StatelessWidget {
         final isDark = settings.themeMode == ThemeMode.dark;
         return _SettingsQuickToggle(
           title: 'Dark Mode',
-          activeIcon: Icons.wb_sunny_outlined,
-          inactiveIcon: Icons.wb_sunny_outlined,
+          activeIcon: Icons.dark_mode_rounded,
+          inactiveIcon: Icons.light_mode_rounded,
           value: isDark,
           accent: const Color(0xFF7257F4),
           onChanged: (value) => settings.setThemeMode(
@@ -392,7 +392,7 @@ class ProfileScreen extends StatelessWidget {
         );
       case 'stealth_mode':
         return _SettingsQuickToggle(
-          title: 'Online Status',
+          title: 'Stealth Mode',
           activeIcon: Icons.visibility_outlined,
           inactiveIcon: Icons.visibility_off_outlined,
           value: settings.stealthModeEnabled,
