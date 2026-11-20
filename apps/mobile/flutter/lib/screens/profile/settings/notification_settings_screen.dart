@@ -99,35 +99,6 @@ class NotificationSettingsScreen extends StatelessWidget {
             ),
             const SizedBox(height: 22),
 
-            // CONVERSATION ALERTS Section
-            _sectionHeader('CONVERSATION ALERTS'),
-            _groupedCard(
-              context,
-              children: [
-                AnimatedOpacity(
-                  duration: const Duration(milliseconds: 200),
-                  opacity: enabled ? 1.0 : 0.45,
-                  child: IgnorePointer(
-                    ignoring: !enabled,
-                    child: _NotificationToggleRow(
-                      icon: Icons.group_outlined,
-                      iconColor: const Color(0xFF10B981),
-                      iconBgColor: isDark ? const Color(0xFF1A3327) : const Color(0xFFE2F7ED),
-                      title: 'Group notifications',
-                      value: settings.groupNotifications,
-                      onChanged: (val) => _saveServerToggle(
-                        context,
-                        'groupNotificationsEnabled',
-                        val,
-                        settings.setGroupNotifications,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 22),
-
             const SizedBox(height: 22),
             const _NotificationCategoryControls(),
             const SizedBox(height: 22),
