@@ -1866,6 +1866,24 @@ function createUserRecord(username) {
     notificationsEnabled: true,
     messagePreviewEnabled: true,
     groupNotificationsEnabled: true,
+    directMessagesEnabled: true,
+    groupMessagesEnabled: true,
+    mentionsRepliesEnabled: true,
+    friendRequestsEnabled: true,
+    friendRequestAcceptedEnabled: true,
+    groupInvitationsEnabled: true,
+    voiceCallsEnabled: true,
+    videoCallsEnabled: true,
+    missedCallsEnabled: true,
+    gameInvitationsEnabled: true,
+    gameTurnEnabled: true,
+    gameResultsEnabled: true,
+    quietHoursEnabled: false,
+    quietHoursStart: "22:00",
+    quietHoursEnd: "07:00",
+    quietHoursTimezone: "",
+    notificationSoundEnabled: true,
+    notificationVibrationEnabled: true,
     avatarId: "",
     age: "",
     gender: "",
@@ -1911,6 +1929,24 @@ function serializeState() {
       notificationsEnabled: user.notificationsEnabled !== false,
       messagePreviewEnabled: user.messagePreviewEnabled !== false,
       groupNotificationsEnabled: user.groupNotificationsEnabled !== false,
+      directMessagesEnabled: user.directMessagesEnabled !== false,
+      groupMessagesEnabled: user.groupMessagesEnabled !== false,
+      mentionsRepliesEnabled: user.mentionsRepliesEnabled !== false,
+      friendRequestsEnabled: user.friendRequestsEnabled !== false,
+      friendRequestAcceptedEnabled: user.friendRequestAcceptedEnabled !== false,
+      groupInvitationsEnabled: user.groupInvitationsEnabled !== false,
+      voiceCallsEnabled: user.voiceCallsEnabled !== false,
+      videoCallsEnabled: user.videoCallsEnabled !== false,
+      missedCallsEnabled: user.missedCallsEnabled !== false,
+      gameInvitationsEnabled: user.gameInvitationsEnabled !== false,
+      gameTurnEnabled: user.gameTurnEnabled !== false,
+      gameResultsEnabled: user.gameResultsEnabled !== false,
+      quietHoursEnabled: user.quietHoursEnabled === true,
+      quietHoursStart: user.quietHoursStart || "22:00",
+      quietHoursEnd: user.quietHoursEnd || "07:00",
+      quietHoursTimezone: toDisplayName(user.quietHoursTimezone),
+      notificationSoundEnabled: user.notificationSoundEnabled !== false,
+      notificationVibrationEnabled: user.notificationVibrationEnabled !== false,
       isRegistered: Boolean(user.isRegistered),
       isSuspended: user.isSuspended === true,
       passwordSalt: toDisplayName(user.passwordSalt),
@@ -7468,6 +7504,24 @@ io.on("connection", (socket) => {
         notificationsEnabled: user.notificationsEnabled !== false,
         messagePreviewEnabled: user.messagePreviewEnabled !== false,
         groupNotificationsEnabled: user.groupNotificationsEnabled !== false,
+        directMessagesEnabled: user.directMessagesEnabled !== false,
+        groupMessagesEnabled: user.groupMessagesEnabled !== false,
+        mentionsRepliesEnabled: user.mentionsRepliesEnabled !== false,
+        friendRequestsEnabled: user.friendRequestsEnabled !== false,
+        friendRequestAcceptedEnabled: user.friendRequestAcceptedEnabled !== false,
+        groupInvitationsEnabled: user.groupInvitationsEnabled !== false,
+        voiceCallsEnabled: user.voiceCallsEnabled !== false,
+        videoCallsEnabled: user.videoCallsEnabled !== false,
+        missedCallsEnabled: user.missedCallsEnabled !== false,
+        gameInvitationsEnabled: user.gameInvitationsEnabled !== false,
+        gameTurnEnabled: user.gameTurnEnabled !== false,
+        gameResultsEnabled: user.gameResultsEnabled !== false,
+        quietHoursEnabled: user.quietHoursEnabled === true,
+        quietHoursStart: user.quietHoursStart || "22:00",
+        quietHoursEnd: user.quietHoursEnd || "07:00",
+        quietHoursTimezone: toDisplayName(user.quietHoursTimezone),
+        notificationSoundEnabled: user.notificationSoundEnabled !== false,
+        notificationVibrationEnabled: user.notificationVibrationEnabled !== false,
       },
     });
   });
@@ -7501,6 +7555,24 @@ io.on("connection", (socket) => {
     if (typeof payload?.notificationsEnabled === "boolean") user.notificationsEnabled = payload.notificationsEnabled;
     if (typeof payload?.messagePreviewEnabled === "boolean") user.messagePreviewEnabled = payload.messagePreviewEnabled;
     if (typeof payload?.groupNotificationsEnabled === "boolean") user.groupNotificationsEnabled = payload.groupNotificationsEnabled;
+    if (typeof payload?.directMessagesEnabled === "boolean") user.directMessagesEnabled = payload.directMessagesEnabled;
+    if (typeof payload?.groupMessagesEnabled === "boolean") user.groupMessagesEnabled = payload.groupMessagesEnabled;
+    if (typeof payload?.mentionsRepliesEnabled === "boolean") user.mentionsRepliesEnabled = payload.mentionsRepliesEnabled;
+    if (typeof payload?.friendRequestsEnabled === "boolean") user.friendRequestsEnabled = payload.friendRequestsEnabled;
+    if (typeof payload?.friendRequestAcceptedEnabled === "boolean") user.friendRequestAcceptedEnabled = payload.friendRequestAcceptedEnabled;
+    if (typeof payload?.groupInvitationsEnabled === "boolean") user.groupInvitationsEnabled = payload.groupInvitationsEnabled;
+    if (typeof payload?.voiceCallsEnabled === "boolean") user.voiceCallsEnabled = payload.voiceCallsEnabled;
+    if (typeof payload?.videoCallsEnabled === "boolean") user.videoCallsEnabled = payload.videoCallsEnabled;
+    if (typeof payload?.missedCallsEnabled === "boolean") user.missedCallsEnabled = payload.missedCallsEnabled;
+    if (typeof payload?.gameInvitationsEnabled === "boolean") user.gameInvitationsEnabled = payload.gameInvitationsEnabled;
+    if (typeof payload?.gameTurnEnabled === "boolean") user.gameTurnEnabled = payload.gameTurnEnabled;
+    if (typeof payload?.gameResultsEnabled === "boolean") user.gameResultsEnabled = payload.gameResultsEnabled;
+    if (typeof payload?.quietHoursEnabled === "boolean") user.quietHoursEnabled = payload.quietHoursEnabled;
+    if (typeof payload?.quietHoursStart === "string" && /^([01]\\d|2[0-3]):[0-5]\\d$/.test(payload.quietHoursStart)) user.quietHoursStart = payload.quietHoursStart;
+    if (typeof payload?.quietHoursEnd === "string" && /^([01]\\d|2[0-3]):[0-5]\\d$/.test(payload.quietHoursEnd)) user.quietHoursEnd = payload.quietHoursEnd;
+    if (typeof payload?.quietHoursTimezone === "string") user.quietHoursTimezone = payload.quietHoursTimezone.slice(0, 80);
+    if (typeof payload?.notificationSoundEnabled === "boolean") user.notificationSoundEnabled = payload.notificationSoundEnabled;
+    if (typeof payload?.notificationVibrationEnabled === "boolean") user.notificationVibrationEnabled = payload.notificationVibrationEnabled;
     if (payload?.callsEnabled === false) {
       cancelCallForUser(userKey, { activeCalls, clearCallPair, onlineUsers, io, users },
         "Calls were disabled in your status mode.");
