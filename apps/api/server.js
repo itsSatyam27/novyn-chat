@@ -2692,11 +2692,63 @@ function formatPushBody(text, fallback = "New message") {
   return `${cleaned.slice(0, 117)}...`;
 }
 
+function notificationIsInQuietHours(user, now = new Date()) {
+  if (user?.quietHoursEnabled !== true) return false;
+  const start = /^([01]\\d|2[0-3]):[0-5]\\d$/.test(user.quietHoursStart || "") ? user.quietHoursStart : "22:00";
+  const end = /^([01]\\d|2[0-3]):[0-5]\\d$/.test(user.quietHoursEnd || "") ? user.quietHoursEnd : "07:00";
+  const timezone = typeof user.quietHoursTimezone === "string" ? user.quietHoursTimezone : "";
+  let hour = now.getHours();
+  let minute = now.getMinutes();
+  if (timezone) {
+    try {
+      const parts = new Intl.DateTimeFormat("en-GB", {
+        timeZone: timezone, hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+      }).formatToParts(now);
+      hour = Number(parts.find((part) => part.type === "hour")?.value ?? hour);
+      minute = Number(parts.find((part) => part.type === "minute")?.value ?? minute);
+    } catch (_) {}
+  }
+  const current = hour * 60 + minute;
+  const [sh, sm] = start.split(":").map(Number);
+  const [eh, em] = end.split(":").map(Number);
+  const from = sh * 60 + sm;
+  const to = eh * 60 + em;
+  if (from === to) return true;
+  return from < to ? current >= from && current < to : current >= from || current < to;
+}
+
+function notificationPreferenceAllows(user, payload) {
+  const type = String(payload?.type || "message");
+  if (type === "message") {
+    const isGroup = payload?.group === true;
+    const mentionOrReply = payload?.isMention === true || payload?.isReply === true ||
+      payload?.notificationKind === "mention" || payload?.notificationKind === "reply";
+    if (mentionOrReply) return user.mentionsRepliesEnabled !== false;
+    return isGroup
+      ? user.groupMessagesEnabled !== false && user.groupNotificationsEnabled !== false
+      : user.directMessagesEnabled !== false;
+  }
+  if (type === "friend_request") return user.friendRequestsEnabled !== false;
+  if (type === "friend_request_accepted") return user.friendRequestAcceptedEnabled !== false;
+  if (type === "group_invite") return user.groupInvitationsEnabled !== false;
+  if (type === "call") {
+    const missed = String(payload.callStatus || "") === "missed";
+    if (missed) return user.missedCallsEnabled !== false;
+    return payload.isVideo === true ? user.videoCallsEnabled !== false : user.voiceCallsEnabled !== false;
+  }
+  if (type === "game_invitation") return user.gameInvitationsEnabled !== false;
+  if (type === "game_turn") return user.gameTurnEnabled !== false;
+  if (type === "game_result") return user.gameResultsEnabled !== false;
+  return true;
+}
+
 async function sendPushToUser(userKey, payload) {
   if (!userKey) return;
   const user = users.get(userKey);
   if (!user || user.notificationsEnabled === false) return;
-  if (payload?.group === true && user.groupNotificationsEnabled === false) return;
+  if (!notificationPreferenceAllows(user, payload)) return;
+  const isCall = payload?.type === "call";
+  if (!isCall && notificationIsInQuietHours(user)) return;
   const previewEnabled = user.messagePreviewEnabled !== false;
   const safePayload = {
     ...payload,
