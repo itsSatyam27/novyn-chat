@@ -2700,7 +2700,7 @@ function notificationIsInQuietHours(user, now = new Date()) {
   let hour = now.getHours();
   let minute = now.getMinutes();
   if (timezone) {
-    const offsetMatch = /^UTC([+-])(\\d{1,4})$/.exec(timezone);
+    const offsetMatch = /^UTC([+-])(\d{1,4})$/.exec(timezone);
     if (offsetMatch) {
       const offset = Number(offsetMatch[2]) * (offsetMatch[1] === "-" ? -1 : 1);
       const shifted = new Date(now.getTime() + offset * 60000);
