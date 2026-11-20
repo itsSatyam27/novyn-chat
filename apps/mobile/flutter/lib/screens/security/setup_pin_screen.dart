@@ -94,31 +94,49 @@ class _SetupPinScreenState extends State<SetupPinScreen> {
     }
   }
 
+  Future<bool> _verifyCurrentPin(SettingsService settings) async {
+    final remaining = settings.appLockRemaining;
+    if (remaining > Duration.zero) {
+      HapticService.vibrate(NovynHapticType.error, category: HapticCategory.buttons);
+      setState(() => _currentPin = '');
+      NovynAlert.show(
+        context,
+        'Too many incorrect attempts. Try again in ${remaining.inSeconds.ceil()} seconds.',
+        isError: true,
+      );
+      return false;
+    }
+
+    if (_currentPin != settings.appLockPin) {
+      await settings.recordFailedAppLockAttempt();
+      if (!mounted) return false;
+      HapticService.vibrate(NovynHapticType.error, category: HapticCategory.buttons);
+      setState(() => _currentPin = '');
+      NovynAlert.show(
+        context,
+        'Current PIN is incorrect. Try again.',
+        isError: true,
+      );
+      return false;
+    }
+
+    await settings.resetAppLockFailures();
+    return true;
+  }
+
   Future<void> _advance() async {
     if (_saving || _activePin.length != 4) return;
     final settings = context.read<SettingsService>();
 
     if (widget.isVerifyingOnly) {
-      if (_currentPin != settings.appLockPin) {
-        HapticService.vibrate(NovynHapticType.error, category: HapticCategory.buttons);
-        setState(() => _currentPin = '');
-        NovynAlert.show(context, 'Current PIN is incorrect. Try again.',
-            isError: true);
-        return;
-      }
+      if (!await _verifyCurrentPin(settings)) return;
       HapticService.vibrate(NovynHapticType.medium, category: HapticCategory.buttons);
-      Navigator.pop(context, true);
+      if (mounted) Navigator.pop(context, true);
       return;
     }
 
     if (widget.isChanging && _step == 0) {
-      if (_currentPin != settings.appLockPin) {
-        HapticService.vibrate(NovynHapticType.error, category: HapticCategory.buttons);
-        setState(() => _currentPin = '');
-        NovynAlert.show(context, 'Current PIN is incorrect. Try again.',
-            isError: true);
-        return;
-      }
+      if (!await _verifyCurrentPin(settings)) return;
       HapticService.vibrate(NovynHapticType.selection, category: HapticCategory.buttons);
       setState(() => _step = 1);
       return;
