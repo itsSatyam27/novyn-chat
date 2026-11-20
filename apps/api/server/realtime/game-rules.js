@@ -64,9 +64,15 @@ function applyTicTacToe(game, userKey, moveData) {
 
   // A group game has no player O until the creator makes the opening X move.
   // Only the next turn (one X, zero O, null turn) may claim that slot.
+  const isPlayerX = sameUser(userKey, playerX);
+  const isPlayerO = Boolean(playerO && sameUser(userKey, playerO));
+  if (!isPlayerX && playerO && !isPlayerO) {
+    return { ok: false, reason: "You are not a player in this game." };
+  }
+
   const waitingForGroupPlayer =
     !playerO &&
-    !sameUser(userKey, playerX) &&
+    !isPlayerX &&
     xCount === 1 &&
     oCount === 0 &&
     game.turn == null;
@@ -74,10 +80,10 @@ function applyTicTacToe(game, userKey, moveData) {
     return { ok: false, reason: "It is not your turn." };
   }
 
-  if (sameUser(userKey, playerX)) {
+  if (isPlayerX) {
     // The creator is always X.
   } else if (playerO) {
-    if (!sameUser(userKey, playerO)) {
+    if (!isPlayerO) {
       return { ok: false, reason: "You are not a player in this game." };
     }
   } else {
