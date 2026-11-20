@@ -7622,6 +7622,7 @@ io.on("connection", (socket) => {
         quietHoursOffsetMinutes: Number(user.quietHoursOffsetMinutes) || 0,
         notificationSoundEnabled: user.notificationSoundEnabled !== false,
         notificationVibrationEnabled: user.notificationVibrationEnabled !== false,
+        mutedChats: Array.from(user.mutedUsers || []),
       },
     });
   });
