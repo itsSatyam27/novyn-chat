@@ -22,6 +22,7 @@ const { createAuthSessions } = require("./server/auth/sessions");
 const { parseCookies, safeTimingEqual: csrfSafeTimingEqual, createCsrf } = require("./server/auth/csrf");
 const runtimeState = require("./server/core/state");
 const { buildUserSearchResults } = require("./server/users/search");
+const { isQuietHoursActive, shouldDeliverNotification } = require("./server/notification-policy");
 const {
   normalizeName,
   toDisplayName,
@@ -2690,56 +2691,6 @@ function formatPushBody(text, fallback = "New message") {
   if (!cleaned) return fallback;
   if (cleaned.length <= 120) return cleaned;
   return `${cleaned.slice(0, 117)}...`;
-}
-
-function isQuietHoursActive(user, timestamp = Date.now()) {
-  if (!user || user.quietHoursEnabled !== true) return false;
-  const parseMinutes = (value) => {
-    const match = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(String(value || ""));
-    return match ? Number(match[1]) * 60 + Number(match[2]) : null;
-  };
-  const start = parseMinutes(user.quietHoursStart);
-  const end = parseMinutes(user.quietHoursEnd);
-  if (start === null || end === null || start === end) return false;
-  const offset = Math.max(-840, Math.min(840, Number(user.quietHoursOffsetMinutes) || 0));
-  const local = new Date(timestamp + offset * 60 * 1000);
-  const current = local.getUTCHours() * 60 + local.getUTCMinutes();
-  return start < end ? current >= start && current < end : current >= start || current < end;
-}
-
-function shouldDeliverNotification(user, payload = {}) {
-  const type = String(payload.type || "message");
-  if (type === "message") {
-    if (payload.mentionOrReply === true) {
-      if (user.mentionsRepliesEnabled === false) return false;
-    } else if (payload.group === true) {
-      if (user.groupMessagesEnabled === false || user.groupNotificationsEnabled === false) return false;
-    } else if (user.directMessagesEnabled === false) {
-      return false;
-    }
-  } else if (type === "friend_request" || type === "friend_request_declined") {
-    if (user.friendRequestsEnabled === false) return false;
-  } else if (type === "friend_request_accepted") {
-    if (user.friendRequestAcceptedEnabled === false) return false;
-  } else if (type === "group_invite") {
-    if (user.groupInvitationsEnabled === false) return false;
-  } else if (type === "call") {
-    const status = String(payload.callStatus || "missed");
-    if (status === "missed") {
-      if (user.missedCallsEnabled === false) return false;
-    } else if (status === "incoming") {
-      const isVideo = payload.isVideo === true || payload.isVideo === "1";
-      if (isVideo ? user.videoCallsEnabled === false : user.voiceCallsEnabled === false) return false;
-    }
-  } else if (type === "game_invitation" && user.gameInvitationsEnabled === false) {
-    return false;
-  } else if (type === "game_turn" && user.gameTurnEnabled === false) {
-    return false;
-  } else if (type === "game_result" && user.gameResultsEnabled === false) {
-    return false;
-  }
-  if (type !== "call" && isQuietHoursActive(user)) return false;
-  return true;
 }
 
 async function sendPushToUser(userKey, payload) {
