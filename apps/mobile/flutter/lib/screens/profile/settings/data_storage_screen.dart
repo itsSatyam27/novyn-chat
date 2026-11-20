@@ -131,11 +131,11 @@ class _DataStorageScreenState extends State<DataStorageScreen> {
                 _SettingsRow(
                   leading: _iconBox(
                     Icons.arrow_downward_rounded,
-                    const Color(0xFF5E4AE3),
+                    Theme.of(context).colorScheme.primary,
                     isDark ? const Color(0xFF28234B) : const Color(0xFFECE9FB),
                   ),
                   title: 'Your downloads',
-                  trailing: const Icon(
+                  trailing: Icon(
                     Icons.chevron_right_rounded,
                     color: Color(0xFF8F8BA0),
                     size: 20,
@@ -160,7 +160,7 @@ class _DataStorageScreenState extends State<DataStorageScreen> {
       padding: const EdgeInsets.only(left: 4, bottom: 9),
       child: Text(
         title.toUpperCase(),
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: 11.5,
           fontWeight: FontWeight.w700,
           letterSpacing: 1.2,
@@ -204,17 +204,17 @@ class _DataStorageScreenState extends State<DataStorageScreen> {
           children: [
             Text(
               text,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 13.5,
                 fontWeight: FontWeight.w600,
-                color: Color(0xFF5E4AE3),
+                color: Theme.of(context).colorScheme.primary,
               ),
             ),
             const SizedBox(width: 4),
-            const Icon(
+            Icon(
               Icons.keyboard_arrow_down_rounded,
               size: 18,
-              color: Color(0xFF5E4AE3),
+              color: Theme.of(context).colorScheme.primary,
             ),
           ],
         ),
@@ -236,7 +236,7 @@ class _DataStorageScreenState extends State<DataStorageScreen> {
             ? null
             : [
                 BoxShadow(
-                  color: const Color(0xFF5E4AE3).withValues(alpha: 0.03),
+                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.03),
                   blurRadius: 16,
                   offset: const Offset(0, 4),
                 ),
@@ -316,7 +316,7 @@ class _DataStorageScreenState extends State<DataStorageScreen> {
                   value: option,
                   groupValue: current,
                   title: Text(option == 'all' ? 'All media' : option == 'photos' ? 'Photos only' : 'Off'),
-                  activeColor: const Color(0xFF5E4AE3),
+                  activeColor: Theme.of(context).colorScheme.primary,
                   onChanged: (value) => Navigator.pop(sheetContext, value),
                   contentPadding: EdgeInsets.zero,
                 ),
@@ -360,7 +360,7 @@ class _DataStorageScreenState extends State<DataStorageScreen> {
                   groupValue: settings.photoQuality,
                   title: Text(option == 'high' ? 'High quality' : option == 'medium' ? 'Balanced' : 'Data saver'),
                   subtitle: Text(option == 'high' ? 'Best detail, larger files' : option == 'medium' ? 'Balanced size and clarity' : 'Smaller files, saves data'),
-                  activeColor: const Color(0xFF5E4AE3),
+                  activeColor: Theme.of(context).colorScheme.primary,
                   onChanged: (value) => Navigator.pop(sheetContext, value),
                   contentPadding: EdgeInsets.zero,
                 ),
@@ -641,7 +641,7 @@ class _DeviceStorageCard extends StatelessWidget {
                 ? null
                 : [
                     BoxShadow(
-                      color: const Color(0xFF5E4AE3).withValues(alpha: 0.03),
+                      color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.03),
                       blurRadius: 16,
                       offset: const Offset(0, 4),
                     ),
@@ -704,10 +704,10 @@ class _DeviceStorageCard extends StatelessWidget {
                         color: dark ? const Color(0xFF28234B) : const Color(0xFFECE9FB),
                         borderRadius: BorderRadius.circular(13),
                       ),
-                      child: const Icon(
+                      child: Icon(
                         Icons.refresh_rounded,
                         size: 20,
-                        color: Color(0xFF5E4AE3),
+                        color: Theme.of(context).colorScheme.primary,
                       ),
                     ),
                   ),
@@ -724,7 +724,7 @@ class _DeviceStorageCard extends StatelessWidget {
                     children: [
                       Expanded(
                         flex: appFlex,
-                        child: Container(color: const Color(0xFF5E4AE3)),
+                        child: Container(color: Theme.of(context).colorScheme.primary),
                       ),
                       const SizedBox(width: 3),
                       Expanded(
@@ -743,8 +743,8 @@ class _DeviceStorageCard extends StatelessWidget {
                   Container(
                     width: 8,
                     height: 8,
-                    decoration: const BoxDecoration(
-                      color: Color(0xFF5E4AE3),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.primary,
                       shape: BoxShape.circle,
                     ),
                   ),
@@ -776,7 +776,7 @@ class _DeviceStorageCard extends StatelessWidget {
                   Container(
                     width: 8,
                     height: 8,
-                    decoration: const BoxDecoration(
+                    decoration: BoxDecoration(
                       color: Color(0xFF10B981),
                       shape: BoxShape.circle,
                     ),
@@ -1017,7 +1017,7 @@ class _YourDownloadsScreenState extends State<YourDownloadsScreen> {
                       IconButton(
                         tooltip: 'Refresh downloads',
                         onPressed: () => setState(() => _refreshKey++),
-                        icon: const Icon(Icons.refresh_rounded),
+                        icon: Icon(Icons.refresh_rounded),
                       ),
                     ],
                   ),
