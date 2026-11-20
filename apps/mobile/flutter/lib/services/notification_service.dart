@@ -982,6 +982,23 @@ class NotificationService {
       await prefs.setBool(
           'do_not_disturb_enabled', settings.doNotDisturbEnabled);
       await prefs.setStringList('favorite_chat_ids', settings.favoriteChatIds);
+      for (final entry in SettingsService.notificationPreferenceStorageKeys.entries) {
+        await prefs.setBool(
+          entry.value,
+          settings.notificationPreference(entry.key),
+        );
+      }
+      await prefs.setString('notification_quiet_hours_start', settings.quietHoursStart);
+      await prefs.setString('notification_quiet_hours_end', settings.quietHoursEnd);
+      await prefs.setInt(
+        'notification_quiet_hours_offset',
+        DateTime.now().timeZoneOffset.inMinutes,
+      );
+      await prefs.setBool('group_notifications', settings.groupNotifications);
+      await prefs.setString(
+        'novyn_notification_account',
+        (_presenceAuth?.user?.username ?? _activeUsername ?? '').trim().toLowerCase(),
+      );
     } catch (_) {
       // The foreground preference store remains the source of truth.
     }
@@ -1336,7 +1353,7 @@ class NotificationService {
 
     _syncingPreferences = true;
     try {
-      // Restore account preferences before writing anything from local defaults.
+      // Restore server preferences before any local defaults are uploaded.
       if (_preferencesLoadedForUser != username) {
         final remote = await socket.fetchAccountSettings();
         if (remote['ok'] != true || remote['settings'] is! Map) {
@@ -1347,11 +1364,11 @@ class NotificationService {
         final activeMode = SettingsService.normalizeSmartPresenceMode(
           _presenceAuth?.user?.presenceMode ?? 'online',
         );
-        // Hydrate every privacy/notification key from the account before
-        // applying mode defaults. This preserves choices made on another client.
         await settings.hydrateSmartPresenceModeFromServer(activeMode, values);
         await settings.applySmartPresenceLocalPolicy(activeMode);
+        await settings.hydrateNotificationPreferencesFromServer(values);
         _preferencesLoadedForUser = username;
+        await _syncBackgroundPreviewPreferences();
         if (settings.notificationsOn &&
             _permissionRequestedForUser != username) {
           _permissionRequestedForUser = username;
@@ -1359,25 +1376,29 @@ class NotificationService {
         }
       }
 
-      final notificationsEnabled = settings.notificationsOn;
-      // Keep child preferences independent of the master switch.
-      final messagePreview = settings.messagePreview;
-      final groupNotifications = settings.groupNotifications;
-      final signature =
-          '$notificationsEnabled|$messagePreview|$groupNotifications';
+      final payload = <String, dynamic>{
+        'notificationsEnabled': settings.notificationsOn,
+        'messagePreviewEnabled': settings.messagePreview,
+        'groupNotificationsEnabled': settings.groupNotifications,
+        ...settings.notificationPreferencesPayload(),
+      };
+      payload['groupMessagesEnabled'] =
+          settings.notificationPreference('groupMessagesEnabled');
+      payload['quietHoursOffsetMinutes'] =
+          DateTime.now().timeZoneOffset.inMinutes;
+      final signature = payload.entries
+          .map((entry) => entry.key + ':' + entry.value.toString())
+          .join('|');
       if (_lastSyncedPreferences == signature) return;
 
-      final result = await socket.updateAccountSettings({
-        'notificationsEnabled': notificationsEnabled,
-        'messagePreviewEnabled': messagePreview,
-        'groupNotificationsEnabled': groupNotifications,
-      });
+      final result = await socket.updateAccountSettings(payload);
       if (result['ok'] != true) {
         throw StateError(result['message']?.toString() ??
             'Could not sync notification preferences.');
       }
       _lastSyncedPreferences = signature;
       _preferenceRetryCount = 0;
+      await _syncBackgroundPreviewPreferences();
     } catch (_) {
       if (_preferenceRetryCount < 1) {
         _preferenceRetryCount++;
@@ -1394,7 +1415,8 @@ class NotificationService {
   static void _syncPresentation() {
     final settings = _settings;
     final notificationsEnabled = settings?.notificationsOn ?? true;
-    final soundsEnabled = settings?.inAppSounds ?? true;
+    final soundsEnabled = (settings?.inAppSounds ?? true) &&
+        (settings?.notificationPreference('notificationSoundEnabled') ?? true);
     final soundEnabled = notificationsEnabled &&
         soundsEnabled &&
         _presenceAuth?.user?.presenceMode != 'busy';
