@@ -1866,6 +1866,24 @@ function createUserRecord(username) {
     notificationsEnabled: true,
     messagePreviewEnabled: true,
     groupNotificationsEnabled: true,
+    directMessagesEnabled: true,
+    groupMessagesEnabled: true,
+    mentionsRepliesEnabled: true,
+    friendRequestsEnabled: true,
+    friendRequestAcceptedEnabled: true,
+    groupInvitationsEnabled: true,
+    voiceCallsEnabled: true,
+    videoCallsEnabled: true,
+    missedCallsEnabled: true,
+    gameInvitationsEnabled: true,
+    gameTurnEnabled: true,
+    gameResultsEnabled: true,
+    quietHoursEnabled: false,
+    quietHoursStart: "22:00",
+    quietHoursEnd: "07:00",
+    quietHoursOffsetMinutes: 0,
+    notificationSoundEnabled: true,
+    notificationVibrationEnabled: true,
     avatarId: "",
     age: "",
     gender: "",
@@ -1911,6 +1929,24 @@ function serializeState() {
       notificationsEnabled: user.notificationsEnabled !== false,
       messagePreviewEnabled: user.messagePreviewEnabled !== false,
       groupNotificationsEnabled: user.groupNotificationsEnabled !== false,
+      directMessagesEnabled: user.directMessagesEnabled !== false,
+      groupMessagesEnabled: user.groupMessagesEnabled !== false,
+      mentionsRepliesEnabled: user.mentionsRepliesEnabled !== false,
+      friendRequestsEnabled: user.friendRequestsEnabled !== false,
+      friendRequestAcceptedEnabled: user.friendRequestAcceptedEnabled !== false,
+      groupInvitationsEnabled: user.groupInvitationsEnabled !== false,
+      voiceCallsEnabled: user.voiceCallsEnabled !== false,
+      videoCallsEnabled: user.videoCallsEnabled !== false,
+      missedCallsEnabled: user.missedCallsEnabled !== false,
+      gameInvitationsEnabled: user.gameInvitationsEnabled !== false,
+      gameTurnEnabled: user.gameTurnEnabled !== false,
+      gameResultsEnabled: user.gameResultsEnabled !== false,
+      quietHoursEnabled: user.quietHoursEnabled === true,
+      quietHoursStart: user.quietHoursStart || "22:00",
+      quietHoursEnd: user.quietHoursEnd || "07:00",
+      quietHoursOffsetMinutes: Number.isFinite(Number(user.quietHoursOffsetMinutes)) ? Number(user.quietHoursOffsetMinutes) : 0,
+      notificationSoundEnabled: user.notificationSoundEnabled !== false,
+      notificationVibrationEnabled: user.notificationVibrationEnabled !== false,
       isRegistered: Boolean(user.isRegistered),
       isSuspended: user.isSuspended === true,
       passwordSalt: toDisplayName(user.passwordSalt),
@@ -2656,14 +2692,65 @@ function formatPushBody(text, fallback = "New message") {
   return `${cleaned.slice(0, 117)}...`;
 }
 
+function isQuietHoursActive(user, timestamp = Date.now()) {
+  if (!user || user.quietHoursEnabled !== true) return false;
+  const parseMinutes = (value) => {
+    const match = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(String(value || ""));
+    return match ? Number(match[1]) * 60 + Number(match[2]) : null;
+  };
+  const start = parseMinutes(user.quietHoursStart);
+  const end = parseMinutes(user.quietHoursEnd);
+  if (start === null || end === null || start === end) return false;
+  const offset = Math.max(-840, Math.min(840, Number(user.quietHoursOffsetMinutes) || 0));
+  const local = new Date(timestamp + offset * 60 * 1000);
+  const current = local.getUTCHours() * 60 + local.getUTCMinutes();
+  return start < end ? current >= start && current < end : current >= start || current < end;
+}
+
+function shouldDeliverNotification(user, payload = {}) {
+  const type = String(payload.type || "message");
+  if (type === "message") {
+    if (payload.group === true) {
+      if (user.groupMessagesEnabled === false || user.groupNotificationsEnabled === false) return false;
+    } else if (user.directMessagesEnabled === false) {
+      return false;
+    }
+    if (payload.mentionOrReply === true && user.mentionsRepliesEnabled === false) return false;
+  } else if (type === "friend_request" || type === "friend_request_declined") {
+    if (user.friendRequestsEnabled === false) return false;
+  } else if (type === "friend_request_accepted") {
+    if (user.friendRequestAcceptedEnabled === false) return false;
+  } else if (type === "group_invite") {
+    if (user.groupInvitationsEnabled === false) return false;
+  } else if (type === "call") {
+    const status = String(payload.callStatus || "missed");
+    if (status === "missed") {
+      if (user.missedCallsEnabled === false) return false;
+    } else if (status === "incoming") {
+      const isVideo = payload.isVideo === true || payload.isVideo === "1";
+      if (isVideo ? user.videoCallsEnabled === false : user.voiceCallsEnabled === false) return false;
+    }
+  } else if (type === "game_invitation" && user.gameInvitationsEnabled === false) {
+    return false;
+  } else if (type === "game_turn" && user.gameTurnEnabled === false) {
+    return false;
+  } else if (type === "game_result" && user.gameResultsEnabled === false) {
+    return false;
+  }
+  if (type !== "call" && isQuietHoursActive(user)) return false;
+  return true;
+}
+
 async function sendPushToUser(userKey, payload) {
   if (!userKey) return;
   const user = users.get(userKey);
   if (!user || user.notificationsEnabled === false) return;
-  if (payload?.group === true && user.groupNotificationsEnabled === false) return;
+  if (!shouldDeliverNotification(user, payload)) return;
   const previewEnabled = user.messagePreviewEnabled !== false;
   const safePayload = {
     ...payload,
+    soundEnabled: user.notificationSoundEnabled !== false,
+    vibrationEnabled: user.notificationVibrationEnabled !== false,
     ...(payload?.type === "message" && !previewEnabled
       ? { body: payload?.group === true ? "New group message" : "You have a new message" }
       : {}),
@@ -2950,6 +3037,25 @@ function applyLoadedState(parsed) {
     user.notificationsEnabled = entry.notificationsEnabled !== false;
     user.messagePreviewEnabled = entry.messagePreviewEnabled !== false;
     user.groupNotificationsEnabled = entry.groupNotificationsEnabled !== false;
+    user.directMessagesEnabled = entry.directMessagesEnabled !== false;
+    user.groupMessagesEnabled = entry.groupMessagesEnabled !== false;
+    user.mentionsRepliesEnabled = entry.mentionsRepliesEnabled !== false;
+    user.friendRequestsEnabled = entry.friendRequestsEnabled !== false;
+    user.friendRequestAcceptedEnabled = entry.friendRequestAcceptedEnabled !== false;
+    user.groupInvitationsEnabled = entry.groupInvitationsEnabled !== false;
+    user.voiceCallsEnabled = entry.voiceCallsEnabled !== false;
+    user.videoCallsEnabled = entry.videoCallsEnabled !== false;
+    user.missedCallsEnabled = entry.missedCallsEnabled !== false;
+    user.gameInvitationsEnabled = entry.gameInvitationsEnabled !== false;
+    user.gameTurnEnabled = entry.gameTurnEnabled !== false;
+    user.gameResultsEnabled = entry.gameResultsEnabled !== false;
+    user.quietHoursEnabled = entry.quietHoursEnabled === true;
+    user.quietHoursStart = /^([01]\d|2[0-3]):[0-5]\d$/.test(entry.quietHoursStart || "") ? entry.quietHoursStart : "22:00";
+    user.quietHoursEnd = /^([01]\d|2[0-3]):[0-5]\d$/.test(entry.quietHoursEnd || "") ? entry.quietHoursEnd : "07:00";
+    user.quietHoursOffsetMinutes = Number.isFinite(Number(entry.quietHoursOffsetMinutes))
+      ? Math.max(-840, Math.min(840, Number(entry.quietHoursOffsetMinutes))) : 0;
+    user.notificationSoundEnabled = entry.notificationSoundEnabled !== false;
+    user.notificationVibrationEnabled = entry.notificationVibrationEnabled !== false;
 
     for (const unreadEntry of entry.unread || []) {
       if (!Array.isArray(unreadEntry) || unreadEntry.length < 2) continue;
@@ -3141,6 +3247,24 @@ function toSerializedUserEntry(doc) {
     notificationsEnabled: doc?.notificationsEnabled !== false,
     messagePreviewEnabled: doc?.messagePreviewEnabled !== false,
     groupNotificationsEnabled: doc?.groupNotificationsEnabled !== false,
+    directMessagesEnabled: doc?.directMessagesEnabled !== false,
+    groupMessagesEnabled: doc?.groupMessagesEnabled !== false,
+    mentionsRepliesEnabled: doc?.mentionsRepliesEnabled !== false,
+    friendRequestsEnabled: doc?.friendRequestsEnabled !== false,
+    friendRequestAcceptedEnabled: doc?.friendRequestAcceptedEnabled !== false,
+    groupInvitationsEnabled: doc?.groupInvitationsEnabled !== false,
+    voiceCallsEnabled: doc?.voiceCallsEnabled !== false,
+    videoCallsEnabled: doc?.videoCallsEnabled !== false,
+    missedCallsEnabled: doc?.missedCallsEnabled !== false,
+    gameInvitationsEnabled: doc?.gameInvitationsEnabled !== false,
+    gameTurnEnabled: doc?.gameTurnEnabled !== false,
+    gameResultsEnabled: doc?.gameResultsEnabled !== false,
+    quietHoursEnabled: doc?.quietHoursEnabled === true,
+    quietHoursStart: doc?.quietHoursStart || "22:00",
+    quietHoursEnd: doc?.quietHoursEnd || "07:00",
+    quietHoursOffsetMinutes: Number.isFinite(Number(doc?.quietHoursOffsetMinutes)) ? Number(doc.quietHoursOffsetMinutes) : 0,
+    notificationSoundEnabled: doc?.notificationSoundEnabled !== false,
+    notificationVibrationEnabled: doc?.notificationVibrationEnabled !== false,
     isRegistered: Boolean(doc?.isRegistered),
     isSuspended: doc?.isSuspended === true,
     passwordSalt: toDisplayName(doc?.passwordSalt),
@@ -3879,8 +4003,13 @@ function deliverFriendMessage(params = {}) {
     const bodyText = params.isEncrypted === true
       ? "You have a new message"
       : formatPushBody(text);
+    const isGameChallenge = Boolean(message.game);
+    const mentionOrReply = Boolean(params.replyTo) ||
+      (!params.isEncrypted && String(text).toLowerCase().includes("@" + String(friend.username || toKey).toLowerCase()));
     void sendPushToUser(toKey, {
-      type: "message",
+      type: isGameChallenge ? "game_invitation" : "message",
+      ...(isGameChallenge ? { gameId: message.game.id, gameType: message.game.gameType } : {}),
+      mentionOrReply,
       title: `New message from ${me.username}`,
       body: bodyText,
       ...(params.isEncrypted === true ? {
@@ -3983,10 +4112,17 @@ function deliverGroupMessage(params = {}) {
     if (memberSocketId) {
       io.to(memberSocketId).emit("private_message", riddleForViewer(message, memberKey));
     }
-    if (memberKey !== fromKey && !viewingSameGroup) {
+    if (memberKey !== fromKey && !viewingSameGroup &&
+        !isMutedBy(users.get(memberKey), group.id)) {
       const bodyText = formatPushBody(text);
+      const isGameChallenge = Boolean(message.game);
+      const recipient = users.get(memberKey);
+      const mentionOrReply = Boolean(params.replyTo) ||
+        String(text).toLowerCase().includes("@" + String(recipient?.username || memberKey).toLowerCase());
       void sendPushToUser(memberKey, {
-        type: "message",
+        type: isGameChallenge ? "game_invitation" : "message",
+        ...(isGameChallenge ? { gameId: message.game.id, gameType: message.game.gameType } : {}),
+        mentionOrReply,
         group: true,
         title: `New message in ${group.name}`,
         body: `${me.username}: ${bodyText}`,
@@ -7468,6 +7604,24 @@ io.on("connection", (socket) => {
         notificationsEnabled: user.notificationsEnabled !== false,
         messagePreviewEnabled: user.messagePreviewEnabled !== false,
         groupNotificationsEnabled: user.groupNotificationsEnabled !== false,
+        directMessagesEnabled: user.directMessagesEnabled !== false,
+        groupMessagesEnabled: user.groupMessagesEnabled !== false,
+        mentionsRepliesEnabled: user.mentionsRepliesEnabled !== false,
+        friendRequestsEnabled: user.friendRequestsEnabled !== false,
+        friendRequestAcceptedEnabled: user.friendRequestAcceptedEnabled !== false,
+        groupInvitationsEnabled: user.groupInvitationsEnabled !== false,
+        voiceCallsEnabled: user.voiceCallsEnabled !== false,
+        videoCallsEnabled: user.videoCallsEnabled !== false,
+        missedCallsEnabled: user.missedCallsEnabled !== false,
+        gameInvitationsEnabled: user.gameInvitationsEnabled !== false,
+        gameTurnEnabled: user.gameTurnEnabled !== false,
+        gameResultsEnabled: user.gameResultsEnabled !== false,
+        quietHoursEnabled: user.quietHoursEnabled === true,
+        quietHoursStart: user.quietHoursStart || "22:00",
+        quietHoursEnd: user.quietHoursEnd || "07:00",
+        quietHoursOffsetMinutes: Number(user.quietHoursOffsetMinutes) || 0,
+        notificationSoundEnabled: user.notificationSoundEnabled !== false,
+        notificationVibrationEnabled: user.notificationVibrationEnabled !== false,
       },
     });
   });
@@ -7501,6 +7655,26 @@ io.on("connection", (socket) => {
     if (typeof payload?.notificationsEnabled === "boolean") user.notificationsEnabled = payload.notificationsEnabled;
     if (typeof payload?.messagePreviewEnabled === "boolean") user.messagePreviewEnabled = payload.messagePreviewEnabled;
     if (typeof payload?.groupNotificationsEnabled === "boolean") user.groupNotificationsEnabled = payload.groupNotificationsEnabled;
+    const notificationBooleanKeys = [
+      "directMessagesEnabled", "groupMessagesEnabled", "mentionsRepliesEnabled",
+      "friendRequestsEnabled", "friendRequestAcceptedEnabled", "groupInvitationsEnabled",
+      "voiceCallsEnabled", "videoCallsEnabled", "missedCallsEnabled",
+      "gameInvitationsEnabled", "gameTurnEnabled", "gameResultsEnabled",
+      "quietHoursEnabled", "notificationSoundEnabled", "notificationVibrationEnabled",
+    ];
+    for (const key of notificationBooleanKeys) {
+      if (typeof payload?.[key] === "boolean") user[key] = payload[key];
+    }
+    if (typeof payload?.quietHoursStart === "string" &&
+        /^([01]\d|2[0-3]):[0-5]\d$/.test(payload.quietHoursStart)) user.quietHoursStart = payload.quietHoursStart;
+    if (typeof payload?.quietHoursEnd === "string" &&
+        /^([01]\d|2[0-3]):[0-5]\d$/.test(payload.quietHoursEnd)) user.quietHoursEnd = payload.quietHoursEnd;
+    if (Number.isFinite(Number(payload?.quietHoursOffsetMinutes))) {
+      user.quietHoursOffsetMinutes = Math.max(-840, Math.min(840, Number(payload.quietHoursOffsetMinutes)));
+    }
+    if (typeof payload?.groupMessagesEnabled === "boolean") {
+      user.groupNotificationsEnabled = payload.groupMessagesEnabled;
+    }
     if (payload?.callsEnabled === false) {
       cancelCallForUser(userKey, { activeCalls, clearCallPair, onlineUsers, io, users },
         "Calls were disabled in your status mode.");
@@ -8725,6 +8899,43 @@ io.on("connection", (socket) => {
       const friendSocket = onlineUsers.get(resolvedTarget.targetKey);
       if (friendSocket) io.to(friendSocket).emit("game_move_updated", packet);
     }
+
+    const gameTitle = updatedGame.title || "Novyn game";
+    const eventSuffix = String(updatedGame.updatedAt || Date.now());
+    const recipients = isGroup
+      ? Array.from(resolvedTarget.group.members || []).filter((key) => normalizeName(key) !== userKey)
+      : [resolvedTarget.targetKey];
+    if (updatedGame.state === "finished") {
+      for (const recipientKey of recipients) {
+        if (!users.has(normalizeName(recipientKey))) continue;
+        void sendPushToUser(recipientKey, {
+          type: "game_result",
+          title: "Game finished",
+          body: updatedGame.winner ? updatedGame.winner + " won " + gameTitle : "The game ended in a draw: " + gameTitle,
+          chat: isGroup ? resolvedTarget.group.id : (me?.username || userKey),
+          group: isGroup,
+          groupId: isGroup ? resolvedTarget.group.id : undefined,
+          gameId: updatedGame.id,
+          gameType: updatedGame.gameType,
+          eventId: String(updatedGame.id) + ":result:" + eventSuffix,
+        });
+      }
+    } else if (updatedGame.turn) {
+      const turnKey = normalizeName(updatedGame.turn);
+      if (turnKey && turnKey !== userKey && users.has(turnKey) && recipients.some((key) => normalizeName(key) === turnKey)) {
+        void sendPushToUser(turnKey, {
+          type: "game_turn",
+          title: "Your turn",
+          body: "It's your turn in " + gameTitle,
+          chat: isGroup ? resolvedTarget.group.id : (me?.username || userKey),
+          group: isGroup,
+          groupId: isGroup ? resolvedTarget.group.id : undefined,
+          gameId: updatedGame.id,
+          gameType: updatedGame.gameType,
+          eventId: String(updatedGame.id) + ":turn:" + turnKey + ":" + eventSuffix,
+        });
+      }
+    }
   });
 
   socket.on("set_chat_wallpaper", (payload) => {
@@ -9866,20 +10077,34 @@ io.on("connection", (socket) => {
       return;
     }
 
-    const targetKey = normalizeName(payload?.username);
+    const isGroup = payload?.kind === "group" || payload?.group === true;
     const user = users.get(userKey);
-    const target = users.get(targetKey);
-    if (!user || !target || targetKey === userKey || !user.friends.has(targetKey)) {
-      socket.emit("error_message", { message: "You can only update notifications for a contact." });
-      return;
-    }
-
-    if (!(user.mutedUsers instanceof Set)) user.mutedUsers = new Set();
     const muted = Boolean(payload?.muted);
-    if (muted) user.mutedUsers.add(targetKey);
-    else user.mutedUsers.delete(targetKey);
-
-    socket.emit("mute_updated", { username: target.username || targetKey, muted });
+    let muteKey = "";
+    let targetLabel = "";
+    if (isGroup) {
+      const groupId = normalizeGroupId(payload?.groupId || payload?.username);
+      const group = groups.get(groupId);
+      if (!user || !group || !isGroupMember(group, userKey)) {
+        socket.emit("error_message", { message: "You can only mute notifications for a group you belong to." });
+        return;
+      }
+      muteKey = group.id;
+      targetLabel = group.name || group.id;
+    } else {
+      const targetKey = normalizeName(payload?.username);
+      const target = users.get(targetKey);
+      if (!user || !target || targetKey === userKey || !user.friends.has(targetKey)) {
+        socket.emit("error_message", { message: "You can only update notifications for a contact." });
+        return;
+      }
+      muteKey = targetKey;
+      targetLabel = target.username || targetKey;
+    }
+    if (!(user.mutedUsers instanceof Set)) user.mutedUsers = new Set();
+    if (muted) user.mutedUsers.add(muteKey);
+    else user.mutedUsers.delete(muteKey);
+    socket.emit("mute_updated", { username: targetLabel, kind: isGroup ? "group" : "friend", muted });
     emitFriendList(userKey);
     schedulePersist();
   });
