@@ -2567,18 +2567,34 @@ class SocketService extends ChangeNotifier {
     _socket!.emit('remove_friend', username);
   }
 
-  void setMute(
+  Future<Map<String, dynamic>> setMute(
     String username, {
     required bool muted,
     bool isGroup = false,
-  }) {
-    _requireConnection();
-    _socket!.emit('set_mute', {
+  }) async {
+    await _requireAuthenticatedConnection();
+    final completer = Completer<Map<String, dynamic>>();
+    _socket!.emitWithAck('set_mute', {
       'username': username,
       'muted': muted,
       'kind': isGroup ? 'group' : 'friend',
       if (isGroup) 'groupId': username,
+    }, ack: (dynamic result) {
+      if (completer.isCompleted) return;
+      completer.complete(result is Map
+          ? Map<String, dynamic>.from(result)
+          : <String, dynamic>{
+              'ok': false,
+              'message': 'The server did not confirm the mute update.',
+            });
     });
+    return completer.future.timeout(
+      const Duration(seconds: 12),
+      onTimeout: () => <String, dynamic>{
+        'ok': false,
+        'message': 'Updating muted chats timed out. Try again.',
+      },
+    );
   }
 
   void clearChat(String username) {
