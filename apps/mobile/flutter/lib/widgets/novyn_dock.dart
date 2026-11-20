@@ -43,17 +43,17 @@ class NovynDock extends StatelessWidget {
 
   static const labels = <String>[
     'Messages',
-    'Calls',
-    'Discover',
     'Contacts',
+    'Games',
+    'Calls',
     'Settings',
   ];
 
   static const icons = <IconData>[
     LucideIcons.messageCircle,
-    LucideIcons.phone,
-    LucideIcons.compass,
     LucideIcons.users,
+    LucideIcons.gamepad2,
+    LucideIcons.phone,
     LucideIcons.userRound,
   ];
 
@@ -739,7 +739,7 @@ class NovynDock extends StatelessWidget {
               value: unreadCount > 99 ? '99+' : '$unreadCount',
             ),
           ),
-        if (index == 3 && requestCount > 0)
+        if (index == 1 && requestCount > 0)
           const Positioned(
             top: -5,
             right: -8,
