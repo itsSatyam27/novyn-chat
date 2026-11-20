@@ -920,8 +920,16 @@ class SettingsService extends ChangeNotifier {
   }
 
   Future<void> setDoNotDisturbEnabled(bool enabled) async {
+    if (_doNotDisturbEnabled == enabled) return;
+
+    // Persist first so a failed device-storage write never leaves the UI
+    // showing a value that was not actually saved.
+    final saved = await _prefs.setBool(_kDoNotDisturb, enabled);
+    if (!saved) {
+      throw StateError('Your device could not save the Do Not Disturb setting.');
+    }
+
     _doNotDisturbEnabled = enabled;
-    await _prefs.setBool(_kDoNotDisturb, enabled);
     notifyListeners();
   }
 
