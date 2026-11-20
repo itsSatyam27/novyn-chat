@@ -304,7 +304,7 @@ class AccessibilityScreen extends StatelessWidget {
   static Widget _groupedCard(BuildContext context, {required List<Widget> children}) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final cardBg = isDark ? const Color(0xFF1E1C2E) : Colors.white;
-    final border = isDark ? const Color(0xFF2C2844) : const Color(0xFFEDE9F6);
+    final border = Theme.of(context).colorScheme.outlineVariant;
 
     return Container(
       decoration: BoxDecoration(
@@ -332,7 +332,7 @@ class AccessibilityScreen extends StatelessWidget {
                 thickness: 1,
                 indent: 68,
                 endIndent: 16,
-                color: isDark ? const Color(0xFF28253E) : const Color(0xFFF3F0F8),
+                color: Theme.of(context).colorScheme.outlineVariant,
               ),
           ],
         ],
