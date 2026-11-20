@@ -2700,13 +2700,21 @@ function notificationIsInQuietHours(user, now = new Date()) {
   let hour = now.getHours();
   let minute = now.getMinutes();
   if (timezone) {
-    try {
-      const parts = new Intl.DateTimeFormat("en-GB", {
-        timeZone: timezone, hour: "2-digit", minute: "2-digit", hourCycle: "h23",
-      }).formatToParts(now);
-      hour = Number(parts.find((part) => part.type === "hour")?.value ?? hour);
-      minute = Number(parts.find((part) => part.type === "minute")?.value ?? minute);
-    } catch (_) {}
+    const offsetMatch = /^UTC([+-])(\\d{1,4})$/.exec(timezone);
+    if (offsetMatch) {
+      const offset = Number(offsetMatch[2]) * (offsetMatch[1] === "-" ? -1 : 1);
+      const shifted = new Date(now.getTime() + offset * 60000);
+      hour = shifted.getUTCHours();
+      minute = shifted.getUTCMinutes();
+    } else {
+      try {
+        const parts = new Intl.DateTimeFormat("en-GB", {
+          timeZone: timezone, hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+        }).formatToParts(now);
+        hour = Number(parts.find((part) => part.type === "hour")?.value ?? hour);
+        minute = Number(parts.find((part) => part.type === "minute")?.value ?? minute);
+      } catch (_) {}
+    }
   }
   const current = hour * 60 + minute;
   const [sh, sm] = start.split(":").map(Number);
