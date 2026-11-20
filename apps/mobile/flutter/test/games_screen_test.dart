@@ -7,13 +7,16 @@ import 'package:novyn/services/auth_service.dart';
 import 'package:novyn/services/friend_service.dart';
 import 'package:novyn/services/socket_service.dart';
 
-class _TestAuthService extends Fake implements AuthService {
+class _TestAuthService extends ChangeNotifier implements AuthService {
   @override
   NovynUser? get user => const NovynUser(
         username: 'tester',
         displayName: 'Tester',
         email: 'tester@example.test',
       );
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 void main() {
@@ -31,7 +34,7 @@ void main() {
     await tester.pumpWidget(
       MultiProvider(
         providers: [
-          Provider<AuthService>.value(value: _TestAuthService()),
+          ChangeNotifierProvider<AuthService>.value(value: _TestAuthService()),
           Provider<FriendService>.value(value: friends),
           ChangeNotifierProvider<SocketService>.value(value: socket),
         ],
