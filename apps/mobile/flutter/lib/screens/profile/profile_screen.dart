@@ -2566,6 +2566,7 @@ class _SettingsQuickToggle extends StatelessWidget {
     final surface = dark ? const Color(0xFF191824) : Colors.white;
     final ink = dark ? const Color(0xFFF0EFFF) : const Color(0xFF1D1B26);
     final border = Theme.of(context).colorScheme.outlineVariant;
+    final highContrast = context.watch<SettingsService>().highContrast;
     final iconBg = dark ? accent.withValues(alpha: 0.16) : accent.withValues(alpha: 0.12);
 
     return Material(
@@ -2580,7 +2581,7 @@ class _SettingsQuickToggle extends StatelessWidget {
             borderRadius: BorderRadius.circular(22),
             border: Border.all(
               color: border,
-              width: Theme.of(context).highContrast ? 2 : 1,
+              width: highContrast ? 2 : 1,
             ),
           ),
           child: Column(
