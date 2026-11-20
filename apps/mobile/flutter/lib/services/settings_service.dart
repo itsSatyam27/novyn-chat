@@ -397,7 +397,7 @@ class SettingsService extends ChangeNotifier {
       changed = true;
     }
     if (offset is num) {
-      _quietHoursOffsetMinutes = offset.toInt().clamp(-840, 840);
+      _quietHoursOffsetMinutes = offset.toInt().clamp(-840, 840).toInt();
       await _prefs.setInt(_kQuietHoursOffsetMinutes, _quietHoursOffsetMinutes);
       changed = true;
     }
@@ -425,7 +425,7 @@ class SettingsService extends ChangeNotifier {
       await _prefs.setString(_kQuietHoursEnd, end);
     }
     if (offsetMinutes != null) {
-      _quietHoursOffsetMinutes = offsetMinutes.clamp(-840, 840);
+      _quietHoursOffsetMinutes = offsetMinutes.clamp(-840, 840).toInt();
       await _prefs.setInt(_kQuietHoursOffsetMinutes, _quietHoursOffsetMinutes);
     }
     notifyListeners();
@@ -688,7 +688,7 @@ class SettingsService extends ChangeNotifier {
     _quietHoursStart = _prefs.getString(_kQuietHoursStart) ?? '22:00';
     _quietHoursEnd = _prefs.getString(_kQuietHoursEnd) ?? '07:00';
     _quietHoursOffsetMinutes = (_prefs.getInt(_kQuietHoursOffsetMinutes) ??
-        DateTime.now().timeZoneOffset.inMinutes).clamp(-840, 840);
+        DateTime.now().timeZoneOffset.inMinutes).clamp(-840, 840).toInt();
     _autoDownloadWifi = _prefs.getString(_kAutoDownloadWifi) ?? 'all';
     _autoDownloadMobile = _prefs.getString(_kAutoDownloadMobile) ?? 'photos';
     _photoQuality = _prefs.getString(_kPhotoQuality) ?? 'high';
