@@ -1,9 +1,21 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:novyn/services/settings_service.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  test('invalid persisted theme index safely falls back to light mode', () async {
+    SharedPreferences.setMockInitialValues({'theme_mode': 999});
+
+    final settings = SettingsService();
+    await settings.load();
+
+    expect(settings.themeMode, ThemeMode.light);
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getInt('theme_mode'), ThemeMode.light.index);
+  });
 
   test('clearAll resets every runtime preference to defaults', () async {
     SharedPreferences.setMockInitialValues({
