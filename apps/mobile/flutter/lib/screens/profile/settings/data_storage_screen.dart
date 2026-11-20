@@ -4,14 +4,12 @@ import 'package:novyn/services/haptic_service.dart';
 
 import 'package:flutter/material.dart';
 import 'package:novyn/widgets/novyn_alert.dart';
-import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../services/settings_service.dart';
 import '../../../theme/novyn_theme.dart';
-import '../widgets/profile_widgets.dart';
 
 class DataStorageScreen extends StatefulWidget {
   const DataStorageScreen({super.key});
@@ -27,16 +25,21 @@ class _DataStorageScreenState extends State<DataStorageScreen> {
   @override
   Widget build(BuildContext context) {
     final settings = context.watch<SettingsService>();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: NovynTheme.pageBg(context),
-      appBar: null,
+      backgroundColor: isDark ? NovynTheme.pageBg(context) : const Color(0xFFF4F0FB),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.fromLTRB(20, 10, 20, 36),
           physics: const BouncingScrollPhysics(),
           children: [
-            const _DataStorageHeader(),
+            _ScreenHeader(
+              title: 'Data & Storage',
+              onBack: () => Navigator.maybePop(context),
+            ),
+            const SizedBox(height: 10),
+
             _DeviceStorageCard(
               usageKey: _usageRefreshKey,
               clearingCache: _clearingCache,
@@ -46,59 +49,97 @@ class _DataStorageScreenState extends State<DataStorageScreen> {
                 setState(() => _usageRefreshKey++);
               },
             ),
-            const SizedBox(height: 22),
-            _sectionHeading('Automatic downloads', context),
+            const SizedBox(height: 24),
+
+            _sectionHeader('AUTOMATIC DOWNLOADS'),
             _groupedCard(
               context,
               children: [
-                _PreferenceDropdownRow(
-                  icon: Icons.wifi_rounded,
-                  iconColor: const Color(0xFF0D9488),
-                  iconBgColor: const Color(0xFFE0F7F4),
+                _SettingsRow(
+                  leading: _iconBox(
+                    Icons.wifi_rounded,
+                    const Color(0xFF0D9488),
+                    isDark ? const Color(0xFF1B3330) : const Color(0xFFE0F7F4),
+                  ),
                   title: 'Wi-Fi Networks',
-                  subtitle: 'Preferred media download policy',
-                  value: _downloadLabel(settings.autoDownloadWifi, photosLabel: 'Photos only'),
-                  onTap: () => _showDownloadChoice(settings, isWifi: true),
+                  trailing: _pillDropdown(
+                    text: _downloadLabel(settings.autoDownloadWifi, photosLabel: 'Photos only'),
+                    onTap: () => _showDownloadChoice(settings, isWifi: true),
+                    context: context,
+                  ),
                 ),
-                _PreferenceDropdownRow(
-                  icon: Icons.cell_tower_rounded,
-                  iconColor: const Color(0xFFD97706),
-                  iconBgColor: const Color(0xFFFEF3E2),
+                _SettingsRow(
+                  leading: _iconBox(
+                    Icons.cell_tower_rounded,
+                    const Color(0xFFD97706),
+                    isDark ? const Color(0xFF382A1B) : const Color(0xFFFEF3E2),
+                  ),
                   title: 'Mobile data',
-                  subtitle: 'Preferred media download policy',
-                  value: _downloadLabel(settings.autoDownloadMobile, photosLabel: 'Photos only'),
-                  onTap: () => _showDownloadChoice(settings, isWifi: false),
+                  trailing: _pillDropdown(
+                    text: _downloadLabel(settings.autoDownloadMobile, photosLabel: 'Photos only'),
+                    onTap: () => _showDownloadChoice(settings, isWifi: false),
+                    context: context,
+                  ),
                 ),
               ],
             ),
-            const SizedBox(height: 22),
-            _sectionHeading('Media quality', context),
+            const SizedBox(height: 24),
+
+            _sectionHeader('MEDIA QUALITY'),
             _groupedCard(
               context,
               children: [
-                _PreferenceDropdownRow(
-                  icon: Icons.high_quality_rounded,
-                  iconColor: const Color(0xFF10B981),
-                  iconBgColor: const Color(0xFFE8F8F0),
+                _SettingsRow(
+                  leading: _iconBox(
+                    null,
+                    const Color(0xFF10B981),
+                    isDark ? const Color(0xFF1A3327) : const Color(0xFFE8F8F0),
+                    customIcon: Center(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                        decoration: BoxDecoration(
+                          border: Border.all(color: const Color(0xFF10B981), width: 1.5),
+                          borderRadius: BorderRadius.circular(5),
+                        ),
+                        child: const Text(
+                          'HL',
+                          style: TextStyle(
+                            fontSize: 9.5,
+                            fontWeight: FontWeight.w900,
+                            color: Color(0xFF10B981),
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
                   title: 'Media quality',
-                  subtitle: 'Choose your preferred upload quality',
-                  value: _qualityLabel(settings.photoQuality),
-                  onTap: () => _showQualityChoice(settings),
-                  isHighQuality: true,
+                  trailing: _pillDropdown(
+                    text: _qualityLabel(settings.photoQuality),
+                    onTap: () => _showQualityChoice(settings),
+                    context: context,
+                  ),
                 ),
               ],
             ),
-            const SizedBox(height: 22),
-            _sectionHeading('Downloads', context),
+            const SizedBox(height: 24),
+
+            _sectionHeader('DOWNLOADS'),
             _groupedCard(
               context,
               children: [
-                _NavigationRow(
-                  icon: Icons.arrow_downward_rounded,
-                  iconColor: const Color(0xFF6D5DFC),
-                  iconBgColor: const Color(0xFFEDE9FE),
+                _SettingsRow(
+                  leading: _iconBox(
+                    Icons.arrow_downward_rounded,
+                    const Color(0xFF5E4AE3),
+                    isDark ? const Color(0xFF28234B) : const Color(0xFFECE9FB),
+                  ),
                   title: 'Your downloads',
-                  subtitle: 'View, open and manage downloaded files',
+                  trailing: const Icon(
+                    Icons.chevron_right_rounded,
+                    color: Color(0xFF8F8BA0),
+                    size: 20,
+                  ),
                   onTap: () => Navigator.push(
                     context,
                     MaterialPageRoute(builder: (_) => const YourDownloadsScreen()),
@@ -108,12 +149,114 @@ class _DataStorageScreenState extends State<DataStorageScreen> {
                 ),
               ],
             ),
-            const SizedBox(height: 22),
-            const _InfoNoticeCard(),
-            const SizedBox(height: 24),
-            const _FooterBrandText(),
           ],
         ),
+      ),
+    );
+  }
+
+  static Widget _sectionHeader(String title) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 4, bottom: 9),
+      child: Text(
+        title.toUpperCase(),
+        style: const TextStyle(
+          fontSize: 11.5,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 1.2,
+          color: Color(0xFF6246EA),
+        ),
+      ),
+    );
+  }
+
+  static Widget _iconBox(IconData? icon, Color color, Color bg, {Widget? customIcon}) {
+    return Container(
+      width: 42,
+      height: 42,
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(13),
+      ),
+      child: customIcon ?? Icon(icon, color: color, size: 21),
+    );
+  }
+
+  static Widget _pillDropdown({
+    required String text,
+    required VoidCallback onTap,
+    required BuildContext context,
+  }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return GestureDetector(
+      onTap: () {
+        HapticService.vibrate(NovynHapticType.selection);
+        onTap();
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF2C2849) : const Color(0xFFECE9FB),
+          borderRadius: BorderRadius.circular(13),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              text,
+              style: const TextStyle(
+                fontSize: 13.5,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF5E4AE3),
+              ),
+            ),
+            const SizedBox(width: 4),
+            const Icon(
+              Icons.keyboard_arrow_down_rounded,
+              size: 18,
+              color: Color(0xFF5E4AE3),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  static Widget _groupedCard(BuildContext context, {required List<Widget> children}) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardBg = isDark ? const Color(0xFF1E1C2E) : Colors.white;
+    final border = isDark ? const Color(0xFF2C2844) : const Color(0xFFEDE9F6);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: cardBg,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: border),
+        boxShadow: isDark
+            ? null
+            : [
+                BoxShadow(
+                  color: const Color(0xFF5E4AE3).withValues(alpha: 0.03),
+                  blurRadius: 16,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        children: [
+          for (var i = 0; i < children.length; i++) ...[
+            children[i],
+            if (i != children.length - 1)
+              Divider(
+                height: 1,
+                thickness: 1,
+                indent: 68,
+                endIndent: 16,
+                color: isDark ? const Color(0xFF28253E) : const Color(0xFFF3F0F8),
+              ),
+          ],
+        ],
       ),
     );
   }
@@ -147,24 +290,38 @@ class _DataStorageScreenState extends State<DataStorageScreen> {
   Future<void> _showDownloadChoice(SettingsService settings, {required bool isWifi}) async {
     final current = isWifi ? settings.autoDownloadWifi : settings.autoDownloadMobile;
     final selected = await showModalBottomSheet<String>(
-      context: context, useSafeArea: true, showDragHandle: true,
+      context: context,
+      useSafeArea: true,
+      showDragHandle: true,
+      backgroundColor: NovynTheme.cardBg(context),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
       builder: (sheetContext) => SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
-          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(isWifi ? 'Wi-Fi downloads' : 'Mobile data downloads',
-              style: Theme.of(sheetContext).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
-            const SizedBox(height: 8),
-            const Text('New incoming attachments are downloaded automatically when Novyn is connected and the selected network policy allows it.'),
-            const SizedBox(height: 12),
-            for (final option in ['all', 'photos', 'none'])
-              RadioListTile<String>(
-                value: option, groupValue: current,
-                title: Text(option == 'all' ? 'All media' : option == 'photos' ? 'Photos only' : 'Off'),
-                onChanged: (value) => Navigator.pop(sheetContext, value),
-                contentPadding: EdgeInsets.zero,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                isWifi ? 'Wi-Fi downloads' : 'Mobile data downloads',
+                style: Theme.of(sheetContext).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
               ),
-          ]),
+              const SizedBox(height: 8),
+              const Text('New incoming attachments are downloaded automatically when Novyn is connected and the selected network policy allows it.'),
+              const SizedBox(height: 12),
+              for (final option in ['all', 'photos', 'none'])
+                RadioListTile<String>(
+                  value: option,
+                  groupValue: current,
+                  title: Text(option == 'all' ? 'All media' : option == 'photos' ? 'Photos only' : 'Off'),
+                  activeColor: const Color(0xFF5E4AE3),
+                  onChanged: (value) => Navigator.pop(sheetContext, value),
+                  contentPadding: EdgeInsets.zero,
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -178,22 +335,37 @@ class _DataStorageScreenState extends State<DataStorageScreen> {
 
   Future<void> _showQualityChoice(SettingsService settings) async {
     final selected = await showModalBottomSheet<String>(
-      context: context, useSafeArea: true, showDragHandle: true,
+      context: context,
+      useSafeArea: true,
+      showDragHandle: true,
+      backgroundColor: NovynTheme.cardBg(context),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
       builder: (sheetContext) => SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
-          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('Media quality', style: Theme.of(sheetContext).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
-            const SizedBox(height: 8),
-            for (final option in ['high', 'medium', 'low'])
-              RadioListTile<String>(
-                value: option, groupValue: settings.photoQuality,
-                title: Text(option == 'high' ? 'High quality' : option == 'medium' ? 'Balanced' : 'Data saver'),
-                subtitle: Text(option == 'high' ? 'Best detail, larger files' : option == 'medium' ? 'Balanced size and clarity' : 'Smaller files, saves data'),
-                onChanged: (value) => Navigator.pop(sheetContext, value),
-                contentPadding: EdgeInsets.zero,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Media quality',
+                style: Theme.of(sheetContext).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
               ),
-          ]),
+              const SizedBox(height: 8),
+              for (final option in ['high', 'medium', 'low'])
+                RadioListTile<String>(
+                  value: option,
+                  groupValue: settings.photoQuality,
+                  title: Text(option == 'high' ? 'High quality' : option == 'medium' ? 'Balanced' : 'Data saver'),
+                  subtitle: Text(option == 'high' ? 'Best detail, larger files' : option == 'medium' ? 'Balanced size and clarity' : 'Smaller files, saves data'),
+                  activeColor: const Color(0xFF5E4AE3),
+                  onChanged: (value) => Navigator.pop(sheetContext, value),
+                  contentPadding: EdgeInsets.zero,
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -243,12 +415,11 @@ class _DataStorageScreenState extends State<DataStorageScreen> {
     try {
       final temporaryDirectory = await getTemporaryDirectory();
       if (await temporaryDirectory.exists()) {
-        await for (final entity
-            in temporaryDirectory.list(followLinks: false)) {
+        await for (final entity in temporaryDirectory.list(followLinks: false)) {
           try {
             await entity.delete(recursive: true);
           } on FileSystemException {
-            // Skip files currently held by the operating system.
+            // Skip files held by OS
           }
         }
       }
@@ -280,66 +451,104 @@ class _DataStorageScreenState extends State<DataStorageScreen> {
   }
 }
 
-class _DataStorageHeader extends StatelessWidget {
-  const _DataStorageHeader();
+class _ScreenHeader extends StatelessWidget {
+  final String title;
+  final VoidCallback onBack;
+
+  const _ScreenHeader({required this.title, required this.onBack});
 
   @override
   Widget build(BuildContext context) {
     final dark = Theme.of(context).brightness == Brightness.dark;
-    final ink = Theme.of(context).colorScheme.onSurface;
-    final muted = Theme.of(context).colorScheme.onSurfaceVariant;
-    final border = Theme.of(context).colorScheme.outlineVariant;
+    final ink = dark ? Colors.white : const Color(0xFF1A1730);
 
     return Padding(
-      padding: const EdgeInsets.only(top: 5, bottom: 18),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      padding: const EdgeInsets.only(top: 8, bottom: 18),
+      child: Row(
         children: [
-          Row(
-            children: [
-              Material(
-                color: dark ? const Color(0xFF161726) : Colors.white,
-                borderRadius: BorderRadius.circular(14),
-                child: InkWell(
-                  onTap: () => Navigator.maybePop(context),
-                  borderRadius: BorderRadius.circular(14),
-                  child: Container(
-                    width: 42,
-                    height: 42,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: border),
-                    ),
-                    child: Icon(Icons.arrow_back_rounded, color: ink, size: 20),
-                  ),
-                ),
+          InkWell(
+            onTap: () {
+              HapticService.vibrate(NovynHapticType.light);
+              onBack();
+            },
+            borderRadius: BorderRadius.circular(12),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+              child: Icon(
+                Icons.arrow_back_ios_new_rounded,
+                color: ink,
+                size: 20,
               ),
-              Expanded(
-                child: Center(
-                  child: Text(
-                    'Data & Storage',
-                    style: TextStyle(
-                      color: ink,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: -0.3,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 42),
-            ],
+            ),
           ),
-          const SizedBox(height: 12),
-          Text(
-            'Downloads, media and storage',
-            style: TextStyle(
-              color: muted,
-              fontSize: 13.5,
-              height: 1.3,
+          const SizedBox(width: 14),
+          Expanded(
+            child: Text(
+              title,
+              style: TextStyle(
+                color: ink,
+                fontSize: 24,
+                fontWeight: FontWeight.w700,
+                letterSpacing: -0.4,
+              ),
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _SettingsRow extends StatelessWidget {
+  final Widget? leading;
+  final String title;
+  final Widget? trailing;
+  final VoidCallback? onTap;
+
+  const _SettingsRow({
+    this.leading,
+    required this.title,
+    this.trailing,
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final ink = dark ? Colors.white : const Color(0xFF1A1730);
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap != null
+            ? () {
+                HapticService.vibrate(NovynHapticType.selection);
+                onTap!();
+              }
+            : null,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          child: Row(
+            children: [
+              if (leading != null) ...[
+                leading!,
+                const SizedBox(width: 14),
+              ],
+              Expanded(
+                child: Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 15.5,
+                    fontWeight: FontWeight.w600,
+                    color: ink,
+                    letterSpacing: -0.2,
+                  ),
+                ),
+              ),
+              if (trailing != null) trailing!,
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -366,7 +575,7 @@ class _DeviceStorageCard extends StatelessWidget {
         try {
           total += await entity.length();
         } on FileSystemException {
-          // Ignore files that disappear or become inaccessible mid-scan.
+          // ignore
         }
       }
     }
@@ -397,11 +606,10 @@ class _DeviceStorageCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colors = theme.colorScheme;
-    final dark = theme.brightness == Brightness.dark;
-    final ink = colors.onSurface;
-    final muted = colors.onSurfaceVariant;
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final ink = dark ? Colors.white : const Color(0xFF1A1730);
+    final cardBg = dark ? const Color(0xFF1E1C2E) : Colors.white;
+    final border = dark ? const Color(0xFF2C2844) : const Color(0xFFEDE9F6);
 
     return FutureBuilder<Map<String, int>>(
       key: ValueKey(usageKey),
@@ -412,14 +620,13 @@ class _DeviceStorageCard extends StatelessWidget {
         final total = appBytes + temporaryBytes;
 
         final isReady = snapshot.connectionState == ConnectionState.done && snapshot.hasData;
-        final totalFormatted = isReady ? _formatBytes(total) : '2.8 MB';
+        final totalFormatted = isReady ? _formatBytes(total) : '681.1 KB';
         final totalParts = totalFormatted.split(' ');
         final numberText = totalParts.first;
-        final unitText = totalParts.length > 1 ? totalParts.last : 'MB';
+        final unitText = totalParts.length > 1 ? totalParts.last : 'KB';
 
-        // Calculate progress bar fractions
-        final appRatio = (total == 0) ? 0.48 : (appBytes / total).clamp(0.05, 0.95);
-        final tempRatio = (total == 0) ? 0.50 : (temporaryBytes / total).clamp(0.05, 0.95);
+        final appRatio = (total == 0) ? 0.44 : (appBytes / total).clamp(0.05, 0.95);
+        final tempRatio = (total == 0) ? 0.56 : (temporaryBytes / total).clamp(0.05, 0.95);
 
         final appFlex = (appRatio * 100).round().clamp(5, 95);
         final tempFlex = (tempRatio * 100).round().clamp(5, 95);
@@ -427,9 +634,18 @@ class _DeviceStorageCard extends StatelessWidget {
         return Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            color: NovynTheme.cardBg(context),
+            color: cardBg,
             borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: colors.outlineVariant),
+            border: Border.all(color: border),
+            boxShadow: dark
+                ? null
+                : [
+                    BoxShadow(
+                      color: const Color(0xFF5E4AE3).withValues(alpha: 0.03),
+                      blurRadius: 16,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -442,16 +658,16 @@ class _DeviceStorageCard extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
+                        const Text(
                           'USED ON THIS DEVICE',
                           style: TextStyle(
                             fontSize: 11,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 1.2,
-                            color: muted,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 1.1,
+                            color: Color(0xFF646078),
                           ),
                         ),
-                        const SizedBox(height: 5),
+                        const SizedBox(height: 6),
                         Row(
                           crossAxisAlignment: CrossAxisAlignment.baseline,
                           textBaseline: TextBaseline.alphabetic,
@@ -459,19 +675,19 @@ class _DeviceStorageCard extends StatelessWidget {
                             Text(
                               numberText,
                               style: TextStyle(
-                                fontSize: 32,
-                                fontWeight: FontWeight.w900,
+                                fontSize: 34,
+                                fontWeight: FontWeight.w800,
                                 color: ink,
                                 letterSpacing: -0.8,
                               ),
                             ),
-                            const SizedBox(width: 5),
+                            const SizedBox(width: 6),
                             Text(
                               unitText,
                               style: TextStyle(
                                 fontSize: 16,
-                                fontWeight: FontWeight.w800,
-                                color: ink.withValues(alpha: 0.85),
+                                fontWeight: FontWeight.w700,
+                                color: ink.withValues(alpha: 0.8),
                               ),
                             ),
                           ],
@@ -479,63 +695,56 @@ class _DeviceStorageCard extends StatelessWidget {
                       ],
                     ),
                   ),
-                  Material(
-                    color: colors.primary.withValues(alpha: dark ? 0.20 : 0.09),
-                    borderRadius: BorderRadius.circular(13),
-                    child: InkWell(
-                      onTap: onRefresh,
-                      borderRadius: BorderRadius.circular(13),
-                      child: Container(
-                        width: 38,
-                        height: 38,
-                        alignment: Alignment.center,
-                        child: Icon(
-                          Icons.refresh_rounded,
-                          size: 20,
-                          color: colors.primary,
-                        ),
+                  GestureDetector(
+                    onTap: onRefresh,
+                    child: Container(
+                      width: 42,
+                      height: 42,
+                      decoration: BoxDecoration(
+                        color: dark ? const Color(0xFF28234B) : const Color(0xFFECE9FB),
+                        borderRadius: BorderRadius.circular(13),
+                      ),
+                      child: const Icon(
+                        Icons.refresh_rounded,
+                        size: 20,
+                        color: Color(0xFF5E4AE3),
                       ),
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 18),
 
-              // Multi-segment storage bar
+              // Segmented bar
               ClipRRect(
-                borderRadius: BorderRadius.circular(20),
-                child: Container(
-                  height: 9,
-                  color: dark ? const Color(0xFF232236) : const Color(0xFFECE8F7),
+                borderRadius: BorderRadius.circular(10),
+                child: SizedBox(
+                  height: 7,
                   child: Row(
                     children: [
                       Expanded(
                         flex: appFlex,
-                        child: Container(color: colors.primary),
+                        child: Container(color: const Color(0xFF5E4AE3)),
                       ),
-                      const SizedBox(width: 2),
+                      const SizedBox(width: 3),
                       Expanded(
                         flex: tempFlex,
-                        child: Container(color: const Color(0xFF22C55E)),
-                      ),
-                      const Expanded(
-                        flex: 3,
-                        child: SizedBox(),
+                        child: Container(color: const Color(0xFF10B981)),
                       ),
                     ],
                   ),
                 ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 18),
 
-              // Legend items
+              // Legend 1
               Row(
                 children: [
                   Container(
-                    width: 7.5,
-                    height: 7.5,
-                    decoration: BoxDecoration(
-                      color: colors.primary,
+                    width: 8,
+                    height: 8,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF5E4AE3),
                       shape: BoxShape.circle,
                     ),
                   ),
@@ -543,30 +752,32 @@ class _DeviceStorageCard extends StatelessWidget {
                   Text(
                     'App data & local database',
                     style: TextStyle(
-                      fontSize: 13,
+                      fontSize: 14,
                       fontWeight: FontWeight.w600,
                       color: ink,
                     ),
                   ),
                   const Spacer(),
                   Text(
-                    isReady ? _formatBytes(appBytes) : '1.3 MB',
+                    isReady ? _formatBytes(appBytes) : '299.1 KB',
                     style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w800,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
                       color: ink,
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 11),
+              const SizedBox(height: 10),
+
+              // Legend 2
               Row(
                 children: [
                   Container(
-                    width: 7.5,
-                    height: 7.5,
+                    width: 8,
+                    height: 8,
                     decoration: const BoxDecoration(
-                      color: Color(0xFF22C55E),
+                      color: Color(0xFF10B981),
                       shape: BoxShape.circle,
                     ),
                   ),
@@ -574,38 +785,27 @@ class _DeviceStorageCard extends StatelessWidget {
                   Text(
                     'Temporary files & cache',
                     style: TextStyle(
-                      fontSize: 13,
+                      fontSize: 14,
                       fontWeight: FontWeight.w600,
                       color: ink,
                     ),
                   ),
                   const Spacer(),
                   Text(
-                    isReady ? _formatBytes(temporaryBytes) : '1.4 MB',
+                    isReady ? _formatBytes(temporaryBytes) : '382.0 KB',
                     style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w800,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
                       color: ink,
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 14),
-
-              // Footnote
-              Text(
-                'Measured from this app\'s documents and temporary folders. System-managed cache may vary.',
-                style: TextStyle(
-                  fontSize: 11.5,
-                  color: muted,
-                  height: 1.35,
-                ),
-              ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 18),
 
               // Clear Cache Button
               Material(
-                color: dark ? const Color(0xFF2C1619) : const Color(0xFFFFF0F2),
+                color: dark ? const Color(0xFF33191B) : const Color(0xFFFFF1F1),
                 borderRadius: BorderRadius.circular(16),
                 child: InkWell(
                   onTap: clearingCache ? null : onClearCache,
@@ -615,7 +815,7 @@ class _DeviceStorageCard extends StatelessWidget {
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(
-                        color: dark ? const Color(0xFF5A2228) : const Color(0xFFFDD8DC),
+                        color: dark ? const Color(0xFF5A2228) : const Color(0xFFFFD4D4),
                       ),
                     ),
                     child: Center(
@@ -625,7 +825,7 @@ class _DeviceStorageCard extends StatelessWidget {
                               height: 20,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFB3261E)),
+                                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFD32F2F)),
                               ),
                             )
                           : const Row(
@@ -633,15 +833,15 @@ class _DeviceStorageCard extends StatelessWidget {
                               children: [
                                 Icon(
                                   Icons.cleaning_services_rounded,
-                                  color: Color(0xFFB3261E),
+                                  color: Color(0xFFD32F2F),
                                   size: 18,
                                 ),
                                 SizedBox(width: 8),
                                 Text(
                                   'Clear cache',
                                   style: TextStyle(
-                                    color: Color(0xFFB3261E),
-                                    fontWeight: FontWeight.w800,
+                                    color: Color(0xFFD32F2F),
+                                    fontWeight: FontWeight.w700,
                                     fontSize: 14.5,
                                   ),
                                 ),
@@ -651,327 +851,10 @@ class _DeviceStorageCard extends StatelessWidget {
                   ),
                 ),
               ),
-              const SizedBox(height: 8),
-              Center(
-                child: Text(
-                  'Removes temporary files and cached images',
-                  style: TextStyle(
-                    fontSize: 11.5,
-                    color: muted,
-                  ),
-                ),
-              ),
             ],
           ),
         );
       },
-    );
-  }
-}
-
-Widget _sectionHeading(String title, BuildContext context) {
-  final muted = Theme.of(context).colorScheme.onSurfaceVariant;
-  return Padding(
-    padding: const EdgeInsets.only(left: 4, bottom: 9),
-    child: Text(
-      title.toUpperCase(),
-      style: TextStyle(
-        fontSize: 11,
-        fontWeight: FontWeight.w800,
-        letterSpacing: 1.4,
-        color: muted,
-      ),
-    ),
-  );
-}
-
-Widget _groupedCard(BuildContext context, {required List<Widget> children}) {
-  return Container(
-    decoration: BoxDecoration(
-      color: NovynTheme.cardBg(context),
-      borderRadius: BorderRadius.circular(22),
-      border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
-    ),
-    clipBehavior: Clip.antiAlias,
-    child: Column(
-      children: [
-        for (var i = 0; i < children.length; i++) ...[
-          if (i > 0)
-            Padding(
-              padding: const EdgeInsets.only(left: 70),
-              child: Divider(
-                height: 1,
-                thickness: 1,
-                color: Theme.of(context).dividerColor,
-              ),
-            ),
-          children[i],
-        ],
-      ],
-    ),
-  );
-}
-
-class _PreferenceDropdownRow extends StatelessWidget {
-  final IconData icon;
-  final Color iconColor;
-  final Color iconBgColor;
-  final String title;
-  final String subtitle;
-  final String value;
-  final VoidCallback onTap;
-  final bool isHighQuality;
-
-  const _PreferenceDropdownRow({
-    required this.icon,
-    required this.iconColor,
-    required this.iconBgColor,
-    required this.title,
-    required this.subtitle,
-    required this.value,
-    required this.onTap,
-    this.isHighQuality = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final dark = theme.brightness == Brightness.dark;
-    final ink = theme.colorScheme.onSurface;
-    final muted = theme.colorScheme.onSurfaceVariant;
-    final primary = theme.colorScheme.primary;
-
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
-          child: Row(
-            children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: iconBgColor.withValues(alpha: dark ? 0.22 : 0.85),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: isHighQuality
-                    ? Center(
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                          decoration: BoxDecoration(
-                            border: Border.all(color: iconColor, width: 1.6),
-                            borderRadius: BorderRadius.circular(4.5),
-                          ),
-                          child: Text(
-                            'HL',
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w900,
-                              color: iconColor,
-                              letterSpacing: 0.5,
-                            ),
-                          ),
-                        ),
-                      )
-                    : Icon(icon, color: iconColor, size: 21),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: TextStyle(
-                        fontSize: 14.5,
-                        fontWeight: FontWeight.w800,
-                        color: ink,
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      subtitle,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: muted,
-                        height: 1.25,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-                decoration: BoxDecoration(
-                  color: dark ? const Color(0xFF242042) : const Color(0xFFEDE9FE),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      value,
-                      style: TextStyle(
-                        color: primary,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 12.5,
-                      ),
-                    ),
-                    const SizedBox(width: 3),
-                    Icon(
-                      Icons.keyboard_arrow_down_rounded,
-                      color: primary,
-                      size: 18,
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _NavigationRow extends StatelessWidget {
-  final IconData icon;
-  final Color iconColor;
-  final Color iconBgColor;
-  final String title;
-  final String subtitle;
-  final VoidCallback onTap;
-
-  const _NavigationRow({
-    required this.icon,
-    required this.iconColor,
-    required this.iconBgColor,
-    required this.title,
-    required this.subtitle,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final dark = theme.brightness == Brightness.dark;
-    final ink = theme.colorScheme.onSurface;
-    final muted = theme.colorScheme.onSurfaceVariant;
-
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
-          child: Row(
-            children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: iconBgColor.withValues(alpha: dark ? 0.22 : 0.85),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Icon(icon, color: iconColor, size: 21),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: TextStyle(
-                        fontSize: 14.5,
-                        fontWeight: FontWeight.w800,
-                        color: ink,
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      subtitle,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: muted,
-                        height: 1.25,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              Icon(
-                Icons.chevron_right_rounded,
-                color: muted,
-                size: 22,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _InfoNoticeCard extends StatelessWidget {
-  const _InfoNoticeCard();
-
-  @override
-  Widget build(BuildContext context) {
-    final dark = Theme.of(context).brightness == Brightness.dark;
-    final colors = Theme.of(context).colorScheme;
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: dark ? const Color(0xFF19172E) : const Color(0xFFEDE9FE).withValues(alpha: 0.65),
-        borderRadius: BorderRadius.circular(18),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(
-            Icons.info_outline_rounded,
-            size: 19,
-            color: colors.primary,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              'Incoming attachments now follow your Wi-Fi/mobile download policy while Novyn is running. Image uploads use your selected quality. Images and videos can be saved to Gallery; other files can be exported through the system Files picker.',
-              style: TextStyle(
-                fontSize: 12,
-                color: colors.onSurface.withValues(alpha: dark ? 0.85 : 0.75),
-                height: 1.45,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _FooterBrandText extends StatelessWidget {
-  const _FooterBrandText();
-
-  @override
-  Widget build(BuildContext context) {
-    final muted = Theme.of(context).colorScheme.onSurfaceVariant;
-    return Center(
-      child: Text(
-        'NOVYN · YOUR SPACE, YOUR PEOPLE',
-        style: TextStyle(
-          fontSize: 10.5,
-          fontWeight: FontWeight.w800,
-          letterSpacing: 1.4,
-          color: muted.withValues(alpha: 0.70),
-        ),
-      ),
     );
   }
 }
@@ -1292,27 +1175,6 @@ class _CardShell extends StatelessWidget {
           child: child,
         ),
       ),
-    );
-  }
-}
-
-class _IconTile extends StatelessWidget {
-  final IconData icon;
-  final Color color;
-
-  const _IconTile({required this.icon, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 48,
-      height: 48,
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withValues(alpha: 0.12)),
-      ),
-      child: Icon(icon, color: color, size: 23),
     );
   }
 }

@@ -1,6 +1,5 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:novyn/services/haptic_service.dart';
 
@@ -13,9 +12,7 @@ class LanguageRegionScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final settings = context.watch<SettingsService>();
-    final theme = Theme.of(context);
-    final colors = theme.colorScheme;
-    final isDark = theme.brightness == Brightness.dark;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final languages = settings.getLanguagesForRegion(settings.region);
     final languageLabel = languages[settings.language] ?? 'English';
     final now = DateTime.now();
@@ -24,25 +21,10 @@ class LanguageRegionScreen extends StatelessWidget {
     final timePreview = settings.timeFormat == '24h'
         ? '${currentTime.hour.toString().padLeft(2, '0')}:${currentTime.minute.toString().padLeft(2, '0')}'
         : currentTime.format(context);
-    final regionFlag = switch (settings.region) {
-      'India' => '🇮🇳',
-      'United States' => '🇺🇸',
-      'United Kingdom' => '🇬🇧',
-      'Canada' => '🇨🇦',
-      'Australia' => '🇦🇺',
-      'Germany' => '🇩🇪',
-      'France' => '🇫🇷',
-      'Spain' => '🇪🇸',
-      'Italy' => '🇮🇹',
-      'Japan' => '🇯🇵',
-      'South Korea' => '🇰🇷',
-      'Russia' => '🇷🇺',
-      _ => '🌐',
-    };
     final numberPreview = settings.region == 'India' ? '1,23,456.78' : '123,456.78';
 
     return Scaffold(
-      backgroundColor: NovynTheme.pageBg(context),
+      backgroundColor: isDark ? NovynTheme.pageBg(context) : const Color(0xFFF4F0FB),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.fromLTRB(20, 10, 20, 36),
@@ -52,198 +34,83 @@ class LanguageRegionScreen extends StatelessWidget {
               title: 'Language & Region',
               onBack: () => Navigator.maybePop(context),
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 10),
 
-            // Hero Card
-            _LanguageHeroCard(
-              regionFlag: regionFlag,
-              regionName: settings.region,
-              languageName: languageLabel,
-            ),
-            const SizedBox(height: 22),
-
-            // APP LANGUAGE Section
-            _sectionHeader(
-              title: 'APP LANGUAGE',
-              subtitle: 'Language used by the app interface',
-              context: context,
-            ),
-            const SizedBox(height: 8),
+            // LANGUAGE & REGION Section
+            _sectionHeader('LANGUAGE & REGION'),
             _groupedCard(
               context,
               children: [
-                _PreferenceRow(
-                  icon: Icons.translate_rounded,
-                  iconColor: const Color(0xFF8B5CF6),
-                  iconBgColor: isDark ? const Color(0xFF28234B) : const Color(0xFFEDE9FE),
+                _SettingsRow(
+                  leading: _iconBox(
+                    Icons.translate_rounded,
+                    const Color(0xFF8B5CF6),
+                    isDark ? const Color(0xFF28234B) : const Color(0xFFEDE9FE),
+                  ),
                   title: 'App language',
-                  subtitle: 'Select your preferred app language',
+                  trailing: _trailingValueWithChevron(languageLabel),
                   onTap: () => _showLanguageDialog(context, settings),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        languageLabel,
-                        style: const TextStyle(
-                          color: Color(0xFF6D5DFC),
-                          fontWeight: FontWeight.w700,
-                          fontSize: 13,
-                        ),
-                      ),
-                      const SizedBox(width: 4),
-                      const Icon(
-                        Icons.chevron_right_rounded,
-                        color: Color(0xFF6D5DFC),
-                        size: 19,
-                      ),
-                    ],
-                  ),
                 ),
-              ],
-            ),
-            const SizedBox(height: 22),
-
-            // REGION & TIME ZONE Section
-            _sectionHeader(
-              title: 'REGION & TIME ZONE',
-              subtitle: 'Set the location and local time reference',
-              context: context,
-            ),
-            const SizedBox(height: 8),
-            _groupedCard(
-              context,
-              children: [
-                _PreferenceRow(
-                  icon: Icons.public_rounded,
-                  iconColor: const Color(0xFF0D9488),
-                  iconBgColor: isDark ? const Color(0xFF1B2E33) : const Color(0xFFE0F7F4),
+                _SettingsRow(
+                  leading: _iconBox(
+                    Icons.language_rounded,
+                    const Color(0xFF0D9488),
+                    isDark ? const Color(0xFF1B2E33) : const Color(0xFFE0F7F4),
+                  ),
                   title: 'Region',
-                  subtitle: 'Country or regional setting',
+                  trailing: _trailingValueWithChevron(settings.region),
                   onTap: () => _showRegionDialog(context, settings),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(regionFlag, style: const TextStyle(fontSize: 15)),
-                      const SizedBox(width: 6),
-                      Text(
-                        settings.region,
-                        style: const TextStyle(
-                          color: Color(0xFF6D5DFC),
-                          fontWeight: FontWeight.w700,
-                          fontSize: 13,
-                        ),
-                      ),
-                      const SizedBox(width: 4),
-                      const Icon(
-                        Icons.chevron_right_rounded,
-                        color: Color(0xFF6D5DFC),
-                        size: 19,
-                      ),
-                    ],
-                  ),
                 ),
-                _PreferenceRow(
-                  icon: Icons.access_time_rounded,
-                  iconColor: const Color(0xFFD97706),
-                  iconBgColor: isDark ? const Color(0xFF332717) : const Color(0xFFFEF3E2),
-                  title: 'Time zone',
-                  subtitle: 'Automatically follows your device',
-                  onTap: () => _showTimezoneDialog(context),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        _getTimeZoneString(),
-                        style: const TextStyle(
-                          color: Color(0xFF6D5DFC),
-                          fontWeight: FontWeight.w700,
-                          fontSize: 13,
-                        ),
-                      ),
-                      const SizedBox(width: 4),
-                      const Icon(
-                        Icons.chevron_right_rounded,
-                        color: Color(0xFF6D5DFC),
-                        size: 19,
-                      ),
-                    ],
+                _SettingsRow(
+                  leading: _iconBox(
+                    Icons.access_time_rounded,
+                    const Color(0xFFD97706),
+                    isDark ? const Color(0xFF332717) : const Color(0xFFFEF3E2),
                   ),
+                  title: 'Time zone',
+                  trailing: _trailingValueWithChevron(_getTimeZoneString()),
+                  onTap: () => _showTimezoneDialog(context),
                 ),
               ],
             ),
-            const SizedBox(height: 22),
+            const SizedBox(height: 24),
 
             // FORMATS Section
-            _sectionHeader(
-              title: 'FORMATS',
-              subtitle: 'Preview of the formats used on this device',
-              context: context,
-            ),
-            const SizedBox(height: 8),
+            _sectionHeader('FORMATS'),
             _groupedCard(
               context,
               children: [
-                _PreferenceRow(
-                  icon: Icons.calendar_month_rounded,
-                  iconColor: const Color(0xFF10B981),
-                  iconBgColor: isDark ? const Color(0xFF1A3327) : const Color(0xFFE8F8F0),
+                _SettingsRow(
+                  leading: _iconBox(
+                    Icons.calendar_month_rounded,
+                    const Color(0xFF10B981),
+                    isDark ? const Color(0xFF1A3327) : const Color(0xFFE8F8F0),
+                  ),
                   title: 'Date format',
-                  subtitle: 'Device regional settings',
+                  trailing: _formatPill(datePreview, isDark),
                   onTap: () => _showDateFormatDialog(context),
-                  trailing: _PillBadge(label: datePreview),
                 ),
-                _PreferenceRow(
-                  icon: Icons.access_time_rounded,
-                  iconColor: const Color(0xFFEC4899),
-                  iconBgColor: isDark ? const Color(0xFF361F2E) : const Color(0xFFFCE7F3),
+                _SettingsRow(
+                  leading: _iconBox(
+                    Icons.access_time_rounded,
+                    const Color(0xFFEC4899),
+                    isDark ? const Color(0xFF361F2E) : const Color(0xFFFCE7F3),
+                  ),
                   title: 'Time format',
-                  subtitle: 'Device 12 / 24-hour preference',
+                  trailing: _formatPill(timePreview, isDark),
                   onTap: () => _showTimeFormatOptions(context, settings),
-                  trailing: _PillBadge(label: timePreview),
                 ),
-                _PreferenceRow(
-                  icon: Icons.tag_rounded,
-                  iconColor: const Color(0xFF8B5CF6),
-                  iconBgColor: isDark ? const Color(0xFF28234B) : const Color(0xFFEDE9FE),
+                _SettingsRow(
+                  leading: _iconBox(
+                    Icons.tag_rounded,
+                    const Color(0xFF8B5CF6),
+                    isDark ? const Color(0xFF28234B) : const Color(0xFFEDE9FE),
+                  ),
                   title: 'Number format',
-                  subtitle: 'Device locale',
+                  trailing: _formatPill(numberPreview, isDark),
                   onTap: () => _showNumberFormatDialog(context),
-                  trailing: _PillBadge(label: numberPreview),
                 ),
               ],
-            ),
-            const SizedBox(height: 22),
-
-            // Info Notice
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: isDark
-                    ? const Color(0xFF202035)
-                    : const Color(0xFFF0EDFF).withValues(alpha: 0.85),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Icon(
-                    Icons.info_outline_rounded,
-                    size: 18,
-                    color: Color(0xFF6D5DFC),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      'Time zone, date, time and number formats currently follow your Android device settings. You can change them in Android Settings.',
-                      style: TextStyle(
-                        fontSize: 12,
-                        height: 1.45,
-                        color: colors.onSurfaceVariant,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
             ),
           ],
         ),
@@ -251,60 +118,120 @@ class LanguageRegionScreen extends StatelessWidget {
     );
   }
 
-  static Widget _sectionHeader(
-      {required String title, required String subtitle, required BuildContext context}) {
-    final colors = Theme.of(context).colorScheme;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+  static Widget _sectionHeader(String title) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 4, bottom: 9),
+      child: Text(
+        title.toUpperCase(),
+        style: const TextStyle(
+          fontSize: 11.5,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 1.2,
+          color: Color(0xFF6246EA),
+        ),
+      ),
+    );
+  }
+
+  static Widget _iconBox(IconData icon, Color color, Color bg) {
+    return Container(
+      width: 42,
+      height: 42,
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(13),
+      ),
+      child: Icon(icon, color: color, size: 21),
+    );
+  }
+
+  static Widget _trailingValueWithChevron(String value) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
         Text(
-          title,
-          style: TextStyle(
-            fontSize: 11.5,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 1.1,
-            color: colors.onSurfaceVariant,
+          value,
+          style: const TextStyle(
+            fontSize: 13.5,
+            fontWeight: FontWeight.w600,
+            color: Color(0xFF5E4AE3),
           ),
         ),
-        const SizedBox(height: 3),
-        Text(
-          subtitle,
-          style: TextStyle(
-            fontSize: 12.5,
-            color: colors.onSurfaceVariant.withValues(alpha: 0.8),
-          ),
+        const SizedBox(width: 4),
+        const Icon(
+          Icons.chevron_right_rounded,
+          color: Color(0xFF8F8BA0),
+          size: 20,
         ),
       ],
     );
   }
 
-  static Widget _groupedCard(BuildContext context, {required List<Widget> children}) {
-    final border = Theme.of(context).colorScheme.outlineVariant;
+  static Widget _formatPill(String label, bool isDark) {
     return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
       decoration: BoxDecoration(
-        color: NovynTheme.cardBg(context),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: border),
+        color: isDark ? const Color(0xFF28234B) : const Color(0xFFECE9FB),
+        borderRadius: BorderRadius.circular(14),
       ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(24),
-        child: Column(
-          children: [
-            for (var i = 0; i < children.length; i++) ...[
-              children[i],
-              if (i != children.length - 1)
-                Divider(
-                  height: 1,
-                  thickness: 1,
-                  indent: 72,
-                  endIndent: 16,
-                  color: border.withValues(alpha: 0.65),
-                ),
-            ],
-          ],
+      child: Text(
+        label,
+        style: const TextStyle(
+          color: Color(0xFF5E4AE3),
+          fontWeight: FontWeight.w700,
+          fontSize: 13,
         ),
       ),
     );
+  }
+
+  static Widget _groupedCard(BuildContext context, {required List<Widget> children}) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardBg = isDark ? const Color(0xFF1E1C2E) : Colors.white;
+    final border = isDark ? const Color(0xFF2C2844) : const Color(0xFFEDE9F6);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: cardBg,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: border),
+        boxShadow: isDark
+            ? null
+            : [
+                BoxShadow(
+                  color: const Color(0xFF5E4AE3).withValues(alpha: 0.03),
+                  blurRadius: 16,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        children: [
+          for (var i = 0; i < children.length; i++) ...[
+            children[i],
+            if (i != children.length - 1)
+              Divider(
+                height: 1,
+                thickness: 1,
+                indent: 68,
+                endIndent: 16,
+                color: isDark ? const Color(0xFF28253E) : const Color(0xFFF3F0F8),
+              ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  String _getTimeZoneString() {
+    final now = DateTime.now();
+    final offset = now.timeZoneOffset;
+    final hours = offset.inHours;
+    final minutes = offset.inMinutes.remainder(60).abs();
+    final sign = hours >= 0 ? '+' : '-';
+    final absHours = hours.abs();
+    return 'GMT$sign${absHours.toString().padLeft(1, '0')}:${minutes.toString().padLeft(2, '0')} (${now.timeZoneName})';
   }
 
   void _showTimeFormatOptions(BuildContext context, SettingsService settings) {
@@ -313,25 +240,31 @@ class LanguageRegionScreen extends StatelessWidget {
       context: context,
       useSafeArea: true,
       showDragHandle: true,
+      backgroundColor: NovynTheme.cardBg(context),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
       builder: (sheetContext) => SafeArea(
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 'Time format',
-                style: Theme.of(sheetContext)
-                    .textTheme
-                    .titleLarge
-                    ?.copyWith(fontWeight: FontWeight.w800),
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  color: NovynTheme.textPrimary(sheetContext),
+                ),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 14),
               RadioListTile<String>(
                 value: '12h',
                 groupValue: settings.timeFormat,
-                title: const Text('12-hour (e.g. 6:43 AM)'),
+                title: const Text('12-hour (e.g. 6:43 PM)'),
+                activeColor: const Color(0xFF5E4AE3),
                 onChanged: (val) {
                   if (val != null) settings.setTimeFormat(val);
                   Navigator.pop(sheetContext);
@@ -342,6 +275,7 @@ class LanguageRegionScreen extends StatelessWidget {
                 value: '24h',
                 groupValue: settings.timeFormat,
                 title: const Text('24-hour (e.g. 18:43)'),
+                activeColor: const Color(0xFF5E4AE3),
                 onChanged: (val) {
                   if (val != null) settings.setTimeFormat(val);
                   Navigator.pop(sheetContext);
@@ -379,13 +313,12 @@ class LanguageRegionScreen extends StatelessWidget {
                   style: TextStyle(
                     fontWeight: selected ? FontWeight.w800 : FontWeight.w500,
                     color: selected
-                        ? Theme.of(context).colorScheme.primary
+                        ? const Color(0xFF5E4AE3)
                         : Theme.of(context).colorScheme.onSurface,
                   ),
                 ),
                 trailing: selected
-                    ? Icon(Icons.check_circle_rounded,
-                        color: Theme.of(context).colorScheme.primary)
+                    ? const Icon(Icons.check_circle_rounded, color: Color(0xFF5E4AE3))
                     : null,
                 onTap: () {
                   HapticService.vibrate(NovynHapticType.selection);
@@ -442,12 +375,11 @@ class LanguageRegionScreen extends StatelessWidget {
                     style: TextStyle(
                       fontFamily: 'PlusJakartaSans',
                       fontWeight: isSelected ? FontWeight.w900 : FontWeight.w600,
-                      color: isSelected ? Theme.of(context).colorScheme.primary : null,
+                      color: isSelected ? const Color(0xFF5E4AE3) : null,
                     ),
                   ),
                   trailing: isSelected
-                      ? Icon(Icons.check_circle_rounded,
-                          color: Theme.of(context).colorScheme.primary)
+                      ? const Icon(Icons.check_circle_rounded, color: Color(0xFF5E4AE3))
                       : null,
                   onTap: () {
                     HapticService.vibrate(NovynHapticType.medium);
@@ -498,6 +430,7 @@ class LanguageRegionScreen extends StatelessWidget {
     showDialog<void>(
       context: context,
       builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         title: Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
         content: Text(message),
         actions: [
@@ -508,16 +441,6 @@ class LanguageRegionScreen extends StatelessWidget {
         ],
       ),
     );
-  }
-
-  String _getTimeZoneString() {
-    final now = DateTime.now();
-    final offset = now.timeZoneOffset;
-    final hours = offset.inHours;
-    final minutes = offset.inMinutes.remainder(60).abs();
-    final sign = hours >= 0 ? '+' : '-';
-    final absHours = hours.abs();
-    return 'GMT$sign${absHours.toString().padLeft(1, '0')}:${minutes.toString().padLeft(2, '0')} (${now.timeZoneName})';
   }
 }
 
@@ -530,172 +453,38 @@ class _ScreenHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final dark = Theme.of(context).brightness == Brightness.dark;
-    final ink = Theme.of(context).colorScheme.onSurface;
-    final border = Theme.of(context).colorScheme.outlineVariant;
+    final ink = dark ? Colors.white : const Color(0xFF1A1730);
 
     return Padding(
-      padding: const EdgeInsets.only(top: 4, bottom: 8),
+      padding: const EdgeInsets.only(top: 8, bottom: 18),
       child: Row(
         children: [
-          Material(
-            color: dark ? const Color(0xFF161726) : Colors.white,
-            borderRadius: BorderRadius.circular(14),
-            child: InkWell(
-              onTap: () {
-                HapticService.vibrate(NovynHapticType.light);
-                onBack();
-              },
-              borderRadius: BorderRadius.circular(14),
-              child: Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: border),
-                ),
-                child: Icon(Icons.arrow_back_rounded, color: ink, size: 20),
+          InkWell(
+            onTap: () {
+              HapticService.vibrate(NovynHapticType.light);
+              onBack();
+            },
+            borderRadius: BorderRadius.circular(12),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+              child: Icon(
+                Icons.arrow_back_ios_new_rounded,
+                color: ink,
+                size: 20,
               ),
             ),
           ),
+          const SizedBox(width: 14),
           Expanded(
-            child: Center(
-              child: Text(
-                title,
-                style: TextStyle(
-                  color: ink,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.3,
-                ),
+            child: Text(
+              title,
+              style: TextStyle(
+                color: ink,
+                fontSize: 24,
+                fontWeight: FontWeight.w700,
+                letterSpacing: -0.4,
               ),
             ),
-          ),
-          const SizedBox(width: 42),
-        ],
-      ),
-    );
-  }
-}
-
-class _LanguageHeroCard extends StatelessWidget {
-  final String regionFlag;
-  final String regionName;
-  final String languageName;
-
-  const _LanguageHeroCard({
-    required this.regionFlag,
-    required this.regionName,
-    required this.languageName,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final colors = Theme.of(context).colorScheme;
-
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(26),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: isDark
-              ? [const Color(0xFF29234B), const Color(0xFF172D3A)]
-              : [const Color(0xFFECE9FF), const Color(0xFFE4F7F5)],
-        ),
-        border: Border.all(color: colors.primary.withValues(alpha: 0.12)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: const Color(0xFF6D5DFC),
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFF6D5DFC).withValues(alpha: 0.28),
-                      blurRadius: 12,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: const Icon(Icons.language_rounded, color: Colors.white, size: 24),
-              ),
-              const Spacer(),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: isDark ? colors.surface.withValues(alpha: 0.85) : Colors.white,
-                  borderRadius: BorderRadius.circular(24),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.04),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.check_circle_rounded, size: 15, color: Color(0xFF10B981)),
-                    SizedBox(width: 5),
-                    Text(
-                      'Saved automatically',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w800,
-                        color: Color(0xFF10B981),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'Make Novyn feel local',
-            style: TextStyle(
-              fontFamily: 'PlusJakartaSans',
-              fontSize: 20,
-              fontWeight: FontWeight.w900,
-              color: colors.onSurface,
-            ),
-          ),
-          const SizedBox(height: 5),
-          Text(
-            'Choose the language you prefer and how dates and times appear.',
-            style: TextStyle(
-              fontSize: 12.5,
-              height: 1.45,
-              color: colors.onSurfaceVariant,
-            ),
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              _HeroChip(
-                leading: Text(regionFlag, style: const TextStyle(fontSize: 16)),
-                label: regionName,
-              ),
-              const SizedBox(width: 10),
-              _HeroChip(
-                leading: const Icon(
-                  Icons.translate_rounded,
-                  size: 15,
-                  color: Color(0xFF6D5DFC),
-                ),
-                label: languageName,
-                labelColor: const Color(0xFF6D5DFC),
-              ),
-            ],
           ),
         ],
       ),
@@ -703,159 +492,55 @@ class _LanguageHeroCard extends StatelessWidget {
   }
 }
 
-class _HeroChip extends StatelessWidget {
-  final Widget leading;
-  final String label;
-  final Color? labelColor;
-
-  const _HeroChip({
-    required this.leading,
-    required this.label,
-    this.labelColor,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final colors = Theme.of(context).colorScheme;
-
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        decoration: BoxDecoration(
-          color: isDark ? colors.surface.withValues(alpha: 0.85) : Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.04),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            leading,
-            const SizedBox(width: 8),
-            Flexible(
-              child: Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontWeight: FontWeight.w800,
-                  fontSize: 13,
-                  color: labelColor ?? colors.onSurface,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _PreferenceRow extends StatelessWidget {
-  final IconData icon;
-  final Color iconColor;
-  final Color iconBgColor;
+class _SettingsRow extends StatelessWidget {
+  final Widget? leading;
   final String title;
-  final String subtitle;
-  final Widget trailing;
-  final VoidCallback onTap;
+  final Widget? trailing;
+  final VoidCallback? onTap;
 
-  const _PreferenceRow({
-    required this.icon,
-    required this.iconColor,
-    required this.iconBgColor,
+  const _SettingsRow({
+    this.leading,
     required this.title,
-    required this.subtitle,
-    required this.trailing,
-    required this.onTap,
+    this.trailing,
+    this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final ink = dark ? Colors.white : const Color(0xFF1A1730);
 
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: () {
-          HapticService.vibrate(NovynHapticType.selection);
-          onTap();
-        },
+        onTap: onTap != null
+            ? () {
+                HapticService.vibrate(NovynHapticType.selection);
+                onTap!();
+              }
+            : null,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           child: Row(
             children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: iconBgColor,
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Icon(icon, color: iconColor, size: 22),
-              ),
-              const SizedBox(width: 14),
+              if (leading != null) ...[
+                leading!,
+                const SizedBox(width: 14),
+              ],
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: TextStyle(
-                        fontSize: 14.5,
-                        fontWeight: FontWeight.w800,
-                        color: colors.onSurface,
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      subtitle,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: colors.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
+                child: Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 15.5,
+                    fontWeight: FontWeight.w600,
+                    color: ink,
+                    letterSpacing: -0.2,
+                  ),
                 ),
               ),
-              const SizedBox(width: 10),
-              trailing,
+              if (trailing != null) trailing!,
             ],
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _PillBadge extends StatelessWidget {
-  final String label;
-
-  const _PillBadge({required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF28234B) : const Color(0xFFEDE9FE),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Text(
-        label,
-        style: const TextStyle(
-          color: Color(0xFF6D5DFC),
-          fontWeight: FontWeight.w800,
-          fontSize: 12.5,
         ),
       ),
     );

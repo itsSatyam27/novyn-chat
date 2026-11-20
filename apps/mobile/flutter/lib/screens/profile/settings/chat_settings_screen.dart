@@ -172,6 +172,7 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
                     height: 48,
                     child: FilledButton(
                       style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xFF5E4AE3),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(16),
                         ),
@@ -218,12 +219,10 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final settings = context.watch<SettingsService>();
-    final theme = Theme.of(context);
-    final colors = theme.colorScheme;
-    final isDark = theme.brightness == Brightness.dark;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: NovynTheme.pageBg(context),
+      backgroundColor: isDark ? NovynTheme.pageBg(context) : const Color(0xFFF4F0FB),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.fromLTRB(20, 10, 20, 36),
@@ -233,117 +232,121 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
               title: 'Chat Settings',
               onBack: () => Navigator.maybePop(context),
             ),
-            const SizedBox(height: 14),
-
-            // Top Hero Card
-            _ChatHeroCard(isDark: isDark),
-            const SizedBox(height: 22),
+            const SizedBox(height: 10),
 
             // CHAT BEHAVIOR Section
-            _sectionLabel('CHAT BEHAVIOR', colors),
-            const SizedBox(height: 8),
+            _sectionHeader('CHAT BEHAVIOR'),
             _groupedCard(
               context,
               children: [
-                _ChatToggleRow(
-                  icon: Icons.keyboard_return_rounded,
-                  iconColor: const Color(0xFF6366F1),
-                  iconBgColor:
-                      isDark ? const Color(0xFF28234B) : const Color(0xFFEDE9FE),
+                _SettingsRow(
+                  leading: _iconBox(
+                    Icons.keyboard_return_rounded,
+                    const Color(0xFF6366F1),
+                    isDark ? const Color(0xFF28234B) : const Color(0xFFEDE9FE),
+                  ),
                   title: 'Enter to send',
-                  subtitle:
-                      'Pressing Enter sends your message instead of adding a new line',
-                  value: settings.chatEnterToSend,
-                  onChanged: settings.setChatEnterToSend,
+                  trailing: _purpleSwitch(
+                    value: settings.chatEnterToSend,
+                    onChanged: settings.setChatEnterToSend,
+                    context: context,
+                  ),
                 ),
-                _ChatToggleRow(
-                  icon: Icons.visibility_outlined,
-                  iconColor: const Color(0xFF0D9488),
-                  iconBgColor:
-                      isDark ? const Color(0xFF1B3330) : const Color(0xFFCCFBF1),
+                _SettingsRow(
+                  leading: _iconBox(
+                    Icons.remove_red_eye_outlined,
+                    const Color(0xFF10B981),
+                    isDark ? const Color(0xFF1A3327) : const Color(0xFFCCFBF1),
+                  ),
                   title: 'Message preview',
-                  subtitle: 'Show message text in chat notifications',
-                  value: settings.messagePreview,
-                  onChanged: settings.setMessagePreview,
+                  trailing: _purpleSwitch(
+                    value: settings.messagePreview,
+                    onChanged: settings.setMessagePreview,
+                    context: context,
+                  ),
                 ),
               ],
             ),
-            const SizedBox(height: 22),
+            const SizedBox(height: 24),
 
             // QUICK REACTIONS Section
-            _sectionLabel('QUICK REACTIONS', colors),
-            const SizedBox(height: 8),
+            _sectionHeader('QUICK REACTIONS'),
             _groupedCard(
               context,
               children: [
-                _ChatActionRow(
-                  icon: Icons.emoji_emotions_rounded,
-                  iconColor: const Color(0xFFF59E0B),
-                  iconBgColor:
-                      isDark ? const Color(0xFF382D1B) : const Color(0xFFFEF3C7),
+                _SettingsRow(
+                  leading: _iconBox(
+                    Icons.sentiment_satisfied_alt_rounded,
+                    const Color(0xFFD97706),
+                    isDark ? const Color(0xFF382A1B) : const Color(0xFFFEF3C7),
+                  ),
                   title: 'Quick reaction emojis',
-                  subtitle:
-                      '${_quickReactionEmojis.length} selected for the chat composer',
-                  trailing: Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: isDark
-                          ? const Color(0xFF2E2A44)
-                          : const Color(0xFFEDE9FE),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      '${_quickReactionEmojis.length}/$maxQuickReactionEmojiCount',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
-                        color: colors.primary,
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: isDark ? const Color(0xFF28234B) : const Color(0xFFECE9FB),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          '${_quickReactionEmojis.length}/$maxQuickReactionEmojiCount',
+                          style: const TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF5E4AE3),
+                          ),
+                        ),
                       ),
-                    ),
+                      const SizedBox(width: 6),
+                      const Icon(
+                        Icons.chevron_right_rounded,
+                        color: Color(0xFF8F8BA0),
+                        size: 20,
+                      ),
+                    ],
                   ),
                   onTap: _showQuickReactionSettings,
                 ),
               ],
             ),
-            const SizedBox(height: 22),
+            const SizedBox(height: 24),
 
             // CHAT DISPLAY & TYPOGRAPHY Section
-            _sectionLabel('CHAT DISPLAY & TYPOGRAPHY', colors),
-            const SizedBox(height: 8),
+            _sectionHeader('CHAT DISPLAY & TYPOGRAPHY'),
             _groupedCard(
               context,
               children: [
-                _ChatToggleRow(
-                  icon: Icons.link_rounded,
-                  iconColor: const Color(0xFF2563EB),
-                  iconBgColor:
-                      isDark ? const Color(0xFF1E293B) : const Color(0xFFDBEAFE),
+                _SettingsRow(
+                  leading: _iconBox(
+                    Icons.link_rounded,
+                    const Color(0xFF2563EB),
+                    isDark ? const Color(0xFF1E293B) : const Color(0xFFDBEAFE),
+                  ),
                   title: 'Link previews',
-                  subtitle: 'Show website previews below shared links',
-                  value: settings.chatLinkPreviews,
-                  onChanged: settings.setChatLinkPreviews,
+                  trailing: _purpleSwitch(
+                    value: settings.chatLinkPreviews,
+                    onChanged: settings.setChatLinkPreviews,
+                    context: context,
+                  ),
                 ),
-                _ChatSliderRow(
+                _ChatTypographySliderRow(
                   icon: Icons.text_fields_rounded,
                   iconColor: const Color(0xFF8B5CF6),
-                  iconBgColor:
-                      isDark ? const Color(0xFF291E3B) : const Color(0xFFF3E8FF),
+                  iconBgColor: isDark ? const Color(0xFF291E3B) : const Color(0xFFF3E8FF),
                   title: 'Message text size',
-                  subtitle: 'Change the font size of chat messages',
                   value: settings.fontSize,
                   min: 0.85,
                   max: 1.25,
                   divisions: 8,
                   onChanged: settings.setFontSize,
                 ),
-                _ChatSliderRow(
+                _ChatTypographySliderRow(
                   icon: Icons.format_size_rounded,
                   iconColor: const Color(0xFFEC4899),
-                  iconBgColor:
-                      isDark ? const Color(0xFF3B1D2C) : const Color(0xFFFCE7F3),
+                  iconBgColor: isDark ? const Color(0xFF3B1D2C) : const Color(0xFFFCE7F3),
                   title: 'Chat labels size',
-                  subtitle: 'Change timestamps, edited tags and info labels',
                   value: settings.chatLabelSize,
                   min: 0.8,
                   max: 1.4,
@@ -352,146 +355,104 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
                 ),
               ],
             ),
-            const SizedBox(height: 22),
+            const SizedBox(height: 24),
 
             // CHAT BACKUP & RESTORE Section
-            _sectionLabel('CHAT BACKUP & RESTORE', colors),
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: isDark
-                    ? const Color(0xFF202035)
-                    : const Color(0xFFF0EDFF).withValues(alpha: 0.85),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: colors.outlineVariant.withValues(alpha: 0.6),
-                ),
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Icon(
-                    Icons.lock_rounded,
-                    size: 19,
-                    color: Color(0xFF6D5DFC),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      'Your chat backup is encrypted with a password you choose. Drive backups are stored in Novyn’s private app folder. It restores locally cached messages, contacts and conversation keys. Keep your recovery passwords safe.',
-                      style: TextStyle(
-                        fontSize: 12,
-                        height: 1.45,
-                        color: colors.onSurfaceVariant,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 10),
+            _sectionHeader('CHAT BACKUP & RESTORE'),
             _groupedCard(
               context,
               children: [
-                _ChatActionRow(
-                  icon: Icons.file_upload_outlined,
-                  iconColor: const Color(0xFF6366F1),
-                  iconBgColor:
-                      isDark ? const Color(0xFF28234B) : const Color(0xFFEDE9FE),
+                _SettingsRow(
+                  leading: _iconBox(
+                    Icons.arrow_upward_rounded,
+                    const Color(0xFF6366F1),
+                    isDark ? const Color(0xFF28234B) : const Color(0xFFEDE9FE),
+                  ),
                   title: 'Back up chats',
-                  subtitle: 'Create a password-protected local backup file',
+                  trailing: const Icon(
+                    Icons.chevron_right_rounded,
+                    color: Color(0xFF8F8BA0),
+                    size: 20,
+                  ),
                   onTap: _working ? null : () => _runBackup(restore: false),
                 ),
-                _ChatActionRow(
-                  icon: Icons.settings_backup_restore_rounded,
-                  iconColor: const Color(0xFF0D9488),
-                  iconBgColor:
-                      isDark ? const Color(0xFF1B3330) : const Color(0xFFCCFBF1),
+                _SettingsRow(
+                  leading: _iconBox(
+                    Icons.history_rounded,
+                    const Color(0xFF10B981),
+                    isDark ? const Color(0xFF1A3327) : const Color(0xFFE8F8F0),
+                  ),
                   title: 'Restore chats',
-                  subtitle: 'Import a Novyn backup file for this account',
+                  trailing: const Icon(
+                    Icons.chevron_right_rounded,
+                    color: Color(0xFF8F8BA0),
+                    size: 20,
+                  ),
                   onTap: _working ? null : () => _runBackup(restore: true),
                 ),
-                _ChatActionRow(
-                  icon: Icons.add_to_drive_rounded,
-                  iconColor: const Color(0xFF2563EB),
-                  iconBgColor:
-                      isDark ? const Color(0xFF1E293B) : const Color(0xFFDBEAFE),
+                _SettingsRow(
+                  leading: _iconBox(
+                    Icons.add_to_drive_rounded,
+                    const Color(0xFF2563EB),
+                    isDark ? const Color(0xFF1E293B) : const Color(0xFFDBEAFE),
+                  ),
                   title: 'Back up to Google Drive',
-                  subtitle: 'Save encrypted backup in your private Drive folder',
+                  trailing: const Icon(
+                    Icons.chevron_right_rounded,
+                    color: Color(0xFF8F8BA0),
+                    size: 20,
+                  ),
                   onTap: _working ? null : () => _runDriveBackup(restore: false),
                 ),
-                _ChatActionRow(
-                  icon: Icons.cloud_download_outlined,
-                  iconColor: const Color(0xFF8B5CF6),
-                  iconBgColor:
-                      isDark ? const Color(0xFF291E3B) : const Color(0xFFF3E8FF),
+                _SettingsRow(
+                  leading: _iconBox(
+                    Icons.cloud_download_outlined,
+                    const Color(0xFF8B5CF6),
+                    isDark ? const Color(0xFF291E3B) : const Color(0xFFF3E8FF),
+                  ),
                   title: 'Restore from Google Drive',
-                  subtitle: 'Restore the latest backup saved in Google Drive',
+                  trailing: const Icon(
+                    Icons.chevron_right_rounded,
+                    color: Color(0xFF8F8BA0),
+                    size: 20,
+                  ),
                   onTap: _working ? null : () => _runDriveBackup(restore: true),
                 ),
               ],
             ),
-            const SizedBox(height: 22),
+            const SizedBox(height: 24),
 
             // E2EE ACCOUNT RECOVERY Section
-            _sectionLabel('E2EE ACCOUNT RECOVERY', colors),
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: isDark
-                    ? const Color(0xFF1C2C27)
-                    : const Color(0xFFE8F8F0).withValues(alpha: 0.85),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: isDark
-                      ? const Color(0xFF2D4B3F)
-                      : const Color(0xFFB8EAD1),
-                ),
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Icon(
-                    Icons.enhanced_encryption_rounded,
-                    size: 19,
-                    color: Color(0xFF10B981),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      'Save your message identity as an encrypted backup. Only your recovery password can unlock it; Novyn servers cannot read your private key. Use the same password when switching devices.',
-                      style: TextStyle(
-                        fontSize: 12,
-                        height: 1.45,
-                        color: colors.onSurfaceVariant,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 10),
+            _sectionHeader('E2EE ACCOUNT RECOVERY'),
             _groupedCard(
               context,
               children: [
-                _ChatActionRow(
-                  icon: Icons.cloud_upload_rounded,
-                  iconColor: const Color(0xFF10B981),
-                  iconBgColor:
-                      isDark ? const Color(0xFF183327) : const Color(0xFFE8F8F0),
+                _SettingsRow(
+                  leading: _iconBox(
+                    Icons.cloud_upload_outlined,
+                    const Color(0xFF10B981),
+                    isDark ? const Color(0xFF1A3327) : const Color(0xFFE8F8F0),
+                  ),
                   title: 'Back up encryption key',
-                  subtitle: 'Securely sync your device identity to your account',
+                  trailing: const Icon(
+                    Icons.chevron_right_rounded,
+                    color: Color(0xFF8F8BA0),
+                    size: 20,
+                  ),
                   onTap: _working ? null : () => _runE2eeRecovery(restore: false),
                 ),
-                _ChatActionRow(
-                  icon: Icons.key_rounded,
-                  iconColor: const Color(0xFFF59E0B),
-                  iconBgColor:
-                      isDark ? const Color(0xFF382D1B) : const Color(0xFFFEF3C7),
+                _SettingsRow(
+                  leading: _iconBox(
+                    Icons.key_rounded,
+                    const Color(0xFFD97706),
+                    isDark ? const Color(0xFF382A1B) : const Color(0xFFFEF3C7),
+                  ),
                   title: 'Restore encryption key',
-                  subtitle: 'Recover your previous identity on this device',
+                  trailing: const Icon(
+                    Icons.chevron_right_rounded,
+                    color: Color(0xFF8F8BA0),
+                    size: 20,
+                  ),
                   onTap: _working ? null : () => _runE2eeRecovery(restore: true),
                 ),
               ],
@@ -504,16 +465,19 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
                 decoration: BoxDecoration(
                   color: NovynTheme.cardBg(context),
                   borderRadius: BorderRadius.circular(22),
-                  border: Border.all(color: colors.outlineVariant),
+                  border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
                 ),
-                child: Row(
+                child: const Row(
                   children: [
-                    const SizedBox(
+                    SizedBox(
                       width: 24,
                       height: 24,
-                      child: CircularProgressIndicator(strokeWidth: 2.5),
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.5,
+                        valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF5E4AE3)),
+                      ),
                     ),
-                    const SizedBox(width: 16),
+                    SizedBox(width: 16),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -523,15 +487,14 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
                             style: TextStyle(
                               fontWeight: FontWeight.w800,
                               fontSize: 14,
-                              color: colors.onSurface,
                             ),
                           ),
-                          const SizedBox(height: 2),
+                          SizedBox(height: 2),
                           Text(
                             'Please keep Novyn open until finished.',
                             style: TextStyle(
                               fontSize: 12,
-                              color: colors.onSurfaceVariant,
+                              color: Color(0xFF646078),
                             ),
                           ),
                         ],
@@ -541,15 +504,15 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
                 ),
               ),
             ],
-            const SizedBox(height: 24),
-            Center(
+            const SizedBox(height: 32),
+            const Center(
               child: Text(
                 'NOVYN · YOUR SPACE, YOUR PEOPLE',
                 style: TextStyle(
                   fontSize: 10.5,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 1.4,
-                  color: colors.onSurfaceVariant.withValues(alpha: 0.6),
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1.5,
+                  color: Color(0xFFA19DB5),
                 ),
               ),
             ),
@@ -559,45 +522,88 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
     );
   }
 
-  Widget _sectionLabel(String title, ColorScheme colors) => Padding(
-        padding: const EdgeInsets.only(left: 4),
-        child: Text(
-          title,
-          style: TextStyle(
-            fontSize: 11.5,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 1.1,
-            color: colors.onSurfaceVariant,
-          ),
+  static Widget _sectionHeader(String title) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 4, bottom: 9),
+      child: Text(
+        title.toUpperCase(),
+        style: const TextStyle(
+          fontSize: 11.5,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 1.2,
+          color: Color(0xFF6246EA),
         ),
-      );
+      ),
+    );
+  }
 
-  static Widget _groupedCard(BuildContext context,
-      {required List<Widget> children}) {
-    final border = Theme.of(context).colorScheme.outlineVariant;
+  static Widget _iconBox(IconData icon, Color color, Color bg) {
+    return Container(
+      width: 42,
+      height: 42,
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(13),
+      ),
+      child: Icon(icon, color: color, size: 21),
+    );
+  }
+
+  static Widget _purpleSwitch({
+    required bool value,
+    required ValueChanged<bool> onChanged,
+    required BuildContext context,
+  }) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    return Switch.adaptive(
+      value: value,
+      activeColor: Colors.white,
+      activeTrackColor: const Color(0xFF5E4AE3),
+      inactiveThumbColor: Colors.white,
+      inactiveTrackColor: dark ? const Color(0xFF3B394E) : const Color(0xFFE2E0EC),
+      trackOutlineColor: MaterialStateProperty.all(Colors.transparent),
+      onChanged: (next) {
+        HapticService.vibrate(NovynHapticType.selection);
+        onChanged(next);
+      },
+    );
+  }
+
+  static Widget _groupedCard(BuildContext context, {required List<Widget> children}) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardBg = isDark ? const Color(0xFF1E1C2E) : Colors.white;
+    final border = isDark ? const Color(0xFF2C2844) : const Color(0xFFEDE9F6);
+
     return Container(
       decoration: BoxDecoration(
-        color: NovynTheme.cardBg(context),
+        color: cardBg,
         borderRadius: BorderRadius.circular(24),
         border: Border.all(color: border),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(24),
-        child: Column(
-          children: [
-            for (var i = 0; i < children.length; i++) ...[
-              children[i],
-              if (i != children.length - 1)
-                Divider(
-                  height: 1,
-                  thickness: 1,
-                  indent: 72,
-                  endIndent: 16,
-                  color: border.withValues(alpha: 0.65),
+        boxShadow: isDark
+            ? null
+            : [
+                BoxShadow(
+                  color: const Color(0xFF5E4AE3).withValues(alpha: 0.03),
+                  blurRadius: 16,
+                  offset: const Offset(0, 4),
                 ),
-            ],
+              ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        children: [
+          for (var i = 0; i < children.length; i++) ...[
+            children[i],
+            if (i != children.length - 1)
+              Divider(
+                height: 1,
+                thickness: 1,
+                indent: 68,
+                endIndent: 16,
+                color: isDark ? const Color(0xFF28253E) : const Color(0xFFF3F0F8),
+              ),
           ],
-        ),
+        ],
       ),
     );
   }
@@ -780,6 +786,7 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
             ),
             FilledButton(
               style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFF5E4AE3),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
               onPressed: () {
@@ -858,6 +865,7 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
             ),
             FilledButton(
               style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFF5E4AE3),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
               onPressed: () {
@@ -892,8 +900,6 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
   }
 }
 
-// ── Components ─────────────────────────────────────────────────────────────
-
 class _ScreenHeader extends StatelessWidget {
   final String title;
   final VoidCallback onBack;
@@ -903,224 +909,38 @@ class _ScreenHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final dark = Theme.of(context).brightness == Brightness.dark;
-    final ink = Theme.of(context).colorScheme.onSurface;
-    final border = Theme.of(context).colorScheme.outlineVariant;
+    final ink = dark ? Colors.white : const Color(0xFF1A1730);
 
     return Padding(
-      padding: const EdgeInsets.only(top: 4, bottom: 8),
+      padding: const EdgeInsets.only(top: 8, bottom: 18),
       child: Row(
         children: [
-          Material(
-            color: dark ? const Color(0xFF161726) : Colors.white,
-            borderRadius: BorderRadius.circular(14),
-            child: InkWell(
-              onTap: () {
-                HapticService.vibrate(NovynHapticType.light);
-                onBack();
-              },
-              borderRadius: BorderRadius.circular(14),
-              child: Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: border),
-                ),
-                child: Icon(Icons.arrow_back_rounded, color: ink, size: 20),
+          InkWell(
+            onTap: () {
+              HapticService.vibrate(NovynHapticType.light);
+              onBack();
+            },
+            borderRadius: BorderRadius.circular(12),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+              child: Icon(
+                Icons.arrow_back_ios_new_rounded,
+                color: ink,
+                size: 20,
               ),
             ),
-          ),
-          Expanded(
-            child: Center(
-              child: Text(
-                title,
-                style: TextStyle(
-                  color: ink,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.3,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(width: 42),
-        ],
-      ),
-    );
-  }
-}
-
-class _ChatHeroCard extends StatelessWidget {
-  final bool isDark;
-
-  const _ChatHeroCard({required this.isDark});
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: NovynTheme.cardBg(context),
-        borderRadius: BorderRadius.circular(26),
-        border: Border.all(color: colors.outlineVariant),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 62,
-            height: 62,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(18),
-              gradient: const LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [Color(0xFF6366F1), Color(0xFF4F46E5)],
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: const Color(0xFF6366F1).withValues(alpha: 0.32),
-                  blurRadius: 16,
-                  offset: const Offset(0, 6),
-                ),
-              ],
-            ),
-            child: const Icon(
-              Icons.forum_rounded,
-              color: Colors.white,
-              size: 30,
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Chat experience',
-                  style: TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.w900,
-                    color: colors.onSurface,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Personalise your chat behavior, font sizing and backups.',
-                  style: TextStyle(
-                    fontSize: 12,
-                    height: 1.4,
-                    color: colors.onSurfaceVariant,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4.5),
-                  decoration: BoxDecoration(
-                    color: isDark
-                        ? const Color(0xFF1B3327)
-                        : const Color(0xFFE8F8F0),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.verified_user_rounded,
-                        size: 13,
-                        color: Color(0xFF10B981),
-                      ),
-                      SizedBox(width: 5),
-                      Text(
-                        'E2EE protected',
-                        style: TextStyle(
-                          color: Color(0xFF10B981),
-                          fontWeight: FontWeight.w800,
-                          fontSize: 11,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ChatToggleRow extends StatelessWidget {
-  final IconData icon;
-  final Color iconColor;
-  final Color iconBgColor;
-  final String title;
-  final String subtitle;
-  final bool value;
-  final ValueChanged<bool> onChanged;
-
-  const _ChatToggleRow({
-    required this.icon,
-    required this.iconColor,
-    required this.iconBgColor,
-    required this.title,
-    required this.subtitle,
-    required this.value,
-    required this.onChanged,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
-      child: Row(
-        children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: iconBgColor,
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Icon(icon, color: iconColor, size: 22),
           ),
           const SizedBox(width: 14),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: 14.5,
-                    fontWeight: FontWeight.w800,
-                    color: colors.onSurface,
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  subtitle,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: colors.onSurfaceVariant,
-                  ),
-                ),
-              ],
+            child: Text(
+              title,
+              style: TextStyle(
+                color: ink,
+                fontSize: 24,
+                fontWeight: FontWeight.w700,
+                letterSpacing: -0.4,
+              ),
             ),
-          ),
-          const SizedBox(width: 8),
-          Switch.adaptive(
-            value: value,
-            activeTrackColor: const Color(0xFF6366F1),
-            onChanged: (val) {
-              HapticService.vibrate(NovynHapticType.selection);
-              onChanged(val);
-            },
           ),
         ],
       ),
@@ -1128,82 +948,53 @@ class _ChatToggleRow extends StatelessWidget {
   }
 }
 
-class _ChatActionRow extends StatelessWidget {
-  final IconData icon;
-  final Color iconColor;
-  final Color iconBgColor;
+class _SettingsRow extends StatelessWidget {
+  final Widget? leading;
   final String title;
-  final String subtitle;
   final Widget? trailing;
   final VoidCallback? onTap;
 
-  const _ChatActionRow({
-    required this.icon,
-    required this.iconColor,
-    required this.iconBgColor,
+  const _SettingsRow({
+    this.leading,
     required this.title,
-    required this.subtitle,
     this.trailing,
-    required this.onTap,
+    this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final ink = dark ? Colors.white : const Color(0xFF1A1730);
 
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: onTap == null
-            ? null
-            : () {
-                HapticService.vibrate(NovynHapticType.light);
+        onTap: onTap != null
+            ? () {
+                HapticService.vibrate(NovynHapticType.selection);
                 onTap!();
-              },
+              }
+            : null,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           child: Row(
             children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: iconBgColor,
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Icon(icon, color: iconColor, size: 22),
-              ),
-              const SizedBox(width: 14),
+              if (leading != null) ...[
+                leading!,
+                const SizedBox(width: 14),
+              ],
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: TextStyle(
-                        fontSize: 14.5,
-                        fontWeight: FontWeight.w800,
-                        color: colors.onSurface,
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      subtitle,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: colors.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
+                child: Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 15.5,
+                    fontWeight: FontWeight.w600,
+                    color: ink,
+                    letterSpacing: -0.2,
+                  ),
                 ),
               ),
-              const SizedBox(width: 8),
               if (trailing != null) trailing!,
-              Icon(
-                Icons.chevron_right_rounded,
-                color: colors.onSurfaceVariant.withValues(alpha: 0.6),
-                size: 20,
-              ),
             ],
           ),
         ),
@@ -1212,24 +1003,22 @@ class _ChatActionRow extends StatelessWidget {
   }
 }
 
-class _ChatSliderRow extends StatelessWidget {
+class _ChatTypographySliderRow extends StatelessWidget {
   final IconData icon;
   final Color iconColor;
   final Color iconBgColor;
   final String title;
-  final String subtitle;
   final double value;
   final double min;
   final double max;
   final int divisions;
   final ValueChanged<double> onChanged;
 
-  const _ChatSliderRow({
+  const _ChatTypographySliderRow({
     required this.icon,
     required this.iconColor,
     required this.iconBgColor,
     required this.title,
-    required this.subtitle,
     required this.value,
     required this.min,
     required this.max,
@@ -1239,64 +1028,49 @@ class _ChatSliderRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final ink = isDark ? Colors.white : const Color(0xFF1A1730);
     final percent = '${(value * 100).round()}%';
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
       child: Column(
         children: [
           Row(
             children: [
               Container(
-                width: 44,
-                height: 44,
+                width: 42,
+                height: 42,
                 decoration: BoxDecoration(
                   color: iconBgColor,
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(13),
                 ),
-                child: Icon(icon, color: iconColor, size: 22),
+                child: Icon(icon, color: iconColor, size: 21),
               ),
               const SizedBox(width: 14),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: TextStyle(
-                        fontSize: 14.5,
-                        fontWeight: FontWeight.w800,
-                        color: colors.onSurface,
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      subtitle,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: colors.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
+                child: Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 15.5,
+                    fontWeight: FontWeight.w600,
+                    color: ink,
+                    letterSpacing: -0.2,
+                  ),
                 ),
               ),
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
                 decoration: BoxDecoration(
-                  color: isDark
-                      ? const Color(0xFF2E2A44)
-                      : const Color(0xFFEDE9FE),
+                  color: isDark ? const Color(0xFF28234B) : const Color(0xFFECE9FB),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
                   percent,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800,
-                    color: colors.primary,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF5E4AE3),
                   ),
                 ),
               ),
@@ -1305,25 +1079,24 @@ class _ChatSliderRow extends StatelessWidget {
           const SizedBox(height: 6),
           Row(
             children: [
-              const SizedBox(width: 58),
+              const SizedBox(width: 56),
               Text(
                 'A',
                 style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: colors.onSurfaceVariant,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: isDark ? const Color(0xFF8F8BA0) : const Color(0xFF7A768E),
                 ),
               ),
               Expanded(
                 child: SliderTheme(
                   data: SliderTheme.of(context).copyWith(
-                    trackHeight: 3.5,
-                    activeTrackColor: const Color(0xFF6366F1),
-                    thumbColor: const Color(0xFF6366F1),
-                    overlayColor:
-                        const Color(0xFF6366F1).withValues(alpha: 0.12),
-                    thumbShape:
-                        const RoundSliderThumbShape(enabledThumbRadius: 7),
+                    trackHeight: 5,
+                    activeTrackColor: const Color(0xFF5E4AE3),
+                    inactiveTrackColor: isDark ? const Color(0xFF2C2844) : const Color(0xFFECE9FB),
+                    thumbColor: const Color(0xFF5E4AE3),
+                    overlayColor: const Color(0xFF5E4AE3).withValues(alpha: 0.15),
+                    thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
                   ),
                   child: Slider(
                     value: value,
@@ -1340,9 +1113,9 @@ class _ChatSliderRow extends StatelessWidget {
               Text(
                 'A',
                 style: TextStyle(
-                  fontSize: 19,
-                  fontWeight: FontWeight.w900,
-                  color: colors.onSurface,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  color: ink,
                 ),
               ),
             ],

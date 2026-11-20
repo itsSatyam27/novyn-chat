@@ -892,420 +892,789 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
   final Map<String, bool> _votes = {};
 
   static const _topics = <_HelpEntry>[
-    _HelpEntry('Getting started','Chats, contacts, calls and settings',
+    _HelpEntry(
+      'Getting started',
+      'Chats, contacts, calls and settings',
       'Start conversations from Chats, find people in Friends, and personalize Novyn from your profile settings.',
-      Icons.menu_book_rounded,Color(0xFF8B6DF6),'Help topic'),
-    _HelpEntry('Account & privacy','Privacy controls and security',
+      Icons.menu_book_rounded,
+      Color(0xFF7257F4),
+      'Help topic',
+    ),
+    _HelpEntry(
+      'Account & privacy',
+      'Privacy controls and security',
       'Review your account details, app lock, blocked contacts, presence and privacy controls from Settings.',
-      Icons.lock_outline_rounded,Color(0xFF4A956A),'Help topic'),
-    _HelpEntry('Chat backup','Create and restore a chat backup',
+      Icons.lock_outline_rounded,
+      Color(0xFF289868),
+      'Help topic',
+    ),
+    _HelpEntry(
+      'Chat backup',
+      'Create and restore a chat backup',
       'Open Settings → Chat Settings → Chat backup. Create a backup before changing devices, then use Restore when setting up Novyn again.',
-      Icons.cloud_upload_outlined,Color(0xFF5488C7),'Help topic'),
-    _HelpEntry('Friends & requests','Add people by username',
+      Icons.cloud_upload_outlined,
+      Color(0xFF3888E9),
+      'Help topic',
+    ),
+    _HelpEntry(
+      'Friends & requests',
+      'Add people by username',
       'Open Friends, search for a person by their Novyn username, and send a friend request. You can review incoming requests in the same area.',
-      Icons.group_outlined,Color(0xFFB45E91),'Help topic'),
-    _HelpEntry('Calls & video','Audio and video calling',
+      Icons.people_outline_rounded,
+      Color(0xFFD34F88),
+      'Help topic',
+    ),
+    _HelpEntry(
+      'Calls & video',
+      'Audio and video calling',
       'Open a conversation and use its call controls to start an audio or video call. Check microphone and camera permissions if a call cannot start.',
-      Icons.call_outlined,Color(0xFF4C9A91),'Help topic'),
-    _HelpEntry('Notifications','Alerts, sounds and Do Not Disturb',
+      Icons.call_outlined,
+      Color(0xFF2A9D8F),
+      'Help topic',
+    ),
+    _HelpEntry(
+      'Notifications',
+      'Alerts, sounds and Do Not Disturb',
       'Open Settings → Notifications to manage message previews, sounds, vibration and Do Not Disturb preferences.',
-      Icons.notifications_none_rounded,Color(0xFFBD8744),'Help topic'),
+      Icons.notifications_none_rounded,
+      Color(0xFFD69836),
+      'Help topic',
+    ),
   ];
 
   static const _faqs = <_HelpEntry>[
-    _HelpEntry('How do I back up my chats?','Popular question',
+    _HelpEntry(
+      'How do I back up my chats?',
+      'Popular question',
       'Open Settings → Chat Settings and choose Chat backup. Backups are encrypted, and you can restore them when you set up Novyn again.',
-      Icons.description_outlined,Color(0xFF8B6DF6),'Popular question'),
-    _HelpEntry('How do I stop screenshots in chats?','Popular question',
+      Icons.description_outlined,
+      Color(0xFF7257F4),
+      'Popular question',
+    ),
+    _HelpEntry(
+      'How do I stop screenshots in chats?',
+      'Popular question',
       'Open the conversation settings and review the privacy controls available for that chat. Availability can depend on the current app build and device.',
-      Icons.description_outlined,Color(0xFF8B6DF6),'Popular question'),
-    _HelpEntry('Who can see when I am online?','Popular question',
+      Icons.description_outlined,
+      Color(0xFF7257F4),
+      'Popular question',
+    ),
+    _HelpEntry(
+      'Who can see when I am online?',
+      'Popular question',
       'Your presence is shown according to your current presence and privacy settings. Review the privacy controls in Settings for the options available in your build.',
-      Icons.description_outlined,Color(0xFF8B6DF6),'Popular question'),
-    _HelpEntry('How do I add a friend?','Popular question',
+      Icons.description_outlined,
+      Color(0xFF7257F4),
+      'Popular question',
+    ),
+    _HelpEntry(
+      'How do I add a friend?',
+      'Popular question',
       'Open Friends, search by the person’s Novyn username, and send a friend request.',
-      Icons.description_outlined,Color(0xFF8B6DF6),'Popular question'),
+      Icons.description_outlined,
+      Color(0xFF7257F4),
+      'Popular question',
+    ),
   ];
 
   static const _articles = <_HelpEntry>[
-    _HelpEntry('Restore a backup on a new phone','Article',
+    _HelpEntry(
+      'Restore a backup on a new phone',
+      'Article',
       'Install Novyn on your new phone, sign in to the same account, open Settings → Chat Settings → Chat backup, and follow the restore flow for your saved backup.',
-      Icons.article_outlined,Color(0xFF8B6DF6),'Article'),
+      Icons.article_outlined,
+      Color(0xFF7257F4),
+      'Article',
+    ),
   ];
 
   List<_HelpEntry> get _results {
-    final q=_query.trim().toLowerCase();
-    if(q.isEmpty) return const [];
-    return <_HelpEntry>[..._topics,..._faqs,..._articles].where((e)=>
-      e.title.toLowerCase().contains(q) ||
-      e.subtitle.toLowerCase().contains(q) ||
-      e.detail.toLowerCase().contains(q)).take(8).toList();
+    final q = _query.trim().toLowerCase();
+    if (q.isEmpty) return const [];
+    return <_HelpEntry>[..._topics, ..._faqs, ..._articles]
+        .where((e) =>
+            e.title.toLowerCase().contains(q) ||
+            e.subtitle.toLowerCase().contains(q) ||
+            e.detail.toLowerCase().contains(q))
+        .take(8)
+        .toList();
   }
 
   @override
-  void dispose(){_searchController.dispose();super.dispose();}
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
-  Future<void> _openIssues({bool newBug=false}) async {
+  Future<void> _openIssues({bool newBug = false}) async {
     final uri = newBug
-      ? Uri.https('github.com','/itsSatyam27/novyn-chat/issues/new',
-          {'title':'Novyn app bug report'})
-      : Uri(scheme: 'mailto', path: _appSupportEmail,
-          queryParameters: {'subject': 'Novyn support request'});
-    if(!await launchUrl(uri,mode:LaunchMode.externalApplication)&&mounted){
-      context.showNovynAlert(const SnackBar(content:Text('Could not open the support page.')));
+        ? Uri.https('github.com', '/itsSatyam27/novyn-chat/issues/new',
+            {'title': 'Novyn app bug report'})
+        : Uri(
+            scheme: 'mailto',
+            path: _appSupportEmail,
+            queryParameters: {'subject': 'Novyn support request'});
+    if (!await launchUrl(uri, mode: LaunchMode.externalApplication) && mounted) {
+      context.showNovynAlert(
+          const SnackBar(content: Text('Could not open the support page.')));
     }
   }
 
-  void _openFeedback()=>Navigator.of(context).push(
-    MaterialPageRoute<void>(builder:(_)=>const FeedbackScreen()));
+  void _openFeedback() => Navigator.of(context).push(
+        MaterialPageRoute<void>(builder: (_) => const FeedbackScreen()));
 
-  void _showEntry(_HelpEntry e){
-    final dark=Theme.of(context).brightness==Brightness.dark;
+  void _showEntry(_HelpEntry e) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
     showModalBottomSheet<void>(
-      context:context,isScrollControlled:true,backgroundColor:Colors.transparent,
-      builder:(sheetContext){
-        final surface=dark?const Color(0xFF171622):Colors.white;
-        final ink=dark?const Color(0xFFF2F0FF):const Color(0xFF1C1B29);
-        final muted=dark?const Color(0xFFAAA7BE):const Color(0xFF6B6880);
-        return SafeArea(top:false,child:Container(
-          padding:const EdgeInsets.fromLTRB(22,12,22,28),
-          decoration:BoxDecoration(color:surface,borderRadius:
-            const BorderRadius.vertical(top:Radius.circular(28))),
-          child:Column(mainAxisSize:MainAxisSize.min,crossAxisAlignment:
-            CrossAxisAlignment.start,children:[
-            Center(child:Container(width:42,height:4,decoration:BoxDecoration(
-              color:muted.withValues(alpha:.35),borderRadius:BorderRadius.circular(8)))),
-            const SizedBox(height:22),
-            Row(children:[
-              Container(width:46,height:46,decoration:BoxDecoration(
-                color:e.accent.withValues(alpha:.13),borderRadius:BorderRadius.circular(15)),
-                child:Icon(e.icon,color:e.accent,size:23)),
-              const SizedBox(width:12),
-              Expanded(child:Text(e.kind.toUpperCase(),style:TextStyle(color:muted,
-                fontSize:11,fontWeight:FontWeight.w800,letterSpacing:1.1))),
-              IconButton(onPressed:()=>Navigator.pop(sheetContext),
-                icon:Icon(Icons.close_rounded,color:muted)),
-            ]),
-            const SizedBox(height:12),
-            Text(e.title,style:TextStyle(color:ink,fontSize:21,
-              fontWeight:FontWeight.w900,letterSpacing:-.45)),
-            const SizedBox(height:9),
-            Text(e.detail,style:TextStyle(color:muted,fontSize:14,height:1.55)),
-            const SizedBox(height:22),
-            SizedBox(width:double.infinity,height:48,child:FilledButton(
-              onPressed:()=>Navigator.pop(sheetContext),child:const Text('Got it'))),
-          ]),
-        ));
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        final surface = dark ? const Color(0xFF171622) : Colors.white;
+        final ink = dark ? const Color(0xFFF2F0FF) : const Color(0xFF1C1B29);
+        final muted = dark ? const Color(0xFFAAA7BE) : const Color(0xFF6B6880);
+        return SafeArea(
+          top: false,
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(22, 12, 22, 28),
+            decoration: BoxDecoration(
+              color: surface,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 42,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: muted.withValues(alpha: .35),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 22),
+                Row(
+                  children: [
+                    Container(
+                      width: 46,
+                      height: 46,
+                      decoration: BoxDecoration(
+                        color: e.accent.withValues(alpha: .13),
+                        borderRadius: BorderRadius.circular(15),
+                      ),
+                      child: Icon(e.icon, color: e.accent, size: 23),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        e.kind.toUpperCase(),
+                        style: TextStyle(
+                          color: muted,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 1.1,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.pop(sheetContext),
+                      icon: Icon(Icons.close_rounded, color: muted),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  e.title,
+                  style: TextStyle(
+                    color: ink,
+                    fontSize: 21,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: -.45,
+                  ),
+                ),
+                const SizedBox(height: 9),
+                Text(
+                  e.detail,
+                  style: TextStyle(color: muted, fontSize: 14, height: 1.55),
+                ),
+                const SizedBox(height: 22),
+                SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: FilledButton(
+                    onPressed: () => Navigator.pop(sheetContext),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFF5E4AE3),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(24),
+                      ),
+                    ),
+                    child: const Text('Got it'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
       },
     );
   }
 
-  Widget _header(Color ink,Color surface,Color border)=>Row(children:[
-    Material(color:surface,borderRadius:BorderRadius.circular(15),child:InkWell(
-      onTap:()=>Navigator.of(context).maybePop(),borderRadius:BorderRadius.circular(15),
-      child:Container(width:44,height:44,decoration:BoxDecoration(
-        borderRadius:BorderRadius.circular(15),
-        border:Border.all(color:border.withValues(alpha:.65))),
-        child:Icon(Icons.arrow_back_rounded,color:ink,size:21)))),
-    const Expanded(child:Text('Help & Support',textAlign:TextAlign.center,
-      style:TextStyle(fontSize:17,fontWeight:FontWeight.w900,letterSpacing:-.25))),
-    const SizedBox(width:44),
-  ]);
+  Widget _header(Color ink) => Padding(
+        padding: const EdgeInsets.only(top: 8, bottom: 18),
+        child: Row(
+          children: [
+            IconButton(
+              icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
+              color: ink,
+              onPressed: () => Navigator.maybePop(context),
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
+            ),
+            const SizedBox(width: 14),
+            Text(
+              'Help & Support',
+              style: TextStyle(
+                fontSize: 26,
+                fontWeight: FontWeight.w700,
+                color: ink,
+                letterSpacing: -0.5,
+              ),
+            ),
+          ],
+        ),
+      );
 
-  Widget _search(Color ink,Color muted,Color surface,Color primary)=>Container(
-    height:50,
-    decoration:BoxDecoration(color:surface,borderRadius:BorderRadius.circular(26),
-      boxShadow:[BoxShadow(color:primary.withValues(alpha:.07),
-        blurRadius:15,offset:const Offset(0,4))]),
-    child:TextField(
-      controller:_searchController,
-      onChanged:(v)=>setState(()=>_query=v),
-      textInputAction:TextInputAction.search,
-      style:TextStyle(color:ink,fontSize:14),
-      decoration:InputDecoration(
-        hintText:'Search help topics',
-        hintStyle:TextStyle(color:muted,fontSize:14),
-        prefixIcon:Icon(Icons.search_rounded,color:primary,size:21),
-        suffixIcon:_query.isEmpty?null:IconButton(
-          onPressed:(){_searchController.clear();setState(()=>_query='');},
-          icon:Icon(Icons.close_rounded,color:muted,size:20)),
-        border:InputBorder.none,
-        contentPadding:const EdgeInsets.symmetric(vertical:14),
-      ),
-    ),
-  );
+  Widget _search(Color ink, Color muted, Color surface, Color border) => Container(
+        height: 52,
+        decoration: BoxDecoration(
+          color: surface,
+          borderRadius: BorderRadius.circular(26),
+          border: Border.all(color: border.withValues(alpha: 0.5)),
+        ),
+        child: TextField(
+          controller: _searchController,
+          onChanged: (v) => setState(() => _query = v),
+          textInputAction: TextInputAction.search,
+          style: TextStyle(color: ink, fontSize: 14.5),
+          decoration: InputDecoration(
+            hintText: 'Search help topics',
+            hintStyle: TextStyle(color: muted, fontSize: 14.5),
+            prefixIcon: const Icon(Icons.search_rounded,
+                color: Color(0xFF6246EA), size: 22),
+            suffixIcon: _query.isEmpty
+                ? null
+                : IconButton(
+                    onPressed: () {
+                      _searchController.clear();
+                      setState(() => _query = '');
+                    },
+                    icon: Icon(Icons.close_rounded, color: muted, size: 20),
+                  ),
+            border: InputBorder.none,
+            contentPadding: const EdgeInsets.symmetric(vertical: 15),
+          ),
+        ),
+      );
 
-  Widget _action(String title,IconData icon,Color accent,VoidCallback tap,
-      {bool external=false}){
-    final dark=Theme.of(context).brightness==Brightness.dark;
-    final surface=dark?const Color(0xFF191824):Colors.white;
-    return Expanded(child:Material(color:surface,borderRadius:BorderRadius.circular(21),
-      child:InkWell(onTap:tap,borderRadius:BorderRadius.circular(21),
-        child:Container(height:102,padding:const EdgeInsets.fromLTRB(6,10,6,9),
-          decoration:BoxDecoration(borderRadius:BorderRadius.circular(21),
-            border:Border.all(color:Theme.of(context).colorScheme.outlineVariant
-              .withValues(alpha:.28)),
-            boxShadow:[BoxShadow(color:accent.withValues(alpha:.045),
-              blurRadius:12,offset:const Offset(0,4))]),
-          child:Column(mainAxisAlignment:MainAxisAlignment.center,children:[
-            Container(width:38,height:38,decoration:BoxDecoration(
-              color:accent.withValues(alpha:.12),borderRadius:BorderRadius.circular(13)),
-              child:Icon(icon,color:accent,size:20)),
-            const SizedBox(height:7),
-            Row(mainAxisAlignment:MainAxisAlignment.center,children:[
-              Flexible(child:Text(title,maxLines:1,overflow:TextOverflow.ellipsis,
-                style:TextStyle(color:Theme.of(context).colorScheme.onSurface,
-                  fontSize:11.5,fontWeight:FontWeight.w900))),
-              if(external) ...[const SizedBox(width:3),
-                Icon(Icons.open_in_new_rounded,color:accent,size:11)],
-            ]),
-          ]),
+  Widget _actionCard({
+    required String title,
+    required IconData icon,
+    required Color iconColor,
+    required Color iconBg,
+    required VoidCallback onTap,
+    bool external = false,
+    required Color ink,
+    required Color muted,
+    required Color surface,
+    required Color border,
+  }) {
+    return Expanded(
+      child: Material(
+        color: surface,
+        borderRadius: BorderRadius.circular(22),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(22),
+          child: Container(
+            height: 106,
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(color: border.withValues(alpha: 0.5)),
+            ),
+            child: Stack(
+              children: [
+                if (external)
+                  Positioned(
+                    top: 0,
+                    right: 2,
+                    child: Icon(
+                      Icons.open_in_new_rounded,
+                      color: muted.withValues(alpha: 0.7),
+                      size: 13,
+                    ),
+                  ),
+                Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 42,
+                        height: 42,
+                        decoration: BoxDecoration(
+                          color: iconBg,
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: Icon(icon, color: iconColor, size: 22),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        title,
+                        textAlign: TextAlign.center,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: ink,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          height: 1.15,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
-    ));
+    );
   }
 
-  Widget _section(String title,Color muted)=>Padding(
-    padding:const EdgeInsets.only(left:3,bottom:10),
-    child:Text(title.toUpperCase(),style:TextStyle(color:muted,fontSize:10.5,
-      fontWeight:FontWeight.w900,letterSpacing:1.4)));
+  Widget _section(String title) => Padding(
+        padding: const EdgeInsets.only(left: 4, top: 22, bottom: 12),
+        child: Text(
+          title.toUpperCase(),
+          style: const TextStyle(
+            color: Color(0xFF6246EA),
+            fontSize: 11.5,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 1.2,
+          ),
+        ),
+      );
 
-  Widget _topicCard(_HelpEntry e,Color ink,Color muted,Color surface)=>Material(
-    color:surface,borderRadius:BorderRadius.circular(20),
-    child:InkWell(onTap:()=>_showEntry(e),borderRadius:BorderRadius.circular(20),
-      child:Container(padding:const EdgeInsets.all(13),
-        decoration:BoxDecoration(borderRadius:BorderRadius.circular(20),
-          border:Border.all(color:Theme.of(context).colorScheme.outlineVariant
-            .withValues(alpha:.25)),
-          boxShadow:[BoxShadow(color:e.accent.withValues(alpha:.035),
-            blurRadius:12,offset:const Offset(0,3))]),
-        child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-          Container(width:34,height:34,decoration:BoxDecoration(
-            color:e.accent.withValues(alpha:.13),borderRadius:BorderRadius.circular(11)),
-            child:Icon(e.icon,color:e.accent,size:18)),
-          const SizedBox(height:8),
-          Text(e.title,maxLines:1,overflow:TextOverflow.ellipsis,
-            style:TextStyle(color:ink,fontSize:12.3,fontWeight:FontWeight.w900)),
-          const SizedBox(height:3),
-          Text(e.subtitle,maxLines:2,overflow:TextOverflow.ellipsis,
-            style:TextStyle(color:muted,fontSize:10.8,height:1.28)),
-        ]),
+  Widget _topicItem(
+    _HelpEntry e,
+    Color ink,
+    Color surface,
+    Color border,
+  ) {
+    Color iconBg;
+    if (e.icon == Icons.menu_book_rounded) {
+      iconBg = const Color(0xFFEFE9FE);
+    } else if (e.icon == Icons.lock_outline_rounded) {
+      iconBg = const Color(0xFFE3F7EE);
+    } else if (e.icon == Icons.cloud_upload_outlined) {
+      iconBg = const Color(0xFFE5F1FD);
+    } else if (e.icon == Icons.people_outline_rounded) {
+      iconBg = const Color(0xFFFCE8F0);
+    } else if (e.icon == Icons.call_outlined) {
+      iconBg = const Color(0xFFE4F7F4);
+    } else {
+      iconBg = const Color(0xFFFCF4E4);
+    }
+
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final finalIconBg = isDark ? e.accent.withValues(alpha: 0.16) : iconBg;
+
+    return Material(
+      color: surface,
+      borderRadius: BorderRadius.circular(20),
+      child: InkWell(
+        onTap: () => _showEntry(e),
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: border.withValues(alpha: 0.5)),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: finalIconBg,
+                  borderRadius: BorderRadius.circular(13),
+                ),
+                child: Icon(e.icon, color: e.accent, size: 20),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  e.title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: ink,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    height: 1.15,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
-    ),
-  );
-
-  Widget _vote(IconData icon,bool selected,VoidCallback tap)=>Material(
-    color:selected?const Color(0xFFEAE4FF):const Color(0xFFF5F3FA),
-    borderRadius:BorderRadius.circular(12),
-    child:InkWell(onTap:tap,borderRadius:BorderRadius.circular(12),
-      child:SizedBox(width:36,height:30,child:Icon(icon,
-        color:selected?const Color(0xFF6C4DF6):const Color(0xFF777389),size:16))));
-
-  Widget _faqList(Color ink,Color muted,Color surface,Color border)=>Container(
-    decoration:BoxDecoration(color:surface,borderRadius:BorderRadius.circular(22),
-      border:Border.all(color:border.withValues(alpha:.45)),
-      boxShadow:[BoxShadow(color:const Color(0xFF6C4DF6).withValues(alpha:.045),
-        blurRadius:16,offset:const Offset(0,5))]),
-    child:Column(children:List.generate(_faqs.length,(i){
-      final e=_faqs[i],expanded=_expandedFaq==_faqs[i].title;
-      final vote=_votes[e.title];
-      return Column(children:[
-        InkWell(onTap:()=>setState(()=>_expandedFaq=expanded?null:e.title),
-          child:Padding(padding:const EdgeInsets.symmetric(horizontal:15,vertical:13),
-            child:Row(children:[
-              Expanded(child:Text(e.title,style:TextStyle(color:ink,fontSize:12.5,
-                fontWeight:FontWeight.w800))),
-              const SizedBox(width:9),
-              Container(width:27,height:27,decoration:const BoxDecoration(
-                color:Color(0xFFF1EDFF),shape:BoxShape.circle),
-                child:Icon(expanded?Icons.keyboard_arrow_up_rounded:
-                  Icons.keyboard_arrow_down_rounded,
-                  color:const Color(0xFF6C4DF6),size:19)),
-            ]))),
-        if(expanded) Padding(padding:const EdgeInsets.fromLTRB(15,0,15,13),
-          child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-            Text(e.detail,style:TextStyle(color:muted,fontSize:12.2,height:1.5)),
-            const SizedBox(height:12),
-            Row(children:[
-              Expanded(child:Text('Was this helpful?',style:TextStyle(color:muted,
-                fontSize:11.5,fontWeight:FontWeight.w700))),
-              _vote(Icons.thumb_up_alt_outlined,vote==true,
-                ()=>setState(()=>_votes[e.title]=true)),
-              const SizedBox(width:7),
-              _vote(Icons.thumb_down_alt_outlined,vote==false,
-                ()=>setState(()=>_votes[e.title]=false)),
-            ]),
-          ])),
-        if(i!=_faqs.length-1) Divider(height:1,color:border.withValues(alpha:.38)),
-      ]);
-    })),
-  );
-
-  Widget _cantFind(Color ink,Color muted,Color surface)=>Container(
-    padding:const EdgeInsets.all(14),
-    decoration:BoxDecoration(color:surface,borderRadius:BorderRadius.circular(20)),
-    child:Row(children:[
-      Container(width:42,height:42,decoration:BoxDecoration(
-        color:const Color(0xFFBD8744).withValues(alpha:.13),
-        borderRadius:BorderRadius.circular(14)),
-        child:const Icon(Icons.headset_mic_rounded,
-          color:Color(0xFFBD8744),size:20)),
-      const SizedBox(width:11),
-      Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-        Text('Can’t find it?',style:TextStyle(color:ink,fontSize:13.5,
-          fontWeight:FontWeight.w900)),
-        const SizedBox(height:2),
-        Text('Open the support page and tell us.',
-          style:TextStyle(color:muted,fontSize:11.5)),
-      ])),
-      IconButton.filled(onPressed:()=>_openIssues(),
-        style:IconButton.styleFrom(
-          backgroundColor:Theme.of(context).colorScheme.primary,
-          foregroundColor:Theme.of(context).colorScheme.onPrimary,
-          shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(14))),
-        icon:const Icon(Icons.open_in_new_rounded,size:19)),
-    ]),
-  );
-
-  Widget _searchResults(Color ink,Color muted,Color surface,Color border){
-    final results=_results;
-    return Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-      _section(results.length.toString()+' results',muted),
-      if(results.isEmpty) Container(padding:const EdgeInsets.all(22),
-        decoration:BoxDecoration(color:surface,borderRadius:BorderRadius.circular(22)),
-        child:Center(child:Text('No matching topics found. Try another search.',
-          textAlign:TextAlign.center,style:TextStyle(color:muted,fontSize:13))))
-      else Container(
-        decoration:BoxDecoration(color:surface,borderRadius:BorderRadius.circular(22),
-          border:Border.all(color:border.withValues(alpha:.35))),
-        child:Column(children:List.generate(results.length,(i){
-          final e=results[i];
-          return Column(children:[
-            ListTile(onTap:()=>_showEntry(e),
-              contentPadding:const EdgeInsets.symmetric(horizontal:15,vertical:3),
-              leading:Container(width:42,height:42,decoration:BoxDecoration(
-                color:e.accent.withValues(alpha:.13),borderRadius:BorderRadius.circular(14)),
-                child:Icon(e.icon,color:e.accent,size:20)),
-              title:Text(e.title,style:TextStyle(color:ink,fontSize:13,
-                fontWeight:FontWeight.w800)),
-              subtitle:Text(e.kind,style:TextStyle(color:muted,fontSize:11.5)),
-              trailing:Icon(Icons.chevron_right_rounded,color:muted)),
-            if(i!=results.length-1) Divider(height:1,
-              color:border.withValues(alpha:.35),indent:70),
-          ]);
-        })),
-      ),
-      const SizedBox(height:18),
-      _cantFind(ink,muted,surface),
-    ]);
+    );
   }
 
-  Widget _stillNeedHelp(Color ink,Color muted,Color surface){
-    final primary=Theme.of(context).colorScheme.primary;
-    return Container(padding:const EdgeInsets.all(17),
-      decoration:BoxDecoration(color:surface,borderRadius:BorderRadius.circular(23),
-        border:Border.all(color:Theme.of(context).colorScheme.outlineVariant
-          .withValues(alpha:.25)),
-        boxShadow:[BoxShadow(color:primary.withValues(alpha:.045),
-          blurRadius:14,offset:const Offset(0,5))]),
-      child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-        Row(children:[
-          Container(width:42,height:42,decoration:BoxDecoration(
-            color:primary.withValues(alpha:.12),borderRadius:BorderRadius.circular(14)),
-            child:Icon(Icons.support_agent_rounded,color:primary,size:22)),
-          const SizedBox(width:11),
-          Text('Still need help?',style:TextStyle(color:ink,fontSize:15,
-            fontWeight:FontWeight.w900)),
-        ]),
-        const SizedBox(height:10),
-        Text('Open the Novyn project issue tracker to report a problem or share feedback.',
-          style:TextStyle(color:muted,fontSize:12.5,height:1.45)),
-        const SizedBox(height:13),
-        SizedBox(width:double.infinity,height:45,child:FilledButton.icon(
-          onPressed:()=>_openIssues(),
-          icon:const Icon(Icons.open_in_new_rounded,size:18),
-          label:const Text('Open support page',
-            style:TextStyle(fontWeight:FontWeight.w800)),
-          style:FilledButton.styleFrom(shape:RoundedRectangleBorder(
-            borderRadius:BorderRadius.circular(16))))),
-      ]),
+  Widget _faqList(Color ink, Color muted, Color surface, Color border) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final pillBg = isDark ? const Color(0xFF2B2844) : const Color(0xFFEFEBFD);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: surface,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: border.withValues(alpha: 0.5)),
+      ),
+      child: Column(
+        children: List.generate(_faqs.length, (i) {
+          final e = _faqs[i];
+          final expanded = _expandedFaq == e.title;
+          final vote = _votes[e.title];
+
+          return Column(
+            children: [
+              InkWell(
+                onTap: () => setState(() => _expandedFaq = expanded ? null : e.title),
+                borderRadius: BorderRadius.vertical(
+                  top: i == 0 ? const Radius.circular(24) : Radius.zero,
+                  bottom: i == _faqs.length - 1 && !expanded
+                      ? const Radius.circular(24)
+                      : Radius.zero,
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          e.title,
+                          style: TextStyle(
+                            color: ink,
+                            fontSize: 14.5,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Container(
+                        width: 32,
+                        height: 32,
+                        decoration: BoxDecoration(
+                          color: pillBg,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          expanded
+                              ? Icons.keyboard_arrow_up_rounded
+                              : Icons.keyboard_arrow_down_rounded,
+                          color: const Color(0xFF6246EA),
+                          size: 20,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              if (expanded)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        e.detail,
+                        style: TextStyle(color: muted, fontSize: 13, height: 1.5),
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              'Was this helpful?',
+                              style: TextStyle(
+                                color: muted,
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                          _voteButton(
+                            Icons.thumb_up_alt_outlined,
+                            vote == true,
+                            () => setState(() => _votes[e.title] = true),
+                          ),
+                          const SizedBox(width: 8),
+                          _voteButton(
+                            Icons.thumb_down_alt_outlined,
+                            vote == false,
+                            () => setState(() => _votes[e.title] = false),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              if (i != _faqs.length - 1)
+                Divider(
+                  height: 1,
+                  color: border.withValues(alpha: 0.4),
+                  indent: 16,
+                  endIndent: 16,
+                ),
+            ],
+          );
+        }),
+      ),
+    );
+  }
+
+  Widget _voteButton(IconData icon, bool selected, VoidCallback tap) {
+    return Material(
+      color: selected ? const Color(0xFFEAE4FF) : const Color(0xFFF5F3FA),
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: tap,
+        borderRadius: BorderRadius.circular(12),
+        child: SizedBox(
+          width: 36,
+          height: 30,
+          child: Icon(
+            icon,
+            color: selected ? const Color(0xFF6246EA) : const Color(0xFF777389),
+            size: 16,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _searchResults(Color ink, Color muted, Color surface, Color border) {
+    final results = _results;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 12),
+          child: Text(
+            '${results.length} RESULTS',
+            style: const TextStyle(
+              color: Color(0xFF6246EA),
+              fontSize: 11.5,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 1.2,
+            ),
+          ),
+        ),
+        if (results.isEmpty)
+          Container(
+            padding: const EdgeInsets.all(22),
+            decoration: BoxDecoration(
+              color: surface,
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(color: border.withValues(alpha: 0.5)),
+            ),
+            child: Center(
+              child: Text(
+                'No matching topics found. Try another search.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: muted, fontSize: 13.5),
+              ),
+            ),
+          )
+        else
+          Container(
+            decoration: BoxDecoration(
+              color: surface,
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(color: border.withValues(alpha: 0.5)),
+            ),
+            child: Column(
+              children: List.generate(results.length, (i) {
+                final e = results[i];
+                return Column(
+                  children: [
+                    ListTile(
+                      onTap: () => _showEntry(e),
+                      contentPadding:
+                          const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                      leading: Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: e.accent.withValues(alpha: .13),
+                          borderRadius: BorderRadius.circular(13),
+                        ),
+                        child: Icon(e.icon, color: e.accent, size: 20),
+                      ),
+                      title: Text(
+                        e.title,
+                        style: TextStyle(
+                            color: ink, fontSize: 13.5, fontWeight: FontWeight.w700),
+                      ),
+                      subtitle: Text(e.kind,
+                          style: TextStyle(color: muted, fontSize: 11.5)),
+                      trailing: Icon(Icons.chevron_right_rounded, color: muted),
+                    ),
+                    if (i != results.length - 1)
+                      Divider(
+                        height: 1,
+                        color: border.withValues(alpha: 0.4),
+                        indent: 68,
+                        endIndent: 16,
+                      ),
+                  ],
+                );
+              }),
+            ),
+          ),
+      ],
     );
   }
 
   @override
-  Widget build(BuildContext context){
-    final dark=Theme.of(context).brightness==Brightness.dark;
-    final pageBg=dark?NovynTheme.pageBg(context):const Color(0xFFF3F0FB);
-    final surface=dark?const Color(0xFF191824):Colors.white;
-    final ink=dark?const Color(0xFFF0EFFF):const Color(0xFF1C1B29);
-    final muted=dark?const Color(0xFFAAA8C6):const Color(0xFF6B6880);
-    final border=dark?const Color(0xFF39345F):const Color(0xFFE4DFFB);
-    final primary=Theme.of(context).colorScheme.primary;
-    return Scaffold(backgroundColor:pageBg,body:SafeArea(child:ListView(
-      physics:const BouncingScrollPhysics(),
-      padding:const EdgeInsets.fromLTRB(16,8,16,28),
-      children:[
-        _header(ink,surface,border),
-        const SizedBox(height:17),
-        if(_query.isEmpty) ...[
-          Container(
-            padding:const EdgeInsets.fromLTRB(17,17,17,16),
-            decoration:BoxDecoration(
-              gradient:LinearGradient(begin:Alignment.topLeft,end:Alignment.bottomRight,
-                colors:dark?const [Color(0xFF292342),Color(0xFF211E35)]:
-                  const [Color(0xFFE8E1FF),Color(0xFFDCD3FF)]),
-              borderRadius:BorderRadius.circular(25)),
-            child:Stack(children:[
-              Positioned(right:4,top:-20,child:Container(width:80,height:80,
-                decoration:BoxDecoration(shape:BoxShape.circle,
-                  border:Border.all(color:primary.withValues(alpha:.10),width:1.5)))),
-              Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-                Text('How can we help?',style:TextStyle(color:ink,fontSize:22,
-                  fontWeight:FontWeight.w900,letterSpacing:-.65)),
-                const SizedBox(height:4),
-                Text('Find answers or report a problem\nwith Novyn.',
-                  style:TextStyle(color:muted,fontSize:12.5,height:1.35)),
-                const SizedBox(height:14),
-                _search(ink,muted,surface,primary),
-              ]),
-            ]),
-          ),
-          const SizedBox(height:12),
-          Row(children:[
-            _action('Contact support',Icons.headset_mic_rounded,
-              const Color(0xFF8065ED),()=>_openIssues(),external:true),
-            const SizedBox(width:9),
-            _action('Report a bug',Icons.bug_report_rounded,
-              const Color(0xFFD45B56),()=>_openIssues(newBug:true),external:true),
-            const SizedBox(width:9),
-            _action('Send feedback',Icons.chat_bubble_outline_rounded,
-              const Color(0xFFBD8744),_openFeedback),
-          ]),
-          const SizedBox(height:22),
-          _section('Help topics',muted),
-          GridView.builder(
-            shrinkWrap:true,physics:const NeverScrollableScrollPhysics(),
-            itemCount:_topics.length,
-            gridDelegate:const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount:2,mainAxisSpacing:10,crossAxisSpacing:10,
-              mainAxisExtent:119),
-            itemBuilder:(context,i)=>_topicCard(_topics[i],ink,muted,surface)),
-          const SizedBox(height:21),
-          _section('Popular questions',muted),
-          _faqList(ink,muted,surface,border),
-          const SizedBox(height:15),
-          _stillNeedHelp(ink,muted,surface),
-        ] else ...[
-          _search(ink,muted,surface,primary),
-          const SizedBox(height:21),
-          _searchResults(ink,muted,surface,border),
-        ],
-        const SizedBox(height:22),
-        Center(child:Text('NOVYN · YOUR SPACE, YOUR PEOPLE',
-          style:TextStyle(color:muted,fontSize:10.5,fontWeight:FontWeight.w800,
-            letterSpacing:1.6))),
-      ],
-    )));
+  Widget build(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final pageBg = dark ? NovynTheme.pageBg(context) : const Color(0xFFF4F0FB);
+    final surface = dark ? const Color(0xFF191824) : Colors.white;
+    final ink = dark ? const Color(0xFFF0EFFF) : const Color(0xFF1D1B26);
+    final muted = dark ? const Color(0xFFAAA8C6) : const Color(0xFF7E7A94);
+    final border = dark ? const Color(0xFF39345F) : const Color(0xFFE4DFFB);
+
+    return Scaffold(
+      backgroundColor: pageBg,
+      body: SafeArea(
+        child: ListView(
+          physics: const BouncingScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 28),
+          children: [
+            _header(ink),
+            _search(ink, muted, surface, border),
+            const SizedBox(height: 16),
+            if (_query.isEmpty) ...[
+              Row(
+                children: [
+                  _actionCard(
+                    title: 'Contact\nsupport',
+                    icon: Icons.headset_mic_rounded,
+                    iconColor: const Color(0xFF6246EA),
+                    iconBg: dark
+                        ? const Color(0xFF2C2455)
+                        : const Color(0xFFEBE7FD),
+                    onTap: () => _openIssues(),
+                    external: true,
+                    ink: ink,
+                    muted: muted,
+                    surface: surface,
+                    border: border,
+                  ),
+                  const SizedBox(width: 10),
+                  _actionCard(
+                    title: 'Report a bug',
+                    icon: Icons.pest_control_rounded,
+                    iconColor: const Color(0xFFE25241),
+                    iconBg: dark
+                        ? const Color(0xFF3F2124)
+                        : const Color(0xFFFDECEB),
+                    onTap: () => _openIssues(newBug: true),
+                    external: true,
+                    ink: ink,
+                    muted: muted,
+                    surface: surface,
+                    border: border,
+                  ),
+                  const SizedBox(width: 10),
+                  _actionCard(
+                    title: 'Send feedback',
+                    icon: Icons.chat_bubble_outline_rounded,
+                    iconColor: const Color(0xFFD4973B),
+                    iconBg: dark
+                        ? const Color(0xFF3D3220)
+                        : const Color(0xFFFBF4E6),
+                    onTap: _openFeedback,
+                    external: false,
+                    ink: ink,
+                    muted: muted,
+                    surface: surface,
+                    border: border,
+                  ),
+                ],
+              ),
+              _section('Help topics'),
+              GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: _topics.length,
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 2,
+                  mainAxisSpacing: 10,
+                  crossAxisSpacing: 10,
+                  mainAxisExtent: 64,
+                ),
+                itemBuilder: (context, i) =>
+                    _topicItem(_topics[i], ink, surface, border),
+              ),
+              _section('Popular questions'),
+              _faqList(ink, muted, surface, border),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                height: 52,
+                child: FilledButton.icon(
+                  onPressed: () => _openIssues(),
+                  icon: const Icon(Icons.open_in_new_rounded, size: 20),
+                  label: const Text(
+                    'Open support page',
+                    style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w700),
+                  ),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFF5E4AE3),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(24),
+                    ),
+                  ),
+                ),
+              ),
+            ] else ...[
+              _searchResults(ink, muted, surface, border),
+            ],
+            const SizedBox(height: 28),
+            Center(
+              child: Text(
+                'NOVYN · YOUR SPACE, YOUR PEOPLE',
+                style: TextStyle(
+                  color: muted.withValues(alpha: 0.65),
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1.5,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
@@ -1316,11 +1685,11 @@ class FeedbackScreen extends StatefulWidget {
 }
 
 class _FeedbackScreenState extends State<FeedbackScreen> {
-  static const _types = <(String, String, IconData, Color)>[
-    ('general', 'General', Icons.chat_bubble_outline_rounded, Color(0xFF7257F4)),
-    ('bug', 'Bug report', Icons.bug_report_outlined, Color(0xFFD7473E)),
-    ('feature', 'Feature request', Icons.lightbulb_outline_rounded, Color(0xFFB86A17)),
-    ('praise', 'Praise', Icons.favorite_border_rounded, Color(0xFFB83E70)),
+  static const _types = <(String, String, IconData, Color, Color)>[
+    ('general', 'General', Icons.chat_bubble_outline_rounded, Color(0xFF6246EA), Color(0xFFECE7FD)),
+    ('bug', 'Bug report', Icons.pest_control_rounded, Color(0xFFE25241), Color(0xFFFDECEB)),
+    ('feature', 'Feature request', Icons.lightbulb_outline_rounded, Color(0xFFD69836), Color(0xFFFCF4E4)),
+    ('praise', 'Praise', Icons.favorite_border_rounded, Color(0xFFD34F88), Color(0xFFFCE8F0)),
   ];
 
   final _messageController = TextEditingController();
@@ -1346,101 +1715,6 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
     _messageController.dispose();
     _emailController.dispose();
     super.dispose();
-  }
-
-  Widget _sectionTitle(
-    String title, {
-    String? optionalLabel,
-  }) {
-    final theme = Theme.of(context);
-    return Row(
-      children: [
-        Text(
-          title,
-          style: theme.textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w900,
-            letterSpacing: -.25,
-          ),
-        ),
-        if (optionalLabel != null) ...[
-          const SizedBox(width: 9),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 5),
-            decoration: BoxDecoration(
-              color: theme.colorScheme.primary.withValues(alpha: .08),
-              borderRadius: BorderRadius.circular(99),
-            ),
-            child: Text(
-              optionalLabel,
-              style: theme.textTheme.labelSmall?.copyWith(
-                fontWeight: FontWeight.w700,
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ),
-        ],
-      ],
-    );
-  }
-
-  Widget _categoryCard((String, String, IconData, Color) item) {
-    final colors = Theme.of(context).colorScheme;
-    final selected = _type == item.$1;
-    return Expanded(
-      child: InkWell(
-        onTap: _sending ? null : () => setState(() => _type = item.$1),
-        borderRadius: BorderRadius.circular(19),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 160),
-          height: 62,
-          padding: const EdgeInsets.symmetric(horizontal: 9),
-          decoration: BoxDecoration(
-            color: NovynTheme.cardBg(context),
-            borderRadius: BorderRadius.circular(19),
-            border: Border.all(
-              color: selected ? colors.primary : colors.outlineVariant.withValues(alpha: .75),
-              width: selected ? 2 : 1.2,
-            ),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 38,
-                height: 38,
-                decoration: BoxDecoration(
-                  color: item.$4.withValues(alpha: .11),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(item.$3, color: item.$4, size: 19),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  item.$2,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 12.5,
-                    height: 1.15,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-              if (selected)
-                Container(
-                  width: 19,
-                  height: 19,
-                  decoration: BoxDecoration(
-                    color: colors.primary,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(Icons.check_rounded, color: colors.onPrimary, size: 15),
-                ),
-            ],
-          ),
-        ),
-      ),
-    );
   }
 
   Future<void> _submit() async {
@@ -1481,22 +1755,26 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
 
       String statusText;
       if (adminSent && receiptSent) {
-        statusText = 'Your feedback was saved and delivered to the Novyn team. A receipt was sent to $email.';
+        statusText =
+            'Your feedback was saved and delivered to the Novyn team. A receipt was sent to $email.';
       } else if (adminSent) {
-        statusText = 'Your feedback was saved and delivered to the Novyn team. No email receipt was sent.';
+        statusText =
+            'Your feedback was saved and delivered to the Novyn team. No email receipt was sent.';
       } else if (receiptSent) {
-        statusText = 'Your feedback was saved. A receipt was sent to $email, but the team email could not be delivered right now.';
+        statusText =
+            'Your feedback was saved. A receipt was sent to $email, but the team email could not be delivered right now.';
       } else {
-        statusText = 'Your feedback was saved (reference: $reference), but email delivery is not confirmed. The team can still review your submission.';
+        statusText =
+            'Your feedback was saved (reference: $reference), but email delivery is not confirmed. The team can still review your submission.';
       }
 
       await showDialog<void>(
         context: context,
         builder: (dialogContext) => AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-          icon: Icon(
+          icon: const Icon(
             Icons.check_circle_rounded,
-            color: Theme.of(context).colorScheme.primary,
+            color: Color(0xFF5E4AE3),
             size: 46,
           ),
           title: const Text('Feedback received'),
@@ -1504,6 +1782,12 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
           actions: [
             FilledButton(
               onPressed: () => Navigator.pop(dialogContext),
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFF5E4AE3),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                ),
+              ),
               child: const Text('Done'),
             ),
           ],
@@ -1527,273 +1811,302 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colors = theme.colorScheme;
-    final isDark = theme.brightness == Brightness.dark;
-
-    return Scaffold(
-      backgroundColor: NovynTheme.pageBg(context),
-      appBar: AppBar(
-        backgroundColor: NovynTheme.pageBg(context),
-        elevation: 0,
-        centerTitle: true,
-        leadingWidth: 66,
-        title: const Text(
-          'Send Feedback',
-          style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: -.35),
-        ),
-        leading: Padding(
-          padding: const EdgeInsets.only(left: 12, top: 6, bottom: 6),
-          child: Material(
-            color: NovynTheme.cardBg(context),
-            borderRadius: BorderRadius.circular(16),
-            child: InkWell(
-              borderRadius: BorderRadius.circular(16),
-              onTap: () => Navigator.maybePop(context),
-              child: const Icon(Icons.arrow_back_rounded, size: 21),
+  Widget _sectionLabel(String title, {String? optionalLabel}) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 4, top: 22, bottom: 10),
+      child: Row(
+        children: [
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 11.5,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 1.2,
+              color: Color(0xFF6246EA),
             ),
+          ),
+          if (optionalLabel != null) ...[
+            const SizedBox(width: 8),
+            Text(
+              optionalLabel,
+              style: const TextStyle(
+                fontSize: 12,
+                color: Color(0xFF7E7A94),
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _categoryCard(
+    (String, String, IconData, Color, Color) item,
+    Color ink,
+    Color surface,
+    Color border,
+  ) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final selected = _type == item.$1;
+    final iconBg = dark ? item.$4.withValues(alpha: 0.16) : item.$5;
+
+    return Expanded(
+      child: InkWell(
+        onTap: _sending ? null : () => setState(() => _type = item.$1),
+        borderRadius: BorderRadius.circular(22),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          height: 60,
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          decoration: BoxDecoration(
+            color: surface,
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(
+              color: selected
+                  ? const Color(0xFF5E4AE3)
+                  : border.withValues(alpha: 0.5),
+              width: selected ? 1.8 : 1.2,
+            ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: iconBg,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(item.$3, color: item.$4, size: 20),
+              ),
+              const SizedBox(width: 9),
+              Expanded(
+                child: Text(
+                  item.$2,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: ink,
+                    height: 1.15,
+                  ),
+                ),
+              ),
+              if (selected)
+                Container(
+                  width: 20,
+                  height: 20,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF5E4AE3),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.check_rounded,
+                      color: Colors.white, size: 14),
+                ),
+            ],
           ),
         ),
       ),
-      body: ListView(
-        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-        children: [
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: colors.primary.withValues(alpha: isDark ? .17 : .09),
-              borderRadius: BorderRadius.circular(25),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: 54,
-                  height: 54,
-                  decoration: BoxDecoration(
-                    color: colors.primary,
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: colors.primary.withValues(alpha: .25),
-                        blurRadius: 14,
-                        offset: const Offset(0, 5),
-                      ),
-                    ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final pageBg = dark ? NovynTheme.pageBg(context) : const Color(0xFFF4F0FB);
+    final surface = dark ? const Color(0xFF191824) : Colors.white;
+    final ink = dark ? const Color(0xFFF0EFFF) : const Color(0xFF1D1B26);
+    final muted = dark ? const Color(0xFFAAA8C6) : const Color(0xFF7E7A94);
+    final border = dark ? const Color(0xFF39345F) : const Color(0xFFE4DFFB);
+
+    return Scaffold(
+      backgroundColor: pageBg,
+      body: SafeArea(
+        child: ListView(
+          physics: const BouncingScrollPhysics(),
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 28),
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(top: 8, bottom: 8),
+              child: Row(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
+                    color: ink,
+                    onPressed: () => Navigator.maybePop(context),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
                   ),
-                  child: Icon(
-                    Icons.chat_bubble_rounded,
-                    color: colors.onPrimary,
-                    size: 24,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                const Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Help us improve Novyn',
-                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, letterSpacing: -.3),
-                      ),
-                      SizedBox(height: 5),
-                      Text(
-                        'Share an idea, report a bug, or tell us what you love.',
-                        style: TextStyle(fontSize: 12.5, height: 1.3),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 18),
-          _sectionTitle('What would you like to share?'),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              _categoryCard(_types[0]),
-              const SizedBox(width: 12),
-              _categoryCard(_types[1]),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              _categoryCard(_types[2]),
-              const SizedBox(width: 12),
-              _categoryCard(_types[3]),
-            ],
-          ),
-          const SizedBox(height: 27),
-          _sectionTitle('Rate your experience', optionalLabel: 'Optional'),
-          const SizedBox(height: 10),
-          Container(
-            padding: const EdgeInsets.fromLTRB(10, 10, 10, 9),
-            decoration: BoxDecoration(
-              color: NovynTheme.cardBg(context),
-              borderRadius: BorderRadius.circular(24),
-              boxShadow: isDark ? const [] : [
-                BoxShadow(
-                  color: const Color(0xFF6D55C7).withValues(alpha: .06),
-                  blurRadius: 18,
-                  offset: const Offset(0, 5),
-                ),
-              ],
-            ),
-            child: Column(
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: List.generate(5, (index) {
-                    final value = index + 1;
-                    final selected = value <= _rating;
-                    return IconButton(
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(minWidth: 38, minHeight: 38),
-                      onPressed: _sending
-                          ? null
-                          : () => setState(() => _rating = _rating == value ? 0 : value),
-                      icon: Icon(
-                        selected ? Icons.star_rounded : Icons.star_outline_rounded,
-                        size: 31,
-                        color: selected ? const Color(0xFFF4A51C) : colors.onSurfaceVariant.withValues(alpha: .42),
-                      ),
-                    );
-                  }),
-                ),
-                const SizedBox(height: 1),
-                Text(
-                  _rating == 0
-                      ? 'Tap a star to rate (optional)'
-                      : ['', 'Needs work', 'Fair', 'Good', 'Loving it', 'Excellent'][_rating],
-                  style: TextStyle(
-                    fontWeight: FontWeight.w800,
-                    color: _rating > 0 ? const Color(0xFFB96A17) : colors.onSurfaceVariant,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 27),
-          _sectionTitle('Your feedback'),
-          const SizedBox(height: 10),
-          Container(
-            decoration: BoxDecoration(
-              color: NovynTheme.cardBg(context),
-              borderRadius: BorderRadius.circular(24),
-              boxShadow: isDark ? const [] : [
-                BoxShadow(
-                  color: const Color(0xFF6D55C7).withValues(alpha: .05),
-                  blurRadius: 17,
-                  offset: const Offset(0, 5),
-                ),
-              ],
-            ),
-            child: TextField(
-              controller: _messageController,
-              enabled: !_sending,
-              minLines: 4,
-              maxLines: 6,
-              maxLength: 2000,
-              textCapitalization: TextCapitalization.sentences,
-              buildCounter: (context, {required currentLength, required isFocused, maxLength}) =>
-                  Padding(
-                    padding: const EdgeInsets.only(right: 8, bottom: 5),
-                    child: Text(
-                      '$currentLength / 2000',
-                      style: TextStyle(color: colors.onSurfaceVariant, fontWeight: FontWeight.w600),
+                  const SizedBox(width: 14),
+                  Text(
+                    'Send Feedback',
+                    style: TextStyle(
+                      fontSize: 26,
+                      fontWeight: FontWeight.w700,
+                      color: ink,
+                      letterSpacing: -0.5,
                     ),
-                  ),
-              decoration: InputDecoration(
-                hintText: 'Tell us what is on your mind...',
-                alignLabelWithHint: true,
-                filled: true,
-                fillColor: Colors.transparent,
-                contentPadding: const EdgeInsets.fromLTRB(15, 13, 15, 9),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(24),
-                  borderSide: BorderSide.none,
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(24),
-                  borderSide: BorderSide.none,
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(24),
-                  borderSide: BorderSide(color: colors.primary.withValues(alpha: .45), width: 1.5),
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 22),
-          _sectionTitle('Email for a reply', optionalLabel: 'Optional'),
-          const SizedBox(height: 10),
-          TextField(
-            controller: _emailController,
-            enabled: !_sending,
-            keyboardType: TextInputType.emailAddress,
-            textInputAction: TextInputAction.done,
-            autofillHints: const [AutofillHints.email],
-            decoration: InputDecoration(
-              hintText: 'you@example.com',
-              prefixIcon: const Icon(Icons.mail_outline_rounded),
-              filled: true,
-              fillColor: NovynTheme.cardBg(context),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 13),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(22), borderSide: BorderSide.none),
-              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(22), borderSide: BorderSide.none),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(22),
-                borderSide: BorderSide(color: colors.primary.withValues(alpha: .45), width: 1.5),
-              ),
-            ),
-          ),
-          const SizedBox(height: 22),
-          SizedBox(
-            height: 52,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: colors.primary,
-                borderRadius: BorderRadius.circular(18),
-                boxShadow: [
-                  BoxShadow(
-                    color: colors.primary.withValues(alpha: .25),
-                    blurRadius: 19,
-                    offset: const Offset(0, 8),
                   ),
                 ],
               ),
-              child: FilledButton.icon(
-                onPressed: _sending ? null : _submit,
-                style: FilledButton.styleFrom(
-                  backgroundColor: Colors.transparent,
-                  foregroundColor: colors.onPrimary,
-                  disabledBackgroundColor: colors.primary.withValues(alpha: .55),
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(23)),
+            ),
+            _sectionLabel('TYPE'),
+            Row(
+              children: [
+                _categoryCard(_types[0], ink, surface, border),
+                const SizedBox(width: 10),
+                _categoryCard(_types[1], ink, surface, border),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                _categoryCard(_types[2], ink, surface, border),
+                const SizedBox(width: 10),
+                _categoryCard(_types[3], ink, surface, border),
+              ],
+            ),
+            _sectionLabel('RATING', optionalLabel: 'Optional'),
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 12),
+              decoration: BoxDecoration(
+                color: surface,
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: border.withValues(alpha: 0.5)),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: List.generate(5, (index) {
+                  final value = index + 1;
+                  final selected = value <= _rating;
+                  return InkWell(
+                    onTap: _sending
+                        ? null
+                        : () => setState(
+                            () => _rating = _rating == value ? 0 : value),
+                    borderRadius: BorderRadius.circular(24),
+                    child: Padding(
+                      padding: const EdgeInsets.all(6),
+                      child: Icon(
+                        selected ? Icons.star_rounded : Icons.star_outline_rounded,
+                        size: 32,
+                        color: selected
+                            ? const Color(0xFFF4A51C)
+                            : muted.withValues(alpha: 0.6),
+                      ),
+                    ),
+                  );
+                }),
+              ),
+            ),
+            _sectionLabel('FEEDBACK'),
+            Container(
+              decoration: BoxDecoration(
+                color: surface,
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: border.withValues(alpha: 0.5)),
+              ),
+              child: TextField(
+                controller: _messageController,
+                enabled: !_sending,
+                minLines: 5,
+                maxLines: 7,
+                maxLength: 2000,
+                textCapitalization: TextCapitalization.sentences,
+                style: TextStyle(color: ink, fontSize: 14.5),
+                buildCounter: (context,
+                        {required currentLength,
+                        required isFocused,
+                        maxLength}) =>
+                    Padding(
+                  padding: const EdgeInsets.only(right: 14, bottom: 10),
+                  child: Text(
+                    '$currentLength / 2000',
+                    style: TextStyle(
+                      color: muted,
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
                 ),
-                icon: _sending
-                    ? const SizedBox(width: 19, height: 19, child: CircularProgressIndicator(strokeWidth: 2))
-                    : const Icon(Icons.send_rounded),
-                label: Text(
-                  _sending ? 'Sending...' : 'Send feedback',
-                  style: const TextStyle(fontSize: 15.5, fontWeight: FontWeight.w900),
+                decoration: InputDecoration(
+                  hintText: 'Tell us what is on your mind...',
+                  hintStyle: TextStyle(color: muted, fontSize: 14.5),
+                  border: InputBorder.none,
+                  contentPadding: const EdgeInsets.all(16),
                 ),
               ),
             ),
-          ),
-          const SizedBox(height: 8),
-          Center(
-            child: Text(
-              'Your feedback is securely saved for the Novyn team.',
-              textAlign: TextAlign.center,
-              style: theme.textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant),
+            _sectionLabel('EMAIL FOR A REPLY', optionalLabel: 'Optional'),
+            Container(
+              height: 56,
+              decoration: BoxDecoration(
+                color: surface,
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: border.withValues(alpha: 0.5)),
+              ),
+              child: TextField(
+                controller: _emailController,
+                enabled: !_sending,
+                keyboardType: TextInputType.emailAddress,
+                textInputAction: TextInputAction.done,
+                autofillHints: const [AutofillHints.email],
+                style: TextStyle(color: ink, fontSize: 14.5),
+                decoration: InputDecoration(
+                  hintText: 'Email address',
+                  hintStyle: TextStyle(color: muted, fontSize: 14.5),
+                  prefixIcon: Icon(
+                    Icons.mail_outline_rounded,
+                    color: muted.withValues(alpha: 0.8),
+                    size: 21,
+                  ),
+                  border: InputBorder.none,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 16,
+                  ),
+                ),
+              ),
             ),
-          ),
-        ],
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              height: 52,
+              child: FilledButton.icon(
+                onPressed: _sending ? null : _submit,
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFF5E4AE3),
+                  foregroundColor: Colors.white,
+                  disabledBackgroundColor:
+                      const Color(0xFF5E4AE3).withValues(alpha: 0.55),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(24),
+                  ),
+                ),
+                icon: _sending
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Icon(Icons.send_rounded, size: 20),
+                label: Text(
+                  _sending ? 'Sending...' : 'Send feedback',
+                  style: const TextStyle(
+                    fontSize: 15.5,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

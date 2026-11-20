@@ -69,149 +69,271 @@ class AccessibilityScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final settings = context.watch<SettingsService>();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final level = _fontLevel(settings.fontSize);
 
     return Scaffold(
-      backgroundColor: NovynTheme.pageBg(context),
-        body: SafeArea(
-          child: ListView(
-            physics: const BouncingScrollPhysics(),
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 30),
-            children: [
-              _AccessibilityHeader(),
-              const SizedBox(height: 25),
-              const _SectionLabel(
-                title: 'Display',
-                subtitle: null,
-              ),
-              _FontSizeCard(
-                value: settings.fontSize,
-                level: level,
-                labels: _fontLabels,
-                highContrast: settings.highContrast,
-                onChanged: settings.setFontSize,
-                onHighContrastChanged: settings.setHighContrast,
-              ),
-              const SizedBox(height: 24),
-              const _SectionLabel(
-                title: 'Motion',
-                subtitle: null,
-              ),
-              _AccessibilityToggleCard(
-                icon: Icons.monitor_heart_outlined,
-                iconColor: const Color(0xFF287D9A),
-                iconBackground: const Color(0xFFE2F2F6),
-                title: 'Reduce motion',
-                subtitle: 'Fewer animations and transitions',
-                value: settings.reduceMotion,
-                onChanged: settings.setReduceMotion,
-              ),
-              const SizedBox(height: 22),
-              _AccessibilityHelpCard(
-                onOpenAndroidSettings: () =>
-                    _openAndroidAccessibility(context),
-              ),
-            ],
-          ),
-        ),
-    );
-  }
-}
-
-class _AccessibilityHeader extends StatelessWidget {
-  const _AccessibilityHeader();
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    return Row(
-      children: [
-        Material(
-          color: NovynTheme.cardBg(context),
-          borderRadius: BorderRadius.circular(15),
-          child: InkWell(
-            borderRadius: BorderRadius.circular(15),
-            onTap: () => Navigator.of(context).maybePop(),
-            child: Container(
-              width: 46,
-              height: 44,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(15),
-                border: Border.all(color: colors.outlineVariant),
-              ),
-              alignment: Alignment.center,
-              child: Icon(
-                Icons.chevron_left_rounded,
-                size: 25,
-                color: colors.onSurface,
-              ),
+      backgroundColor: isDark ? NovynTheme.pageBg(context) : const Color(0xFFF4F0FB),
+      body: SafeArea(
+        child: ListView(
+          physics: const BouncingScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(20, 10, 20, 36),
+          children: [
+            _ScreenHeader(
+              title: 'Accessibility',
+              onBack: () => Navigator.maybePop(context),
             ),
-          ),
-        ),
-        const SizedBox(width: 14),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Accessibility',
-                style: TextStyle(
-                  color: colors.onSurface,
-                  fontSize: 23,
-                  height: 1.1,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: -.55,
+            const SizedBox(height: 10),
+
+            // DISPLAY Section
+            _sectionHeader('DISPLAY'),
+            _groupedCard(
+              context,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
+                  child: Column(
+                    children: [
+                      Row(
+                        children: [
+                          _iconBox(
+                            Icons.text_fields_rounded,
+                            const Color(0xFF6366F1),
+                            isDark ? const Color(0xFF28234B) : const Color(0xFFECE9FB),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Text(
+                              'Font size',
+                              style: TextStyle(
+                                fontSize: 15.5,
+                                fontWeight: FontWeight.w600,
+                                color: isDark ? Colors.white : const Color(0xFF1A1730),
+                                letterSpacing: -0.2,
+                              ),
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: isDark ? const Color(0xFF28234B) : const Color(0xFFECE9FB),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              '${(settings.fontSize * 100).round()}%',
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF5E4AE3),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        child: SliderTheme(
+                          data: SliderTheme.of(context).copyWith(
+                            trackHeight: 5,
+                            activeTrackColor: const Color(0xFF5E4AE3),
+                            inactiveTrackColor: isDark ? const Color(0xFF2C2844) : const Color(0xFFECE9FB),
+                            thumbColor: const Color(0xFF5E4AE3),
+                            overlayColor: const Color(0xFF5E4AE3).withValues(alpha: 0.15),
+                            thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
+                            tickMarkShape: const RoundSliderTickMarkShape(tickMarkRadius: 2.5),
+                            activeTickMarkColor: Colors.transparent,
+                            inactiveTickMarkColor: const Color(0xFF9E9AA8),
+                          ),
+                          child: Slider(
+                            value: level.toDouble(),
+                            min: 0,
+                            max: 4,
+                            divisions: 4,
+                            onChanged: (position) {
+                              final nextLevel = position.round().clamp(0, 4).toInt();
+                              final nextValue = _fontScales[nextLevel];
+                              if (nextValue == settings.fontSize) return;
+                              HapticService.vibrate(NovynHapticType.selection);
+                              settings.setFontSize(nextValue);
+                            },
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        child: Row(
+                          children: List.generate(
+                            _fontLabels.length,
+                            (index) => Expanded(
+                              child: Text(
+                                _fontLabels[index],
+                                textAlign: index == 0
+                                    ? TextAlign.start
+                                    : index == _fontLabels.length - 1
+                                        ? TextAlign.end
+                                        : TextAlign.center,
+                                style: TextStyle(
+                                  color: index == level
+                                      ? const Color(0xFF5E4AE3)
+                                      : (isDark ? const Color(0xFF8F8BA0) : const Color(0xFF5A5670)),
+                                  fontSize: 12,
+                                  fontWeight: index == level ? FontWeight.w700 : FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Make Novyn more comfortable to use',
-                style: TextStyle(
-                  color: colors.onSurfaceVariant,
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w500,
+                _SettingsRow(
+                  leading: _iconBox(
+                    Icons.contrast_rounded,
+                    const Color(0xFFD97706),
+                    isDark ? const Color(0xFF382A1B) : const Color(0xFFFEF3E2),
+                  ),
+                  title: 'High contrast',
+                  trailing: _purpleSwitch(
+                    value: settings.highContrast,
+                    onChanged: settings.setHighContrast,
+                    context: context,
+                  ),
                 ),
-              ),
-            ],
-          ),
+              ],
+            ),
+            const SizedBox(height: 24),
+
+            // MOTION Section
+            _sectionHeader('MOTION'),
+            _groupedCard(
+              context,
+              children: [
+                _SettingsRow(
+                  leading: _iconBox(
+                    Icons.show_chart_rounded,
+                    const Color(0xFF10B981),
+                    isDark ? const Color(0xFF1A3327) : const Color(0xFFE2F7ED),
+                  ),
+                  title: 'Reduce motion',
+                  trailing: _purpleSwitch(
+                    value: settings.reduceMotion,
+                    onChanged: settings.setReduceMotion,
+                    context: context,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 18),
+
+            // Android accessibility settings link card
+            _groupedCard(
+              context,
+              children: [
+                _SettingsRow(
+                  leading: _iconBox(
+                    Icons.open_in_new_rounded,
+                    const Color(0xFF5E4AE3),
+                    isDark ? const Color(0xFF28234B) : const Color(0xFFECE9FB),
+                  ),
+                  title: 'Open Android accessibility settings',
+                  trailing: const Icon(
+                    Icons.chevron_right_rounded,
+                    color: Color(0xFF8F8BA0),
+                    size: 20,
+                  ),
+                  onTap: () => _openAndroidAccessibility(context),
+                ),
+              ],
+            ),
+          ],
         ),
-      ],
+      ),
     );
   }
-}
 
-class _SectionLabel extends StatelessWidget {
-  const _SectionLabel({required this.title, this.subtitle});
-
-  final String title;
-  final String? subtitle;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
+  static Widget _sectionHeader(String title) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(4, 0, 4, 10),
+      padding: const EdgeInsets.only(left: 4, bottom: 9),
+      child: Text(
+        title.toUpperCase(),
+        style: const TextStyle(
+          fontSize: 11.5,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 1.2,
+          color: Color(0xFF6246EA),
+        ),
+      ),
+    );
+  }
+
+  static Widget _iconBox(IconData icon, Color color, Color bg) {
+    return Container(
+      width: 42,
+      height: 42,
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(13),
+      ),
+      child: Icon(icon, color: color, size: 21),
+    );
+  }
+
+  static Widget _purpleSwitch({
+    required bool value,
+    required ValueChanged<bool> onChanged,
+    required BuildContext context,
+  }) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    return Switch.adaptive(
+      value: value,
+      activeColor: Colors.white,
+      activeTrackColor: const Color(0xFF5E4AE3),
+      inactiveThumbColor: Colors.white,
+      inactiveTrackColor: dark ? const Color(0xFF3B394E) : const Color(0xFFE2E0EC),
+      trackOutlineColor: MaterialStateProperty.all(Colors.transparent),
+      onChanged: (next) {
+        HapticService.vibrate(NovynHapticType.selection);
+        onChanged(next);
+      },
+    );
+  }
+
+  static Widget _groupedCard(BuildContext context, {required List<Widget> children}) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardBg = isDark ? const Color(0xFF1E1C2E) : Colors.white;
+    final border = isDark ? const Color(0xFF2C2844) : const Color(0xFFEDE9F6);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: cardBg,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: border),
+        boxShadow: isDark
+            ? null
+            : [
+                BoxShadow(
+                  color: const Color(0xFF5E4AE3).withValues(alpha: 0.03),
+                  blurRadius: 16,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+      ),
+      clipBehavior: Clip.antiAlias,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            title.toUpperCase(),
-            style: TextStyle(
-              fontSize: 11.5,
-              letterSpacing: 1.7,
-              fontWeight: FontWeight.w900,
-              color: colors.primary,
-            ),
-          ),
-          if (subtitle != null) ...[
-            const SizedBox(height: 3),
-            Text(
-              subtitle!,
-              style: TextStyle(
-                color: colors.onSurfaceVariant,
-                fontSize: 12,
+          for (var i = 0; i < children.length; i++) ...[
+            children[i],
+            if (i != children.length - 1)
+              Divider(
+                height: 1,
+                thickness: 1,
+                indent: 68,
+                endIndent: 16,
+                color: isDark ? const Color(0xFF28253E) : const Color(0xFFF3F0F8),
               ),
-            ),
           ],
         ],
       ),
@@ -219,277 +341,47 @@ class _SectionLabel extends StatelessWidget {
   }
 }
 
-class _FontSizeCard extends StatelessWidget {
-  const _FontSizeCard({
-    required this.value,
-    required this.level,
-    required this.labels,
-    required this.highContrast,
-    required this.onChanged,
-    required this.onHighContrastChanged,
-  });
+class _ScreenHeader extends StatelessWidget {
+  final String title;
+  final VoidCallback onBack;
 
-  final double value;
-  final int level;
-  final List<String> labels;
-  final bool highContrast;
-  final ValueChanged<double> onChanged;
-  final ValueChanged<bool> onHighContrastChanged;
+  const _ScreenHeader({required this.title, required this.onBack});
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colors = theme.colorScheme;
-    final isDark = theme.brightness == Brightness.dark;
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final ink = dark ? Colors.white : const Color(0xFF1A1730);
 
-    return Container(
-      decoration: BoxDecoration(
-        color: NovynTheme.cardBg(context),
-        borderRadius: BorderRadius.circular(27),
-        border: Border.all(color: colors.outlineVariant),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+    return Padding(
+      padding: const EdgeInsets.only(top: 8, bottom: 18),
+      child: Row(
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(17, 17, 17, 12),
-            child: Row(
-              children: [
-                _FeatureIcon(
-                  icon: Icons.text_fields_rounded,
-                  background: colors.primary.withValues(alpha: .11),
-                  foreground: colors.primary,
-                ),
-                const SizedBox(width: 13),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Font size',
-                        style: TextStyle(
-                          color: colors.onSurface,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        'Adjust global text size',
-                        style: TextStyle(
-                          color: colors.onSurfaceVariant,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    color: colors.primary.withValues(alpha: .10),
-                    borderRadius: BorderRadius.circular(22),
-                  ),
-                  child: Text(
-                    '${(value * 100).round()}%',
-                    style: TextStyle(
-                      color: colors.primary,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(15, 0, 15, 8),
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.fromLTRB(14, 13, 14, 14),
-              decoration: BoxDecoration(
-                color: isDark
-                    ? colors.surfaceContainerHighest.withValues(alpha: .45)
-                    : const Color(0xFFF5F1FC),
-                borderRadius: BorderRadius.circular(22),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'PREVIEW',
-                    style: TextStyle(
-                      color: colors.onSurfaceVariant,
-                      fontSize: 10,
-                      letterSpacing: 1.35,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: Container(
-                      constraints: const BoxConstraints(maxWidth: 245),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 13,
-                        vertical: 9,
-                      ),
-                      decoration: BoxDecoration(
-                        color: colors.surface,
-                        borderRadius: const BorderRadius.only(
-                          topLeft: Radius.circular(15),
-                          topRight: Radius.circular(15),
-                          bottomRight: Radius.circular(15),
-                          bottomLeft: Radius.circular(5),
-                        ),
-                        border: Border.all(color: colors.outlineVariant),
-                      ),
-                      child: Text(
-                        'Kal ka plan final hai?',
-                        style: TextStyle(
-                          color: colors.onSurface,
-                          fontSize: 14 * value,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: Container(
-                      constraints: const BoxConstraints(maxWidth: 245),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 13,
-                        vertical: 9,
-                      ),
-                      decoration: const BoxDecoration(
-                        color: Color(0xFF7047F5),
-                        borderRadius: BorderRadius.only(
-                          topLeft: Radius.circular(15),
-                          topRight: Radius.circular(15),
-                          bottomRight: Radius.circular(5),
-                          bottomLeft: Radius.circular(15),
-                        ),
-                      ),
-                      child: Text(
-                        'Haan, 5 baje milte hain',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 14 * value,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
+          InkWell(
+            onTap: () {
+              HapticService.vibrate(NovynHapticType.light);
+              onBack();
+            },
+            borderRadius: BorderRadius.circular(12),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+              child: Icon(
+                Icons.arrow_back_ios_new_rounded,
+                color: ink,
+                size: 20,
               ),
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(13, 0, 13, 9),
-            child: Column(
-              children: [
-                Row(
-                  children: [
-                    Text(
-                      'A',
-                      style: TextStyle(
-                        color: colors.onSurfaceVariant,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: SliderTheme(
-                        data: SliderTheme.of(context).copyWith(
-                          trackHeight: 4,
-                          activeTrackColor: colors.primary,
-                          inactiveTrackColor: isDark
-                              ? Colors.white24
-                              : const Color(0xFFD7D0E9),
-                          thumbColor: colors.primary,
-                          overlayColor: colors.primary.withValues(alpha: .12),
-                        ),
-                        child: Slider(
-                          value: level.toDouble(),
-                          min: 0,
-                          max: 4,
-                          divisions: 4,
-                          semanticFormatterCallback: (position) =>
-                              '${labels[position.round().clamp(0, 4).toInt()]} font size',
-                          onChanged: (position) {
-                            final nextLevel =
-                                position.round().clamp(0, 4).toInt();
-                            final nextValue =
-                                AccessibilityScreen._fontScales[nextLevel];
-                            if (nextValue == value) return;
-                            HapticService.vibrate(
-                              NovynHapticType.selection,
-                              category: HapticCategory.buttons,
-                            );
-                            onChanged(nextValue);
-                          },
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      'A',
-                      style: TextStyle(
-                        color: colors.onSurface,
-                        fontSize: 22,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                  ],
-                ),
-                Row(
-                  children: List.generate(
-                    labels.length,
-                    (index) => Expanded(
-                      child: Text(
-                        labels[index],
-                        textAlign: index == 0
-                            ? TextAlign.start
-                            : index == labels.length - 1
-                                ? TextAlign.end
-                                : TextAlign.center,
-                        style: TextStyle(
-                          color: index == level
-                              ? colors.primary
-                              : colors.onSurfaceVariant,
-                          fontSize: 9.2,
-                          fontWeight: index == level
-                              ? FontWeight.w900
-                              : FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+          const SizedBox(width: 14),
+          Expanded(
+            child: Text(
+              title,
+              style: TextStyle(
+                color: ink,
+                fontSize: 24,
+                fontWeight: FontWeight.w700,
+                letterSpacing: -0.4,
+              ),
             ),
-          ),
-          Divider(
-            height: 1,
-            thickness: 1,
-            color: colors.outlineVariant.withValues(alpha: .7),
-          ),
-          _AccessibilityToggleCard(
-            icon: Icons.contrast_rounded,
-            iconColor: const Color(0xFFB65D12),
-            iconBackground: const Color(0xFFFFF0E0),
-            title: 'High contrast',
-            subtitle: 'Stronger text and clearer controls',
-            value: highContrast,
-            onChanged: onHighContrastChanged,
-            compact: true,
           ),
         ],
       ),
@@ -497,228 +389,56 @@ class _FontSizeCard extends StatelessWidget {
   }
 }
 
-class _FeatureIcon extends StatelessWidget {
-  const _FeatureIcon({
-    required this.icon,
-    required this.background,
-    required this.foreground,
-  });
-
-  final IconData icon;
-  final Color background;
-  final Color foreground;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 46,
-      height: 46,
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(15),
-      ),
-      child: Icon(icon, color: foreground, size: 23),
-    );
-  }
-}
-
-class _AccessibilityToggleCard extends StatelessWidget {
-  const _AccessibilityToggleCard({
-    required this.icon,
-    required this.iconColor,
-    required this.iconBackground,
-    required this.title,
-    required this.subtitle,
-    required this.value,
-    required this.onChanged,
-    this.compact = false,
-  });
-
-  final IconData icon;
-  final Color iconColor;
-  final Color iconBackground;
+class _SettingsRow extends StatelessWidget {
+  final Widget? leading;
   final String title;
-  final String subtitle;
-  final bool value;
-  final ValueChanged<bool> onChanged;
-  final bool compact;
+  final Widget? trailing;
+  final VoidCallback? onTap;
 
-  void _toggle() {
-    HapticService.vibrate(
-      NovynHapticType.medium,
-      category: HapticCategory.buttons,
-    );
-    onChanged(!value);
-  }
+  const _SettingsRow({
+    this.leading,
+    required this.title,
+    this.trailing,
+    this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
     final dark = Theme.of(context).brightness == Brightness.dark;
-    final effectiveIconBackground = dark
-        ? iconColor.withValues(alpha: .16)
-        : iconBackground;
+    final ink = dark ? Colors.white : const Color(0xFF1A1730);
 
-    return Semantics(
-      container: true,
-      label: title,
-      value: value ? 'On' : 'Off',
-      toggled: value,
-      button: true,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: _toggle,
-          child: Padding(
-            padding: EdgeInsets.symmetric(
-              horizontal: compact ? 17 : 16,
-              vertical: compact ? 13 : 15,
-            ),
-            child: Row(
-              children: [
-                _FeatureIcon(
-                  icon: icon,
-                  background: effectiveIconBackground,
-                  foreground: iconColor,
-                ),
-                const SizedBox(width: 13),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        style: TextStyle(
-                          color: colors.onSurface,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        subtitle,
-                        style: TextStyle(
-                          color: colors.onSurfaceVariant,
-                          fontSize: 11.5,
-                          height: 1.3,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 10),
-                _StaticToggle(value: value),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _StaticToggle extends StatelessWidget {
-  const _StaticToggle({required this.value});
-
-  final bool value;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    final dark = Theme.of(context).brightness == Brightness.dark;
-    return Container(
-      width: 54,
-      height: 32,
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: value
-            ? colors.primary
-            : (dark ? const Color(0xFF4C4A5B) : const Color(0xFFD8D3E9)),
-        borderRadius: BorderRadius.circular(30),
-      ),
-      child: Align(
-        alignment: value ? Alignment.centerRight : Alignment.centerLeft,
-        child: Container(
-          width: 24,
-          height: 24,
-          decoration: BoxDecoration(
-            color: Colors.white,
-            shape: BoxShape.circle,
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: .12),
-                blurRadius: 3,
-                offset: const Offset(0, 1),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _AccessibilityHelpCard extends StatelessWidget {
-  const _AccessibilityHelpCard({required this.onOpenAndroidSettings});
-
-  final VoidCallback onOpenAndroidSettings;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    return Container(
-      padding: const EdgeInsets.fromLTRB(17, 16, 17, 14),
-      decoration: BoxDecoration(
-        color: colors.primary.withValues(alpha: .075),
-        borderRadius: BorderRadius.circular(23),
-        border: Border.all(color: colors.primary.withValues(alpha: .08)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap != null
+            ? () {
+                HapticService.vibrate(NovynHapticType.selection);
+                onTap!();
+              }
+            : null,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          child: Row(
             children: [
-              Icon(
-                Icons.lightbulb_outline_rounded,
-                size: 19,
-                color: colors.primary,
-              ),
-              const SizedBox(width: 12),
+              if (leading != null) ...[
+                leading!,
+                const SizedBox(width: 14),
+              ],
               Expanded(
                 child: Text(
-                  'Saved on this device. Screen reader and voice access are managed by Android.',
+                  title,
                   style: TextStyle(
-                    color: colors.onSurfaceVariant,
-                    fontSize: 12.5,
-                    height: 1.45,
-                    fontWeight: FontWeight.w500,
+                    fontSize: 15.5,
+                    fontWeight: FontWeight.w600,
+                    color: ink,
+                    letterSpacing: -0.2,
                   ),
                 ),
               ),
+              if (trailing != null) trailing!,
             ],
           ),
-          const SizedBox(height: 13),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: TextButton.icon(
-              onPressed: onOpenAndroidSettings,
-              icon: const Icon(Icons.open_in_new_rounded, size: 16),
-              label: const Text('Open Android accessibility settings'),
-              style: TextButton.styleFrom(
-                foregroundColor: colors.primary,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 1,
-                  vertical: 7,
-                ),
-                textStyle: const TextStyle(
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
