@@ -8,7 +8,7 @@ import 'calls/calls_screen.dart';
 import 'calls/call_screen.dart';
 import 'auth/auth_screen.dart';
 import 'people/people_screen.dart';
-import 'discover/discover_screen.dart';
+import 'games/games_screen.dart';
 import 'profile/profile_screen.dart';
 import '../services/auth_service.dart';
 import '../services/socket_service.dart';
@@ -61,9 +61,9 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     if (widget.managePresence) {
       NotificationService.setSocialNotificationTapHandler((type) {
         if (!mounted) return;
-        // Friend-request events belong in People; a group invitation belongs
+        // Friend-request events belong in Contacts; a group invitation belongs
         // in Chats so the newly added group is immediately visible.
-        _onTabTap(type == 'group_invite' ? 0 : 3);
+        _onTabTap(type == 'group_invite' ? 0 : 1);
       });
       NotificationService.setGroupNotificationTapHandler(() {
         if (mounted) _onTabTap(0);
@@ -82,12 +82,13 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
       AppUpdateService.backgroundCheckFrequency,
       (_) => _runUpdateCheck(force: true),
     );
-    // Build screens — ChatsScreen gets a callback to switch to People tab (index 2)
+    // Main navigation: Chats, Contacts, Games, Calls, Settings.
+    // Discover is opened from inside Contacts rather than taking a bottom-tab slot.
     _screens = [
-      ChatsScreen(onNavigateToPeople: () => _onTabTap(3)), // index 3 now
-      const CallsScreen(),
-      const DiscoverScreen(),
+      ChatsScreen(onNavigateToPeople: () => _onTabTap(1)),
       const PeopleScreen(),
+      const GamesScreen(),
+      const CallsScreen(),
       const ProfileScreen(),
     ];
 
