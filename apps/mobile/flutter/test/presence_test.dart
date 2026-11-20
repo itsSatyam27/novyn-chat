@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:novyn/services/auth_service.dart';
@@ -11,6 +12,19 @@ void main() {
   });
 
   Future<AuthService> createAuth(Future<void> Function(String) save) async {
+    // AuthService restores the non-secret identity mirror before checking
+    // the secure session. Seed it so this unit test does not depend on a
+    // platform FlutterSecureStorage plugin being registered in CI.
+    SharedPreferences.setMockInitialValues({
+      'novyn_explicit_signed_out_v1': false,
+      'novyn_last_signed_in_identity_mirror_v1': jsonEncode({
+        'username': 'presence_test',
+        'displayName': 'presence_test',
+        'email': '',
+        'presenceMode': 'online',
+      }),
+    });
+
     final auth = AuthService(
       savePresence: save,
       restoreSession: () async => {
@@ -19,7 +33,19 @@ void main() {
         'presenceMode': 'online',
       },
     );
-    await Future<void>.delayed(Duration.zero);
+
+    if (!auth.authReady || auth.user == null) {
+      final restored = Completer<void>();
+      void listen() {
+        if (auth.authReady && auth.user != null && !restored.isCompleted) {
+          restored.complete();
+        }
+      }
+      auth.addListener(listen);
+      listen();
+      await restored.future.timeout(const Duration(seconds: 10));
+      auth.removeListener(listen);
+    }
     return auth;
   }
 
