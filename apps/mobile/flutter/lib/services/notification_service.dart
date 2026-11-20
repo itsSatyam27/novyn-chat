@@ -904,6 +904,23 @@ class NotificationService {
       await prefs.setBool(
           'do_not_disturb_enabled', settings.doNotDisturbEnabled);
       await prefs.setStringList('favorite_chat_ids', settings.favoriteChatIds);
+      for (final entry in SettingsService.notificationPreferenceStorageKeys.entries) {
+        await prefs.setBool(
+          entry.value,
+          settings.notificationPreference(entry.key),
+        );
+      }
+      await prefs.setString('notification_quiet_hours_start', settings.quietHoursStart);
+      await prefs.setString('notification_quiet_hours_end', settings.quietHoursEnd);
+      await prefs.setInt(
+        'notification_quiet_hours_offset',
+        DateTime.now().timeZoneOffset.inMinutes,
+      );
+      await prefs.setBool('group_notifications', settings.groupNotifications);
+      await prefs.setString(
+        'novyn_notification_account',
+        (_presenceAuth?.user?.username ?? _activeUsername ?? '').trim().toLowerCase(),
+      );
     } catch (_) {
       // The foreground preference store remains the source of truth.
     }
@@ -1023,6 +1040,11 @@ class NotificationService {
 
   static Future<void> showInAppMessage(
       String username, String messageBody, BuildContext context) async {
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.reload();
+    final senderKey = username.trim().toLowerCase();
+    if (!_canDisplayNotification(preferences, 'message') ||
+        preferences.getBool('novyn_mute_$senderKey') == true) return;
     // Keep the host screen context for navigation. The banner's animated
     // builder context is disposed as soon as the overlay entry is removed.
     final navigationContext = context;
@@ -1552,6 +1574,10 @@ class NotificationService {
   static void _handleForegroundMessage(
       RemoteMessage message, BuildContext context) {
     final type = message.data['type'];
+    if (type == 'game_invitation' || type == 'game_turn' || type == 'game_result') {
+      unawaited(showGameNotification(message.data));
+      return;
+    }
     if (type == 'friend_request' ||
         type == 'friend_request_accepted' ||
         type == 'friend_request_declined' ||
@@ -1606,6 +1632,14 @@ class NotificationService {
         return;
       }
       final isVideo = message.data['isVideo']?.toString() == '1';
+      final callPreferenceKey = isIncoming
+          ? (isVideo ? 'notification_video_calls' : 'notification_voice_calls')
+          : 'notification_missed_calls';
+      if (!(_settings?.notificationPreference(
+            isVideo ? 'videoCallsEnabled' : 'voiceCallsEnabled',
+          ) ?? true) && isIncoming) return;
+      if (!(_settings?.notificationPreference('missedCallsEnabled') ?? true) &&
+          !isIncoming) return;
       final incomingTimeoutMs = callExpiresAt == null
           ? 45000
           : callExpiresAt
@@ -1650,9 +1684,9 @@ class NotificationService {
     }
     // Prefer the live socket callback; FCM is a fallback for disconnected
     // sockets or app lifecycle states where the socket callback was missed.
-    if (type == 'message' && message.data['kind'] != 'group') {
-      // A live socket callback handles both resumed banners and inactive-app
-      // system alerts. FCM is only a fallback when the socket is disconnected.
+    if (type == 'message') {
+      // The live socket callback handles foreground alerts while connected;
+      // FCM is the fallback when the socket is disconnected.
       if (_socket?.isConnected == true) return;
       final username = message.data['chat']?.toString().trim() ?? '';
       if (username.isNotEmpty) {
@@ -1662,16 +1696,32 @@ class NotificationService {
           body?.isNotEmpty == true
               ? body!
               : message.notification?.body ?? 'You have a new message',
+          isGroup: message.data['kind'] == 'group',
+          mentionOrReply: message.data['mentionOrReply']?.toString() == '1' ||
+              message.data['mentionOrReply']?.toString().toLowerCase() == 'true',
         ));
       }
     }
   }
 
   static Future<void> _showForegroundMessageNotification(
-      String username, String messageBody) async {
+    String username,
+    String messageBody, {
+    bool isGroup = false,
+    bool mentionOrReply = false,
+  }) async {
     final sender = username.trim();
     final settings = _settings;
     if (sender.isEmpty || settings == null || !settings.notificationsOn) return;
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.reload();
+    if (!_canDisplayNotification(
+      preferences,
+      'message',
+      isGroup: isGroup,
+      mentionOrReply: mentionOrReply,
+    )) return;
+    if (preferences.getBool('novyn_mute_${sender.toLowerCase()}') == true) return;
     if (_archivedChatNotificationIds.contains(sender.toLowerCase())) return;
     if (settings.doNotDisturbEnabled &&
         !settings.favoriteChatIds.contains(sender.toLowerCase())) return;
@@ -1681,8 +1731,21 @@ class NotificationService {
     final body = settings.messagePreview && !settings.hideNotificationContent
         ? (messageBody.trim().isNotEmpty
             ? messageBody.trim()
-            : 'You have a new message')
-        : 'You have a new message';
+            : (isGroup ? 'New group message' : 'You have a new message'))
+        : (isGroup ? 'New group message' : 'You have a new message');
+    final sound = settings.notificationPreference('notificationSoundEnabled');
+    final vibration = settings.notificationPreference('notificationVibrationEnabled');
+    final channelId = _notificationChannelVariant('novyn_messages', sound, vibration);
+    final android = _localNotifications.resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin>();
+    await android?.createNotificationChannel(AndroidNotificationChannel(
+      channelId,
+      isGroup ? 'Group messages' : 'Direct messages',
+      description: 'New messages from your Novyn conversations',
+      importance: Importance.max,
+      playSound: sound,
+      enableVibration: vibration,
+    ));
     final notificationId = DateTime.now().millisecondsSinceEpoch % 2147483647;
     try {
       await _localNotifications.show(
@@ -1691,20 +1754,22 @@ class NotificationService {
         body,
         NotificationDetails(
           android: AndroidNotificationDetails(
-            _messageChannelId,
-            _messageChannelName,
-            channelDescription: 'New direct messages from your Novyn contacts',
+            channelId,
+            isGroup ? 'Group messages' : 'Direct messages',
+            channelDescription: 'New messages from your Novyn conversations',
             importance: Importance.max,
             priority: Priority.high,
             category: AndroidNotificationCategory.message,
+            playSound: sound,
+            enableVibration: vibration,
             icon: '@drawable/novyn_wings_icon',
             onlyAlertOnce: false,
             autoCancel: true,
           ),
-          iOS: const DarwinNotificationDetails(
+          iOS: DarwinNotificationDetails(
             presentAlert: true,
             presentBadge: true,
-            presentSound: true,
+            presentSound: sound,
           ),
         ),
         payload: sender,
