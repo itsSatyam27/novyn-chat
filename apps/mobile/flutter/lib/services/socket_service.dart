@@ -64,10 +64,10 @@ import 'sync_service.dart';
 
 typedef IncomingMessageCallback = void Function(
   String sender,
-  String body, {
-  bool? isGroup,
-  bool? mentionOrReply,
-});
+  String body,
+  bool isGroup,
+  bool mentionOrReply,
+);
 
 class SocketService extends ChangeNotifier {
   SocketService({bool initialStealthModeEnabled = false})
@@ -1036,8 +1036,8 @@ class SocketService extends ChangeNotifier {
         onIncomingMessage?.call(
           chatPartner,
           msg.text,
-          isGroup: isGroupMessage,
-          mentionOrReply: mentionOrReply,
+          isGroupMessage,
+          mentionOrReply,
         );
         // Sound and vibration remain independent user preferences.
         if (!(notificationsMuted?.call(chatPartner) ?? false)) {
