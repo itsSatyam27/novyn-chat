@@ -13,7 +13,7 @@ const _accessibilityChannel = MethodChannel('com.example.novyn/accessibility');
 class AccessibilityScreen extends StatelessWidget {
   const AccessibilityScreen({super.key});
 
-  static const _fontScales = <double>[0.85, 1.0, 1.10, 1.18, 1.25];
+  static const _fontScales = <double>[0.75, 0.85, 1.10, 1.18, 1.25];
   static const _fontLabels = <String>[
     'Small',
     'Default',
@@ -121,10 +121,10 @@ class AccessibilityScreen extends StatelessWidget {
                             ),
                             child: Text(
                               '${(settings.fontSize * 100).round()}%',
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w700,
-                                color: Color(0xFF5E4AE3),
+                                color: Theme.of(context).colorScheme.primary,
                               ),
                             ),
                           ),
@@ -136,10 +136,10 @@ class AccessibilityScreen extends StatelessWidget {
                         child: SliderTheme(
                           data: SliderTheme.of(context).copyWith(
                             trackHeight: 5,
-                            activeTrackColor: const Color(0xFF5E4AE3),
+                            activeTrackColor: Theme.of(context).colorScheme.primary,
                             inactiveTrackColor: isDark ? const Color(0xFF2C2844) : const Color(0xFFECE9FB),
-                            thumbColor: const Color(0xFF5E4AE3),
-                            overlayColor: const Color(0xFF5E4AE3).withValues(alpha: 0.15),
+                            thumbColor: Theme.of(context).colorScheme.primary,
+                            overlayColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.15),
                             thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
                             tickMarkShape: const RoundSliderTickMarkShape(tickMarkRadius: 2.5),
                             activeTickMarkColor: Colors.transparent,
@@ -176,7 +176,7 @@ class AccessibilityScreen extends StatelessWidget {
                                         : TextAlign.center,
                                 style: TextStyle(
                                   color: index == level
-                                      ? const Color(0xFF5E4AE3)
+                                      ? Theme.of(context).colorScheme.primary
                                       : (isDark ? const Color(0xFF8F8BA0) : const Color(0xFF5A5670)),
                                   fontSize: 12,
                                   fontWeight: index == level ? FontWeight.w700 : FontWeight.w500,
@@ -235,11 +235,11 @@ class AccessibilityScreen extends StatelessWidget {
                 _SettingsRow(
                   leading: _iconBox(
                     Icons.open_in_new_rounded,
-                    const Color(0xFF5E4AE3),
+                    Theme.of(context).colorScheme.primary,
                     isDark ? const Color(0xFF28234B) : const Color(0xFFECE9FB),
                   ),
                   title: 'Open Android accessibility settings',
-                  trailing: const Icon(
+                  trailing: Icon(
                     Icons.chevron_right_rounded,
                     color: Color(0xFF8F8BA0),
                     size: 20,
@@ -259,7 +259,7 @@ class AccessibilityScreen extends StatelessWidget {
       padding: const EdgeInsets.only(left: 4, bottom: 9),
       child: Text(
         title.toUpperCase(),
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: 11.5,
           fontWeight: FontWeight.w700,
           letterSpacing: 1.2,
@@ -290,7 +290,7 @@ class AccessibilityScreen extends StatelessWidget {
     return Switch.adaptive(
       value: value,
       activeColor: Colors.white,
-      activeTrackColor: const Color(0xFF5E4AE3),
+      activeTrackColor: Theme.of(context).colorScheme.primary,
       inactiveThumbColor: Colors.white,
       inactiveTrackColor: dark ? const Color(0xFF3B394E) : const Color(0xFFE2E0EC),
       trackOutlineColor: MaterialStateProperty.all(Colors.transparent),
@@ -315,7 +315,7 @@ class AccessibilityScreen extends StatelessWidget {
             ? null
             : [
                 BoxShadow(
-                  color: const Color(0xFF5E4AE3).withValues(alpha: 0.03),
+                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.03),
                   blurRadius: 16,
                   offset: const Offset(0, 4),
                 ),

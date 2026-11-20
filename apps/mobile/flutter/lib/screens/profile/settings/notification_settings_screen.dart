@@ -134,7 +134,7 @@ class NotificationSettingsScreen extends StatelessWidget {
       padding: const EdgeInsets.only(left: 4, bottom: 9),
       child: Text(
         title.toUpperCase(),
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: 11.5,
           fontWeight: FontWeight.w700,
           letterSpacing: 1.2,
@@ -158,7 +158,7 @@ class NotificationSettingsScreen extends StatelessWidget {
             ? null
             : [
                 BoxShadow(
-                  color: const Color(0xFF5E4AE3).withValues(alpha: 0.03),
+                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.03),
                   blurRadius: 16,
                   offset: const Offset(0, 4),
                 ),
@@ -283,7 +283,7 @@ class _NotificationToggleRow extends StatelessWidget {
           Switch.adaptive(
             value: value,
             activeColor: Colors.white,
-            activeTrackColor: const Color(0xFF5E4AE3),
+            activeTrackColor: Theme.of(context).colorScheme.primary,
             inactiveThumbColor: Colors.white,
             inactiveTrackColor: dark ? const Color(0xFF3B394E) : const Color(0xFFE2E0EC),
             trackOutlineColor: MaterialStateProperty.all(Colors.transparent),

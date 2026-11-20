@@ -107,7 +107,7 @@ class SecurityPrivacyScreen extends StatelessWidget {
                         dark ? const Color(0xFF1A3327) : const Color(0xFFE2F7ED),
                       ),
                       title: 'Privacy Controls',
-                      trailing: const Icon(
+                      trailing: Icon(
                         Icons.chevron_right_rounded,
                         color: Color(0xFF8F8BA0),
                         size: 20,
@@ -136,7 +136,7 @@ class SecurityPrivacyScreen extends StatelessWidget {
                         dark ? const Color(0xFF1A3327) : const Color(0xFFE2F7ED),
                       ),
                       title: 'Account Info',
-                      trailing: const Icon(
+                      trailing: Icon(
                         Icons.chevron_right_rounded,
                         color: Color(0xFF8F8BA0),
                         size: 20,
@@ -153,7 +153,7 @@ class SecurityPrivacyScreen extends StatelessWidget {
                         dark ? const Color(0xFF1E293B) : const Color(0xFFDBEAFE),
                       ),
                       title: 'Active Sessions',
-                      trailing: const Icon(
+                      trailing: Icon(
                         Icons.chevron_right_rounded,
                         color: Color(0xFF8F8BA0),
                         size: 20,
@@ -170,7 +170,7 @@ class SecurityPrivacyScreen extends StatelessWidget {
                         dark ? const Color(0xFF28234B) : const Color(0xFFEDE9FE),
                       ),
                       title: 'Two-Factor Authentication',
-                      trailing: const Icon(
+                      trailing: Icon(
                         Icons.chevron_right_rounded,
                         color: Color(0xFF8F8BA0),
                         size: 20,
@@ -214,7 +214,7 @@ class SecurityPrivacyScreen extends StatelessWidget {
                           dark ? const Color(0xFF28234B) : const Color(0xFFEDE9FE),
                         ),
                         title: 'Change PIN',
-                        trailing: const Icon(
+                        trailing: Icon(
                           Icons.chevron_right_rounded,
                           color: Color(0xFF8F8BA0),
                           size: 20,
@@ -249,7 +249,7 @@ class SecurityPrivacyScreen extends StatelessWidget {
                       ),
                       title: 'Delete Account',
                       titleColor: const Color(0xFFD32F2F),
-                      trailing: const Icon(
+                      trailing: Icon(
                         Icons.chevron_right_rounded,
                         color: Color(0xFFD32F2F),
                         size: 20,
@@ -271,7 +271,7 @@ class SecurityPrivacyScreen extends StatelessWidget {
       padding: const EdgeInsets.only(left: 4, bottom: 9),
       child: Text(
         title.toUpperCase(),
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: 11.5,
           fontWeight: FontWeight.w700,
           letterSpacing: 1.2,
@@ -302,7 +302,7 @@ class SecurityPrivacyScreen extends StatelessWidget {
     return Switch.adaptive(
       value: value,
       activeColor: Colors.white,
-      activeTrackColor: const Color(0xFF5E4AE3),
+      activeTrackColor: Theme.of(context).colorScheme.primary,
       inactiveThumbColor: Colors.white,
       inactiveTrackColor: dark ? const Color(0xFF3B394E) : const Color(0xFFE2E0EC),
       trackOutlineColor: MaterialStateProperty.all(Colors.transparent),
@@ -335,17 +335,17 @@ class SecurityPrivacyScreen extends StatelessWidget {
           children: [
             Text(
               text,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 13.5,
                 fontWeight: FontWeight.w600,
-                color: Color(0xFF5E4AE3),
+                color: Theme.of(context).colorScheme.primary,
               ),
             ),
             const SizedBox(width: 4),
-            const Icon(
+            Icon(
               Icons.keyboard_arrow_down_rounded,
               size: 18,
-              color: Color(0xFF5E4AE3),
+              color: Theme.of(context).colorScheme.primary,
             ),
           ],
         ),
@@ -373,7 +373,7 @@ class SecurityPrivacyScreen extends StatelessWidget {
             ? null
             : [
                 BoxShadow(
-                  color: const Color(0xFF5E4AE3).withValues(alpha: 0.03),
+                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.03),
                   blurRadius: 16,
                   offset: const Offset(0, 4),
                 ),
@@ -440,8 +440,8 @@ class SecurityPrivacyScreen extends StatelessWidget {
                   contentPadding: EdgeInsets.zero,
                   title: Text(labels[i]),
                   trailing: settings.appLockTimeout.toString() == options[i]
-                      ? const Icon(Icons.check_circle_rounded, color: Color(0xFF5E4AE3))
-                      : const Icon(Icons.circle_outlined),
+                      ? Icon(Icons.check_circle_rounded, color: Theme.of(context).colorScheme.primary)
+                      : Icon(Icons.circle_outlined),
                   onTap: () {
                     settings.setAppLockTimeout(int.parse(options[i]));
                     Navigator.pop(sheetContext);
@@ -589,7 +589,7 @@ class SecurityPrivacyScreen extends StatelessWidget {
                   ),
                   if (errorText != null) ...[
                     const SizedBox(height: 10),
-                    Text(errorText!, style: const TextStyle(color: Color(0xFFEF4444))),
+                    Text(errorText!, style: TextStyle(color: Color(0xFFEF4444))),
                   ],
                 ],
               ),
@@ -844,7 +844,7 @@ class _PrivacyDashboardState extends State<_PrivacyDashboard> {
     showDialog<void>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        icon: const Icon(Icons.visibility_off_rounded),
+        icon: Icon(Icons.visibility_off_rounded),
         title: const Text('Stealth Mode is on'),
         content: const Text(
           'Turn off Stealth Mode first to change your privacy settings.',
@@ -1149,7 +1149,7 @@ class _PrivacyDashboardState extends State<_PrivacyDashboard> {
                 dark ? const Color(0xFF381F2E) : const Color(0xFFFDE8F1),
               ),
               title: 'Blocked contacts',
-              trailing: const Icon(
+              trailing: Icon(
                 Icons.chevron_right_rounded,
                 color: Color(0xFF8F8BA0),
                 size: 20,
@@ -1235,14 +1235,14 @@ class _PrivacyDashboardState extends State<_PrivacyDashboard> {
                       borderRadius: BorderRadius.circular(14),
                     ),
                     tileColor: option == current
-                        ? const Color(0xFF5E4AE3).withValues(alpha: .09)
+                        ? Theme.of(context).colorScheme.primary.withValues(alpha: .09)
                         : colors.surfaceContainerHighest.withValues(alpha: .35),
                     leading: Icon(
                       option == current
                           ? Icons.radio_button_checked_rounded
                           : Icons.radio_button_off_rounded,
                       color: option == current
-                          ? const Color(0xFF5E4AE3)
+                          ? Theme.of(context).colorScheme.primary
                           : colors.onSurfaceVariant,
                     ),
                     title: Text(
@@ -1250,12 +1250,12 @@ class _PrivacyDashboardState extends State<_PrivacyDashboard> {
                       style: TextStyle(
                         fontWeight: FontWeight.w700,
                         color: option == current
-                            ? const Color(0xFF5E4AE3)
+                            ? Theme.of(context).colorScheme.primary
                             : colors.onSurface,
                       ),
                     ),
                     trailing: option == current
-                        ? const Icon(Icons.check_rounded, color: Color(0xFF5E4AE3))
+                        ? Icon(Icons.check_rounded, color: Theme.of(context).colorScheme.primary)
                         : null,
                     onTap: () => Navigator.pop(sheetContext, option),
                   ),

@@ -123,7 +123,7 @@ class LanguageRegionScreen extends StatelessWidget {
       padding: const EdgeInsets.only(left: 4, bottom: 9),
       child: Text(
         title.toUpperCase(),
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: 11.5,
           fontWeight: FontWeight.w700,
           letterSpacing: 1.2,
@@ -151,14 +151,14 @@ class LanguageRegionScreen extends StatelessWidget {
       children: [
         Text(
           value,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 13.5,
             fontWeight: FontWeight.w600,
-            color: Color(0xFF5E4AE3),
+            color: Theme.of(context).colorScheme.primary,
           ),
         ),
         const SizedBox(width: 4),
-        const Icon(
+        Icon(
           Icons.chevron_right_rounded,
           color: Color(0xFF8F8BA0),
           size: 20,
@@ -176,8 +176,8 @@ class LanguageRegionScreen extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: const TextStyle(
-          color: Color(0xFF5E4AE3),
+        style: TextStyle(
+          color: Theme.of(context).colorScheme.primary,
           fontWeight: FontWeight.w700,
           fontSize: 13,
         ),
@@ -199,7 +199,7 @@ class LanguageRegionScreen extends StatelessWidget {
             ? null
             : [
                 BoxShadow(
-                  color: const Color(0xFF5E4AE3).withValues(alpha: 0.03),
+                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.03),
                   blurRadius: 16,
                   offset: const Offset(0, 4),
                 ),
@@ -264,7 +264,7 @@ class LanguageRegionScreen extends StatelessWidget {
                 value: '12h',
                 groupValue: settings.timeFormat,
                 title: const Text('12-hour (e.g. 6:43 PM)'),
-                activeColor: const Color(0xFF5E4AE3),
+                activeColor: Theme.of(context).colorScheme.primary,
                 onChanged: (val) {
                   if (val != null) settings.setTimeFormat(val);
                   Navigator.pop(sheetContext);
@@ -275,7 +275,7 @@ class LanguageRegionScreen extends StatelessWidget {
                 value: '24h',
                 groupValue: settings.timeFormat,
                 title: const Text('24-hour (e.g. 18:43)'),
-                activeColor: const Color(0xFF5E4AE3),
+                activeColor: Theme.of(context).colorScheme.primary,
                 onChanged: (val) {
                   if (val != null) settings.setTimeFormat(val);
                   Navigator.pop(sheetContext);
@@ -313,12 +313,12 @@ class LanguageRegionScreen extends StatelessWidget {
                   style: TextStyle(
                     fontWeight: selected ? FontWeight.w800 : FontWeight.w500,
                     color: selected
-                        ? const Color(0xFF5E4AE3)
+                        ? Theme.of(context).colorScheme.primary
                         : Theme.of(context).colorScheme.onSurface,
                   ),
                 ),
                 trailing: selected
-                    ? const Icon(Icons.check_circle_rounded, color: Color(0xFF5E4AE3))
+                    ? Icon(Icons.check_circle_rounded, color: Theme.of(context).colorScheme.primary)
                     : null,
                 onTap: () {
                   HapticService.vibrate(NovynHapticType.selection);
@@ -375,11 +375,11 @@ class LanguageRegionScreen extends StatelessWidget {
                     style: TextStyle(
                       fontFamily: 'PlusJakartaSans',
                       fontWeight: isSelected ? FontWeight.w900 : FontWeight.w600,
-                      color: isSelected ? const Color(0xFF5E4AE3) : null,
+                      color: isSelected ? Theme.of(context).colorScheme.primary : null,
                     ),
                   ),
                   trailing: isSelected
-                      ? const Icon(Icons.check_circle_rounded, color: Color(0xFF5E4AE3))
+                      ? Icon(Icons.check_circle_rounded, color: Theme.of(context).colorScheme.primary)
                       : null,
                   onTap: () {
                     HapticService.vibrate(NovynHapticType.medium);
@@ -431,7 +431,7 @@ class LanguageRegionScreen extends StatelessWidget {
       context: context,
       builder: (dialogContext) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
+        title: Text(title, style: TextStyle(fontWeight: FontWeight.w800)),
         content: Text(message),
         actions: [
           TextButton(

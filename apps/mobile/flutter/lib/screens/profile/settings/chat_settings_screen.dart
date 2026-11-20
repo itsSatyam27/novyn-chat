@@ -141,14 +141,14 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
                               children: [
                                 Text(
                                   novynCustomEmojis[emoji] ?? '',
-                                  style: const TextStyle(fontSize: 26),
+                                  style: TextStyle(fontSize: 26),
                                 ),
                                 if (active)
                                   Positioned(
                                     right: 4,
                                     top: 4,
                                     child: Container(
-                                      decoration: const BoxDecoration(
+                                      decoration: BoxDecoration(
                                         color: Colors.white,
                                         shape: BoxShape.circle,
                                       ),
@@ -172,7 +172,7 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
                     height: 48,
                     child: FilledButton(
                       style: FilledButton.styleFrom(
-                        backgroundColor: const Color(0xFF5E4AE3),
+                        backgroundColor: Theme.of(context).colorScheme.primary,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(16),
                         ),
@@ -185,7 +185,7 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
                             },
                       child: Text(
                         'Save ${selected.length}/$maxQuickReactionEmojiCount emojis',
-                        style: const TextStyle(fontWeight: FontWeight.w700),
+                        style: TextStyle(fontWeight: FontWeight.w700),
                       ),
                     ),
                   ),
@@ -292,15 +292,15 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
                         ),
                         child: Text(
                           '${_quickReactionEmojis.length}/$maxQuickReactionEmojiCount',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 12.5,
                             fontWeight: FontWeight.w700,
-                            color: Color(0xFF5E4AE3),
+                            color: Theme.of(context).colorScheme.primary,
                           ),
                         ),
                       ),
                       const SizedBox(width: 6),
-                      const Icon(
+                      Icon(
                         Icons.chevron_right_rounded,
                         color: Color(0xFF8F8BA0),
                         size: 20,
@@ -369,7 +369,7 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
                     isDark ? const Color(0xFF28234B) : const Color(0xFFEDE9FE),
                   ),
                   title: 'Back up chats',
-                  trailing: const Icon(
+                  trailing: Icon(
                     Icons.chevron_right_rounded,
                     color: Color(0xFF8F8BA0),
                     size: 20,
@@ -383,7 +383,7 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
                     isDark ? const Color(0xFF1A3327) : const Color(0xFFE8F8F0),
                   ),
                   title: 'Restore chats',
-                  trailing: const Icon(
+                  trailing: Icon(
                     Icons.chevron_right_rounded,
                     color: Color(0xFF8F8BA0),
                     size: 20,
@@ -397,7 +397,7 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
                     isDark ? const Color(0xFF1E293B) : const Color(0xFFDBEAFE),
                   ),
                   title: 'Back up to Google Drive',
-                  trailing: const Icon(
+                  trailing: Icon(
                     Icons.chevron_right_rounded,
                     color: Color(0xFF8F8BA0),
                     size: 20,
@@ -411,7 +411,7 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
                     isDark ? const Color(0xFF291E3B) : const Color(0xFFF3E8FF),
                   ),
                   title: 'Restore from Google Drive',
-                  trailing: const Icon(
+                  trailing: Icon(
                     Icons.chevron_right_rounded,
                     color: Color(0xFF8F8BA0),
                     size: 20,
@@ -434,7 +434,7 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
                     isDark ? const Color(0xFF1A3327) : const Color(0xFFE8F8F0),
                   ),
                   title: 'Back up encryption key',
-                  trailing: const Icon(
+                  trailing: Icon(
                     Icons.chevron_right_rounded,
                     color: Color(0xFF8F8BA0),
                     size: 20,
@@ -448,7 +448,7 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
                     isDark ? const Color(0xFF382A1B) : const Color(0xFFFEF3C7),
                   ),
                   title: 'Restore encryption key',
-                  trailing: const Icon(
+                  trailing: Icon(
                     Icons.chevron_right_rounded,
                     color: Color(0xFF8F8BA0),
                     size: 20,
@@ -474,7 +474,7 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
                       height: 24,
                       child: CircularProgressIndicator(
                         strokeWidth: 2.5,
-                        valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF5E4AE3)),
+                        valueColor: AlwaysStoppedAnimation<Color>(Theme.of(context).colorScheme.primary),
                       ),
                     ),
                     SizedBox(width: 16),
@@ -527,7 +527,7 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
       padding: const EdgeInsets.only(left: 4, bottom: 9),
       child: Text(
         title.toUpperCase(),
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: 11.5,
           fontWeight: FontWeight.w700,
           letterSpacing: 1.2,
@@ -558,7 +558,7 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
     return Switch.adaptive(
       value: value,
       activeColor: Colors.white,
-      activeTrackColor: const Color(0xFF5E4AE3),
+      activeTrackColor: Theme.of(context).colorScheme.primary,
       inactiveThumbColor: Colors.white,
       inactiveTrackColor: dark ? const Color(0xFF3B394E) : const Color(0xFFE2E0EC),
       trackOutlineColor: MaterialStateProperty.all(Colors.transparent),
@@ -583,7 +583,7 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
             ? null
             : [
                 BoxShadow(
-                  color: const Color(0xFF5E4AE3).withValues(alpha: 0.03),
+                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.03),
                   blurRadius: 16,
                   offset: const Offset(0, 4),
                 ),
@@ -745,12 +745,12 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
           title: Text(restore
               ? 'Restore encryption identity'
               : 'Protect encryption identity',
-              style: const TextStyle(fontWeight: FontWeight.w800)),
+              style: TextStyle(fontWeight: FontWeight.w800)),
           content: Column(mainAxisSize: MainAxisSize.min, children: [
             Text(restore
                 ? 'Enter the recovery password you used when backing up this account’s E2EE identity.'
                 : 'Create a recovery password with at least 12 characters. You will need this same password after reinstalling or changing phones.',
-                style: const TextStyle(fontSize: 13, height: 1.4)),
+                style: TextStyle(fontSize: 13, height: 1.4)),
             const SizedBox(height: 16),
             TextField(
               controller: controller,
@@ -786,7 +786,7 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
             ),
             FilledButton(
               style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFF5E4AE3),
+                backgroundColor: Theme.of(context).colorScheme.primary,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
               onPressed: () {
@@ -824,12 +824,12 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
         builder: (dialogContext, setDialogState) => AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
           title: Text(restore ? 'Restore chat backup' : 'Protect your backup',
-              style: const TextStyle(fontWeight: FontWeight.w800)),
+              style: TextStyle(fontWeight: FontWeight.w800)),
           content: Column(mainAxisSize: MainAxisSize.min, children: [
             Text(restore
                 ? 'Enter the password used when this backup was created.'
                 : 'Choose a password with at least 8 characters. You will need it to restore this backup.',
-                style: const TextStyle(fontSize: 13, height: 1.4)),
+                style: TextStyle(fontSize: 13, height: 1.4)),
             const SizedBox(height: 16),
             TextField(
               controller: controller,
@@ -865,7 +865,7 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
             ),
             FilledButton(
               style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFF5E4AE3),
+                backgroundColor: Theme.of(context).colorScheme.primary,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
               onPressed: () {
@@ -1067,10 +1067,10 @@ class _ChatTypographySliderRow extends StatelessWidget {
                 ),
                 child: Text(
                   percent,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
-                    color: Color(0xFF5E4AE3),
+                    color: Theme.of(context).colorScheme.primary,
                   ),
                 ),
               ),
@@ -1092,10 +1092,10 @@ class _ChatTypographySliderRow extends StatelessWidget {
                 child: SliderTheme(
                   data: SliderTheme.of(context).copyWith(
                     trackHeight: 5,
-                    activeTrackColor: const Color(0xFF5E4AE3),
+                    activeTrackColor: Theme.of(context).colorScheme.primary,
                     inactiveTrackColor: isDark ? const Color(0xFF2C2844) : const Color(0xFFECE9FB),
-                    thumbColor: const Color(0xFF5E4AE3),
-                    overlayColor: const Color(0xFF5E4AE3).withValues(alpha: 0.15),
+                    thumbColor: Theme.of(context).colorScheme.primary,
+                    overlayColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.15),
                     thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
                   ),
                   child: Slider(

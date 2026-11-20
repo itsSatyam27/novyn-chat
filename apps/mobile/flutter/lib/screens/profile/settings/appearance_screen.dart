@@ -108,14 +108,14 @@ class AppearanceScreen extends StatelessWidget {
                 _SettingsRow(
                   leading: _iconBox(
                     Icons.palette_outlined,
-                    const Color(0xFF5E4AE3),
+                    Theme.of(context).colorScheme.primary,
                     isDark ? const Color(0xFF28234B) : const Color(0xFFECE9FB),
                   ),
                   title: 'Apply selected accent',
                   trailing: Switch.adaptive(
                     value: settings.accentColorEnabled,
                     activeColor: Colors.white,
-                    activeTrackColor: const Color(0xFF5E4AE3),
+                    activeTrackColor: Theme.of(context).colorScheme.primary,
                     inactiveThumbColor: Colors.white,
                     inactiveTrackColor: isDark ? const Color(0xFF3B394E) : const Color(0xFFE2E0EC),
                     trackOutlineColor: MaterialStateProperty.all(Colors.transparent),
@@ -173,7 +173,7 @@ class AppearanceScreen extends StatelessWidget {
                 _SettingsRow(
                   leading: _iconBox(
                     Icons.widgets_rounded,
-                    const Color(0xFF5E4AE3),
+                    Theme.of(context).colorScheme.primary,
                     isDark ? const Color(0xFF28234B) : const Color(0xFFECE9FB),
                   ),
                   title: 'Quick toggles',
@@ -188,7 +188,7 @@ class AppearanceScreen extends StatelessWidget {
                 _SettingsRow(
                   leading: _iconBox(
                     Icons.dock_rounded,
-                    const Color(0xFF5E4AE3),
+                    Theme.of(context).colorScheme.primary,
                     isDark ? const Color(0xFF28234B) : const Color(0xFFECE9FB),
                   ),
                   title: 'Dock style',
@@ -201,7 +201,7 @@ class AppearanceScreen extends StatelessWidget {
                 _SettingsRow(
                   leading: _iconBox(
                     Icons.notifications_none_rounded,
-                    const Color(0xFF5E4AE3),
+                    Theme.of(context).colorScheme.primary,
                     isDark ? const Color(0xFF28234B) : const Color(0xFFECE9FB),
                   ),
                   title: 'Alert style',
@@ -214,7 +214,7 @@ class AppearanceScreen extends StatelessWidget {
                 _SettingsRow(
                   leading: _iconBox(
                     Icons.phone_outlined,
-                    const Color(0xFF5E4AE3),
+                    Theme.of(context).colorScheme.primary,
                     isDark ? const Color(0xFF28234B) : const Color(0xFFECE9FB),
                   ),
                   title: 'Minimized call',
@@ -234,7 +234,7 @@ class AppearanceScreen extends StatelessWidget {
       padding: const EdgeInsets.only(left: 4, bottom: 9),
       child: Text(
         title.toUpperCase(),
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: 11.5,
           fontWeight: FontWeight.w700,
           letterSpacing: 1.2,
@@ -262,14 +262,14 @@ class AppearanceScreen extends StatelessWidget {
       children: [
         Text(
           value,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 13.5,
             fontWeight: FontWeight.w600,
-            color: Color(0xFF5E4AE3),
+            color: Theme.of(context).colorScheme.primary,
           ),
         ),
         const SizedBox(width: 4),
-        const Icon(
+        Icon(
           Icons.chevron_right_rounded,
           color: Color(0xFF8F8BA0),
           size: 20,
@@ -292,7 +292,7 @@ class AppearanceScreen extends StatelessWidget {
             ? null
             : [
                 BoxShadow(
-                  color: const Color(0xFF5E4AE3).withValues(alpha: 0.03),
+                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.03),
                   blurRadius: 16,
                   offset: const Offset(0, 4),
                 ),
@@ -353,8 +353,8 @@ class AppearanceScreen extends StatelessWidget {
                     ),
                   ),
                   trailing: settings.callMiniStyle == style.$1
-                      ? const Icon(Icons.check_circle_rounded, color: Color(0xFF5E4AE3))
-                      : const Icon(Icons.circle_outlined),
+                      ? Icon(Icons.check_circle_rounded, color: Theme.of(context).colorScheme.primary)
+                      : Icon(Icons.circle_outlined),
                   onTap: () {
                     settings.setCallMiniStyle(style.$1);
                     Navigator.pop(sheetContext);
@@ -506,7 +506,7 @@ class _ThemeChoiceCard extends StatelessWidget {
             borderRadius: BorderRadius.circular(18),
             border: Border.all(
               color: selected
-                  ? const Color(0xFF5E4AE3)
+                  ? Theme.of(context).colorScheme.primary
                   : (isDark ? const Color(0xFF2C2844) : const Color(0xFFEDE9F6)),
               width: selected ? 2 : 1,
             ),
@@ -599,7 +599,7 @@ class _ThemeChoiceCard extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   if (selected) ...[
-                    const Icon(
+                    Icon(
                       Icons.check_rounded,
                       size: 15,
                       color: Color(0xFF1A1730),
@@ -673,9 +673,9 @@ class _AccentItem extends StatelessWidget {
               ),
               child: Center(
                 child: selected
-                    ? const Icon(Icons.check_rounded, color: Colors.white, size: 20)
+                    ? Icon(Icons.check_rounded, color: Colors.white, size: 20)
                     : (custom
-                        ? const Icon(Icons.edit_outlined, color: Colors.white, size: 18)
+                        ? Icon(Icons.edit_outlined, color: Colors.white, size: 18)
                         : null),
               ),
             ),
@@ -798,7 +798,7 @@ class _PickerSlider extends StatelessWidget {
             min: 0,
             max: max,
             onChanged: onChanged,
-            activeColor: const Color(0xFF5E4AE3),
+            activeColor: Theme.of(context).colorScheme.primary,
           ),
         ],
       );

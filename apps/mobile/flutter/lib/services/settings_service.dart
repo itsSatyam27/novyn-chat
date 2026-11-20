@@ -187,7 +187,7 @@ class SettingsService extends ChangeNotifier {
   String _photoQuality = 'high'; // 'high', 'medium', 'low'
   String _language = 'en'; // Language code
   String _timeFormat = '12h'; // '12h' or '24h'
-  double _fontSize = 0.85; // Small is the default message body font scale
+  double _fontSize = 0.85; // Default accessibility scale (85%)
   double _chatLabelSize = 1.0;
   int _accentColorValue = 0xFF6D5DFC;
   bool _accentColorEnabled = true;
@@ -561,7 +561,7 @@ class SettingsService extends ChangeNotifier {
     _language = _prefs.getString(_kLanguage) ?? 'en';
     final savedTimeFormat = _prefs.getString(_kTimeFormat) ?? '12h';
     _timeFormat = savedTimeFormat == '24h' ? '24h' : '12h';
-    _fontSize = (_prefs.getDouble(_kFontSize) ?? 0.85).clamp(0.85, 1.25).toDouble();
+    _fontSize = (_prefs.getDouble(_kFontSize) ?? 0.85).clamp(0.75, 1.25).toDouble();
     _chatLabelSize = (_prefs.getDouble(_kChatLabelSize) ?? 1.0).clamp(0.8, 1.4).toDouble();
     _accentColorValue = _prefs.getInt(_kAccentColor) ?? 0xFF6D5DFC;
     _accentColorEnabled = _prefs.getBool(_kAccentColorEnabled) ?? true;
@@ -1356,7 +1356,7 @@ class SettingsService extends ChangeNotifier {
     _photoQuality = stringValue('photoQuality', _photoQuality);
     _language = stringValue('language', _language);
     _timeFormat = stringValue('timeFormat', _timeFormat) == '24h' ? '24h' : '12h';
-    _fontSize = doubleValue('fontSize', _fontSize, 0.85, 1.25);
+    _fontSize = doubleValue('fontSize', _fontSize, 0.75, 1.25);
     _chatLabelSize = doubleValue('chatLabelSize', _chatLabelSize, 0.8, 1.4);
     final accent = values['accentColorValue'];
     if (accent is num && accent.toInt() >= 0 && accent.toInt() <= 0xFFFFFFFF) {
@@ -1474,7 +1474,7 @@ class SettingsService extends ChangeNotifier {
     _autoDownloadMobile = 'photos';
     _photoQuality = 'high';
     _language = 'en';
-    _fontSize = 1.0;
+    _fontSize = 0.85;
     _chatLabelSize = 1.0;
     _accentColorValue = 0xFF6D5DFC;
     _accentColorEnabled = true;
