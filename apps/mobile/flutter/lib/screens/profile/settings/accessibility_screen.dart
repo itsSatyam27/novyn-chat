@@ -305,12 +305,13 @@ class AccessibilityScreen extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final cardBg = isDark ? const Color(0xFF1E1C2E) : Colors.white;
     final border = Theme.of(context).colorScheme.outlineVariant;
+    final highContrast = context.watch<SettingsService>().highContrast;
 
     return Container(
       decoration: BoxDecoration(
         color: cardBg,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: border),
+        border: Border.all(color: border, width: highContrast ? 2 : 1),
         boxShadow: isDark
             ? null
             : [
