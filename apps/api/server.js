@@ -8033,6 +8033,15 @@ io.on("connection", (socket) => {
     }
 
     target.requests.add(userKey);
+    void sendPushToUser(targetKey, {
+      type: "friend_request",
+      title: "New friend request",
+      body: (me.displayName || me.username) + " sent you a friend request",
+      chat: me.username,
+      from: me.username,
+      eventId: "friend-request:" + userKey + ":" + Date.now(),
+      tag: "friend-request-" + userKey,
+    });
     reply({ ok: true, username: target.username });
     socket.emit("friend_request_sent", { to: target.username });
     emitRequests(targetKey);
@@ -8119,6 +8128,15 @@ io.on("connection", (socket) => {
     me.friends.add(friendKey);
     friend.friends.add(userKey);
     initializeUnreadPair(userKey, friendKey);
+    void sendPushToUser(friendKey, {
+      type: "friend_request_accepted",
+      title: "Request accepted",
+      body: (me.displayName || me.username) + " accepted your friend request",
+      chat: me.username,
+      from: me.username,
+      eventId: "friend-request-accepted:" + userKey + ":" + Date.now(),
+      tag: "friend-request-accepted-" + userKey,
+    });
 
     emitRequests(userKey);
     emitFriendList(userKey);
@@ -9731,6 +9749,19 @@ io.on("connection", (socket) => {
       setUnreadCount(member, group.id, 0);
       emitFriendList(memberKey);
       emitGroupInfoToMember(memberKey, group);
+      if (memberKey !== userKey) {
+        void sendPushToUser(memberKey, {
+          type: "group_invite",
+          title: "Group invitation",
+          body: (me.displayName || me.username) + " added you to " + group.name,
+          chat: group.id,
+          group: true,
+          groupId: group.id,
+          from: me.username,
+          eventId: "group-invite:" + group.id + ":" + memberKey,
+          tag: "group-invite-" + group.id,
+        });
+      }
       const memberSocket = onlineUsers.get(memberKey);
       if (memberSocket) {
         io.to(memberSocket).emit("group_created", {
@@ -9786,6 +9817,17 @@ io.on("connection", (socket) => {
       member.groups.add(group.id);
       setUnreadCount(member, group.id, 0);
       added.push(member.username || memberKey);
+      void sendPushToUser(memberKey, {
+        type: "group_invite",
+        title: "Group invitation",
+        body: (me.displayName || me.username) + " added you to " + group.name,
+        chat: group.id,
+        group: true,
+        groupId: group.id,
+        from: me.username,
+        eventId: "group-invite:" + group.id + ":" + memberKey,
+        tag: "group-invite-" + group.id,
+      });
     }
 
     if (!added.length) {
