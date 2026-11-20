@@ -3980,6 +3980,8 @@ function deliverFriendMessage(params = {}) {
       title: params.game ? `Game invitation from ${me.username}` : `New message from ${me.username}`,
       body: params.game ? ` ${me.username} challenged you to ${params.game.title || "a game"}.`.trim() : bodyText,
       eventId: params.game ? `game-invite:${params.game.id || message.id}` : message.id,
+      isReply: Boolean(params.replyTo),
+      tag: params.game ? `game-invite-${params.game.id || message.id}` : `msg-${fromKey}`,
       ...(params.isEncrypted === true ? {
         ciphertext: params.ciphertext,
         iv: params.iv,
@@ -4088,6 +4090,9 @@ function deliverGroupMessage(params = {}) {
         title: params.game ? `Game invitation in ${group.name}` : `New message in ${group.name}`,
         body: params.game ? `${me.username} started ${params.game.title || "a game"}.` : `${me.username}: ${bodyText}`,
         eventId: params.game ? `game-invite:${params.game.id || message.id}:${memberKey}` : message.id,
+        isReply: Boolean(params.replyTo),
+        isMention: Boolean(users.get(memberKey)?.username && String(text || "").toLowerCase().includes(`@${users.get(memberKey).username.toLowerCase()}`)),
+        tag: params.game ? `game-invite-${params.game.id || message.id}-${memberKey}` : `grp-${group.id}`,
         tag: `grp-${group.id}`,
         groupId: group.id,
         url: `/?source=push&chat=${encodeURIComponent(group.id)}&kind=group`,
