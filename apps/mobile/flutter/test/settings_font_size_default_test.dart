@@ -38,6 +38,35 @@ void main() {
     });
   });
 
+
+  group('Chat message text size', () {
+    test('defaults independently of global accessibility scaling', () async {
+      SharedPreferences.setMockInitialValues({'font_size': 0.85});
+      final settings = SettingsService();
+
+      await settings.load();
+
+      expect(settings.fontSize, 0.85);
+      expect(settings.messageTextSize, 1.0);
+    });
+
+    test('persists chat message size without changing app-wide font size', () async {
+      SharedPreferences.setMockInitialValues({'font_size': 0.85});
+      final settings = SettingsService();
+
+      await settings.load();
+      await settings.setMessageTextSize(1.2);
+
+      expect(settings.messageTextSize, 1.2);
+      expect(settings.fontSize, 0.85);
+
+      final restored = SettingsService();
+      await restored.load();
+      expect(restored.messageTextSize, 1.2);
+      expect(restored.fontSize, 0.85);
+    });
+  });
+
   group('High contrast theme', () {
     test('uses stronger semantic outlines and input borders', () {
       final theme = NovynTheme.lightTheme(
