@@ -1468,8 +1468,15 @@ class SettingsService extends ChangeNotifier {
 
   Future<void> clearAll() async {
     await _prefs.clear();
-    await _deleteSecureValue(_secureAppLockPin);
-    await _deleteSecureValue(_securePanicPin);
+    await Future.wait([
+      _deleteSecureValue(_secureAppLockPin),
+      _deleteSecureValue(_securePanicPin),
+      _deleteSecureValue(_secureAppLockFailures),
+      _deleteSecureValue(_secureAppLockUntil),
+    ]);
+
+    // Reset every in-memory preference as well as persisted values. This is
+    // important when the same SettingsService instance is reused after logout.
     _notificationsOn = true;
     _messagePreview = true;
     _chatLinkPreviews = true;
@@ -1479,8 +1486,7 @@ class SettingsService extends ChangeNotifier {
     _displayName = '';
     _bio = '';
     _savedSessions = [];
-    
-    // Reset new settings
+
     _inAppSounds = true;
     _chatEnterToSend = true;
     _inAppVibration = true;
@@ -1488,7 +1494,8 @@ class SettingsService extends ChangeNotifier {
     _autoDownloadWifi = 'all';
     _autoDownloadMobile = 'photos';
     _photoQuality = 'high';
-    _language = 'en';
+    _language = _detectDeviceLanguage();
+    _timeFormat = '12h';
     _fontSize = 0.85;
     _chatLabelSize = 1.0;
     _accentColorValue = 0xFF6D5DFC;
@@ -1500,12 +1507,40 @@ class SettingsService extends ChangeNotifier {
     _lastSeenVisibility = 'everyone';
     _profilePhotoVisibility = 'everyone';
     _blockedUids = [];
+    _favoriteChatIds = [];
     _notificationTone = 'Aurora';
+    _callRingtone = 'Binary';
+    _customNotificationPath = null;
+    _customRingtonePath = null;
     _vibrationPattern = 'standard';
     _hapticIntensity = 0.8;
+    _hapticNavigation = true;
+    _hapticTyping = true;
+    _hapticChat = true;
+    _hapticButtons = true;
+    _hapticNotifications = true;
+    _hapticCalls = true;
+    _messageVolume = 0.8;
+    _callVolume = 0.85;
     _appLockEnabled = false;
     _appLockTimeout = 0;
-    
+    _appLockPin = null;
+    _isLocked = false;
+    _appLockFailedAttempts = 0;
+    _appLockLockedUntil = null;
+    _region = _detectDeviceRegion();
+    _stealthModeEnabled = false;
+    _panicPin = null;
+    _hideNotificationContent = false;
+    _decoyMode = false;
+    _stealthIconEnabled = false;
+    _highContrast = false;
+    _reduceMotion = false;
+    _busyPreviousPresenceMode = null;
+    _doNotDisturbEnabled = false;
+    _smartPresenceOverrides = {};
+    _activeSmartPresenceMode = 'online';
+
     notifyListeners();
   }
   @override
