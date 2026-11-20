@@ -333,7 +333,7 @@ class _SoundVibrationScreenState extends State<SoundVibrationScreen> {
                     isDark ? const Color(0xFF382A1B) : const Color(0xFFFEF3E2),
                   ),
                   title: 'Vibration rhythm',
-                  trailing: _trailingValueWithChevron(_rhythmLabel(settings.vibrationPattern)),
+                  trailing: _trailingValueWithChevron(context, _rhythmLabel(settings.vibrationPattern)),
                   onTap: () => _chooseRhythm(settings),
                 ),
                 _SettingsRow(
@@ -436,7 +436,7 @@ class _SoundVibrationScreenState extends State<SoundVibrationScreen> {
                               color: isDark ? const Color(0xFF2C2844) : const Color(0xFFECE9FB),
                               borderRadius: BorderRadius.circular(14),
                             ),
-                            child: const Row(
+                            child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 Icon(
@@ -518,7 +518,7 @@ class _SoundVibrationScreenState extends State<SoundVibrationScreen> {
     );
   }
 
-  static Widget _trailingValueWithChevron(String value) {
+  static Widget _trailingValueWithChevron(BuildContext context, String value) {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
