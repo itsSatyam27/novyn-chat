@@ -2814,6 +2814,7 @@ async function sendPushToUser(userKey, payload) {
           safePayload.type === "message" && safePayload.group !== true;
         const data = {
           type: toDisplayName(safePayload.type) || "message",
+          recipient: toDisplayName(user.username) || userKey,
           eventId: toDisplayName(safePayload.eventId || safePayload.messageId),
           url: toDisplayName(safePayload.url),
           tag: toDisplayName(safePayload.tag),
