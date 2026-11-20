@@ -547,7 +547,13 @@ class SettingsService extends ChangeNotifier {
     _chatLinkPreviews = _prefs.getBool(_kChatLinkPreviews) ?? true;
     _readReceipts = _prefs.getBool(_kReadReceipts) ?? true;
     _onlineStatus = _prefs.getBool(_kOnlineStatus) ?? true;
-    _themeMode = ThemeMode.values[_prefs.getInt(_kThemeMode) ?? ThemeMode.light.index];
+    final savedThemeIndex = _prefs.getInt(_kThemeMode) ?? ThemeMode.light.index;
+    _themeMode = savedThemeIndex >= 0 && savedThemeIndex < ThemeMode.values.length
+        ? ThemeMode.values[savedThemeIndex]
+        : ThemeMode.light;
+    if (savedThemeIndex != _themeMode.index) {
+      await _prefs.setInt(_kThemeMode, _themeMode.index);
+    }
     _displayName = _prefs.getString(_kDisplayName) ?? '';
     _bio = _prefs.getString(_kBio) ?? '';
     
@@ -1482,7 +1488,7 @@ class SettingsService extends ChangeNotifier {
     _chatLinkPreviews = true;
     _readReceipts = true;
     _onlineStatus = true;
-    _themeMode = ThemeMode.system;
+    _themeMode = ThemeMode.light;
     _displayName = '';
     _bio = '';
     _savedSessions = [];
