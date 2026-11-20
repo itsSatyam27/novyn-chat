@@ -15,6 +15,7 @@ import 'message_encryption_service.dart';
 import '../utils/message_pagination.dart';
 import 'security_service.dart';
 import 'sync_service.dart';
+import 'settings_service.dart';
 
 /// Socket service for the shared novyn-chat backend (server.js).
 ///
@@ -2736,12 +2737,7 @@ class SocketService extends ChangeNotifier {
 
   Future<void> _playIncomingMessageSound() async {
     final tone = notificationTone?.call() ?? 'Drift';
-    final asset = switch (tone) {
-      'Pulse' => 'audio/message_sent.mp3',
-      'Glass' => 'audio/ringtone.mp3',
-      'Echo' => 'audio/call_ring.mp3',
-      _ => 'audio/notification.mp3',
-    };
+    final asset = SettingsService.messageToneAsset(tone);
     final volume =
         (messageSoundVolume?.call() ?? 0.8).clamp(0.0, 1.0).toDouble();
     try {
