@@ -3056,7 +3056,10 @@ function applyLoadedState(parsed) {
     user.messagePreviewEnabled = entry.messagePreviewEnabled !== false;
     user.groupNotificationsEnabled = entry.groupNotificationsEnabled !== false;
     user.directMessagesEnabled = entry.directMessagesEnabled !== false;
-    user.groupMessagesEnabled = entry.groupMessagesEnabled !== false;
+    // Migrate users who only had the legacy groupNotificationsEnabled field.
+    user.groupMessagesEnabled = typeof entry.groupMessagesEnabled === "boolean"
+      ? entry.groupMessagesEnabled
+      : user.groupNotificationsEnabled;
     user.mentionsRepliesEnabled = entry.mentionsRepliesEnabled !== false;
     user.friendRequestsEnabled = entry.friendRequestsEnabled !== false;
     user.friendRequestAcceptedEnabled = entry.friendRequestAcceptedEnabled !== false;
@@ -3266,7 +3269,9 @@ function toSerializedUserEntry(doc) {
     messagePreviewEnabled: doc?.messagePreviewEnabled !== false,
     groupNotificationsEnabled: doc?.groupNotificationsEnabled !== false,
     directMessagesEnabled: doc?.directMessagesEnabled !== false,
-    groupMessagesEnabled: doc?.groupMessagesEnabled !== false,
+    groupMessagesEnabled: typeof doc?.groupMessagesEnabled === "boolean"
+      ? doc.groupMessagesEnabled
+      : doc?.groupNotificationsEnabled !== false,
     mentionsRepliesEnabled: doc?.mentionsRepliesEnabled !== false,
     friendRequestsEnabled: doc?.friendRequestsEnabled !== false,
     friendRequestAcceptedEnabled: doc?.friendRequestAcceptedEnabled !== false,
@@ -7623,7 +7628,9 @@ io.on("connection", (socket) => {
         messagePreviewEnabled: user.messagePreviewEnabled !== false,
         groupNotificationsEnabled: user.groupNotificationsEnabled !== false,
         directMessagesEnabled: user.directMessagesEnabled !== false,
-        groupMessagesEnabled: user.groupMessagesEnabled !== false,
+        groupMessagesEnabled: typeof user.groupMessagesEnabled === "boolean"
+          ? user.groupMessagesEnabled
+          : user.groupNotificationsEnabled !== false,
         mentionsRepliesEnabled: user.mentionsRepliesEnabled !== false,
         friendRequestsEnabled: user.friendRequestsEnabled !== false,
         friendRequestAcceptedEnabled: user.friendRequestAcceptedEnabled !== false,
@@ -8939,9 +8946,22 @@ io.on("connection", (socket) => {
 
     const gameTitle = updatedGame.title || "Novyn game";
     const eventSuffix = String(updatedGame.updatedAt || Date.now());
-    const recipients = isGroup
-      ? Array.from(resolvedTarget.group.members || []).filter((key) => normalizeName(key) !== userKey)
-      : [resolvedTarget.targetKey];
+    const gameData = updatedGame.data && typeof updatedGame.data === "object"
+      ? updatedGame.data
+      : {};
+    const playerKeys = Array.from(new Set([
+      updatedGame.createdBy,
+      updatedGame.opponent,
+      gameData.playerX,
+      gameData.playerO,
+      gameData.player1,
+      gameData.player2,
+    ].map(normalizeName).filter(Boolean)));
+    const recipients = playerKeys.filter((key) =>
+      key !== userKey &&
+      users.has(key) &&
+      (!isGroup || resolvedTarget.group.members.has(key))
+    );
     if (updatedGame.state === "finished") {
       for (const recipientKey of recipients) {
         if (!users.has(normalizeName(recipientKey))) continue;
@@ -8959,7 +8979,9 @@ io.on("connection", (socket) => {
       }
     } else if (updatedGame.turn) {
       const turnKey = normalizeName(updatedGame.turn);
-      if (turnKey && turnKey !== userKey && users.has(turnKey) && recipients.some((key) => normalizeName(key) === turnKey)) {
+      if (turnKey && turnKey !== userKey && users.has(turnKey) &&
+          playerKeys.includes(turnKey) &&
+          (!isGroup || resolvedTarget.group.members.has(turnKey))) {
         void sendPushToUser(turnKey, {
           type: "game_turn",
           title: "Your turn",
