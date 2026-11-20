@@ -385,7 +385,7 @@ class SettingsService extends ChangeNotifier {
     final start = values['quietHoursStart'];
     final end = values['quietHoursEnd'];
     final offset = values['quietHoursOffsetMinutes'];
-    final timePattern = RegExp(r'^([01]\\d|2[0-3]):[0-5]\\d$');
+    final timePattern = RegExp(r'^([01]\d|2[0-3]):[0-5]\d$');
     if (start is String && timePattern.hasMatch(start)) {
       _quietHoursStart = start;
       await _prefs.setString(_kQuietHoursStart, start);
@@ -409,7 +409,7 @@ class SettingsService extends ChangeNotifier {
     String? end,
     int? offsetMinutes,
   }) async {
-    final timePattern = RegExp(r'^([01]\\d|2[0-3]):[0-5]\\d$');
+    final timePattern = RegExp(r'^([01]\d|2[0-3]):[0-5]\d$');
     if (start != null && !timePattern.hasMatch(start)) {
       throw ArgumentError.value(start, 'start', 'Use 24-hour HH:mm time');
     }
