@@ -3976,9 +3976,10 @@ function deliverFriendMessage(params = {}) {
       ? "You have a new message"
       : formatPushBody(text);
     void sendPushToUser(toKey, {
-      type: "message",
-      title: `New message from ${me.username}`,
-      body: bodyText,
+      type: params.game ? "game_invitation" : "message",
+      title: params.game ? `Game invitation from ${me.username}` : `New message from ${me.username}`,
+      body: params.game ? ` ${me.username} challenged you to ${params.game.title || "a game"}.`.trim() : bodyText,
+      eventId: params.game ? `game-invite:${params.game.id || message.id}` : message.id,
       ...(params.isEncrypted === true ? {
         ciphertext: params.ciphertext,
         iv: params.iv,
@@ -4082,10 +4083,11 @@ function deliverGroupMessage(params = {}) {
     if (memberKey !== fromKey && !viewingSameGroup) {
       const bodyText = formatPushBody(text);
       void sendPushToUser(memberKey, {
-        type: "message",
+        type: params.game ? "game_invitation" : "message",
         group: true,
-        title: `New message in ${group.name}`,
-        body: `${me.username}: ${bodyText}`,
+        title: params.game ? `Game invitation in ${group.name}` : `New message in ${group.name}`,
+        body: params.game ? `${me.username} started ${params.game.title || "a game"}.` : `${me.username}: ${bodyText}`,
+        eventId: params.game ? `game-invite:${params.game.id || message.id}:${memberKey}` : message.id,
         tag: `grp-${group.id}`,
         groupId: group.id,
         url: `/?source=push&chat=${encodeURIComponent(group.id)}&kind=group`,
@@ -8845,6 +8847,39 @@ io.on("connection", (socket) => {
     };
 
     socket.emit("game_move_updated", packet);
+
+    if (updatedGame.state === "finished") {
+      const gameData = updatedGame.data && typeof updatedGame.data === "object" ? updatedGame.data : {};
+      const participants = new Set([
+        updatedGame.createdBy, updatedGame.opponent,
+        gameData.playerX, gameData.playerO, gameData.player1, gameData.player2,
+      ].map(normalizeName).filter(Boolean));
+      const resultText = updatedGame.winner === "draw"
+        ? `${updatedGame.title || "Game"} ended in a draw.`
+        : `${updatedGame.title || "Game"} finished. ${updatedGame.winner || "A player"} won.`;
+      for (const participantKey of participants) {
+        void sendPushToUser(participantKey, {
+          type: "game_result",
+          title: "Game finished",
+          body: resultText,
+          eventId: `game-result:${messageId}:${updatedGame.updatedAt || Date.now()}:${participantKey}`,
+          chat: isGroup ? resolvedTarget.targetKey : resolvedTarget.targetKey,
+          group: isGroup,
+          groupId: isGroup ? resolvedTarget.targetKey : undefined,
+        });
+      }
+    } else if (updatedGame.turn && normalizeName(updatedGame.turn) !== userKey) {
+      const nextPlayer = normalizeName(updatedGame.turn);
+      void sendPushToUser(nextPlayer, {
+        type: "game_turn",
+        title: "Your turn",
+        body: `It's your turn in ${updatedGame.title || "a Novyn game"}.`,
+        eventId: `game-turn:${messageId}:${updatedGame.updatedAt || Date.now()}:${nextPlayer}`,
+        chat: resolvedTarget.targetKey,
+        group: isGroup,
+        groupId: isGroup ? resolvedTarget.targetKey : undefined,
+      });
+    }
 
     if (isGroup) {
       for (const memberKey of resolvedTarget.group.members || []) {
