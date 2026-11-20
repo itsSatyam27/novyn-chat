@@ -1930,7 +1930,7 @@ function serializeState() {
       messagePreviewEnabled: user.messagePreviewEnabled !== false,
       groupNotificationsEnabled: user.groupNotificationsEnabled !== false,
       directMessagesEnabled: user.directMessagesEnabled !== false,
-      groupMessagesEnabled: user.groupMessagesEnabled !== false,
+      groupMessagesEnabled: user.groupMessagesEnabled !== false && user.groupNotificationsEnabled !== false,
       mentionsRepliesEnabled: user.mentionsRepliesEnabled !== false,
       friendRequestsEnabled: user.friendRequestsEnabled !== false,
       friendRequestAcceptedEnabled: user.friendRequestAcceptedEnabled !== false,
@@ -7616,7 +7616,7 @@ io.on("connection", (socket) => {
     if (typeof payload?.messagePreviewEnabled === "boolean") user.messagePreviewEnabled = payload.messagePreviewEnabled;
     if (typeof payload?.groupNotificationsEnabled === "boolean") user.groupNotificationsEnabled = payload.groupNotificationsEnabled;
     if (typeof payload?.directMessagesEnabled === "boolean") user.directMessagesEnabled = payload.directMessagesEnabled;
-    if (typeof payload?.groupMessagesEnabled === "boolean") user.groupMessagesEnabled = payload.groupMessagesEnabled;
+    if (typeof payload?.groupMessagesEnabled === "boolean") { user.groupMessagesEnabled = payload.groupMessagesEnabled; user.groupNotificationsEnabled = payload.groupMessagesEnabled; }
     if (typeof payload?.mentionsRepliesEnabled === "boolean") user.mentionsRepliesEnabled = payload.mentionsRepliesEnabled;
     if (typeof payload?.friendRequestsEnabled === "boolean") user.friendRequestsEnabled = payload.friendRequestsEnabled;
     if (typeof payload?.friendRequestAcceptedEnabled === "boolean") user.friendRequestAcceptedEnabled = payload.friendRequestAcceptedEnabled;
