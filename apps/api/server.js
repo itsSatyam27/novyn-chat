@@ -9762,6 +9762,20 @@ io.on("connection", (socket) => {
     }
 
     group.updatedAt = nowIso();
+    for (const addedName of added) {
+      const addedKey = normalizeName(addedName);
+      void sendPushToUser(addedKey, {
+        type: "group_invite",
+        title: "Group invitation",
+        body: `${me.username} added you to ${group.name}.`,
+        from: me.username,
+        group: true,
+        groupId: group.id,
+        chat: group.id,
+        eventId: `group-invite:${group.id}:${addedKey}:${group.updatedAt}`,
+        tag: `group-invite-${group.id}`,
+      });
+    }
     const allMembers = Array.from(group.members);
     for (const memberKey of allMembers) {
       emitFriendList(memberKey);
