@@ -7989,6 +7989,14 @@ io.on("connection", (socket) => {
     }
 
     target.requests.add(userKey);
+    void sendPushToUser(targetKey, {
+      type: "friend_request",
+      title: "New friend request",
+      body: `${me.displayName || me.username} sent you a friend request.`,
+      from: me.username,
+      eventId: `friend-request:${userKey}:${Date.now()}`,
+      tag: `friend-request-${userKey}`,
+    });
     reply({ ok: true, username: target.username });
     socket.emit("friend_request_sent", { to: target.username });
     emitRequests(targetKey);
@@ -8079,6 +8087,14 @@ io.on("connection", (socket) => {
     emitRequests(userKey);
     emitFriendList(userKey);
     emitFriendList(friendKey);
+    void sendPushToUser(friendKey, {
+      type: "friend_request_accepted",
+      title: "Friend request accepted",
+      body: `${me.displayName || me.username} accepted your friend request.`,
+      from: me.username,
+      eventId: `friend-accepted:${userKey}:${friendKey}:${Date.now()}`,
+      tag: `friend-accepted-${userKey}`,
+    });
     socket.emit("friend_request_accepted", { by: friend.username });
 
     const friendSocket = onlineUsers.get(friendKey);
