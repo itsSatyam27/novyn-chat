@@ -54,6 +54,7 @@ class SettingsService extends ChangeNotifier {
   static const _kLanguage = 'language';
   static const _kTimeFormat = 'chat_time_format';
   static const _kFontSize = 'font_size';
+  static const _kChatMessageTextSize = 'chat_message_text_size';
   static const _kChatLabelSize = 'chat_label_size';
   static const _kAccentColor = 'appearance_accent_color';
   static const _kAccentColorEnabled = 'appearance_accent_color_enabled';
@@ -188,6 +189,7 @@ class SettingsService extends ChangeNotifier {
   String _language = 'en'; // Language code
   String _timeFormat = '12h'; // '12h' or '24h'
   double _fontSize = 0.85; // Default accessibility scale (85%)
+  double _chatMessageTextSize = 1.0;
   double _chatLabelSize = 1.0;
   int _accentColorValue = 0xFF6D5DFC;
   bool _accentColorEnabled = true;
@@ -335,6 +337,7 @@ class SettingsService extends ChangeNotifier {
   double get callVolume => _callVolume;
   String get photoQuality => _photoQuality;
   double get fontSize => _fontSize;
+  double get messageTextSize => _chatMessageTextSize;
   double get chatLabelSize => _chatLabelSize;
   int get accentColorValue => _accentColorValue;
   bool get accentColorEnabled => _accentColorEnabled;
@@ -563,6 +566,7 @@ class SettingsService extends ChangeNotifier {
     final savedTimeFormat = _prefs.getString(_kTimeFormat) ?? '12h';
     _timeFormat = savedTimeFormat == '24h' ? '24h' : '12h';
     _fontSize = (_prefs.getDouble(_kFontSize) ?? 0.85).clamp(0.75, 1.25).toDouble();
+    _chatMessageTextSize = (_prefs.getDouble(_kChatMessageTextSize) ?? 1.0).clamp(0.85, 1.25).toDouble();
     _chatLabelSize = (_prefs.getDouble(_kChatLabelSize) ?? 1.0).clamp(0.8, 1.4).toDouble();
     _accentColorValue = _prefs.getInt(_kAccentColor) ?? 0xFF6D5DFC;
     _accentColorEnabled = _prefs.getBool(_kAccentColorEnabled) ?? true;
@@ -898,6 +902,12 @@ class SettingsService extends ChangeNotifier {
     if (_dockStyle == style) return;
     _dockStyle = style;
     await _prefs.setString(_kDockStyle, style);
+    notifyListeners();
+  }
+
+  Future<void> setMessageTextSize(double v) async {
+    _chatMessageTextSize = v.clamp(0.85, 1.25).toDouble();
+    await _prefs.setDouble(_kChatMessageTextSize, _chatMessageTextSize);
     notifyListeners();
   }
 
@@ -1490,6 +1500,7 @@ class SettingsService extends ChangeNotifier {
     _photoQuality = 'high';
     _language = 'en';
     _fontSize = 0.85;
+    _chatMessageTextSize = 1.0;
     _chatLabelSize = 1.0;
     _accentColorValue = 0xFF6D5DFC;
     _accentColorEnabled = true;
