@@ -2567,9 +2567,18 @@ class SocketService extends ChangeNotifier {
     _socket!.emit('remove_friend', username);
   }
 
-  void setMute(String username, {required bool muted}) {
+  void setMute(
+    String username, {
+    required bool muted,
+    bool isGroup = false,
+  }) {
     _requireConnection();
-    _socket!.emit('set_mute', {'username': username, 'muted': muted});
+    _socket!.emit('set_mute', {
+      'username': username,
+      'muted': muted,
+      'kind': isGroup ? 'group' : 'friend',
+      if (isGroup) 'groupId': username,
+    });
   }
 
   void clearChat(String username) {
