@@ -2822,6 +2822,7 @@ async function sendPushToUser(userKey, payload) {
             (String(safePayload.type || "notification") + ":" + String(Date.now())),
           chat: toDisplayName(payload?.group === true ? payload?.groupId : payload?.chat) || "",
           kind: payload?.group === true ? "group" : "friend",
+          from: toDisplayName(safePayload.from),
           ...(safePayload.gameId ? { gameId: toDisplayName(safePayload.gameId) } : {}),
           ...(safePayload.gameType ? { gameType: toDisplayName(safePayload.gameType) } : {}),
           mentionOrReply: safePayload.mentionOrReply ? "1" : "0",
