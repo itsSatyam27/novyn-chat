@@ -811,7 +811,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
       toolbarHeight: 72,
       scrolledUnderElevation: 0,
       flexibleSpace: Container(
-        margin: const EdgeInsets.fromLTRB(10, 7, 10, 5),
+        // Keep the intentional breathing room above the floating header.
+        margin: const EdgeInsets.fromLTRB(10, 15, 10, 5),
         decoration: BoxDecoration(
           color: scheme.surface,
           borderRadius: BorderRadius.circular(24),
@@ -849,7 +850,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
                       isOnline: _peerIsOnline,
                       status: _peerPresence,
                       width: 4,
-                      height: 40,
+                      height: 28,
                       margin: const EdgeInsets.only(right: 9),
                     ),
                   Hero(

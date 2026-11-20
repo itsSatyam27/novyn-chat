@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - "apps/mobile/flutter/lib/**/*.dart"
+      - ".github/workflows/shorebird-auto-patch.yml"
 
 permissions:
   contents: read
@@ -118,6 +119,7 @@ jobs:
           working-directory: apps/mobile/flutter
           release-version: ${{ vars.SHOREBIRD_RELEASE_VERSION }}
           track: stable
+          args: --allow-asset-diffs
 
       - name: Summarize patch
         if: steps.change-scope.outputs.dart_only == 'true'
