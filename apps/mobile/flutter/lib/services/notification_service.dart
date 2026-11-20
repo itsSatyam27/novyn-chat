@@ -1501,10 +1501,10 @@ class NotificationService {
     await _initializeLocalNotifications(context);
     _socket!.onIncomingMessage = (
       username,
-      body, {
-      bool isGroup = false,
-      bool mentionOrReply = false,
-    }) {
+      body,
+      isGroup,
+      mentionOrReply,
+    ) {
       if (!context.mounted) return;
       final lifecycleState = WidgetsBinding.instance.lifecycleState;
       if (lifecycleState == AppLifecycleState.paused ||
