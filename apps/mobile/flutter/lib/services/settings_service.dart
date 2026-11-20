@@ -34,6 +34,15 @@ class SavedSession {
 }
 
 class SettingsService extends ChangeNotifier {
+  /// One source of truth for the sound played by incoming-message alerts and
+  /// the preview shown in Sound & Vibration settings.
+  static String messageToneAsset(String tone) => switch (tone) {
+        'Pulse' => 'audio/message_sent.mp3',
+        'Glass' => 'audio/ringtone.mp3',
+        'Echo' => 'audio/call_ring.mp3',
+        _ => 'audio/notification.mp3',
+      };
+
   static const _kNotifications = 'notifications_on';
   static const _kMessagePreview = 'message_preview';
   static const _kChatLinkPreviews = 'chat_link_previews';
@@ -199,7 +208,7 @@ class SettingsService extends ChangeNotifier {
   String _profilePhotoVisibility = 'everyone'; // 'everyone', 'contacts', 'nobody'
   List<String> _blockedUids = [];
   List<String> _favoriteChatIds = [];
-  String _notificationTone = 'Aurora'; // Default tone
+  String _notificationTone = 'Drift'; // Default tone
   String _callRingtone = 'Binary'; // Default ringtone
   String _vibrationPattern = 'standard'; // standard, staccato, heartbeat, none
   double _hapticIntensity = 0.8; // 0.0 to 1.0
@@ -620,7 +629,7 @@ class SettingsService extends ChangeNotifier {
     _profilePhotoVisibility = _prefs.getString(_kProfilePhoto) ?? 'everyone';
     _blockedUids = _prefs.getStringList(_kBlockedUids) ?? [];
     _favoriteChatIds = _prefs.getStringList(_kFavoriteChatIds) ?? [];
-    _notificationTone = _prefs.getString(_kNotificationTone) ?? 'Aurora';
+    _notificationTone = _prefs.getString(_kNotificationTone) ?? 'Drift';
     _callRingtone = _prefs.getString(_kCallRingtone) ?? 'Binary';
     _customNotificationPath = _prefs.getString(_kCustomNotificationPath);
     _customRingtonePath = _prefs.getString(_kCustomRingtonePath);
@@ -1500,7 +1509,7 @@ class SettingsService extends ChangeNotifier {
     _lastSeenVisibility = 'everyone';
     _profilePhotoVisibility = 'everyone';
     _blockedUids = [];
-    _notificationTone = 'Aurora';
+    _notificationTone = 'Drift';
     _vibrationPattern = 'standard';
     _hapticIntensity = 0.8;
     _appLockEnabled = false;
