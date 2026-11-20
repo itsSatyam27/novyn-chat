@@ -44,7 +44,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Games'), findsOneWidget);
-    expect(find.text('Tic Tac Toe'), findsOneWidget);
+    expect(find.text('Tic Tac Toe'), findsNWidgets(2));
     expect(find.text('Play online'), findsOneWidget);
     expect(find.text('Random matchmaking is coming soon.'), findsOneWidget);
     expect(find.text('No friends yet'), findsOneWidget);
