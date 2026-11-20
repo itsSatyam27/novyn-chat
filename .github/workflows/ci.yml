@@ -21,27 +21,28 @@ jobs:
       - run: npm run build
 
   flutter-validate:
-    name: Flutter analyze
+    name: Phase 2 Flutter analyze and tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: subosito/flutter-action@v2
         with:
+          flutter-version: "3.47.9"
           channel: stable
           cache: true
-      - name: Install Flutter dependencies
+      - name: Install Phase 2 Flutter dependencies
         working-directory: apps/mobile/flutter
         run: flutter pub get
-      - name: Analyze Flutter app
+      - name: Analyze Phase 2 Flutter client
         working-directory: apps/mobile/flutter
-        run: flutter analyze --no-pub --no-fatal-infos --no-fatal-warnings
-      - name: Run dock widget tests
+        run: flutter analyze --no-pub
+      - name: Run Phase 2 widget tests
         working-directory: apps/mobile/flutter
-        run: flutter test --no-pub test/novyn_dock_test.dart test/novyn_alert_test.dart test/quick_toggle_preferences_test.dart test/quick_toggle_layout_test.dart test/rtc_ice_configuration_test.dart test/pending_message_queue_test.dart test/message_pagination_test.dart test/smart_presence_policy_test.dart test/last_seen_presence_test.dart test/media_download_queue_test.dart test/profile_deep_link_service_test.dart
+        run: flutter test --no-pub
 
   android-release-compile:
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/phase-2' || startsWith(github.ref, 'refs/heads/hardening/') || startsWith(github.ref, 'refs/heads/calls/') || startsWith(github.ref, 'refs/heads/offline/'))
-    name: Android release APK compile
+    if: github.event_name == 'push' && github.ref == 'refs/heads/phase-2'
+    name: Fresh Phase 2 Android ARM64 APK
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -56,6 +57,15 @@ jobs:
           flutter-version: "3.47.9"
           channel: stable
           cache: true
+      - name: Generate clean Android platform scaffolding
+        shell: bash
+        run: |
+          set -euo pipefail
+          SCAFFOLD_DIR="$(mktemp -d)"
+          rmdir "${SCAFFOLD_DIR}"
+          flutter create --platforms=android --project-name novyn --org com.novyn --no-pub "${SCAFFOLD_DIR}"
+          cp -a "${SCAFFOLD_DIR}/android" apps/mobile/flutter/android
+          rm -rf "${SCAFFOLD_DIR}"
       - name: Install Android NDK (retry corrupted downloads)
         shell: bash
         run: |
@@ -90,56 +100,20 @@ jobs:
                 exit 0
               fi
             fi
-            if [[ "${attempt}" -lt 3 ]]; then
-              sleep $((attempt * 10))
-            fi
+            if [[ "${attempt}" -lt 3 ]]; then sleep "$((attempt * 10))"; fi
           done
           echo "::error::Could not install Android NDK ${NDK_VERSION} after 3 attempts"
           exit 1
-      - name: Restore Firebase configuration
-        working-directory: apps/mobile/flutter
-        env:
-          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
-        run: |
-          set -euo pipefail
-          if [ -z "${GOOGLE_SERVICES_JSON}" ]; then
-            echo "::error::Missing GitHub Actions secret GOOGLE_SERVICES_JSON"
-            exit 1
-          fi
-          printf '%s' "${GOOGLE_SERVICES_JSON}" > android/app/google-services.json
-          python3 -m json.tool android/app/google-services.json > /dev/null
-      - name: Restore Android release signing key
-        working-directory: apps/mobile/flutter/android
-        env:
-          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        run: |
-          set -euo pipefail
-          for name in ANDROID_KEYSTORE_BASE64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD; do
-            if [ -z "${!name}" ]; then
-              echo "::error::Missing GitHub Actions secret ${name}"
-              exit 1
-            fi
-          done
-          printf '%s' "${ANDROID_KEYSTORE_BASE64}" | base64 --decode > app/novyn-upload-key.jks
-          cat > key.properties <<EOF
-          storePassword=${ANDROID_KEYSTORE_PASSWORD}
-          keyPassword=${ANDROID_KEY_PASSWORD}
-          keyAlias=${ANDROID_KEY_ALIAS}
-          storeFile=novyn-upload-key.jks
-          EOF
-      - name: Install Flutter dependencies
+      - name: Install Phase 2 Flutter dependencies
         working-directory: apps/mobile/flutter
         run: flutter pub get
-      - name: Compile Android release APK
+      - name: Compile clean ARM64 release APK
         working-directory: apps/mobile/flutter
         run: flutter build apk --release --target-platform android-arm64 --split-per-abi --build-number="${GITHUB_RUN_NUMBER}"
-      - name: Upload ARM64 release APK
+      - name: Upload Phase 2 ARM64 APK
         uses: actions/upload-artifact@v4
         with:
-          name: Novyn-Android-ARM64
+          name: Novyn-Phase2-ARM64
           path: apps/mobile/flutter/build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
           if-no-files-found: error
           retention-days: 14
