@@ -52,7 +52,7 @@ class NovynDock extends StatelessWidget {
   static const icons = <IconData>[
     LucideIcons.messageCircle,
     LucideIcons.users,
-    LucideIcons.gamepad2,
+    Icons.sports_esports_rounded,
     LucideIcons.phone,
     LucideIcons.userRound,
   ];
