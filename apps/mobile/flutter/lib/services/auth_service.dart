@@ -1188,14 +1188,18 @@ class AuthService extends ChangeNotifier {
   // kept so screens that call auth.setOnline() compile without changes.
   Future<void> setOnline(bool online) async {}
 
+  /// Offline is the user-facing label for the backend's Invisible mode.
+  @visibleForTesting
+  static String normalizePresenceMode(String status) {
+    final requested = status.trim().toLowerCase();
+    return requested == 'offline' ? 'invisible' : requested;
+  }
+
   // ── updateStatus — saves through the shared backend socket ──────────────
   // Screens call auth.updateStatus('Online'|'Away'|'Busy'|'Invisible').
   // Update locally, wait for server confirmation, and undo failed saves.
   Future<void> updateStatus(String status) async {
-    final requestedMode = status.trim().toLowerCase();
-    // "Offline" is the user-facing meaning of Invisible, not a distinct
-    // server presence mode. Normalize legacy callers to the supported value.
-    final mode = requestedMode == 'offline' ? 'invisible' : requestedMode;
+    final mode = normalizePresenceMode(status);
     if (!['online', 'away', 'busy', 'invisible'].contains(mode)) {
       throw ArgumentError.value(status, 'status', 'Unknown presence mode');
     }
