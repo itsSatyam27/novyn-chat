@@ -2081,19 +2081,50 @@ class SocketService extends ChangeNotifier {
     }
   }
 
-  void sendGameChallenge(String gameType, String peerUsername,
-      {bool isGroup = false}) {
+  Future<void> sendGameChallenge(String gameType, String peerUsername,
+      {bool isGroup = false}) async {
     _requireConnection();
-    _socket!.emit('private_message', {
-      'to': peerUsername,
-      'toType': isGroup ? 'group' : 'friend',
-      'text': '🎮 Started a game of ${_gameTitle(gameType)}!',
-      'clientTempId': 'tmp_game_${DateTime.now().millisecondsSinceEpoch}',
-      'game': {
-        'id': 'game_${DateTime.now().millisecondsSinceEpoch}',
-        'gameType': gameType,
+    final connection = _socket!;
+    final timestamp = DateTime.now().microsecondsSinceEpoch.toString();
+    final response = Completer<Map<String, dynamic>>();
+
+    connection.emitWithAck(
+      'private_message',
+      {
+        'to': peerUsername,
+        'toType': isGroup ? 'group' : 'friend',
+        'text': '🎮 Started a game of ' + _gameTitle(gameType) + '!',
+        'clientTempId': 'tmp_game_' + timestamp,
+        'game': {
+          'id': 'game_' + timestamp,
+          'gameType': gameType,
+        },
       },
-    });
+      ack: (dynamic result) {
+        if (response.isCompleted) return;
+        response.complete(
+          result is Map
+              ? Map<String, dynamic>.from(result)
+              : <String, dynamic>{
+                  'ok': false,
+                  'message': 'Could not send the game invitation.',
+                },
+        );
+      },
+    );
+
+    final result = await response.future.timeout(
+      const Duration(seconds: 12),
+      onTimeout: () => <String, dynamic>{
+        'ok': false,
+        'message': 'Game invitation timed out. Please retry.',
+      },
+    );
+    if (result['ok'] != true) {
+      throw StateError(
+        result['message']?.toString() ?? 'Could not send the game invitation.',
+      );
+    }
   }
 
   String _gameTitle(String type) {
