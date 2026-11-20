@@ -3845,24 +3845,31 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
   Future<void> _setPeerMuted(bool muted) async {
     final key = 'novyn_mute_${_mutePreferenceId.toLowerCase()}';
     final preferences = await SharedPreferences.getInstance();
-    await preferences.setBool(key, muted);
-    if (!mounted) return;
-    setState(() => _peerMuted = muted);
     try {
-      _socketService.setMute(
+      final result = await _socketService.setMute(
         _mutePreferenceId,
         muted: muted,
         isGroup: widget.isGroup,
       );
-    } catch (_) {
-      // Keep this device's preference; server sync is retried on chat open.
+      if (result['ok'] != true) {
+        throw StateError(result['message']?.toString() ??
+            'The server did not confirm this mute change.');
+      }
+      await preferences.setBool(key, muted);
+      if (!mounted) return;
+      setState(() => _peerMuted = muted);
+      NovynToast.show(
+        context,
+        muted
+            ? 'Notifications muted for this chat'
+            : 'Notifications unmuted for this chat',
+      );
+    } catch (error) {
+      if (!mounted) return;
+      context.showNovynAlert(
+        SnackBar(content: Text('Could not update mute status: $error')),
+      );
     }
-    NovynToast.show(
-      context,
-      muted
-          ? 'Notifications muted for this contact'
-          : 'Notifications unmuted for this contact',
-    );
   }
 
   bool _isPeerBlocked() {
