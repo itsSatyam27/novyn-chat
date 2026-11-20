@@ -177,7 +177,7 @@ class AppearanceScreen extends StatelessWidget {
                     isDark ? const Color(0xFF28234B) : const Color(0xFFECE9FB),
                   ),
                   title: 'Quick toggles',
-                  trailing: _trailingValueWithChevron('$quickToggleCount/4'),
+                  trailing: _trailingValueWithChevron(context, '$quickToggleCount/4'),
                   onTap: () => Navigator.push(
                     context,
                     MaterialPageRoute(
@@ -192,7 +192,7 @@ class AppearanceScreen extends StatelessWidget {
                     isDark ? const Color(0xFF28234B) : const Color(0xFFECE9FB),
                   ),
                   title: 'Dock style',
-                  trailing: _trailingValueWithChevron(currentDockStyle),
+                  trailing: _trailingValueWithChevron(context, currentDockStyle),
                   onTap: () => Navigator.push(
                     context,
                     MaterialPageRoute(builder: (_) => const DockCustomizationScreen()),
@@ -205,7 +205,7 @@ class AppearanceScreen extends StatelessWidget {
                     isDark ? const Color(0xFF28234B) : const Color(0xFFECE9FB),
                   ),
                   title: 'Alert style',
-                  trailing: _trailingValueWithChevron(currentAlertStyle),
+                  trailing: _trailingValueWithChevron(context, currentAlertStyle),
                   onTap: () => Navigator.push(
                     context,
                     MaterialPageRoute(builder: (_) => const AlertCustomizationScreen()),
@@ -218,7 +218,7 @@ class AppearanceScreen extends StatelessWidget {
                     isDark ? const Color(0xFF28234B) : const Color(0xFFECE9FB),
                   ),
                   title: 'Minimized call',
-                  trailing: _trailingValueWithChevron(currentCallStyle),
+                  trailing: _trailingValueWithChevron(context, currentCallStyle),
                   onTap: () => _showCallMiniStylePicker(context, settings),
                 ),
               ],
@@ -256,7 +256,7 @@ class AppearanceScreen extends StatelessWidget {
     );
   }
 
-  static Widget _trailingValueWithChevron(String value) {
+  static Widget _trailingValueWithChevron(BuildContext context, String value) {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [

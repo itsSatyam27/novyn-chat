@@ -48,7 +48,7 @@ class LanguageRegionScreen extends StatelessWidget {
                     isDark ? const Color(0xFF28234B) : const Color(0xFFEDE9FE),
                   ),
                   title: 'App language',
-                  trailing: _trailingValueWithChevron(languageLabel),
+                  trailing: _trailingValueWithChevron(context, languageLabel),
                   onTap: () => _showLanguageDialog(context, settings),
                 ),
                 _SettingsRow(
@@ -58,7 +58,7 @@ class LanguageRegionScreen extends StatelessWidget {
                     isDark ? const Color(0xFF1B2E33) : const Color(0xFFE0F7F4),
                   ),
                   title: 'Region',
-                  trailing: _trailingValueWithChevron(settings.region),
+                  trailing: _trailingValueWithChevron(context, settings.region),
                   onTap: () => _showRegionDialog(context, settings),
                 ),
                 _SettingsRow(
@@ -68,7 +68,7 @@ class LanguageRegionScreen extends StatelessWidget {
                     isDark ? const Color(0xFF332717) : const Color(0xFFFEF3E2),
                   ),
                   title: 'Time zone',
-                  trailing: _trailingValueWithChevron(_getTimeZoneString()),
+                  trailing: _trailingValueWithChevron(context, _getTimeZoneString()),
                   onTap: () => _showTimezoneDialog(context),
                 ),
               ],
@@ -87,7 +87,7 @@ class LanguageRegionScreen extends StatelessWidget {
                     isDark ? const Color(0xFF1A3327) : const Color(0xFFE8F8F0),
                   ),
                   title: 'Date format',
-                  trailing: _formatPill(datePreview, isDark),
+                  trailing: _formatPill(context, datePreview, isDark),
                   onTap: () => _showDateFormatDialog(context),
                 ),
                 _SettingsRow(
@@ -97,7 +97,7 @@ class LanguageRegionScreen extends StatelessWidget {
                     isDark ? const Color(0xFF361F2E) : const Color(0xFFFCE7F3),
                   ),
                   title: 'Time format',
-                  trailing: _formatPill(timePreview, isDark),
+                  trailing: _formatPill(context, timePreview, isDark),
                   onTap: () => _showTimeFormatOptions(context, settings),
                 ),
                 _SettingsRow(
@@ -107,7 +107,7 @@ class LanguageRegionScreen extends StatelessWidget {
                     isDark ? const Color(0xFF28234B) : const Color(0xFFEDE9FE),
                   ),
                   title: 'Number format',
-                  trailing: _formatPill(numberPreview, isDark),
+                  trailing: _formatPill(context, numberPreview, isDark),
                   onTap: () => _showNumberFormatDialog(context),
                 ),
               ],
@@ -145,7 +145,7 @@ class LanguageRegionScreen extends StatelessWidget {
     );
   }
 
-  static Widget _trailingValueWithChevron(String value) {
+  static Widget _trailingValueWithChevron(BuildContext context, String value) {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -167,7 +167,7 @@ class LanguageRegionScreen extends StatelessWidget {
     );
   }
 
-  static Widget _formatPill(String label, bool isDark) {
+  static Widget _formatPill(BuildContext context, String label, bool isDark) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
       decoration: BoxDecoration(

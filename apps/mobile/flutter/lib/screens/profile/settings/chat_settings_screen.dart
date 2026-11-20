@@ -467,7 +467,7 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
                   borderRadius: BorderRadius.circular(22),
                   border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
                 ),
-                child: const Row(
+                child: Row(
                   children: [
                     SizedBox(
                       width: 24,
