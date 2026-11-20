@@ -2710,12 +2710,13 @@ function isQuietHoursActive(user, timestamp = Date.now()) {
 function shouldDeliverNotification(user, payload = {}) {
   const type = String(payload.type || "message");
   if (type === "message") {
-    if (payload.group === true) {
+    if (payload.mentionOrReply === true) {
+      if (user.mentionsRepliesEnabled === false) return false;
+    } else if (payload.group === true) {
       if (user.groupMessagesEnabled === false || user.groupNotificationsEnabled === false) return false;
     } else if (user.directMessagesEnabled === false) {
       return false;
     }
-    if (payload.mentionOrReply === true && user.mentionsRepliesEnabled === false) return false;
   } else if (type === "friend_request" || type === "friend_request_declined") {
     if (user.friendRequestsEnabled === false) return false;
   } else if (type === "friend_request_accepted") {
