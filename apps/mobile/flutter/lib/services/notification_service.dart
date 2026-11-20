@@ -1137,12 +1137,21 @@ class NotificationService {
   }
 
   static Future<void> showInAppMessage(
-      String username, String messageBody, BuildContext context) async {
+    String username,
+    String messageBody,
+    BuildContext context, {
+    bool isGroup = false,
+    bool mentionOrReply = false,
+  }) async {
     final preferences = await SharedPreferences.getInstance();
     await preferences.reload();
     final chatKey = username.trim().toLowerCase();
-    if (!_canDisplayNotification(preferences, 'message') ||
-        preferences.getBool('novyn_mute_' + chatKey) == true) return;
+    if (!_canDisplayNotification(
+      preferences,
+      'message',
+      isGroup: isGroup,
+      mentionOrReply: mentionOrReply,
+    ) || preferences.getBool('novyn_mute_' + chatKey) == true) return;
     // Keep the host screen context for navigation. The banner's animated
     // builder context is disposed as soon as the overlay entry is removed.
     final navigationContext = context;
@@ -1161,11 +1170,23 @@ class NotificationService {
 
     final preview = settings.messagePreview && !settings.hideNotificationContent
         ? messageBody.trim()
-        : 'You have a new message';
-    final senderProfile = _socket?.contacts.findUser(username);
-    final title = senderProfile?.name.trim().isNotEmpty == true
-        ? senderProfile!.name.trim()
-        : username;
+        : (isGroup ? 'New group message' : 'You have a new message');
+    final senderProfile = isGroup ? null : _socket?.contacts.findUser(username);
+    String? groupTitle;
+    if (isGroup) {
+      for (final conversation in _socket?.conversations ?? const []) {
+        if (conversation.isGroup &&
+            conversation.chatId.toLowerCase() == chatKey) {
+          groupTitle = conversation.peer.name.trim();
+          break;
+        }
+      }
+    }
+    final title = isGroup
+        ? (groupTitle?.isNotEmpty == true ? groupTitle! : 'Group message')
+        : (senderProfile?.name.trim().isNotEmpty == true
+            ? senderProfile!.name.trim()
+            : username);
     // Foreground messages use only this branded in-app banner. The operating
     // system notification is reserved for background/terminated delivery.
     _inAppBannerTimer?.cancel();
@@ -1205,7 +1226,10 @@ class NotificationService {
                     }
                     if (navigationContext.mounted) {
                       unawaited(_openChatFromNotification(
-                          username, navigationContext));
+                        username,
+                        navigationContext,
+                        isGroup: isGroup,
+                      ));
                     }
                   },
                   child: Container(
@@ -1475,7 +1499,12 @@ class NotificationService {
     _presenceAuth!.addListener(_syncPresentation);
     _syncPresentation();
     await _initializeLocalNotifications(context);
-    _socket!.onIncomingMessage = (username, body) {
+    _socket!.onIncomingMessage = (
+      username,
+      body, {
+      bool isGroup = false,
+      bool mentionOrReply = false,
+    }) {
       if (!context.mounted) return;
       final lifecycleState = WidgetsBinding.instance.lifecycleState;
       if (lifecycleState == AppLifecycleState.paused ||
@@ -1486,9 +1515,20 @@ class NotificationService {
         return;
       }
       if (lifecycleState == AppLifecycleState.resumed) {
-        unawaited(showInAppMessage(username, body, context));
+        unawaited(showInAppMessage(
+          username,
+          body,
+          context,
+          isGroup: isGroup,
+          mentionOrReply: mentionOrReply,
+        ));
       } else {
-        unawaited(_showForegroundMessageNotification(username, body));
+        unawaited(_showForegroundMessageNotification(
+          username,
+          body,
+          isGroup: isGroup,
+          mentionOrReply: mentionOrReply,
+        ));
       }
     };
     _socket!.onCallInviteCallback = (data) {
