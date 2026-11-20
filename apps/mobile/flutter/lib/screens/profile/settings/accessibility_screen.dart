@@ -86,7 +86,7 @@ class AccessibilityScreen extends StatelessWidget {
             const SizedBox(height: 10),
 
             // DISPLAY Section
-            _sectionHeader('DISPLAY'),
+            _sectionHeader(context, 'DISPLAY'),
             _groupedCard(
               context,
               children: [
@@ -207,7 +207,7 @@ class AccessibilityScreen extends StatelessWidget {
             const SizedBox(height: 24),
 
             // MOTION Section
-            _sectionHeader('MOTION'),
+            _sectionHeader(context, 'MOTION'),
             _groupedCard(
               context,
               children: [
@@ -254,7 +254,7 @@ class AccessibilityScreen extends StatelessWidget {
     );
   }
 
-  static Widget _sectionHeader(String title) {
+  static Widget _sectionHeader(BuildContext context, String title) {
     return Padding(
       padding: const EdgeInsets.only(left: 4, bottom: 9),
       child: Text(
@@ -263,7 +263,7 @@ class AccessibilityScreen extends StatelessWidget {
           fontSize: 11.5,
           fontWeight: FontWeight.w700,
           letterSpacing: 1.2,
-          color: Color(0xFF6246EA),
+          color: Theme.of(context).colorScheme.primary,
         ),
       ),
     );
