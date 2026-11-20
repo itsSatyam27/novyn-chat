@@ -439,6 +439,8 @@ class NotificationService {
         (prefs.getString('active_smart_presence_mode_v1') ?? 'online')
             .toLowerCase();
     if (presence == 'busy' || presence == 'invisible') return;
+    final soundEnabled = prefs.getBool('in_app_sounds') ?? true;
+    final vibrationEnabled = prefs.getBool('in_app_vibration') ?? true;
 
     final plugin = FlutterLocalNotificationsPlugin();
     await plugin.initialize(const InitializationSettings(
@@ -452,8 +454,8 @@ class NotificationService {
       'Social notifications',
       description: 'Friend requests and group invitations',
       importance: Importance.high,
-      playSound: true,
-      enableVibration: true,
+      playSound: soundEnabled,
+      enableVibration: vibrationEnabled,
     ));
     final eventId =
         data['eventId']?.toString() ?? '$type:${data['from'] ?? ''}';
@@ -461,20 +463,22 @@ class NotificationService {
       eventId.hashCode,
       data['title']?.toString() ?? 'Novyn',
       data['body']?.toString() ?? 'You have a new notification',
-      const NotificationDetails(
+      NotificationDetails(
         android: AndroidNotificationDetails(
           'novyn_social',
           'Social notifications',
           channelDescription: 'Friend requests and group invitations',
           importance: Importance.high,
           priority: Priority.high,
+          playSound: soundEnabled,
+          enableVibration: vibrationEnabled,
           icon: '@drawable/novyn_wings_icon',
           autoCancel: true,
         ),
         iOS: DarwinNotificationDetails(
           presentAlert: true,
           presentBadge: true,
-          presentSound: true,
+          presentSound: soundEnabled,
         ),
       ),
       payload: 'social:$type',
