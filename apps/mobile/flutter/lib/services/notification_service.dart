@@ -165,22 +165,6 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
       android: AndroidInitializationSettings('@drawable/novyn_wings_icon'),
       iOS: DarwinInitializationSettings(),
     ));
-    const incomingChannel = AndroidNotificationChannel(
-        'novyn_incoming_calls', 'Incoming calls',
-        description: 'Incoming voice and video calls',
-        importance: Importance.max,
-        playSound: true,
-        enableVibration: true);
-    const missedChannel = AndroidNotificationChannel(
-        'novyn_calls', 'Missed calls',
-        description: 'Missed voice and video calls',
-        importance: Importance.max,
-        playSound: true,
-        enableVibration: true);
-    final androidPlugin = plugin.resolvePlatformSpecificImplementation<
-        AndroidFlutterLocalNotificationsPlugin>();
-    await androidPlugin?.createNotificationChannel(incomingChannel);
-    await androidPlugin?.createNotificationChannel(missedChannel);
     final caller = data['chat']?.toString() ?? 'Novyn contact';
     final callId = data['callId']?.toString() ?? '';
     final callExpiresAt = _callExpiryFromData(data);
@@ -208,6 +192,23 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
           ? (isVideo ? 'notification_video_calls' : 'notification_voice_calls')
           : 'notification_missed_calls',
     )) return;
+    final sound = _preferenceEnabled(prefs, 'notification_sound_enabled');
+    final vibration = _preferenceEnabled(prefs, 'notification_vibration_enabled');
+    final channelId = _notificationChannelVariant(
+      isIncoming ? 'novyn_incoming_calls' : 'novyn_calls',
+      sound,
+      vibration,
+    );
+    final androidPlugin = plugin.resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin>();
+    await androidPlugin?.createNotificationChannel(AndroidNotificationChannel(
+      channelId,
+      isIncoming ? 'Incoming calls' : 'Missed calls',
+      description: 'Voice and video call alerts',
+      importance: Importance.max,
+      playSound: sound,
+      enableVibration: vibration,
+    ));
     final incomingTimeoutMs = callExpiresAt == null
         ? 45000
         : callExpiresAt.difference(DateTime.now()).inMilliseconds.clamp(1, 45000).toInt();
@@ -225,7 +226,7 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
         body,
         NotificationDetails(
           android: AndroidNotificationDetails(
-              isIncoming ? 'novyn_incoming_calls' : 'novyn_calls',
+              channelId,
               isIncoming ? 'Incoming calls' : 'Missed calls',
               channelDescription: 'Voice and video call alerts',
               importance: Importance.max,
@@ -238,11 +239,11 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
               autoCancel: !isIncoming,
               timeoutAfter: isIncoming ? incomingTimeoutMs : null,
               actions: isIncoming ? _incomingCallActions : const [],
-              playSound: true,
-              enableVibration: true,
+              playSound: sound,
+              enableVibration: vibration,
               icon: '@drawable/novyn_wings_icon'),
-          iOS: const DarwinNotificationDetails(
-              presentAlert: true, presentBadge: true, presentSound: true),
+          iOS: DarwinNotificationDetails(
+              presentAlert: true, presentBadge: true, presentSound: sound),
         ),
         payload: 'call:' + callId + '|' + caller + '|' + (isVideo ? '1' : '0') + '|' + (callExpiresAt?.millisecondsSinceEpoch.toString() ?? ''));
     return;
@@ -532,6 +533,13 @@ class NotificationService {
     final recipient = data['recipient']?.toString().trim().toLowerCase() ?? '';
     if (account.isEmpty || (recipient.isNotEmpty && recipient != account)) return;
     if (!_canDisplayNotification(prefs, type)) return;
+    final sender = (data['from']?.toString() ?? data['chat']?.toString() ?? '')
+        .trim().toLowerCase();
+    final dndEnabled = prefs.getBool('do_not_disturb_enabled') ?? false;
+    final favorites = (prefs.getStringList('favorite_chat_ids') ?? [])
+        .map((value) => value.trim().toLowerCase())
+        .toSet();
+    if (dndEnabled && !favorites.contains(sender)) return;
     final presence = (prefs.getString('active_smart_presence_mode_v1') ?? 'online')
         .toLowerCase();
     if (presence == 'busy' || presence == 'invisible') return;
