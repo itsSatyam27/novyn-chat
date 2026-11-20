@@ -44,7 +44,7 @@ class NovynDock extends StatelessWidget {
   static const labels = <String>[
     'Messages',
     'Calls',
-    'Discover',
+    'Games',
     'Contacts',
     'Settings',
   ];
@@ -52,7 +52,7 @@ class NovynDock extends StatelessWidget {
   static const icons = <IconData>[
     LucideIcons.messageCircle,
     LucideIcons.phone,
-    LucideIcons.compass,
+    Icons.sports_esports_rounded,
     LucideIcons.users,
     LucideIcons.userRound,
   ];

@@ -460,9 +460,9 @@ class _DiscoverPeopleScreenState extends State<DiscoverPeopleScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Friend Requests', style: NovynText.display(25, color: foreground)),
+                        Text('Find Friends', style: NovynText.display(25, color: foreground)),
                         const SizedBox(height: 2),
-                        Text('Manage your connections', style: NovynText.body(14, color: muted)),
+                        Text('Search by username and manage sent requests', style: NovynText.body(14, color: muted)),
                       ],
                     ),
                   ),

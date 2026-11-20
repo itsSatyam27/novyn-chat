@@ -8,7 +8,7 @@ import 'calls/calls_screen.dart';
 import 'calls/call_screen.dart';
 import 'auth/auth_screen.dart';
 import 'people/people_screen.dart';
-import 'discover/discover_screen.dart';
+import 'games/games_screen.dart';
 import 'profile/profile_screen.dart';
 import '../services/auth_service.dart';
 import '../services/socket_service.dart';
@@ -82,11 +82,12 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
       AppUpdateService.backgroundCheckFrequency,
       (_) => _runUpdateCheck(force: true),
     );
-    // Build screens — ChatsScreen gets a callback to switch to People tab (index 2)
+    // Keep the five-tab layout stable: Games replaces Discover at index 2.
+    // Contacts stays at index 3 so chat and social notification routing remains unchanged.
     _screens = [
-      ChatsScreen(onNavigateToPeople: () => _onTabTap(3)), // index 3 now
+      ChatsScreen(onNavigateToPeople: () => _onTabTap(3)),
       const CallsScreen(),
-      const DiscoverScreen(),
+      const GamesScreen(),
       const PeopleScreen(),
       const ProfileScreen(),
     ];

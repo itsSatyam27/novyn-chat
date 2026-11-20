@@ -13,6 +13,7 @@ import '../../utils/presence_utils.dart';
 import '../../widgets/novyn_ui.dart';
 import '../../theme/novyn_theme.dart';
 import '../chats/chat_detail_screen.dart';
+import 'discover_people_screen.dart';
 import 'received_friend_requests_screen.dart';
 import 'package:novyn/services/haptic_service.dart';
 
@@ -145,6 +146,15 @@ class _PeopleScreenState extends State<PeopleScreen> {
     } catch (_) {
       _showMessage('Could not open the share sheet.');
     }
+  }
+
+  void _showFindFriends(String myUid) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => DiscoverPeopleScreen(myUid: myUid),
+      ),
+    );
   }
 
   void _showReceivedRequests(String myUid) {
@@ -571,6 +581,20 @@ class _PeopleScreenState extends State<PeopleScreen> {
           color: theme.colorScheme.surface,
           child: Column(
             children: [
+              _ContactActionTile(
+                icon: Icons.person_search_rounded,
+                title: 'Find friends',
+                subtitle: 'Search Novyn usernames and send a request.',
+                onTap: () => _showFindFriends(myUid),
+              ),
+              Divider(
+                height: 1,
+                thickness: 1,
+                indent: 70,
+                color: theme.brightness == Brightness.dark
+                    ? Colors.white.withValues(alpha: .07)
+                    : const Color(0xFFF0ECF6),
+              ),
               StreamBuilder<int>(
                 stream: service.pendingRequestsCountStream(myUid),
                 builder: (context, snapshot) {

@@ -51,6 +51,32 @@ void main() {
     }
   });
 
+  testWidgets('dock exposes Games at index 2 and keeps Contacts at index 3',
+      (tester) async {
+    var selected = 0;
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        bottomNavigationBar: StatefulBuilder(
+          builder: (context, setState) => NovynDock(
+            selectedIndex: selected,
+            onSelected: (index) => setState(() => selected = index),
+            style: 'slide_pill',
+          ),
+        ),
+      ),
+    ));
+
+    expect(find.text('Games'), findsOneWidget);
+    expect(find.text('Contacts'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('dock-tab-2')));
+    await tester.pumpAndSettle();
+    expect(selected, 2);
+    await tester.tap(find.byKey(const ValueKey('dock-tab-3')));
+    await tester.pumpAndSettle();
+    expect(selected, 3);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('dock tabs remain tappable and badges stay visible',
       (tester) async {
     var selected = 0;
