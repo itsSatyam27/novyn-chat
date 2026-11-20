@@ -530,14 +530,15 @@ class NotificationService {
         .trim()
         .toLowerCase();
     final recipient = data['recipient']?.toString().trim().toLowerCase() ?? '';
-    if (account.isEmpty || (recipient.isNotEmpty && recipient != account))
-      return;
-    if (!(prefs.getBool('notifications_on') ?? true)) return;
-    final presence =
-        (prefs.getString('active_smart_presence_mode_v1') ?? 'online')
-            .toLowerCase();
+    if (account.isEmpty || (recipient.isNotEmpty && recipient != account)) return;
+    if (!_canDisplayNotification(prefs, type)) return;
+    final presence = (prefs.getString('active_smart_presence_mode_v1') ?? 'online')
+        .toLowerCase();
     if (presence == 'busy' || presence == 'invisible') return;
 
+    final sound = _preferenceEnabled(prefs, 'notification_sound_enabled');
+    final vibration = _preferenceEnabled(prefs, 'notification_vibration_enabled');
+    final channelId = _notificationChannelVariant('novyn_social', sound, vibration);
     final plugin = FlutterLocalNotificationsPlugin();
     await plugin.initialize(const InitializationSettings(
       android: AndroidInitializationSettings('@drawable/novyn_wings_icon'),
@@ -545,37 +546,110 @@ class NotificationService {
     ));
     final android = plugin.resolvePlatformSpecificImplementation<
         AndroidFlutterLocalNotificationsPlugin>();
-    await android?.createNotificationChannel(const AndroidNotificationChannel(
-      'novyn_social',
+    await android?.createNotificationChannel(AndroidNotificationChannel(
+      channelId,
       'Social notifications',
       description: 'Friend requests and group invitations',
       importance: Importance.high,
-      playSound: true,
-      enableVibration: true,
+      playSound: sound,
+      enableVibration: vibration,
     ));
-    final eventId =
-        data['eventId']?.toString() ?? '$type:${data['from'] ?? ''}';
+    final eventId = data['eventId']?.toString() ??
+        (type + ':' + (data['from']?.toString() ?? ''));
     await plugin.show(
       eventId.hashCode,
       data['title']?.toString() ?? 'Novyn',
       data['body']?.toString() ?? 'You have a new notification',
-      const NotificationDetails(
+      NotificationDetails(
         android: AndroidNotificationDetails(
-          'novyn_social',
+          channelId,
           'Social notifications',
           channelDescription: 'Friend requests and group invitations',
           importance: Importance.high,
           priority: Priority.high,
+          playSound: sound,
+          enableVibration: vibration,
           icon: '@drawable/novyn_wings_icon',
           autoCancel: true,
         ),
         iOS: DarwinNotificationDetails(
           presentAlert: true,
           presentBadge: true,
-          presentSound: true,
+          presentSound: sound,
         ),
       ),
-      payload: 'social:$type',
+      payload: 'social:' + type,
+    );
+  }
+
+  static Future<void> showGameNotification(Map<String, dynamic> data) async {
+    final type = data['type']?.toString() ?? '';
+    if (!const {'game_invitation', 'game_turn', 'game_result'}.contains(type)) return;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.reload();
+    final account = (prefs.getString('novyn_notification_account') ?? '')
+        .trim()
+        .toLowerCase();
+    final recipient = data['recipient']?.toString().trim().toLowerCase() ?? '';
+    if (account.isEmpty || (recipient.isNotEmpty && recipient != account)) return;
+
+    final isGroup = data['kind']?.toString() == 'group';
+    if (!_canDisplayNotification(prefs, type, isGroup: isGroup)) return;
+    final presence = (prefs.getString('active_smart_presence_mode_v1') ?? 'online')
+        .toLowerCase();
+    if (presence == 'busy' || presence == 'invisible') return;
+
+    final chatId = data['chat']?.toString().trim() ?? '';
+    if (chatId.isEmpty ||
+        prefs.getBool('novyn_mute_' + chatId.toLowerCase()) == true) return;
+    final dndEnabled = prefs.getBool('do_not_disturb_enabled') ?? false;
+    final favorites = (prefs.getStringList('favorite_chat_ids') ?? [])
+        .map((value) => value.toLowerCase()).toSet();
+    if (dndEnabled && !favorites.contains(chatId.toLowerCase())) return;
+
+    final sound = _preferenceEnabled(prefs, 'notification_sound_enabled');
+    final vibration = _preferenceEnabled(prefs, 'notification_vibration_enabled');
+    final channelId = _notificationChannelVariant('novyn_games', sound, vibration);
+    final plugin = FlutterLocalNotificationsPlugin();
+    await plugin.initialize(const InitializationSettings(
+      android: AndroidInitializationSettings('@drawable/novyn_wings_icon'),
+      iOS: DarwinInitializationSettings(),
+    ));
+    final android = plugin.resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin>();
+    await android?.createNotificationChannel(AndroidNotificationChannel(
+      channelId,
+      'Novyn Games',
+      description: 'Game invitations, turns and results',
+      importance: Importance.high,
+      playSound: sound,
+      enableVibration: vibration,
+    ));
+    final eventId = data['eventId']?.toString() ??
+        (type + ':' + (data['gameId']?.toString() ?? chatId));
+    await plugin.show(
+      eventId.hashCode,
+      data['title']?.toString() ?? 'Novyn Games',
+      data['body']?.toString() ?? 'You have a game notification',
+      NotificationDetails(
+        android: AndroidNotificationDetails(
+          channelId,
+          'Novyn Games',
+          channelDescription: 'Game invitations, turns and results',
+          importance: Importance.high,
+          priority: Priority.high,
+          playSound: sound,
+          enableVibration: vibration,
+          icon: '@drawable/novyn_wings_icon',
+          autoCancel: true,
+        ),
+        iOS: DarwinNotificationDetails(
+          presentAlert: true,
+          presentBadge: true,
+          presentSound: sound,
+        ),
+      ),
+      payload: 'game:' + (isGroup ? 'group:' : 'friend:') + chatId,
     );
   }
 
