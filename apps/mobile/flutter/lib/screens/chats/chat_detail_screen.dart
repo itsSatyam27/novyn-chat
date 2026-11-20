@@ -156,6 +156,10 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
   int _voiceSeconds = 0;
   String? _voiceRecordingPath;
   bool _peerMuted = false;
+
+  String get _mutePreferenceId => widget.isGroup
+      ? (widget.peer.uid.isNotEmpty ? widget.peer.uid : widget.peer.username)
+      : widget.peer.username;
   List<String> _quickEmojis =
       List<String>.from(defaultQuickReactionEmojis);
 
@@ -3812,32 +3816,44 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
 
   Future<void> _loadPeerMutePreference() async {
     final preferences = await SharedPreferences.getInstance();
-    final key = 'novyn_mute_${widget.peer.username.toLowerCase()}';
-    if (!mounted) return;
-    final muted = preferences.getBool(key) ?? false;
-    setState(() => _peerMuted = muted);
+    final key = 'novyn_mute_${_mutePreferenceId.toLowerCase()}';
+    await preferences.reload();
+    var muted = preferences.getBool(key) ?? false;
     try {
-      _socketService.setMute(widget.peer.username, muted: muted);
+      final remote = await _socketService.fetchAccountSettings();
+      final settings = remote['settings'];
+      if (remote['ok'] == true && settings is Map && settings['mutedChats'] is List) {
+        final ids = (settings['mutedChats'] as List)
+            .map((value) => value.toString().trim().toLowerCase())
+            .toSet();
+        muted = ids.contains(_mutePreferenceId.toLowerCase());
+        await preferences.setBool(key, muted);
+      }
     } catch (_) {
-      // Keep local preferences available while offline; retry next chat open.
+      // Offline: retain the last local mute state and retry on the next open.
     }
+    if (mounted) setState(() => _peerMuted = muted);
   }
 
   Future<void> _toggleMute() async {
     final preferences = await SharedPreferences.getInstance();
-    final key = 'novyn_mute_${widget.peer.username.toLowerCase()}';
+    final key = 'novyn_mute_${_mutePreferenceId.toLowerCase()}';
     final nextMuted = !(preferences.getBool(key) ?? _peerMuted);
     await _setPeerMuted(nextMuted);
   }
 
   Future<void> _setPeerMuted(bool muted) async {
-    final key = 'novyn_mute_${widget.peer.username.toLowerCase()}';
+    final key = 'novyn_mute_${_mutePreferenceId.toLowerCase()}';
     final preferences = await SharedPreferences.getInstance();
     await preferences.setBool(key, muted);
     if (!mounted) return;
     setState(() => _peerMuted = muted);
     try {
-      _socketService.setMute(widget.peer.username, muted: muted);
+      _socketService.setMute(
+        _mutePreferenceId,
+        muted: muted,
+        isGroup: widget.isGroup,
+      );
     } catch (_) {
       // Keep this device's preference; server sync is retried on chat open.
     }
