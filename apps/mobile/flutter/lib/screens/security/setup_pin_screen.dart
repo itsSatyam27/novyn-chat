@@ -9,12 +9,16 @@ import 'package:novyn/services/haptic_service.dart';
 class SetupPinScreen extends StatefulWidget {
   final bool isPanic;
   final bool isChanging;
+  final bool isVerifyingOnly;
 
   const SetupPinScreen({
     super.key,
     this.isPanic = false,
     this.isChanging = false,
-  }) : assert(!(isPanic && isChanging));
+    this.isVerifyingOnly = false,
+  })  : assert(!(isPanic && isChanging)),
+        assert(!(isPanic && isVerifyingOnly)),
+        assert(!(isChanging && isVerifyingOnly));
 
   @override
   State<SetupPinScreen> createState() => _SetupPinScreenState();
@@ -28,6 +32,7 @@ class _SetupPinScreenState extends State<SetupPinScreen> {
   bool _saving = false;
 
   String get _activePin {
+    if (widget.isVerifyingOnly) return _currentPin;
     if (widget.isChanging && _step == 0) return _currentPin;
     if ((widget.isChanging && _step == 1) ||
         (!widget.isChanging && _step == 0)) {
@@ -37,6 +42,7 @@ class _SetupPinScreenState extends State<SetupPinScreen> {
   }
 
   String get _title {
+    if (widget.isVerifyingOnly) return 'Verify App Lock PIN';
     if (widget.isPanic) {
       return _step == 0 ? 'Create Panic PIN' : 'Confirm Panic PIN';
     }
@@ -47,6 +53,9 @@ class _SetupPinScreenState extends State<SetupPinScreen> {
   }
 
   String get _subtitle {
+    if (widget.isVerifyingOnly) {
+      return 'Enter your current 4-digit PIN to turn off App Lock';
+    }
     if (widget.isPanic) {
       return _step == 0
           ? 'This PIN opens your decoy Novyn space'
@@ -69,7 +78,7 @@ class _SetupPinScreenState extends State<SetupPinScreen> {
     HapticService.vibrate(NovynHapticType.light, category: HapticCategory.buttons);
     final next = _activePin + digit;
     setState(() {
-      if (widget.isChanging && _step == 0) {
+      if (widget.isVerifyingOnly || (widget.isChanging && _step == 0)) {
         _currentPin = next;
       } else if ((widget.isChanging && _step == 1) ||
           (!widget.isChanging && _step == 0)) {
@@ -85,18 +94,49 @@ class _SetupPinScreenState extends State<SetupPinScreen> {
     }
   }
 
+  Future<bool> _verifyCurrentPin(SettingsService settings) async {
+    final remaining = settings.appLockRemaining;
+    if (remaining > Duration.zero) {
+      HapticService.vibrate(NovynHapticType.error, category: HapticCategory.buttons);
+      setState(() => _currentPin = '');
+      NovynAlert.show(
+        context,
+        'Too many incorrect attempts. Try again in ${remaining.inSeconds.ceil()} seconds.',
+        isError: true,
+      );
+      return false;
+    }
+
+    if (_currentPin != settings.appLockPin) {
+      await settings.recordFailedAppLockAttempt();
+      if (!mounted) return false;
+      HapticService.vibrate(NovynHapticType.error, category: HapticCategory.buttons);
+      setState(() => _currentPin = '');
+      NovynAlert.show(
+        context,
+        'Current PIN is incorrect. Try again.',
+        isError: true,
+      );
+      return false;
+    }
+
+    await settings.resetAppLockFailures();
+    return true;
+  }
+
   Future<void> _advance() async {
     if (_saving || _activePin.length != 4) return;
     final settings = context.read<SettingsService>();
 
+    if (widget.isVerifyingOnly) {
+      if (!await _verifyCurrentPin(settings)) return;
+      HapticService.vibrate(NovynHapticType.medium, category: HapticCategory.buttons);
+      if (mounted) Navigator.pop(context, true);
+      return;
+    }
+
     if (widget.isChanging && _step == 0) {
-      if (_currentPin != settings.appLockPin) {
-        HapticService.vibrate(NovynHapticType.error, category: HapticCategory.buttons);
-        setState(() => _currentPin = '');
-        NovynAlert.show(context, 'Current PIN is incorrect. Try again.',
-            isError: true);
-        return;
-      }
+      if (!await _verifyCurrentPin(settings)) return;
       HapticService.vibrate(NovynHapticType.selection, category: HapticCategory.buttons);
       setState(() => _step = 1);
       return;
@@ -180,7 +220,7 @@ class _SetupPinScreenState extends State<SetupPinScreen> {
     setState(() {
       if (_activePin.isNotEmpty) {
         final next = _activePin.substring(0, _activePin.length - 1);
-        if (widget.isChanging && _step == 0) {
+        if (widget.isVerifyingOnly || (widget.isChanging && _step == 0)) {
           _currentPin = next;
         } else if ((widget.isChanging && _step == 1) ||
             (!widget.isChanging && _step == 0)) {
@@ -201,7 +241,7 @@ class _SetupPinScreenState extends State<SetupPinScreen> {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     final accent = colors.primary;
-    final totalSteps = widget.isChanging ? 3 : 2;
+    final totalSteps = widget.isVerifyingOnly ? 1 : widget.isChanging ? 3 : 2;
 
     return Scaffold(
       backgroundColor: NovynTheme.pageBg(context),
@@ -213,7 +253,13 @@ class _SetupPinScreenState extends State<SetupPinScreen> {
           onPressed: _saving ? null : () => Navigator.maybePop(context),
           icon: const Icon(Icons.close_rounded),
         ),
-        title: Text(widget.isChanging ? 'Change PIN' : 'App Lock PIN'),
+        title: Text(
+          widget.isVerifyingOnly
+              ? 'Verify PIN'
+              : widget.isChanging
+                  ? 'Change PIN'
+                  : 'App Lock PIN',
+        ),
         centerTitle: true,
       ),
       body: SafeArea(

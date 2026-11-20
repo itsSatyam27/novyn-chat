@@ -473,9 +473,23 @@ class ProfileScreen extends StatelessWidget {
         }
       }
     } else {
+      final verified = await Navigator.push<bool>(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const SetupPinScreen(isVerifyingOnly: true),
+        ),
+      );
+      if (verified != true || !context.mounted) return;
+
       await settings.setAppLockEnabled(false);
       if (context.mounted) {
-        NovynAlert.show(context, 'App Lock disabled.', title: 'App Lock off', icon: Icons.lock_open_rounded, tone: NovynAlertTone.neutral);
+        NovynAlert.show(
+          context,
+          'App Lock disabled.',
+          title: 'App Lock off',
+          icon: Icons.lock_open_rounded,
+          tone: NovynAlertTone.neutral,
+        );
       }
     }
   }
