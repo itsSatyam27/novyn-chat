@@ -7,9 +7,21 @@ import '../../../models/chat_preview.dart';
 import '../../../services/socket_service.dart';
 import '../../../theme/novyn_theme.dart';
 import '../../../widgets/novyn_alert.dart';
+import '../../../widgets/novyn_toast.dart';
 
 class MutedChatsScreen extends StatefulWidget {
   const MutedChatsScreen({super.key});
+
+  static Future<int> countMutedChats(SocketService socket) async {
+    try {
+      final result = await socket.fetchAccountSettings();
+      final settings = result['settings'];
+      final values = settings is Map ? settings['mutedChats'] : null;
+      return values is List ? values.length : 0;
+    } catch (_) {
+      return 0;
+    }
+  }
 
   @override
   State<MutedChatsScreen> createState() => _MutedChatsScreenState();
