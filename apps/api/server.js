@@ -2694,8 +2694,8 @@ function formatPushBody(text, fallback = "New message") {
 
 function notificationIsInQuietHours(user, now = new Date()) {
   if (user?.quietHoursEnabled !== true) return false;
-  const start = /^([01]\\d|2[0-3]):[0-5]\\d$/.test(user.quietHoursStart || "") ? user.quietHoursStart : "22:00";
-  const end = /^([01]\\d|2[0-3]):[0-5]\\d$/.test(user.quietHoursEnd || "") ? user.quietHoursEnd : "07:00";
+  const start = /^([01]\d|2[0-3]):[0-5]\d$/.test(user.quietHoursStart || "") ? user.quietHoursStart : "22:00";
+  const end = /^([01]\d|2[0-3]):[0-5]\d$/.test(user.quietHoursEnd || "") ? user.quietHoursEnd : "07:00";
   const timezone = typeof user.quietHoursTimezone === "string" ? user.quietHoursTimezone : "";
   let hour = now.getHours();
   let minute = now.getMinutes();
@@ -7620,8 +7620,8 @@ io.on("connection", (socket) => {
     if (typeof payload?.gameTurnEnabled === "boolean") user.gameTurnEnabled = payload.gameTurnEnabled;
     if (typeof payload?.gameResultsEnabled === "boolean") user.gameResultsEnabled = payload.gameResultsEnabled;
     if (typeof payload?.quietHoursEnabled === "boolean") user.quietHoursEnabled = payload.quietHoursEnabled;
-    if (typeof payload?.quietHoursStart === "string" && /^([01]\\d|2[0-3]):[0-5]\\d$/.test(payload.quietHoursStart)) user.quietHoursStart = payload.quietHoursStart;
-    if (typeof payload?.quietHoursEnd === "string" && /^([01]\\d|2[0-3]):[0-5]\\d$/.test(payload.quietHoursEnd)) user.quietHoursEnd = payload.quietHoursEnd;
+    if (typeof payload?.quietHoursStart === "string" && /^([01]\d|2[0-3]):[0-5]\d$/.test(payload.quietHoursStart)) user.quietHoursStart = payload.quietHoursStart;
+    if (typeof payload?.quietHoursEnd === "string" && /^([01]\d|2[0-3]):[0-5]\d$/.test(payload.quietHoursEnd)) user.quietHoursEnd = payload.quietHoursEnd;
     if (typeof payload?.quietHoursTimezone === "string") user.quietHoursTimezone = payload.quietHoursTimezone.slice(0, 80);
     if (typeof payload?.notificationSoundEnabled === "boolean") user.notificationSoundEnabled = payload.notificationSoundEnabled;
     if (typeof payload?.notificationVibrationEnabled === "boolean") user.notificationVibrationEnabled = payload.notificationVibrationEnabled;
