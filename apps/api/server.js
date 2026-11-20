@@ -2866,7 +2866,7 @@ async function sendPushToUser(userKey, payload) {
             } : {}),
           },
           apns: {
-            headers: (isDirectMessagePush || isCallPush) ? {
+            headers: (isManagedDataPush || isCallPush) ? {
               "apns-push-type": "background",
               "apns-priority": "5",
               ...(isCallPush ? { "apns-expiration": String(Math.floor(Date.now() / 1000) + 45) } : {}),
