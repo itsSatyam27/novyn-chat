@@ -6313,7 +6313,7 @@ app.post("/api/auth/password-reset/request",
 app.post("/api/auth/password-reset/confirm",
   createIpRateLimiter({ getStore: () => httpRateLimits }, "auth-password-reset-confirm", 30, 15 * 60 * 1000),
   requireCsrf,
-  (req, res) => {
+  async (req, res) => {
     pruneExpiredPasswordResetTokens();
     const identifier = toDisplayName(req.body?.identifier || req.body?.email || req.body?.username || "");
     const token = toDisplayName(req.body?.code || req.body?.token || "");
@@ -6362,7 +6362,7 @@ app.post("/api/auth/password-reset/confirm",
       });
       return;
     }
-    const secret = createPasswordSecret(newPassword);
+    const secret = await createPasswordSecret(newPassword);
     user.passwordSalt = secret.passwordSalt;
     user.passwordHash = secret.passwordHash;
     user.isRegistered = true;
@@ -7113,7 +7113,7 @@ io.on("connection", (socket) => {
     });
   });
 
-  socket.on("reset_password", (payload) => {
+  socket.on("reset_password", async (payload) => {
     if (!allowSocketAction(socket, 'reset_password', 30, 15 * 60 * 1000)) {
       return socket.emit('password_reset_failed', { message: 'Too many attempts. Try again later.' });
     }
@@ -7172,7 +7172,7 @@ io.on("connection", (socket) => {
       return;
     }
 
-    const secret = createPasswordSecret(newPassword);
+    const secret = await createPasswordSecret(newPassword);
     user.passwordSalt = secret.passwordSalt;
     user.passwordHash = secret.passwordHash;
     user.isRegistered = true;
@@ -7654,7 +7654,7 @@ io.on("connection", (socket) => {
     }
   });
 
-  socket.on("change_password", (payload) => {
+  socket.on("change_password", async (payload) => {
     const userKey = socket.data.userKey;
     if (!userKey) return;
     const user = users.get(userKey);
@@ -7680,7 +7680,7 @@ io.on("connection", (socket) => {
       return;
     }
 
-    const secret = createPasswordSecret(nextPassword);
+    const secret = await createPasswordSecret(nextPassword);
     user.passwordSalt = secret.passwordSalt;
     user.passwordHash = secret.passwordHash;
     revokeAllRefreshSessionsForUser(userKey);
