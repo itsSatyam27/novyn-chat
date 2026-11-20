@@ -19,6 +19,15 @@ class NotificationSettingsScreen extends StatefulWidget {
 
 class _NotificationSettingsScreenState extends State<NotificationSettingsScreen> {
   final Set<String> _savingKeys = <String>{};
+  late Future<int> _mutedCountFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _mutedCountFuture = MutedChatsScreen.countMutedChats(
+      context.read<SocketService>(),
+    );
+  }
 
   Future<void> _saveServerToggle(
     String key,
@@ -151,6 +160,13 @@ class _NotificationSettingsScreenState extends State<NotificationSettingsScreen>
     await Navigator.of(context).push(
       MaterialPageRoute<void>(builder: (_) => screen),
     );
+    if (mounted) {
+      setState(() {
+        _mutedCountFuture = MutedChatsScreen.countMutedChats(
+          context.read<SocketService>(),
+        );
+      });
+    }
   }
 
   @override
@@ -159,9 +175,6 @@ class _NotificationSettingsScreenState extends State<NotificationSettingsScreen>
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final enabled = settings.notificationsOn;
     final previews = settings.messagePreview;
-    final mutedCount = MutedChatsScreen.countMutedChats(
-      context.read<SocketService>(),
-    );
 
     Widget toggle({
       required String key,
@@ -417,7 +430,7 @@ class _NotificationSettingsScreenState extends State<NotificationSettingsScreen>
             _sectionHeader('CHAT NOTIFICATIONS'),
             _groupedCard(context, children: [
               FutureBuilder<int>(
-                future: mutedCount,
+                future: _mutedCountFuture,
                 builder: (context, snapshot) => _NavigationRow(
                   icon: Icons.notifications_off_outlined,
                   iconColor: pink,
