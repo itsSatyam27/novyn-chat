@@ -970,6 +970,18 @@ class NotificationService {
           _handleSocialTap(payload.substring('social:'.length));
           return;
         }
+        if (payload.startsWith('game:') || payload.startsWith('group:')) {
+          final parts = payload.split(':');
+          final isGame = parts.first == 'game';
+          final isGroup = isGame ? parts.length >= 3 && parts[1] == 'group' : true;
+          final chatId = isGame
+              ? (parts.length >= 3 ? parts.sublist(2).join(':') : '')
+              : parts.sublist(1).join(':');
+          if (chatId.isNotEmpty) {
+            unawaited(_openChatFromNotification(chatId, context, isGroup: isGroup));
+          }
+          return;
+        }
         if (payload.startsWith('call:')) {
           final parts = payload.substring(5).split('|');
           if (parts.length >= 3 && parts[0].isNotEmpty) {
@@ -1796,6 +1808,18 @@ class NotificationService {
       return;
     }
 
+    if (type == 'game_invitation' || type == 'game_turn' || type == 'game_result') {
+      final chatId = message.data['chat']?.toString().trim() ?? '';
+      if (chatId.isNotEmpty && context.mounted) {
+        await _openChatFromNotification(
+          chatId,
+          context,
+          isGroup: message.data['kind'] == 'group',
+        );
+      }
+      return;
+    }
+
     if (type == 'call') {
       if (!context.mounted) return;
       final caller = message.data['chat']?.toString().trim() ?? '';
@@ -1818,11 +1842,15 @@ class NotificationService {
       return;
     }
 
-    if (type != 'message' || message.data['kind'] == 'group') return;
+    if (type != 'message') return;
     final username = message.data['chat']?.toString().trim() ?? '';
     if (username.isEmpty || !context.mounted) return;
 
-    await _openChatFromNotification(username, context);
+    await _openChatFromNotification(
+      username,
+      context,
+      isGroup: message.data['kind'] == 'group',
+    );
   }
 
   static final Set<String> _openingCallIds = <String>{};
@@ -1915,7 +1943,10 @@ class NotificationService {
   }
 
   static Future<void> _openChatFromNotification(
-      String username, BuildContext context) async {
+    String username,
+    BuildContext context, {
+    bool isGroup = false,
+  }) async {
     final target = username.trim();
     if (target.isEmpty || !context.mounted) return;
     try {
@@ -1933,7 +1964,16 @@ class NotificationService {
         return;
       }
 
-      final peer = await context.read<FriendService>().getUser(target);
+      final peer = isGroup
+          ? socket.conversations
+              .where((chat) =>
+                  chat.isGroup &&
+                  (chat.chatId.toLowerCase() == target.toLowerCase() ||
+                      chat.peerUid.toLowerCase() == target.toLowerCase() ||
+                      chat.peer.uid.toLowerCase() == target.toLowerCase()))
+              .map((chat) => chat.peer)
+              .firstOrNull
+          : await context.read<FriendService>().getUser(target);
       if (peer == null || !context.mounted) return;
 
       // A notification must take the user to the conversation, not leave an
@@ -1942,7 +1982,9 @@ class NotificationService {
       final navigator = Navigator.of(context, rootNavigator: true);
       navigator.popUntil((route) => route.isFirst);
       await navigator.push(
-        MaterialPageRoute(builder: (_) => ChatDetailScreen(peer: peer)),
+        MaterialPageRoute(
+          builder: (_) => ChatDetailScreen(peer: peer, isGroup: isGroup),
+        ),
       );
     } catch (error) {
       debugPrint(
