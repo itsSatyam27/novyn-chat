@@ -904,7 +904,7 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
     final invite = [
       'Join me on Novyn!',
       if (username.isNotEmpty) 'Find me as @$username.',
-      'https://itssatyam27.github.io/novyn-chat/',
+      'https://chat-novyn.web.app',
     ].join(' ');
     try {
       await Share.share(invite, subject: 'Join me on Novyn');

@@ -327,7 +327,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
   }
 
   Widget _buildEmpty(String myUid) {
-    final inviteUrl = Uri.parse('https://itssatyam27.github.io/novyn-chat/')
+    final inviteUrl = Uri.parse('chat-novyn.web.app')
         .replace(queryParameters: {'invite': myUid});
     final theme = Theme.of(context);
     final dark = theme.brightness == Brightness.dark;
