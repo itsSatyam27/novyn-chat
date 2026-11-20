@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:novyn/services/auth_service.dart';
 import 'package:novyn/services/settings_service.dart';
 
 void main() {
@@ -35,6 +36,11 @@ void main() {
     expect(p['callsEnabled'], isFalse);
     expect(p['callPrivacy'], 'nobody');
     expect(p['messagePrivacy'], 'friends');
+  });
+  test('Offline maps to Invisible in account presence and Smart Presence', () {
+    expect(AuthService.normalizePresenceMode('Offline'), 'invisible');
+    expect(SettingsService.normalizeSmartPresenceMode('offline'), 'invisible');
+    expect(SettingsService.presenceStatusForSmartMode('offline'), 'invisible');
   });
   test('Away maps to Idle and local-only keys are excluded from server payload', () {
     expect(SettingsService.normalizeSmartPresenceMode('away'), 'idle');

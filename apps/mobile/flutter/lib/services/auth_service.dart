@@ -1188,11 +1188,18 @@ class AuthService extends ChangeNotifier {
   // kept so screens that call auth.setOnline() compile without changes.
   Future<void> setOnline(bool online) async {}
 
+  /// Offline is the user-facing label for the backend's Invisible mode.
+  @visibleForTesting
+  static String normalizePresenceMode(String status) {
+    final requested = status.trim().toLowerCase();
+    return requested == 'offline' ? 'invisible' : requested;
+  }
+
   // ── updateStatus — saves through the shared backend socket ──────────────
   // Screens call auth.updateStatus('Online'|'Away'|'Busy'|'Invisible').
   // Update locally, wait for server confirmation, and undo failed saves.
   Future<void> updateStatus(String status) async {
-    final mode = status.trim().toLowerCase();
+    final mode = normalizePresenceMode(status);
     if (!['online', 'away', 'busy', 'invisible'].contains(mode)) {
       throw ArgumentError.value(status, 'status', 'Unknown presence mode');
     }
@@ -1209,7 +1216,10 @@ class AuthService extends ChangeNotifier {
       // ChangeNotifier. Persist the selected mode so Busy is respected even
       // when the app is backgrounded or its socket temporarily disconnects.
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('novyn_notification_presence_mode', mode);
+      final persisted = await prefs.setString('novyn_notification_presence_mode', mode);
+      if (!persisted) {
+        throw StateError('Your device could not save the selected status.');
+      }
       if (savePresencePolicy != null) {
         final policy = presencePolicy?.call(mode) ?? const <String, dynamic>{};
         await savePresencePolicy!(mode, policy);

@@ -146,7 +146,10 @@ class NovynApp extends StatelessWidget {
             }
 
             final mode = signedInUser?.presenceMode;
-            if (mode == null) return;
+            // updateStatus publishes an optimistic profile while the backend
+            // acknowledgement is pending. Do not apply that mode's local
+            // notification/privacy policy until the server confirms it.
+            if (mode == null || auth.updatingPresence) return;
             final normalized = SettingsService.normalizeSmartPresenceMode(mode);
             if (preferences.activeSmartPresenceMode != normalized) {
               unawaited(preferences.applySmartPresenceLocalPolicy(normalized));

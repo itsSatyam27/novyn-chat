@@ -2541,7 +2541,7 @@ class _NovynSettingsProfileCardState extends State<_NovynSettingsProfileCard> {
   }
 }
 
-class _SettingsQuickToggle extends StatelessWidget {
+class _SettingsQuickToggle extends StatefulWidget {
   const _SettingsQuickToggle({
     required this.title,
     required this.activeIcon,
@@ -2557,8 +2557,33 @@ class _SettingsQuickToggle extends StatelessWidget {
   final IconData inactiveIcon;
   final bool value;
   final Color accent;
-  final ValueChanged<bool> onChanged;
+  final Future<void> Function(bool) onChanged;
   final bool expanded;
+
+  @override
+  State<_SettingsQuickToggle> createState() => _SettingsQuickToggleState();
+}
+
+class _SettingsQuickToggleState extends State<_SettingsQuickToggle> {
+  bool _saving = false;
+
+  Future<void> _handleChanged(bool nextValue) async {
+    if (_saving || nextValue == widget.value) return;
+
+    setState(() => _saving = true);
+    try {
+      await widget.onChanged(nextValue);
+    } catch (error) {
+      if (!mounted) return;
+      NovynAlert.show(
+        context,
+        'Could not update ${widget.title}: $error',
+        isError: true,
+      );
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -2567,14 +2592,16 @@ class _SettingsQuickToggle extends StatelessWidget {
     final ink = dark ? const Color(0xFFF0EFFF) : const Color(0xFF1D1B26);
     final border = Theme.of(context).colorScheme.outlineVariant;
     final highContrast = context.watch<SettingsService>().highContrast;
-    final iconBg = dark ? accent.withValues(alpha: 0.16) : accent.withValues(alpha: 0.12);
+    final iconBg = dark
+        ? widget.accent.withValues(alpha: 0.16)
+        : widget.accent.withValues(alpha: 0.12);
 
     return Material(
       color: surface,
       borderRadius: BorderRadius.circular(22),
       child: InkWell(
         borderRadius: BorderRadius.circular(22),
-        onTap: () => onChanged(!value),
+        onTap: _saving ? null : () => _handleChanged(!widget.value),
         child: Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
@@ -2599,26 +2626,40 @@ class _SettingsQuickToggle extends StatelessWidget {
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Icon(
-                      value ? activeIcon : inactiveIcon,
+                      widget.value ? widget.activeIcon : widget.inactiveIcon,
                       size: 20,
-                      color: accent,
+                      color: widget.accent,
                     ),
                   ),
                   Transform.scale(
                     scale: 0.8,
                     alignment: Alignment.centerRight,
-                    child: Switch.adaptive(
-                      value: value,
-                      onChanged: onChanged,
-                      thumbColor: const WidgetStatePropertyAll(Colors.white),
-                      activeTrackColor: Theme.of(context).colorScheme.primary,
-                    ),
+                    child: _saving
+                        ? const SizedBox(
+                            width: 40,
+                            height: 28,
+                            child: Center(
+                              child: SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              ),
+                            ),
+                          )
+                        : Switch.adaptive(
+                            value: widget.value,
+                            onChanged: _handleChanged,
+                            thumbColor:
+                                const WidgetStatePropertyAll(Colors.white),
+                            activeTrackColor:
+                                Theme.of(context).colorScheme.primary,
+                          ),
                   ),
                 ],
               ),
               const SizedBox(height: 12),
               Text(
-                title,
+                widget.title,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(

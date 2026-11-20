@@ -11,7 +11,7 @@ class PresenceDock extends StatelessWidget {
       this.busy = false});
 
   static const modes = ['online', 'away', 'busy', 'invisible'];
-  static const labels = ['Online', 'Away', 'Busy', 'Invisible'];
+  static const labels = ['Online', 'Away', 'Busy', 'Offline'];
   static const colors = [
     Color(0xFF10B981),
     Color(0xFFF59E0B),
@@ -21,7 +21,10 @@ class PresenceDock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final selected = modes.indexOf(status.trim().toLowerCase());
+    final normalizedStatus = status.trim().toLowerCase() == 'offline'
+        ? 'invisible'
+        : status.trim().toLowerCase();
+    final selected = modes.indexOf(normalizedStatus);
     final current = selected < 0 ? 0 : selected;
     final dark = Theme.of(context).brightness == Brightness.dark;
     return PopupMenuButton<String>(

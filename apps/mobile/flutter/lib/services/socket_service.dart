@@ -1910,27 +1910,15 @@ class SocketService extends ChangeNotifier {
   }
 
   Future<void> updateStealthMode(bool enabled) async {
-    await _waitForSocketAuthentication();
-    final connection = _socket;
-    if (connection == null || !_isConnected) {
-      throw StateError('Connect to Novyn before changing Stealth Mode.');
-    }
-    final completer = Completer<Map<String, dynamic>>();
-    connection.emitWithAck('update_profile', {'stealthModeEnabled': enabled},
-        ack: (dynamic result) {
-      if (!completer.isCompleted) {
-        completer.complete(result is Map
-            ? Map<String, dynamic>.from(result)
-            : <String, dynamic>{'ok': false});
-      }
-    });
-    final result = await completer.future.timeout(
-      const Duration(seconds: 12),
-      onTimeout: () => <String, dynamic>{'ok': false},
-    );
+    // Use the shared account-settings acknowledgement path so Stealth Mode
+    // and Smart Presence report connection loss and server rejection
+    // consistently.
+    final result = await updateAccountSettings({'stealthModeEnabled': enabled});
     if (result['ok'] != true) {
-      throw StateError(result['message']?.toString() ??
-          'Could not sync Stealth Mode with your account.');
+      throw StateError(
+        result['message']?.toString() ??
+            'Could not sync Stealth Mode with your account. Please reconnect and try again.',
+      );
     }
     _stealthModePreference = enabled;
   }
@@ -3083,47 +3071,49 @@ class SocketService extends ChangeNotifier {
   Future<Map<String, dynamic>> updateAccountSettings(
       Map<String, dynamic> changes) async {
     await _requireAuthenticatedConnection();
+    final connection = _socket!;
     final completer = Completer<Map<String, dynamic>>();
-    _socket!.emitWithAck('update_profile', changes, ack: (dynamic result) {
-      completer.complete(result is Map
-          ? Map<String, dynamic>.from(result)
-          : {
-              'ok': false,
-              'message': 'The server did not confirm this setting.'
-            });
-    });
-    return completer.future.timeout(
-      const Duration(seconds: 10),
-      onTimeout: () => {'ok': false, 'message': 'Settings update timed out.'},
-    );
+
+    void disconnected(dynamic _) {
+      if (!completer.isCompleted) {
+        completer.complete({
+          'ok': false,
+          'message': 'Connection was lost before Novyn confirmed the change. Reconnect and try again.',
+        });
+      }
+    }
+
+    connection.on('disconnect', disconnected);
+    try {
+      connection.emitWithAck('update_profile', changes, ack: (dynamic result) {
+        if (completer.isCompleted) return;
+        completer.complete(result is Map
+            ? Map<String, dynamic>.from(result)
+            : {
+                'ok': false,
+                'message': 'The server did not confirm this setting.'
+              });
+      });
+      return await completer.future.timeout(
+        const Duration(seconds: 10),
+        onTimeout: () => {
+          'ok': false,
+          'message': 'Novyn did not confirm the settings update in time. Check your connection and try again.',
+        },
+      );
+    } finally {
+      connection.off('disconnect', disconnected);
+    }
   }
 
   Future<void> updatePresence(String mode) async {
-    await _requireAuthenticatedConnection();
-    final confirmed = Completer<void>();
-    _socket!.emitWithAck(
-      'update_profile',
-      {'presenceMode': mode},
-      ack: (dynamic result) {
-        if (confirmed.isCompleted) return;
-        if (result is Map && result['ok'] == true) {
-          confirmed.complete();
-        } else {
-          final message = result is Map ? result['message']?.toString() : null;
-          confirmed.completeError(StateError(
-            message?.isNotEmpty == true
-                ? message!
-                : 'The server did not confirm the status update.',
-          ));
-        }
-      },
-    );
-    await confirmed.future.timeout(
-      const Duration(seconds: 15),
-      onTimeout: () => throw TimeoutException(
-        'Status update timed out. Check your connection and try again.',
-      ),
-    );
+    final result = await updateAccountSettings({'presenceMode': mode});
+    if (result['ok'] != true) {
+      throw StateError(
+        result['message']?.toString() ??
+            'The server did not confirm the status update. Please reconnect and try again.',
+      );
+    }
   }
 
   // messagesReadByPeer — used by chat_detail_screen for read tick color
