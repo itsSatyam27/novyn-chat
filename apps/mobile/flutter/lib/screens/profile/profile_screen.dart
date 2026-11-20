@@ -2607,7 +2607,7 @@ class _SettingsQuickToggle extends StatelessWidget {
                       value: value,
                       onChanged: onChanged,
                       thumbColor: const WidgetStatePropertyAll(Colors.white),
-                      activeTrackColor: const Color(0xFF6246EA),
+                      activeTrackColor: Theme.of(context).colorScheme.primary,
                     ),
                   ),
                 ],
