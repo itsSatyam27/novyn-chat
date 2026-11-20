@@ -4,7 +4,7 @@ on:
   push:
     branches: [main, "phase-2", "features/**", "hardening/**", "calls/**", "offline/**"]
   pull_request:
-    branches: [main, "phase-2"]
+    branches: [main, "phase-2", "features/**"]
 
 jobs:
   validate:
