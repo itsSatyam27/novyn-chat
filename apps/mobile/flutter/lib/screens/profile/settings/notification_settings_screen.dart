@@ -6,6 +6,7 @@ import 'package:novyn/widgets/novyn_alert.dart';
 import '../../../services/settings_service.dart';
 import '../../../services/socket_service.dart';
 import '../../../theme/novyn_theme.dart';
+import 'muted_chats_screen.dart';
 
 class NotificationSettingsScreen extends StatelessWidget {
   const NotificationSettingsScreen({super.key});
@@ -117,6 +118,73 @@ class NotificationSettingsScreen extends StatelessWidget {
                         'groupNotificationsEnabled',
                         val,
                         settings.setGroupNotifications,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 22),
+
+            _sectionHeader('CHAT NOTIFICATIONS'),
+            _groupedCard(
+              context,
+              children: [
+                Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () {
+                      HapticService.vibrate(NovynHapticType.selection);
+                      Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => const MutedChatsScreen(),
+                        ),
+                      );
+                    },
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 42,
+                            height: 42,
+                            decoration: BoxDecoration(
+                              color: isDark ? const Color(0xFF28234B) : const Color(0xFFECE9FB),
+                              borderRadius: BorderRadius.circular(13),
+                            ),
+                            child: Icon(
+                              Icons.notifications_off_outlined,
+                              color: Theme.of(context).colorScheme.primary,
+                              size: 21,
+                            ),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Muted chats',
+                                  style: TextStyle(
+                                    fontSize: 15.5,
+                                    fontWeight: FontWeight.w600,
+                                    color: isDark ? Colors.white : const Color(0xFF1A1730),
+                                  ),
+                                ),
+                                const SizedBox(height: 3),
+                                Text(
+                                  'Manage conversations with muted notifications',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: isDark ? const Color(0xFFAAA8C6) : const Color(0xFF7E7A94),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Icon(Icons.chevron_right_rounded, color: isDark ? const Color(0xFF8F8BA0) : const Color(0xFF9A96AA)),
+                        ],
                       ),
                     ),
                   ),
