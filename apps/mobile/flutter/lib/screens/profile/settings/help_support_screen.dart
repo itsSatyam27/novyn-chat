@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:novyn/widgets/novyn_alert.dart';
 import '../../../theme/novyn_theme.dart';
 import 'feedback_screen.dart';
 
