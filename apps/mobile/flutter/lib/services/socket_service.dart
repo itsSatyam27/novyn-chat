@@ -3107,7 +3107,6 @@ class SocketService extends ChangeNotifier {
   }
 
   Future<void> updatePresence(String mode) async {
-    await _requireAuthenticatedConnection();
     final result = await updateAccountSettings({'presenceMode': mode});
     if (result['ok'] != true) {
       throw StateError(
