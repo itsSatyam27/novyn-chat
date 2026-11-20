@@ -121,8 +121,8 @@ class _SoundVibrationScreenState extends State<SoundVibrationScreen> {
                   contentPadding: EdgeInsets.zero,
                   title: Text(labels[i]),
                   trailing: settings.vibrationPattern == values[i]
-                      ? const Icon(Icons.check_circle_rounded, color: Color(0xFF5E4AE3))
-                      : const Icon(Icons.circle_outlined),
+                      ? Icon(Icons.check_circle_rounded, color: Theme.of(context).colorScheme.primary)
+                      : Icon(Icons.circle_outlined),
                   onTap: () => Navigator.pop(sheetContext, values[i]),
                 ),
             ],
@@ -215,7 +215,7 @@ class _SoundVibrationScreenState extends State<SoundVibrationScreen> {
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
                   child: Row(
                     children: [
-                      const Icon(
+                      Icon(
                         Icons.volume_down_rounded,
                         color: Color(0xFF8F8BA0),
                         size: 20,
@@ -233,10 +233,10 @@ class _SoundVibrationScreenState extends State<SoundVibrationScreen> {
                       const SizedBox(width: 8),
                       Text(
                         '${(settings.messageVolume * 100).round()}%',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 13.5,
                           fontWeight: FontWeight.w700,
-                          color: Color(0xFF5E4AE3),
+                          color: Theme.of(context).colorScheme.primary,
                         ),
                       ),
                     ],
@@ -290,7 +290,7 @@ class _SoundVibrationScreenState extends State<SoundVibrationScreen> {
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
                   child: Row(
                     children: [
-                      const Icon(
+                      Icon(
                         Icons.volume_down_rounded,
                         color: Color(0xFF8F8BA0),
                         size: 20,
@@ -308,10 +308,10 @@ class _SoundVibrationScreenState extends State<SoundVibrationScreen> {
                       const SizedBox(width: 8),
                       Text(
                         '${(settings.callVolume * 100).round()}%',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 13.5,
                           fontWeight: FontWeight.w700,
-                          color: Color(0xFF5E4AE3),
+                          color: Theme.of(context).colorScheme.primary,
                         ),
                       ),
                     ],
@@ -442,7 +442,7 @@ class _SoundVibrationScreenState extends State<SoundVibrationScreen> {
                                 Icon(
                                   Icons.play_arrow_rounded,
                                   size: 16,
-                                  color: Color(0xFF5E4AE3),
+                                  color: Theme.of(context).colorScheme.primary,
                                 ),
                                 SizedBox(width: 4),
                                 Text(
@@ -450,7 +450,7 @@ class _SoundVibrationScreenState extends State<SoundVibrationScreen> {
                                   style: TextStyle(
                                     fontSize: 13,
                                     fontWeight: FontWeight.w700,
-                                    color: Color(0xFF5E4AE3),
+                                    color: Theme.of(context).colorScheme.primary,
                                   ),
                                 ),
                               ],
@@ -471,10 +471,10 @@ class _SoundVibrationScreenState extends State<SoundVibrationScreen> {
                             const SizedBox(width: 8),
                             Text(
                               '${(settings.hapticIntensity * 100).round()}%',
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 13.5,
                                 fontWeight: FontWeight.w700,
-                                color: Color(0xFF5E4AE3),
+                                color: Theme.of(context).colorScheme.primary,
                               ),
                             ),
                           ],
@@ -496,7 +496,7 @@ class _SoundVibrationScreenState extends State<SoundVibrationScreen> {
       padding: const EdgeInsets.only(left: 4, bottom: 9),
       child: Text(
         title.toUpperCase(),
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: 11.5,
           fontWeight: FontWeight.w700,
           letterSpacing: 1.2,
@@ -524,14 +524,14 @@ class _SoundVibrationScreenState extends State<SoundVibrationScreen> {
       children: [
         Text(
           value,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 13.5,
             fontWeight: FontWeight.w600,
-            color: Color(0xFF5E4AE3),
+            color: Theme.of(context).colorScheme.primary,
           ),
         ),
         const SizedBox(width: 4),
-        const Icon(
+        Icon(
           Icons.chevron_right_rounded,
           color: Color(0xFF8F8BA0),
           size: 20,
@@ -549,7 +549,7 @@ class _SoundVibrationScreenState extends State<SoundVibrationScreen> {
     return Switch.adaptive(
       value: value,
       activeColor: Colors.white,
-      activeTrackColor: const Color(0xFF5E4AE3),
+      activeTrackColor: Theme.of(context).colorScheme.primary,
       inactiveThumbColor: Colors.white,
       inactiveTrackColor: dark ? const Color(0xFF3B394E) : const Color(0xFFE2E0EC),
       trackOutlineColor: MaterialStateProperty.all(Colors.transparent),
@@ -578,7 +578,7 @@ class _SoundVibrationScreenState extends State<SoundVibrationScreen> {
             ? null
             : [
                 BoxShadow(
-                  color: const Color(0xFF5E4AE3).withValues(alpha: 0.03),
+                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.03),
                   blurRadius: 16,
                   offset: const Offset(0, 4),
                 ),
@@ -740,7 +740,7 @@ class _IndentedToggleRow extends StatelessWidget {
           Switch.adaptive(
             value: value,
             activeColor: Colors.white,
-            activeTrackColor: const Color(0xFF5E4AE3),
+            activeTrackColor: Theme.of(context).colorScheme.primary,
             inactiveThumbColor: Colors.white,
             inactiveTrackColor: dark ? const Color(0xFF3B394E) : const Color(0xFFE2E0EC),
             trackOutlineColor: MaterialStateProperty.all(Colors.transparent),
@@ -768,8 +768,8 @@ class _PlayCircle extends StatelessWidget {
       child: Container(
         width: 44,
         height: 44,
-        decoration: const BoxDecoration(
-          color: Color(0xFF5E4AE3),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.primary,
           shape: BoxShape.circle,
         ),
         child: Icon(
@@ -838,7 +838,7 @@ class _SegmentedTones extends StatelessWidget {
                       fontSize: 13,
                       fontWeight: tone == selectedTone ? FontWeight.w700 : FontWeight.w500,
                       color: tone == selectedTone
-                          ? const Color(0xFF5E4AE3)
+                          ? Theme.of(context).colorScheme.primary
                           : (isDark ? const Color(0xFF8F8BA0) : const Color(0xFF5A5670)),
                     ),
                   ),
@@ -863,12 +863,12 @@ class _NvSlider extends StatelessWidget {
 
     return SliderTheme(
       data: SliderTheme.of(context).copyWith(
-        activeTrackColor: const Color(0xFF5E4AE3),
+        activeTrackColor: Theme.of(context).colorScheme.primary,
         inactiveTrackColor: isDark ? const Color(0xFF2C2844) : const Color(0xFFECE9FB),
-        thumbColor: const Color(0xFF5E4AE3),
+        thumbColor: Theme.of(context).colorScheme.primary,
         trackHeight: 5,
         thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
-        overlayColor: const Color(0xFF5E4AE3).withValues(alpha: 0.15),
+        overlayColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.15),
       ),
       child: Slider(
         value: value.clamp(0, 100),
