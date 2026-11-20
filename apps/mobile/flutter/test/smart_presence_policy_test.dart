@@ -36,6 +36,10 @@ void main() {
     expect(p['callPrivacy'], 'nobody');
     expect(p['messagePrivacy'], 'friends');
   });
+  test('Offline maps to Invisible instead of falling back to Online', () {
+    expect(SettingsService.normalizeSmartPresenceMode('offline'), 'invisible');
+    expect(SettingsService.presenceStatusForSmartMode('offline'), 'invisible');
+  });
   test('Away maps to Idle and local-only keys are excluded from server payload', () {
     expect(SettingsService.normalizeSmartPresenceMode('away'), 'idle');
     expect(SettingsService.presenceStatusForSmartMode('idle'), 'away');
