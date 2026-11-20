@@ -385,6 +385,7 @@ class SettingsService extends ChangeNotifier {
     final value = mode.trim().toLowerCase();
     if (value == 'away' || value == 'idle') return 'idle';
     if (value == 'dnd') return 'busy';
+    if (value == 'offline') return 'invisible';
     return const {'online', 'busy', 'invisible'}.contains(value) ? value : 'online';
   }
   static String presenceStatusForSmartMode(String mode) =>
@@ -1218,8 +1219,14 @@ class SettingsService extends ChangeNotifier {
 
   Future<void> setStealthMode(bool v) async {
     if (v == _stealthModeEnabled) return;
+
+    // Commit the in-memory value only after the device confirms persistence.
+    final saved = await _prefs.setBool(_kStealthMode, v);
+    if (!saved) {
+      throw StateError('Your device could not save the Stealth Mode setting.');
+    }
+
     _stealthModeEnabled = v;
-    await _prefs.setBool(_kStealthMode, v);
     notifyListeners();
   }
 
