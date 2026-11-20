@@ -7668,7 +7668,7 @@ io.on("connection", (socket) => {
 
     const hasExistingPassword = Boolean(user.passwordHash && user.passwordSalt);
     if (hasExistingPassword) {
-      if (!currentPassword || !verifyPassword(currentPassword, user.passwordSalt, user.passwordHash)) {
+      if (!currentPassword || !(await verifyPassword(currentPassword, user.passwordSalt, user.passwordHash))) {
         socket.emit("password_change_failed", { message: "Incorrect current password." });
         return;
       }
