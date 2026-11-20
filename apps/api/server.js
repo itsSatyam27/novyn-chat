@@ -2799,17 +2799,28 @@ async function sendPushToUser(userKey, payload) {
         // decrypts locally and creates the visible notification; plaintext
         // never passes through FCM or this server.
         const isCallPush = safePayload.type === "call";
-        // Direct-message notifications are rendered by the app's background
-        // handler. Sending an FCM notification payload as well makes Android
-        // auto-display a second, generic alert for the same message.
-        const isDirectMessagePush =
-          safePayload.type === "message" && safePayload.group !== true;
+        // The mobile app renders data-only notifications so category,
+        // quiet-hours, mute, preview, sound and vibration preferences are
+        // applied consistently in foreground and background states.
+        const isManagedDataPush = [
+          "message", "friend_request", "friend_request_accepted",
+          "friend_request_declined", "group_invite",
+          "game_invitation", "game_turn", "game_result",
+        ].includes(safePayload.type);
         const data = {
           type: toDisplayName(safePayload.type) || "message",
           url: toDisplayName(safePayload.url),
           tag: toDisplayName(safePayload.tag),
+          recipient: toDisplayName(user.username) || userKey,
+          eventId: toDisplayName(safePayload.eventId) ||
+            (String(safePayload.type || "notification") + ":" + String(Date.now())),
           chat: toDisplayName(payload?.group === true ? payload?.groupId : payload?.chat) || "",
           kind: payload?.group === true ? "group" : "friend",
+          ...(safePayload.gameId ? { gameId: toDisplayName(safePayload.gameId) } : {}),
+          ...(safePayload.gameType ? { gameType: toDisplayName(safePayload.gameType) } : {}),
+          mentionOrReply: safePayload.mentionOrReply ? "1" : "0",
+          soundEnabled: safePayload.soundEnabled === false ? "0" : "1",
+          vibrationEnabled: safePayload.vibrationEnabled === false ? "0" : "1",
           // Keep a data-payload copy so Flutter can honor local preview/privacy
           // preferences and show plaintext previews when the app is backgrounded.
           ...(!isCallPush ? {
@@ -2837,7 +2848,7 @@ async function sendPushToUser(userKey, payload) {
         }
         const message = {
           token,
-          ...(!isDirectMessagePush && !isCallPush ? {
+          ...(!isManagedDataPush && !isCallPush ? {
             notification: {
               title: toDisplayName(safePayload.title) || "Novyn",
               body: toDisplayName(safePayload.body) || "You have a new message",
@@ -2847,7 +2858,7 @@ async function sendPushToUser(userKey, payload) {
           android: {
             priority: safePayload.silent ? "normal" : "high",
             ...(isCallPush ? { ttl: 45000 } : {}),
-            ...(!isDirectMessagePush && !isCallPush ? {
+            ...(!isManagedDataPush && !isCallPush ? {
               notification: {
                 tag: toDisplayName(safePayload.tag) || undefined,
                 ...(safePayload.silent ? {} : { sound: "default" }),
@@ -2861,7 +2872,7 @@ async function sendPushToUser(userKey, payload) {
               ...(isCallPush ? { "apns-expiration": String(Math.floor(Date.now() / 1000) + 45) } : {}),
             } : undefined,
             payload: {
-              aps: (isDirectMessagePush || isCallPush)
+              aps: (isManagedDataPush || isCallPush)
                 ? { "content-available": 1 }
                 : {
                     alert: {
