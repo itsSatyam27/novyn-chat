@@ -453,7 +453,7 @@ class NotificationService {
     ));
     final android = plugin.resolvePlatformSpecificImplementation<
         AndroidFlutterLocalNotificationsPlugin>();
-    await android?.createNotificationChannel(const AndroidNotificationChannel(
+    await android?.createNotificationChannel(AndroidNotificationChannel(
       'novyn_social',
       'Social notifications',
       description: 'Friend requests and group invitations',
