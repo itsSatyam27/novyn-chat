@@ -424,7 +424,7 @@ class _NotificationCategoryControlsState extends State<_NotificationCategoryCont
     ],
     'SOCIAL ALERTS': [
       ('friendRequestsEnabled', 'Friend requests', Icons.person_add_alt_1_rounded),
-      ('friendRequestAcceptedEnabled', 'Request accepted', Icons.person_check_alt_1_rounded),
+      ('friendRequestAcceptedEnabled', 'Request accepted', Icons.check_circle_outline_rounded),
       ('groupInvitationsEnabled', 'Group invitations', Icons.group_add_outlined),
     ],
     'CALLS': [
