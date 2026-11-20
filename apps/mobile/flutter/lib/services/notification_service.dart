@@ -286,18 +286,20 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
         '[NovynNotifications] Message preview is disabled or content is hidden.');
   }
 
+  final soundEnabled = prefs.getBool('in_app_sounds') ?? true;
+  final vibrationEnabled = prefs.getBool('in_app_vibration') ?? true;
   final plugin = FlutterLocalNotificationsPlugin();
   await plugin.initialize(const InitializationSettings(
     android: AndroidInitializationSettings('@drawable/novyn_wings_icon'),
     iOS: DarwinInitializationSettings(),
   ));
-  const channel = AndroidNotificationChannel(
+  final channel = AndroidNotificationChannel(
     'novyn_messages',
     'Messages',
     description: 'New direct messages from your Novyn contacts',
     importance: Importance.max,
-    playSound: true,
-    enableVibration: true,
+    playSound: soundEnabled,
+    enableVibration: vibrationEnabled,
   );
   await plugin
       .resolvePlatformSpecificImplementation<
@@ -318,6 +320,8 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
         importance: Importance.max,
         priority: Priority.high,
         category: AndroidNotificationCategory.message,
+        playSound: soundEnabled,
+        enableVibration: vibrationEnabled,
         styleInformation: fln.MessagingStyleInformation(
           mePerson,
           messages: [fln.Message(body, timestamp, senderPerson)],
@@ -328,10 +332,10 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
         onlyAlertOnce: false,
         autoCancel: true,
       ),
-      iOS: const DarwinNotificationDetails(
+      iOS: DarwinNotificationDetails(
         presentAlert: true,
         presentBadge: true,
-        presentSound: true,
+        presentSound: soundEnabled,
       ),
     ),
     payload: sender,
