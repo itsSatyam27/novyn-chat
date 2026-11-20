@@ -7,6 +7,8 @@ import '../../../services/settings_service.dart';
 import '../../../services/socket_service.dart';
 import '../../../theme/novyn_theme.dart';
 import 'muted_chats_screen.dart';
+import 'sound_vibration_screen.dart';
+import 'quiet_hours_screen.dart';
 
 class NotificationSettingsScreen extends StatelessWidget {
   const NotificationSettingsScreen({super.key});
@@ -126,6 +128,32 @@ class NotificationSettingsScreen extends StatelessWidget {
             ),
             const SizedBox(height: 22),
 
+            const SizedBox(height: 22),
+            const _NotificationCategoryControls(),
+            const SizedBox(height: 22),
+            _sectionHeader('SOUND & SCHEDULE'),
+            _groupedCard(
+              context,
+              children: [
+                _NavigationPreferenceRow(
+                  icon: Icons.volume_up_outlined,
+                  title: 'Sound & vibration',
+                  subtitle: 'Choose notification sounds and vibration',
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(builder: (_) => const SoundVibrationScreen()),
+                  ),
+                ),
+                _NavigationPreferenceRow(
+                  icon: Icons.schedule_rounded,
+                  title: 'Quiet hours',
+                  subtitle: 'Set a schedule for silencing notifications',
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(builder: (_) => const QuietHoursScreen()),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 22),
             _sectionHeader('CHAT NOTIFICATIONS'),
             _groupedCard(
               context,
@@ -361,6 +389,166 @@ class _NotificationToggleRow extends StatelessWidget {
             },
           ),
         ],
+      ),
+    );
+  }
+}
+
+
+class _NavigationPreferenceRow extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+  const _NavigationPreferenceRow({required this.icon, required this.title, required this.subtitle, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {
+          HapticService.vibrate(NovynHapticType.selection);
+          onTap();
+        },
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+          child: Row(children: [
+            Container(
+              width: 42, height: 42,
+              decoration: BoxDecoration(
+                color: dark ? const Color(0xFF28234B) : const Color(0xFFECE9FB),
+                borderRadius: BorderRadius.circular(13),
+              ),
+              child: Icon(icon, color: Theme.of(context).colorScheme.primary, size: 21),
+            ),
+            const SizedBox(width: 14),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(title, style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w600, color: dark ? Colors.white : const Color(0xFF1A1730))),
+              const SizedBox(height: 3),
+              Text(subtitle, style: TextStyle(fontSize: 12, color: dark ? const Color(0xFFAAA8C6) : const Color(0xFF7E7A94))),
+            ])),
+            Icon(Icons.chevron_right_rounded, color: dark ? const Color(0xFF8F8BA0) : const Color(0xFF9A96AA)),
+          ]),
+        ),
+      ),
+    );
+  }
+}
+
+class _NotificationCategoryControls extends StatefulWidget {
+  const _NotificationCategoryControls();
+
+  @override
+  State<_NotificationCategoryControls> createState() => _NotificationCategoryControlsState();
+}
+
+class _NotificationCategoryControlsState extends State<_NotificationCategoryControls> {
+  static const _sections = <String, List<(String, String, IconData)>>{
+    'MESSAGES': [
+      ('directMessagesEnabled', 'Direct messages', Icons.chat_bubble_outline_rounded),
+      ('groupMessagesEnabled', 'Group messages', Icons.groups_outlined),
+      ('mentionsRepliesEnabled', 'Mentions & replies', Icons.alternate_email_rounded),
+    ],
+    'SOCIAL ALERTS': [
+      ('friendRequestsEnabled', 'Friend requests', Icons.person_add_alt_1_rounded),
+      ('friendRequestAcceptedEnabled', 'Request accepted', Icons.person_check_alt_1_rounded),
+      ('groupInvitationsEnabled', 'Group invitations', Icons.group_add_outlined),
+    ],
+    'CALLS': [
+      ('voiceCallsEnabled', 'Voice calls', Icons.call_outlined),
+      ('videoCallsEnabled', 'Video calls', Icons.videocam_outlined),
+      ('missedCallsEnabled', 'Missed calls', Icons.call_missed_outgoing_rounded),
+    ],
+    'NOVYN GAMES': [
+      ('gameInvitationsEnabled', 'Game invitations', Icons.sports_esports_outlined),
+      ('gameTurnEnabled', 'Your turn', Icons.hourglass_bottom_rounded),
+      ('gameResultsEnabled', 'Game results', Icons.emoji_events_outlined),
+    ],
+  };
+
+  final Map<String, bool> _values = {};
+  bool _loading = true;
+  final Set<String> _saving = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final result = await context.read<SocketService>().fetchAccountSettings();
+      if (result['ok'] == true && result['settings'] is Map) {
+        final raw = Map<String, dynamic>.from(result['settings'] as Map);
+        if (!mounted) return;
+        setState(() {
+          for (final rows in _sections.values) {
+            for (final row in rows) {
+              _values[row.$1] = raw[row.$1] != false;
+            }
+          }
+          _loading = false;
+        });
+        return;
+      }
+    } catch (_) {}
+    if (!mounted) return;
+    setState(() {
+      for (final rows in _sections.values) {
+        for (final row in rows) { _values.putIfAbsent(row.$1, () => true); }
+      }
+      _loading = false;
+    });
+  }
+
+  Future<void> _set(String key, bool value) async {
+    if (_saving.contains(key)) return;
+    setState(() => _saving.add(key));
+    try {
+      final result = await context.read<SocketService>().updateAccountSettings({key: value});
+      if (result['ok'] != true) throw StateError(result['message']?.toString() ?? 'Could not save this preference.');
+      if (!mounted) return;
+      setState(() => _values[key] = value);
+    } catch (error) {
+      if (mounted) {
+        context.showNovynAlert(SnackBar(content: Text('Could not save notification preference: $error')));
+      }
+    } finally {
+      if (mounted) setState(() => _saving.remove(key));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = context.watch<SettingsService>().notificationsOn;
+    return AnimatedOpacity(
+      duration: const Duration(milliseconds: 180),
+      opacity: enabled ? 1 : 0.45,
+      child: IgnorePointer(
+        ignoring: !enabled || _loading,
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          for (final section in _sections.entries) ...[
+            NotificationSettingsScreen._sectionHeader(section.key),
+            NotificationSettingsScreen._groupedCard(
+              context,
+              children: [
+                for (var i = 0; i < section.value.length; i++)
+                  _NotificationToggleRow(
+                    icon: section.value[i].$3,
+                    iconColor: const Color(0xFF6366F1),
+                    iconBgColor: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF28234B) : const Color(0xFFECE9FB),
+                    title: section.value[i].$2,
+                    value: _values[section.value[i].$1] ?? true,
+                    onChanged: (value) => _set(section.value[i].$1, value),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 20),
+          ],
+        ]),
       ),
     );
   }
