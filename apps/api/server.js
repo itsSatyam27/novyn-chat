@@ -3671,7 +3671,10 @@ function isMutedBy(user, otherKey) {
   if (!(user.mutedUsers instanceof Set)) {
     user.mutedUsers = new Set();
   }
-  return user.mutedUsers.has(normalizeName(otherKey));
+  const normalizedName = normalizeName(otherKey);
+  if (normalizedName && user.mutedUsers.has(normalizedName)) return true;
+  const groupId = normalizeGroupId(otherKey);
+  return Boolean(groupId && user.mutedUsers.has(groupId));
 }
 
 function usersAreBlocked(userAKey, userBKey) {
@@ -10152,12 +10155,15 @@ io.on("connection", (socket) => {
     reply({ ok: true });
   });
 
-  socket.on("set_mute", (payload) => {
+  socket.on("set_mute", (payload, callback) => {
+    const respond = (result) => {
+      if (typeof callback === "function") callback(result);
+      else if (result?.ok === false) socket.emit("error_message", { message: result.message });
+    };
     const userKey = socket.data.userKey;
-    if (!userKey) return;
+    if (!userKey) return respond({ ok: false, message: "Please sign in again." });
     if (!allowSocketAction(socket, "set_mute", 80, 60 * 1000)) {
-      socket.emit("error_message", { message: "Too many notification updates. Try again shortly." });
-      return;
+      return respond({ ok: false, message: "Too many notification updates. Try again shortly." });
     }
 
     const isGroup = payload?.kind === "group" || payload?.group === true;
@@ -10169,7 +10175,7 @@ io.on("connection", (socket) => {
       const groupId = normalizeGroupId(payload?.groupId || payload?.username);
       const group = groups.get(groupId);
       if (!user || !group || !isGroupMember(group, userKey)) {
-        socket.emit("error_message", { message: "You can only mute notifications for a group you belong to." });
+        respond({ ok: false, message: "You can only mute notifications for a group you belong to." });
         return;
       }
       muteKey = group.id;
@@ -10178,7 +10184,7 @@ io.on("connection", (socket) => {
       const targetKey = normalizeName(payload?.username);
       const target = users.get(targetKey);
       if (!user || !target || targetKey === userKey || !user.friends.has(targetKey)) {
-        socket.emit("error_message", { message: "You can only update notifications for a contact." });
+        respond({ ok: false, message: "You can only update notifications for a contact." });
         return;
       }
       muteKey = targetKey;
@@ -10190,6 +10196,7 @@ io.on("connection", (socket) => {
     socket.emit("mute_updated", { username: targetLabel, kind: isGroup ? "group" : "friend", muted });
     emitFriendList(userKey);
     schedulePersist();
+    respond({ ok: true, username: targetLabel, kind: isGroup ? "group" : "friend", muted });
   });
 
   registerMessageMutationHandlers(socket, {
