@@ -2814,8 +2814,12 @@ async function sendPushToUser(userKey, payload) {
           safePayload.type === "message" && safePayload.group !== true;
         const data = {
           type: toDisplayName(safePayload.type) || "message",
+          eventId: toDisplayName(safePayload.eventId || safePayload.messageId),
           url: toDisplayName(safePayload.url),
           tag: toDisplayName(safePayload.tag),
+          isMention: safePayload.isMention ? "1" : "0",
+          isReply: safePayload.isReply ? "1" : "0",
+          gameId: toDisplayName(safePayload.gameId),
           chat: toDisplayName(payload?.group === true ? payload?.groupId : payload?.chat) || "",
           kind: payload?.group === true ? "group" : "friend",
           // Keep a data-payload copy so Flutter can honor local preview/privacy
