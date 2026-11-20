@@ -500,12 +500,9 @@ class SecurityPrivacyScreen extends StatelessWidget {
         await settings.setAppLockEnabled(true);
       }
     } else {
-      final success = await Navigator.push<bool>(
-        context,
-        MaterialPageRoute(builder: (_) => const SetupPinScreen(isVerifyingOnly: true)),
-      );
-      if (success == true) {
-        await settings.setAppLockEnabled(false);
+      await settings.setAppLockEnabled(false);
+      if (context.mounted) {
+        NovynAlert.show(context, 'App Lock disabled.', title: 'App Lock off', icon: Icons.lock_open_rounded, tone: NovynAlertTone.neutral);
       }
     }
   }
