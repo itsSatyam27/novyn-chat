@@ -5887,7 +5887,6 @@ class _AttachmentButton extends StatelessWidget {
   static const _items = [
     _MenuItem(icon: Icons.poll_rounded, label: 'Poll'),
     _MenuItem(icon: Icons.lock_outline_rounded, label: 'Riddle'),
-    _MenuItem(icon: Icons.sports_esports_rounded, label: 'Games'),
     _MenuItem(icon: Icons.gif_box_rounded, label: 'GIFs'),
     _MenuItem(icon: Icons.sticky_note_2_outlined, label: 'Stickers'),
     _MenuItem(icon: Icons.photo_library_rounded, label: 'Media'),
