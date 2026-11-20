@@ -43,28 +43,58 @@ function applyTicTacToe(game, userKey, moveData) {
 
   const playerX = current.playerX || game.createdBy;
   let playerO = current.playerO || game.opponent || null;
+  if (!playerX || (playerO && sameUser(playerX, playerO))) {
+    return { ok: false, reason: "Invalid game players." };
+  }
 
-  const waitingForGroupPlayer = !playerO && !sameUser(userKey, playerX) && board.some(Boolean);
+  if (!board.every((cell) => cell === null || cell === "X" || cell === "O")) {
+    return { ok: false, reason: "Invalid Tic-Tac-Toe board." };
+  }
+  const xCount = board.filter((cell) => cell === "X").length;
+  const oCount = board.filter((cell) => cell === "O").length;
+  if (xCount !== oCount && xCount !== oCount + 1) {
+    return { ok: false, reason: "Invalid Tic-Tac-Toe board state." };
+  }
+
+  // Do not accept moves against a board that has already won or drawn, even
+  // if a stale/corrupt message still says the game is in progress.
+  if (finishTicTacToe(board, playerX, playerO).state === "finished") {
+    return { ok: false, reason: "Game is already finished." };
+  }
+
+  // A group game has no player O until the creator makes the opening X move.
+  // Only the next turn (one X, zero O, null turn) may claim that slot.
+  const waitingForGroupPlayer =
+    !playerO &&
+    !sameUser(userKey, playerX) &&
+    xCount === 1 &&
+    oCount === 0 &&
+    game.turn == null;
   if (game.state === "finished" || (!sameUser(game.turn, userKey) && !waitingForGroupPlayer)) {
     return { ok: false, reason: "It is not your turn." };
   }
 
   if (sameUser(userKey, playerX)) {
-    if (!playerX) return { ok: false, reason: "Invalid game players." };
+    // The creator is always X.
   } else if (playerO) {
-    if (!sameUser(userKey, playerO)) return { ok: false, reason: "You are not a player in this game." };
+    if (!sameUser(userKey, playerO)) {
+      return { ok: false, reason: "You are not a player in this game." };
+    }
   } else {
     playerO = userKey;
   }
 
   const symbol = sameUser(userKey, playerX) ? "X" : "O";
+  const expectedSymbol = xCount === oCount ? "X" : "O";
+  if (symbol !== expectedSymbol) {
+    return { ok: false, reason: "It is not your turn." };
+  }
+
   const requestedBoard = moveData.board;
   const changed = [];
-
   for (let i = 0; i < 9; i++) {
     if (requestedBoard[i] !== board[i]) changed.push(i);
   }
-
   if (changed.length !== 1) {
     return { ok: false, reason: "Invalid move." };
   }
@@ -72,12 +102,6 @@ function applyTicTacToe(game, userKey, moveData) {
   const index = changed[0];
   if (board[index] !== null || requestedBoard[index] !== symbol) {
     return { ok: false, reason: "Invalid move." };
-  }
-
-  for (let i = 0; i < 9; i++) {
-    if (i !== index && requestedBoard[i] !== board[i]) {
-      return { ok: false, reason: "Invalid board mutation." };
-    }
   }
 
   const nextBoard = [...board];
