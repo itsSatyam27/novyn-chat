@@ -141,7 +141,7 @@ test("Tic-Tac-Toe rejects malformed boards and impossible stored game states", (
     ...start,
     data: {
       ...start.data,
-      board: ["X", "X", "X", null, null, null, null, null, null],
+      board: ["X", "X", "X", "O", "O", null, null, null, null],
     },
   };
   const result = move(corrupted, "alice", 3, "X");
