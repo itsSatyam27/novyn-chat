@@ -82,7 +82,7 @@ void main() async {
       try {
         await AppUpdateService.initializeBackgroundChecks();
       } catch (error) {
-        debugPrint('[NovynUpdates] Background scheduler setup failed: ' + error.toString());
+        debugPrint('[NovynUpdates] Background scheduler setup failed: $error');
       }
     }());
   });
@@ -124,8 +124,10 @@ class NovynApp extends StatelessWidget {
                 ...SettingsService.smartPresenceServerFields(policy),
                 'presenceMode': mode,
               });
-              if (result['ok'] != true) throw StateError(
-                result['message']?.toString() ?? 'The Smart Presence policy could not be saved.');
+              if (result['ok'] != true) {
+                throw StateError(
+                  result['message']?.toString() ?? 'The Smart Presence policy could not be saved.');
+              }
               await preferences.applySmartPresenceLocalPolicy(mode, policy: policy);
             },
             savePassword: socket.changePassword,
@@ -191,7 +193,7 @@ class NovynApp extends StatelessWidget {
             darkTheme: NovynTheme.darkTheme(accent: s.accentColorEnabled ? Color(s.accentColorValue) : NovynTheme.indigo, highContrast: s.highContrast),
             themeMode: s.themeMode,
             locale: Locale(s.language),
-            localizationsDelegates: [
+            localizationsDelegates: const [
               AppLocalizations.delegate,
               GlobalMaterialLocalizations.delegate,
               GlobalWidgetsLocalizations.delegate,

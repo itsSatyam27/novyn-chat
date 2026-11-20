@@ -414,7 +414,9 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
       );
       if (!mounted ||
           context.read<AuthService>().user?.username.trim().toLowerCase() !=
-              username) return;
+              username) {
+        return;
+      }
       setState(() => _hiddenChatUsernames = next);
       _applyFilters();
     } catch (error) {
@@ -539,7 +541,9 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
     // Socket emits many unrelated notifications (typing, presence, connect).
     // Do not let an empty, not-yet-authenticated socket snapshot erase cache.
     if (!socket.isAuthenticated || !socket.hasLoadedConversations ||
-        socket.myUsername?.toLowerCase() != owner) return;
+        socket.myUsername?.toLowerCase() != owner) {
+      return;
+    }
 
     final conversations = socket.conversations;
     unawaited(_unhideChatsWithNewMessages(conversations));
@@ -583,7 +587,9 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
     if (!silent) {
       final cachedChats = await HybridDbService.getChats();
       if (!mounted || generation != _loadGeneration ||
-          context.read<AuthService>().user?.username != myUsername) return;
+          context.read<AuthService>().user?.username != myUsername) {
+        return;
+      }
       if (cachedChats.isNotEmpty && mounted) {
         final peerUids = cachedChats
             .map((c) => c['peerUid'] as String?)
@@ -592,7 +598,9 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
             .toList();
         final cachedUsers = await HybridDbService.getUsers(peerUids);
         if (!mounted || generation != _loadGeneration ||
-            context.read<AuthService>().user?.username != myUsername) return;
+            context.read<AuthService>().user?.username != myUsername) {
+          return;
+        }
 
         final previews = <ChatPreview>[];
         for (final chat in cachedChats) {

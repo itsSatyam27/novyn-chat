@@ -1218,7 +1218,7 @@ class _CallMenuItem extends StatelessWidget {
         const SizedBox(width: 12),
         Expanded(
           child: Column(
-            mainAxisAlignment: CrossAxisAlignment.center,
+            mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(title, style: NovynText.body(13, color: color, weight: FontWeight.w600)),

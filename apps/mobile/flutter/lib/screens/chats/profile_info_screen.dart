@@ -252,7 +252,7 @@ class ProfileInfoScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 22),
-          _SectionTitle(title: 'ABOUT'),
+          const _SectionTitle(title: 'ABOUT'),
           _InfoCard(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -405,7 +405,6 @@ class ProfileInfoScreen extends StatelessWidget {
   }
 
   static String _date(DateTime value) => '${value.day.toString().padLeft(2, '0')} ${_month(value.month)} ${value.year}';
-  static String _dateTime(DateTime value) => '${_date(value)} · ${value.hour.toString().padLeft(2, '0')}:${value.minute.toString().padLeft(2, '0')}';
   static String _month(int month) => const ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][month - 1];
 }
 
@@ -453,60 +452,6 @@ class _ActionButton extends StatelessWidget {
       ),
       icon: Icon(icon, size: 18),
       label: Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
-    );
-  }
-}
-
-class _DetailRow extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String value;
-  const _DetailRow({required this.icon, required this.label, required this.value});
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 9),
-      child: Row(
-        children: [
-          Icon(icon, size: 18, color: scheme.onSurfaceVariant),
-          const SizedBox(width: 12),
-          Expanded(child: Text(label, style: TextStyle(fontSize: 13, color: scheme.onSurfaceVariant))),
-          const SizedBox(width: 10),
-          Flexible(child: Text(value, textAlign: TextAlign.end, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: scheme.onSurface))),
-        ],
-      ),
-    );
-  }
-}
-
-class _NavigationRow extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final VoidCallback onTap;
-  const _NavigationRow({required this.icon, required this.title, required this.subtitle, required this.onTap});
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 7),
-        child: Row(
-          children: [
-            Icon(icon, color: scheme.primary, size: 21),
-            const SizedBox(width: 13),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(title, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: scheme.onSurface)),
-              const SizedBox(height: 3),
-              Text(subtitle, style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant)),
-            ])),
-            Icon(Icons.chevron_right_rounded, color: scheme.onSurfaceVariant),
-          ],
-        ),
-      ),
     );
   }
 }

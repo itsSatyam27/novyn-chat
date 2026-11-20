@@ -132,7 +132,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     try {
       await AppUpdateService.instance.checkForUpdates(notifyIfAvailable: true);
     } catch (error) {
-      debugPrint('[NovynUpdates] Foreground check failed: ' + error.toString());
+      debugPrint('[NovynUpdates] Foreground check failed: $error');
     }
   }
 
