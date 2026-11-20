@@ -60,7 +60,7 @@ bool _isQuietHoursActiveFromPrefs(SharedPreferences prefs, [DateTime? now]) {
   if (prefs.getBool('notification_quiet_hours_enabled') != true) return false;
   final start = prefs.getString('notification_quiet_hours_start') ?? '22:00';
   final end = prefs.getString('notification_quiet_hours_end') ?? '07:00';
-  final pattern = RegExp(r'^([01]\\d|2[0-3]):[0-5]\\d@pragma('vm:entry-point')
+  final pattern = RegExp(r'^([01]\d|2[0-3]):[0-5]\d@pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: FirebaseConfiguration.options);
