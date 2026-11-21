@@ -162,17 +162,33 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
           'The invitation was sent, but the game room could not be loaded. Open the chat and try again.',
         );
       }
-      await Navigator.of(context).push<void>(
-        MaterialPageRoute<void>(
-          builder: (_) => GameRoomScreen(
-            messageId: messageId,
-            peerUsername: friend.username,
-            currentUsername: socket.myUsername ?? _auth?.user?.username ?? '',
-            initialGame: Map<String, dynamic>.from(gameMessage!.game!),
-            opponentDisplayName:
-                friend.name.isEmpty ? friend.username : friend.name,
-            closeChatOnExit: true,
-          ),
+      final initialGameData = Map<String, dynamic>.from(gameMessage.game!);
+      final opponentName = friend.name.isEmpty ? friend.username : friend.name;
+      final currentUserName = socket.myUsername ?? _auth?.user?.username ?? '';
+
+      showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (sheetContext) => _FriendInviteWaitingSheet(
+          gameTitle: widget.title,
+          friend: friend,
+          currentUser: _auth?.user,
+          onEnterRoom: () {
+            Navigator.of(sheetContext).pop();
+            Navigator.of(context).push<void>(
+              MaterialPageRoute<void>(
+                builder: (_) => GameRoomScreen(
+                  messageId: messageId,
+                  peerUsername: friend.username,
+                  currentUsername: currentUserName,
+                  initialGame: initialGameData,
+                  opponentDisplayName: opponentName,
+                  closeChatOnExit: true,
+                ),
+              ),
+            );
+          },
         ),
       );
     } catch (error) {
@@ -651,99 +667,70 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
                   ),
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF28253A) : const Color(0xFFEBE7F6),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Text(
-                      '$onlineCount',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w900,
-                        height: 1.1,
-                        color: isDark ? Colors.white : const Color(0xFF3B3754),
-                      ),
-                    ),
-                    Text(
-                      'online',
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w700,
-                        height: 1.1,
-                        color: isDark ? Colors.white70 : const Color(0xFF7D789B),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
             ],
           ),
           const SizedBox(height: 18),
-          Container(
-            height: 50,
-            decoration: BoxDecoration(
-              color: Colors.transparent,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: isDark
-                    ? colors.outlineVariant.withValues(alpha: .3)
-                    : const Color(0xFFE2DDF5),
-                width: 1.5,
-              ),
+          TextField(
+            controller: _searchController,
+            onChanged: (val) {
+              setState(() => _searchQuery = val.trim().toLowerCase());
+            },
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: isDark ? Colors.white : const Color(0xFF1E1C2A),
             ),
-            alignment: Alignment.center,
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.search_rounded,
-                  size: 20,
-                  color: isDark ? Colors.white60 : const Color(0xFF7E7A9C),
+            decoration: InputDecoration(
+              isDense: true,
+              filled: true,
+              fillColor: isDark ? const Color(0xFF221F33) : const Color(0xFFFAF9FD),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+              prefixIcon: Icon(
+                Icons.search_rounded,
+                size: 20,
+                color: isDark ? Colors.white60 : const Color(0xFF7E7A9C),
+              ),
+              hintText: 'Search by username',
+              hintStyle: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                color: Color(0xFF8C87A6),
+              ),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: BorderSide(
+                  color: isDark
+                      ? colors.outlineVariant.withValues(alpha: .3)
+                      : const Color(0xFFE2DDF5),
+                  width: 1.5,
                 ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: TextField(
-                    controller: _searchController,
-                    onChanged: (val) {
-                      setState(() => _searchQuery = val.trim().toLowerCase());
-                    },
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: isDark ? Colors.white : const Color(0xFF1E1C2A),
-                    ),
-                    decoration: const InputDecoration(
-                      isDense: true,
-                      border: InputBorder.none,
-                      hintText: 'Search by username',
-                      hintStyle: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                        color: Color(0xFF8C87A6),
-                      ),
-                      contentPadding: EdgeInsets.zero,
-                    ),
-                  ),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: BorderSide(
+                  color: isDark
+                      ? colors.outlineVariant.withValues(alpha: .3)
+                      : const Color(0xFFE2DDF5),
+                  width: 1.5,
                 ),
-                if (_searchQuery.isNotEmpty)
-                  GestureDetector(
-                    onTap: () {
-                      _searchController.clear();
-                      setState(() => _searchQuery = '');
-                    },
-                    child: Icon(
-                      Icons.close_rounded,
-                      size: 18,
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: const BorderSide(
+                  color: Color(0xFF5E44F3),
+                  width: 1.8,
+                ),
+              ),
+              suffixIcon: _searchQuery.isNotEmpty
+                  ? IconButton(
+                      icon: const Icon(Icons.close_rounded, size: 18),
                       color: isDark ? Colors.white60 : const Color(0xFF7E7A9C),
-                    ),
-                  ),
-              ],
+                      onPressed: () {
+                        _searchController.clear();
+                        setState(() => _searchQuery = '');
+                      },
+                    )
+                  : null,
             ),
           ),
           if (_loadingFriends) ...[
@@ -1138,4 +1125,267 @@ class _TicTacToeBadgePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+class _FriendInviteWaitingSheet extends StatefulWidget {
+  const _FriendInviteWaitingSheet({
+    required this.gameTitle,
+    required this.friend,
+    required this.currentUser,
+    required this.onEnterRoom,
+  });
+
+  final String gameTitle;
+  final UserModel friend;
+  final UserModel? currentUser;
+  final VoidCallback onEnterRoom;
+
+  @override
+  State<_FriendInviteWaitingSheet> createState() => _FriendInviteWaitingSheetState();
+}
+
+class _FriendInviteWaitingSheetState extends State<_FriendInviteWaitingSheet>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _pulseController;
+  late Animation<double> _pulseAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1400),
+    )..repeat(reverse: true);
+    _pulseAnimation = Tween<double>(begin: 0.92, end: 1.08).animate(
+      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _pulseController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final friendName = widget.friend.name.isEmpty ? widget.friend.username : widget.friend.name;
+    final myName = widget.currentUser?.name.isNotEmpty == true
+        ? widget.currentUser!.name
+        : (widget.currentUser?.username ?? 'You');
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF161522) : Colors.white,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+        boxShadow: const [
+          BoxShadow(
+            color: Colors.black26,
+            blurRadius: 24,
+            offset: Offset(0, -4),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 44,
+            height: 4.5,
+            decoration: BoxDecoration(
+              color: isDark ? Colors.white24 : const Color(0xFFDDD9E8),
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+          const SizedBox(height: 22),
+          Text(
+            'Waiting for Opponent',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w800,
+              color: isDark ? Colors.white : const Color(0xFF1E1C2A),
+              letterSpacing: -.3,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            '${widget.gameTitle} invitation sent to @${widget.friend.username}',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+              color: isDark ? Colors.white70 : const Color(0xFF7E7A9C),
+            ),
+          ),
+          const SizedBox(height: 28),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Column(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(3),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(color: const Color(0xFF5E44F3), width: 2.5),
+                    ),
+                    child: UserAvatar(
+                      name: myName,
+                      photoUrl: widget.currentUser?.photoUrl,
+                      radius: 28,
+                      showOnlineIndicator: false,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'You',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: isDark ? Colors.white : const Color(0xFF1E1C2A),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(width: 20),
+              ScaleTransition(
+                scale: _pulseAnimation,
+                child: Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF5E44F3),
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF5E44F3).withValues(alpha: .38),
+                        blurRadius: 14,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  alignment: Alignment.center,
+                  child: const Text(
+                    'VS',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: .5,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 20),
+              Column(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(3),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: widget.friend.isOnline ? const Color(0xFF22C55E) : const Color(0xFF8C87A6),
+                        width: 2.5,
+                      ),
+                    ),
+                    child: UserAvatar(
+                      name: friendName,
+                      photoUrl: widget.friend.photoUrl,
+                      radius: 28,
+                      isOnline: widget.friend.isOnline,
+                      presence: widget.friend.status,
+                      showOnlineIndicator: true,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: 80,
+                    child: Text(
+                      friendName,
+                      textAlign: TextAlign.center,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: isDark ? Colors.white : const Color(0xFF1E1C2A),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 26),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF221F33) : const Color(0xFFF4F2FC),
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: Row(
+              children: [
+                const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Color(0xFF5E44F3),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Waiting for @${widget.friend.username} to open the match card in chat.',
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
+                      color: isDark ? Colors.white70 : const Color(0xFF58527A),
+                      height: 1.3,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 22),
+          SizedBox(
+            width: double.infinity,
+            height: 52,
+            child: ElevatedButton.icon(
+              onPressed: widget.onEnterRoom,
+              icon: const Icon(Icons.sports_esports_rounded, size: 21),
+              label: const Text(
+                'Enter Game Room',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF5E44F3),
+                foregroundColor: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text(
+              'Keep browsing lobby',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: isDark ? Colors.white60 : const Color(0xFF7E7A9C),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }

@@ -1,6 +1,12 @@
 import 'package:flutter/material.dart';
 
+import 'connect4_screen.dart';
+import 'doodle_duel_screen.dart';
 import 'game_lobby_screen.dart';
+import 'number_clash_screen.dart';
+import 'rps_screen.dart';
+import 'tictactoe_screen.dart';
+import 'up_down_screen.dart';
 
 class GamesScreen extends StatelessWidget {
   const GamesScreen({super.key});
@@ -51,14 +57,37 @@ class GamesScreen extends StatelessWidget {
   ];
 
   void _openGame(BuildContext context, _GameOption game) {
-    Navigator.of(context).push<void>(
-      MaterialPageRoute<void>(
-        builder: (_) => GameLobbyScreen(
+    Widget screen;
+    switch (game.type) {
+      case 'tictactoe':
+        screen = const TicTacToeScreen();
+        break;
+      case 'rps':
+        screen = const RpsScreen();
+        break;
+      case 'connect4':
+        screen = const Connect4Screen();
+        break;
+      case 'doodle':
+        screen = const DoodleDuelScreen();
+        break;
+      case 'numberclash':
+        screen = const NumberClashScreen();
+        break;
+      case 'updown':
+        screen = const UpDownScreen();
+        break;
+      default:
+        screen = GameLobbyScreen(
           gameType: game.type,
           title: game.title,
           subtitle: game.subtitle,
           icon: game.icon,
-        ),
+        );
+    }
+    Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => screen,
       ),
     );
   }
