@@ -23,23 +23,21 @@ const String _lastNotifiedBuildKey = 'novyn_last_notified_update_build';
 const String _lastUpdateNotificationAtKey = 'novyn_last_update_notification_at_ms';
 const String _handledUpdateBuildKey = 'novyn_handled_update_build';
 
-/// Keeps the About screen's What's New section short and readable:
-/// at most two plain-language points, without GitHub author or PR link metadata.
+/// Shows only two concise release-note points, stripping GitHub attribution and links.
 List<String> _parseReleaseNotes(String body) {
   return body
-      .split('\\n')
+      .split('\n')
       .map((line) => line.trim())
       .where((line) =>
           line.startsWith('- ') ||
           line.startsWith('* ') ||
           line.startsWith('• ') ||
-          RegExp(r'^\\d+\\.\\s+').hasMatch(line))
+          RegExp(r'^\d+\.\s+').hasMatch(line))
       .map((line) => line
-          .replaceFirst(RegExp(r'^([-*•]|\\d+\\.)\\s*'), '')
-          .replaceFirst(RegExp(r'\\s+by\\s+@.*', caseSensitive: false), '')
-          .replaceAll(RegExp(r'https?://\\S+', caseSensitive: false), '')
-          .replaceAll(RegExp(r'\\s+'), ' ')
-          .replaceAll(RegExp(r'\\s+([,.;:])'), r'$1')
+          .replaceFirst(RegExp(r'^([-*•]|\d+\.)\s*'), '')
+          .replaceFirst(RegExp(r'\s+by\s+@.*', caseSensitive: false), '')
+          .replaceAll(RegExp(r'https?://\S+', caseSensitive: false), '')
+          .replaceAll(RegExp(r'\s+'), ' ')
           .trim())
       .where((line) =>
           line.isNotEmpty &&
