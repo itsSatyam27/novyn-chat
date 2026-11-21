@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../models/chat_models.dart';
 import 'novyn_alert.dart';
 import 'package:provider/provider.dart';
 import '../services/socket_service.dart';
