@@ -438,6 +438,32 @@ export async function decryptMessageContent(
 }
 
 /**
+ * Decrypt binary E2EE media. The ciphertext is AES-GCM output (including its
+ * 16-byte authentication tag), compatible with the Flutter client.
+ */
+export async function decryptAttachmentBytes(
+  ciphertext: Uint8Array,
+  ivBase64: string,
+  peerUsername: string,
+  peerPublicKeyJwk: string,
+): Promise<Uint8Array | null> {
+  if (!ciphertext?.length || !ivBase64 || !peerPublicKeyJwk) return null;
+  try {
+    const key = await getDerivedSharedKey(peerUsername, peerPublicKeyJwk);
+    if (!key) return null;
+    const ivBytes = Uint8Array.from(atob(ivBase64), (character) => character.charCodeAt(0));
+    if (ivBytes.length !== 12 || ciphertext.length < 16) return null;
+    const iv = new Uint8Array(ivBytes).buffer as ArrayBuffer;
+    const encryptedBuffer = new Uint8Array(ciphertext).buffer as ArrayBuffer;
+    const clear = await window.crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, encryptedBuffer);
+    return new Uint8Array(clear);
+  } catch (error) {
+    console.warn('[E2EE] Attachment decryption failed:', error);
+    return null;
+  }
+}
+
+/**
  * Generate WhatsApp-style 60-digit safety number (12 blocks of 5 digits)
  * for key verification between two users.
  */
