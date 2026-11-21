@@ -1137,7 +1137,7 @@ class _FriendInviteWaitingSheet extends StatefulWidget {
 
   final String gameTitle;
   final UserModel friend;
-  final UserModel? currentUser;
+  final NovynUser? currentUser;
   final VoidCallback onEnterRoom;
 
   @override
@@ -1172,8 +1172,8 @@ class _FriendInviteWaitingSheetState extends State<_FriendInviteWaitingSheet>
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final friendName = widget.friend.name.isEmpty ? widget.friend.username : widget.friend.name;
-    final myName = widget.currentUser?.name.isNotEmpty == true
-        ? widget.currentUser!.name
+    final myName = widget.currentUser?.displayName.isNotEmpty == true
+        ? widget.currentUser!.displayName
         : (widget.currentUser?.username ?? 'You');
 
     return Container(
@@ -1234,7 +1234,7 @@ class _FriendInviteWaitingSheetState extends State<_FriendInviteWaitingSheet>
                     ),
                     child: UserAvatar(
                       name: myName,
-                      photoUrl: widget.currentUser?.photoUrl,
+                      photoUrl: widget.currentUser?.avatarId ?? '',
                       radius: 28,
                       showOnlineIndicator: false,
                     ),
