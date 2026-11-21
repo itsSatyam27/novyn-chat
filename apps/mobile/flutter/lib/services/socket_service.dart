@@ -82,10 +82,12 @@ class SocketService extends ChangeNotifier {
   Future<void>? _identityRegistration;
   Future<void>? _outboxActivation;
   String? _registeredIdentityAccount;
+  Future<bool> Function()? restoreSessionForRecovery;
   bool _isAuthenticated = false;
   bool _hasLoadedConversations = false;
   Completer<void>? _authenticationReady;
   Completer<bool>? _olderHistoryCompleter;
+  String? _olderHistoryTarget;
   Completer<List<Message>>? _chatHistoryCompleter;
   String? _chatHistoryTarget;
   VoidCallback? onAuthenticated;
@@ -96,6 +98,7 @@ class SocketService extends ChangeNotifier {
   bool _isConnecting = false;
   bool _manualDisconnect = false;
   bool _refreshingSocketSession = false;
+  String? _socketSessionCookie;
   Timer? _socketAuthRetryTimer;
   int _socketAuthRetryAttempt = 0;
   bool _appForeground = true;
@@ -113,6 +116,57 @@ class SocketService extends ChangeNotifier {
       _messageDeliveredAt[messageId];
   DateTime? messageSeenAtFor(String messageId) => _messageSeenAt[messageId];
 
+  String? messageFailureReasonFor(String messageId) {
+    for (final pending in SyncService().pendingMessages) {
+      if (pending.tempId == messageId && pending.isFailed) {
+        return pending.lastError;
+      }
+    }
+    return null;
+  }
+
+  Future<void> _restorePersistedMessageStatuses(String chatId) async {
+    final saved = await HybridDbService.getMessageStatuses(chatId);
+    if (_currentChatWith?.toLowerCase() != chatId.toLowerCase()) return;
+    var changed = false;
+    const rank = {'sent': 1, 'delivered': 2, 'seen': 3};
+    for (final entry in saved.entries) {
+      final savedStatus = entry.value['status']?.toString();
+      if (!rank.containsKey(savedStatus)) continue;
+      final current = _messageStatuses[entry.key];
+      if (current == 'failed' || current == 'sending') continue;
+      if ((rank[savedStatus] ?? 0) > (rank[current] ?? 0)) {
+        _messageStatuses[entry.key] = savedStatus!;
+        final delivered = DateTime.tryParse(
+          entry.value['deliveredAt']?.toString() ?? '',
+        );
+        final seen = DateTime.tryParse(
+          entry.value['seenAt']?.toString() ?? '',
+        );
+        if (delivered != null) _messageDeliveredAt[entry.key] = delivered;
+        if (seen != null) _messageSeenAt[entry.key] = seen;
+        changed = true;
+      }
+    }
+    if (changed) {
+      _messageStatusRevision++;
+      notifyListeners();
+    }
+  }
+
+  Future<void> _persistMessageStatus(String messageId) async {
+    final message = await HybridDbService.getMessageById(messageId);
+    if (message == null || !message.isFromMe || message.chatId.isEmpty) return;
+    await HybridDbService.saveMessageStatuses(message.chatId, {
+      messageId: {
+        'status': _messageStatuses[messageId] ?? 'sent',
+        'deliveredAt': _messageDeliveredAt[messageId]?.toIso8601String(),
+        'seenAt': _messageSeenAt[messageId]?.toIso8601String(),
+        'updatedAt': DateTime.now().toIso8601String(),
+      },
+    });
+  }
+
   void _captureMessageStatusTimes(String id, Map data) {
     final delivered = DateTime.tryParse(data['deliveredAt']?.toString() ?? '');
     final seen = DateTime.tryParse(data['seenAt']?.toString() ?? '');
@@ -123,6 +177,7 @@ class SocketService extends ChangeNotifier {
   // Reconnection state
   String? _serverUrl;
   Timer? _reconnectTimer;
+  int _transportReconnectAttempt = 0;
   Timer? _pendingOutboxRetryTimer;
 
   // Messages for the currently open chat (immutable list — replaced on update)
@@ -224,10 +279,18 @@ class SocketService extends ChangeNotifier {
   Future<void> reconnectWithCurrentSession() async {
     final username = _myUsername;
     final serverUrl = _serverUrl;
+    final currentCookie = ApiService.sessionCookie;
     if (username == null ||
         username.isEmpty ||
         serverUrl == null ||
         serverUrl.isEmpty) {
+      return;
+    }
+    // Auth refresh and connectivity recovery can both request a reconnect.
+    // Avoid replacing a socket that is already handshaking/authenticated with
+    // the same session cookie.
+    if ((_isConnecting || (_isConnected && _isAuthenticated)) &&
+        _socketSessionCookie == currentCookie) {
       return;
     }
     // Refresh only the transport. Keep the in-memory chat, contacts and
@@ -277,19 +340,36 @@ class SocketService extends ChangeNotifier {
     _refreshingSocketSession = true;
     var retryAfterTransientFailure = false;
     try {
-      final status = await ApiService.refreshSessionStatus()
-          .timeout(const Duration(seconds: 12), onTimeout: () => null);
-      if (_manualDisconnect || _isAuthenticated) return;
-      if (status == 200) {
-        await reconnectWithCurrentSession();
-        return;
-      }
+      final restore = restoreSessionForRecovery;
+      if (restore != null) {
+        final restored = await restore()
+            .timeout(const Duration(seconds: 32), onTimeout: () => false);
+        if (_manualDisconnect || _isAuthenticated) return;
+        if (restored && ApiService.hasAccessSessionCookie) {
+          await reconnectWithCurrentSession();
+          return;
+        }
+        // AuthService owns definitive expiry decisions. A failed restore can
+        // also mean offline/timeout, so keep the local account and retry.
+        retryAfterTransientFailure = true;
+      } else {
+        final status = await ApiService.refreshSessionStatus()
+            .timeout(const Duration(seconds: 12), onTimeout: () => null);
+        if (_manualDisconnect || _isAuthenticated) return;
+        if (status == 200) {
+          await reconnectWithCurrentSession();
+          return;
+        }
 
-      // A rejected refresh token is a definitive sign-in requirement. Network,
-      // rate-limit and server failures are not: keep the local account and
-      // retry with bounded backoff rather than leaving a connected dead socket.
-      retryAfterTransientFailure =
-          status == null || status == 429 || (status != null && status >= 500);
+        // A rejected refresh token is a definitive sign-in requirement. Network,
+        // rate-limit and server failures are not: keep the local account and
+        // retry with bounded backoff rather than leaving a connected dead socket.
+        retryAfterTransientFailure = status == null ||
+            status == 401 ||
+            status == 403 ||
+            status == 429 ||
+            (status != null && status >= 500);
+      }
     } catch (error) {
       debugPrint(
           '[NovynSocket] Session refresh after auth failure failed: $error');
@@ -325,7 +405,8 @@ class SocketService extends ChangeNotifier {
     await SyncService().activateAccount(username);
     if (_myUsername?.toLowerCase() != username.trim().toLowerCase()) return;
     for (final pending in SyncService().pendingMessages) {
-      _messageStatuses[pending.tempId] = 'sending';
+      _messageStatuses[pending.tempId] =
+          pending.isFailed ? 'failed' : 'sending';
     }
     _restorePendingMessagesForOpenChat();
     notifyListeners();
@@ -344,7 +425,8 @@ class SocketService extends ChangeNotifier {
             pending.chatId.toLowerCase() == peer.toLowerCase() &&
             !existingIds.contains(pending.tempId))
         .map((pending) {
-      _messageStatuses[pending.tempId] = 'sending';
+      _messageStatuses[pending.tempId] =
+          pending.isFailed ? 'failed' : 'sending';
       return pending.toLocalMessage();
     }).toList(growable: false);
     if (restored.isEmpty) return;
@@ -383,7 +465,7 @@ class SocketService extends ChangeNotifier {
       (_) {
         if (!_isConnected ||
             !_isAuthenticated ||
-            SyncService().pendingMessages.isEmpty) {
+            !SyncService().pendingMessages.any((message) => !message.isFailed)) {
           return;
         }
         unawaited(_flushPendingMessageOutbox());
@@ -578,6 +660,7 @@ class SocketService extends ChangeNotifier {
       }
       await HybridDbService.deleteMessage(pending.tempId);
       await HybridDbService.saveMessage(acknowledged);
+      unawaited(_persistMessageStatus(messageId));
     }
     _messageStatuses.remove(pending.tempId);
     _messageStatuses.putIfAbsent(messageId, () => 'sent');
@@ -621,6 +704,7 @@ class SocketService extends ChangeNotifier {
       'extraHeaders': headers,
       'reconnection': false, // manual reconnection
     });
+    _socketSessionCookie = ApiService.sessionCookie;
 
     _socket!.onConnect((_) {
       _isConnecting = false;
@@ -662,7 +746,7 @@ class SocketService extends ChangeNotifier {
       _authenticationReady = null;
       _registeredIdentityAccount = null;
       notifyListeners();
-      if (!_manualDisconnect) _scheduleReconnect(3);
+      if (!_manualDisconnect) _scheduleReconnect();
     });
 
     _socket!.onConnectError((_) {
@@ -678,7 +762,7 @@ class SocketService extends ChangeNotifier {
       _authenticationReady = null;
       _registeredIdentityAccount = null;
       notifyListeners();
-      if (!_manualDisconnect) _scheduleReconnect(5);
+      if (!_manualDisconnect) _scheduleReconnect();
     });
 
     _registerEventHandlers();
@@ -697,6 +781,7 @@ class SocketService extends ChangeNotifier {
       _scheduleSocketAuthRecovery();
     });
     _isConnecting = true;
+    notifyListeners();
     _socket!.connect();
   }
 
@@ -755,9 +840,27 @@ class SocketService extends ChangeNotifier {
     connection.emit('get_chat_wallpaper', {'to': peer, 'toType': kind});
   }
 
-  void _scheduleReconnect(int seconds) {
+  Duration _nextTransportReconnectDelay() {
+    const delays = <Duration>[
+      Duration(seconds: 3),
+      Duration(seconds: 5),
+      Duration(seconds: 8),
+      Duration(seconds: 13),
+      Duration(seconds: 21),
+      Duration(seconds: 30),
+    ];
+    final index = _transportReconnectAttempt < delays.length
+        ? _transportReconnectAttempt
+        : delays.length - 1;
+    if (_transportReconnectAttempt < delays.length - 1) {
+      _transportReconnectAttempt++;
+    }
+    return delays[index];
+  }
+
+  void _scheduleReconnect() {
     _reconnectTimer?.cancel();
-    _reconnectTimer = Timer(Duration(seconds: seconds), () {
+    _reconnectTimer = Timer(_nextTransportReconnectDelay(), () {
       if (!_manualDisconnect && (_socket == null || !_socket!.connected)) {
         _doConnect();
       }
@@ -898,6 +1001,7 @@ class SocketService extends ChangeNotifier {
 
         final account = _myUsername;
         if (account == null) return;
+        final statusSnapshot = <String, Map<String, dynamic>>{};
         for (final raw in historyList) {
           if (raw is! Map) continue;
           final id =
@@ -905,11 +1009,32 @@ class SocketService extends ChangeNotifier {
           if (id.isEmpty) continue;
           _captureMessageStatusTimes(id, raw);
           final explicit = raw['status']?.toString().toLowerCase();
-          _messageStatuses[id] = raw['seenAt'] != null || explicit == 'seen'
+          final serverStatus = raw['seenAt'] != null || explicit == 'seen'
               ? 'seen'
               : raw['deliveredAt'] != null || explicit == 'delivered'
                   ? 'delivered'
                   : 'sent';
+          const statusRank = {'sent': 1, 'delivered': 2, 'seen': 3};
+          final currentStatus = _messageStatuses[id];
+          final status = currentStatus == 'failed' ||
+                  currentStatus == 'sending' ||
+                  (statusRank[currentStatus] ?? 0) >
+                      (statusRank[serverStatus] ?? 0)
+              ? currentStatus!
+              : serverStatus;
+          _messageStatuses[id] = status;
+          statusSnapshot[id] = {
+            'status': status,
+            'deliveredAt': raw['deliveredAt']?.toString(),
+            'seenAt': raw['seenAt']?.toString(),
+            'updatedAt': DateTime.now().toIso8601String(),
+          };
+        }
+        if (statusSnapshot.isNotEmpty) {
+          unawaited(HybridDbService.saveMessageStatuses(
+            withUser,
+            statusSnapshot,
+          ));
         }
         _messageStatusRevision++;
         final decrypted = await Future.wait(parsed.map((message) {
@@ -924,6 +1049,8 @@ class SocketService extends ChangeNotifier {
             _currentChatWith?.toLowerCase() != withUser.toLowerCase()) {
           return;
         }
+        final messageIdsBeforePage =
+            _messages.map((message) => message.id).toSet();
         // Merge by message ID instead of replacing the local timeline with
         // only the server's latest page. This preserves older cached messages
         // and messages received while history was being decrypted.
@@ -946,8 +1073,15 @@ class SocketService extends ChangeNotifier {
         _messages = _resolveReplyPreviews(timeline);
         HybridDbService.saveMessages(_messages);
         final olderRequest = _olderHistoryCompleter;
-        if (olderRequest != null && !olderRequest.isCompleted) {
-          olderRequest.complete(data['hasMore'] == true);
+        if (olderRequest != null &&
+            !olderRequest.isCompleted &&
+            _olderHistoryTarget == withUser.trim().toLowerCase()) {
+          final pageMadeProgress = parsed.any(
+            (message) =>
+                message.id.isNotEmpty &&
+                !messageIdsBeforePage.contains(message.id),
+          );
+          olderRequest.complete(data['hasMore'] == true && pageMadeProgress);
         }
         notifyListeners();
         final pendingHistory = _chatHistoryCompleter;
@@ -1031,11 +1165,19 @@ class SocketService extends ChangeNotifier {
         }
         _captureMessageStatusTimes(msgId, data);
         final explicit = data['status']?.toString().toLowerCase();
-        _messageStatuses[msgId] = data['seenAt'] != null || explicit == 'seen'
+        final receivedStatus = data['seenAt'] != null || explicit == 'seen'
             ? 'seen'
             : data['deliveredAt'] != null || explicit == 'delivered'
                 ? 'delivered'
                 : 'sent';
+        const statusRank = {'sent': 1, 'delivered': 2, 'seen': 3};
+        final currentStatus = _messageStatuses[msgId];
+        _messageStatuses[msgId] = currentStatus == 'failed' ||
+                currentStatus == 'sending' ||
+                (statusRank[currentStatus] ?? 0) >
+                    (statusRank[receivedStatus] ?? 0)
+            ? currentStatus!
+            : receivedStatus;
         _messageStatusRevision++;
       }
       if (_myUsername != account) return;
@@ -1054,6 +1196,7 @@ class SocketService extends ChangeNotifier {
       }
       // Save to local DB
       await HybridDbService.saveMessage(msg);
+      if (isOwn) unawaited(_persistMessageStatus(msgId));
       if (!isOwn && msg.attachment != null) {
         unawaited(MediaStorageService.handleIncomingAttachment(
             msg.attachment, msg.id));
@@ -1223,6 +1366,7 @@ class SocketService extends ChangeNotifier {
         return;
       _messageStatuses[msgId] = next;
       _messageStatusRevision++;
+      unawaited(_persistMessageStatus(msgId));
       notifyListeners();
     });
 
@@ -1499,6 +1643,7 @@ class SocketService extends ChangeNotifier {
     _socketAuthRetryTimer?.cancel();
     _socketAuthRetryTimer = null;
     _socketAuthRetryAttempt = 0;
+    _transportReconnectAttempt = 0;
     _isAuthenticated = true;
     SyncService().setOnlineStatus(true);
     _startPendingOutboxRetry();
@@ -1948,6 +2093,12 @@ class SocketService extends ChangeNotifier {
     List<Message> cachedHistory, {
     bool isGroup = false,
   }) {
+    final olderRequest = _olderHistoryCompleter;
+    if (olderRequest != null && !olderRequest.isCompleted) {
+      olderRequest.complete(false);
+    }
+    _olderHistoryCompleter = null;
+    _olderHistoryTarget = null;
     final previousRequest = _chatHistoryCompleter;
     if (previousRequest != null && !previousRequest.isCompleted) {
       previousRequest.complete(const <Message>[]);
@@ -1966,6 +2117,7 @@ class SocketService extends ChangeNotifier {
     _peerIsRecordingVoice =
         _voiceUsersInChats[peerUsername.toLowerCase()]?.isNotEmpty == true;
     _restorePendingMessagesForOpenChat();
+    unawaited(_restorePersistedMessageStatuses(peerUsername));
     notifyListeners();
 
     unawaited(decryptCurrentMessages());
@@ -2035,6 +2187,12 @@ class SocketService extends ChangeNotifier {
   void closeChat({bool notify = true}) {
     if (_typingTargetKey != null) _stopActiveTyping();
     stopVoiceActivity();
+    final olderHistory = _olderHistoryCompleter;
+    if (olderHistory != null && !olderHistory.isCompleted) {
+      olderHistory.complete(false);
+    }
+    _olderHistoryCompleter = null;
+    _olderHistoryTarget = null;
     final pendingHistory = _chatHistoryCompleter;
     if (pendingHistory != null && !pendingHistory.isCompleted) {
       pendingHistory.complete(const <Message>[]);
@@ -2062,6 +2220,7 @@ class SocketService extends ChangeNotifier {
     _olderHistoryCompleter?.complete(false);
     final completer = Completer<bool>();
     _olderHistoryCompleter = completer;
+    _olderHistoryTarget = peerUsername.trim().toLowerCase();
     _socket?.emit('get_history', {
       'to': peerUsername,
       'kind': isGroup ? 'group' : 'friend',
@@ -2076,6 +2235,7 @@ class SocketService extends ChangeNotifier {
     } finally {
       if (identical(_olderHistoryCompleter, completer)) {
         _olderHistoryCompleter = null;
+        _olderHistoryTarget = null;
       }
     }
   }
@@ -2237,6 +2397,67 @@ class SocketService extends ChangeNotifier {
       }
     } catch (error) {
       _messageStatuses[clientTempId] = 'failed';
+      _messageStatusRevision++;
+      notifyListeners();
+      rethrow;
+    }
+  }
+
+  /// Requeues a message that the server explicitly rejected. Reusing its
+  /// clientTempId lets the server return the original message if it had already
+  /// stored it before a response was lost.
+  Future<void> retryPendingMessage(
+    String tempId, {
+    required bool isGroup,
+  }) async {
+    final account = _myUsername;
+    if (account == null) throw StateError('Sign in before retrying messages.');
+    Message? message;
+    for (final candidate in _messages) {
+      if (candidate.id == tempId) {
+        message = candidate;
+        break;
+      }
+    }
+    if (message == null) throw StateError('This message is no longer available.');
+
+    await (_outboxActivation ?? SyncService().activateAccount(account));
+    if (_myUsername != account) {
+      throw StateError('Your account changed before retrying this message.');
+    }
+
+    PendingMessage? pending;
+    for (final queued in SyncService().pendingMessages) {
+      if (queued.tempId == tempId &&
+          queued.accountId == account.trim().toLowerCase()) {
+        pending = queued.copyWith(isFailed: false, lastError: '');
+        break;
+      }
+    }
+    pending ??= PendingMessage(
+      accountId: account.trim().toLowerCase(),
+      tempId: tempId,
+      text: message.text,
+      receiverId: message.chatId,
+      chatId: message.chatId,
+      createdAt: message.createdAt,
+      replyToId: message.replyToId,
+      replyToText: message.replyToText,
+      replyToSender: message.replyToSender,
+      isGroup: isGroup,
+      attachment: message.attachment,
+    );
+
+    _messageStatuses[tempId] = 'sending';
+    _messageStatusRevision++;
+    notifyListeners();
+    try {
+      await SyncService().addPendingMessage(pending);
+      if (_isConnected && _isAuthenticated) {
+        await _flushPendingMessageOutbox();
+      }
+    } catch (error) {
+      _messageStatuses[tempId] = 'failed';
       _messageStatusRevision++;
       notifyListeners();
       rethrow;
@@ -3699,8 +3920,10 @@ class SocketService extends ChangeNotifier {
     _socket?.dispose();
     _reconnectTimer?.cancel();
     _socket = null;
+    _socketSessionCookie = null;
     _isConnected = false;
     _isConnecting = false;
+    _transportReconnectAttempt = 0;
     notifyListeners();
   }
 

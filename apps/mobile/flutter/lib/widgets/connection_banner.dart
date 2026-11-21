@@ -3,20 +3,57 @@ import 'package:provider/provider.dart';
 import '../services/socket_service.dart';
 import '../services/sync_service.dart';
 
-/// Shows only useful background-sync activity. A lost network connection is
-/// handled silently by the local chat cache and durable message outbox.
+/// Makes connection and sync state visible while keeping cached chats usable.
 class ConnectionBanner extends StatelessWidget {
-  const ConnectionBanner({super.key});
+  const ConnectionBanner({super.key, required this.chatId});
+
+  final String chatId;
 
   @override
   Widget build(BuildContext context) {
     final socket = context.watch<SocketService>();
     final sync = context.watch<SyncService>();
 
-    // Offline is a normal local-first state, not a reconnecting screen state.
-    // Keep the conversation layout unchanged while Socket.IO reconnects.
     final isOnline = socket.isConnected && socket.isAuthenticated;
-    if (!isOnline || !sync.isSyncing) return const SizedBox.shrink();
+    final pending = sync.pendingMessages
+        .where((message) => message.chatId.toLowerCase() == chatId.toLowerCase())
+        .toList(growable: false);
+    final queuedCount = pending.where((message) => !message.isFailed).length;
+    final failedCount = pending.where((message) => message.isFailed).length;
+    if (isOnline && !sync.isSyncing && queuedCount == 0 && failedCount == 0) {
+      return const SizedBox.shrink();
+    }
+
+    final String label;
+    final IconData icon;
+    final bool showProgress;
+    if (queuedCount > 0) {
+      label = isOnline
+          ? 'Sending $queuedCount queued message${queuedCount == 1 ? '' : 's'}…'
+          : '$queuedCount message${queuedCount == 1 ? '' : 's'} queued. Sending when connected.';
+      icon = isOnline ? Icons.outbox_rounded : Icons.schedule_rounded;
+      showProgress = isOnline || socket.isConnecting;
+    } else if (failedCount > 0) {
+      label = '$failedCount message${failedCount == 1 ? '' : 's'} failed. Tap the red retry icon.';
+      icon = Icons.error_outline_rounded;
+      showProgress = false;
+    } else if (isOnline) {
+      label = 'Syncing messages…';
+      icon = Icons.sync_rounded;
+      showProgress = true;
+    } else if (socket.isConnected) {
+      label = 'Restoring secure connection…';
+      icon = Icons.lock_reset_rounded;
+      showProgress = true;
+    } else if (socket.isConnecting) {
+      label = 'Reconnecting to Novyn…';
+      icon = Icons.sync_rounded;
+      showProgress = true;
+    } else {
+      label = 'Connection lost. Messages will send when Novyn reconnects.';
+      icon = Icons.cloud_off_rounded;
+      showProgress = false;
+    }
 
     final scheme = Theme.of(context).colorScheme;
     final foreground = scheme.primary;
@@ -36,26 +73,32 @@ class ConnectionBanner extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.sync_rounded, color: foreground, size: 14),
+              Icon(icon, color: foreground, size: 14),
               const SizedBox(width: 7),
-              Text(
-                'Syncing messages…',
-                style: TextStyle(
-                  fontFamily: 'PlusJakartaSans',
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: foreground,
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontFamily: 'PlusJakartaSans',
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: foreground,
+                  ),
                 ),
               ),
-              const SizedBox(width: 7),
-              SizedBox(
-                width: 11,
-                height: 11,
-                child: CircularProgressIndicator(
-                  strokeWidth: 1.8,
-                  valueColor: AlwaysStoppedAnimation(foreground),
+              if (showProgress) ...[
+                const SizedBox(width: 7),
+                SizedBox(
+                  width: 11,
+                  height: 11,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 1.8,
+                    valueColor: AlwaysStoppedAnimation(foreground),
+                  ),
                 ),
-              ),
+              ],
             ],
           ),
         ),
@@ -64,8 +107,7 @@ class ConnectionBanner extends StatelessWidget {
   }
 }
 
-/// Offline hint for the conversation list. Chat detail screens stay silent
-/// and continue using cached messages while the durable outbox queues sends.
+/// Offline hint for the conversation list.
 class OfflineIndicator extends StatelessWidget {
   const OfflineIndicator({super.key});
 

@@ -135,6 +135,8 @@ class NovynApp extends StatelessWidget {
             onAccountReset: () async { socket.disconnect(); },
             onSessionRefreshed: socket.reconnectWithCurrentSession,
           );
+          socket.restoreSessionForRecovery =
+              auth.restoreSessionForSocketRecovery;
           socket.onProfileData = auth.applyProfileUpdate;
           auth.addListener(() {
             final signedInUser = auth.user;

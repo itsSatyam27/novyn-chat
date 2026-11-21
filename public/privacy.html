@@ -3,46 +3,75 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#f7faf8">
-  <meta name="description" content="Privacy information for Novyn chat and calling services.">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#f6f4ff">
+  <meta name="description" content="Learn how Novyn handles account, chat, call, device, and backup information.">
   <title>Privacy Policy — Novyn</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
-    :root { color-scheme: light; --ink:#172923; --muted:#52665d; --accent:#167c63; --line:#e3ece7; }
-    * { box-sizing:border-box; }
-    body { margin:0; padding:48px 20px; background:#f7faf8; color:var(--ink); font:16px/1.7 system-ui,-apple-system,"Segoe UI",sans-serif; }
-    main { width:min(100%,820px); margin:0 auto; padding:clamp(24px,6vw,56px); background:#fff; border:1px solid var(--line); border-radius:20px; }
-    a { color:var(--accent); }
-    h1,h2 { line-height:1.2; }
-    h1 { margin-top:0; font-size:clamp(32px,6vw,48px); letter-spacing:-.04em; }
-    h2 { margin-top:36px; font-size:21px; }
-    .date,.back { color:var(--muted); }
-    li { margin:8px 0; }
+    :root{color-scheme:light dark;--bg:#f6f4ff;--surface:#fff;--ink:#1b1740;--muted:#686482;--accent:#6252ed;--line:rgba(98,82,237,.16);--soft:#efecff;--shadow:0 24px 70px rgba(70,55,150,.1);--font:'Plus Jakarta Sans',system-ui,-apple-system,'Segoe UI',sans-serif}
+    @media(prefers-color-scheme:dark){:root{--bg:#0c0b13;--surface:#171622;--ink:#f2f0ff;--muted:#b5b1cb;--accent:#aa9fff;--line:rgba(190,181,255,.18);--soft:#242139;--shadow:0 24px 70px rgba(0,0,0,.32)}}
+    *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;min-width:320px;background:radial-gradient(42rem 30rem at 0 0,var(--soft),transparent 70%),var(--bg);color:var(--ink);font:400 15px/1.75 var(--font);-webkit-font-smoothing:antialiased}a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}.top{width:min(1040px,calc(100% - 36px));margin:auto;min-height:82px;display:flex;align-items:center;justify-content:space-between;gap:20px}.brand{display:flex;align-items:center;gap:10px;color:var(--ink);font-size:21px;font-weight:800;letter-spacing:-.05em}.brand img{width:34px;height:34px;border-radius:11px}.brand i{font-style:normal;color:var(--accent)}.topnav{display:flex;align-items:center;gap:10px}.topnav a{padding:9px 14px;border:1px solid var(--line);border-radius:999px;background:var(--surface);font-size:12px;font-weight:700}.topnav a.active{background:var(--soft)}main{width:min(900px,calc(100% - 36px));margin:28px auto 64px}.hero{padding:clamp(28px,6vw,56px);border:1px solid var(--line);border-radius:30px;background:var(--surface);box-shadow:var(--shadow);position:relative;overflow:hidden}.hero:after{content:"";position:absolute;width:230px;height:230px;right:-80px;top:-105px;border-radius:50%;border:1px solid var(--line);box-shadow:0 0 0 24px color-mix(in srgb,var(--accent) 5%,transparent),0 0 0 50px color-mix(in srgb,var(--accent) 4%,transparent);pointer-events:none}.eyebrow{display:inline-flex;align-items:center;gap:9px;color:var(--accent);font-size:11px;font-weight:800;letter-spacing:.14em;text-transform:uppercase}.eyebrow:before{content:"";width:7px;height:7px;border-radius:50%;background:#10b981;box-shadow:0 0 0 5px rgba(16,185,129,.12)}h1{margin:12px 0 10px;font-size:clamp(34px,6vw,54px);line-height:1.1;letter-spacing:-.055em}.intro{max-width:650px;margin:0;color:var(--muted);font-size:16px}.meta{display:flex;flex-wrap:wrap;gap:9px;margin-top:24px}.meta span{padding:7px 12px;border:1px solid var(--line);border-radius:999px;background:var(--bg);color:var(--muted);font-size:11px;font-weight:700}.layout{display:grid;grid-template-columns:210px minmax(0,1fr);gap:20px;margin-top:20px;align-items:start}.toc,.article{border:1px solid var(--line);border-radius:24px;background:var(--surface);box-shadow:var(--shadow)}.toc{position:sticky;top:18px;padding:18px}.toc b{display:block;margin:0 0 10px;font-size:12px}.toc a{display:block;padding:7px 0;color:var(--muted);font-size:11px;font-weight:600}.article{padding:clamp(22px,4vw,38px)}section+section{margin-top:30px;padding-top:27px;border-top:1px solid var(--line)}h2{margin:0 0 9px;font-size:19px;line-height:1.35;letter-spacing:-.025em}p{margin:8px 0;color:var(--muted)}ul{padding-left:20px;color:var(--muted)}li{padding:3px 0}.callout{margin:18px 0;padding:15px 17px;border:1px solid var(--line);border-radius:17px;background:var(--soft);color:var(--muted);font-size:13px}.bottom{display:flex;justify-content:space-between;gap:12px;margin-top:20px;color:var(--muted);font-size:11px}.bottom a{font-weight:700}@media(max-width:680px){.top{min-height:72px}.brand{font-size:18px}.brand img{width:30px;height:30px}.topnav{gap:6px}.topnav a{padding:8px 10px;font-size:10px}main{margin-top:12px}.layout{grid-template-columns:1fr}.toc{position:static;display:grid;grid-template-columns:1fr 1fr;gap:0 14px}.toc b{grid-column:1/-1}.toc a{padding:5px 0}.bottom{flex-direction:column}}
   </style>
 </head>
 <body>
-<main>
-  <p class="back"><a href="/">← Novyn home</a></p>
-  <h1>Privacy Policy</h1>
-  <p class="date">Effective date: November 18, 2026</p>
-  <p>This notice describes how Novyn handles information when you use its website, messaging app, and calling features.</p>
-
-  <h2>Information the service handles</h2>
-  <p>Depending on the features you use, Novyn processes account details such as your username, email address, and profile; contacts and conversation content you submit; call records; and basic device, session, and diagnostic information needed to operate and protect the service.</p>
-
-  <h2>How information is used and stored</h2>
-  <p>Information is used to provide sign-in, messaging, calls, synchronization, notifications, account security, and support. Chats may be cached on your device and synchronized with Novyn's service backend. Firebase services support authentication and notifications. Uploaded media may be handled by the media hosting provider configured for the service.</p>
-
-  <h2>Google Drive chat backups</h2>
-  <p>If you choose Back up to Google Drive, Novyn asks Google for access to its own private app data folder in your Drive. The chat backup is encrypted with the password you choose before it is uploaded. Google stores that encrypted backup for Novyn; it is not shown in the normal Drive file list. You can restore it in Novyn with the same Google account and backup password. Do not lose that password: Novyn cannot decrypt the backup without it. The chat backup does not include your private end-to-end encryption identity key.</p>
-
-  <h2>Service providers</h2>
-  <p>Novyn relies on infrastructure providers to operate authentication, hosting, notifications, database, and media features. These providers process information as needed to deliver their services. Novyn does not use the promotional website to sell personal information.</p>
-
-  <h2>Retention and your choices</h2>
-  <p>Information is retained while needed to provide the service, meet security and operational needs, or comply with applicable requirements. You can stop using the app and revoke Google Drive access in your Google Account settings. For account or privacy questions, contact <a href="mailto:novynchat.app@gmail.com">novynchat.app@gmail.com</a>.</p>
-
-  <h2>Security and updates</h2>
-  <p>Novyn uses security measures intended to protect information, but no internet service can promise absolute security. This policy may be updated as the service changes. The current version will be published on this page with its effective date.</p>
-</main>
+  <header class="top">
+    <a class="brand" href="/" aria-label="Novyn home"><img src="/apps/web/dist/icons/novyn-badge.svg" alt=""><span>novyn<i>.</i></span></a>
+    <nav class="topnav" aria-label="Legal pages"><a class="active" href="/privacy.html" aria-current="page">Privacy</a><a href="/terms.html">Terms &amp; Conditions</a></nav>
+  </header>
+  <main>
+    <div class="hero">
+      <div class="eyebrow">Your privacy matters</div>
+      <h1>Privacy Policy</h1>
+      <p class="intro">This notice explains how Novyn handles information when you use its website, messaging app, and calling features.</p>
+      <div class="meta"><span>Effective November 18, 2026</span><span>Novyn app &amp; website</span></div>
+    </div>
+    <div class="layout">
+      <nav class="toc" aria-label="On this page">
+        <b>On this page</b>
+        <a href="#information">Information handled</a>
+        <a href="#use-storage">Use and storage</a>
+        <a href="#drive">Google Drive backups</a>
+        <a href="#providers">Service providers</a>
+        <a href="#retention">Retention and choices</a>
+        <a href="#security">Security and updates</a>
+        <a href="#contact">Contact</a>
+      </nav>
+      <article class="article">
+        <section id="information">
+          <h2>Information the service handles</h2>
+          <p>Depending on the features you use, Novyn processes account details such as your username, email address, and profile; contacts and conversation content you submit; call records; and basic device, session, and diagnostic information needed to operate and protect the service.</p>
+        </section>
+        <section id="use-storage">
+          <h2>How information is used and stored</h2>
+          <p>Information is used to provide sign-in, messaging, calls, synchronization, notifications, account security, and support. Chats may be cached on your device and synchronized with Novyn's service backend. Firebase services support authentication and notifications. Uploaded media may be handled by the media hosting provider configured for the service.</p>
+        </section>
+        <section id="drive">
+          <h2>Google Drive chat backups</h2>
+          <p>If you choose Back up to Google Drive, Novyn requests access to its private app data folder in your Drive. The chat backup is encrypted with the password you choose before it is uploaded. It is stored for Novyn and does not appear in the normal Drive file list. Restore it in Novyn with the same Google account and backup password.</p>
+          <div class="callout">Keep your backup password safe. Novyn cannot decrypt the backup without it. The chat backup does not include your private end-to-end encryption identity key.</div>
+        </section>
+        <section id="providers">
+          <h2>Service providers</h2>
+          <p>Novyn relies on infrastructure providers for authentication, hosting, notifications, database, and media features. These providers process information as needed to deliver their services. Novyn does not use the promotional website to sell personal information.</p>
+        </section>
+        <section id="retention">
+          <h2>Retention and your choices</h2>
+          <p>Information is retained while needed to provide the service, meet security and operational needs, or comply with applicable requirements. You can stop using the app and revoke Google Drive access in your Google Account settings.</p>
+        </section>
+        <section id="security">
+          <h2>Security and updates</h2>
+          <p>Novyn uses security measures intended to protect information, but no internet service can promise absolute security. This policy may be updated as the service changes. The current version will be published on this page with its effective date.</p>
+        </section>
+        <section id="contact">
+          <h2>Contact</h2>
+          <p>For account or privacy questions, email <a href="mailto:novynchat.app@gmail.com">novynchat.app@gmail.com</a>.</p>
+        </section>
+      </article>
+    </div>
+    <div class="bottom"><span>© 2026 Novyn</span><span><a href="/">Home</a> · <a href="/terms.html">Terms &amp; Conditions</a></span></div>
+  </main>
 </body>
 </html>

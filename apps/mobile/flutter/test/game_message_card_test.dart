@@ -34,8 +34,8 @@ class _FakeSocketService extends SocketService {
         text: 'Started a new game',
         isFromMe: true,
         game: <String, dynamic>{
-          'gameType': 'tictactoe',
-          'title': 'Tic-Tac-Toe',
+          'gameType': sentGameType ?? 'tictactoe',
+          'title': sentGameType == 'rps' ? 'Rock Paper Scissors' : 'Tic-Tac-Toe',
           'createdBy': 'alice',
           'opponent': peerUsername,
           'state': 'in_progress',
@@ -50,27 +50,35 @@ class _FakeSocketService extends SocketService {
   }
 }
 
-Map<String, dynamic> finishedGame() => {
-      'gameType': 'tictactoe',
-      'title': 'Tic-Tac-Toe',
+Map<String, dynamic> finishedGame({String gameType = 'tictactoe'}) => {
+      'gameType': gameType,
+      'title': gameType == 'rps' ? 'Rock Paper Scissors' : 'Tic-Tac-Toe',
       'createdBy': 'alice',
       'opponent': 'bob',
       'state': 'finished',
       'turn': '',
       'winner': 'alice',
-      'data': {
+      'data': gameType == 'rps'
+          ? {
+              'player1': 'alice',
+              'player2': 'bob',
+              'p1Move': 'rock',
+              'p2Move': 'scissors',
+            }
+          : {
         'board': ['X', 'X', 'X', 'O', 'O', null, null, null, null],
         'playerX': 'alice',
         'playerO': 'bob',
         'winningLine': [0, 1, 2],
         'movesCount': 5,
-      },
+            },
     };
 
 Widget gameCardHost(
   _FakeSocketService socket, {
   bool isGroup = false,
   bool compact = false,
+  String gameType = 'tictactoe',
 }) {
   return ChangeNotifierProvider<SocketService>.value(
     value: socket,
@@ -79,7 +87,7 @@ Widget gameCardHost(
         body: SingleChildScrollView(
           child: GameMessageCard(
             messageId: 'game-message-1',
-            game: finishedGame(),
+            game: finishedGame(gameType: gameType),
             currentUsername: 'alice',
             peerUsername: isGroup ? 'group-123' : 'bob',
             isGroup: isGroup,
@@ -150,5 +158,18 @@ void main() {
     expect(socket.sentGameType, 'tictactoe');
     expect(socket.sentPeer, 'group-123');
     expect(socket.sentToGroup, true);
+  });
+
+  testWidgets('rematch starts the same non-Tic-Tac-Toe game', (tester) async {
+    final socket = _FakeSocketService();
+    await tester.pumpWidget(gameCardHost(socket, gameType: 'rps'));
+
+    expect(find.text('Play again'), findsOneWidget);
+    await tester.tap(find.text('Play again'));
+    await tester.pump();
+
+    expect(socket.sentGameType, 'rps');
+    expect(socket.sentPeer, 'bob');
+    expect(socket.sentToGroup, false);
   });
 }

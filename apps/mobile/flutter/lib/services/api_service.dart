@@ -9,6 +9,46 @@ import 'package:http_parser/http_parser.dart';
 import 'package:path_provider/path_provider.dart';
 import '../models/chat_models.dart';
 
+typedef UploadProgressCallback = void Function(double progress);
+
+class UploadCancelledException implements Exception {
+  const UploadCancelledException();
+
+  @override
+  String toString() => 'Upload cancelled.';
+}
+
+class _ProgressMultipartRequest extends http.MultipartRequest {
+  _ProgressMultipartRequest(
+    String method,
+    Uri url, {
+    this.onProgress,
+    this.shouldCancel,
+  }) : super(method, url);
+
+  final UploadProgressCallback? onProgress;
+  final bool Function()? shouldCancel;
+
+  @override
+  http.ByteStream finalize() {
+    final total = contentLength;
+    final source = super.finalize();
+    var sent = 0;
+    return http.ByteStream(() async* {
+      await for (final chunk in source) {
+        if (shouldCancel?.call() == true) {
+          throw const UploadCancelledException();
+        }
+        sent += chunk.length;
+        if (total > 0) {
+          onProgress?.call((sent / total).clamp(0.0, 1.0).toDouble());
+        }
+        yield chunk;
+      }
+    }());
+  }
+}
+
 /// REST API service for the shared novyn-chat backend (server.js).
 ///
 /// Identity model: username-based (not Firebase UID).
@@ -272,6 +312,8 @@ class ApiService {
     required List<int> bytes,
     required String filename,
     required String mimeType,
+    UploadProgressCallback? onProgress,
+    bool Function()? shouldCancel,
   }) async {
     await initializeSessionStorage();
 
@@ -279,9 +321,11 @@ class ApiService {
       final headers = await _csrfHeaders();
       // MultipartRequest supplies its own boundary-bearing Content-Type.
       headers.remove('Content-Type');
-      final request = http.MultipartRequest(
+      final request = _ProgressMultipartRequest(
         'POST',
         Uri.parse('$baseUrl/$endpoint'),
+        onProgress: onProgress,
+        shouldCancel: shouldCancel,
       )
         ..headers.addAll(headers)
         ..files.add(http.MultipartFile.fromBytes(
@@ -1186,7 +1230,12 @@ class ApiService {
   // ── Upload media using the authenticated shared backend route ────────────
   // ── Upload media using the authenticated shared backend route ────────────
   static Future<String?> uploadMedia(
-      List<int> bytes, String filename, String mimeType) async {
+    List<int> bytes,
+    String filename,
+    String mimeType, {
+    UploadProgressCallback? onProgress,
+    bool Function()? shouldCancel,
+  }) async {
     if (bytes.isEmpty) throw StateError('The selected file is empty.');
     try {
       final response = await _sendMultipartUpload(
@@ -1195,6 +1244,8 @@ class ApiService {
         bytes: bytes,
         filename: filename,
         mimeType: mimeType,
+        onProgress: onProgress,
+        shouldCancel: shouldCancel,
       );
       Map<String, dynamic> body = {};
       try {
@@ -1213,6 +1264,8 @@ class ApiService {
         throw StateError('The server did not return a file URL.');
       }
       return Uri.parse(baseUrl).resolve(rawUrl).toString();
+    } on UploadCancelledException {
+      rethrow;
     } on StateError {
       rethrow;
     } on TimeoutException {
@@ -1223,7 +1276,12 @@ class ApiService {
   }
 
   static Future<String?> uploadVoice(
-      List<int> bytes, String filename, String mimeType) async {
+    List<int> bytes,
+    String filename,
+    String mimeType, {
+    UploadProgressCallback? onProgress,
+    bool Function()? shouldCancel,
+  }) async {
     if (bytes.isEmpty) throw StateError('The voice recording is empty.');
     try {
       final response = await _sendMultipartUpload(
@@ -1232,6 +1290,8 @@ class ApiService {
         bytes: bytes,
         filename: filename,
         mimeType: mimeType,
+        onProgress: onProgress,
+        shouldCancel: shouldCancel,
       );
       Map<String, dynamic> body = {};
       try {
@@ -1248,6 +1308,8 @@ class ApiService {
         throw StateError('The server did not return a voice message URL.');
       }
       return Uri.parse(baseUrl).resolve(rawUrl).toString();
+    } on UploadCancelledException {
+      rethrow;
     } on StateError {
       rethrow;
     } on TimeoutException {

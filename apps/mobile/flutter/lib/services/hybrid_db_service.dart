@@ -157,6 +157,26 @@ class HybridDbService {
     _queueDriftWrite((db) => db.deleteMessage(messageId));
   }
 
+  static Future<Message?> getMessageById(String messageId) async {
+    await _ensureLocalInit();
+    return LocalDbService.getMessageById(messageId);
+  }
+
+  static Future<Map<String, Map<String, dynamic>>> getMessageStatuses(
+    String chatId,
+  ) async {
+    await _ensureLocalInit();
+    return LocalDbService.getMessageStatuses(chatId);
+  }
+
+  static Future<void> saveMessageStatuses(
+    String chatId,
+    Map<String, Map<String, dynamic>> statuses,
+  ) async {
+    await _ensureLocalInit();
+    await LocalDbService.saveMessageStatuses(chatId, statuses);
+  }
+
   /// Get message count for a chat
   static Future<int> getMessageCount(String chatId) async {
     await _ensureInit();

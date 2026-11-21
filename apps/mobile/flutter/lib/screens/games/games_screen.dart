@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'connect4_screen.dart';
 import 'doodle_duel_screen.dart';
@@ -8,8 +11,41 @@ import 'rps_screen.dart';
 import 'tictactoe_screen.dart';
 import 'up_down_screen.dart';
 
-class GamesScreen extends StatelessWidget {
+class GamesScreen extends StatefulWidget {
   const GamesScreen({super.key});
+
+  @override
+  State<GamesScreen> createState() => _GamesScreenState();
+}
+
+class _GamesScreenState extends State<GamesScreen> {
+  static const _lastPlayedKey = 'games_last_played_v1';
+  final _gamesSectionKey = GlobalKey();
+  String? _lastPlayedType;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadLastPlayed();
+  }
+
+  Future<void> _loadLastPlayed() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final saved = prefs.getString(_lastPlayedKey);
+      if (!mounted) return;
+      setState(() => _lastPlayedType = _games.any((game) => game.type == saved) ? saved : null);
+    } catch (_) {
+      // The games hub remains usable when local preferences are unavailable.
+    }
+  }
+
+  _GameOption? get _lastPlayedGame {
+    for (final game in _games) {
+      if (game.type == _lastPlayedType) return game;
+    }
+    return null;
+  }
 
   static const List<_GameOption> _games = <_GameOption>[
     _GameOption(
@@ -57,6 +93,14 @@ class GamesScreen extends StatelessWidget {
   ];
 
   void _openGame(BuildContext context, _GameOption game) {
+    if (!mounted) return;
+    setState(() => _lastPlayedType = game.type);
+    unawaited(() async {
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString(_lastPlayedKey, game.type);
+      } catch (_) {}
+    }());
     Widget screen;
     switch (game.type) {
       case 'tictactoe':
@@ -137,41 +181,63 @@ class GamesScreen extends StatelessWidget {
                   color: colors.primary.withValues(alpha: .13),
                 ),
               ),
-              child: Row(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    width: 54,
-                    height: 54,
-                    decoration: BoxDecoration(
-                      color: colors.surface.withValues(alpha: .88),
-                      borderRadius: BorderRadius.circular(17),
+                  Row(children: [
+                    Container(
+                      width: 54,
+                      height: 54,
+                      decoration: BoxDecoration(
+                        color: colors.surface.withValues(alpha: .88),
+                        borderRadius: BorderRadius.circular(17),
+                      ),
+                      child: Icon(Icons.sports_esports_rounded,
+                          size: 29, color: colors.primary),
                     ),
-                    child: Icon(
-                      Icons.sports_esports_rounded,
-                      size: 29,
-                      color: colors.primary,
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _lastPlayedGame == null
+                                ? 'Your game room awaits'
+                                : 'Last played: ${_lastPlayedGame!.title}',
+                            style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Challenge friends or get matched with a stranger playing the same game.',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: colors.onSurfaceVariant,
+                              height: 1.4,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Your game room awaits',
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Challenge friends or get matched with a stranger playing the same game.',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: colors.onSurfaceVariant,
-                            height: 1.4,
-                          ),
-                        ),
-                      ],
+                  ]),
+                  const SizedBox(height: 14),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: FilledButton.tonalIcon(
+                      onPressed: () {
+                        final lastGame = _lastPlayedGame;
+                        if (lastGame != null) {
+                          _openGame(context, lastGame);
+                        } else {
+                          final targetContext = _gamesSectionKey.currentContext;
+                          if (targetContext != null) {
+                            Scrollable.ensureVisible(targetContext,
+                                duration: const Duration(milliseconds: 350), curve: Curves.easeOutCubic);
+                          }
+                        }
+                      },
+                      icon: Icon(_lastPlayedType == null ? Icons.grid_view_rounded : Icons.replay_rounded),
+                      label: Text(_lastPlayedGame == null
+                          ? 'Browse games'
+                          : 'Choose ${_lastPlayedGame!.title} opponent'),
                     ),
                   ),
                 ],
@@ -179,6 +245,7 @@ class GamesScreen extends StatelessWidget {
             ),
             const SizedBox(height: 25),
             Row(
+              key: _gamesSectionKey,
               children: [
                 Expanded(
                   child: Text(

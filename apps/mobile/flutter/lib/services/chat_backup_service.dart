@@ -1,15 +1,23 @@
 import 'dart:convert';
+import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:cryptography/cryptography.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:path_provider/path_provider.dart';
 
+import 'api_service.dart';
 import 'local_db_service.dart';
 import 'message_encryption_service.dart';
 
 class ChatBackupService {
   static const _iterations = 210000;
+  static const _maxBackupBytes = 100 * 1024 * 1024;
+  // The JSON envelope base64-encodes media, then the AES ciphertext is
+  // base64-encoded too. Keep raw media below 45 MB to stay under the 100 MB
+  // Drive/file envelope limit after both expansions and metadata.
+  static const _maxMediaBytes = 45 * 1024 * 1024;
   static final _pbkdf2 = Pbkdf2(
     macAlgorithm: Hmac.sha256(),
     iterations: _iterations,
@@ -49,6 +57,7 @@ class ChatBackupService {
     if (data['username']?.toString().toLowerCase() != username.trim().toLowerCase()) {
       throw const FormatException('The active local chat account does not match the signed-in account.');
     }
+    await _includeMedia(data);
     data['messageKeys'] = await encryption.exportBackupKeys(username);
     final random = Random.secure();
     final salt = List<int>.generate(16, (_) => random.nextInt(256));
@@ -71,7 +80,48 @@ class ChatBackupService {
       'iv': base64Encode(nonce),
       'ciphertext': base64Encode([...box.cipherText, ...box.mac.bytes]),
     });
+    if (utf8.encode(envelope).length > _maxBackupBytes) {
+      throw const FormatException(
+        'This backup is larger than 100 MB. Remove some media and try again.',
+      );
+    }
     return Uint8List.fromList(utf8.encode(envelope));
+  }
+
+  static Future<void> _includeMedia(Map<String, dynamic> data) async {
+    final messages = data['messages'];
+    if (messages is! List) return;
+    final mediaFiles = <String, dynamic>{};
+    var totalBytes = 0;
+    for (final raw in messages) {
+      if (raw is! Map || raw['attachment'] is! Map) continue;
+      final message = Map<String, dynamic>.from(raw);
+      final attachment = Map<String, dynamic>.from(message['attachment'] as Map);
+      final messageId = message['id']?.toString() ?? '';
+      if (messageId.isEmpty) continue;
+      final filename = attachment['name']?.toString() ?? 'attachment';
+      Uint8List bytes;
+      final cachedPath = attachment['backupLocalPath']?.toString() ?? '';
+      if (cachedPath.isNotEmpty && await File(cachedPath).exists()) {
+        bytes = await File(cachedPath).readAsBytes();
+      } else {
+        final url = attachment['url']?.toString() ?? '';
+        if (url.isEmpty) continue;
+        bytes = await ApiService.downloadMediaBytes(url);
+      }
+      totalBytes += bytes.length;
+      if (totalBytes > _maxMediaBytes) {
+        throw const FormatException(
+          'Chat media exceeds the 45 MB backup limit. Back up fewer or smaller media files.',
+        );
+      }
+      mediaFiles[messageId] = {
+        'name': filename,
+        'mime': attachment['mime']?.toString() ?? 'application/octet-stream',
+        'bytes': base64Encode(bytes),
+      };
+    }
+    data['mediaFiles'] = mediaFiles;
   }
 
   static Future<Map<String, int>?> restoreBackup({
@@ -153,8 +203,55 @@ class ChatBackupService {
         Map<String, dynamic>.from(keyBackup), username,
       );
     }
+    final restoredMedia = await _restoreMedia(data, username);
     final counts = await LocalDbService.restoreChatBackupData(data, username);
     counts['encryptionKeys'] = restoredKeys;
+    counts['mediaFiles'] = restoredMedia;
     return counts;
   }
+
+  static Future<int> _restoreMedia(
+    Map<String, dynamic> data,
+    String username,
+  ) async {
+    final rawMedia = data['mediaFiles'];
+    final rawMessages = data['messages'];
+    if (rawMedia == null) return 0;
+    if (rawMedia is! Map || rawMessages is! List || rawMedia.length > 200000) {
+      throw const FormatException('The backup media index is invalid.');
+    }
+    final mediaRoot = await getApplicationDocumentsDirectory();
+    final accountDir = Directory('${mediaRoot.path}/Novyn Backups/${_safeName(username)}');
+    await accountDir.create(recursive: true);
+    var totalBytes = 0;
+    var restoredFiles = 0;
+    for (var index = 0; index < rawMessages.length; index++) {
+      final raw = rawMessages[index];
+      if (raw is! Map || raw['id'] == null || raw['attachment'] is! Map) continue;
+      final message = Map<String, dynamic>.from(raw);
+      final id = message['id'].toString();
+      final fileEntry = rawMedia[id];
+      if (fileEntry is! Map || fileEntry['bytes'] is! String) continue;
+      final bytes = base64Decode(fileEntry['bytes'] as String);
+      totalBytes += bytes.length;
+      if (totalBytes > _maxMediaBytes) {
+        throw const FormatException('The backup contains more than 45 MB of media.');
+      }
+      final attachment = Map<String, dynamic>.from(message['attachment'] as Map);
+      final name = _safeName(fileEntry['name']?.toString() ?? 'attachment');
+      final target = File('${accountDir.path}/${_safeName(id)}_$name');
+      await target.writeAsBytes(bytes, flush: true);
+      attachment['backupLocalPath'] = target.path;
+      message['attachment'] = attachment;
+      rawMessages[index] = message;
+      restoredFiles++;
+    }
+    return restoredFiles;
+  }
+
+  static String _safeName(String value) => value
+      .replaceAll(RegExp(r'[/\\:*?"<>|]'), '_')
+      .replaceAll(RegExp(r'[^a-zA-Z0-9._ -]'), '_')
+      .trim()
+      .replaceAll(RegExp(r'\s+'), '_');
 }

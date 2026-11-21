@@ -564,6 +564,51 @@ class LocalDbService {
     await _metaBox?.put(_pendingMessagesKey, snapshot);
   }
 
+  static String _messageStatusKey(String chatId) =>
+      'message_status_${chatId.trim().toLowerCase()}';
+
+  static Future<Map<String, Map<String, dynamic>>> getMessageStatuses(
+    String chatId,
+  ) async {
+    await _ensureInit();
+    final raw = _metaBox?.get(_messageStatusKey(chatId));
+    if (raw is! Map) return <String, Map<String, dynamic>>{};
+    return <String, Map<String, dynamic>>{
+      for (final entry in raw.entries)
+        if (entry.value is Map)
+          entry.key.toString(): Map<String, dynamic>.from(entry.value as Map),
+    };
+  }
+
+  static Future<void> saveMessageStatuses(
+    String chatId,
+    Map<String, Map<String, dynamic>> statuses,
+  ) async {
+    await _ensureInit();
+    final current = await getMessageStatuses(chatId);
+    current.addAll(statuses);
+    if (current.length > 2000) {
+      final oldestIds = current.entries.toList()
+        ..sort((a, b) => (DateTime.tryParse(
+                  a.value['updatedAt']?.toString() ?? '',
+                ) ??
+                DateTime(2000))
+            .compareTo(DateTime.tryParse(
+                  b.value['updatedAt']?.toString() ?? '',
+                ) ??
+                DateTime(2000)));
+      for (final entry in oldestIds.take(current.length - 2000)) {
+        current.remove(entry.key);
+      }
+    }
+    await _metaBox?.put(_messageStatusKey(chatId), current);
+  }
+
+  static Future<Message?> getMessageById(String messageId) async {
+    await _ensureInit();
+    return _messagesBox?.get(messageId);
+  }
+
   /// Set last sync time for a chat
   static Future<void> setLastSync(String chatId, DateTime time) async {
     await _ensureInit();
@@ -661,6 +706,7 @@ class LocalDbService {
           'profilePhotoVisibility': u.profilePhotoVisibility, 'readReceipts': u.readReceipts,
         };
       }).toList(),
+      'callLogs': await getCallLogs(owner),
     };
   }
 
@@ -676,8 +722,10 @@ class LocalDbService {
     final rawMessages = data['messages'];
     final rawChats = data['chats'];
     final rawUsers = data['users'];
+    final rawCallLogs = data['callLogs'];
     if (rawMessages is! List || rawChats is! List || rawUsers is! List ||
-        rawMessages.length > 200000 || rawChats.length > 20000 || rawUsers.length > 20000) {
+        rawMessages.length > 200000 || rawChats.length > 20000 || rawUsers.length > 20000 ||
+        (rawCallLogs != null && (rawCallLogs is! List || rawCallLogs.length > 500))) {
       throw const FormatException('The backup file is invalid or too large.');
     }
     final messages = <String, Message>{};
@@ -734,7 +782,20 @@ class LocalDbService {
     _rebuildMessageIndex();
     await _chatsBox?.putAll(chats);
     await _usersBox?.putAll(users);
-    return {'messages': messages.length, 'chats': chats.length, 'contacts': users.length};
+    final callLogs = rawCallLogs is List
+        ? rawCallLogs.whereType<Map>().map((entry) => Map<String, dynamic>.from(entry)).toList()
+        : <Map<String, dynamic>>[];
+    if (callLogs.isNotEmpty) {
+      final existing = await getCallLogs(activeOwner);
+      final merged = <String, Map<String, dynamic>>{};
+      for (final log in [...callLogs, ...existing]) {
+        final id = log['callId']?.toString().trim();
+        final fallback = [log['callerId'], log['receiverId'], log['createdAt'], log['type'], log['status']].join('|');
+        merged[(id == null || id.isEmpty) ? fallback : id] = log;
+      }
+      await saveCallLogs(activeOwner, merged.values.toList());
+    }
+    return {'messages': messages.length, 'chats': chats.length, 'contacts': users.length, 'callLogs': callLogs.length};
   }
 
   /// Get database stats

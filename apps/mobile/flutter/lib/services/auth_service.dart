@@ -128,6 +128,7 @@ class AuthService extends ChangeNotifier {
   final SessionRejectionTracker _sessionRejectionTracker =
       SessionRejectionTracker();
   bool _sessionInvalidated = false;
+  bool _lastResumeSessionAuthenticated = false;
 
   /// Coalesce startup, resume and connectivity-triggered session checks. A
   /// caller that arrives during a refresh must await the same result rather
@@ -769,8 +770,18 @@ class AuthService extends ChangeNotifier {
     return _runSessionRestore(_restoreSessionOnResumeInternal);
   }
 
+  /// Revalidates the REST session for socket recovery and reports whether the
+  /// backend confirmed it. The cached profile alone must never authenticate a
+  /// replacement socket.
+  Future<bool> restoreSessionForSocketRecovery() async {
+    _lastResumeSessionAuthenticated = false;
+    await restoreSessionOnResume();
+    return _lastResumeSessionAuthenticated && _user != null;
+  }
+
   Future<void> _restoreSessionOnResumeInternal() async {
     if (!_authReady || _user == null) return;
+    _lastResumeSessionAuthenticated = false;
     final generation = _sessionMutationGeneration;
     bool isCurrentSession() =>
         generation == _sessionMutationGeneration && _user != null;
@@ -825,6 +836,7 @@ class AuthService extends ChangeNotifier {
 
       if (session != null && session['authenticated'] == true) {
         if (!isCurrentSession()) return;
+        _lastResumeSessionAuthenticated = true;
         _sessionRejectionTracker.reset();
         final refreshedUser = NovynUser.fromMap(session);
         if (_user?.username.toLowerCase() !=

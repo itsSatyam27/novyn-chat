@@ -20,8 +20,10 @@ class GoogleDriveBackupService {
     serverClientId: FirebaseConfiguration.googleWebClientId,
   );
 
-  static Future<String> _accessToken() async {
-    final account = await _googleSignIn.signIn();
+  static Future<String> _accessToken({bool interactive = true}) async {
+    final account = interactive
+        ? await _googleSignIn.signIn()
+        : await _googleSignIn.signInSilently();
     if (account == null) throw StateError('Google Drive sign-in was cancelled.');
     final auth = await account.authentication;
     final token = auth.accessToken;
@@ -51,8 +53,11 @@ class GoogleDriveBackupService {
     return files.isEmpty ? null : Map<String, dynamic>.from(files.first);
   }
 
-  static Future<void> save(Uint8List encryptedBackup) async {
-    final token = await _accessToken();
+  static Future<void> save(
+    Uint8List encryptedBackup, {
+    bool interactive = true,
+  }) async {
+    final token = await _accessToken(interactive: interactive);
     final existing = await _findBackup(token);
     final boundary = 'novyn_${Random.secure().nextInt(1 << 32)}';
     final metadata = jsonEncode({

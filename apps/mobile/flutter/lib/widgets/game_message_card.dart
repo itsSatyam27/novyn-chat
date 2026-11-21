@@ -246,14 +246,19 @@ class _GameMessageCardState extends State<GameMessageCard> {
           ),
           const SizedBox(height: 10),
           if (_type == 'tictactoe') _ticTacToe(),
-          if (_type == 'tictactoe' &&
-              _finished &&
-              widget.randomSessionId == null) ...[
+          if (_type == 'connect4') _connect4(),
+          if (_type == 'rps') _rockPaperScissors(),
+          if (_type == 'numberclash') _numberClash(),
+          if (_type == 'updown') _upDown(),
+          if (_type == 'doodle') _doodle(),
+          if (_finished &&
+              widget.randomSessionId == null &&
+              widget.peerUsername.trim().isNotEmpty) ...[
             const SizedBox(height: 12),
             SizedBox(
               width: double.infinity,
               child: OutlinedButton.icon(
-                onPressed: _startingRematch ? null : _startTicTacToeRematch,
+                onPressed: _startingRematch ? null : _startRematch,
                 icon: _startingRematch
                     ? const SizedBox(
                         width: 16,
@@ -265,11 +270,6 @@ class _GameMessageCardState extends State<GameMessageCard> {
               ),
             ),
           ],
-          if (_type == 'connect4') _connect4(),
-          if (_type == 'rps') _rockPaperScissors(),
-          if (_type == 'numberclash') _numberClash(),
-          if (_type == 'updown') _upDown(),
-          if (_type == 'doodle') _doodle(),
         ],
       ),
     );
@@ -376,13 +376,13 @@ class _GameMessageCardState extends State<GameMessageCard> {
     );
   }
 
-  Future<void> _startTicTacToeRematch() async {
+  Future<void> _startRematch() async {
     if (_startingRematch) return;
     setState(() => _startingRematch = true);
     try {
       final socket = context.read<SocketService>();
       final messageId = await socket.sendGameChallenge(
-        'tictactoe',
+        _type,
         widget.peerUsername,
         isGroup: widget.isGroup,
       );

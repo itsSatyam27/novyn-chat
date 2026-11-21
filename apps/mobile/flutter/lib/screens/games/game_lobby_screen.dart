@@ -41,6 +41,9 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
   bool _sendingInvite = false;
   bool _searchingRandom = false;
   bool _cancellingMatchmaking = false;
+  bool _reconnecting = false;
+  bool _searchEndedByDisconnect = false;
+  bool _friendsLoadFailed = false;
   int _secondsRemaining = 60;
   DateTime? _queueDeadline;
   Timer? _queueTimer;
@@ -57,6 +60,7 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
       _auth!.addListener(_handleAuthChanged);
       _socket!.onRandomMatchFound = _handleRandomMatchFound;
       _socket!.onRandomMatchTimeout = _handleRandomMatchTimeout;
+      _socket!.addListener(_handleSocketStateChanged);
       _subscribeToFriends();
     });
   }
@@ -67,6 +71,7 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
     _queueTimer?.cancel();
     _searchController.dispose();
     if (_socket != null) {
+      _socket!.removeListener(_handleSocketStateChanged);
       _socket!.onRandomMatchFound = null;
       _socket!.onRandomMatchTimeout = null;
       if (_searchingRandom) {
@@ -77,21 +82,37 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
     super.dispose();
   }
 
+  bool get _connectionReady =>
+      _socket?.isConnected == true && _socket?.isAuthenticated == true;
+
+  void _handleSocketStateChanged() {
+    if (!mounted || !_searchingRandom || _connectionReady) return;
+    _queueTimer?.cancel();
+    setState(() {
+      _searchingRandom = false;
+      _cancellingMatchmaking = false;
+      _queueDeadline = null;
+      _secondsRemaining = 60;
+      _searchEndedByDisconnect = true;
+    });
+  }
+
   void _handleAuthChanged() {
     if (!mounted) return;
     final username = _auth?.user?.username.trim().toLowerCase();
     if (username != _account) _subscribeToFriends();
   }
 
-  void _subscribeToFriends() {
+  void _subscribeToFriends({bool force = false}) {
     final username = _auth?.user?.username.trim() ?? '';
     final owner = username.toLowerCase();
-    if (owner == _account) return;
+    if (owner == _account && !force) return;
     _account = owner;
     unawaited(_friendsSubscription?.cancel());
     _friendsSubscription = null;
     _friends = const <UserModel>[];
     _selectedFriend = null;
+    _friendsLoadFailed = false;
     if (username.isEmpty) {
       setState(() => _loadingFriends = false);
       return;
@@ -107,6 +128,7 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
           });
         setState(() {
           _friends = sorted;
+          _friendsLoadFailed = false;
           if (!_friends.any((friend) =>
               friend.username.toLowerCase() == _selectedFriend)) {
             _selectedFriend = sorted.isEmpty
@@ -118,7 +140,10 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
       },
       onError: (_) {
         if (mounted && _account == owner) {
-          setState(() => _loadingFriends = false);
+          setState(() {
+            _loadingFriends = false;
+            _friendsLoadFailed = true;
+          });
         }
       },
     );
@@ -210,10 +235,22 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
   Future<void> _startRandomSearch() async {
     if (_searchingRandom || _cancellingMatchmaking) return;
     final socket = _socket ?? context.read<SocketService>();
+    if (!socket.isConnected || !socket.isAuthenticated) {
+      NovynAlert.show(
+        context,
+        'Reconnect to Novyn before searching for an opponent.',
+        title: 'Connection needed',
+        icon: Icons.wifi_off_rounded,
+      );
+      return;
+    }
     setState(() {
       _searchingRandom = true;
+      _searchEndedByDisconnect = false;
       _secondsRemaining = 60;
-      _queueDeadline = DateTime.now().add(const Duration(seconds: 60));
+      // Give the server timeout event a short delivery grace period before
+      // showing a local fallback in case the event was lost during reconnect.
+      _queueDeadline = DateTime.now().add(const Duration(seconds: 65));
     });
     try {
       await socket.joinRandomGame(widget.gameType);
@@ -226,8 +263,16 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
         }
         final deadline = _queueDeadline;
         if (deadline == null) return;
-        final remaining = deadline.difference(DateTime.now()).inSeconds.clamp(0, 60);
-        setState(() => _secondsRemaining = remaining);
+        final remaining = deadline.difference(DateTime.now()).inSeconds;
+        if (remaining <= 0) {
+          timer.cancel();
+          _handleRandomMatchTimeout({
+            'gameType': widget.gameType,
+            'message': 'No player found right now. Please try again.',
+          });
+          return;
+        }
+        setState(() => _secondsRemaining = remaining.clamp(0, 60));
       });
     } catch (error) {
       _queueTimer?.cancel();
@@ -246,6 +291,27 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
         title: 'Matchmaking unavailable',
         icon: Icons.group_off_rounded,
       );
+    }
+  }
+
+  Future<void> _reconnect() async {
+    if (_reconnecting) return;
+    setState(() => _reconnecting = true);
+    try {
+      await (_socket ?? context.read<SocketService>())
+          .reconnectWithCurrentSession();
+    } catch (_) {
+      if (mounted) {
+        NovynAlert.show(
+          context,
+          'Novyn could not reconnect. Check your network and try again.',
+          isError: true,
+          title: 'Reconnect failed',
+          icon: Icons.wifi_off_rounded,
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _reconnecting = false);
     }
   }
 
@@ -310,7 +376,7 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
   }
 
   void _handleRandomMatchFound(Map data) {
-    if (!mounted) return;
+    if (!mounted || !_searchingRandom) return;
     final gameType = data['gameType']?.toString();
     if (gameType != widget.gameType) return;
     _queueTimer?.cancel();
@@ -326,6 +392,7 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
       _cancellingMatchmaking = false;
       _queueDeadline = null;
       _secondsRemaining = 60;
+      _searchEndedByDisconnect = false;
     });
     if (sessionId.isEmpty || game == null) {
       NovynAlert.show(
@@ -353,7 +420,7 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
   }
 
   void _handleRandomMatchTimeout(Map data) {
-    if (!mounted || data['gameType']?.toString() != widget.gameType) return;
+    if (!mounted || !_searchingRandom || data['gameType']?.toString() != widget.gameType) return;
     _queueTimer?.cancel();
     setState(() {
       _searchingRandom = false;
@@ -384,6 +451,8 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;
+    final socket = context.watch<SocketService>();
+    final connectionReady = socket.isConnected && socket.isAuthenticated;
 
     return PopScope<void>(
       canPop: !_searchingRandom && !_cancellingMatchmaking,
@@ -420,17 +489,66 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
           child: ListView(
             padding: const EdgeInsets.fromLTRB(20, 16, 20, 36),
             children: [
+              if (!connectionReady) ...[
+                _buildConnectionNotice(theme),
+                const SizedBox(height: 18),
+              ] else if (_searchEndedByDisconnect) ...[
+                _buildSearchEndedNotice(theme),
+                const SizedBox(height: 18),
+              ],
               _buildSectionHeader('Play with random'),
-              _buildRandomCard(theme),
+              _buildRandomCard(theme, connectionReady),
               const SizedBox(height: 28),
               _buildSectionHeader('Play with a friend'),
-              _buildFriendCard(theme),
+              _buildFriendCard(theme, connectionReady),
             ],
           ),
         ),
       ),
     );
   }
+
+  Widget _buildConnectionNotice(ThemeData theme) {
+    final colors = theme.colorScheme;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(15, 13, 10, 13),
+      decoration: BoxDecoration(
+        color: colors.errorContainer.withValues(alpha: .62),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: colors.error.withValues(alpha: .2)),
+      ),
+      child: Row(children: [
+        Icon(Icons.wifi_off_rounded, color: colors.error),
+        const SizedBox(width: 11),
+        Expanded(child: Text(
+          'You’re offline. Reconnect to invite a friend or find a player.',
+          style: theme.textTheme.bodySmall?.copyWith(height: 1.35),
+        )),
+        TextButton(
+          onPressed: _reconnecting ? null : _reconnect,
+          child: _reconnecting
+              ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+              : const Text('Reconnect'),
+        ),
+      ]),
+    );
+  }
+
+  Widget _buildSearchEndedNotice(ThemeData theme) => Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.tertiaryContainer.withValues(alpha: .55),
+          borderRadius: BorderRadius.circular(17),
+        ),
+        child: Row(children: [
+          Icon(Icons.info_outline_rounded, color: theme.colorScheme.tertiary),
+          const SizedBox(width: 10),
+          Expanded(child: Text(
+            'Your search ended when the connection dropped. Start a new search when ready.',
+            style: theme.textTheme.bodySmall?.copyWith(height: 1.35),
+          )),
+        ]),
+      );
 
   Widget _buildSectionHeader(String title) {
     return Padding(
@@ -447,10 +565,10 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
     );
   }
 
-  Widget _buildRandomCard(ThemeData theme) {
+  Widget _buildRandomCard(ThemeData theme, bool connectionReady) {
     final colors = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;
-    final canStart = !_sendingInvite && !_cancellingMatchmaking;
+    final canStart = !_sendingInvite && !_cancellingMatchmaking && connectionReady;
 
     return Container(
       padding: const EdgeInsets.all(22),
@@ -589,7 +707,9 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
               children: [
                 Expanded(
                   child: Text(
-                    'Searching for an opponent…',
+                    _secondsRemaining == 0
+                        ? 'Waiting for match confirmation…'
+                        : 'Searching for an opponent…',
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: colors.onSurfaceVariant,
                     ),
@@ -610,7 +730,7 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
     );
   }
 
-  Widget _buildFriendCard(ThemeData theme) {
+  Widget _buildFriendCard(ThemeData theme, bool connectionReady) {
     final colors = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;
     final selectedFriend = _selectedFriendModel;
@@ -669,11 +789,33 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
               ),
             ],
           ),
+          if (!_loadingFriends && _friends.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Padding(
+              padding: const EdgeInsets.only(left: 59),
+              child: Text(
+                '$onlineCount of ${_friends.length} friends online',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: colors.onSurfaceVariant,
+                ),
+              ),
+            ),
+          ],
           const SizedBox(height: 18),
           TextField(
             controller: _searchController,
             onChanged: (val) {
-              setState(() => _searchQuery = val.trim().toLowerCase());
+              final query = val.trim().toLowerCase();
+              setState(() {
+                _searchQuery = query;
+                if (_selectedFriend != null &&
+                    !_friends.any((friend) =>
+                        friend.username.toLowerCase() == _selectedFriend &&
+                        (friend.name.toLowerCase().contains(query) ||
+                            friend.username.toLowerCase().contains(query)))) {
+                  _selectedFriend = null;
+                }
+              });
             },
             style: TextStyle(
               fontSize: 14,
@@ -741,6 +883,17 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
                   width: 20,
                   height: 20,
                   child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
+            ),
+          ] else if (_friendsLoadFailed) ...[
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              child: Center(
+                child: TextButton.icon(
+                  onPressed: () => _subscribeToFriends(force: true),
+                  icon: const Icon(Icons.refresh_rounded),
+                  label: const Text('Could not load friends - Retry'),
                 ),
               ),
             ),
@@ -852,13 +1005,37 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
                 ),
               ),
             ),
+          ] else ...[
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              child: Column(children: [
+                Icon(Icons.person_search_rounded,
+                    color: colors.onSurfaceVariant.withValues(alpha: .75), size: 25),
+                const SizedBox(height: 6),
+                Text(
+                  'No friends match "${_searchController.text.trim()}".',
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant),
+                ),
+                TextButton(
+                  onPressed: () {
+                    _searchController.clear();
+                    setState(() {
+                      _searchQuery = '';
+                      _selectedFriend = null;
+                    });
+                  },
+                  child: const Text('Clear search'),
+                ),
+              ]),
+            ),
           ],
           const SizedBox(height: 14),
           SizedBox(
             width: double.infinity,
             height: 52,
             child: ElevatedButton(
-              onPressed: _sendingInvite
+              onPressed: _sendingInvite || !connectionReady
                   ? null
                   : () {
                       if (selectedFriend != null) {

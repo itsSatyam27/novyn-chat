@@ -20,6 +20,7 @@ import '../widgets/novyn_dock.dart';
 import '../widgets/novyn_page_route.dart';
 import '../services/settings_service.dart';
 import '../services/app_update_service.dart';
+import '../services/backup_automation_service.dart';
 import '../services/profile_deep_link_service.dart';
 import 'profile/public_profile_screen.dart';
 import 'profile/settings/about_novyn_screen.dart';
@@ -174,6 +175,13 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
         // Revalidate/refresh the REST session before rebuilding Socket.IO.
         await auth.restoreSessionOnResume();
         if (!mounted) return;
+        final backupUsername = auth.user?.username.trim() ?? '';
+        if (backupUsername.isNotEmpty) {
+          unawaited(BackupAutomationService.runIfDue(
+            username: backupUsername,
+            encryption: context.read<SocketService>().encryption,
+          ));
+        }
         _recoverSocketIfNeeded(forceReconnect: forceReconnect);
         forceReconnect = _forceSocketRecoveryPending;
       } while (mounted && forceReconnect);

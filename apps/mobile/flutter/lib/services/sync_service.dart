@@ -231,8 +231,8 @@ class SyncService extends ChangeNotifier {
   }
 
   /// Send queued messages FIFO. Only a positive server acknowledgement removes
-  /// an item. Permanent server rejections are removed and surfaced to the UI;
-  /// transient errors stay queued and stop this pass.
+  /// an item. Permanent rejections stay locally marked failed until the user
+  /// explicitly retries or deletes them; transient errors stay queued.
   Future<void> flushPendingMessages(
     PendingMessageSender sender, {
     PendingMessageFailureHandler? onRejected,
@@ -264,6 +264,7 @@ class SyncService extends ChangeNotifier {
     for (final pending in snapshot) {
       if (!_isOnline || _activeAccount != account) break;
       if (pending.accountId != account ||
+          pending.isFailed ||
           !_pendingMessages.any((item) => item.tempId == pending.tempId)) {
         continue;
       }
@@ -277,7 +278,9 @@ class SyncService extends ChangeNotifier {
         await removePendingMessage(pending.tempId);
       } on PendingMessageRejectedException catch (error) {
         if (_activeAccount != account) break;
-        await removePendingMessage(pending.tempId);
+        await _replacePendingMessage(
+          pending.copyWith(isFailed: true, lastError: error.message),
+        );
         onRejected?.call(pending, error.message);
       } on PendingMessageDeferredException catch (error) {
         if (_activeAccount != account) break;
@@ -331,6 +334,7 @@ class PendingMessage {
   final Map<String, dynamic>? attachment;
   final int attemptCount;
   final String? lastError;
+  final bool isFailed;
 
   PendingMessage({
     required this.accountId,
@@ -346,9 +350,14 @@ class PendingMessage {
     this.attachment,
     this.attemptCount = 0,
     this.lastError,
+    this.isFailed = false,
   });
 
-  PendingMessage copyWith({int? attemptCount, String? lastError}) =>
+  PendingMessage copyWith({
+    int? attemptCount,
+    String? lastError,
+    bool? isFailed,
+  }) =>
       PendingMessage(
         accountId: accountId,
         tempId: tempId,
@@ -363,6 +372,7 @@ class PendingMessage {
         attachment: attachment,
         attemptCount: attemptCount ?? this.attemptCount,
         lastError: lastError ?? this.lastError,
+        isFailed: isFailed ?? this.isFailed,
       );
 
   Message toLocalMessage() => Message(
@@ -392,6 +402,7 @@ class PendingMessage {
     'attachment': attachment,
     'attemptCount': attemptCount,
     'lastError': lastError,
+    'isFailed': isFailed,
   };
 
   factory PendingMessage.fromJson(Map<String, dynamic> json) {
@@ -421,6 +432,7 @@ class PendingMessage {
           : null,
       attemptCount: (json['attemptCount'] as num?)?.toInt() ?? 0,
       lastError: json['lastError']?.toString(),
+      isFailed: json['isFailed'] == true,
     );
   }
 }
