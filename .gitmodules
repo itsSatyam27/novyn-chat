@@ -1,0 +1,3 @@
+[submodule ".tools/shorebird"]
+	path = .tools/shorebird
+	url = https://github.com/shorebirdtech/shorebird.git
