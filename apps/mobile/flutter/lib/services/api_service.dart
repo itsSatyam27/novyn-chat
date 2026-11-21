@@ -84,6 +84,9 @@ class ApiService {
       final cookie = await _secureStorage.read(key: _sessionCookieKey);
       final csrf = await _secureStorage.read(key: _csrfTokenKey);
       if (revisionBeforeRead != _sessionCredentialRevision) {
+        // A newer credential update won while Keystore reads were in flight.
+        // Wait for its serialized write before reporting storage as ready.
+        await _sessionStorageWriteTail;
         _sessionStorageInitialized = true;
         return true;
       }
@@ -390,8 +393,15 @@ class ApiService {
     final sessionChanged = previousSessionCookie != _sessionCookie ||
         previousCsrfToken != _csrfToken;
     if (sessionChanged) _notifySessionRevision();
+    if (sessionChanged) {
+      try {
+        await _persistSessionCookies();
+      } catch (_) {
+        _sessionStorageInitialized = false;
+        rethrow;
+      }
+    }
     _sessionStorageInitialized = true;
-    if (sessionChanged) await _persistSessionCookies();
   }
 
   // ── Clear session (on logout) ─────────────────────────────────────────────
