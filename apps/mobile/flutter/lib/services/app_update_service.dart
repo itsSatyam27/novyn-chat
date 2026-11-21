@@ -525,18 +525,23 @@ class AppUpdateService extends ChangeNotifier {
         final speed = elapsedSeconds > 0
             ? ((bytes - offset).clamp(0, release.size) / elapsedSeconds).toDouble()
             : 0.0;
-        try {
-          await NotificationService.showUpdateDownloadProgress(
-            downloadedBytes: bytes,
-            totalBytes: release.size,
-            speedBytesPerSecond: speed,
-          );
-        } catch (notificationError) {
-          debugPrint('[NovynUpdates] Progress notification failed: ' +
-              notificationError.toString());
-        }
+        // Reserve the notification slot before scheduling the platform call.
+        // Never await notification rendering from the HTTP stream loop: on some
+        // Android devices that platform-channel round trip throttles APK reads.
         lastNotificationAt = elapsed;
         lastNotificationPercent = percent;
+        unawaited(() async {
+          try {
+            await NotificationService.showUpdateDownloadProgress(
+              downloadedBytes: bytes,
+              totalBytes: release.size,
+              speedBytesPerSecond: speed,
+            );
+          } catch (notificationError) {
+            debugPrint('[NovynUpdates] Progress notification failed: ' +
+                notificationError.toString());
+          }
+        }());
       }
 
       await publishProgress(offset, force: true);
