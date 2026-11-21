@@ -44,6 +44,8 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
   int _secondsRemaining = 60;
   DateTime? _queueDeadline;
   Timer? _queueTimer;
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
 
   @override
   void initState() {
@@ -63,6 +65,7 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
   void dispose() {
     _auth?.removeListener(_handleAuthChanged);
     _queueTimer?.cancel();
+    _searchController.dispose();
     if (_socket != null) {
       _socket!.onRandomMatchFound = null;
       _socket!.onRandomMatchTimeout = null;
@@ -350,12 +353,21 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
     );
   }
 
+  List<UserModel> get _filteredFriends {
+    if (_searchQuery.isEmpty) return _friends;
+    return _friends.where((friend) {
+      final query = _searchQuery;
+      final name = friend.name.toLowerCase();
+      final username = friend.username.toLowerCase();
+      return name.contains(query) || username.contains(query);
+    }).toList();
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
-    final selectedFriend = _selectedFriendModel;
-    final onlineCount = _friends.where((friend) => _presence(friend) == 'Online').length;
+    final isDark = theme.brightness == Brightness.dark;
 
     return PopScope<void>(
       canPop: !_searchingRandom && !_cancellingMatchmaking,
@@ -365,238 +377,216 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
         }
       },
       child: Scaffold(
-      backgroundColor: theme.scaffoldBackgroundColor,
-      appBar: AppBar(
-        leading: IconButton(
-          tooltip: 'Back',
-          onPressed: _cancellingMatchmaking ? null : _handleBack,
-          icon: const Icon(Icons.arrow_back_rounded),
-        ),
-        title: Text(widget.title,
-            style: theme.textTheme.titleLarge?.copyWith(
+        backgroundColor: isDark ? theme.scaffoldBackgroundColor : const Color(0xFFF3F1F9),
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          surfaceTintColor: Colors.transparent,
+          leading: IconButton(
+            tooltip: 'Back',
+            onPressed: _cancellingMatchmaking ? null : _handleBack,
+            icon: Icon(Icons.arrow_back_rounded, color: colors.onSurface),
+          ),
+          title: Text(
+            widget.title,
+            style: theme.textTheme.headlineSmall?.copyWith(
               fontWeight: FontWeight.w800,
-            )),
-      ),
-      body: SafeArea(
-        top: false,
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
-          children: [
-            Container(
-              padding: const EdgeInsets.all(21),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    colors.primaryContainer.withValues(alpha: .95),
-                    colors.surfaceContainerLow,
-                  ],
-                ),
-                borderRadius: BorderRadius.circular(26),
-                border: Border.all(color: colors.primary.withValues(alpha: .15)),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    width: 58,
-                    height: 58,
-                    decoration: BoxDecoration(
-                      color: colors.surface.withValues(alpha: .85),
-                      borderRadius: BorderRadius.circular(18),
-                    ),
-                    child: Icon(widget.icon, color: colors.primary, size: 30),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(widget.title,
-                      style: theme.textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: -.5,
-                      )),
-                  const SizedBox(height: 5),
-                  Text(widget.subtitle,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: colors.onSurfaceVariant,
-                      )),
-                  const SizedBox(height: 18),
-                  Row(
-                    children: [
-                      Icon(Icons.people_alt_rounded,
-                          size: 17, color: colors.primary),
-                      const SizedBox(width: 7),
-                      Text('Two-player match',
-                          style: theme.textTheme.labelLarge?.copyWith(
-                            fontWeight: FontWeight.w700,
-                          )),
-                      const Spacer(),
-                      Text('Friends or strangers',
-                          style: theme.textTheme.labelSmall?.copyWith(
-                            color: colors.onSurfaceVariant,
-                          )),
-                    ],
-                  ),
-                ],
-              ),
+              fontSize: 24,
+              letterSpacing: -.3,
+              color: colors.onSurface,
             ),
-            const SizedBox(height: 26),
-            Text('Choose how to play',
-                style: theme.textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w900,
-                )),
-            const SizedBox(height: 12),
-            _buildRandomCard(theme),
-            const SizedBox(height: 24),
-            Row(
-              children: [
-                Expanded(
-                  child: Text('Play with a friend',
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w800,
-                      )),
-                ),
-                Text('$onlineCount online',
-                    style: theme.textTheme.labelMedium?.copyWith(
-                      color: colors.primary,
-                      fontWeight: FontWeight.w800,
-                    )),
-              ],
-            ),
-            const SizedBox(height: 6),
-            Text(
-              'Choose a friend and invite them into a private match.',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: colors.onSurfaceVariant,
-              ),
-            ),
-            const SizedBox(height: 12),
-            _buildFriends(theme),
-            const SizedBox(height: 14),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton.icon(
-                onPressed: selectedFriend == null || _sendingInvite
-                    ? null
-                    : () => _playWithFriend(selectedFriend),
-                icon: _sendingInvite
-                    ? const SizedBox(
-                        width: 17,
-                        height: 17,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.sports_esports_rounded),
-                label: Text(selectedFriend == null
-                    ? 'Choose a friend'
-                    : 'Play with @${selectedFriend.username}'),
-              ),
-            ),
-          ],
+          ),
+          centerTitle: false,
+          titleSpacing: 0,
+        ),
+        body: SafeArea(
+          top: false,
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 36),
+            children: [
+              _buildSectionHeader('Play with random'),
+              _buildRandomCard(theme),
+              const SizedBox(height: 28),
+              _buildSectionHeader('Play with a friend'),
+              _buildFriendCard(theme),
+            ],
+          ),
         ),
       ),
+    );
+  }
+
+  Widget _buildSectionHeader(String title) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 4, bottom: 12),
+      child: Text(
+        title.toUpperCase(),
+        style: const TextStyle(
+          color: Color(0xFF5E44F3),
+          fontSize: 12,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 1.1,
+        ),
       ),
     );
   }
 
   Widget _buildRandomCard(ThemeData theme) {
     final colors = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
     final canStart = !_sendingInvite && !_cancellingMatchmaking;
+
     return Container(
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: colors.outlineVariant.withValues(alpha: .55)),
+        color: isDark ? colors.surface : Colors.white,
+        borderRadius: BorderRadius.circular(28),
+        boxShadow: [
+          BoxShadow(
+            color: isDark ? Colors.black26 : const Color(0xFF5E44F3).withValues(alpha: .06),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+        ],
+        border: Border.all(
+          color: isDark
+              ? colors.outlineVariant.withValues(alpha: .25)
+              : const Color(0xFFEEEAF8),
+          width: 1,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
-                width: 44,
-                height: 44,
+                width: 58,
+                height: 58,
                 decoration: BoxDecoration(
-                  color: colors.primary.withValues(alpha: .11),
-                  borderRadius: BorderRadius.circular(14),
+                  color: const Color(0xFF5E44F3),
+                  borderRadius: BorderRadius.circular(19),
                 ),
-                child: Icon(Icons.public_rounded, color: colors.primary),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Play with Random',
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w800,
-                        )),
-                    const SizedBox(height: 2),
-                    Text('Match with a stranger playing the same game.',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: colors.onSurfaceVariant,
-                        )),
-                  ],
+                child: const Icon(
+                  Icons.language_rounded,
+                  color: Colors.white,
+                  size: 28,
                 ),
               ),
+              _buildGameBadge(widget.gameType),
             ],
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 18),
+          Text(
+            'Random player',
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.w800,
+              color: isDark ? Colors.white : const Color(0xFF1E1C2A),
+              letterSpacing: -.3,
+            ),
+          ),
+          const SizedBox(height: 18),
           SizedBox(
             width: double.infinity,
-            child: FilledButton.icon(
+            height: 54,
+            child: ElevatedButton(
               onPressed: !canStart
                   ? null
                   : _searchingRandom
                       ? () => _cancelRandomSearch()
                       : _startRandomSearch,
-              icon: _cancellingMatchmaking
-                  ? const SizedBox(
-                      width: 17,
-                      height: 17,
-                      child: CircularProgressIndicator(strokeWidth: 2),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF5E44F3),
+                foregroundColor: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+              ),
+              child: _cancellingMatchmaking
+                  ? const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        ),
+                        SizedBox(width: 10),
+                        Text(
+                          'Cancelling…',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
                     )
-                  : Icon(_searchingRandom
-                      ? Icons.close_rounded
-                      : Icons.search_rounded),
-              label: Text(_cancellingMatchmaking
-                  ? 'Cancelling…'
                   : _searchingRandom
-                      ? 'Cancel search · 00:${_secondsRemaining.toString().padLeft(2, '0')}'
-                      : 'Find a player'),
+                      ? Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Text(
+                              'Cancel search · 00:${_secondsRemaining.toString().padLeft(2, '0')}',
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        )
+                      : const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.search_rounded, size: 21, color: Colors.white),
+                            SizedBox(width: 8),
+                            Text(
+                              'Find a player',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
             ),
           ),
           if (_searchingRandom) ...[
             const SizedBox(height: 12),
             Row(
               children: [
-                const SizedBox(
-                  width: 15,
-                  height: 15,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
-                const SizedBox(width: 9),
                 Expanded(
-                  child: Text('Searching for a stranger…',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: colors.onSurfaceVariant,
-                      )),
+                  child: Text(
+                    'Searching for an opponent…',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: colors.onSurfaceVariant,
+                    ),
+                  ),
                 ),
                 Text(
                   '00:${_secondsRemaining.toString().padLeft(2, '0')}',
-                  style: theme.textTheme.labelLarge?.copyWith(
+                  style: const TextStyle(
                     fontWeight: FontWeight.w900,
+                    color: Color(0xFF5E44F3),
                   ),
                 ),
               ],
-            ),
-          ] else ...[
-            const SizedBox(height: 9),
-            Text(
-              'The search lasts up to 60 seconds. Only players looking for ${widget.title} are matched.',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: colors.onSurfaceVariant,
-                height: 1.4,
-              ),
             ),
           ],
         ],
@@ -604,129 +594,548 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
     );
   }
 
-  Widget _buildFriends(ThemeData theme) {
+  Widget _buildFriendCard(ThemeData theme) {
     final colors = theme.colorScheme;
-    if (_loadingFriends) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 24),
-        child: Center(
-          child: SizedBox(
-            width: 22,
-            height: 22,
-            child: CircularProgressIndicator(strokeWidth: 2),
+    final isDark = theme.brightness == Brightness.dark;
+    final selectedFriend = _selectedFriendModel;
+    final onlineCount = _friends.where((friend) => _presence(friend) == 'Online').length;
+    final filtered = _filteredFriends;
+
+    return Container(
+      padding: const EdgeInsets.all(22),
+      decoration: BoxDecoration(
+        color: isDark ? colors.surface : Colors.white,
+        borderRadius: BorderRadius.circular(28),
+        boxShadow: [
+          BoxShadow(
+            color: isDark ? Colors.black26 : const Color(0xFF5E44F3).withValues(alpha: .06),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
           ),
+        ],
+        border: Border.all(
+          color: isDark
+              ? colors.outlineVariant.withValues(alpha: .25)
+              : const Color(0xFFEEEAF8),
+          width: 1,
         ),
-      );
-    }
-    if (_friends.isEmpty) {
-      return Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(18),
-        decoration: BoxDecoration(
-          color: colors.surface,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: colors.outlineVariant.withValues(alpha: .5)),
-        ),
-        child: Column(
-          children: [
-            Icon(Icons.person_add_alt_1_rounded,
-                size: 28, color: colors.onSurfaceVariant),
-            const SizedBox(height: 8),
-            Text('No friends to invite yet',
-                style: theme.textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w800,
-                )),
-            const SizedBox(height: 4),
-            Text(
-              'Add friends in Contacts and they will appear here.',
-              textAlign: TextAlign.center,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: colors.onSurfaceVariant,
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-    return Column(
-      children: _friends.map((friend) {
-        final selected =
-            friend.username.toLowerCase() == _selectedFriend;
-        final presence = _presence(friend);
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 8),
-          child: Material(
-            color: selected
-                ? colors.primary.withValues(alpha: .08)
-                : colors.surface,
-            borderRadius: BorderRadius.circular(17),
-            child: InkWell(
-              borderRadius: BorderRadius.circular(17),
-              onTap: _sendingInvite
-                  ? null
-                  : () => setState(
-                        () => _selectedFriend = friend.username.toLowerCase(),
-                      ),
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 46,
+                height: 46,
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(17),
-                  border: Border.all(
-                    color: selected
-                        ? colors.primary
-                        : colors.outlineVariant.withValues(alpha: .45),
-                    width: selected ? 1.5 : 1,
+                  color: isDark
+                      ? const Color(0xFF28253A)
+                      : const Color(0xFFEEECFD),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: const Icon(
+                  Icons.people_outline_rounded,
+                  color: Color(0xFF5E44F3),
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 13),
+              Expanded(
+                child: Text(
+                  'Invite a friend',
+                  style: TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
+                    color: isDark ? Colors.white : const Color(0xFF1E1C2A),
                   ),
                 ),
-                child: Row(
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF28253A) : const Color(0xFFEBE7F6),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    UserAvatar(
-                      name: friend.name,
-                      photoUrl: friend.photoUrl,
-                      radius: 21,
-                      isOnline: friend.isOnline,
-                      presence: friend.status,
-                      showOnlineIndicator: true,
-                    ),
-                    const SizedBox(width: 11),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            friend.name.isEmpty ? friend.username : friend.name,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.titleSmall?.copyWith(
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                          const SizedBox(height: 3),
-                          Text('@${friend.username} · $presence',
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: presence == 'Online'
-                                    ? colors.primary
-                                    : colors.onSurfaceVariant,
-                              )),
-                        ],
+                    Text(
+                      '$onlineCount',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w900,
+                        height: 1.1,
+                        color: isDark ? Colors.white : const Color(0xFF3B3754),
                       ),
                     ),
-                    Icon(
-                      selected
-                          ? Icons.radio_button_checked_rounded
-                          : Icons.radio_button_unchecked_rounded,
-                      color: selected
-                          ? colors.primary
-                          : colors.onSurfaceVariant,
+                    Text(
+                      'online',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        height: 1.1,
+                        color: isDark ? Colors.white70 : const Color(0xFF7D789B),
+                      ),
                     ),
                   ],
                 ),
               ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          Container(
+            height: 50,
+            decoration: BoxDecoration(
+              color: Colors.transparent,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: isDark
+                    ? colors.outlineVariant.withValues(alpha: .3)
+                    : const Color(0xFFE2DDF5),
+                width: 1.5,
+              ),
+            ),
+            alignment: Alignment.center,
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.search_rounded,
+                  size: 20,
+                  color: isDark ? Colors.white60 : const Color(0xFF7E7A9C),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: TextField(
+                    controller: _searchController,
+                    onChanged: (val) {
+                      setState(() => _searchQuery = val.trim().toLowerCase());
+                    },
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: isDark ? Colors.white : const Color(0xFF1E1C2A),
+                    ),
+                    decoration: const InputDecoration(
+                      isDense: true,
+                      border: InputBorder.none,
+                      hintText: 'Search by username',
+                      hintStyle: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        color: Color(0xFF8C87A6),
+                      ),
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                  ),
+                ),
+                if (_searchQuery.isNotEmpty)
+                  GestureDetector(
+                    onTap: () {
+                      _searchController.clear();
+                      setState(() => _searchQuery = '');
+                    },
+                    child: Icon(
+                      Icons.close_rounded,
+                      size: 18,
+                      color: isDark ? Colors.white60 : const Color(0xFF7E7A9C),
+                    ),
+                  ),
+              ],
             ),
           ),
-        );
-      }).toList(),
+          if (_loadingFriends) ...[
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 20),
+              child: Center(
+                child: SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
+            ),
+          ] else if (filtered.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 220),
+              child: ListView.builder(
+                shrinkWrap: true,
+                physics: const BouncingScrollPhysics(),
+                itemCount: filtered.length,
+                itemBuilder: (context, index) {
+                  final friend = filtered[index];
+                  final isSelected = friend.username.toLowerCase() == _selectedFriend;
+                  final presence = _presence(friend);
+
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Material(
+                      color: isSelected
+                          ? const Color(0xFF5E44F3).withValues(alpha: .08)
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(16),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(16),
+                        onTap: _sendingInvite
+                            ? null
+                            : () => setState(
+                                  () => _selectedFriend = friend.username.toLowerCase(),
+                                ),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: isSelected
+                                  ? const Color(0xFF5E44F3)
+                                  : (isDark
+                                      ? colors.outlineVariant.withValues(alpha: .2)
+                                      : const Color(0xFFEEEAF8)),
+                              width: isSelected ? 1.5 : 1,
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              UserAvatar(
+                                name: friend.name,
+                                photoUrl: friend.photoUrl,
+                                radius: 18,
+                                isOnline: friend.isOnline,
+                                presence: friend.status,
+                                showOnlineIndicator: true,
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      friend.name.isEmpty ? friend.username : friend.name,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 14,
+                                        color: isDark ? Colors.white : const Color(0xFF1E1C2A),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      '@${friend.username} · $presence',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w500,
+                                        color: presence == 'Online'
+                                            ? const Color(0xFF5E44F3)
+                                            : colors.onSurfaceVariant,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Icon(
+                                isSelected
+                                    ? Icons.radio_button_checked_rounded
+                                    : Icons.radio_button_unchecked_rounded,
+                                color: isSelected
+                                    ? const Color(0xFF5E44F3)
+                                    : (isDark ? Colors.white54 : const Color(0xFF8C87A6)),
+                                size: 20,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ] else if (_friends.isEmpty) ...[
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              child: Text(
+                'Add friends in Contacts to play private matches.',
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: colors.onSurfaceVariant,
+                ),
+              ),
+            ),
+          ],
+          const SizedBox(height: 14),
+          SizedBox(
+            width: double.infinity,
+            height: 52,
+            child: ElevatedButton(
+              onPressed: _sendingInvite
+                  ? null
+                  : () {
+                      if (selectedFriend != null) {
+                        _playWithFriend(selectedFriend);
+                      } else if (filtered.isNotEmpty) {
+                        final target = filtered.first;
+                        setState(() => _selectedFriend = target.username.toLowerCase());
+                        _playWithFriend(target);
+                      } else {
+                        NovynAlert.show(
+                          context,
+                          'Select or search a friend first to send an invite.',
+                          icon: Icons.people_outline_rounded,
+                        );
+                      }
+                    },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: isDark
+                    ? const Color(0xFF28253A)
+                    : const Color(0xFFECE8FD),
+                foregroundColor: const Color(0xFF5E44F3),
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+              child: _sendingInvite
+                  ? const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Color(0xFF5E44F3),
+                          ),
+                        ),
+                        SizedBox(width: 10),
+                        Text(
+                          'Sending invite…',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF5E44F3),
+                          ),
+                        ),
+                      ],
+                    )
+                  : Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(
+                          Icons.person_add_alt_1_rounded,
+                          size: 20,
+                          color: Color(0xFF5E44F3),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          selectedFriend != null
+                              ? 'Invite @${selectedFriend.username} to play'
+                              : 'Invite to play',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF5E44F3),
+                          ),
+                        ),
+                      ],
+                    ),
+            ),
+          ),
+        ],
+      ),
     );
   }
+
+  Widget _buildGameBadge(String gameType) {
+    switch (gameType) {
+      case 'tictactoe':
+        return const SizedBox(
+          width: 72,
+          height: 64,
+          child: CustomPaint(
+            painter: _TicTacToeBadgePainter(),
+          ),
+        );
+      case 'connect4':
+        return SizedBox(
+          width: 68,
+          height: 56,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: List.generate(3, (col) {
+              return Column(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: List.generate(3, (row) {
+                  final isPrimary = (col + row) % 2 == 0;
+                  return Container(
+                    width: 12,
+                    height: 12,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: isPrimary
+                          ? const Color(0xFF5E44F3)
+                          : const Color(0xFFDDD6FE),
+                    ),
+                  );
+                }),
+              );
+            }),
+          ),
+        );
+      case 'rps':
+        return Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF3F0FF),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: const Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.back_hand_rounded, size: 20, color: Color(0xFF5E44F3)),
+              SizedBox(width: 4),
+              Icon(Icons.content_cut_rounded, size: 18, color: Color(0xFF8B70F8)),
+            ],
+          ),
+        );
+      case 'doodle':
+        return Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF3F0FF),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: const Icon(
+            Icons.draw_rounded,
+            size: 32,
+            color: Color(0xFF5E44F3),
+          ),
+        );
+      case 'numberclash':
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF3F0FF),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: const Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                '1',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w900,
+                  color: Color(0xFF5E44F3),
+                ),
+              ),
+              SizedBox(width: 4),
+              Text(
+                '2',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w900,
+                  color: Color(0xFF8B70F8),
+                ),
+              ),
+              SizedBox(width: 4),
+              Text(
+                '3',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w900,
+                  color: Color(0xFFC4B5FD),
+                ),
+              ),
+            ],
+          ),
+        );
+      case 'updown':
+        return Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF3F0FF),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: const Icon(
+            Icons.trending_up_rounded,
+            size: 32,
+            color: Color(0xFF5E44F3),
+          ),
+        );
+      default:
+        return Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF3F0FF),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Icon(
+            widget.icon,
+            size: 28,
+            color: const Color(0xFF5E44F3),
+          ),
+        );
+    }
+  }
+}
+
+class _TicTacToeBadgePainter extends CustomPainter {
+  const _TicTacToeBadgePainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final linePaint = Paint()
+      ..color = const Color(0xFFDDD6FE)
+      ..strokeWidth = 2.5
+      ..strokeCap = StrokeCap.round;
+
+    final cellW = size.width / 3;
+    final cellH = size.height / 3;
+
+    // Vertical lines
+    canvas.drawLine(Offset(cellW, 4), Offset(cellW, size.height - 4), linePaint);
+    canvas.drawLine(Offset(cellW * 2, 4), Offset(cellW * 2, size.height - 4), linePaint);
+
+    // Horizontal lines
+    canvas.drawLine(Offset(4, cellH), Offset(size.width - 4, cellH), linePaint);
+    canvas.drawLine(Offset(4, cellH * 2), Offset(size.width - 4, cellH * 2), linePaint);
+
+    // Top-left: X (purple #5E44F3)
+    _drawX(canvas, Offset(cellW * 0.5, cellH * 0.5), 7, const Color(0xFF5E44F3));
+
+    // Top-right: O (light purple #C4B5FD)
+    _drawO(canvas, Offset(cellW * 2.5, cellH * 0.5), 7.5, const Color(0xFFC4B5FD));
+
+    // Center: O (purple #5E44F3)
+    _drawO(canvas, Offset(cellW * 1.5, cellH * 1.5), 8, const Color(0xFF5E44F3));
+
+    // Bottom-right: X (purple #5E44F3)
+    _drawX(canvas, Offset(cellW * 2.5, cellH * 2.5), 7, const Color(0xFF5E44F3));
+  }
+
+  void _drawX(Canvas canvas, Offset center, double radius, Color color) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 3.5
+      ..strokeCap = StrokeCap.round;
+
+    canvas.drawLine(center + Offset(-radius, -radius), center + Offset(radius, radius), paint);
+    canvas.drawLine(center + Offset(radius, -radius), center + Offset(-radius, radius), paint);
+  }
+
+  void _drawO(Canvas canvas, Offset center, double radius, Color color) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 3.5
+      ..style = PaintingStyle.stroke;
+
+    canvas.drawCircle(center, radius, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
