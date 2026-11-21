@@ -437,10 +437,56 @@ test('localhost discovery, requests, reconnect state, and private media', { time
   assert.equal((await fetch(base + media.url)).status, 401);
   assert.equal((await fetch(base + media.url, { headers: { Cookie: eve.cookie } })).status, 403);
   assert.equal(await (await fetch(base + media.url, { headers: { Cookie: alice.cookie } })).text(), 'private text');
+  assert.equal(await (await fetch(base + media.url + '&inline=1', { headers: { Cookie: alice.cookie } })).text(), 'private text');
   const received = event(bob.socket, 'private_message');
   alice.socket.emit('private_message', { to: 'bob', text: 'file', attachment: { ...media, url: media.url, name: 'private.txt', mime: 'text/plain', size: 12, kind: 'file' } });
   await received;
   assert.equal((await fetch(base + media.url, { headers: { Cookie: bob.cookie } })).status, 200);
+
+  // Voice notes uploaded through the shared file endpoint must accept supported audio MIME types.
+  const audioForm = new FormData();
+  audioForm.append('file', new Blob([Buffer.from([1, 2, 3, 4])], { type: 'audio/mp4' }), 'voice_note.m4a');
+  const audioUpload = await fetch(`${base}/upload-file`, { method: 'POST', headers: { Cookie: alice.cookie }, body: audioForm });
+  assert.equal(audioUpload.status, 200, await audioUpload.clone().text());
+  const audioMedia = await audioUpload.json();
+  assert.equal(audioMedia.kind, 'audio');
+  assert.equal(audioMedia.mime, 'audio/mp4');
+
+  // Direct-message media envelopes must retain only validated E2EE metadata.
+  const encryptedForm = new FormData();
+  encryptedForm.append('file', new Blob([Buffer.from([9, 8, 7, 6, 5])], { type: 'text/plain' }), 'cipher.bin');
+  const encryptedUpload = await fetch(`${base}/upload-file`, { method: 'POST', headers: { Cookie: alice.cookie }, body: encryptedForm });
+  assert.equal(encryptedUpload.status, 200, await encryptedUpload.clone().text());
+  const encryptedMedia = await encryptedUpload.json();
+  const alicePublicKey = JSON.stringify({ kty: 'EC', crv: 'P-256', x: 'A'.repeat(43), y: 'B'.repeat(43) });
+  const bobPublicKey = JSON.stringify({ kty: 'EC', crv: 'P-256', x: 'C'.repeat(43), y: 'D'.repeat(43) });
+  const encryptedReceived = event(bob.socket, 'private_message', (message) => message.attachment?.encrypted === true);
+  alice.socket.emit('private_message', {
+    to: 'bob', text: '🔒 Encrypted message', isEncrypted: true,
+    ciphertext: Buffer.from('encrypted message').toString('base64'), iv: Buffer.alloc(12, 4).toString('base64'),
+    senderPublicKey: alicePublicKey,
+    attachment: {
+      ...encryptedMedia, name: 'private.pdf', mime: 'application/pdf', size: 5, kind: 'file',
+      encrypted: true, encryptionVersion: 1, iv: Buffer.alloc(12, 5).toString('base64'),
+      senderPublicKey: alicePublicKey, peerPublicKey: bobPublicKey,
+    },
+  });
+  const encryptedMessage = await encryptedReceived;
+  assert.equal(encryptedMessage.attachment.encrypted, true);
+  assert.equal(encryptedMessage.attachment.encryptionVersion, 1);
+  assert.equal(encryptedMessage.attachment.name, 'private.pdf');
+  assert.equal(encryptedMessage.attachment.senderPublicKey, alicePublicKey);
+  assert.equal(encryptedMessage.attachment.peerPublicKey, bobPublicKey);
+
+  const invalidEnvelope = event(alice.socket, 'error_message');
+  alice.socket.emit('private_message', {
+    to: 'bob', text: '🔒 Encrypted message', isEncrypted: true,
+    ciphertext: Buffer.from('encrypted message').toString('base64'), iv: Buffer.alloc(12, 4).toString('base64'),
+    senderPublicKey: alicePublicKey,
+    attachment: { ...encryptedMedia, encrypted: true, encryptionVersion: 1, iv: Buffer.alloc(12, 5).toString('base64'), senderPublicKey: alicePublicKey },
+  });
+  assert.match((await invalidEnvelope).message, /encrypted attachment metadata/i);
+
   const rejected = event(eve.socket, 'error_message');
   eve.socket.emit('private_message', { to: 'eve', text: media.url });
   assert.match((await rejected).message, /access/);

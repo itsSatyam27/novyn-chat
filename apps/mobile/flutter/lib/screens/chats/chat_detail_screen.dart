@@ -56,6 +56,8 @@ String _mimeForFile(String filename) {
   if (name.endsWith('.aac')) return 'audio/aac';
   if (name.endsWith('.mp4')) return 'video/mp4';
   if (name.endsWith('.mov')) return 'video/quicktime';
+  if (name.endsWith('.m4v')) return 'video/mp4';
+  if (name.endsWith('.heic')) return 'image/heic';
   if (name.endsWith('.webm')) return 'video/webm';
   if (name.endsWith('.gif')) return 'image/gif';
   if (name.endsWith('.png')) return 'image/png';
@@ -63,6 +65,75 @@ String _mimeForFile(String filename) {
   if (name.endsWith('.bmp')) return 'image/bmp';
   if (name.endsWith('.jpg') || name.endsWith('.jpeg')) return 'image/jpeg';
   return 'application/octet-stream';
+}
+
+class _ChatAttachmentLoader {
+  static final Map<String, Future<Uint8List>> _bytesCache = {};
+  static final Map<String, Future<String>> _fileCache = {};
+
+  static Future<Uint8List> loadBytes(
+    BuildContext context,
+    Map attachment,
+    Message message,
+  ) async {
+    final url = attachment['url']?.toString() ?? '';
+    if (url.isEmpty) throw StateError('Attachment link is missing.');
+    final encrypted = attachment['encrypted'] == true;
+    final socket = encrypted ? context.read<SocketService>() : null;
+    final account = socket?.myUsername ?? '';
+    final peerPublicKey = encrypted
+        ? (message.isFromMe ? attachment['peerPublicKey'] : attachment['senderPublicKey'])?.toString() ?? ''
+        : '';
+    if (encrypted && account.isEmpty) throw StateError('Sign in to open this attachment.');
+    if (encrypted && peerPublicKey.isEmpty) throw StateError('The attachment encryption key is missing.');
+    final cacheKey = '$url|${attachment['iv'] ?? ''}|${message.isFromMe}|$account|$peerPublicKey';
+    final cached = _bytesCache[cacheKey];
+    if (cached != null) return cached;
+    final loading = () async {
+      final bytes = await ApiService.downloadMediaBytes(url);
+      if (!encrypted) return bytes;
+      return socket!.encryption.decryptAttachmentBytes(
+        bytes, account, peerPublicKey, attachment['iv']?.toString() ?? '',
+      );
+    }();
+    _bytesCache[cacheKey] = loading;
+    try {
+      return await loading;
+    } catch (_) {
+      _bytesCache.remove(cacheKey);
+      rethrow;
+    }
+  }
+
+  static Future<String> prepareFile(
+    BuildContext context,
+    Map attachment,
+    Message message,
+  ) async {
+    final peerPublicKey = (message.isFromMe
+            ? attachment['peerPublicKey']
+            : attachment['senderPublicKey'])?.toString() ?? '';
+    final account = context.read<SocketService>().myUsername ?? '';
+    final cacheKey = '${attachment['url']}|${attachment['iv'] ?? ''}|${message.isFromMe}|$account|$peerPublicKey';
+    final existing = _fileCache[cacheKey];
+    if (existing != null) return existing;
+    final loading = () async {
+      final bytes = await loadBytes(context, attachment, message);
+      final directory = await getTemporaryDirectory();
+      final rawName = attachment['name']?.toString() ?? 'novyn_attachment';
+      final safeName = rawName.replaceAll(RegExp(r'[/\\:*?\"<>|]'), '_');
+      final file = File('${directory.path}/novyn_${DateTime.now().microsecondsSinceEpoch}_$safeName');
+      await file.writeAsBytes(bytes, flush: true);
+      return file.path;
+    }();
+    _fileCache[cacheKey] = loading;
+    try {
+      return await loading;
+    } catch (_) {
+      _fileCache.remove(cacheKey);
+      rethrow;
+    }
+  }
 }
 
 class _ChatContentSnapshot {
@@ -2245,6 +2316,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
       }
       if (bytes == null || bytes.isEmpty)
         throw StateError('Could not read the selected file.');
+      if (bytes.length > 15 * 1024 * 1024) {
+        throw StateError('Choose a file smaller than 15 MB.');
+      }
       if (!mounted) return;
       final selectedBytes = bytes;
 
@@ -2357,26 +2431,42 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
           mime = 'image/jpeg';
         }
       }
-      final url = await ApiService.uploadMedia(bytes, filename, mime);
+      final attachmentMime = mime;
+      final originalSize = bytes.length;
+      final recipient = widget.peer.uid.isNotEmpty
+          ? widget.peer.uid
+          : widget.peer.username;
+      var uploadBytes = bytes;
+      final encryptionMetadata = <String, dynamic>{};
+      if (!widget.isGroup) {
+        final prepared = await context.read<SocketService>()
+            .prepareEncryptedAttachment(bytes, recipient);
+        uploadBytes = prepared['bytes'] as Uint8List;
+        encryptionMetadata.addAll(
+          Map<String, dynamic>.from(prepared['metadata'] as Map),
+        );
+      }
+      final url = await ApiService.uploadMedia(uploadBytes, filename, attachmentMime);
       if (!mounted) return;
       if (url == null || url.isEmpty)
         throw StateError('Upload failed. Please try again.');
-      final kind = mime.startsWith('image/')
+      final kind = attachmentMime.startsWith('image/')
           ? 'image'
-          : mime.startsWith('video/')
+          : attachmentMime.startsWith('video/')
               ? 'video'
-              : mime.startsWith('audio/')
+              : attachmentMime.startsWith('audio/')
                   ? 'audio'
                   : 'file';
       await context.read<SocketService>().sendMessage(
             '',
-            widget.peer.uid.isNotEmpty ? widget.peer.uid : widget.peer.username,
+            recipient,
             attachment: {
               'url': url,
               'name': filename,
-              'mime': mime,
-              'size': bytes.length,
-              'kind': kind
+              'mime': attachmentMime,
+              'size': originalSize,
+              'kind': kind,
+              ...encryptionMetadata,
             },
             replyToId: _replyingTo?.id?.toString(),
             replyToText: _replyingTo?.text?.toString(),
@@ -3059,13 +3149,32 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
         throw StateError('Voice recording file was not found.');
       final bytes = await file.readAsBytes();
       if (bytes.isEmpty) throw StateError('Voice recording is empty.');
-      final url =
-          await ApiService.uploadVoice(bytes, 'voice_note.m4a', 'audio/mp4');
+      if (widget.isGroup && bytes.length > 6 * 1024 * 1024) {
+        throw StateError('Group voice notes must be smaller than 6 MB.');
+      }
+      final recipient = widget.peer.uid.isNotEmpty
+          ? widget.peer.uid
+          : widget.peer.username;
+      String? url;
+      final encryptionMetadata = <String, dynamic>{};
+      if (widget.isGroup) {
+        url = await ApiService.uploadVoice(bytes, 'voice_note.m4a', 'audio/mp4');
+      } else {
+        final prepared = await context.read<SocketService>()
+            .prepareEncryptedAttachment(bytes, recipient);
+        final encryptedBytes = prepared['bytes'] as Uint8List;
+        encryptionMetadata.addAll(
+          Map<String, dynamic>.from(prepared['metadata'] as Map),
+        );
+        url = await ApiService.uploadMedia(
+          encryptedBytes, 'voice_note.m4a', 'audio/mp4',
+        );
+      }
       if (url == null || url.isEmpty)
         throw StateError('Voice note upload failed. Please try again.');
       await context.read<SocketService>().sendMessage(
             '',
-            widget.peer.uid.isNotEmpty ? widget.peer.uid : widget.peer.username,
+            recipient,
             attachment: {
               'url': url,
               'name': 'Voice message',
@@ -3073,6 +3182,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
               'size': bytes.length,
               'kind': 'audio',
               'duration': duration,
+              ...encryptionMetadata,
             },
             replyToId: _replyingTo?.id?.toString(),
             replyToText: _replyingTo?.text?.toString(),
@@ -3266,6 +3376,43 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
     );
   }
 
+  Future<void> _downloadAttachment(
+    BuildContext context,
+    String url,
+    String name, {
+    Message? message,
+    Map? attachment,
+  }) async {
+    try {
+      final file = message != null && attachment != null
+          ? File(await _ChatAttachmentLoader.prepareFile(context, attachment, message))
+          : await ApiService.downloadMedia(url, name);
+      final mime = attachment?['mime']?.toString() ?? _mimeForFile(name);
+      final kind = mime.startsWith('image/')
+          ? 'image'
+          : mime.startsWith('video/')
+              ? 'video'
+              : 'file';
+      final saved = await MediaStorageService.exportToDevice(file, kind);
+      if (!context.mounted || !saved) return;
+      NovynAlert.show(
+        context,
+        kind == 'image' || kind == 'video'
+            ? 'Saved to your Gallery and Novyn Downloads.'
+            : 'Saved using the system Files picker.',
+        title: 'Saved',
+        icon: Icons.download_done_rounded,
+        tone: NovynAlertTone.success,
+      );
+    } catch (error) {
+      if (!context.mounted) return;
+      NovynAlert.show(
+        context, 'Download failed: $error',
+        isError: true, title: 'Download failed', icon: Icons.download_rounded,
+      );
+    }
+  }
+
   Future<void> _showSharedMedia() async {
     final messages = context
         .read<SocketService>()
@@ -3372,42 +3519,67 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
                                   crossAxisSpacing: 8,
                                   mainAxisSpacing: 8),
                           itemBuilder: (context, index) {
-                            final attachment =
-                                activeItems[index].attachment as Map;
+                            final message = activeItems[index];
+                            final attachment = message.attachment as Map;
                             final url = attachment['url']?.toString() ?? '';
-                            final mime =
-                                attachment['mime']?.toString().toLowerCase() ??
-                                    '';
+                            final mime = attachment['mime']?.toString().toLowerCase() ?? '';
+                            final encrypted = attachment['encrypted'] == true;
+                            final imageFuture = encrypted && mime.startsWith('image/')
+                                ? _ChatAttachmentLoader.loadBytes(context, attachment, message)
+                                : null;
                             return InkWell(
-                              onTap: () {
+                              onTap: () async {
+                                if (encrypted) {
+                                  if (mime.startsWith('image/')) {
+                                    try {
+                                      final bytes = await _ChatAttachmentLoader.loadBytes(context, attachment, message);
+                                      if (!context.mounted) return;
+                                      showDialog<void>(
+                                        context: context,
+                                        builder: (_) => Dialog(
+                                          backgroundColor: Colors.transparent,
+                                          child: InteractiveViewer(child: Image.memory(bytes)),
+                                        ),
+                                      );
+                                    } catch (error) {
+                                      if (context.mounted) NovynToast.show(context, 'Could not decrypt this image: $error', isError: true);
+                                    }
+                                  } else {
+                                    await _downloadAttachment(context, url, attachment['name']?.toString() ?? 'Attachment', message: message, attachment: attachment);
+                                  }
+                                  return;
+                                }
                                 if (mime.startsWith('image/')) {
                                   showDialog<void>(
-                                      context: context,
-                                      builder: (_) => Dialog(
-                                          backgroundColor: Colors.transparent,
-                                          child: InteractiveViewer(
-                                              child: Image.network(url))));
+                                    context: context,
+                                    builder: (_) => Dialog(
+                                      backgroundColor: Colors.transparent,
+                                      child: InteractiveViewer(
+                                        child: Image.network(url, headers: ApiService.imageHeaders),
+                                      ),
+                                    ),
+                                  );
                                 } else {
-                                  launchUrl(Uri.parse(url),
-                                      mode: LaunchMode.externalApplication);
+                                  launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
                                 }
                               },
                               child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(10),
-                                  child: mime.startsWith('image/')
-                                      ? Image.network(url,
-                                          fit: BoxFit.cover,
-                                          errorBuilder: (_, __, ___) =>
-                                              Icon(Icons.broken_image_outlined))
-                                      : Container(
-                                          color: Theme.of(context)
-                                              .colorScheme
-                                              .surfaceContainerHighest,
-                                          child: const Center(
-                                              child: Icon(
-                                                  Icons
-                                                      .play_circle_outline_rounded,
-                                                  size: 30)))),
+                                borderRadius: BorderRadius.circular(10),
+                                child: mime.startsWith('image/')
+                                    ? encrypted
+                                        ? FutureBuilder<Uint8List>(
+                                            future: imageFuture,
+                                            builder: (_, snapshot) => snapshot.hasData
+                                                ? Image.memory(snapshot.data!, fit: BoxFit.cover)
+                                                : const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                                          )
+                                        : Image.network(url, headers: ApiService.imageHeaders, fit: BoxFit.cover,
+                                            errorBuilder: (_, __, ___) => const Icon(Icons.broken_image_outlined))
+                                    : Container(
+                                        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                                        child: const Center(child: Icon(Icons.play_circle_outline_rounded, size: 30)),
+                                      ),
+                              ),
                             );
                           },
                         )
@@ -3415,26 +3587,24 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
                           itemCount: activeItems.length,
                           separatorBuilder: (_, __) => const Divider(height: 1),
                           itemBuilder: (context, index) {
-                            final attachment =
-                                activeItems[index].attachment as Map;
+                            final message = activeItems[index];
+                            final attachment = message.attachment as Map;
                             final url = attachment['url']?.toString() ?? '';
-                            final name =
-                                attachment['name']?.toString() ?? 'Attachment';
+                            final name = attachment['name']?.toString() ?? 'Attachment';
                             final isVoice = activeTab == 2;
                             return ListTile(
-                                leading: Icon(isVoice
-                                    ? Icons.mic_none_rounded
-                                    : Icons.insert_drive_file_outlined),
-                                title: Text(name,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis),
-                                subtitle: Text(isVoice
-                                    ? 'Voice message'
-                                    : name.split('.').last.toUpperCase()),
-                                trailing:
-                                    Icon(Icons.open_in_new_rounded, size: 18),
-                                onTap: () => launchUrl(Uri.parse(url),
-                                    mode: LaunchMode.externalApplication));
+                              leading: Icon(isVoice ? Icons.mic_none_rounded : Icons.insert_drive_file_outlined),
+                              title: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis),
+                              subtitle: Text(isVoice ? 'Voice message' : name.split('.').last.toUpperCase()),
+                              trailing: const Icon(Icons.download_rounded, size: 18),
+                              onTap: () {
+                                if (attachment['encrypted'] == true) {
+                                  _downloadAttachment(context, url, name, message: message, attachment: attachment);
+                                } else {
+                                  launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+                                }
+                              },
+                            );
                           },
                         ),
             ),
@@ -4517,7 +4687,7 @@ class _MessageBubble extends StatelessWidget {
                         if (message.attachment is Map &&
                             message.attachment['url'] != null) ...[
                           _buildAttachmentPreview(
-                              context, message.attachment as Map),
+                              context, message.attachment as Map, message: message),
                           const SizedBox(height: 6),
                         ],
                         if ((message.text as String).isNotEmpty &&
@@ -5084,12 +5254,19 @@ class _MessageBubble extends StatelessWidget {
   }
 
   Future<void> _downloadAttachment(
-      BuildContext context, String url, String name) async {
+      BuildContext context, String url, String name, {Message? message, Map? attachment}) async {
     try {
-      final file = await ApiService.downloadMedia(url, name);
-      final kind = _mimeForFile(name).startsWith('image/')
+      late final File file;
+      if (message != null && attachment != null) {
+        final localPath = await _ChatAttachmentLoader.prepareFile(context, attachment, message);
+        file = File(localPath);
+      } else {
+        file = await ApiService.downloadMedia(url, name);
+      }
+      final mime = attachment?['mime']?.toString() ?? _mimeForFile(name);
+      final kind = mime.startsWith('image/')
           ? 'image'
-          : _mimeForFile(name).startsWith('video/')
+          : mime.startsWith('video/')
               ? 'video'
               : 'file';
       final saved = await MediaStorageService.exportToDevice(file, kind);
@@ -5111,11 +5288,12 @@ class _MessageBubble extends StatelessWidget {
     }
   }
 
-  Widget _buildAttachmentPreview(BuildContext context, Map attachment) {
+  Widget _buildAttachmentPreview(BuildContext context, Map attachment, {Message? message}) {
     final url = attachment['url']?.toString() ?? '';
     final name = attachment['name']?.toString().trim().isNotEmpty == true
         ? attachment['name'].toString().trim()
         : 'Attachment';
+    final encrypted = attachment['encrypted'] == true && message != null;
     final rawKind = attachment['kind']?.toString().toLowerCase() ?? '';
     final mime = attachment['mime']?.toString().toLowerCase() ?? '';
     final mediaPath = (Uri.tryParse(url)?.path ?? url).toLowerCase();
@@ -5146,9 +5324,12 @@ class _MessageBubble extends StatelessWidget {
             url: url,
             label: name,
             durationSeconds: (attachment['duration'] as num?)?.toInt(),
+            resolveLocalSource: encrypted
+                ? () => _ChatAttachmentLoader.prepareFile(context, attachment, message!)
+                : null,
           ),
           TextButton.icon(
-            onPressed: () => _downloadAttachment(context, url, name),
+            onPressed: () => _downloadAttachment(context, url, name, message: message, attachment: attachment),
             icon: const Icon(Icons.download_rounded, size: 17),
             label: const Text('Download'),
           ),
@@ -5158,6 +5339,40 @@ class _MessageBubble extends StatelessWidget {
 
     if (kind == 'image' && url.isNotEmpty) {
       final scheme = Theme.of(context).colorScheme;
+      final imageFuture = encrypted ? _ChatAttachmentLoader.loadBytes(context, attachment, message!) : null;
+      Widget imageContent({required double? width, required double? height, required BoxFit fit}) {
+        if (!encrypted) {
+          return Image.network(
+            url,
+            headers: ApiService.imageHeaders,
+            width: width,
+            height: height,
+            fit: fit,
+            errorBuilder: (_, __, ___) => const Icon(Icons.broken_image_outlined),
+          );
+        }
+        return FutureBuilder<Uint8List>(
+          future: imageFuture,
+          builder: (context, snapshot) {
+            if (snapshot.hasData) {
+              return Image.memory(
+                snapshot.data!, width: width, height: height, fit: fit,
+                errorBuilder: (_, __, ___) => const Icon(Icons.broken_image_outlined),
+              );
+            }
+            if (snapshot.hasError) {
+              return SizedBox(
+                width: width, height: height,
+                child: const Center(child: Icon(Icons.lock_outline_rounded)),
+              );
+            }
+            return SizedBox(
+              width: width, height: height,
+              child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+            );
+          },
+        );
+      }
       return Container(
         width: 244,
         decoration: BoxDecoration(
@@ -5197,7 +5412,7 @@ class _MessageBubble extends StatelessWidget {
                                 tooltip: 'Download image',
                                 icon: const Icon(Icons.download_rounded),
                                 onPressed: () =>
-                                    _downloadAttachment(context, url, name),
+                                    _downloadAttachment(context, url, name, message: message, attachment: attachment),
                               ),
                               const SizedBox(width: 8),
                             ],
@@ -5206,21 +5421,10 @@ class _MessageBubble extends StatelessWidget {
                             child: InteractiveViewer(
                               minScale: 0.7,
                               maxScale: 4,
-                              child: Image.network(
-                                url,
-                                headers: ApiService.imageHeaders,
+                              child: imageContent(
+                                width: null,
+                                height: null,
                                 fit: BoxFit.contain,
-                                errorBuilder: (_, __, ___) => const Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(Icons.broken_image_outlined,
-                                        color: Colors.white70, size: 42),
-                                    SizedBox(height: 10),
-                                    Text('Image unavailable',
-                                        style:
-                                            TextStyle(color: Colors.white70)),
-                                  ],
-                                ),
                               ),
                             ),
                           ),
@@ -5228,43 +5432,10 @@ class _MessageBubble extends StatelessWidget {
                       ),
                     );
                   },
-                  child: Image.network(
-                    url,
-                    headers: ApiService.imageHeaders,
+                  child: imageContent(
                     width: 236,
                     height: 188,
                     fit: BoxFit.cover,
-                    frameBuilder:
-                        (context, child, frame, wasSynchronouslyLoaded) {
-                      if (wasSynchronouslyLoaded || frame != null) return child;
-                      return SizedBox(
-                        width: 236,
-                        height: 188,
-                        child: Center(
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: scheme.primary,
-                          ),
-                        ),
-                      );
-                    },
-                    errorBuilder: (_, __, ___) => SizedBox(
-                      width: 236,
-                      height: 188,
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.broken_image_outlined,
-                              size: 34, color: scheme.onSurfaceVariant),
-                          const SizedBox(height: 7),
-                          Text(
-                            'Image unavailable',
-                            style: TextStyle(
-                                color: scheme.onSurfaceVariant, fontSize: 12),
-                          ),
-                        ],
-                      ),
-                    ),
                   ),
                 ),
               ),
@@ -5288,6 +5459,10 @@ class _MessageBubble extends StatelessWidget {
             onTap: url.isEmpty
                 ? null
                 : () async {
+                    if (encrypted) {
+                      await _downloadAttachment(context, url, name, message: message, attachment: attachment);
+                      return;
+                    }
                     final uri = Uri.tryParse(url);
                     if (uri == null) return;
                     try {
@@ -5313,7 +5488,7 @@ class _MessageBubble extends StatelessWidget {
           IconButton(
             tooltip: 'Download attachment',
             icon: const Icon(Icons.download_rounded),
-            onPressed: () => _downloadAttachment(context, url, name),
+            onPressed: () => _downloadAttachment(context, url, name, message: message, attachment: attachment),
           ),
       ],
     );

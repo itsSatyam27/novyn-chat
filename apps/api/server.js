@@ -408,7 +408,10 @@ function sanitizeAttachmentName(name) {
 
 function resolveAttachmentKind(mime) {
   const lower = String(mime || "").toLowerCase();
-  return lower.startsWith("image/") ? "image" : "file";
+  if (lower.startsWith("image/")) return "image";
+  if (lower.startsWith("video/")) return "video";
+  if (lower.startsWith("audio/")) return "audio";
+  return "file";
 }
 
 function resolveUploadExtension(mime, originalName, fallbackExt = ".bin") {
@@ -490,6 +493,16 @@ function sanitizeMessageAttachment(rawAttachment, fallbackUrl = "") {
     ? Math.max(0, Math.min(86400, Math.floor(numericDuration)))
     : null;
 
+  const encrypted = attachment.encrypted === true;
+  const encryptionIv = toDisplayName(attachment.iv).slice(0, 64);
+  const senderPublicKey = encrypted ? normalizePushPublicKey(attachment.senderPublicKey) : "";
+  const peerPublicKey = encrypted ? normalizePushPublicKey(attachment.peerPublicKey) : "";
+  // Only persist the E2EE envelope fields needed by the two endpoints.
+  // Never trust or store arbitrary client-provided attachment metadata.
+  if (encrypted && (!encryptionIv || !senderPublicKey || !peerPublicKey || Number(attachment.encryptionVersion) !== 1)) {
+    return null;
+  }
+
   return {
     url,
     name,
@@ -497,6 +510,13 @@ function sanitizeMessageAttachment(rawAttachment, fallbackUrl = "") {
     size,
     kind,
     ...(duration !== null ? { duration } : {}),
+    ...(encrypted ? {
+      encrypted: true,
+      encryptionVersion: 1,
+      iv: encryptionIv,
+      senderPublicKey,
+      peerPublicKey,
+    } : {}),
   };
 }
 
@@ -766,7 +786,7 @@ app.get("/api/giphy", requireUser, async (req, res) => {
   }
 });
 
-app.get("/uploads/:file", requireUser, (req, res) => {
+app.get("/uploads/:file", requireUser, async (req, res) => {
   const filename = path.basename(req.params.file || "");
   const token = String(req.query.token || "");
   if (!/^[a-zA-Z0-9_-]+\.[a-zA-Z0-9]+$/.test(filename) || !safeTimingEqual(token, signUploadToken(filename)) || !userCanReadMedia(filename, req.userKey)) {
@@ -777,11 +797,28 @@ app.get("/uploads/:file", requireUser, (req, res) => {
   if (metadata?.remote) {
     res.set('Cache-Control', 'private, no-store');
     res.set('Referrer-Policy', 'no-referrer');
-    return res.redirect(302, cloudinary.utils.private_download_url(metadata.remote.publicId, metadata.remote.format, {
+    const signedUrl = cloudinary.utils.private_download_url(metadata.remote.publicId, metadata.remote.format, {
       resource_type: metadata.remote.resourceType, type: 'authenticated',
       expires_at: Math.floor(Date.now() / 1000) + 60,
       attachment: String(req.query.download || '') === '1',
-    }));
+    });
+    // Browser E2EE clients need same-origin bytes so the browser can decrypt
+    // the ciphertext without relying on cross-origin CDN CORS configuration.
+    if (String(req.query.inline || '') === '1') {
+      try {
+        const remoteResponse = await fetch(signedUrl, { headers: { Accept: '*/*' } });
+        if (!remoteResponse.ok) throw new Error(`Cloud media returned ${remoteResponse.status}`);
+        const bytes = Buffer.from(await remoteResponse.arrayBuffer());
+        res.set('Content-Type', remoteResponse.headers.get('content-type') || 'application/octet-stream');
+        res.set('Content-Length', String(bytes.length));
+        res.set('X-Content-Type-Options', 'nosniff');
+        return res.status(200).send(bytes);
+      } catch (error) {
+        console.error('[NovynMedia] Inline cloud download failed:', error?.message || error);
+        return res.status(502).json({ error: 'Media download is temporarily unavailable.' });
+      }
+    }
+    return res.redirect(302, signedUrl);
   }
   const filePath = path.join(uploadsDir, filename);
   if (!fs.existsSync(filePath)) {
@@ -1315,6 +1352,14 @@ const ALLOWED_FILE_MIME = new Set([
   "video/mp4",
   "video/webm",
   "video/quicktime",
+  "image/bmp",
+  "image/heic",
+  "audio/webm",
+  "audio/wav",
+  "audio/mpeg",
+  "audio/ogg",
+  "audio/mp4",
+  "audio/aac",
   "application/pdf",
   "text/plain",
   "text/csv",
@@ -9058,6 +9103,10 @@ io.on("connection", (socket) => {
       ? ENCRYPTED_MESSAGE_PLACEHOLDER
       : withUploadToken(payload?.text || (payload?.attachment ? '[Attachment]' : ''));
     const attachment = sanitizeMessageAttachment(payload?.attachment, text);
+    if (isEncrypted && payload?.attachment && !attachment?.encrypted) {
+      rejectMessage("Invalid encrypted attachment metadata.");
+      return;
+    }
     const clientTempId = String(payload?.clientTempId || "").trim();
     const safeClientTempId = clientTempId.slice(0, 64);
     const to = toDisplayName(payload?.to);
