@@ -3071,13 +3071,29 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
         throw StateError('Voice recording file was not found.');
       final bytes = await file.readAsBytes();
       if (bytes.isEmpty) throw StateError('Voice recording is empty.');
-      final url =
-          await ApiService.uploadVoice(bytes, 'voice_note.m4a', 'audio/mp4');
+      final recipient = widget.peer.uid.isNotEmpty
+          ? widget.peer.uid
+          : widget.peer.username;
+      String? url;
+      final encryptionMetadata = <String, dynamic>{};
+      if (widget.isGroup) {
+        url = await ApiService.uploadVoice(bytes, 'voice_note.m4a', 'audio/mp4');
+      } else {
+        final prepared = await context.read<SocketService>()
+            .prepareEncryptedAttachment(bytes, recipient);
+        final encryptedBytes = prepared['bytes'] as Uint8List;
+        encryptionMetadata.addAll(
+          Map<String, dynamic>.from(prepared['metadata'] as Map),
+        );
+        url = await ApiService.uploadMedia(
+          encryptedBytes, 'voice_note.m4a', 'audio/mp4',
+        );
+      }
       if (url == null || url.isEmpty)
         throw StateError('Voice note upload failed. Please try again.');
       await context.read<SocketService>().sendMessage(
             '',
-            widget.peer.uid.isNotEmpty ? widget.peer.uid : widget.peer.username,
+            recipient,
             attachment: {
               'url': url,
               'name': 'Voice message',
@@ -3085,6 +3101,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
               'size': bytes.length,
               'kind': 'audio',
               'duration': duration,
+              ...encryptionMetadata,
             },
             replyToId: _replyingTo?.id?.toString(),
             replyToText: _replyingTo?.text?.toString(),
