@@ -118,8 +118,12 @@ class ApiService {
   }
 
   static Future<Map<String, String>> _csrfHeaders() async {
-    // Multipart uploads can be the first authenticated request after app
-    // resume. Restore the secure cookie jar before building request headers.
+    // Restore the secure cookie jar before any CSRF-protected request. This
+    // also covers refresh calls made while waking from an app update/restart.
+    await initializeSessionStorage().timeout(
+      const Duration(seconds: 4),
+      onTimeout: () => false,
+    );
     await initializeSessionStorage();
 
     if (_csrfToken == null) await _bootstrapCsrfToken();
@@ -673,6 +677,12 @@ class ApiService {
     Duration timeout = const Duration(seconds: 10),
   }) async {
     try {
+      // Do not make a seemingly anonymous session request simply because the
+      // in-memory cookie jar has not finished restoring after process restart.
+      await initializeSessionStorage().timeout(
+        const Duration(seconds: 4),
+        onTimeout: () => false,
+      );
       final res = await http
           .get(
             Uri.parse('$baseUrl/api/auth/session'),
