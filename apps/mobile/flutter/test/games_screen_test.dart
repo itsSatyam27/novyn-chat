@@ -46,7 +46,7 @@ void main() {
     expect(find.text('Games'), findsOneWidget);
     expect(find.text('Tic-Tac-Toe'), findsOneWidget);
     expect(find.text('Rock Paper Scissors'), findsOneWidget);
-    expect(find.text('Play with Random'), findsOneWidget);
+    expect(find.text('Play with Random'), findsNWidgets(2));
     expect(find.text('Invite a friend'), findsOneWidget);
     expect(find.text('No friends to invite yet'), findsOneWidget);
     expect(tester.takeException(), isNull);
