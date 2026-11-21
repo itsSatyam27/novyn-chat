@@ -5092,13 +5092,82 @@ class _MessageBubble extends StatelessWidget {
     );
   }
 
-  Future<void> _downloadAttachment(
-      BuildContext context, String url, String name) async {
+  Future<Uint8List> _loadAttachmentBytes(
+    Map attachment,
+    Message message,
+  ) async {
+    final url = attachment['url']?.toString() ?? '';
+    if (url.isEmpty) throw StateError('Attachment link is missing.');
+    final cacheKey = '$url|${attachment['iv'] ?? ''}|${message.isFromMe}';
+    final cached = _attachmentBytesCache[cacheKey];
+    if (cached != null) return cached;
+    final loading = () async {
+      final bytes = await ApiService.downloadMediaBytes(url);
+      if (attachment['encrypted'] != true) return bytes;
+      final account = _socketService.myUsername ?? '';
+      if (account.isEmpty) throw StateError('Sign in to open this attachment.');
+      final peerPublicKey = (message.isFromMe
+              ? attachment['peerPublicKey']
+              : attachment['senderPublicKey'])
+          ?.toString() ?? '';
+      if (peerPublicKey.isEmpty) {
+        throw StateError('The attachment encryption key is missing.');
+      }
+      return _socketService.encryption.decryptAttachmentBytes(
+        bytes,
+        account,
+        peerPublicKey,
+        attachment['iv']?.toString() ?? '',
+      );
+    }();
+    _attachmentBytesCache[cacheKey] = loading;
     try {
-      final file = await ApiService.downloadMedia(url, name);
-      final kind = _mimeForFile(name).startsWith('image/')
+      return await loading;
+    } catch (_) {
+      _attachmentBytesCache.remove(cacheKey);
+      rethrow;
+    }
+  }
+
+  Future<String> _prepareAttachmentFile(
+    Map attachment,
+    Message message,
+  ) async {
+    final cacheKey = '${attachment['url']}|${attachment['iv'] ?? ''}';
+    final existing = _attachmentFileCache[cacheKey];
+    if (existing != null) return existing;
+    final loading = () async {
+      final bytes = await _loadAttachmentBytes(attachment, message);
+      final directory = await getTemporaryDirectory();
+      final rawName = attachment['name']?.toString() ?? 'novyn_attachment';
+      final safeName = rawName.replaceAll(RegExp(r'[/\\\\:*?\"<>|]'), '_');
+      final file = File('${directory.path}/novyn_${DateTime.now().microsecondsSinceEpoch}_$safeName');
+      await file.writeAsBytes(bytes, flush: true);
+      return file.path;
+    }();
+    _attachmentFileCache[cacheKey] = loading;
+    try {
+      return await loading;
+    } catch (_) {
+      _attachmentFileCache.remove(cacheKey);
+      rethrow;
+    }
+  }
+
+  Future<void> _downloadAttachment(
+      BuildContext context, String url, String name, {Message? message, Map? attachment}) async {
+    try {
+      late final File file;
+      if (message != null && attachment != null) {
+        final localPath = await _prepareAttachmentFile(attachment, message);
+        file = File(localPath);
+      } else {
+        file = await ApiService.downloadMedia(url, name);
+      }
+      final mime = attachment?['mime']?.toString() ?? _mimeForFile(name);
+      final kind = mime.startsWith('image/')
           ? 'image'
-          : _mimeForFile(name).startsWith('video/')
+          : mime.startsWith('video/')
               ? 'video'
               : 'file';
       final saved = await MediaStorageService.exportToDevice(file, kind);
