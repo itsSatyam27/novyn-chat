@@ -34,3 +34,49 @@ test("all six games support random matchmaking and one account cannot self-match
   assert.equal(q.join({ userKey: "alice", socketId: "s1", gameType: "unsupported" }).ok, false);
   assert.equal(q.size, 0);
 });
+
+
+test("random matchmaking never pairs mutual friends", () => {
+  const q = new PublicGameMatchmaking();
+  assert.equal(q.join({
+    userKey: "alice",
+    socketId: "alice_socket",
+    gameType: "tictactoe",
+    excludedUsers: ["bob"],
+  }).queued, true);
+  const bob = q.join({
+    userKey: "bob",
+    socketId: "bob_socket",
+    gameType: "tictactoe",
+    excludedUsers: ["alice"],
+  });
+  assert.equal(bob.queued, true);
+  assert.equal(q.size, 2);
+  q.cancel("alice");
+  q.cancel("bob");
+});
+
+test("one-sided or stale friend records still exclude the pair but allow a stranger", () => {
+  const q = new PublicGameMatchmaking({ createSessionId: () => "stranger-session" });
+  q.join({
+    userKey: "alice",
+    socketId: "alice_socket",
+    gameType: "rps",
+    excludedUsers: ["bob"],
+  });
+  const bob = q.join({
+    userKey: "bob",
+    socketId: "bob_socket",
+    gameType: "rps",
+  });
+  assert.equal(bob.queued, true);
+  const charlie = q.join({
+    userKey: "charlie",
+    socketId: "charlie_socket",
+    gameType: "rps",
+  });
+  assert.equal(charlie.matched, true);
+  assert.deepEqual(charlie.players.map((player) => player.userKey), ["alice", "charlie"]);
+  assert.equal(q.size, 1);
+  q.cancel("bob");
+});
