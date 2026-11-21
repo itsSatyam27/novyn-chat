@@ -312,6 +312,16 @@ class ApiService {
     return names.contains('novyn_at') && names.contains('novyn_rt');
   }
 
+  /// An access cookie is required to open an authenticated Socket.IO session.
+  /// A refresh-only cookie must be renewed through REST first.
+  static bool get hasAccessSessionCookie {
+    return (_sessionCookie ?? '').split(';').any((part) {
+      final cookie = part.trim();
+      return cookie.startsWith('novyn_at=') &&
+          cookie.substring('novyn_at='.length).isNotEmpty;
+    });
+  }
+
   // ── Store session cookie from a response ─────────────────────────────────
   static Future<void> _storeSessionCookie(
     http.Response res, {
