@@ -49,4 +49,43 @@ void main() {
       expect(retried, isTrue);
     });
   });
+
+  group('SessionRejectionTracker', () {
+    test('does not treat a rapid 401 burst as independent rejections', () {
+      final tracker = SessionRejectionTracker();
+      final start = DateTime(2026, 11, 21, 12);
+
+      expect(tracker.record(start), isFalse);
+      expect(tracker.count, 1);
+      expect(tracker.record(start.add(const Duration(seconds: 1))), isFalse);
+      expect(tracker.record(start.add(const Duration(seconds: 10))), isFalse);
+      expect(tracker.count, 1);
+    });
+
+    test('invalidates only after three spaced definitive rejections', () {
+      final tracker = SessionRejectionTracker();
+      final start = DateTime(2026, 11, 21, 12);
+
+      expect(tracker.record(start), isFalse);
+      expect(tracker.record(start.add(const Duration(seconds: 29))), isFalse);
+      expect(tracker.count, 1);
+      expect(tracker.record(start.add(const Duration(seconds: 30))), isFalse);
+      expect(tracker.count, 2);
+      expect(tracker.record(start.add(const Duration(seconds: 60))), isTrue);
+      expect(tracker.count, 3);
+    });
+
+    test('a verified session resets previous rejection history', () {
+      final tracker = SessionRejectionTracker();
+      final start = DateTime(2026, 11, 21, 12);
+
+      tracker.record(start);
+      tracker.record(start.add(const Duration(seconds: 30)));
+      tracker.reset();
+
+      expect(tracker.count, 0);
+      expect(tracker.record(start.add(const Duration(seconds: 31))), isFalse);
+      expect(tracker.count, 1);
+    });
+  });
 }
