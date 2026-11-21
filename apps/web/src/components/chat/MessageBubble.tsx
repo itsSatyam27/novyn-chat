@@ -25,6 +25,7 @@ import { GameMessageBubble } from './GameMessageBubble';
 import { RiddleMessageBubble } from './RiddleMessageBubble';
 import { triggerHaptic } from '../../services/capacitor';
 import { ENCRYPTED_MESSAGE_PLACEHOLDER } from '../../services/messagePresentation';
+import { decryptAttachmentBytes } from '../../services/e2ee';
 
 interface MessageBubbleProps {
   message: Message;
@@ -106,10 +107,60 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   const [copied, setCopied] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(message.text || '');
+  const [decryptedAttachmentUrl, setDecryptedAttachmentUrl] = useState<string | null>(null);
+  const [attachmentDecrypting, setAttachmentDecrypting] = useState(false);
+  const [attachmentDecryptError, setAttachmentDecryptError] = useState('');
   const containerRef = useRef<HTMLDivElement>(null);
   const actionsMenuRef = useRef<HTMLDivElement>(null);
   const lastTapRef = useRef<number>(0);
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+
+  useEffect(() => {
+    const attachment = message.attachment;
+    if (!attachment?.encrypted || !attachment.url) {
+      setDecryptedAttachmentUrl(null);
+      setAttachmentDecrypting(false);
+      setAttachmentDecryptError('');
+      return;
+    }
+    let active = true;
+    let objectUrl: string | null = null;
+    setDecryptedAttachmentUrl(null);
+    setAttachmentDecryptError('');
+    setAttachmentDecrypting(true);
+    const load = async () => {
+      const peerUsername = (isMe ? message.receiver : message.sender)?.toLowerCase() || '';
+      const peerPublicKey = (isMe ? attachment.peerPublicKey : attachment.senderPublicKey) || '';
+      if (!currentUsername || !peerUsername || !peerPublicKey || !attachment.iv) {
+        throw new Error('The attachment encryption details are incomplete.');
+      }
+      const mediaUrl = new URL(attachment.url, window.location.origin);
+      mediaUrl.searchParams.set('inline', '1');
+      const response = await fetch(mediaUrl.toString(), { credentials: 'include' });
+      if (!response.ok) throw new Error(`Media download failed (${response.status}).`);
+      const ciphertext = new Uint8Array(await response.arrayBuffer());
+      const clearBytes = await decryptAttachmentBytes(
+        ciphertext, attachment.iv, peerUsername, peerPublicKey,
+      );
+      if (!clearBytes) throw new Error('This device could not decrypt the attachment.');
+      const blob = new Blob([new Uint8Array(clearBytes).buffer as ArrayBuffer], { type: attachment.mime || 'application/octet-stream' });
+      objectUrl = URL.createObjectURL(blob);
+      if (active) setDecryptedAttachmentUrl(objectUrl);
+      else URL.revokeObjectURL(objectUrl);
+    };
+    load().catch((error) => {
+      if (active) setAttachmentDecryptError(error instanceof Error ? error.message : 'Could not decrypt attachment.');
+    }).finally(() => {
+      if (active) setAttachmentDecrypting(false);
+    });
+    return () => {
+      active = false;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [message.id, message.sender, message.receiver, isMe, currentUsername,
+      message.attachment?.url, message.attachment?.encrypted, message.attachment?.iv,
+      message.attachment?.senderPublicKey, message.attachment?.peerPublicKey,
+      message.attachment?.mime]);
 
   useLayoutEffect(() => {
     if (!showActionsMenu) {
@@ -255,7 +306,9 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
       message.attachment?.name?.endsWith('.m4a')
   );
 
-  const audioUrl = message.attachment?.url;
+  const encryptedAttachment = message.attachment?.encrypted === true;
+  const attachmentUrl = encryptedAttachment ? decryptedAttachmentUrl : message.attachment?.url;
+  const audioUrl = attachmentUrl;
 
   const handleDoubleClick = (e?: React.MouseEvent | React.TouchEvent) => {
     if (e) e.stopPropagation();
@@ -751,14 +804,20 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           {/* 1. Image Attachment */}
           {message.attachment && (message.attachment.kind === 'image' || message.attachment.mime?.startsWith('image/')) && (
             <div
-              style={{ marginBottom: '6px', borderRadius: '12px', overflow: 'hidden', cursor: 'pointer' }}
-              onClick={() => onMediaClick(message.attachment!.url)}
+              style={{ marginBottom: '6px', borderRadius: '12px', overflow: 'hidden', cursor: attachmentUrl ? 'pointer' : 'default', minHeight: attachmentUrl ? undefined : '72px', display: attachmentUrl ? undefined : 'grid', placeItems: 'center', background: 'rgba(120,120,120,0.08)', padding: attachmentUrl ? 0 : '12px' }}
+              onClick={() => attachmentUrl && onMediaClick(attachmentUrl)}
             >
-              <img
-                src={message.attachment.url}
-                alt={message.attachment.name}
-                style={{ maxHeight: '240px', width: '100%', objectFit: 'cover', borderRadius: '12px' }}
-              />
+              {attachmentUrl ? (
+                <img
+                  src={attachmentUrl}
+                  alt={message.attachment.name}
+                  style={{ maxHeight: '240px', width: '100%', objectFit: 'cover', borderRadius: '12px' }}
+                />
+              ) : (
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                  {attachmentDecrypting ? 'Decrypting secure image…' : attachmentDecryptError || 'Secure image unavailable'}
+                </span>
+              )}
             </div>
           )}
 
@@ -766,11 +825,21 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           {isAudioMessage && audioUrl && (
             <VoicePlayer url={audioUrl} isMe={isMe} duration={message.voiceDuration} />
           )}
+          {isAudioMessage && encryptedAttachment && !audioUrl && (
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '6px' }}>
+              {attachmentDecrypting ? 'Decrypting secure voice message…' : attachmentDecryptError || 'Secure voice message unavailable'}
+            </div>
+          )}
 
           {/* 3. Document / File Attachment */}
+          {!isAudioMessage && encryptedAttachment && !attachmentUrl && (
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '6px' }}>
+              {attachmentDecrypting ? 'Decrypting secure attachment…' : attachmentDecryptError || 'Secure attachment unavailable'}
+            </div>
+          )}
           {!isAudioMessage && message.attachment && (message.attachment.kind === 'file' || !message.attachment.mime?.startsWith('image/')) && (
             <a
-              href={message.attachment.url}
+              href={attachmentUrl || undefined}
               target="_blank"
               rel="noopener noreferrer"
               style={{
