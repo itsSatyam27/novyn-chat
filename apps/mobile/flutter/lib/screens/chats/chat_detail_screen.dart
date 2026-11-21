@@ -216,7 +216,6 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
   Timer? _presenceTransitionTimer;
   Timer? _lastSeenRefreshTimer;
   dynamic _replyingTo; // the message being replied to
-  bool _sendingGameChallenge = false;
   bool _uploadingAttachment = false;
   final ImagePicker _imagePicker = ImagePicker();
   final AudioRecorder _voiceRecorder = AudioRecorder();
@@ -1364,21 +1363,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
                       accent: scheme.primary,
                       onTap: _showGifPicker,
                     ),
-                    Divider(
-                      height: 1,
-                      thickness: 1,
-                      indent: 18,
-                      endIndent: 18,
-                      color: scheme.outlineVariant.withValues(alpha: .42),
-                    ),
-                    quickAction(
-                      icon: Icons.sports_esports_rounded,
-                      title: 'Play Up or Down',
-                      subtitle: 'Challenge them to a quick game',
-                      tint: scheme.primaryContainer,
-                      accent: scheme.primary,
-                      onTap: _showGameLauncher,
-                    ),
+
                   ],
                 ),
               ),
@@ -2286,7 +2271,14 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
       return;
     }
     if (type.toLowerCase() == 'games') {
-      await _showGameLauncher();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Open the Games tab to choose a game and start a match.'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
       return;
     }
     try {
@@ -2719,213 +2711,6 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
     question.dispose();
     answer.dispose();
     hint.dispose();
-  }
-
-  Future<void> _showGameLauncher() async {
-    final games = <Map<String, dynamic>>[
-      {
-        'id': 'tictactoe',
-        'title': 'Tic-Tac-Toe',
-        'subtitle': 'Three in a row',
-        'icon': Icons.grid_3x3_rounded
-      },
-      {
-        'id': 'rps',
-        'title': 'Rock, Paper, Scissors',
-        'subtitle': 'A quick showdown',
-        'icon': Icons.back_hand_rounded
-      },
-      {
-        'id': 'connect4',
-        'title': 'Connect 4',
-        'subtitle': 'Line up four chips',
-        'icon': Icons.circle_rounded
-      },
-      {
-        'id': 'doodle',
-        'title': 'Doodle Duel',
-        'subtitle': 'Draw and guess',
-        'icon': Icons.draw_rounded
-      },
-      {
-        'id': 'numberclash',
-        'title': 'Number Clash',
-        'subtitle': 'Pick a number',
-        'icon': Icons.pin_rounded
-      },
-      {
-        'id': 'updown',
-        'title': 'Up or Down',
-        'subtitle': 'Predict the next card',
-        'icon': Icons.trending_up_rounded
-      },
-    ];
-    final socket = context.read<SocketService>();
-    await showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      useSafeArea: true,
-      builder: (sheetContext) {
-        final theme = Theme.of(sheetContext);
-        final scheme = theme.colorScheme;
-        return Container(
-          margin: const EdgeInsets.fromLTRB(10, 0, 10, 10),
-          constraints: BoxConstraints(
-              maxHeight: MediaQuery.of(sheetContext).size.height * .82),
-          padding: const EdgeInsets.fromLTRB(18, 12, 18, 18),
-          decoration: BoxDecoration(
-            color: scheme.surface,
-            borderRadius: BorderRadius.circular(28),
-            border:
-                Border.all(color: scheme.outlineVariant.withValues(alpha: .65)),
-            boxShadow: [
-              BoxShadow(
-                  color: Colors.black.withValues(alpha: .16),
-                  blurRadius: 24,
-                  offset: const Offset(0, -5))
-            ],
-          ),
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Center(
-                child: Container(
-                    width: 38,
-                    height: 4,
-                    decoration: BoxDecoration(
-                        color: scheme.onSurfaceVariant.withValues(alpha: .32),
-                        borderRadius: BorderRadius.circular(8)))),
-            const SizedBox(height: 16),
-            Row(children: [
-              Container(
-                  width: 42,
-                  height: 42,
-                  decoration: BoxDecoration(
-                      color: scheme.primaryContainer,
-                      borderRadius: BorderRadius.circular(14)),
-                  child: Icon(Icons.sports_esports_rounded,
-                      color: scheme.onPrimaryContainer)),
-              const SizedBox(width: 12),
-              Expanded(
-                  child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                    Text('Play together',
-                        style: theme.textTheme.titleLarge
-                            ?.copyWith(fontWeight: FontWeight.w800)),
-                    Text(
-                        widget.isGroup
-                            ? 'Choose a game for this group'
-                            : 'Challenge ${widget.peer.name}',
-                        style: theme.textTheme.bodySmall
-                            ?.copyWith(color: scheme.onSurfaceVariant)),
-                  ])),
-              IconButton(
-                  onPressed: () => Navigator.pop(sheetContext),
-                  icon: const Icon(Icons.close_rounded)),
-            ]),
-            const SizedBox(height: 14),
-            Flexible(
-                child: GridView.builder(
-              shrinkWrap: true,
-              itemCount: games.length,
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2,
-                  mainAxisSpacing: 12,
-                  crossAxisSpacing: 12,
-                  childAspectRatio: 1.28),
-              itemBuilder: (context, index) {
-                final item = games[index];
-                final tint = index.isEven ? scheme.primary : scheme.tertiary;
-                return Material(
-                  color: scheme.surfaceContainerLow,
-                  borderRadius: BorderRadius.circular(18),
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(18),
-                    onTap: _sendingGameChallenge
-                        ? null
-                        : () async {
-                            setState(() => _sendingGameChallenge = true);
-                            try {
-                              await socket.sendGameChallenge(
-                                item['id'] as String,
-                                widget.peer.uid.isNotEmpty
-                                    ? widget.peer.uid
-                                    : widget.peer.username,
-                                isGroup: widget.isGroup,
-                              );
-                              if (!mounted || !sheetContext.mounted) return;
-                              Navigator.pop(sheetContext);
-                              NovynAlert.show(
-                                context,
-                                item['title'].toString() + ' challenge sent.',
-                                title: 'Challenge sent',
-                                icon: Icons.sports_esports_rounded,
-                                tone: NovynAlertTone.success,
-                              );
-                            } catch (error) {
-                              if (!mounted) return;
-                              NovynAlert.show(
-                                context,
-                                error is StateError
-                                    ? error.message.toString()
-                                    : 'Could not start the game.',
-                                isError: true,
-                                title: 'Could not start game',
-                                icon: Icons.sports_esports_rounded,
-                              );
-                            } finally {
-                              if (mounted) {
-                                setState(() => _sendingGameChallenge = false);
-                              }
-                            }
-                          },
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 12),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          Container(
-                            width: 42,
-                            height: 42,
-                            decoration: BoxDecoration(
-                              color: tint.withValues(alpha: .14),
-                              borderRadius: BorderRadius.circular(14),
-                            ),
-                            child: Icon(item['icon'] as IconData, color: tint),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            item['title'] as String,
-                            maxLines: 2,
-                            textAlign: TextAlign.center,
-                            overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.labelLarge
-                                ?.copyWith(fontWeight: FontWeight.w800),
-                          ),
-                          const SizedBox(height: 3),
-                          Text(
-                            item['subtitle'] as String,
-                            maxLines: 1,
-                            textAlign: TextAlign.center,
-                            overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: scheme.onSurfaceVariant,
-                              fontSize: 10,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                );
-              },
-            )),
-          ]),
-        );
-      },
-    );
   }
 
   Future<void> _showCreatePollDialog() async {
