@@ -1,13 +1,12 @@
-const fs = require("fs");
-const path = require("path");
 const admin = require("firebase-admin");
 
 function readEnvText(value) {
   return String(value || "").trim();
 }
 
+
 function parseJsonMaybe(rawText) {
-  const text = readEnvText(rawText).replace(/^\\uFEFF/, "");
+  const text = readEnvText(rawText).replace(/^\uFEFF/, "");
   if (!text) return null;
   return JSON.parse(text);
 }
@@ -27,7 +26,8 @@ function loadFirebaseServiceAccount() {
   const serviceAccountPath = configuredPath ? path.resolve(configuredPath) : fallbackPath;
   if (serviceAccountPath && fs.existsSync(serviceAccountPath)) {
     try {
-      return parseJsonMaybe(fs.readFileSync(serviceAccountPath, "utf8"));
+      const fileContents = fs.readFileSync(serviceAccountPath, "utf8");
+      return parseJsonMaybe(fileContents);
     } catch (err) {
       console.warn(
         `Failed to read Firebase service account file "${serviceAccountPath}":`,
@@ -38,7 +38,8 @@ function loadFirebaseServiceAccount() {
 
   const projectId = readEnvText(process.env.FIREBASE_PROJECT_ID);
   const clientEmail = readEnvText(process.env.FIREBASE_CLIENT_EMAIL);
-  const privateKey = String(process.env.FIREBASE_PRIVATE_KEY || "").replace(/\\n/g, "\n").trim();
+  const privateKeyRaw = String(process.env.FIREBASE_PRIVATE_KEY || "");
+  const privateKey = privateKeyRaw.replace(/\\n/g, "\n").trim();
   if (projectId && clientEmail && privateKey) {
     return {
       type: "service_account",
@@ -54,6 +55,7 @@ function loadFirebaseServiceAccount() {
 function loadLegacyFirebaseServiceAccount() {
   const rawJson = readEnvText(process.env.FIREBASE_LEGACY_SERVICE_ACCOUNT_JSON);
   if (!rawJson) return null;
+
   try {
     return parseJsonMaybe(rawJson);
   } catch (err) {
@@ -105,6 +107,7 @@ async function verifyFirebaseIdToken(idToken) {
   }
   throw verificationError || new Error("Firebase Admin SDK is not configured.");
 }
+
 
 module.exports = {
   admin,
