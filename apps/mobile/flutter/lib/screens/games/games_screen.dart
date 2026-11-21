@@ -171,7 +171,7 @@ class _GamesScreenState extends State<GamesScreen> {
     }
   }
 
-  void _handleRandomMatchFound(Map<String, dynamic> data) {
+  void _handleRandomMatchFound(Map data) {
     if (!mounted) return;
     _queueTimer?.cancel();
     final opponent = data['opponent'] is Map
@@ -191,7 +191,7 @@ class _GamesScreenState extends State<GamesScreen> {
     );
   }
 
-  void _handleRandomMatchTimeout(Map<String, dynamic> data) {
+  void _handleRandomMatchTimeout(Map data) {
     if (!mounted) return;
     _queueTimer?.cancel();
     setState(() {
