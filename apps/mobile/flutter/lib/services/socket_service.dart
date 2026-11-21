@@ -636,6 +636,8 @@ class SocketService extends ChangeNotifier {
     });
 
     _socket!.onDisconnect((_) {
+      _socketAuthRetryTimer?.cancel();
+      _socketAuthRetryTimer = null;
       _stopPendingOutboxRetry();
       _isConnecting = false;
       _isConnected = false;
@@ -651,6 +653,8 @@ class SocketService extends ChangeNotifier {
     });
 
     _socket!.onConnectError((_) {
+      _socketAuthRetryTimer?.cancel();
+      _socketAuthRetryTimer = null;
       _stopPendingOutboxRetry();
       _isConnecting = false;
       _isConnected = false;
@@ -673,6 +677,10 @@ class SocketService extends ChangeNotifier {
       // Socket.IO may stay transport-connected after resume_session fails.
       // Recover the HTTP session, then replace that unauthenticated transport.
       // Never clear the local account for a socket-only authentication failure.
+      // The server explicitly rejected this socket session, so replace the
+      // startup handshake watchdog with immediate REST refresh/re-auth.
+      _socketAuthRetryTimer?.cancel();
+      _socketAuthRetryTimer = null;
       _scheduleSocketAuthRecovery();
     });
     _isConnecting = true;
