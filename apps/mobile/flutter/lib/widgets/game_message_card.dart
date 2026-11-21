@@ -245,7 +245,9 @@ class _GameMessageCardState extends State<GameMessageCard> {
           ),
           const SizedBox(height: 10),
           if (_type == 'tictactoe') _ticTacToe(),
-          if (_type == 'tictactoe' && _finished) ...[
+          if (_type == 'tictactoe' &&
+              _finished &&
+              widget.randomSessionId == null) ...[
             const SizedBox(height: 12),
             SizedBox(
               width: double.infinity,
@@ -377,18 +379,38 @@ class _GameMessageCardState extends State<GameMessageCard> {
     if (_startingRematch) return;
     setState(() => _startingRematch = true);
     try {
-      await context.read<SocketService>().sendGameChallenge(
-            'tictactoe',
-            widget.peerUsername,
-            isGroup: widget.isGroup,
-          );
+      final socket = context.read<SocketService>();
+      final messageId = await socket.sendGameChallenge(
+        'tictactoe',
+        widget.peerUsername,
+        isGroup: widget.isGroup,
+      );
+      final history = await socket.openChat(
+        widget.peerUsername,
+        const <Message>[],
+        isGroup: widget.isGroup,
+      );
+      Map<String, dynamic>? nextGame;
+      for (final message in history) {
+        if (message.id == messageId && message.game != null) {
+          nextGame = Map<String, dynamic>.from(message.game!);
+          break;
+        }
+      }
       if (!mounted) return;
-      NovynAlert.show(
-        context,
-        'A new Tic-Tac-Toe game has been sent to this chat.',
-        title: 'Rematch started',
-        icon: Icons.sports_esports_rounded,
-        tone: NovynAlertTone.success,
+      if (nextGame == null) {
+        throw StateError('The rematch was sent, but its game room could not be loaded.');
+      }
+      await Navigator.of(context).push<void>(
+        MaterialPageRoute<void>(
+          builder: (_) => GameRoomScreen(
+            messageId: messageId,
+            peerUsername: widget.peerUsername,
+            currentUsername: widget.currentUsername,
+            initialGame: nextGame!,
+            isGroup: widget.isGroup,
+          ),
+        ),
       );
     } catch (error) {
       if (!mounted) return;
