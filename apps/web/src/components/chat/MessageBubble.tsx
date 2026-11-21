@@ -134,7 +134,9 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
       if (!currentUsername || !peerUsername || !peerPublicKey || !attachment.iv) {
         throw new Error('The attachment encryption details are incomplete.');
       }
-      const response = await fetch(attachment.url, { credentials: 'include' });
+      const mediaUrl = new URL(attachment.url, window.location.origin);
+      mediaUrl.searchParams.set('inline', '1');
+      const response = await fetch(mediaUrl.toString(), { credentials: 'include' });
       if (!response.ok) throw new Error(`Media download failed (${response.status}).`);
       const ciphertext = new Uint8Array(await response.arrayBuffer());
       const clearBytes = await decryptAttachmentBytes(
