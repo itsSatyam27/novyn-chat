@@ -4,8 +4,8 @@ import 'package:novyn/screens/games/games_screen.dart';
 
 void main() {
   testWidgets('Games hub lists each game as its own entry point', (tester) async {
-    await tester.view.physicalSize = const Size(900, 1200);
-    await tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(900, 1200);
+    tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
