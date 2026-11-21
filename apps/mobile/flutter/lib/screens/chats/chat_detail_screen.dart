@@ -76,21 +76,21 @@ class _ChatAttachmentLoader {
   ) async {
     final url = attachment['url']?.toString() ?? '';
     if (url.isEmpty) throw StateError('Attachment link is missing.');
-    final cacheKey = '$url|${attachment['iv'] ?? ''}|${message.isFromMe}';
+    final encrypted = attachment['encrypted'] == true;
+    final socket = encrypted ? context.read<SocketService>() : null;
+    final account = socket?.myUsername ?? '';
+    final peerPublicKey = encrypted
+        ? (message.isFromMe ? attachment['peerPublicKey'] : attachment['senderPublicKey'])?.toString() ?? ''
+        : '';
+    if (encrypted && account.isEmpty) throw StateError('Sign in to open this attachment.');
+    if (encrypted && peerPublicKey.isEmpty) throw StateError('The attachment encryption key is missing.');
+    final cacheKey = '$url|${attachment['iv'] ?? ''}|${message.isFromMe}|$account|$peerPublicKey';
     final cached = _bytesCache[cacheKey];
     if (cached != null) return cached;
     final loading = () async {
       final bytes = await ApiService.downloadMediaBytes(url);
-      if (attachment['encrypted'] != true) return bytes;
-      final socket = context.read<SocketService>();
-      final account = socket.myUsername ?? '';
-      if (account.isEmpty) throw StateError('Sign in to open this attachment.');
-      final peerPublicKey = (message.isFromMe
-              ? attachment['peerPublicKey']
-              : attachment['senderPublicKey'])
-          ?.toString() ?? '';
-      if (peerPublicKey.isEmpty) throw StateError('The attachment encryption key is missing.');
-      return socket.encryption.decryptAttachmentBytes(
+      if (!encrypted) return bytes;
+      return socket!.encryption.decryptAttachmentBytes(
         bytes, account, peerPublicKey, attachment['iv']?.toString() ?? '',
       );
     }();
@@ -108,7 +108,11 @@ class _ChatAttachmentLoader {
     Map attachment,
     Message message,
   ) async {
-    final cacheKey = '${attachment['url']}|${attachment['iv'] ?? ''}';
+    final peerPublicKey = (message.isFromMe
+            ? attachment['peerPublicKey']
+            : attachment['senderPublicKey'])?.toString() ?? '';
+    final account = context.read<SocketService>().myUsername ?? '';
+    final cacheKey = '${attachment['url']}|${attachment['iv'] ?? ''}|${message.isFromMe}|$account|$peerPublicKey';
     final existing = _fileCache[cacheKey];
     if (existing != null) return existing;
     final loading = () async {
