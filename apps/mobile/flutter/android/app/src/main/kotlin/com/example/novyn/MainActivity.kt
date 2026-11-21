@@ -286,6 +286,57 @@ class MainActivity : FlutterFragmentActivity() {
                 }
             }
 
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "com.example.novyn/storage")
+            .setMethodCallHandler { call, result ->
+                try {
+                    val cacheDirectories = (listOf(cacheDir) + (externalCacheDirs?.filterNotNull() ?: emptyList()))
+                        .distinctBy { it.absolutePath }
+                    when (call.method) {
+                        "getStorageUsage" -> {
+                            val appInfo = applicationInfo
+                            val installedBytes = sequenceOf(appInfo.sourceDir)
+                                .plus(appInfo.splitSourceDirs?.asSequence() ?: emptySequence())
+                                .map { File(it) }
+                                .filter { it.isFile }
+                                .sumOf { it.length() }
+
+                            val excludedCachePaths = cacheDirectories.mapNotNull {
+                                try { it.canonicalPath } catch (_: Exception) { null }
+                            }.toSet()
+                            val appDataBytes = directoryBytes(File(appInfo.dataDir), excludedCachePaths) +
+                                (getExternalFilesDirs(null)?.filterNotNull() ?: emptyList())
+                                    .sumOf { directoryBytes(it, excludedCachePaths) }
+                            val cacheBytes = cacheDirectories.sumOf { directoryBytes(it) }
+
+                            result.success(
+                                mapOf(
+                                    "installed" to installedBytes,
+                                    "appData" to appDataBytes,
+                                    "cache" to cacheBytes
+                                )
+                            )
+                        }
+                        "clearStorageCache" -> {
+                            cacheDirectories.forEach { directory ->
+                                if (directory.exists()) {
+                                    directory.listFiles()?.forEach { child ->
+                                        try {
+                                            if (child.isDirectory) child.deleteRecursively() else child.delete()
+                                        } catch (_: Exception) {
+                                            // Ignore cache entries temporarily held by the OS.
+                                        }
+                                    }
+                                }
+                            }
+                            result.success(null)
+                        }
+                        else -> result.notImplemented()
+                    }
+                } catch (error: Exception) {
+                    result.error("STORAGE_OPERATION_FAILED", error.message, null)
+                }
+            }
+
         // Security Channel for Stealth Mode
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, SECURITY_CHANNEL)
             .setMethodCallHandler { call, result ->
@@ -345,6 +396,20 @@ class MainActivity : FlutterFragmentActivity() {
                 }
             }
         }
+
+    private fun directoryBytes(root: File, excludedPaths: Set<String> = emptySet()): Long {
+        if (!root.exists() || !root.isDirectory) return 0L
+        return try {
+            root.walkTopDown()
+                .onEnter { directory ->
+                    try { directory.canonicalPath !in excludedPaths } catch (_: Exception) { false }
+                }
+                .filter { it.isFile }
+                .sumOf { it.length() }
+        } catch (_: Exception) {
+            0L
+        }
+    }
 
     @Suppress("DEPRECATION")
     private fun getDefaultVibrator(): Vibrator {

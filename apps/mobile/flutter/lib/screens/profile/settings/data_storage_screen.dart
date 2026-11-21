@@ -3,6 +3,7 @@ import 'dart:ui';
 import 'package:novyn/services/haptic_service.dart';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:novyn/widgets/novyn_alert.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
@@ -413,13 +414,17 @@ class _DataStorageScreenState extends State<DataStorageScreen> {
     HapticService.vibrate(NovynHapticType.medium);
 
     try {
-      final temporaryDirectory = await getTemporaryDirectory();
-      if (await temporaryDirectory.exists()) {
-        await for (final entity in temporaryDirectory.list(followLinks: false)) {
-          try {
-            await entity.delete(recursive: true);
-          } on FileSystemException {
-            // Skip files held by OS
+      if (Platform.isAndroid) {
+        await _DeviceStorageCard._storageChannel.invokeMethod<void>('clearStorageCache');
+      } else {
+        final temporaryDirectory = await getTemporaryDirectory();
+        if (await temporaryDirectory.exists()) {
+          await for (final entity in temporaryDirectory.list(followLinks: false)) {
+            try {
+              await entity.delete(recursive: true);
+            } on FileSystemException {
+              // Skip files held by OS
+            }
           }
         }
       }
@@ -555,6 +560,8 @@ class _SettingsRow extends StatelessWidget {
 }
 
 class _DeviceStorageCard extends StatelessWidget {
+  static const MethodChannel _storageChannel = MethodChannel('com.example.novyn/storage');
+
   final int usageKey;
   final bool clearingCache;
   final VoidCallback onClearCache;
@@ -583,14 +590,60 @@ class _DeviceStorageCard extends StatelessWidget {
   }
 
   Future<Map<String, int>> _loadUsage() async {
+    if (Platform.isAndroid) {
+      try {
+        final nativeUsage = await _storageChannel.invokeMapMethod<String, dynamic>('getStorageUsage');
+        if (nativeUsage != null) {
+          return {
+            'installed': (nativeUsage['installed'] as num?)?.toInt() ?? 0,
+            'app': (nativeUsage['appData'] as num?)?.toInt() ?? 0,
+            'temporary': (nativeUsage['cache'] as num?)?.toInt() ?? 0,
+          };
+        }
+      } on PlatformException {
+        // Keep the screen usable if native storage inspection is unavailable.
+      } on MissingPluginException {
+        // Older or non-standard builds use the accessible-directory fallback.
+      }
+    }
+
+    // Non-Android fallback: count the app's accessible persistent and temporary files.
     final documents = await getApplicationDocumentsDirectory();
     final temporary = await getTemporaryDirectory();
-    final appBytes = await _directoryBytes(documents);
-    final temporaryBytes = await _directoryBytes(temporary);
     return {
-      'app': appBytes,
-      'temporary': temporaryBytes,
+      'installed': 0,
+      'app': await _directoryBytes(documents),
+      'temporary': await _directoryBytes(temporary),
     };
+  }
+
+  Widget _storageLegendRow({
+    required Color color,
+    required String label,
+    required String value,
+    required Color ink,
+  }) {
+    return Row(
+      children: [
+        Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            label,
+            style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: ink),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Text(
+          value,
+          style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: ink),
+        ),
+      ],
+    );
   }
 
   String _formatBytes(int bytes) {
@@ -615,21 +668,20 @@ class _DeviceStorageCard extends StatelessWidget {
       key: ValueKey(usageKey),
       future: _loadUsage(),
       builder: (context, snapshot) {
+        final installedBytes = snapshot.data?['installed'] ?? 0;
         final appBytes = snapshot.data?['app'] ?? 0;
         final temporaryBytes = snapshot.data?['temporary'] ?? 0;
-        final total = appBytes + temporaryBytes;
+        final total = installedBytes + appBytes + temporaryBytes;
 
         final isReady = snapshot.connectionState == ConnectionState.done && snapshot.hasData;
-        final totalFormatted = isReady ? _formatBytes(total) : '681.1 KB';
+        final totalFormatted = isReady ? _formatBytes(total) : '...';
         final totalParts = totalFormatted.split(' ');
         final numberText = totalParts.first;
-        final unitText = totalParts.length > 1 ? totalParts.last : 'KB';
+        final unitText = totalParts.length > 1 ? totalParts.last : '';
 
-        final appRatio = (total == 0) ? 0.44 : (appBytes / total).clamp(0.05, 0.95);
-        final tempRatio = (total == 0) ? 0.56 : (temporaryBytes / total).clamp(0.05, 0.95);
-
-        final appFlex = (appRatio * 100).round().clamp(5, 95);
-        final tempFlex = (tempRatio * 100).round().clamp(5, 95);
+        final installedFlex = total == 0 ? 1 : (installedBytes / total * 1000).round().clamp(1, 1000).toInt();
+        final appFlex = total == 0 ? 1 : (appBytes / total * 1000).round().clamp(1, 1000).toInt();
+        final tempFlex = total == 0 ? 1 : (temporaryBytes / total * 1000).round().clamp(1, 1000).toInt();
 
         return Container(
           padding: const EdgeInsets.all(20),
@@ -723,6 +775,11 @@ class _DeviceStorageCard extends StatelessWidget {
                   child: Row(
                     children: [
                       Expanded(
+                        flex: installedFlex,
+                        child: Container(color: const Color(0xFFF59E0B)),
+                      ),
+                      const SizedBox(width: 3),
+                      Expanded(
                         flex: appFlex,
                         child: Container(color: Theme.of(context).colorScheme.primary),
                       ),
@@ -737,69 +794,34 @@ class _DeviceStorageCard extends StatelessWidget {
               ),
               const SizedBox(height: 18),
 
-              // Legend 1
-              Row(
-                children: [
-                  Container(
-                    width: 8,
-                    height: 8,
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.primary,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Text(
-                    'App data & local database',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: ink,
-                    ),
-                  ),
-                  const Spacer(),
-                  Text(
-                    isReady ? _formatBytes(appBytes) : '299.1 KB',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                      color: ink,
-                    ),
-                  ),
-                ],
+              _storageLegendRow(
+                color: const Color(0xFFF59E0B),
+                label: 'Installed app (APK)',
+                value: isReady ? _formatBytes(installedBytes) : '—',
+                ink: ink,
               ),
               const SizedBox(height: 10),
-
-              // Legend 2
-              Row(
-                children: [
-                  Container(
-                    width: 8,
-                    height: 8,
-                    decoration: BoxDecoration(
-                      color: Color(0xFF10B981),
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Text(
-                    'Temporary files & cache',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: ink,
-                    ),
-                  ),
-                  const Spacer(),
-                  Text(
-                    isReady ? _formatBytes(temporaryBytes) : '382.0 KB',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                      color: ink,
-                    ),
-                  ),
-                ],
+              _storageLegendRow(
+                color: Theme.of(context).colorScheme.primary,
+                label: 'App data & local database',
+                value: isReady ? _formatBytes(appBytes) : '—',
+                ink: ink,
+              ),
+              const SizedBox(height: 10),
+              _storageLegendRow(
+                color: const Color(0xFF10B981),
+                label: 'Temporary files & cache',
+                value: isReady ? _formatBytes(temporaryBytes) : '—',
+                ink: ink,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Installed size includes the base and split APK files. Android may report a different total because it also accounts for optimized system files.',
+                style: TextStyle(
+                  fontSize: 11.5,
+                  height: 1.35,
+                  color: ink.withValues(alpha: 0.62),
+                ),
               ),
               const SizedBox(height: 18),
 
