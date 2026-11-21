@@ -167,3 +167,46 @@ test("group Tic-Tac-Toe only allows an opponent to join after the opening X", ()
   assert.equal(thirdPlayer.ok, false);
   assert.match(thirdPlayer.reason, /not a player/i);
 });
+
+
+function createRpsGame() {
+  const result = createGameChallenge({
+    userKey: "alice",
+    userDisplayName: "Alice",
+    to: "bob",
+    toType: "friend",
+    game: { gameType: "rps" },
+  });
+  assert.equal(result.ok, true);
+  return result.game;
+}
+
+test("Rock Paper Scissors locks both player choices and resolves the winner", () => {
+  const start = createRpsGame();
+  const first = applyGameMove(start, "alice", { move: "rock" });
+  assert.equal(first.ok, true);
+  assert.equal(first.game.state, "in_progress");
+  assert.equal(first.game.turn, "bob");
+  assert.equal(first.game.data.p1Move, "rock");
+
+  const second = applyGameMove(first.game, "bob", { move: "scissors" });
+  assert.equal(second.ok, true);
+  assert.equal(second.game.state, "finished");
+  assert.equal(second.game.winner, "Alice");
+  assert.equal(second.game.data.p2Move, "scissors");
+});
+
+test("Rock Paper Scissors handles draws and rejects invalid or repeated moves", () => {
+  const start = createRpsGame();
+  assert.equal(applyGameMove(start, "alice", { move: "lizard" }).ok, false);
+
+  const first = applyGameMove(start, "alice", { move: "paper" });
+  assert.equal(first.ok, true);
+  assert.equal(applyGameMove(first.game, "alice", { move: "rock" }).ok, false);
+
+  const second = applyGameMove(first.game, "bob", { move: "paper" });
+  assert.equal(second.ok, true);
+  assert.equal(second.game.state, "finished");
+  assert.equal(second.game.winner, "draw");
+  assert.equal(applyGameMove(second.game, "bob", { move: "scissors" }).ok, false);
+});
