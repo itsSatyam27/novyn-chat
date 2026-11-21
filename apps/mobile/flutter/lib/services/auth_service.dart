@@ -760,6 +760,9 @@ class AuthService extends ChangeNotifier {
 
   Future<void> _restoreSessionOnResumeInternal() async {
     if (!_authReady || _user == null) return;
+    final generation = _sessionMutationGeneration;
+    bool isCurrentSession() =>
+        generation == _sessionMutationGeneration && _user != null;
     try {
       // Rehydrate encrypted cookies if the in-memory client was recreated.
       if (ApiService.sessionCookie == null ||
@@ -768,8 +771,9 @@ class AuthService extends ChangeNotifier {
           const Duration(seconds: 4),
           onTimeout: () => false,
         );
-        if (!storageReady) return;
+        if (!storageReady || !isCurrentSession()) return;
       }
+      if (!isCurrentSession()) return;
 
       final cookieBeforeRestore = ApiService.sessionCookie;
       var session = await ApiService.getSession().timeout(
@@ -780,11 +784,13 @@ class AuthService extends ChangeNotifier {
       if (session == null || session['authenticated'] != true) {
         // Do not rotate tokens on ordinary network failures. Only attempt a
         // refresh after the server explicitly rejects the access cookie.
+        if (!isCurrentSession()) return;
         if (status == 401 || status == 403) {
           final refreshStatus = await ApiService.refreshSessionStatus().timeout(
             const Duration(seconds: 8),
             onTimeout: () => null,
           );
+          if (!isCurrentSession()) return;
           if (refreshStatus == 200) {
             _consecutiveSessionRejections = 0;
             session = await ApiService.getSession().timeout(
@@ -794,9 +800,7 @@ class AuthService extends ChangeNotifier {
           } else if (refreshStatus == 401 || refreshStatus == 403) {
             _consecutiveSessionRejections++;
             if (_consecutiveSessionRejections >= 3) {
-              await _invalidateSessionAfterStartupRejections(
-                _sessionMutationGeneration,
-              );
+              await _invalidateSessionAfterStartupRejections(generation);
               return;
             }
           }
@@ -804,11 +808,13 @@ class AuthService extends ChangeNotifier {
       }
 
       if (session != null && session['authenticated'] == true) {
+        if (!isCurrentSession()) return;
         _consecutiveSessionRejections = 0;
         final refreshedUser = NovynUser.fromMap(session);
         if (_user?.username.toLowerCase() !=
             refreshedUser.username.toLowerCase()) {
           await _prepareAccount(refreshedUser.username);
+          if (!isCurrentSession()) return;
         }
         final previousUser = _user;
         final identityChanged = previousUser == null ||
@@ -820,13 +826,17 @@ class AuthService extends ChangeNotifier {
         // notifying every auth consumer (tabs, dock, profile) unless data really
         // changed; this prevents a whole-app rebuild on every app switch.
         if (identityChanged) {
-          await _persistIdentity(refreshedUser);
-          notifyListeners();
+          await _persistIdentity(
+            refreshedUser,
+            expectedGeneration: generation,
+          );
+          if (!isCurrentSession()) return;
         }
 
         // A successful session lookup can rotate the access/refresh cookies.
         // Existing Socket.IO connections keep the old session ID, so reconnect
         // them with the newly persisted cookie before the next account action.
+        if (!isCurrentSession()) return;
         if (ApiService.sessionCookie != cookieBeforeRestore) {
           try {
             await onSessionRefreshed?.call();
@@ -834,6 +844,10 @@ class AuthService extends ChangeNotifier {
             // Keep the signed-in account even if the socket reconnect is delayed.
           }
         }
+        // Notify socket/session consumers even when the profile fields did not
+        // change. This lets a deferred Keystore recovery start the socket after
+        // credentials become available, without requiring another app resume.
+        if (isCurrentSession()) notifyListeners();
       }
       // A timeout, offline state, or temporary 5xx must never clear the local
       // account. A definitive expired session is handled by the next sign-in
