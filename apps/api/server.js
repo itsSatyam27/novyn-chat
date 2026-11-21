@@ -8850,6 +8850,10 @@ io.on("connection", (socket) => {
       ? ENCRYPTED_MESSAGE_PLACEHOLDER
       : withUploadToken(payload?.text || (payload?.attachment ? '[Attachment]' : ''));
     const attachment = sanitizeMessageAttachment(payload?.attachment, text);
+    if (isEncrypted && payload?.attachment && !attachment?.encrypted) {
+      rejectMessage("Invalid encrypted attachment metadata.");
+      return;
+    }
     const clientTempId = String(payload?.clientTempId || "").trim();
     const safeClientTempId = clientTempId.slice(0, 64);
     const to = toDisplayName(payload?.to);
