@@ -34,10 +34,10 @@ List<String> _parseReleaseNotes(String body) {
           line.startsWith('- ') ||
           line.startsWith('* ') ||
           line.startsWith('• ') ||
-          RegExp(r'^\\d+\\.\\s+').hasMatch(line))
+          RegExp(r'^\d+\.\s+').hasMatch(line))
       .map((line) => line
-          .replaceFirst(RegExp(r'^([-*•]|\\d+\\.)\\s*'), '')
-          .replaceAll(RegExp(r'\\s+'), ' ')
+          .replaceFirst(RegExp(r'^([-*•]|\d+\.)\s*'), '')
+          .replaceAll(RegExp(r'\s+'), ' ')
           .trim())
       .where((line) =>
           line.isNotEmpty &&
