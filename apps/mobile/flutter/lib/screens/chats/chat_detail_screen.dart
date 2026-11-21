@@ -158,6 +158,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
   bool _peerMuted = false;
   List<String> _quickEmojis =
       List<String>.from(defaultQuickReactionEmojis);
+  final Map<String, Future<Uint8List>> _attachmentBytesCache = {};
+  final Map<String, Future<String>> _attachmentFileCache = {};
 
   @override
   void initState() {
