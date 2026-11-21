@@ -19,7 +19,8 @@ function createMongoStorage(options = {}) {
       collections?.legacy &&
       collections?.users &&
       collections?.conversations &&
-      collections?.messages
+      collections?.messages &&
+      collections?.auth_sessions
     );
   }
 
@@ -40,7 +41,15 @@ function createMongoStorage(options = {}) {
     if (!uri) return false;
     if (isConnected()) return true;
 
-    client = new MongoClient(uri);
+    client = new MongoClient(uri, {
+      // Fail promptly when Atlas is unreachable instead of leaving API calls
+      // waiting on the driver's long default server-selection window.
+      serverSelectionTimeoutMS: Number(options.serverSelectionTimeoutMS) || 8000,
+      connectTimeoutMS: Number(options.connectTimeoutMS) || 8000,
+      socketTimeoutMS: Number(options.socketTimeoutMS) || 15000,
+      waitQueueTimeoutMS: Number(options.waitQueueTimeoutMS) || 5000,
+      maxPoolSize: Number(options.maxPoolSize) || 20,
+    });
     try {
       await client.connect();
       db = client.db(dbName);
@@ -49,6 +58,7 @@ function createMongoStorage(options = {}) {
         users: db.collection(usersCollectionName),
         conversations: db.collection(conversationsCollectionName),
         messages: db.collection(messagesCollectionName),
+        auth_sessions: db.collection(options.authSessionsCollectionName || "auth_sessions"),
         feedback: db.collection('feedback'),
       };
       await ensureIndexes();
@@ -68,6 +78,14 @@ function createMongoStorage(options = {}) {
     collections = null;
   }
 
+  async function ping() {
+    if (!client || !db || !isConnected()) {
+      throw new Error("MongoDB storage is not initialized.");
+    }
+    await db.admin().ping();
+    return true;
+  }
+
   function getCollection(name) {
     if (!collections) return null;
     const key = String(name || "").trim();
@@ -79,6 +97,7 @@ function createMongoStorage(options = {}) {
     connect,
     close,
     isConnected,
+    ping,
     getCollection,
     get db() {
       return db;

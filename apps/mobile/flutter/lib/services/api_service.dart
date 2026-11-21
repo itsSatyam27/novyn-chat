@@ -32,6 +32,10 @@ class ApiService {
     defaultValue: 'https://novyn-live.onrender.com',
   );
 
+  // Keep authentication failures visible instead of allowing indefinite spinners.
+  static const Duration csrfBootstrapRequestTimeout = Duration(seconds: 8);
+  static const Duration signInRequestTimeout = Duration(seconds: 25);
+
   // Holds the raw cookie string received from Set-Cookie after sign-in.
   // Flutter's http package does not persist cookies automatically on mobile,
   // so we store and forward them manually.
@@ -200,40 +204,65 @@ class ApiService {
   }
 
   static Future<void> _requestCsrfBootstrap() async {
-    final started = Stopwatch()..start();
     Object? lastError;
-    var attempt = 0;
-    while (started.elapsed < const Duration(seconds: 95)) {
+
+    // Two short attempts are enough for a warm or waking Render instance.
+    // The CSRF endpoint does not verify a user session or rotate auth tokens.
+    for (var attempt = 0; attempt < 2; attempt++) {
       try {
         final requestRevision = _sessionCredentialRevision;
         final response = await http
             .get(
-              Uri.parse('$baseUrl/api/auth/session'),
+              Uri.parse('$baseUrl/api/auth/csrf'),
               headers: _authHeaders,
             )
-            .timeout(const Duration(seconds: 30));
+            .timeout(csrfBootstrapRequestTimeout);
+
         await _storeSessionCookie(
           response,
           expectedRevision: requestRevision,
         );
+
+        if (_csrfToken == null || _csrfToken!.isEmpty) {
+          try {
+            final decoded = jsonDecode(response.body);
+            final token = decoded is Map
+                ? decoded['csrfToken']?.toString()
+                : null;
+            if (token != null && token.isNotEmpty) {
+              _csrfToken = Uri.decodeComponent(token);
+              _notifySessionRevision();
+              await _persistSessionCookies();
+              _sessionStorageInitialized = true;
+            }
+          } catch (_) {
+            // The Set-Cookie header remains the primary token source.
+          }
+        }
+
         if (_csrfToken != null && _csrfToken!.isNotEmpty) return;
+
         lastError = HttpException(
           'CSRF bootstrap returned HTTP ${response.statusCode} without a token.',
         );
         if (response.statusCode < 500 && response.statusCode != 429) break;
+      } on TimeoutException catch (error) {
+        lastError = error;
+      } on SocketException catch (error) {
+        lastError = error;
       } catch (error) {
         lastError = error;
-        if (error is SocketException && attempt >= 2) break;
+        if (error is StateError) rethrow;
       }
 
-      final backoffSeconds = attempt < 3 ? (1 << attempt) : 8;
-      attempt++;
-      await Future<void>.delayed(Duration(seconds: backoffSeconds));
+      if (attempt == 0) {
+        await Future<void>.delayed(const Duration(seconds: 1));
+      }
     }
 
     debugPrint('[NovynAuth] CSRF bootstrap failed: $lastError');
     throw StateError(
-      'Novyn is taking longer to wake up. Wait a minute, then try again.',
+      'Could not connect to Novyn securely. Check your connection and try again.',
     );
   }
 
@@ -509,7 +538,7 @@ class ApiService {
                 'username': username.trim().toLowerCase(),
             }),
           )
-          .timeout(const Duration(seconds: 75));
+          .timeout(signInRequestTimeout);
 
       if (res.statusCode == 200) {
         await _storeSessionCookie(res, expectedRevision: requestRevision);
@@ -557,7 +586,7 @@ class ApiService {
               'remember': remember,
             }),
           )
-          .timeout(const Duration(seconds: 75));
+          .timeout(signInRequestTimeout);
 
       if (res.statusCode == 200) {
         await _storeSessionCookie(res, expectedRevision: requestRevision);

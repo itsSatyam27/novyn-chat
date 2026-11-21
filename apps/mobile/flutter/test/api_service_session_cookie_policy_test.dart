@@ -8,6 +8,17 @@ void main() {
       expect(ApiService.shouldPersistSessionCookies(403), isFalse);
     });
 
+    test('authentication network waits are bounded', () {
+      expect(
+        ApiService.csrfBootstrapRequestTimeout,
+        const Duration(seconds: 8),
+      );
+      expect(
+        ApiService.signInRequestTimeout,
+        const Duration(seconds: 25),
+      );
+    });
+
     test('stores refreshed cookies on successful and non-auth responses', () {
       expect(ApiService.shouldPersistSessionCookies(200), isTrue);
       expect(ApiService.shouldPersistSessionCookies(429), isTrue);
