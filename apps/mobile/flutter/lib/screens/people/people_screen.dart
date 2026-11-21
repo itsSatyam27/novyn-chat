@@ -17,6 +17,8 @@ import 'received_friend_requests_screen.dart';
 import '../discover/discover_screen.dart';
 import 'package:novyn/services/haptic_service.dart';
 
+enum _PeopleMenuAction { discover, requests, invite }
+
 class PeopleScreen extends StatefulWidget {
   const PeopleScreen({super.key});
 
@@ -239,6 +241,17 @@ class _PeopleScreenState extends State<PeopleScreen> {
                       }
                     },
                   ),
+                  const SizedBox(width: 10),
+                  StreamBuilder<int>(
+                    stream: friends.pendingRequestsCountStream(myUid),
+                    builder: (context, requestSnapshot) {
+                      return _buildContactsOverflowMenu(
+                        theme: Theme.of(context),
+                        requestCount: requestSnapshot.data ?? 0,
+                        myUid: myUid,
+                      );
+                    },
+                  ),
                 ],
               ),
             ),
@@ -452,7 +465,6 @@ class _PeopleScreenState extends State<PeopleScreen> {
         physics: const BouncingScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(16, 0, 18, 112),
         children: [
-          _buildActionTiles(myUid, service),
           const SizedBox(height: 34),
           const NovynEmptyState(
             icon: Icons.people_outline_rounded,
@@ -472,7 +484,6 @@ class _PeopleScreenState extends State<PeopleScreen> {
     }
     final letters = grouped.keys.toList()..sort();
     final children = <Widget>[
-      _buildActionTiles(myUid, service),
       Padding(
         padding: const EdgeInsets.fromLTRB(8, 6, 22, 10),
         child: Row(
@@ -568,60 +579,143 @@ class _PeopleScreenState extends State<PeopleScreen> {
     );
   }
 
-  Widget _buildActionTiles(String myUid, FriendService service) {
-    final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(0, 0, 18, 12),
-      child: ClipRRect(
+  Widget _buildContactsOverflowMenu({
+    required ThemeData theme,
+    required int requestCount,
+    required String myUid,
+  }) {
+    final accent = theme.colorScheme.primary;
+    return PopupMenuButton<_PeopleMenuAction>(
+      tooltip: 'More contact options',
+      position: PopupMenuPosition.under,
+      offset: const Offset(0, 10),
+      color: theme.colorScheme.surface,
+      surfaceTintColor: Colors.transparent,
+      elevation: 12,
+      shadowColor: Colors.black.withValues(alpha: .16),
+      shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(24),
-        child: Material(
-          color: theme.colorScheme.surface,
-          child: Column(
-            children: [
-              _ContactActionTile(
-                icon: Icons.person_search_rounded,
-                title: 'Discover people',
-                subtitle: 'Find people on Novyn and grow your circle.',
-                onTap: _openDiscover,
-              ),
-              Divider(
-                height: 1,
-                thickness: 1,
-                indent: 70,
-                color: theme.brightness == Brightness.dark
-                    ? Colors.white.withValues(alpha: .07)
-                    : const Color(0xFFF0ECF6),
-              ),
-              StreamBuilder<int>(
-                stream: service.pendingRequestsCountStream(myUid),
-                builder: (context, snapshot) {
-                  final count = snapshot.data ?? 0;
-                  return _ContactActionTile(
-                    icon: Icons.person_add_alt_1_rounded,
-                    title: 'Friend requests',
-                    subtitle: 'Review and respond to incoming requests.',
-                    badge: count,
-                    onTap: () => _showReceivedRequests(myUid),
-                  );
-                },
-              ),
-              Divider(
-                height: 1,
-                thickness: 1,
-                indent: 70,
-                color: theme.brightness == Brightness.dark
-                    ? Colors.white.withValues(alpha: .07)
-                    : const Color(0xFFF0ECF6),
-              ),
-              _ContactActionTile(
-                icon: Icons.link_rounded,
-                title: 'Invite friends',
-                subtitle: 'Share your invite link with friends.',
-                onTap: () => _shareInvite(myUid),
-              ),
-            ],
+      ),
+      constraints: const BoxConstraints(minWidth: 258),
+      onSelected: (action) {
+        HapticService.vibrate(
+          NovynHapticType.selection,
+          category: HapticCategory.navigation,
+        );
+        switch (action) {
+          case _PeopleMenuAction.discover:
+            _openDiscover();
+          case _PeopleMenuAction.requests:
+            _showReceivedRequests(myUid);
+          case _PeopleMenuAction.invite:
+            _shareInvite(myUid);
+        }
+      },
+      itemBuilder: (context) => [
+        PopupMenuItem<_PeopleMenuAction>(
+          value: _PeopleMenuAction.discover,
+          height: 64,
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          child: _buildOverflowMenuRow(
+            icon: Icons.person_search_rounded,
+            title: 'Discover people',
+            accent: accent,
           ),
         ),
+        PopupMenuItem<_PeopleMenuAction>(
+          value: _PeopleMenuAction.requests,
+          height: 64,
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          child: _buildOverflowMenuRow(
+            icon: Icons.person_add_alt_1_rounded,
+            title: 'Friend requests',
+            accent: accent,
+            badge: requestCount,
+          ),
+        ),
+        PopupMenuItem<_PeopleMenuAction>(
+          value: _PeopleMenuAction.invite,
+          height: 64,
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          child: _buildOverflowMenuRow(
+            icon: Icons.link_rounded,
+            title: 'Invite friends',
+            accent: accent,
+          ),
+        ),
+      ],
+      child: Container(
+        width: 46,
+        height: 46,
+        decoration: BoxDecoration(
+          color: theme.colorScheme.secondaryContainer,
+          shape: BoxShape.circle,
+        ),
+        alignment: Alignment.center,
+        child: Icon(
+          Icons.more_vert_rounded,
+          size: 23,
+          color: theme.colorScheme.onSecondaryContainer,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOverflowMenuRow({
+    required IconData icon,
+    required String title,
+    required Color accent,
+    int badge = 0,
+  }) {
+    final theme = Theme.of(context);
+    return SizedBox(
+      width: 230,
+      child: Row(
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: accent.withValues(alpha: .11),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            alignment: Alignment.center,
+            child: Icon(icon, size: 21, color: accent),
+          ),
+          const SizedBox(width: 13),
+          Expanded(
+            child: Text(
+              title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontFamily: 'PlusJakartaSans',
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: theme.colorScheme.onSurface,
+              ),
+            ),
+          ),
+          if (badge > 0)
+            Container(
+              constraints: const BoxConstraints(minWidth: 22, minHeight: 22),
+              padding: const EdgeInsets.symmetric(horizontal: 6),
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: accent,
+                shape: BoxShape.circle,
+              ),
+              child: Text(
+                '$badge',
+                style: const TextStyle(
+                  fontFamily: 'PlusJakartaSans',
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -632,102 +726,6 @@ class _PeopleScreenState extends State<PeopleScreen> {
     _searchFocusNode.dispose();
     _scrollController.dispose();
     super.dispose();
-  }
-}
-
-class _ContactActionTile extends StatelessWidget {
-  const _ContactActionTile({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.onTap,
-    this.badge = 0,
-  });
-
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final VoidCallback onTap;
-  final int badge;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final accent = theme.colorScheme.primary;
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
-          child: Row(
-            children: [
-              Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  color: accent.withValues(alpha: .12),
-                  borderRadius: BorderRadius.circular(13),
-                ),
-                child: Icon(icon, size: 20, color: accent),
-              ),
-              const SizedBox(width: 13),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: TextStyle(
-                        fontFamily: 'PlusJakartaSans',
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: theme.colorScheme.onSurface,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      subtitle,
-                      style: TextStyle(
-                        fontFamily: 'PlusJakartaSans',
-                        fontSize: 11.5,
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              if (badge > 0) ...[
-                Container(
-                  constraints: const BoxConstraints(minWidth: 22, minHeight: 22),
-                  alignment: Alignment.center,
-                  padding: const EdgeInsets.symmetric(horizontal: 6),
-                  decoration: BoxDecoration(
-                    color: accent,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Text(
-                    '$badge',
-                    style: const TextStyle(
-                      fontFamily: 'PlusJakartaSans',
-                      fontSize: 11,
-                      fontWeight: FontWeight.w800,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-              ],
-              Icon(
-                Icons.chevron_right_rounded,
-                size: 21,
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
   }
 }
 
