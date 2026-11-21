@@ -2226,12 +2226,28 @@ class SocketService extends ChangeNotifier {
 
   Future<void> cancelRandomGame() async {
     final socket = _socket;
-    if (socket == null || !_isConnected || !_isAuthenticated) return;
-    final completer = Completer<void>();
-    socket.emitWithAck('cancel_random_game', {}, ack: (_) {
-      if (!completer.isCompleted) completer.complete();
+    if (socket == null || !_isConnected || !_isAuthenticated) {
+      throw StateError('Reconnect before cancelling matchmaking.');
+    }
+    final completer = Completer<Map<String, dynamic>>();
+    socket.emitWithAck('cancel_random_game', {}, ack: (dynamic result) {
+      if (completer.isCompleted) return;
+      completer.complete(
+        result is Map
+            ? Map<String, dynamic>.from(result)
+            : <String, dynamic>{'ok': false},
+      );
     });
-    await completer.future.timeout(const Duration(seconds: 5), onTimeout: () {});
+    final result = await completer.future.timeout(
+      const Duration(seconds: 5),
+      onTimeout: () => throw StateError('Matchmaking cancellation timed out. Please try again.'),
+    );
+    if (result['ok'] != true || result['cancelled'] != true) {
+      throw StateError(
+        result['message']?.toString() ??
+            'Matchmaking is no longer waiting. Please refresh the Games screen.',
+      );
+    }
   }
 
   Future<void> sendGameChallenge(String gameType, String peerUsername,
