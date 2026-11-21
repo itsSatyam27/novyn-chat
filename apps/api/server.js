@@ -785,7 +785,7 @@ app.get("/api/giphy", requireUser, async (req, res) => {
   }
 });
 
-app.get("/uploads/:file", requireUser, (req, res) => {
+app.get("/uploads/:file", requireUser, async (req, res) => {
   const filename = path.basename(req.params.file || "");
   const token = String(req.query.token || "");
   if (!/^[a-zA-Z0-9_-]+\.[a-zA-Z0-9]+$/.test(filename) || !safeTimingEqual(token, signUploadToken(filename)) || !userCanReadMedia(filename, req.userKey)) {
