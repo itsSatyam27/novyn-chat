@@ -1117,6 +1117,21 @@ class ApiService {
     }
   }
 
+  /// Downloads protected media bytes without writing ciphertext to the Downloads folder.
+  static Future<Uint8List> downloadMediaBytes(String mediaUrl) async {
+    final uri = Uri.tryParse(mediaUrl);
+    if (uri == null || !uri.hasScheme || !['http', 'https'].contains(uri.scheme)) {
+      throw StateError('This attachment link is invalid.');
+    }
+    final response = await http.get(uri, headers: _authHeaders)
+        .timeout(const Duration(seconds: 60));
+    if (response.statusCode != 200) {
+      throw StateError('Download failed (${response.statusCode}). Please try again.');
+    }
+    if (response.bodyBytes.isEmpty) throw StateError('The downloaded file is empty.');
+    return response.bodyBytes;
+  }
+
   static Future<File> downloadMedia(String mediaUrl, String filename) async {
     final uri = Uri.tryParse(mediaUrl);
     if (uri == null || !uri.hasScheme || !['http', 'https'].contains(uri.scheme)) {
