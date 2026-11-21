@@ -587,13 +587,19 @@ class _DeviceStorageCard extends StatelessWidget {
 
   Future<Map<String, int>> _loadUsage() async {
     if (Platform.isAndroid) {
-      final nativeUsage = await _storageChannel.invokeMapMethod<String, dynamic>('getStorageUsage');
-      if (nativeUsage != null) {
-        return {
-          'installed': (nativeUsage['installed'] as num?)?.toInt() ?? 0,
-          'app': (nativeUsage['appData'] as num?)?.toInt() ?? 0,
-          'temporary': (nativeUsage['cache'] as num?)?.toInt() ?? 0,
-        };
+      try {
+        final nativeUsage = await _storageChannel.invokeMapMethod<String, dynamic>('getStorageUsage');
+        if (nativeUsage != null) {
+          return {
+            'installed': (nativeUsage['installed'] as num?)?.toInt() ?? 0,
+            'app': (nativeUsage['appData'] as num?)?.toInt() ?? 0,
+            'temporary': (nativeUsage['cache'] as num?)?.toInt() ?? 0,
+          };
+        }
+      } on PlatformException {
+        // Keep the screen usable if native storage inspection is unavailable.
+      } on MissingPluginException {
+        // Older or non-standard builds use the accessible-directory fallback.
       }
     }
 
@@ -664,14 +670,14 @@ class _DeviceStorageCard extends StatelessWidget {
         final total = installedBytes + appBytes + temporaryBytes;
 
         final isReady = snapshot.connectionState == ConnectionState.done && snapshot.hasData;
-        final totalFormatted = isReady ? _formatBytes(total) : 'Calculating';
+        final totalFormatted = isReady ? _formatBytes(total) : '...';
         final totalParts = totalFormatted.split(' ');
         final numberText = totalParts.first;
-        final unitText = totalParts.length > 1 ? totalParts.last : 'KB';
+        final unitText = totalParts.length > 1 ? totalParts.last : '';
 
-        final installedFlex = total == 0 ? 1 : (installedBytes / total * 1000).round().clamp(1, 1000);
-        final appFlex = total == 0 ? 1 : (appBytes / total * 1000).round().clamp(1, 1000);
-        final tempFlex = total == 0 ? 1 : (temporaryBytes / total * 1000).round().clamp(1, 1000);
+        final installedFlex = total == 0 ? 1 : (installedBytes / total * 1000).round().clamp(1, 1000).toInt();
+        final appFlex = total == 0 ? 1 : (appBytes / total * 1000).round().clamp(1, 1000).toInt();
+        final tempFlex = total == 0 ? 1 : (temporaryBytes / total * 1000).round().clamp(1, 1000).toInt();
 
         return Container(
           padding: const EdgeInsets.all(20),
