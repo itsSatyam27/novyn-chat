@@ -347,6 +347,7 @@ class AuthService extends ChangeNotifier {
   Future<void> _activateCachedIdentity(
     NovynUser? cachedIdentity, {
     required String reason,
+    bool notify = true,
   }) async {
     if (cachedIdentity == null) return;
     try {
@@ -358,7 +359,7 @@ class AuthService extends ChangeNotifier {
     _user = cachedIdentity;
     _sessionInvalidated = false;
     _authReady = true;
-    notifyListeners();
+    if (notify) notifyListeners();
     debugPrint('[NovynAuth] Restored local account identity ($reason).');
   }
 
@@ -575,10 +576,14 @@ class AuthService extends ChangeNotifier {
       await _activateCachedIdentity(
         cachedIdentity,
         reason: 'local-first startup',
+        notify: false,
       );
       final generation = _sessionMutationGeneration;
       unawaited(_hydrateCachedIdentityDetails(cachedIdentity.username, generation));
+      // Start backend verification before listeners attempt to connect
+      // Socket.IO. Resume callbacks then await this exact in-flight check.
       unawaited(_verifySessionInBackground(loadSession));
+      notifyListeners();
       return;
     }
 
