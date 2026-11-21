@@ -336,11 +336,11 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
                   iconColor: const Color(0xFF8B5CF6),
                   iconBgColor: isDark ? const Color(0xFF291E3B) : const Color(0xFFF3E8FF),
                   title: 'Message text size',
-                  value: settings.fontSize,
+                  value: settings.messageTextSize,
                   min: 0.85,
                   max: 1.25,
                   divisions: 8,
-                  onChanged: settings.setFontSize,
+                  onChanged: settings.setMessageTextSize,
                 ),
                 _ChatTypographySliderRow(
                   icon: Icons.format_size_rounded,

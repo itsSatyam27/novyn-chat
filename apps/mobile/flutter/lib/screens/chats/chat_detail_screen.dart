@@ -4513,7 +4513,8 @@ class _MessageBubble extends StatelessWidget {
                             novynEmojiText(message.text as String),
                             style: TextStyle(
                               fontFamily: 'PlusJakartaSans',
-                              fontSize: 15,
+                              fontSize: 15 *
+                                  context.watch<SettingsService>().messageTextSize,
                               height: 1.35,
                               color: isMe
                                   ? Colors.white

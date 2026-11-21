@@ -34,6 +34,14 @@ class SavedSession {
 }
 
 class SettingsService extends ChangeNotifier {
+  /// Shared message-tone mapping for settings previews and incoming alerts.
+  static String messageToneAsset(String tone) => switch (tone) {
+        'Pulse' => 'audio/message_sent.mp3',
+        'Glass' => 'audio/ringtone.mp3',
+        'Echo' => 'audio/call_ring.mp3',
+        _ => 'audio/notification.mp3',
+      };
+
   static const _kNotifications = 'notifications_on';
   static const _kMessagePreview = 'message_preview';
   static const _kChatLinkPreviews = 'chat_link_previews';
@@ -54,6 +62,7 @@ class SettingsService extends ChangeNotifier {
   static const _kLanguage = 'language';
   static const _kTimeFormat = 'chat_time_format';
   static const _kFontSize = 'font_size';
+  static const _kChatMessageTextSize = 'chat_message_text_size';
   static const _kChatLabelSize = 'chat_label_size';
   static const _kAccentColor = 'appearance_accent_color';
   static const _kAccentColorEnabled = 'appearance_accent_color_enabled';
@@ -188,6 +197,7 @@ class SettingsService extends ChangeNotifier {
   String _language = 'en'; // Language code
   String _timeFormat = '12h'; // '12h' or '24h'
   double _fontSize = 0.85; // Default accessibility scale (85%)
+  double _chatMessageTextSize = 1.0;
   double _chatLabelSize = 1.0;
   int _accentColorValue = 0xFF6D5DFC;
   bool _accentColorEnabled = true;
@@ -199,7 +209,7 @@ class SettingsService extends ChangeNotifier {
   String _profilePhotoVisibility = 'everyone'; // 'everyone', 'contacts', 'nobody'
   List<String> _blockedUids = [];
   List<String> _favoriteChatIds = [];
-  String _notificationTone = 'Aurora'; // Default tone
+  String _notificationTone = 'Drift'; // Default tone
   String _callRingtone = 'Binary'; // Default ringtone
   String _vibrationPattern = 'standard'; // standard, staccato, heartbeat, none
   double _hapticIntensity = 0.8; // 0.0 to 1.0
@@ -335,6 +345,7 @@ class SettingsService extends ChangeNotifier {
   double get callVolume => _callVolume;
   String get photoQuality => _photoQuality;
   double get fontSize => _fontSize;
+  double get messageTextSize => _chatMessageTextSize;
   double get chatLabelSize => _chatLabelSize;
   int get accentColorValue => _accentColorValue;
   bool get accentColorEnabled => _accentColorEnabled;
@@ -547,7 +558,13 @@ class SettingsService extends ChangeNotifier {
     _chatLinkPreviews = _prefs.getBool(_kChatLinkPreviews) ?? true;
     _readReceipts = _prefs.getBool(_kReadReceipts) ?? true;
     _onlineStatus = _prefs.getBool(_kOnlineStatus) ?? true;
-    _themeMode = ThemeMode.values[_prefs.getInt(_kThemeMode) ?? ThemeMode.light.index];
+    final savedThemeIndex = _prefs.getInt(_kThemeMode) ?? ThemeMode.light.index;
+    _themeMode = savedThemeIndex >= 0 && savedThemeIndex < ThemeMode.values.length
+        ? ThemeMode.values[savedThemeIndex]
+        : ThemeMode.light;
+    if (savedThemeIndex != _themeMode.index) {
+      await _prefs.setInt(_kThemeMode, _themeMode.index);
+    }
     _displayName = _prefs.getString(_kDisplayName) ?? '';
     _bio = _prefs.getString(_kBio) ?? '';
     
@@ -563,6 +580,7 @@ class SettingsService extends ChangeNotifier {
     final savedTimeFormat = _prefs.getString(_kTimeFormat) ?? '12h';
     _timeFormat = savedTimeFormat == '24h' ? '24h' : '12h';
     _fontSize = (_prefs.getDouble(_kFontSize) ?? 0.85).clamp(0.75, 1.25).toDouble();
+    _chatMessageTextSize = (_prefs.getDouble(_kChatMessageTextSize) ?? 1.0).clamp(0.85, 1.25).toDouble();
     _chatLabelSize = (_prefs.getDouble(_kChatLabelSize) ?? 1.0).clamp(0.8, 1.4).toDouble();
     _accentColorValue = _prefs.getInt(_kAccentColor) ?? 0xFF6D5DFC;
     _accentColorEnabled = _prefs.getBool(_kAccentColorEnabled) ?? true;
@@ -620,7 +638,7 @@ class SettingsService extends ChangeNotifier {
     _profilePhotoVisibility = _prefs.getString(_kProfilePhoto) ?? 'everyone';
     _blockedUids = _prefs.getStringList(_kBlockedUids) ?? [];
     _favoriteChatIds = _prefs.getStringList(_kFavoriteChatIds) ?? [];
-    _notificationTone = _prefs.getString(_kNotificationTone) ?? 'Aurora';
+    _notificationTone = _prefs.getString(_kNotificationTone) ?? 'Drift';
     _callRingtone = _prefs.getString(_kCallRingtone) ?? 'Binary';
     _customNotificationPath = _prefs.getString(_kCustomNotificationPath);
     _customRingtonePath = _prefs.getString(_kCustomRingtonePath);
@@ -904,6 +922,12 @@ class SettingsService extends ChangeNotifier {
   Future<void> setChatLabelSize(double v) async {
     _chatLabelSize = v.clamp(0.8, 1.4).toDouble();
     await _prefs.setDouble(_kChatLabelSize, _chatLabelSize);
+    notifyListeners();
+  }
+
+  Future<void> setMessageTextSize(double v) async {
+    _chatMessageTextSize = v.clamp(0.85, 1.25).toDouble();
+    await _prefs.setDouble(_kChatMessageTextSize, _chatMessageTextSize);
     notifyListeners();
   }
 
@@ -1468,19 +1492,25 @@ class SettingsService extends ChangeNotifier {
 
   Future<void> clearAll() async {
     await _prefs.clear();
-    await _deleteSecureValue(_secureAppLockPin);
-    await _deleteSecureValue(_securePanicPin);
+    await Future.wait([
+      _deleteSecureValue(_secureAppLockPin),
+      _deleteSecureValue(_securePanicPin),
+      _deleteSecureValue(_secureAppLockFailures),
+      _deleteSecureValue(_secureAppLockUntil),
+    ]);
+
+    // Reset every in-memory preference as well as persisted values. This is
+    // important when the same SettingsService instance is reused after logout.
     _notificationsOn = true;
     _messagePreview = true;
     _chatLinkPreviews = true;
     _readReceipts = true;
     _onlineStatus = true;
-    _themeMode = ThemeMode.system;
+    _themeMode = ThemeMode.light;
     _displayName = '';
     _bio = '';
     _savedSessions = [];
-    
-    // Reset new settings
+
     _inAppSounds = true;
     _chatEnterToSend = true;
     _inAppVibration = true;
@@ -1488,8 +1518,10 @@ class SettingsService extends ChangeNotifier {
     _autoDownloadWifi = 'all';
     _autoDownloadMobile = 'photos';
     _photoQuality = 'high';
-    _language = 'en';
+    _language = _detectDeviceLanguage();
+    _timeFormat = '12h';
     _fontSize = 0.85;
+    _chatMessageTextSize = 1.0;
     _chatLabelSize = 1.0;
     _accentColorValue = 0xFF6D5DFC;
     _accentColorEnabled = true;
@@ -1500,12 +1532,40 @@ class SettingsService extends ChangeNotifier {
     _lastSeenVisibility = 'everyone';
     _profilePhotoVisibility = 'everyone';
     _blockedUids = [];
-    _notificationTone = 'Aurora';
+    _favoriteChatIds = [];
+    _notificationTone = 'Drift';
+    _callRingtone = 'Binary';
+    _customNotificationPath = null;
+    _customRingtonePath = null;
     _vibrationPattern = 'standard';
     _hapticIntensity = 0.8;
+    _hapticNavigation = true;
+    _hapticTyping = true;
+    _hapticChat = true;
+    _hapticButtons = true;
+    _hapticNotifications = true;
+    _hapticCalls = true;
+    _messageVolume = 0.8;
+    _callVolume = 0.85;
     _appLockEnabled = false;
     _appLockTimeout = 0;
-    
+    _appLockPin = null;
+    _isLocked = false;
+    _appLockFailedAttempts = 0;
+    _appLockLockedUntil = null;
+    _region = _detectDeviceRegion();
+    _stealthModeEnabled = false;
+    _panicPin = null;
+    _hideNotificationContent = false;
+    _decoyMode = false;
+    _stealthIconEnabled = false;
+    _highContrast = false;
+    _reduceMotion = false;
+    _busyPreviousPresenceMode = null;
+    _doNotDisturbEnabled = false;
+    _smartPresenceOverrides = {};
+    _activeSmartPresenceMode = 'online';
+
     notifyListeners();
   }
   @override
