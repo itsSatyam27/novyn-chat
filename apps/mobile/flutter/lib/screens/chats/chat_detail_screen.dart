@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:math' as math;
 import '../../widgets/novyn_alert.dart';
 import 'dart:async';
@@ -37,6 +38,7 @@ import 'group_info_screen.dart';
 import '../../widgets/connection_banner.dart';
 import '../../screens/calls/call_screen.dart';
 import 'package:novyn/services/haptic_service.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../widgets/custom_emoji.dart';
 
 String _mimeForFile(String filename) {
@@ -77,7 +79,10 @@ class _ChatAttachmentLoader {
     Message message,
   ) async {
     final url = attachment['url']?.toString() ?? '';
-    if (url.isEmpty) throw StateError('Attachment link is missing.');
+    final backupLocalPath = attachment['backupLocalPath']?.toString() ?? '';
+    if (url.isEmpty && backupLocalPath.isEmpty) {
+      throw StateError('Attachment link is missing.');
+    }
     final encrypted = attachment['encrypted'] == true;
     final socket = encrypted ? context.read<SocketService>() : null;
     final account = socket?.myUsername ?? '';
@@ -90,7 +95,10 @@ class _ChatAttachmentLoader {
     final cached = _bytesCache[cacheKey];
     if (cached != null) return cached;
     final loading = () async {
-      final bytes = await ApiService.downloadMediaBytes(url);
+      final localFile = backupLocalPath.isEmpty ? null : File(backupLocalPath);
+      final bytes = localFile != null && await localFile.exists()
+          ? Uint8List.fromList(await localFile.readAsBytes())
+          : await ApiService.downloadMediaBytes(url);
       if (!encrypted) return bytes;
       return socket!.encryption.decryptAttachmentBytes(
         bytes, account, peerPublicKey, attachment['iv']?.toString() ?? '',
@@ -217,6 +225,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
   Timer? _lastSeenRefreshTimer;
   dynamic _replyingTo; // the message being replied to
   bool _uploadingAttachment = false;
+  double _uploadProgress = 0;
+  bool _cancelUploadRequested = false;
+  bool _canCancelAttachmentUpload = false;
+  Future<void> Function()? _retryAttachment;
+  String? _pendingUploadFilePath;
   final ImagePicker _imagePicker = ImagePicker();
   final AudioRecorder _voiceRecorder = AudioRecorder();
   Timer? _voiceTimer;
@@ -401,6 +414,123 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
     }
   }
 
+  String get _pendingUploadKey =>
+      'novyn_pending_upload_${Uri.encodeComponent((_myUid ?? '').toLowerCase())}_${Uri.encodeComponent((_chatId ?? '').toLowerCase())}';
+
+  Future<void> _persistPendingAttachmentUpload({
+    required Uint8List bytes,
+    required String filename,
+    required String mime,
+    required int size,
+    required String recipient,
+    required String kind,
+    required Map<String, dynamic> encryptionMetadata,
+    String? displayName,
+    Map<String, dynamic> attachmentExtra = const <String, dynamic>{},
+    bool voiceEndpoint = false,
+    String? replyToId,
+    String? replyToText,
+    String? replyToSender,
+  }) async {
+    try {
+      final root = await getApplicationSupportDirectory();
+      final directory = Directory('${root.path}/novyn_pending_uploads');
+      await directory.create(recursive: true);
+      final file = File(
+        '${directory.path}/upload_${DateTime.now().microsecondsSinceEpoch}.bin',
+      );
+      await file.writeAsBytes(bytes, flush: true);
+      final prefs = await SharedPreferences.getInstance();
+      final previousPath = _pendingUploadFilePath;
+      await prefs.setString(
+        _pendingUploadKey,
+        jsonEncode({
+          'path': file.path,
+          'filename': filename,
+          'mime': mime,
+          'size': size,
+          'recipient': recipient,
+          'kind': kind,
+          'encryptionMetadata': encryptionMetadata,
+          'displayName': displayName,
+          'attachmentExtra': attachmentExtra,
+          'voiceEndpoint': voiceEndpoint,
+          'replyToId': replyToId,
+          'replyToText': replyToText,
+          'replyToSender': replyToSender,
+        }),
+      );
+      _pendingUploadFilePath = file.path;
+      if (previousPath != null && previousPath != file.path) {
+        try {
+          await File(previousPath).delete();
+        } catch (_) {}
+      }
+    } catch (error) {
+      debugPrint('[NovynUpload] Could not persist retry file: $error');
+    }
+  }
+
+  Future<void> _restorePendingAttachmentUpload() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_pendingUploadKey);
+      if (raw == null || raw.isEmpty) return;
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map) return;
+      final record = Map<String, dynamic>.from(decoded);
+      final path = record['path']?.toString() ?? '';
+      final file = File(path);
+      if (path.isEmpty || !await file.exists()) {
+        await prefs.remove(_pendingUploadKey);
+        return;
+      }
+      final bytes = await file.readAsBytes();
+      if (bytes.isEmpty) {
+        await prefs.remove(_pendingUploadKey);
+        return;
+      }
+      final metadata = record['encryptionMetadata'] is Map
+          ? Map<String, dynamic>.from(record['encryptionMetadata'] as Map)
+          : <String, dynamic>{};
+      final attachmentExtra = record['attachmentExtra'] is Map
+          ? Map<String, dynamic>.from(record['attachmentExtra'] as Map)
+          : <String, dynamic>{};
+      _pendingUploadFilePath = path;
+      _retryAttachment = () => _uploadAndSendPreparedAttachment(
+            Uint8List.fromList(bytes),
+            record['filename']?.toString() ?? 'attachment',
+            record['mime']?.toString() ?? 'application/octet-stream',
+            (record['size'] as num?)?.toInt() ?? bytes.length,
+            record['recipient']?.toString() ?? widget.peer.username,
+            record['kind']?.toString() ?? 'file',
+            metadata,
+            displayName: record['displayName']?.toString(),
+            attachmentExtra: attachmentExtra,
+            voiceEndpoint: record['voiceEndpoint'] == true,
+            replyToId: record['replyToId']?.toString(),
+            replyToText: record['replyToText']?.toString(),
+            replyToSender: record['replyToSender']?.toString(),
+          );
+      if (mounted) setState(() {});
+    } catch (error) {
+      debugPrint('[NovynUpload] Could not restore retry file: $error');
+    }
+  }
+
+  Future<void> _discardPendingAttachmentUpload() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_pendingUploadKey);
+    final path = _pendingUploadFilePath;
+    _pendingUploadFilePath = null;
+    if (path != null) {
+      try {
+        await File(path).delete();
+      } catch (_) {}
+    }
+    if (mounted) setState(() => _retryAttachment = null);
+  }
+
   // Load older messages when scrolled to top
   void _onScroll() {
     if (!_scroll.hasClients) return;
@@ -472,6 +602,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
     _chatId = widget.isGroup
         ? (widget.peer.uid.isNotEmpty ? widget.peer.uid : widget.peer.username)
         : widget.peer.username;
+    await _restorePendingAttachmentUpload();
 
     final cacheWatch = Stopwatch()..start();
     List<Message> cachedMessages = [];
@@ -664,6 +795,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
         replyToSender: _replyingTo?.isFromMe == true ? 'You' : widget.peer.name,
         isGroup: widget.isGroup,
       );
+      final optimisticMessageId = socket.messages.isNotEmpty
+          ? socket.messages.last.id
+          : null;
 
       if (mounted) {
         if (_ctrl.text.trim() == text) _ctrl.clear();
@@ -674,7 +808,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
 
       await pendingSend;
       if (!mounted) return;
-      _playSentSound();
+      if (optimisticMessageId != null &&
+          socket.messageStatusFor(optimisticMessageId) != 'sending' &&
+          socket.messageStatusFor(optimisticMessageId) != 'failed') {
+        _playSentSound();
+      }
     } catch (error) {
       if (mounted) {
         // Restore the failed text only when the user has not started another
@@ -788,7 +926,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
         decoration: _wallpaperDecoration(snapshot.chatWallpaper),
         child: Column(
           children: [
-            const ConnectionBanner(),
+            ConnectionBanner(chatId: _chatId ?? widget.peer.username),
             Expanded(
               child: Stack(
                 children: [
@@ -884,11 +1022,10 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;
-    final accent = scheme.primary;
     final topInset = MediaQuery.paddingOf(context).top;
-    const cardHeight = 60.0;
-    const gapTop = 6.0;
-    const gapBottom = 6.0;
+    const cardHeight = 48.0;
+    const gapTop = 8.0;
+    const gapBottom = 8.0;
 
     final peerStatusLabel = widget.isGroup
         ? (widget.peer.bio.isNotEmpty ? widget.peer.bio : 'Group conversation')
@@ -900,151 +1037,216 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
             'busy' || 'dnd' => const Color(0xFFEC4899),
             _ => _isOfflinePresenceState()
                 ? scheme.onSurfaceVariant
-                : const Color(0xFF10B981),
+                : const Color(0xFF16A34A),
           };
 
-    return PreferredSize(
-      // The status-bar inset is added here, once, instead of inside a flexibleSpace.
-      preferredSize: Size.fromHeight(topInset + gapTop + cardHeight + gapBottom),
-      child: ColoredBox(
-        color: _headerBackdrop(socket.chatWallpaper, isDark),
-        child: Padding(
-          padding: EdgeInsets.fromLTRB(10, topInset + gapTop, 10, gapBottom),
-          child: Container(
-            height: cardHeight,
-            decoration: BoxDecoration(
-              color: scheme.surface,
-              borderRadius: BorderRadius.circular(22),
-              border: Border.all(color: scheme.outlineVariant.withValues(alpha: .35)),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: isDark ? .22 : .06),
-                  blurRadius: 16,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: Row(
-              children: [
-                _ChatHeaderButton(
-                  icon: Icons.arrow_back_ios_new_rounded,
-                  iconSize: 18,
-                  tooltip: 'Back',
-                  onTap: () => Navigator.pop(context),
-                ),
-                Expanded(
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap: _showContactInfo,
-                    child: Row(
+    final iconColor = isDark ? Colors.white : const Color(0xFF2D2942);
+    final pillBg = isDark ? const Color(0xFF1B1A28) : Colors.white;
+    final pillBorder = Border.all(
+      color: isDark ? scheme.outlineVariant.withValues(alpha: .2) : const Color(0xFFEEEAF8),
+      width: 1,
+    );
+    final pillShadow = [
+      BoxShadow(
+        color: isDark ? Colors.black26 : const Color(0xFF5E44F3).withValues(alpha: .04),
+        blurRadius: 10,
+        offset: const Offset(0, 3),
+      ),
+    ];
+
+    Widget buildCirclePill({
+      Key? key,
+      required Widget child,
+      required VoidCallback onTap,
+      String? tooltip,
+    }) {
+      return Container(
+        key: key,
+        width: 48,
+        height: 48,
+        decoration: BoxDecoration(
+          color: pillBg,
+          shape: BoxShape.circle,
+          border: pillBorder,
+          boxShadow: pillShadow,
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            customBorder: const CircleBorder(),
+            onTap: onTap,
+            child: Center(child: child),
+          ),
+        ),
+      );
+    }
+
+    Widget buildContactPill() {
+      return Container(
+        height: 48,
+        decoration: BoxDecoration(
+          color: pillBg,
+          borderRadius: BorderRadius.circular(24),
+          border: pillBorder,
+          boxShadow: pillShadow,
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(24),
+            onTap: _showContactInfo,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(5, 4, 14, 4),
+              child: Row(
+                children: [
+                  Hero(
+                    tag: 'avatar_${widget.peer.uid}',
+                    child: UserAvatar(
+                      name: widget.peer.name,
+                      photoUrl: widget.peer.photoUrl,
+                      radius: 19,
+                      showOnlineIndicator: false,
+                      isOnline: widget.isGroup ? false : _peerIsOnline,
+                      presence: _peerPresence,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        if (!widget.isGroup)
-                          PresenceIndicatorBar(
-                            isOnline: _peerIsOnline,
-                            status: _peerPresence,
-                            width: 4,
-                            height: 24,
-                            margin: const EdgeInsets.only(right: 8),
-                          ),
-                        Hero(
-                          tag: 'avatar_${widget.peer.uid}',
-                          child: UserAvatar(
-                            name: widget.peer.name,
-                            photoUrl: widget.peer.photoUrl,
-                            radius: 18,
-                            showOnlineIndicator: false,
-                            isOnline: widget.isGroup ? false : _peerIsOnline,
-                            presence: _peerPresence,
+                        Text(
+                          widget.peer.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontFamily: 'PlusJakartaSans',
+                            fontWeight: FontWeight.w700,
+                            fontSize: 14.5,
+                            height: 1.15,
+                            color: isDark ? Colors.white : const Color(0xFF1E1C2A),
                           ),
                         ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                widget.peer.name,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  fontFamily: 'PlusJakartaSans',
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 15,
-                                  height: 1.15,
-                                  color: scheme.onSurface,
-                                ),
-                              ),
-                              SizedBox(
-                                height: 16,
-                                child: AnimatedSwitcher(
-                                  duration: const Duration(milliseconds: 320),
-                                  switchInCurve: Curves.easeOutCubic,
-                                  switchOutCurve: Curves.easeInCubic,
-                                  transitionBuilder: (child, animation) {
-                                    final slide = Tween<Offset>(
-                                      begin: const Offset(0, .18),
-                                      end: Offset.zero,
-                                    ).animate(CurvedAnimation(
-                                        parent: animation, curve: Curves.easeOutCubic));
-                                    return FadeTransition(
-                                      opacity: animation,
-                                      child: SlideTransition(position: slide, child: child),
-                                    );
-                                  },
-                                  child: Align(
-                                    key: ValueKey(peerStatusLabel),
-                                    alignment: Alignment.centerLeft,
-                                    child: Text(
-                                      peerStatusLabel,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      softWrap: false,
-                                      style: TextStyle(
-                                        fontFamily: 'PlusJakartaSans',
-                                        fontSize: 11.5,
-                                        height: 1.1,
-                                        fontWeight: FontWeight.w500,
-                                        color: peerStatusColor,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
+                        const SizedBox(height: 1.5),
+                        Text(
+                          peerStatusLabel,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontFamily: 'PlusJakartaSans',
+                            fontSize: 11.5,
+                            height: 1.1,
+                            fontWeight: FontWeight.w600,
+                            color: peerStatusColor,
                           ),
                         ),
                       ],
                     ),
                   ),
-                ),
-                if (!widget.isGroup) ...[
-                  _ChatHeaderButton(
-                    icon: Icons.call_rounded,
-                    color: accent,
-                    tooltip: 'Voice call',
-                    onTap: () => _startCall('voice'),
-                  ),
-                  _ChatHeaderButton(
-                    icon: Icons.videocam_rounded,
-                    color: accent,
-                    tooltip: 'Video call',
-                    onTap: () => _startCall('video'),
-                  ),
                 ],
-                _ChatHeaderButton(
-                  key: _headerMenuButtonKey,
-                  icon: Icons.more_vert_rounded,
-                  color: accent,
-                  tooltip: 'More options',
-                  onTap: _showHeaderMenu,
-                ),
-                const SizedBox(width: 2),
-              ],
+              ),
             ),
           ),
         ),
+      );
+    }
+
+    Widget buildCallsPill() {
+      return Container(
+        height: 48,
+        decoration: BoxDecoration(
+          color: pillBg,
+          borderRadius: BorderRadius.circular(24),
+          border: pillBorder,
+          boxShadow: pillShadow,
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              InkWell(
+                borderRadius: const BorderRadius.horizontal(left: Radius.circular(24)),
+                onTap: () => _startCall('voice'),
+                child: Container(
+                  width: 42,
+                  height: 48,
+                  alignment: Alignment.center,
+                  child: Icon(
+                    LucideIcons.phone,
+                    size: 18,
+                    color: iconColor,
+                  ),
+                ),
+              ),
+              Container(
+                width: 1,
+                height: 18,
+                color: isDark ? Colors.white24 : const Color(0xFFE6E2F0),
+              ),
+              InkWell(
+                borderRadius: const BorderRadius.horizontal(right: Radius.circular(24)),
+                onTap: () => _startCall('video'),
+                child: Container(
+                  width: 42,
+                  height: 48,
+                  alignment: Alignment.center,
+                  child: Icon(
+                    LucideIcons.video,
+                    size: 19,
+                    color: iconColor,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return PreferredSize(
+      preferredSize: Size.fromHeight(topInset + gapTop + cardHeight + gapBottom),
+      child: ColoredBox(
+        color: _headerBackdrop(socket.chatWallpaper, isDark),
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(12, topInset + gapTop, 12, gapBottom),
+          child: Row(
+            children: [
+              buildCirclePill(
+                onTap: () => Navigator.pop(context),
+                tooltip: 'Back',
+                child: Icon(
+                  LucideIcons.chevronLeft,
+                  size: 22,
+                  color: iconColor,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: buildContactPill(),
+              ),
+              const SizedBox(width: 8),
+              if (!widget.isGroup) ...[
+                buildCallsPill(),
+                const SizedBox(width: 8),
+              ],
+              buildCirclePill(
+                key: _headerMenuButtonKey,
+                onTap: _showHeaderMenu,
+                tooltip: 'More options',
+                child: Icon(
+                  Icons.more_vert_rounded,
+                  size: 20,
+                  color: iconColor,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
+    );
+  }
     );
   }
 
@@ -1552,7 +1754,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
         final showMeta = lastInGroup ||
             next == null ||
             !_isSameMinute(current.createdAt, next.createdAt) ||
-            (current.reactions ?? {}).isNotEmpty;
+            (current.reactions ?? {}).isNotEmpty ||
+            (current.isFromMe &&
+                socket.messageStatusFor(current.id) == 'failed');
         return _SwipeToReply(
           onSwipe: () => _startReply(current),
           child: _MessageBubble(
@@ -1862,7 +2066,89 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        if (_uploadingAttachment) const LinearProgressIndicator(minHeight: 2),
+        if (_uploadingAttachment)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 7, 8, 4),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      LinearProgressIndicator(
+                        minHeight: 3,
+                        value: _uploadProgress > 0 ? _uploadProgress : null,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        _uploadProgress > 0
+                            ? 'Uploading ${(_uploadProgress * 100).round()}%'
+                            : 'Preparing upload…',
+                        style: TextStyle(
+                          fontFamily: 'PlusJakartaSans',
+                          fontSize: 10,
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (_canCancelAttachmentUpload && _uploadProgress < 1)
+                  TextButton(
+                    onPressed: () =>
+                        setState(() => _cancelUploadRequested = true),
+                    child: const Text('Cancel'),
+                  )
+                else if (_uploadingAttachment && _uploadProgress >= 1)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    child: Text(
+                      'Finishing…',
+                      style: TextStyle(
+                        fontFamily: 'PlusJakartaSans',
+                        fontSize: 10,
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        if (!_uploadingAttachment && _retryAttachment != null)
+          Container(
+            margin: const EdgeInsets.fromLTRB(12, 7, 12, 2),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.errorContainer.withValues(alpha: .55),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.cloud_upload_outlined,
+                    size: 18, color: theme.colorScheme.error),
+                const SizedBox(width: 8),
+                const Expanded(
+                  child: Text(
+                    'Upload paused. File is ready to retry.',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                        fontFamily: 'PlusJakartaSans', fontSize: 11),
+                  ),
+                ),
+                TextButton(
+                  onPressed: _retryFailedAttachmentUpload,
+                  child: const Text('Retry'),
+                ),
+                IconButton(
+                  tooltip: 'Discard upload',
+                  visualDensity: VisualDensity.compact,
+                  onPressed: _discardPendingAttachmentUpload,
+                  icon: const Icon(Icons.close_rounded, size: 18),
+                ),
+              ],
+            ),
+          ),
         if (_isRecordingVoice)
           Container(
             margin: const EdgeInsets.fromLTRB(12, 8, 12, 0),
@@ -2257,6 +2543,14 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
 
   Future<void> _handleAttachment(String type) async {
     if (_uploadingAttachment) return;
+    if (_retryAttachment != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Retry or discard the paused upload first.'),
+        ),
+      );
+      return;
+    }
     if (type.toLowerCase() == 'gifs' || type.toLowerCase() == 'stickers') {
       await _showGifPicker(
           type: type.toLowerCase() == 'stickers' ? 'stickers' : 'gifs');
@@ -2397,7 +2691,12 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
         },
       );
       if (shouldSend != true || !mounted) return;
-      setState(() => _uploadingAttachment = true);
+      setState(() {
+        _uploadingAttachment = true;
+        _uploadProgress = 0;
+        _cancelUploadRequested = false;
+        _canCancelAttachmentUpload = true;
+      });
 
       // Apply the selected Data & Storage photo-quality preference to actual
       // image bytes before upload. Non-image attachments are never recompressed.
@@ -2439,10 +2738,6 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
           Map<String, dynamic>.from(prepared['metadata'] as Map),
         );
       }
-      final url = await ApiService.uploadMedia(uploadBytes, filename, attachmentMime);
-      if (!mounted) return;
-      if (url == null || url.isEmpty)
-        throw StateError('Upload failed. Please try again.');
       final kind = attachmentMime.startsWith('image/')
           ? 'image'
           : attachmentMime.startsWith('video/')
@@ -2450,27 +2745,48 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
               : attachmentMime.startsWith('audio/')
                   ? 'audio'
                   : 'file';
-      await context.read<SocketService>().sendMessage(
-            '',
+      final retryUploadBytes = Uint8List.fromList(uploadBytes);
+      final retryFileName = filename;
+      final retryMime = attachmentMime;
+      final retryMetadata = Map<String, dynamic>.from(encryptionMetadata);
+      final retryReplyId = _replyingTo?.id?.toString();
+      final retryReplyText = _replyingTo?.text?.toString();
+      final retryReplySender =
+          _replyingTo?.isFromMe == true ? 'You' : widget.peer.name;
+      await _persistPendingAttachmentUpload(
+        bytes: retryUploadBytes,
+        filename: retryFileName,
+        mime: retryMime,
+        size: originalSize,
+        recipient: recipient,
+        kind: kind,
+        encryptionMetadata: retryMetadata,
+        replyToId: retryReplyId,
+        replyToText: retryReplyText,
+        replyToSender: retryReplySender,
+      );
+      _retryAttachment = () => _uploadAndSendPreparedAttachment(
+            retryUploadBytes,
+            retryFileName,
+            retryMime,
+            originalSize,
             recipient,
-            attachment: {
-              'url': url,
-              'name': filename,
-              'mime': attachmentMime,
-              'size': originalSize,
-              'kind': kind,
-              ...encryptionMetadata,
-            },
-            replyToId: _replyingTo?.id?.toString(),
-            replyToText: _replyingTo?.text?.toString(),
-            replyToSender:
-                _replyingTo?.isFromMe == true ? 'You' : widget.peer.name,
-            isGroup: widget.isGroup,
+            kind,
+            retryMetadata,
+            replyToId: retryReplyId,
+            replyToText: retryReplyText,
+            replyToSender: retryReplySender,
           );
+      await _retryAttachment!();
+      _retryAttachment = null;
       if (mounted) setState(() => _replyingTo = null);
     } catch (error) {
       if (mounted) {
-        NovynAlert.show(
+        if (error is UploadCancelledException) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Upload paused. You can retry it here.')),
+          );
+        } else NovynAlert.show(
             context,
             error is StateError
                 ? error.message.toString()
@@ -2480,7 +2796,113 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
             icon: Icons.attach_file_rounded);
       }
     } finally {
-      if (mounted) setState(() => _uploadingAttachment = false);
+      if (mounted) {
+        setState(() {
+          _uploadingAttachment = false;
+          _uploadProgress = 0;
+          _canCancelAttachmentUpload = false;
+        });
+      }
+    }
+  }
+
+  void _reportUploadProgress(double progress) {
+    if (!mounted) return;
+    final next = progress.clamp(0.0, 1.0).toDouble();
+    if ((_uploadProgress * 100).floor() == (next * 100).floor()) return;
+    setState(() => _uploadProgress = next);
+  }
+
+  Future<void> _uploadAndSendPreparedAttachment(
+    Uint8List bytes,
+    String filename,
+    String mime,
+    int size,
+    String recipient,
+    String kind,
+    Map<String, dynamic> encryptionMetadata, {
+    String? displayName,
+    Map<String, dynamic> attachmentExtra = const <String, dynamic>{},
+    bool voiceEndpoint = false,
+    String? replyToId,
+    String? replyToText,
+    String? replyToSender,
+  }) async {
+    final url = voiceEndpoint
+        ? await ApiService.uploadVoice(
+            bytes,
+            filename,
+            mime,
+            onProgress: _reportUploadProgress,
+            shouldCancel: () => _cancelUploadRequested,
+          )
+        : await ApiService.uploadMedia(
+            bytes,
+            filename,
+            mime,
+            onProgress: _reportUploadProgress,
+            shouldCancel: () => _cancelUploadRequested,
+          );
+    if (_cancelUploadRequested) throw const UploadCancelledException();
+    if (!mounted) return;
+    if (url == null || url.isEmpty) {
+      throw StateError('Upload failed. Please try again.');
+    }
+    await context.read<SocketService>().sendMessage(
+          '',
+          recipient,
+          attachment: {
+            'url': url,
+            'name': displayName ?? filename,
+            'mime': mime,
+            'size': size,
+            'kind': kind,
+            ...encryptionMetadata,
+            ...attachmentExtra,
+          },
+          replyToId: replyToId,
+          replyToText: replyToText,
+          replyToSender: replyToSender,
+          isGroup: widget.isGroup,
+        );
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_pendingUploadKey);
+    final savedPath = _pendingUploadFilePath;
+    _pendingUploadFilePath = null;
+    if (savedPath != null) {
+      try {
+        await File(savedPath).delete();
+      } catch (_) {}
+    }
+    if (mounted) setState(() => _replyingTo = null);
+  }
+
+  Future<void> _retryFailedAttachmentUpload() async {
+    final retry = _retryAttachment;
+    if (retry == null || _uploadingAttachment) return;
+    setState(() {
+      _uploadingAttachment = true;
+      _uploadProgress = 0;
+      _cancelUploadRequested = false;
+      _canCancelAttachmentUpload = true;
+    });
+    try {
+      await retry();
+      _retryAttachment = null;
+    } catch (error) {
+      if (mounted && error is! UploadCancelledException) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Upload retry failed: $error')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _uploadingAttachment = false;
+          _uploadProgress = 0;
+          _canCancelAttachmentUpload = false;
+        });
+      }
     }
   }
 
@@ -2871,6 +3293,14 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
 
   Future<void> _startVoiceNote() async {
     if (_isRecordingVoice || _uploadingAttachment) return;
+    if (_retryAttachment != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Retry or discard the paused upload first.'),
+        ),
+      );
+      return;
+    }
     try {
       final allowed = await _voiceRecorder.hasPermission();
       if (!allowed) {
@@ -2936,6 +3366,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
     setState(() {
       _isRecordingVoice = false;
       _uploadingAttachment = true;
+      _uploadProgress = 0;
+      _cancelUploadRequested = false;
+      _canCancelAttachmentUpload = true;
     });
     _socketService.stopVoiceActivity();
     _syncTypingAnimation();
@@ -2954,49 +3387,67 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
       final recipient = widget.peer.uid.isNotEmpty
           ? widget.peer.uid
           : widget.peer.username;
-      String? url;
+      var uploadBytes = Uint8List.fromList(bytes);
       final encryptionMetadata = <String, dynamic>{};
-      if (widget.isGroup) {
-        url = await ApiService.uploadVoice(bytes, 'voice_note.m4a', 'audio/mp4');
-      } else {
+      final voiceEndpoint = widget.isGroup;
+      if (!widget.isGroup) {
         final prepared = await context.read<SocketService>()
             .prepareEncryptedAttachment(bytes, recipient);
-        final encryptedBytes = prepared['bytes'] as Uint8List;
+        uploadBytes = prepared['bytes'] as Uint8List;
         encryptionMetadata.addAll(
           Map<String, dynamic>.from(prepared['metadata'] as Map),
         );
-        url = await ApiService.uploadMedia(
-          encryptedBytes, 'voice_note.m4a', 'audio/mp4',
-        );
       }
-      if (url == null || url.isEmpty)
-        throw StateError('Voice note upload failed. Please try again.');
-      await context.read<SocketService>().sendMessage(
-            '',
+      final retryBytes = Uint8List.fromList(uploadBytes);
+      final retryMetadata = Map<String, dynamic>.from(encryptionMetadata);
+      final retryReplyId = _replyingTo?.id?.toString();
+      final retryReplyText = _replyingTo?.text?.toString();
+      final retryReplySender =
+          _replyingTo?.isFromMe == true ? 'You' : widget.peer.name;
+      await _persistPendingAttachmentUpload(
+        bytes: retryBytes,
+        filename: 'voice_note.m4a',
+        mime: 'audio/mp4',
+        size: bytes.length,
+        recipient: recipient,
+        kind: 'audio',
+        encryptionMetadata: retryMetadata,
+        displayName: 'Voice message',
+        attachmentExtra: {'duration': duration},
+        voiceEndpoint: voiceEndpoint,
+        replyToId: retryReplyId,
+        replyToText: retryReplyText,
+        replyToSender: retryReplySender,
+      );
+      await file.delete();
+      _retryAttachment = () => _uploadAndSendPreparedAttachment(
+            retryBytes,
+            'voice_note.m4a',
+            'audio/mp4',
+            bytes.length,
             recipient,
-            attachment: {
-              'url': url,
-              'name': 'Voice message',
-              'mime': 'audio/mp4',
-              'size': bytes.length,
-              'kind': 'audio',
-              'duration': duration,
-              ...encryptionMetadata,
-            },
-            replyToId: _replyingTo?.id?.toString(),
-            replyToText: _replyingTo?.text?.toString(),
-            replyToSender:
-                _replyingTo?.isFromMe == true ? 'You' : widget.peer.name,
-            isGroup: widget.isGroup,
+            'audio',
+            retryMetadata,
+            displayName: 'Voice message',
+            attachmentExtra: {'duration': duration},
+            voiceEndpoint: voiceEndpoint,
+            replyToId: retryReplyId,
+            replyToText: retryReplyText,
+            replyToSender: retryReplySender,
           );
+      await _retryAttachment!();
+      _retryAttachment = null;
       if (mounted) {
         setState(() => _replyingTo = null);
         _scrollToBottom(force: true);
       }
-      await file.delete();
     } catch (error) {
       if (mounted) {
-        NovynAlert.show(
+        if (error is UploadCancelledException) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Voice upload paused. Tap Retry to continue.')),
+          );
+        } else NovynAlert.show(
             context,
             error is StateError
                 ? error.message.toString()
@@ -3009,6 +3460,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
       if (mounted) {
         setState(() {
           _uploadingAttachment = false;
+          _uploadProgress = 0;
           _voiceRecordingPath = null;
         });
       }
@@ -5445,11 +5897,37 @@ class _MessageBubble extends StatelessWidget {
       case 'seen':
         return const Icon(Icons.done_all_rounded, color: purple, size: 16);
       case 'failed':
-        return const SizedBox(
-          width: 20,
-          height: 20,
-          child: CustomPaint(
-            painter: _SendingStatusPainter(color: Color(0xFFD71935)),
+        final reason = context
+            .read<SocketService>()
+            .messageFailureReasonFor(message.id.toString());
+        return Tooltip(
+          message: reason == null || reason.isEmpty
+              ? 'Message failed. Tap to retry.'
+              : '$reason Tap to retry.',
+          child: InkWell(
+            borderRadius: BorderRadius.circular(14),
+            onTap: () {
+              final socket = context.read<SocketService>();
+              unawaited(socket
+                  .retryPendingMessage(
+                    message.id.toString(),
+                    isGroup: isGroup,
+                  )
+                  .catchError((Object error) {
+                if (!context.mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Could not retry message: $error')),
+                );
+              }));
+            },
+            child: const Padding(
+              padding: EdgeInsets.all(3),
+              child: Icon(
+                Icons.refresh_rounded,
+                color: Color(0xFFD71935),
+                size: 17,
+              ),
+            ),
           ),
         );
       default:
