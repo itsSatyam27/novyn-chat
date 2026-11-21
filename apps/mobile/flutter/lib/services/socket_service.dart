@@ -2252,8 +2252,15 @@ class SocketService extends ChangeNotifier {
 
   Future<void> sendGameChallenge(String gameType, String peerUsername,
       {bool isGroup = false}) async {
+    // A socket transport can be connected while resume_session is still
+    // being verified. Wait for the authenticated session before sending a
+    // game challenge instead of failing immediately with a stale UI state.
+    await _waitForSocketAuthentication();
     _requireConnection();
-    final connection = _socket!;
+    final connection = _socket;
+    if (connection == null) {
+      throw StateError('Novyn disconnected. Reconnect and try the game again.');
+    }
     final timestamp = DateTime.now().microsecondsSinceEpoch.toString();
     final response = Completer<Map<String, dynamic>>();
 
