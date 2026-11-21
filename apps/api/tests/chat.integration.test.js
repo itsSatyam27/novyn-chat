@@ -437,6 +437,7 @@ test('localhost discovery, requests, reconnect state, and private media', { time
   assert.equal((await fetch(base + media.url)).status, 401);
   assert.equal((await fetch(base + media.url, { headers: { Cookie: eve.cookie } })).status, 403);
   assert.equal(await (await fetch(base + media.url, { headers: { Cookie: alice.cookie } })).text(), 'private text');
+  assert.equal(await (await fetch(base + media.url + '&inline=1', { headers: { Cookie: alice.cookie } })).text(), 'private text');
   const received = event(bob.socket, 'private_message');
   alice.socket.emit('private_message', { to: 'bob', text: 'file', attachment: { ...media, url: media.url, name: 'private.txt', mime: 'text/plain', size: 12, kind: 'file' } });
   await received;
