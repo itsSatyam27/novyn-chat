@@ -165,6 +165,7 @@ class _GamesScreenState extends State<GamesScreen> {
       setState(() {
         _searchingRandom = false;
         _queueSecondsRemaining = 60;
+        _queueDeadline = null;
       });
       NovynAlert.show(
         context,
@@ -203,6 +204,7 @@ class _GamesScreenState extends State<GamesScreen> {
     setState(() {
       _searchingRandom = false;
       _queueSecondsRemaining = 60;
+      _queueDeadline = null;
     });
     NovynAlert.show(
       context,
