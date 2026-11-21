@@ -131,7 +131,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     const load = async () => {
       const peerUsername = (isMe ? message.receiver : message.sender)?.toLowerCase() || '';
       const peerPublicKey = (isMe ? attachment.peerPublicKey : attachment.senderPublicKey) || '';
-      if (!peerUsername || !peerPublicKey || !attachment.iv) {
+      if (!currentUsername || !peerUsername || !peerPublicKey || !attachment.iv) {
         throw new Error('The attachment encryption details are incomplete.');
       }
       const response = await fetch(attachment.url, { credentials: 'include' });
@@ -141,7 +141,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         ciphertext, attachment.iv, peerUsername, peerPublicKey,
       );
       if (!clearBytes) throw new Error('This device could not decrypt the attachment.');
-      const blob = new Blob([clearBytes], { type: attachment.mime || 'application/octet-stream' });
+      const blob = new Blob([new Uint8Array(clearBytes).buffer as ArrayBuffer], { type: attachment.mime || 'application/octet-stream' });
       objectUrl = URL.createObjectURL(blob);
       if (active) setDecryptedAttachmentUrl(objectUrl);
     };
@@ -829,6 +829,11 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           )}
 
           {/* 3. Document / File Attachment */}
+          {!isAudioMessage && encryptedAttachment && !attachmentUrl && (
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '6px' }}>
+              {attachmentDecrypting ? 'Decrypting secure attachment…' : attachmentDecryptError || 'Secure attachment unavailable'}
+            </div>
+          )}
           {!isAudioMessage && message.attachment && (message.attachment.kind === 'file' || !message.attachment.mime?.startsWith('image/')) && (
             <a
               href={attachmentUrl || undefined}
