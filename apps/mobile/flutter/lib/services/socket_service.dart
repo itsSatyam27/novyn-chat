@@ -175,6 +175,9 @@ class SocketService extends ChangeNotifier {
   Function(Map)? onRandomMatchTimeout;
   Function(Map)? onRandomGameUpdated;
   final Map<String, Map<String, dynamic>> _randomGames = <String, Map<String, dynamic>>{};
+  // Game moves can arrive before the corresponding chat history page.
+  final Map<String, Map<String, dynamic>> _pendingGameUpdates =
+      <String, Map<String, dynamic>>{};
   Function(Map)? onCallInviteCallback;
   Function(Map)? onCallAcceptedCallback;
   Function()? onCallRejectedCallback;
@@ -931,6 +934,13 @@ class SocketService extends ChangeNotifier {
         for (final message in decrypted) {
           if (message.id.isNotEmpty) merged[message.id] = message;
         }
+        // Apply any move events that arrived before this history response.
+        for (final entry in _pendingGameUpdates.entries.toList()) {
+          final existing = merged[entry.key];
+          if (existing == null) continue;
+          merged[entry.key] = existing.copyWith(game: entry.value);
+          _pendingGameUpdates.remove(entry.key);
+        }
         final timeline = merged.values.toList()
           ..sort(compareMessagesChronologically);
         _messages = _resolveReplyPreviews(timeline);
@@ -1110,7 +1120,10 @@ class SocketService extends ChangeNotifier {
       final rawGame = data['game'];
       if (messageId.isEmpty || rawGame is! Map) return;
       final index = _messages.indexWhere((message) => message.id == messageId);
-      if (index == -1) return;
+      if (index == -1) {
+        _pendingGameUpdates[messageId] = Map<String, dynamic>.from(rawGame);
+        return;
+      }
       final updated = List<Message>.from(_messages);
       updated[index] =
           updated[index].copyWith(game: Map<String, dynamic>.from(rawGame));
