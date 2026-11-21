@@ -65,6 +65,71 @@ String _mimeForFile(String filename) {
   return 'application/octet-stream';
 }
 
+class _ChatAttachmentLoader {
+  static final Map<String, Future<Uint8List>> _bytesCache = {};
+  static final Map<String, Future<String>> _fileCache = {};
+
+  static Future<Uint8List> loadBytes(
+    BuildContext context,
+    Map attachment,
+    Message message,
+  ) async {
+    final url = attachment['url']?.toString() ?? '';
+    if (url.isEmpty) throw StateError('Attachment link is missing.');
+    final cacheKey = '$url|${attachment['iv'] ?? ''}|${message.isFromMe}';
+    final cached = _bytesCache[cacheKey];
+    if (cached != null) return cached;
+    final loading = () async {
+      final bytes = await ApiService.downloadMediaBytes(url);
+      if (attachment['encrypted'] != true) return bytes;
+      final socket = context.read<SocketService>();
+      final account = socket.myUsername ?? '';
+      if (account.isEmpty) throw StateError('Sign in to open this attachment.');
+      final peerPublicKey = (message.isFromMe
+              ? attachment['peerPublicKey']
+              : attachment['senderPublicKey'])
+          ?.toString() ?? '';
+      if (peerPublicKey.isEmpty) throw StateError('The attachment encryption key is missing.');
+      return socket.encryption.decryptAttachmentBytes(
+        bytes, account, peerPublicKey, attachment['iv']?.toString() ?? '',
+      );
+    }();
+    _bytesCache[cacheKey] = loading;
+    try {
+      return await loading;
+    } catch (_) {
+      _bytesCache.remove(cacheKey);
+      rethrow;
+    }
+  }
+
+  static Future<String> prepareFile(
+    BuildContext context,
+    Map attachment,
+    Message message,
+  ) async {
+    final cacheKey = '${attachment['url']}|${attachment['iv'] ?? ''}';
+    final existing = _fileCache[cacheKey];
+    if (existing != null) return existing;
+    final loading = () async {
+      final bytes = await loadBytes(context, attachment, message);
+      final directory = await getTemporaryDirectory();
+      final rawName = attachment['name']?.toString() ?? 'novyn_attachment';
+      final safeName = rawName.replaceAll(RegExp(r'[/\\:*?\"<>|]'), '_');
+      final file = File('${directory.path}/novyn_${DateTime.now().microsecondsSinceEpoch}_$safeName');
+      await file.writeAsBytes(bytes, flush: true);
+      return file.path;
+    }();
+    _fileCache[cacheKey] = loading;
+    try {
+      return await loading;
+    } catch (_) {
+      _fileCache.remove(cacheKey);
+      rethrow;
+    }
+  }
+}
+
 class _ChatContentSnapshot {
   const _ChatContentSnapshot({
     required this.messages,
@@ -158,8 +223,6 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
   bool _peerMuted = false;
   List<String> _quickEmojis =
       List<String>.from(defaultQuickReactionEmojis);
-  final Map<String, Future<Uint8List>> _attachmentBytesCache = {};
-  final Map<String, Future<String>> _attachmentFileCache = {};
 
   @override
   void initState() {
@@ -5117,74 +5180,12 @@ class _MessageBubble extends StatelessWidget {
     );
   }
 
-  Future<Uint8List> _loadAttachmentBytes(
-    Map attachment,
-    Message message,
-  ) async {
-    final url = attachment['url']?.toString() ?? '';
-    if (url.isEmpty) throw StateError('Attachment link is missing.');
-    final cacheKey = '$url|${attachment['iv'] ?? ''}|${message.isFromMe}';
-    final cached = _attachmentBytesCache[cacheKey];
-    if (cached != null) return cached;
-    final loading = () async {
-      final bytes = await ApiService.downloadMediaBytes(url);
-      if (attachment['encrypted'] != true) return bytes;
-      final account = _socketService.myUsername ?? '';
-      if (account.isEmpty) throw StateError('Sign in to open this attachment.');
-      final peerPublicKey = (message.isFromMe
-              ? attachment['peerPublicKey']
-              : attachment['senderPublicKey'])
-          ?.toString() ?? '';
-      if (peerPublicKey.isEmpty) {
-        throw StateError('The attachment encryption key is missing.');
-      }
-      return _socketService.encryption.decryptAttachmentBytes(
-        bytes,
-        account,
-        peerPublicKey,
-        attachment['iv']?.toString() ?? '',
-      );
-    }();
-    _attachmentBytesCache[cacheKey] = loading;
-    try {
-      return await loading;
-    } catch (_) {
-      _attachmentBytesCache.remove(cacheKey);
-      rethrow;
-    }
-  }
-
-  Future<String> _prepareAttachmentFile(
-    Map attachment,
-    Message message,
-  ) async {
-    final cacheKey = '${attachment['url']}|${attachment['iv'] ?? ''}';
-    final existing = _attachmentFileCache[cacheKey];
-    if (existing != null) return existing;
-    final loading = () async {
-      final bytes = await _loadAttachmentBytes(attachment, message);
-      final directory = await getTemporaryDirectory();
-      final rawName = attachment['name']?.toString() ?? 'novyn_attachment';
-      final safeName = rawName.replaceAll(RegExp(r'[/\\\\:*?\"<>|]'), '_');
-      final file = File('${directory.path}/novyn_${DateTime.now().microsecondsSinceEpoch}_$safeName');
-      await file.writeAsBytes(bytes, flush: true);
-      return file.path;
-    }();
-    _attachmentFileCache[cacheKey] = loading;
-    try {
-      return await loading;
-    } catch (_) {
-      _attachmentFileCache.remove(cacheKey);
-      rethrow;
-    }
-  }
-
   Future<void> _downloadAttachment(
       BuildContext context, String url, String name, {Message? message, Map? attachment}) async {
     try {
       late final File file;
       if (message != null && attachment != null) {
-        final localPath = await _prepareAttachmentFile(attachment, message);
+        final localPath = await _ChatAttachmentLoader.prepareFile(context, attachment, message);
         file = File(localPath);
       } else {
         file = await ApiService.downloadMedia(url, name);
@@ -5251,7 +5252,7 @@ class _MessageBubble extends StatelessWidget {
             label: name,
             durationSeconds: (attachment['duration'] as num?)?.toInt(),
             resolveLocalSource: encrypted
-                ? () => _prepareAttachmentFile(attachment, message!)
+                ? () => _ChatAttachmentLoader.prepareFile(context, attachment, message!)
                 : null,
           ),
           TextButton.icon(
@@ -5265,7 +5266,7 @@ class _MessageBubble extends StatelessWidget {
 
     if (kind == 'image' && url.isNotEmpty) {
       final scheme = Theme.of(context).colorScheme;
-      final imageFuture = encrypted ? _loadAttachmentBytes(attachment, message!) : null;
+      final imageFuture = encrypted ? _ChatAttachmentLoader.loadBytes(context, attachment, message!) : null;
       Widget imageContent({required double? width, required double? height, required BoxFit fit}) {
         if (!encrypted) {
           return Image.network(
