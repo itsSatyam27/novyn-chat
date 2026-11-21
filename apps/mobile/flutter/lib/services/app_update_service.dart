@@ -722,7 +722,7 @@ class AppUpdateService extends ChangeNotifier {
 , caseSensitive: false), '')
           .replaceAll(RegExp(r'https?://\S+', caseSensitive: false), '')
           .replaceAll(RegExp(r'\s+'), ' ')
-          .replaceAll(RegExp(r'\s+([,.;:])'), r'\$1')
+          .replaceAll(RegExp(r'\s+([,.;:])'), r'$1')
           .trim())
       .where((line) =>
           line.isNotEmpty &&
