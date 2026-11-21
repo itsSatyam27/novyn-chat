@@ -1474,6 +1474,11 @@ class SocketService extends ChangeNotifier {
 
   Future<void> _waitForSocketAuthentication() async {
     if (_isConnected && _isAuthenticated) return;
+    if (!ApiService.hasAccessSessionCookie) {
+      throw StateError(
+        'Your Novyn session is being restored. Please reconnect once verification finishes.',
+      );
+    }
 
     // Poll the live transport/auth state rather than awaiting a completer that
     // can become detached when a socket disconnects and is replaced.
