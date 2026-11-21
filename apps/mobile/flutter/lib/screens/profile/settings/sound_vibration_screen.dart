@@ -34,12 +34,7 @@ class _SoundVibrationScreenState extends State<SoundVibrationScreen> {
     }
     await _player.stop();
     await _player.setVolume(settings.messageVolume);
-    final asset = switch (settings.notificationTone) {
-      'Pulse' => 'audio/chime-pulse.wav',
-      'Glass' => 'audio/chime-glass.wav',
-      'Echo' => 'audio/chime-echo.wav',
-      _ => 'audio/notification.mp3',
-    };
+    final asset = SettingsService.messageToneAsset(settings.notificationTone);
     try {
       await _player.play(AssetSource(asset));
       if (mounted) setState(() => _playing = 'message');
