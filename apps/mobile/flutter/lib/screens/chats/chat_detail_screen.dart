@@ -5348,8 +5348,8 @@ class _MessageBubble extends StatelessWidget {
                               minScale: 0.7,
                               maxScale: 4,
                               child: imageContent(
-                                width: double.infinity,
-                                height: double.infinity,
+                                width: null,
+                                height: null,
                                 fit: BoxFit.contain,
                               ),
                             ),
