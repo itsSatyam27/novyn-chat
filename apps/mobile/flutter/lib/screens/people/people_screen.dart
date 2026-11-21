@@ -595,7 +595,7 @@ class _PeopleScreenState extends State<PeopleScreen> {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(24),
       ),
-      constraints: const BoxConstraints(minWidth: 258),
+      constraints: const BoxConstraints(minWidth: 224),
       onSelected: (action) {
         HapticService.vibrate(
           NovynHapticType.selection,
@@ -613,8 +613,8 @@ class _PeopleScreenState extends State<PeopleScreen> {
       itemBuilder: (context) => [
         PopupMenuItem<_PeopleMenuAction>(
           value: _PeopleMenuAction.discover,
-          height: 64,
-          padding: const EdgeInsets.symmetric(horizontal: 14),
+          height: 54,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
           child: _buildOverflowMenuRow(
             icon: Icons.person_search_rounded,
             title: 'Discover people',
@@ -654,7 +654,7 @@ class _PeopleScreenState extends State<PeopleScreen> {
         child: Icon(
           Icons.more_vert_rounded,
           size: 23,
-          color: theme.colorScheme.onSecondaryContainer,
+          color: Colors.white,
         ),
       ),
     );
@@ -668,20 +668,20 @@ class _PeopleScreenState extends State<PeopleScreen> {
   }) {
     final theme = Theme.of(context);
     return SizedBox(
-      width: 230,
+      width: 198,
       child: Row(
         children: [
           Container(
-            width: 42,
-            height: 42,
+            width: 36,
+            height: 36,
             decoration: BoxDecoration(
               color: accent.withValues(alpha: .11),
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(12),
             ),
             alignment: Alignment.center,
-            child: Icon(icon, size: 21, color: accent),
+            child: Icon(icon, size: 19, color: accent),
           ),
-          const SizedBox(width: 13),
+          const SizedBox(width: 10),
           Expanded(
             child: Text(
               title,
