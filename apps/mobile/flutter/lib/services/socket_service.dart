@@ -175,6 +175,8 @@ class SocketService extends ChangeNotifier {
   Function(Map)? onRandomMatchTimeout;
   Function(Map)? onRandomGameUpdated;
   final Map<String, Map<String, dynamic>> _randomGames = <String, Map<String, dynamic>>{};
+  // Buffer game moves that arrive before the corresponding chat history item.
+  final Map<String, Map<String, dynamic>> _pendingGameUpdates = {};
   Function(Map)? onCallInviteCallback;
   Function(Map)? onCallAcceptedCallback;
   Function()? onCallRejectedCallback;
@@ -929,7 +931,11 @@ class SocketService extends ChangeNotifier {
             if (message.id.isNotEmpty) message.id: message,
         };
         for (final message in decrypted) {
-          if (message.id.isNotEmpty) merged[message.id] = message;
+          if (message.id.isEmpty) continue;
+          final pendingGame = _pendingGameUpdates.remove(message.id);
+          merged[message.id] = pendingGame != null && message.game != null
+              ? message.copyWith(game: pendingGame)
+              : message;
         }
         final timeline = merged.values.toList()
           ..sort(compareMessagesChronologically);
@@ -1110,7 +1116,15 @@ class SocketService extends ChangeNotifier {
       final rawGame = data['game'];
       if (messageId.isEmpty || rawGame is! Map) return;
       final index = _messages.indexWhere((message) => message.id == messageId);
-      if (index == -1) return;
+      if (index == -1) {
+        _pendingGameUpdates[messageId] = Map<String, dynamic>.from(rawGame);
+        // Bound memory if a chat is never opened after receiving game events.
+        if (_pendingGameUpdates.length > 100) {
+          _pendingGameUpdates.remove(_pendingGameUpdates.keys.first);
+        }
+        return;
+      }
+      _pendingGameUpdates.remove(messageId);
       final updated = List<Message>.from(_messages);
       updated[index] =
           updated[index].copyWith(game: Map<String, dynamic>.from(rawGame));
