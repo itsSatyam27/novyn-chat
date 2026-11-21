@@ -9,6 +9,7 @@ import '../../../services/socket_service.dart';
 import '../../../theme/novyn_theme.dart';
 import '../../../utils/quick_reaction_preferences.dart';
 import '../../../widgets/custom_emoji.dart';
+import '../../../widgets/novyn_alert.dart';
 
 class ChatSettingsScreen extends StatefulWidget {
   const ChatSettingsScreen({super.key});
@@ -592,12 +593,14 @@ class _ScreenHeader extends StatelessWidget {
 class _SettingsRow extends StatelessWidget {
   final Widget? leading;
   final String title;
+  final String? subtitle;
   final Widget? trailing;
   final VoidCallback? onTap;
 
   const _SettingsRow({
     this.leading,
     required this.title,
+    this.subtitle,
     this.trailing,
     this.onTap,
   });
@@ -625,14 +628,30 @@ class _SettingsRow extends StatelessWidget {
                 const SizedBox(width: 14),
               ],
               Expanded(
-                child: Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: 15.5,
-                    fontWeight: FontWeight.w600,
-                    color: ink,
-                    letterSpacing: -0.2,
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: TextStyle(
+                        fontSize: 15.5,
+                        fontWeight: FontWeight.w600,
+                        color: ink,
+                        letterSpacing: -0.2,
+                      ),
+                    ),
+                    if (subtitle != null) ...[
+                      const SizedBox(height: 3),
+                      Text(
+                        subtitle!,
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          height: 1.3,
+                          color: dark ? Colors.white60 : const Color(0xFF77738A),
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ),
               if (trailing != null) trailing!,

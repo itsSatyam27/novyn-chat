@@ -1247,8 +1247,6 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
       ),
     );
   }
-    );
-  }
 
   Future<void> _showHeaderMenu() async {
     final buttonContext = _headerMenuButtonKey.currentContext;
