@@ -48,6 +48,16 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
   bool get _available => _latestBuild > _installedBuild;
   bool get _ready => _downloadedApkPath != null;
 
+  List<String> _displayReleaseNotes() {
+    final notes = _releaseNotes
+        .map((note) => note.trim())
+        .where((note) => note.isNotEmpty)
+        .toList(growable: false);
+    return notes.isEmpty
+        ? <String>['Build $_latestBuild is ready with the latest Novyn improvements.']
+        : notes;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -352,15 +362,14 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
                     color: const Color(0xFFF6F3FC),
                     borderRadius: BorderRadius.circular(16),
                   ),
-                  child: const Column(
+                  child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _UpdateNote(text: 'Faster chat loading'),
-                      SizedBox(height: 7),
-                      _UpdateNote(text: 'Better call quality'),
-                      SizedBox(height: 7),
-                      _UpdateNote(text: 'Bug fixes'),
-                    ],
+                    children: _displayReleaseNotes().asMap().entries.map((entry) {
+                      return Padding(
+                        padding: EdgeInsets.only(top: entry.key == 0 ? 0 : 7),
+                        child: _UpdateNote(text: entry.value),
+                      );
+                    }).toList(growable: false),
                   ),
                 ),
                 const SizedBox(height: 14),
@@ -431,14 +440,12 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
     final dark = Theme.of(context).brightness == Brightness.dark;
     final pageBg = dark ? NovynTheme.pageBg(context) : const Color(0xFFF5F1FF);
     final ink = dark ? const Color(0xFFF0EFFF) : const Color(0xFF1D1B2B);
-    final muted = dark ? const Color(0xFFAAA8C6) : const Color(0xFF777487);
+    final muted = dark ? const Color(0xFFC4C1DD) : const Color(0xFF777487);
     final surface = dark ? const Color(0xFF171622) : Colors.white;
     final border = dark ? const Color(0xFF39345F) : const Color(0xFFE5DFFF);
     final primary = const Color(0xFF7048F8);
     final updateName = _releaseName ?? 'Build $_latestBuild';
-    final updateNotes = _releaseNotes.isEmpty
-        ? <String>['Build $_latestBuild is ready to download.']
-        : _releaseNotes;
+    final updateNotes = _displayReleaseNotes();
     final activeDownload = !_ready &&
         (_downloading || _paused || _updateService.hasPartialDownload);
 
@@ -480,11 +487,33 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
               const SizedBox(height: 12),
               Center(
                 child: Column(children: [
-                  Image.asset(
-                    'assets/icons/novyn-badge.png',
+                  Container(
                     width: 68,
                     height: 68,
-                    semanticLabel: 'Novyn',
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [Color(0xFF8060FF), Color(0xFF5938D8)],
+                      ),
+                      borderRadius: BorderRadius.circular(18),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Color(0x337048F8),
+                          blurRadius: 14,
+                          offset: Offset(0, 5),
+                        ),
+                      ],
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: Padding(
+                      padding: const EdgeInsets.all(10),
+                      child: Image.asset(
+                        'assets/icons/app_icon_foreground.png',
+                        fit: BoxFit.contain,
+                        semanticLabel: 'Novyn',
+                      ),
+                    ),
                   ),
                   const SizedBox(height: 8),
                   Text('Novyn', style: TextStyle(color: ink, fontSize: 26,
@@ -655,7 +684,7 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
                       Container(
                         padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
                         decoration: BoxDecoration(
-                          color: dark ? const Color(0xFF211D32) : const Color(0xFFF6F3FC),
+                          color: dark ? const Color(0xFF242037) : const Color(0xFFF6F3FC),
                           borderRadius: BorderRadius.circular(14),
                         ),
                         child: Column(
@@ -843,12 +872,30 @@ class _UpdateNote extends StatelessWidget {
   const _UpdateNote({required this.text});
   final String text;
   @override
-  Widget build(BuildContext context) => Row(children: [
-    const Icon(Icons.circle, color: Color(0xFF8052FF), size: 6),
-    const SizedBox(width: 8),
-    Expanded(child: Text(text, style: const TextStyle(
-      color: Color(0xFF39364D), fontSize: 13.5, fontWeight: FontWeight.w500))),
-  ]);
+  Widget build(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Padding(
+          padding: EdgeInsets.only(top: 6),
+          child: Icon(Icons.circle, color: Color(0xFF956BFF), size: 6),
+        ),
+        const SizedBox(width: 9),
+        Expanded(
+          child: Text(
+            text,
+            style: TextStyle(
+              color: dark ? const Color(0xFFE6E2F5) : const Color(0xFF39364D),
+              fontSize: 13.5,
+              height: 1.4,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
 }
 
 class _InfoRow extends StatelessWidget {
