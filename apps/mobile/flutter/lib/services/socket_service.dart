@@ -449,6 +449,12 @@ class SocketService extends ChangeNotifier {
           'The contact encryption key is not available yet.',
         );
       }
+      if (pending.attachment != null &&
+          pending.attachment?['peerPublicKey'] != peerPublicKey) {
+        throw const PendingMessageRejectedException(
+          'The contact encryption key changed during upload. Please select the attachment again.',
+        );
+      }
 
       final encrypted = await encryption.encrypt(
         pending.text,
@@ -459,6 +465,12 @@ class SocketService extends ChangeNotifier {
       if (encrypted == null || encrypted['isEncrypted'] != true) {
         throw const PendingMessageDeferredException(
           'Message encryption could not complete with the current contact key.',
+        );
+      }
+      if (pending.attachment != null &&
+          pending.attachment?['senderPublicKey'] != encrypted['senderPublicKey']) {
+        throw const PendingMessageRejectedException(
+          'Your secure identity changed during upload. Please select the attachment again.',
         );
       }
       payload
