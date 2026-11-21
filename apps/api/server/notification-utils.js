@@ -109,6 +109,9 @@ function createFcmMessage(userKey, user, payload = {}) {
     "friend_request_accepted",
     "friend_request_declined",
     "group_invite",
+    "game_invitation",
+    "game_turn",
+    "game_result",
   ]);
   // Every mobile alert is data-only so the app can check the signed-in account,
   // apply privacy/DND rules, and render one consistent local notification.
@@ -138,7 +141,8 @@ function createFcmMessage(userKey, user, payload = {}) {
   const optionalFields = [
     "url", "tag", "groupId", "callStatus", "callId", "callExpiresAt", "isVideo",
     "previewEnabled", "from", "displayName", "action", "build",
-    "releaseTag", "releaseUrl",
+    "releaseTag", "releaseUrl", "soundEnabled", "vibrationEnabled",
+    "gameId", "gameType", "mentionOrReply",
   ];
   for (const key of optionalFields) {
     const value = toDataValue(payload[key]);

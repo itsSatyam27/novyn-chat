@@ -63,6 +63,13 @@ import 'settings_service.dart';
 ///   ON    friend_removed           — { username }
 ///   ON    error_message            — { message }
 
+typedef IncomingMessageCallback = void Function(
+  String sender,
+  String body,
+  bool isGroup,
+  bool mentionOrReply,
+);
+
 class SocketService extends ChangeNotifier {
   SocketService({bool initialStealthModeEnabled = false})
       : _stealthModePreference = initialStealthModeEnabled;
@@ -174,7 +181,7 @@ class SocketService extends ChangeNotifier {
 
   // Status and foreground message callbacks
   Function(String username, bool isOnline)? onUserStatusChanged;
-  Function(String sender, String body)? onIncomingMessage;
+  IncomingMessageCallback? onIncomingMessage;
   VoidCallback? onConnected;
 
   // Cache the read-only view while the immutable backing list is unchanged.
@@ -1023,9 +1030,16 @@ class SocketService extends ChangeNotifier {
           }
         }
       } else if (!isOwn) {
-        if (!isGroupMessage) {
-          onIncomingMessage?.call(chatPartner, msg.text);
-        }
+        final ownUsername = (_myUsername ?? '').trim().toLowerCase();
+        final mentionOrReply = data['replyTo'] != null ||
+            (ownUsername.isNotEmpty &&
+                msg.text.toLowerCase().contains('@' + ownUsername));
+        onIncomingMessage?.call(
+          chatPartner,
+          msg.text,
+          isGroupMessage,
+          mentionOrReply,
+        );
         // Sound and vibration remain independent user preferences.
         if (!(notificationsMuted?.call(chatPartner) ?? false)) {
           unawaited(_playIncomingMessageSound());
@@ -2568,9 +2582,34 @@ class SocketService extends ChangeNotifier {
     _socket!.emit('remove_friend', username);
   }
 
-  void setMute(String username, {required bool muted}) {
-    _requireConnection();
-    _socket!.emit('set_mute', {'username': username, 'muted': muted});
+  Future<Map<String, dynamic>> setMute(
+    String username, {
+    required bool muted,
+    bool isGroup = false,
+  }) async {
+    await _requireAuthenticatedConnection();
+    final completer = Completer<Map<String, dynamic>>();
+    _socket!.emitWithAck('set_mute', {
+      'username': username,
+      'muted': muted,
+      'kind': isGroup ? 'group' : 'friend',
+      if (isGroup) 'groupId': username,
+    }, ack: (dynamic result) {
+      if (completer.isCompleted) return;
+      completer.complete(result is Map
+          ? Map<String, dynamic>.from(result)
+          : <String, dynamic>{
+              'ok': false,
+              'message': 'The server did not confirm the mute update.',
+            });
+    });
+    return completer.future.timeout(
+      const Duration(seconds: 12),
+      onTimeout: () => <String, dynamic>{
+        'ok': false,
+        'message': 'Updating muted chats timed out. Try again.',
+      },
+    );
   }
 
   void clearChat(String username) {

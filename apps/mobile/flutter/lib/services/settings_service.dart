@@ -56,6 +56,9 @@ class SettingsService extends ChangeNotifier {
   static const _kInAppSounds = 'in_app_sounds';
   static const _kInAppVibration = 'in_app_vibration';
   static const _kGroupNotifications = 'group_notifications';
+  static const _kQuietHoursStart = 'notification_quiet_hours_start';
+  static const _kQuietHoursEnd = 'notification_quiet_hours_end';
+  static const _kQuietHoursOffsetMinutes = 'notification_quiet_hours_offset';
   static const _kAutoDownloadWifi = 'auto_download_wifi';
   static const _kAutoDownloadMobile = 'auto_download_mobile';
   static const _kPhotoQuality = 'photo_quality';
@@ -191,6 +194,10 @@ class SettingsService extends ChangeNotifier {
   bool _chatEnterToSend = true;
   bool _inAppVibration = true;
   bool _groupNotifications = true;
+  Map<String, bool> _notificationPreferences = {...notificationPreferenceDefaults};
+  String _quietHoursStart = '22:00';
+  String _quietHoursEnd = '07:00';
+  int _quietHoursOffsetMinutes = 0;
   String _autoDownloadWifi = 'all'; // 'all', 'photos', 'none'
   String _autoDownloadMobile = 'photos'; // 'all', 'photos', 'none'
   String _photoQuality = 'high'; // 'high', 'medium', 'low'
@@ -241,6 +248,41 @@ class SettingsService extends ChangeNotifier {
   bool _doNotDisturbEnabled = false;
   Map<String, Map<String, dynamic>> _smartPresenceOverrides = {};
   String _activeSmartPresenceMode = 'online';
+
+  static const Map<String, String> notificationPreferenceStorageKeys = {
+    'directMessagesEnabled': 'notification_direct_messages',
+    'groupMessagesEnabled': 'notification_group_messages',
+    'mentionsRepliesEnabled': 'notification_mentions_replies',
+    'friendRequestsEnabled': 'notification_friend_requests',
+    'friendRequestAcceptedEnabled': 'notification_friend_request_accepted',
+    'groupInvitationsEnabled': 'notification_group_invitations',
+    'voiceCallsEnabled': 'notification_voice_calls',
+    'videoCallsEnabled': 'notification_video_calls',
+    'missedCallsEnabled': 'notification_missed_calls',
+    'gameInvitationsEnabled': 'notification_game_invitations',
+    'gameTurnEnabled': 'notification_game_turn',
+    'gameResultsEnabled': 'notification_game_results',
+    'quietHoursEnabled': 'notification_quiet_hours_enabled',
+    'notificationSoundEnabled': 'notification_sound_enabled',
+    'notificationVibrationEnabled': 'notification_vibration_enabled',
+  };
+  static const Map<String, bool> notificationPreferenceDefaults = {
+    'directMessagesEnabled': true,
+    'groupMessagesEnabled': true,
+    'mentionsRepliesEnabled': true,
+    'friendRequestsEnabled': true,
+    'friendRequestAcceptedEnabled': true,
+    'groupInvitationsEnabled': true,
+    'voiceCallsEnabled': true,
+    'videoCallsEnabled': true,
+    'missedCallsEnabled': true,
+    'gameInvitationsEnabled': true,
+    'gameTurnEnabled': true,
+    'gameResultsEnabled': true,
+    'quietHoursEnabled': false,
+    'notificationSoundEnabled': true,
+    'notificationVibrationEnabled': true,
+  };
 
   static String _quickToggleStorageKey(String accountKey) {
     final normalized = accountKey.trim().toLowerCase().replaceAll(
@@ -316,6 +358,88 @@ class SettingsService extends ChangeNotifier {
   bool get chatEnterToSend => _chatEnterToSend;
   bool get inAppVibration => _inAppVibration;
   bool get groupNotifications => _groupNotifications;
+  bool notificationPreference(String key) =>
+      _notificationPreferences[key] ?? notificationPreferenceDefaults[key] ?? false;
+  Map<String, dynamic> notificationPreferencesPayload() => {
+    ..._notificationPreferences,
+    'quietHoursStart': _quietHoursStart,
+    'quietHoursEnd': _quietHoursEnd,
+    'quietHoursOffsetMinutes': _quietHoursOffsetMinutes,
+  };
+  String get quietHoursStart => _quietHoursStart;
+  String get quietHoursEnd => _quietHoursEnd;
+  int get quietHoursOffsetMinutes => _quietHoursOffsetMinutes;
+
+  Future<void> setNotificationPreference(String key, bool value) async {
+    final storageKey = notificationPreferenceStorageKeys[key];
+    if (storageKey == null) {
+      throw ArgumentError.value(key, 'key', 'Unsupported notification preference');
+    }
+    _notificationPreferences[key] = value;
+    await _prefs.setBool(storageKey, value);
+    notifyListeners();
+  }
+
+  Future<void> hydrateNotificationPreferencesFromServer(
+    Map<String, dynamic> values,
+  ) async {
+    var changed = false;
+    for (final entry in notificationPreferenceStorageKeys.entries) {
+      final value = values[entry.key];
+      if (value is bool) {
+        _notificationPreferences[entry.key] = value;
+        await _prefs.setBool(entry.value, value);
+        changed = true;
+      }
+    }
+    final start = values['quietHoursStart'];
+    final end = values['quietHoursEnd'];
+    final offset = values['quietHoursOffsetMinutes'];
+    final timePattern = RegExp(r'^([01]\d|2[0-3]):[0-5]\d$');
+    if (start is String && timePattern.hasMatch(start)) {
+      _quietHoursStart = start;
+      await _prefs.setString(_kQuietHoursStart, start);
+      changed = true;
+    }
+    if (end is String && timePattern.hasMatch(end)) {
+      _quietHoursEnd = end;
+      await _prefs.setString(_kQuietHoursEnd, end);
+      changed = true;
+    }
+    if (offset is num) {
+      _quietHoursOffsetMinutes = offset.toInt().clamp(-840, 840).toInt();
+      await _prefs.setInt(_kQuietHoursOffsetMinutes, _quietHoursOffsetMinutes);
+      changed = true;
+    }
+    if (changed) notifyListeners();
+  }
+
+  Future<void> setQuietHoursSchedule({
+    String? start,
+    String? end,
+    int? offsetMinutes,
+  }) async {
+    final timePattern = RegExp(r'^([01]\d|2[0-3]):[0-5]\d$');
+    if (start != null && !timePattern.hasMatch(start)) {
+      throw ArgumentError.value(start, 'start', 'Use 24-hour HH:mm time');
+    }
+    if (end != null && !timePattern.hasMatch(end)) {
+      throw ArgumentError.value(end, 'end', 'Use 24-hour HH:mm time');
+    }
+    if (start != null) {
+      _quietHoursStart = start;
+      await _prefs.setString(_kQuietHoursStart, start);
+    }
+    if (end != null) {
+      _quietHoursEnd = end;
+      await _prefs.setString(_kQuietHoursEnd, end);
+    }
+    if (offsetMinutes != null) {
+      _quietHoursOffsetMinutes = offsetMinutes.clamp(-840, 840).toInt();
+      await _prefs.setInt(_kQuietHoursOffsetMinutes, _quietHoursOffsetMinutes);
+    }
+    notifyListeners();
+  }
   String get autoDownloadWifi => _autoDownloadWifi;
   String get autoDownloadMobile => _autoDownloadMobile;
   String get notificationTone => _notificationTone;
@@ -573,6 +697,15 @@ class SettingsService extends ChangeNotifier {
     _chatEnterToSend = _prefs.getBool('chat_enter_to_send') ?? true;
     _inAppVibration = _prefs.getBool(_kInAppVibration) ?? true;
     _groupNotifications = _prefs.getBool(_kGroupNotifications) ?? true;
+    _notificationPreferences = {...notificationPreferenceDefaults};
+    for (final entry in notificationPreferenceStorageKeys.entries) {
+      _notificationPreferences[entry.key] =
+          _prefs.getBool(entry.value) ?? notificationPreferenceDefaults[entry.key]!;
+    }
+    _quietHoursStart = _prefs.getString(_kQuietHoursStart) ?? '22:00';
+    _quietHoursEnd = _prefs.getString(_kQuietHoursEnd) ?? '07:00';
+    _quietHoursOffsetMinutes = (_prefs.getInt(_kQuietHoursOffsetMinutes) ??
+        DateTime.now().timeZoneOffset.inMinutes).clamp(-840, 840).toInt();
     _autoDownloadWifi = _prefs.getString(_kAutoDownloadWifi) ?? 'all';
     _autoDownloadMobile = _prefs.getString(_kAutoDownloadMobile) ?? 'photos';
     _photoQuality = _prefs.getString(_kPhotoQuality) ?? 'high';

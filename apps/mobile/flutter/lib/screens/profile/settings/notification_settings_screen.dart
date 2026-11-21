@@ -6,31 +6,166 @@ import 'package:novyn/widgets/novyn_alert.dart';
 import '../../../services/settings_service.dart';
 import '../../../services/socket_service.dart';
 import '../../../theme/novyn_theme.dart';
+import 'muted_chats_screen.dart';
+import 'sound_vibration_screen.dart';
 
-class NotificationSettingsScreen extends StatelessWidget {
+class NotificationSettingsScreen extends StatefulWidget {
   const NotificationSettingsScreen({super.key});
 
+  @override
+  State<NotificationSettingsScreen> createState() =>
+      _NotificationSettingsScreenState();
+}
+
+class _NotificationSettingsScreenState extends State<NotificationSettingsScreen> {
+  final Set<String> _savingKeys = <String>{};
+  late Future<int> _mutedCountFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _mutedCountFuture = MutedChatsScreen.countMutedChats(
+      context.read<SocketService>(),
+    );
+  }
+
   Future<void> _saveServerToggle(
-    BuildContext context,
     String key,
     bool value,
     Future<void> Function(bool) saveLocal,
   ) async {
+    if (_savingKeys.contains(key)) return;
+    setState(() => _savingKeys.add(key));
     try {
+      final payload = <String, dynamic>{key: value};
+      if (key == 'groupMessagesEnabled') {
+        // Retain compatibility with older Novyn clients and the previous
+        // Group notifications preference.
+        payload['groupNotificationsEnabled'] = value;
+      }
       final result = await context
           .read<SocketService>()
-          .updateAccountSettings({key: value});
+          .updateAccountSettings(payload);
       if (result['ok'] != true) {
         throw StateError(
-            result['message']?.toString() ?? 'Setting update was not confirmed.');
+          result['message']?.toString() ?? 'Setting update was not confirmed.',
+        );
       }
       await saveLocal(value);
+      if (key == 'groupMessagesEnabled') {
+        await context.read<SettingsService>().setGroupNotifications(value);
+      }
     } catch (error) {
-      if (context.mounted) {
+      if (mounted) {
         context.showNovynAlert(
           SnackBar(content: Text('Could not save notification setting: $error')),
         );
       }
+    } finally {
+      if (mounted) setState(() => _savingKeys.remove(key));
+    }
+  }
+
+  Future<void> _saveMasterToggle(bool value) async {
+    await _saveServerToggle(
+      'notificationsEnabled',
+      value,
+      context.read<SettingsService>().setNotifications,
+    );
+  }
+
+  Future<void> _savePreviewToggle(bool value) async {
+    await _saveServerToggle(
+      'messagePreviewEnabled',
+      value,
+      context.read<SettingsService>().setMessagePreview,
+    );
+  }
+
+  Future<void> _pickQuietHours(bool isStart) async {
+    final settings = context.read<SettingsService>();
+    final current = isStart ? settings.quietHoursStart : settings.quietHoursEnd;
+    final pieces = current.split(':');
+    final initial = TimeOfDay(
+      hour: int.tryParse(pieces.first) ?? (isStart ? 22 : 7),
+      minute: pieces.length > 1 ? int.tryParse(pieces[1]) ?? 0 : 0,
+    );
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: initial,
+      helpText: isStart ? 'QUIET HOURS START' : 'QUIET HOURS END',
+    );
+    if (picked == null || !mounted) return;
+    final start = isStart ? _formatTime(picked) : settings.quietHoursStart;
+    final end = isStart ? settings.quietHoursEnd : _formatTime(picked);
+    setState(() => _savingKeys.add('quietHoursSchedule'));
+    try {
+      final result = await context.read<SocketService>().updateAccountSettings({
+        'quietHoursStart': start,
+        'quietHoursEnd': end,
+        'quietHoursOffsetMinutes': DateTime.now().timeZoneOffset.inMinutes,
+      });
+      if (result['ok'] != true) {
+        throw StateError(result['message']?.toString() ?? 'Quiet hours were not saved.');
+      }
+      await settings.setQuietHoursSchedule(
+        start: start,
+        end: end,
+        offsetMinutes: DateTime.now().timeZoneOffset.inMinutes,
+      );
+    } catch (error) {
+      if (mounted) {
+        context.showNovynAlert(
+          SnackBar(content: Text('Could not save quiet hours: $error')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _savingKeys.remove('quietHoursSchedule'));
+    }
+  }
+
+  String _formatTime(TimeOfDay time) =>
+      '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
+
+  Future<void> _saveQuietHoursToggle(bool value) async {
+    final settings = context.read<SettingsService>();
+    setState(() => _savingKeys.add('quietHoursEnabled'));
+    try {
+      final result = await context.read<SocketService>().updateAccountSettings({
+        'quietHoursEnabled': value,
+        'quietHoursStart': settings.quietHoursStart,
+        'quietHoursEnd': settings.quietHoursEnd,
+        'quietHoursOffsetMinutes': DateTime.now().timeZoneOffset.inMinutes,
+      });
+      if (result['ok'] != true) {
+        throw StateError(result['message']?.toString() ?? 'Quiet hours were not saved.');
+      }
+      await settings.setNotificationPreference('quietHoursEnabled', value);
+      await settings.setQuietHoursSchedule(
+        offsetMinutes: DateTime.now().timeZoneOffset.inMinutes,
+      );
+    } catch (error) {
+      if (mounted) {
+        context.showNovynAlert(
+          SnackBar(content: Text('Could not save quiet hours: $error')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _savingKeys.remove('quietHoursEnabled'));
+    }
+  }
+
+  Future<void> _open(BuildContext context, Widget screen) async {
+    HapticService.vibrate(NovynHapticType.light);
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (_) => screen),
+    );
+    if (mounted) {
+      setState(() {
+        _mutedCountFuture = MutedChatsScreen.countMutedChats(
+          context.read<SocketService>(),
+        );
+      });
     }
   }
 
@@ -41,8 +176,46 @@ class NotificationSettingsScreen extends StatelessWidget {
     final enabled = settings.notificationsOn;
     final previews = settings.messagePreview;
 
+    Widget toggle({
+      required String key,
+      required IconData icon,
+      required Color iconColor,
+      required Color iconBgColor,
+      required String title,
+      String? subtitle,
+    }) {
+      final value = settings.notificationPreference(key);
+      return AnimatedOpacity(
+        duration: const Duration(milliseconds: 180),
+        opacity: enabled ? 1 : .45,
+        child: IgnorePointer(
+          ignoring: !enabled || _savingKeys.contains(key),
+          child: _NotificationToggleRow(
+            icon: icon,
+            iconColor: iconColor,
+            iconBgColor: iconBgColor,
+            title: title,
+            subtitle: subtitle,
+            value: value,
+            onChanged: (next) => _saveServerToggle(
+              key,
+              next,
+              (v) => settings.setNotificationPreference(key, v),
+            ),
+          ),
+        ),
+      );
+    }
+
+    final pink = const Color(0xFFEC4899);
+    final indigo = const Color(0xFF6366F1);
+    final green = const Color(0xFF10B981);
+    final orange = const Color(0xFFF59E0B);
+
     return Scaffold(
-      backgroundColor: isDark ? NovynTheme.pageBg(context) : const Color(0xFFF4F0FB),
+      backgroundColor: isDark
+          ? NovynTheme.pageBg(context)
+          : const Color(0xFFF4F0FB),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.fromLTRB(20, 10, 20, 36),
@@ -54,75 +227,223 @@ class NotificationSettingsScreen extends StatelessWidget {
             ),
             const SizedBox(height: 10),
 
-            // NOTIFICATION CONTROLS Section
             _sectionHeader('NOTIFICATION CONTROLS'),
-            _groupedCard(
-              context,
-              children: [
-                _NotificationToggleRow(
-                  icon: Icons.notifications_none_rounded,
-                  iconColor: const Color(0xFFEC4899),
-                  iconBgColor: isDark ? const Color(0xFF381F2E) : const Color(0xFFFDE8F1),
-                  title: 'Push notifications',
-                  value: enabled,
-                  onChanged: (val) => _saveServerToggle(
-                    context,
-                    'notificationsEnabled',
-                    val,
-                    settings.setNotifications,
+            _groupedCard(context, children: [
+              _NotificationToggleRow(
+                icon: Icons.notifications_none_rounded,
+                iconColor: pink,
+                iconBgColor: isDark ? const Color(0xFF381F2E) : const Color(0xFFFDE8F1),
+                title: 'Push notifications',
+                subtitle: 'Master control for all Novyn alerts',
+                value: enabled,
+                onChanged: _saveMasterToggle,
+              ),
+              AnimatedOpacity(
+                duration: const Duration(milliseconds: 180),
+                opacity: enabled ? 1 : .45,
+                child: IgnorePointer(
+                  ignoring: !enabled || _savingKeys.contains('messagePreviewEnabled'),
+                  child: _NotificationToggleRow(
+                    icon: Icons.remove_red_eye_outlined,
+                    iconColor: indigo,
+                    iconBgColor: isDark ? const Color(0xFF28234B) : const Color(0xFFECE9FB),
+                    title: 'Message previews',
+                    subtitle: 'Show message content in alerts',
+                    value: previews,
+                    onChanged: _savePreviewToggle,
                   ),
                 ),
-                AnimatedOpacity(
-                  duration: const Duration(milliseconds: 200),
-                  opacity: enabled ? 1.0 : 0.45,
-                  child: IgnorePointer(
-                    ignoring: !enabled,
-                    child: _NotificationToggleRow(
-                      icon: Icons.remove_red_eye_outlined,
-                      iconColor: const Color(0xFF6366F1),
-                      iconBgColor: isDark ? const Color(0xFF28234B) : const Color(0xFFECE9FB),
-                      title: 'Message previews',
-                      value: previews,
-                      onChanged: (val) => _saveServerToggle(
-                        context,
-                        'messagePreviewEnabled',
-                        val,
-                        settings.setMessagePreview,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ]),
             const SizedBox(height: 22),
 
-            // CONVERSATION ALERTS Section
-            _sectionHeader('CONVERSATION ALERTS'),
-            _groupedCard(
-              context,
-              children: [
-                AnimatedOpacity(
-                  duration: const Duration(milliseconds: 200),
-                  opacity: enabled ? 1.0 : 0.45,
-                  child: IgnorePointer(
-                    ignoring: !enabled,
-                    child: _NotificationToggleRow(
-                      icon: Icons.group_outlined,
-                      iconColor: const Color(0xFF10B981),
-                      iconBgColor: isDark ? const Color(0xFF1A3327) : const Color(0xFFE2F7ED),
-                      title: 'Group notifications',
-                      value: settings.groupNotifications,
-                      onChanged: (val) => _saveServerToggle(
-                        context,
-                        'groupNotificationsEnabled',
-                        val,
-                        settings.setGroupNotifications,
-                      ),
-                    ),
+            _sectionHeader('MESSAGES'),
+            _groupedCard(context, children: [
+              toggle(
+                key: 'directMessagesEnabled',
+                icon: Icons.mark_chat_unread_outlined,
+                iconColor: indigo,
+                iconBgColor: isDark ? const Color(0xFF28234B) : const Color(0xFFECE9FB),
+                title: 'Direct messages',
+              ),
+              toggle(
+                key: 'groupMessagesEnabled',
+                icon: Icons.groups_outlined,
+                iconColor: green,
+                iconBgColor: isDark ? const Color(0xFF1A3327) : const Color(0xFFE2F7ED),
+                title: 'Group messages',
+              ),
+              toggle(
+                key: 'mentionsRepliesEnabled',
+                icon: Icons.alternate_email_rounded,
+                iconColor: orange,
+                iconBgColor: isDark ? const Color(0xFF382D1C) : const Color(0xFFFFF2D9),
+                title: 'Mentions & replies',
+              ),
+            ]),
+            const SizedBox(height: 22),
+
+            _sectionHeader('SOCIAL ALERTS'),
+            _groupedCard(context, children: [
+              toggle(
+                key: 'friendRequestsEnabled',
+                icon: Icons.person_add_alt_1_rounded,
+                iconColor: green,
+                iconBgColor: isDark ? const Color(0xFF1A3327) : const Color(0xFFE2F7ED),
+                title: 'Friend requests',
+              ),
+              toggle(
+                key: 'friendRequestAcceptedEnabled',
+                icon: Icons.person_add_alt_rounded,
+                iconColor: indigo,
+                iconBgColor: isDark ? const Color(0xFF28234B) : const Color(0xFFECE9FB),
+                title: 'Request accepted',
+              ),
+              toggle(
+                key: 'groupInvitationsEnabled',
+                icon: Icons.group_add_outlined,
+                iconColor: pink,
+                iconBgColor: isDark ? const Color(0xFF381F2E) : const Color(0xFFFDE8F1),
+                title: 'Group invitations',
+              ),
+            ]),
+            const SizedBox(height: 22),
+
+            _sectionHeader('CALLS'),
+            _groupedCard(context, children: [
+              toggle(
+                key: 'voiceCallsEnabled',
+                icon: Icons.call_outlined,
+                iconColor: green,
+                iconBgColor: isDark ? const Color(0xFF1A3327) : const Color(0xFFE2F7ED),
+                title: 'Voice calls',
+              ),
+              toggle(
+                key: 'videoCallsEnabled',
+                icon: Icons.videocam_outlined,
+                iconColor: indigo,
+                iconBgColor: isDark ? const Color(0xFF28234B) : const Color(0xFFECE9FB),
+                title: 'Video calls',
+              ),
+              toggle(
+                key: 'missedCallsEnabled',
+                icon: Icons.call_missed_outgoing_rounded,
+                iconColor: orange,
+                iconBgColor: isDark ? const Color(0xFF382D1C) : const Color(0xFFFFF2D9),
+                title: 'Missed calls',
+              ),
+            ]),
+            const SizedBox(height: 22),
+
+            _sectionHeader('NOVYN GAMES'),
+            _groupedCard(context, children: [
+              toggle(
+                key: 'gameInvitationsEnabled',
+                icon: Icons.sports_esports_outlined,
+                iconColor: pink,
+                iconBgColor: isDark ? const Color(0xFF381F2E) : const Color(0xFFFDE8F1),
+                title: 'Game invitations',
+              ),
+              toggle(
+                key: 'gameTurnEnabled',
+                icon: Icons.play_arrow_rounded,
+                iconColor: green,
+                iconBgColor: isDark ? const Color(0xFF1A3327) : const Color(0xFFE2F7ED),
+                title: 'Your turn',
+              ),
+              toggle(
+                key: 'gameResultsEnabled',
+                icon: Icons.emoji_events_outlined,
+                iconColor: orange,
+                iconBgColor: isDark ? const Color(0xFF382D1C) : const Color(0xFFFFF2D9),
+                title: 'Game results',
+              ),
+            ]),
+            const SizedBox(height: 22),
+
+            _sectionHeader('SOUND & VIBRATION'),
+            _groupedCard(context, children: [
+              toggle(
+                key: 'notificationSoundEnabled',
+                icon: Icons.volume_up_outlined,
+                iconColor: indigo,
+                iconBgColor: isDark ? const Color(0xFF28234B) : const Color(0xFFECE9FB),
+                title: 'Notification sound',
+              ),
+              toggle(
+                key: 'notificationVibrationEnabled',
+                icon: Icons.vibration_rounded,
+                iconColor: green,
+                iconBgColor: isDark ? const Color(0xFF1A3327) : const Color(0xFFE2F7ED),
+                title: 'Vibration',
+              ),
+              _NavigationRow(
+                icon: Icons.tune_rounded,
+                iconColor: orange,
+                iconBgColor: isDark ? const Color(0xFF382D1C) : const Color(0xFFFFF2D9),
+                title: 'Customize tones & haptics',
+                subtitle: 'Choose notification sounds and vibration patterns',
+                onTap: () => _open(context, const SoundVibrationScreen()),
+              ),
+            ]),
+            const SizedBox(height: 22),
+
+            _sectionHeader('SCHEDULE'),
+            _groupedCard(context, children: [
+              _NotificationToggleRow(
+                icon: Icons.bedtime_outlined,
+                iconColor: indigo,
+                iconBgColor: isDark ? const Color(0xFF28234B) : const Color(0xFFECE9FB),
+                title: 'Quiet hours',
+                subtitle: 'Silence message, social and game alerts',
+                value: settings.notificationPreference('quietHoursEnabled'),
+                onChanged: _saveQuietHoursToggle,
+              ),
+              if (settings.notificationPreference('quietHoursEnabled')) ...[
+                _TimeChoiceRow(
+                  title: 'Start',
+                  value: settings.quietHoursStart,
+                  onTap: _savingKeys.contains('quietHoursSchedule')
+                      ? null
+                      : () => _pickQuietHours(true),
+                ),
+                _TimeChoiceRow(
+                  title: 'End',
+                  value: settings.quietHoursEnd,
+                  onTap: _savingKeys.contains('quietHoursSchedule')
+                      ? null
+                      : () => _pickQuietHours(false),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(18, 2, 18, 14),
+                  child: Text(
+                    'Uses this device’s current time zone. Incoming calls remain available.',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
                   ),
                 ),
               ],
-            ),
+            ]),
+            const SizedBox(height: 22),
+
+            _sectionHeader('CHAT NOTIFICATIONS'),
+            _groupedCard(context, children: [
+              FutureBuilder<int>(
+                future: _mutedCountFuture,
+                builder: (context, snapshot) => _NavigationRow(
+                  icon: Icons.notifications_off_outlined,
+                  iconColor: pink,
+                  iconBgColor: isDark ? const Color(0xFF381F2E) : const Color(0xFFFDE8F1),
+                  title: 'Muted chats',
+                  subtitle: snapshot.hasData
+                      ? '${snapshot.data} muted conversations'
+                      : 'Manage muted conversations',
+                  onTap: () => _open(context, const MutedChatsScreen()),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                ),
+              ),
+            ]),
           ],
         ),
       ),
@@ -134,7 +455,7 @@ class NotificationSettingsScreen extends StatelessWidget {
       padding: const EdgeInsets.only(left: 4, bottom: 9),
       child: Text(
         title.toUpperCase(),
-        style: TextStyle(
+        style: const TextStyle(
           fontSize: 11.5,
           fontWeight: FontWeight.w700,
           letterSpacing: 1.2,
@@ -148,7 +469,6 @@ class NotificationSettingsScreen extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final cardBg = isDark ? const Color(0xFF1E1C2E) : Colors.white;
     final border = isDark ? const Color(0xFF2C2844) : const Color(0xFFEDE9F6);
-
     return Container(
       decoration: BoxDecoration(
         color: cardBg,
@@ -158,7 +478,7 @@ class NotificationSettingsScreen extends StatelessWidget {
             ? null
             : [
                 BoxShadow(
-                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.03),
+                  color: Theme.of(context).colorScheme.primary.withValues(alpha: .03),
                   blurRadius: 16,
                   offset: const Offset(0, 4),
                 ),
@@ -187,14 +507,12 @@ class NotificationSettingsScreen extends StatelessWidget {
 class _ScreenHeader extends StatelessWidget {
   final String title;
   final VoidCallback onBack;
-
   const _ScreenHeader({required this.title, required this.onBack});
 
   @override
   Widget build(BuildContext context) {
     final dark = Theme.of(context).brightness == Brightness.dark;
     final ink = dark ? Colors.white : const Color(0xFF1A1730);
-
     return Padding(
       padding: const EdgeInsets.only(top: 8, bottom: 18),
       child: Row(
@@ -207,11 +525,7 @@ class _ScreenHeader extends StatelessWidget {
             borderRadius: BorderRadius.circular(12),
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
-              child: Icon(
-                Icons.arrow_back_ios_new_rounded,
-                color: ink,
-                size: 20,
-              ),
+              child: Icon(Icons.arrow_back_ios_new_rounded, color: ink, size: 20),
             ),
           ),
           const SizedBox(width: 14),
@@ -222,7 +536,7 @@ class _ScreenHeader extends StatelessWidget {
                 color: ink,
                 fontSize: 24,
                 fontWeight: FontWeight.w700,
-                letterSpacing: -0.4,
+                letterSpacing: -.4,
               ),
             ),
           ),
@@ -237,6 +551,7 @@ class _NotificationToggleRow extends StatelessWidget {
   final Color iconColor;
   final Color iconBgColor;
   final String title;
+  final String? subtitle;
   final bool value;
   final ValueChanged<bool> onChanged;
 
@@ -247,15 +562,15 @@ class _NotificationToggleRow extends StatelessWidget {
     required this.title,
     required this.value,
     required this.onChanged,
+    this.subtitle,
   });
 
   @override
   Widget build(BuildContext context) {
     final dark = Theme.of(context).brightness == Brightness.dark;
     final ink = dark ? Colors.white : const Color(0xFF1A1730);
-
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Row(
         children: [
           Container(
@@ -269,14 +584,29 @@ class _NotificationToggleRow extends StatelessWidget {
           ),
           const SizedBox(width: 14),
           Expanded(
-            child: Text(
-              title,
-              style: TextStyle(
-                fontSize: 15.5,
-                fontWeight: FontWeight.w600,
-                color: ink,
-                letterSpacing: -0.2,
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 15.5,
+                    fontWeight: FontWeight.w600,
+                    color: ink,
+                    letterSpacing: -.2,
+                  ),
+                ),
+                if (subtitle != null) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle!,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                  ),
+                ],
+              ],
             ),
           ),
           const SizedBox(width: 8),
@@ -293,6 +623,86 @@ class _NotificationToggleRow extends StatelessWidget {
             },
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _NavigationRow extends StatelessWidget {
+  final IconData icon;
+  final Color iconColor;
+  final Color iconBgColor;
+  final String title;
+  final String subtitle;
+  final Widget? trailing;
+  final VoidCallback onTap;
+
+  const _NavigationRow({
+    required this.icon,
+    required this.iconColor,
+    required this.iconBgColor,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+    this.trailing,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+        child: Row(
+          children: [
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: iconBgColor,
+                borderRadius: BorderRadius.circular(13),
+              ),
+              child: Icon(icon, color: iconColor, size: 21),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title, style: const TextStyle(fontSize: 15.5, fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                  ),
+                ],
+              ),
+            ),
+            trailing ?? Icon(Icons.chevron_right_rounded, color: Theme.of(context).colorScheme.onSurfaceVariant),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TimeChoiceRow extends StatelessWidget {
+  final String title;
+  final String value;
+  final VoidCallback? onTap;
+  const _TimeChoiceRow({required this.title, required this.value, this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      dense: true,
+      contentPadding: const EdgeInsets.only(left: 73, right: 18),
+      title: Text(title),
+      trailing: TextButton(
+        onPressed: onTap,
+        child: Text(value),
       ),
     );
   }
