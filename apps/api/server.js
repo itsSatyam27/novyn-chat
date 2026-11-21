@@ -12,6 +12,7 @@ const { mediaNames, canReadMedia } = require("./server/security/media-access");
 const { registerMessageMutationHandlers } = require("./server/realtime/message-mutations");
 const { registerCallHandlers, cancelCallForUser } = require("./server/realtime/call-handlers");
 const { applyGameMove, createGameChallenge } = require("./server/realtime/game-rules");
+const { PublicGameMatchmaking } = require("./server/realtime/game-matchmaking");
 const { Server } = require("socket.io");
 const webpush = require("web-push");
 const { cloudinary, hasCloudinaryConfig } = require("./cloudinary");
@@ -1426,6 +1427,13 @@ const {
   authUserAliases,
   httpRateLimits,
 } = runtimeState;
+
+const publicGameMatchmaking = new PublicGameMatchmaking({
+  timeoutMs: 60_000,
+  onExpired: ({ socketId, gameType }) => io.to(socketId).emit("random_match_timeout", {
+    gameType, message: "No player available right now. Please try again.",
+  }),
+});
 
 let mongoStorage = null;
 let mongoLegacyCollection = null;
@@ -6875,6 +6883,33 @@ io.use(
 );
 
 io.on("connection", (socket) => {
+  socket.on("join_random_game", (payload, callback) => {
+    const respond = typeof callback === "function" ? callback : () => {};
+    const userKey = normalizeName(socket.data.userKey || "");
+    if (!userKey || onlineUsers.get(userKey) !== socket.id) return respond({ ok: false, message: "Please sign in again before matchmaking." });
+    if (!allowSocketAction(socket, "join_random_game", 4, 60_000)) return respond({ ok: false, message: "Please wait before trying matchmaking again." });
+    const user = users.get(userKey);
+    const result = publicGameMatchmaking.join({
+      userKey, displayName: toDisplayName(user?.displayName || user?.username || userKey),
+      socketId: socket.id, gameType: payload?.gameType,
+    });
+    if (!result.ok) return respond(result);
+    if (!result.matched) return respond({ ok: true, queued: true, timeoutMs: 60_000 });
+    const [first, second] = result.players;
+    const packet = (opponent) => ({
+      sessionId: result.sessionId, gameType: result.gameType,
+      opponent: { username: opponent.userKey, displayName: opponent.displayName },
+    });
+    io.to(first.socketId).emit("random_match_found", packet(second));
+    io.to(second.socketId).emit("random_match_found", packet(first));
+    return respond({ ok: true, matched: true, sessionId: result.sessionId });
+  });
+  socket.on("cancel_random_game", (payload, callback) => {
+    const respond = typeof callback === "function" ? callback : () => {};
+    const userKey = normalizeName(socket.data.userKey || "");
+    if (!userKey) return respond({ ok: false, message: "Please sign in again." });
+    return respond({ ok: true, cancelled: publicGameMatchmaking.cancel(userKey) });
+  });
   // Prevent a copied private URL from being laundered into another conversation
   // through sending, forwarding, editing, or wallpaper/profile updates.
   socket.use((packet, next) => {
@@ -9909,6 +9944,7 @@ io.on("connection", (socket) => {
   socket.on("disconnect", () => {
     const userKey = socket.data.userKey;
     if (!userKey) return;
+    publicGameMatchmaking.disconnect(userKey, socket.id);
 
     const existingSocketId = onlineUsers.get(userKey);
     if (existingSocketId === socket.id) {
