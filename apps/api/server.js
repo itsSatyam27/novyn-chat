@@ -7053,9 +7053,13 @@ io.on("connection", (socket) => {
     if (!userKey || onlineUsers.get(userKey) !== socket.id) return respond({ ok: false, message: "Please sign in again before matchmaking." });
     if (!allowSocketAction(socket, "join_random_game", 4, 60_000)) return respond({ ok: false, message: "Please wait before trying matchmaking again." });
     const user = users.get(userKey);
+    const excludedUsers = Array.from(new Set([
+      ...Array.from(user?.friends || []),
+      ...Array.from(user?.blockedUsers || []),
+    ].map(normalizeName).filter(Boolean)));
     const result = publicGameMatchmaking.join({
       userKey, displayName: toDisplayName(user?.displayName || user?.username || userKey),
-      socketId: socket.id, gameType: payload?.gameType,
+      socketId: socket.id, gameType: payload?.gameType, excludedUsers,
     });
     if (!result.ok) return respond(result);
     if (!result.matched) return respond({ ok: true, queued: true, timeoutMs: 60_000 });
