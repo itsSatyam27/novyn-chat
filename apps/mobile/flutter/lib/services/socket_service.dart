@@ -612,7 +612,9 @@ class SocketService extends ChangeNotifier {
     _socket!.onConnect((_) {
       _isConnecting = false;
       _isConnected = true;
-      SyncService().setOnlineStatus(true);
+      // A live WebSocket transport is not an authenticated Novyn session.
+      // Mark this device online only after resume_session is accepted.
+      SyncService().setOnlineStatus(false);
       _isAuthenticated = false;
       _stealthPreferenceSynced = false;
       _authenticationReady = Completer<void>();
@@ -623,6 +625,10 @@ class SocketService extends ChangeNotifier {
       // the socket and receive the initial friend_list + requests.
       _socket!.emit('resume_session');
       _socket!.emit('app_visibility', {'foreground': _appForeground});
+      // Some backend restarts leave the transport open without returning
+      // init/register_success or auth_failed. Bound that handshake and run
+      // the same refresh/reconnect recovery used for explicit auth failures.
+      _scheduleSocketAuthRecovery(delay: const Duration(seconds: 12));
 
       MediaStorageService.watchConnectivity();
       onConnected?.call();
@@ -1469,6 +1475,20 @@ class SocketService extends ChangeNotifier {
         throw StateError(
             'Reconnect to Novyn before changing account settings.');
       }
+
+      // Recover a dropped transport instead of waiting passively for a
+      // reconnect that may never be scheduled (for example after process
+      // resume). A connected-but-unauthenticated socket is handled by the
+      // handshake watchdog above.
+      if (!_isConnected && !_isConnecting && _serverUrl != null &&
+          _myUsername != null) {
+        _doConnect();
+      } else if (_isConnected &&
+          !_isAuthenticated &&
+          _socketAuthRetryTimer == null) {
+        _scheduleSocketAuthRecovery();
+      }
+
       if (DateTime.now().isAfter(deadline)) {
         throw StateError(
           _isConnected
