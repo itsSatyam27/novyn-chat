@@ -1154,25 +1154,7 @@ class _PrivacyDashboardState extends State<_PrivacyDashboard> {
                 color: Color(0xFF8F8BA0),
                 size: 20,
               ),
-              onTap: () {
-                if (_requireStealthModeOff()) return;
-                widget.onBlocked();
-              },
-            ),
-            _SettingsRow(
-              leading: SecurityPrivacyScreen._iconBox(
-                Icons.history_rounded,
-                const Color(0xFF10B981),
-                dark ? const Color(0xFF1A3327) : const Color(0xFFE2F7ED),
-              ),
-              title: 'Message retention',
-              trailing: SecurityPrivacyScreen._pillDropdown(
-                text: 'Forever',
-                onTap: () {
-                  NovynAlert.show(context, 'Message retention is set to Forever.');
-                },
-                context: context,
-              ),
+              onTap: widget.onBlocked,
             ),
           ],
         ),
