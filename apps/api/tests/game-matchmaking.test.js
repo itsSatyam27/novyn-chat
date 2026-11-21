@@ -21,10 +21,16 @@ test("disconnect removes only the owning socket queue entry", () => {
   const q = new PublicGameMatchmaking(); q.join({userKey:"alice",socketId:"old",gameType:"tictactoe"});
   assert.equal(q.disconnect("alice","new"),false); assert.equal(q.disconnect("alice","old"),true);
 });
-test("unsupported games rejected and same account cannot self-match", () => {
+test("all six games support random matchmaking and one account cannot self-match", () => {
   const q = new PublicGameMatchmaking();
-  assert.equal(q.join({userKey:"alice",socketId:"s1",gameType:"doodle"}).ok,false);
-  q.join({userKey:"alice",socketId:"s1",gameType:"tictactoe"});
-  assert.equal(q.join({userKey:"alice",socketId:"s2",gameType:"tictactoe"}).queued,true);
-  assert.equal(q.size,1); q.cancel("alice");
+  const gameTypes = ["tictactoe", "rps", "connect4", "doodle", "numberclash", "updown"];
+  for (const [index, gameType] of gameTypes.entries()) {
+    const first = "player_" + index + "_a";
+    const second = "player_" + index + "_b";
+    assert.equal(q.join({ userKey: first, socketId: first + "_socket", gameType }).queued, true);
+    assert.equal(q.join({ userKey: first, socketId: first + "_other_socket", gameType }).queued, true);
+    assert.equal(q.join({ userKey: second, socketId: second + "_socket", gameType }).matched, true);
+  }
+  assert.equal(q.join({ userKey: "alice", socketId: "s1", gameType: "unsupported" }).ok, false);
+  assert.equal(q.size, 0);
 });
