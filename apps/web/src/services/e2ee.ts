@@ -451,9 +451,11 @@ export async function decryptAttachmentBytes(
   try {
     const key = await getDerivedSharedKey(peerUsername, peerPublicKeyJwk);
     if (!key) return null;
-    const iv = Uint8Array.from(atob(ivBase64), (character) => character.charCodeAt(0));
-    if (iv.length !== 12 || ciphertext.length < 16) return null;
-    const clear = await window.crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ciphertext);
+    const ivBytes = Uint8Array.from(atob(ivBase64), (character) => character.charCodeAt(0));
+    if (ivBytes.length !== 12 || ciphertext.length < 16) return null;
+    const iv = new Uint8Array(ivBytes).buffer as ArrayBuffer;
+    const encryptedBuffer = new Uint8Array(ciphertext).buffer as ArrayBuffer;
+    const clear = await window.crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, encryptedBuffer);
     return new Uint8Array(clear);
   } catch (error) {
     console.warn('[E2EE] Attachment decryption failed:', error);
