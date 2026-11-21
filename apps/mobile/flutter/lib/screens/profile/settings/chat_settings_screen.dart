@@ -216,6 +216,34 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
     }
   }
 
+  Future<void> _showMessageRetentionInfo() async {
+    final socket = context.read<SocketService>();
+    var label = 'Forever';
+    try {
+      final result = await socket.fetchAccountSettings();
+      final raw = result['settings'] is Map ? (result['settings'] as Map)['retentionDays'] : null;
+      final days = raw is num ? raw.toInt() : 0;
+      label = days <= 0 ? 'Forever' : '$days days';
+    } catch (_) {}
+    if (!mounted) return;
+    showModalBottomSheet<void>(
+      context: context, backgroundColor: NovynTheme.cardBg(context), showDragHandle: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (sheetContext) => SafeArea(child: Padding(
+        padding: const EdgeInsets.fromLTRB(22, 8, 22, 28),
+        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('Message retention', style: Theme.of(sheetContext).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
+          const SizedBox(height: 12),
+          Row(children: [Icon(Icons.history_rounded, color: Theme.of(sheetContext).colorScheme.primary), const SizedBox(width: 10), Text(label, style: Theme.of(sheetContext).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700))]),
+          const SizedBox(height: 10),
+          Text('Your account keeps messages in chat history until you or the chat participants explicitly delete them. Any disappearing-message timer configured inside an individual chat still applies to that chat.', style: Theme.of(sheetContext).textTheme.bodyMedium?.copyWith(color: Theme.of(sheetContext).colorScheme.onSurfaceVariant, height: 1.45)),
+          const SizedBox(height: 14),
+          Text('The account-wide retention setting currently supports Forever.', style: Theme.of(sheetContext).textTheme.bodySmall?.copyWith(color: Theme.of(sheetContext).colorScheme.onSurfaceVariant, fontWeight: FontWeight.w600)),
+        ]),
+      )),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final settings = context.watch<SettingsService>();
@@ -264,6 +292,29 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
                     onChanged: settings.setMessagePreview,
                     context: context,
                   ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+
+            // CHAT HISTORY & RETENTION
+            _sectionHeader('CHAT HISTORY & RETENTION'),
+            _groupedCard(
+              context,
+              children: [
+                _SettingsRow(
+                  leading: _iconBox(Icons.history_rounded, const Color(0xFF10B981), isDark ? const Color(0xFF1A3327) : const Color(0xFFE8F8F0)),
+                  title: 'Message retention',
+                  trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+                      decoration: BoxDecoration(color: isDark ? const Color(0xFF1A3327) : const Color(0xFFE8F8F0), borderRadius: BorderRadius.circular(12)),
+                      child: Text('Forever', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: isDark ? const Color(0xFF6EE7B7) : const Color(0xFF059669))),
+                    ),
+                    const SizedBox(width: 4),
+                    Icon(Icons.info_outline_rounded, color: Color(0xFF8F8BA0), size: 19),
+                  ]),
+                  onTap: _showMessageRetentionInfo,
                 ),
               ],
             ),
