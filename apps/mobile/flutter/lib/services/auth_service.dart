@@ -595,7 +595,6 @@ class AuthService extends ChangeNotifier {
     var storageReady = ApiService.sessionStorageInitialized;
     var hadSavedCookie = ApiService.sessionCookie != null;
     var attempt = 0;
-    var definitiveRejections = 0;
 
     while (!_authReady && clock.elapsed < const Duration(seconds: 32)) {
       if (!storageReady) {
@@ -668,16 +667,15 @@ class AuthService extends ChangeNotifier {
           final refreshStatus = await ApiService.refreshSessionStatus()
               .timeout(const Duration(seconds: 8), onTimeout: () => null);
           if (refreshStatus == 200) {
-            definitiveRejections = 0;
+            _sessionRejectionTracker.reset();
             attempt++;
             await Future<void>.delayed(const Duration(milliseconds: 400));
             continue;
           }
           if (refreshStatus == 401 || refreshStatus == 403) {
-            definitiveRejections++;
-            if (definitiveRejections >= 3) {
+            if (_sessionRejectionTracker.record(DateTime.now())) {
               debugPrint(
-                '[NovynAuth] Clearing local sign-in after 3 consecutive refresh rejections.',
+                '[NovynAuth] Clearing local sign-in after 3 spaced refresh rejections.',
               );
               await _setSignedOutMarker(true);
               await ApiService.clearSession();
@@ -688,13 +686,20 @@ class AuthService extends ChangeNotifier {
               notifyListeners();
               return;
             }
-          } else if (cachedIdentity != null) {
-            // An unavailable refresh endpoint is not an expired session.
-            await _activateCachedIdentity(
-              cachedIdentity,
-              reason: 'session server temporarily unavailable',
-            );
-            return;
+            // Stop this startup burst. A later resume/reconnect can confirm
+            // whether the saved refresh token is truly revoked.
+            break;
+          } else {
+            _sessionRejectionTracker.reset();
+            if (cachedIdentity != null) {
+              // An unavailable refresh endpoint is not an expired session.
+              await _activateCachedIdentity(
+                cachedIdentity,
+                reason: 'session server temporarily unavailable',
+              );
+              return;
+            }
+            break;
           }
         } else if (cachedIdentity != null) {
           // Network errors and 5xx responses must not turn a valid local
@@ -726,8 +731,7 @@ class AuthService extends ChangeNotifier {
     // backend could not be checked. Never use this fallback after a confirmed
     // missing session or repeated explicit refresh-token rejection.
     if (cachedIdentity != null &&
-        (hadSavedCookie || !storageReady) &&
-        definitiveRejections < 3) {
+        (hadSavedCookie || !storageReady)) {
       await _activateCachedIdentity(
         cachedIdentity,
         reason: 'bounded session restore fallback',
