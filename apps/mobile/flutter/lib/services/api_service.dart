@@ -276,7 +276,8 @@ class ApiService {
               response.body.contains('csrf'))) {
         // Re-sync a stale CSRF token once, then rebuild the multipart body.
         _csrfToken = null;
-        await _secureStorage.delete(key: _csrfTokenKey);
+        _notifySessionRevision();
+        await _persistSessionCookies();
         final requestRevision = _sessionCredentialRevision;
         final bootstrap = await http
             .get(
@@ -475,10 +476,12 @@ class ApiService {
     bool remember = true,
   }) async {
     try {
+      final headers = await _csrfHeaders();
+      final requestRevision = _sessionCredentialRevision;
       final res = await http
           .post(
             Uri.parse('$baseUrl/api/auth/google'),
-            headers: await _csrfHeaders(),
+            headers: headers,
             body: jsonEncode({
               'idToken': idToken,
               'remember': remember,
@@ -489,7 +492,7 @@ class ApiService {
           .timeout(const Duration(seconds: 75));
 
       if (res.statusCode == 200) {
-        await _storeSessionCookie(res);
+        await _storeSessionCookie(res, expectedRevision: requestRevision);
         return Map<String, dynamic>.from(jsonDecode(res.body));
       }
 
@@ -522,10 +525,12 @@ class ApiService {
     bool remember = true,
   }) async {
     try {
+      final headers = await _csrfHeaders();
+      final requestRevision = _sessionCredentialRevision;
       final res = await http
           .post(
             Uri.parse('$baseUrl/api/auth/signin'),
-            headers: await _csrfHeaders(),
+            headers: headers,
             body: jsonEncode({
               'identifier': identifier,
               'password': password,
@@ -535,7 +540,7 @@ class ApiService {
           .timeout(const Duration(seconds: 75));
 
       if (res.statusCode == 200) {
-        await _storeSessionCookie(res);
+        await _storeSessionCookie(res, expectedRevision: requestRevision);
         return Map<String, dynamic>.from(jsonDecode(res.body));
       }
       try {
@@ -666,16 +671,18 @@ class ApiService {
     required String code,
   }) async {
     try {
+      final headers = await _csrfHeaders();
+      final requestRevision = _sessionCredentialRevision;
       final res = await http.post(
         Uri.parse('$baseUrl/api/auth/2fa/verify'),
-        headers: await _csrfHeaders(),
+        headers: headers,
         body: jsonEncode({
           'challengeToken': challengeToken,
           'code': code.trim(),
         }),
       ).timeout(const Duration(seconds: 15));
       if (res.statusCode == 200) {
-        await _storeSessionCookie(res);
+        await _storeSessionCookie(res, expectedRevision: requestRevision);
         return Map<String, dynamic>.from(jsonDecode(res.body));
       }
       try {
@@ -696,10 +703,12 @@ class ApiService {
     required String password,
   }) async {
     try {
+      final headers = await _csrfHeaders();
+      final requestRevision = _sessionCredentialRevision;
       final res = await http
           .post(
             Uri.parse('$baseUrl/api/auth/signup'),
-            headers: await _csrfHeaders(),
+            headers: headers,
             body: jsonEncode({
               'name': name,
               'username': username,
@@ -710,7 +719,7 @@ class ApiService {
           .timeout(const Duration(seconds: 15));
 
       if (res.statusCode == 200 || res.statusCode == 201) {
-        await _storeSessionCookie(res);
+        await _storeSessionCookie(res, expectedRevision: requestRevision);
         return Map<String, dynamic>.from(jsonDecode(res.body));
       }
       try {
