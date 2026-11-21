@@ -216,6 +216,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
   Timer? _presenceTransitionTimer;
   Timer? _lastSeenRefreshTimer;
   dynamic _replyingTo; // the message being replied to
+  bool _sendingGameChallenge = false;
   bool _uploadingAttachment = false;
   final ImagePicker _imagePicker = ImagePicker();
   final AudioRecorder _voiceRecorder = AudioRecorder();
@@ -2840,31 +2841,44 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
                   borderRadius: BorderRadius.circular(18),
                   child: InkWell(
                     borderRadius: BorderRadius.circular(18),
-                    onTap: () {
-                      try {
-                        socket.sendGameChallenge(
-                            item['id'] as String,
-                            widget.peer.uid.isNotEmpty
-                                ? widget.peer.uid
-                                : widget.peer.username,
-                            isGroup: widget.isGroup);
-                        Navigator.pop(sheetContext);
-                        NovynAlert.show(
-                            this.context, '${item['title']} challenge sent.',
-                            title: 'Challenge sent',
-                            icon: Icons.sports_esports_rounded,
-                            tone: NovynAlertTone.success);
-                      } catch (error) {
-                        NovynAlert.show(
-                            this.context,
-                            error is StateError
-                                ? error.message.toString()
-                                : 'Could not start the game.',
-                            isError: true,
-                            title: 'Could not start game',
-                            icon: Icons.sports_esports_rounded);
-                      }
-                    },
+                    onTap: _sendingGameChallenge
+                        ? null
+                        : () async {
+                            setState(() => _sendingGameChallenge = true);
+                            try {
+                              await socket.sendGameChallenge(
+                                item['id'] as String,
+                                widget.peer.uid.isNotEmpty
+                                    ? widget.peer.uid
+                                    : widget.peer.username,
+                                isGroup: widget.isGroup,
+                              );
+                              if (!mounted || !sheetContext.mounted) return;
+                              Navigator.pop(sheetContext);
+                              NovynAlert.show(
+                                context,
+                                item['title'].toString() + ' challenge sent.',
+                                title: 'Challenge sent',
+                                icon: Icons.sports_esports_rounded,
+                                tone: NovynAlertTone.success,
+                              );
+                            } catch (error) {
+                              if (!mounted) return;
+                              NovynAlert.show(
+                                context,
+                                error is StateError
+                                    ? error.message.toString()
+                                    : 'Could not start the game.',
+                                isError: true,
+                                title: 'Could not start game',
+                                icon: Icons.sports_esports_rounded,
+                              );
+                            } finally {
+                              if (mounted) {
+                                setState(() => _sendingGameChallenge = false);
+                              }
+                            }
+                          },
                     child: Padding(
                       padding: const EdgeInsets.symmetric(
                           horizontal: 10, vertical: 12),
@@ -6086,7 +6100,6 @@ class _AttachmentButton extends StatelessWidget {
   static const _items = [
     _MenuItem(icon: Icons.poll_rounded, label: 'Poll'),
     _MenuItem(icon: Icons.lock_outline_rounded, label: 'Riddle'),
-    _MenuItem(icon: Icons.sports_esports_rounded, label: 'Games'),
     _MenuItem(icon: Icons.gif_box_rounded, label: 'GIFs'),
     _MenuItem(icon: Icons.sticky_note_2_outlined, label: 'Stickers'),
     _MenuItem(icon: Icons.photo_library_rounded, label: 'Media'),
