@@ -1648,6 +1648,10 @@ class SettingsService extends ChangeNotifier {
     _chatEnterToSend = true;
     _inAppVibration = true;
     _groupNotifications = true;
+    _notificationPreferences = {...notificationPreferenceDefaults};
+    _quietHoursStart = '22:00';
+    _quietHoursEnd = '07:00';
+    _quietHoursOffsetMinutes = 0;
     _autoDownloadWifi = 'all';
     _autoDownloadMobile = 'photos';
     _photoQuality = 'high';
