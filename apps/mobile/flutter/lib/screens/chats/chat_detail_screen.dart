@@ -5243,7 +5243,7 @@ class _MessageBubble extends StatelessWidget {
     if (kind == 'image' && url.isNotEmpty) {
       final scheme = Theme.of(context).colorScheme;
       final imageFuture = encrypted ? _loadAttachmentBytes(attachment, message!) : null;
-      Widget imageContent({required double? width, required double? height, required BoxFit fit, required bool fullScreen}) {
+      Widget imageContent({required double? width, required double? height, required BoxFit fit}) {
         if (!encrypted) {
           return Image.network(
             url,
@@ -5328,7 +5328,6 @@ class _MessageBubble extends StatelessWidget {
                                 width: double.infinity,
                                 height: double.infinity,
                                 fit: BoxFit.contain,
-                                fullScreen: true,
                               ),
                             ),
                           ),
@@ -5340,7 +5339,6 @@ class _MessageBubble extends StatelessWidget {
                     width: 236,
                     height: 188,
                     fit: BoxFit.cover,
-                    fullScreen: false,
                   ),
                 ),
               ),
@@ -5393,7 +5391,7 @@ class _MessageBubble extends StatelessWidget {
           IconButton(
             tooltip: 'Download attachment',
             icon: const Icon(Icons.download_rounded),
-            onPressed: () => _downloadAttachment(context, url, name),
+            onPressed: () => _downloadAttachment(context, url, name, message: message, attachment: attachment),
           ),
       ],
     );
