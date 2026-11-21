@@ -25,6 +25,7 @@ import { GameMessageBubble } from './GameMessageBubble';
 import { RiddleMessageBubble } from './RiddleMessageBubble';
 import { triggerHaptic } from '../../services/capacitor';
 import { ENCRYPTED_MESSAGE_PLACEHOLDER } from '../../services/messagePresentation';
+import { decryptAttachmentBytes } from '../../services/e2ee';
 
 interface MessageBubbleProps {
   message: Message;
@@ -106,10 +107,57 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   const [copied, setCopied] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(message.text || '');
+  const [decryptedAttachmentUrl, setDecryptedAttachmentUrl] = useState<string | null>(null);
+  const [attachmentDecrypting, setAttachmentDecrypting] = useState(false);
+  const [attachmentDecryptError, setAttachmentDecryptError] = useState('');
   const containerRef = useRef<HTMLDivElement>(null);
   const actionsMenuRef = useRef<HTMLDivElement>(null);
   const lastTapRef = useRef<number>(0);
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+
+  useEffect(() => {
+    const attachment = message.attachment;
+    if (!attachment?.encrypted || !attachment.url) {
+      setDecryptedAttachmentUrl(null);
+      setAttachmentDecrypting(false);
+      setAttachmentDecryptError('');
+      return;
+    }
+    let active = true;
+    let objectUrl: string | null = null;
+    setDecryptedAttachmentUrl(null);
+    setAttachmentDecryptError('');
+    setAttachmentDecrypting(true);
+    const load = async () => {
+      const peerUsername = (isMe ? message.receiver : message.sender)?.toLowerCase() || '';
+      const peerPublicKey = (isMe ? attachment.peerPublicKey : attachment.senderPublicKey) || '';
+      if (!peerUsername || !peerPublicKey || !attachment.iv) {
+        throw new Error('The attachment encryption details are incomplete.');
+      }
+      const response = await fetch(attachment.url, { credentials: 'include' });
+      if (!response.ok) throw new Error(`Media download failed (${response.status}).`);
+      const ciphertext = new Uint8Array(await response.arrayBuffer());
+      const clearBytes = await decryptAttachmentBytes(
+        ciphertext, attachment.iv, peerUsername, peerPublicKey,
+      );
+      if (!clearBytes) throw new Error('This device could not decrypt the attachment.');
+      const blob = new Blob([clearBytes], { type: attachment.mime || 'application/octet-stream' });
+      objectUrl = URL.createObjectURL(blob);
+      if (active) setDecryptedAttachmentUrl(objectUrl);
+    };
+    load().catch((error) => {
+      if (active) setAttachmentDecryptError(error instanceof Error ? error.message : 'Could not decrypt attachment.');
+    }).finally(() => {
+      if (active) setAttachmentDecrypting(false);
+    });
+    return () => {
+      active = false;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [message.id, message.sender, message.receiver, isMe, currentUsername,
+      message.attachment?.url, message.attachment?.encrypted, message.attachment?.iv,
+      message.attachment?.senderPublicKey, message.attachment?.peerPublicKey,
+      message.attachment?.mime]);
 
   useLayoutEffect(() => {
     if (!showActionsMenu) {
@@ -255,7 +303,8 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
       message.attachment?.name?.endsWith('.m4a')
   );
 
-  const audioUrl = message.attachment?.url;
+  const attachmentUrl = message.attachment?.encrypted ? decryptedAttachmentUrl : message.attachment?.url;
+  const audioUrl = attachmentUrl;
 
   const handleDoubleClick = (e?: React.MouseEvent | React.TouchEvent) => {
     if (e) e.stopPropagation();
@@ -752,10 +801,10 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           {message.attachment && (message.attachment.kind === 'image' || message.attachment.mime?.startsWith('image/')) && (
             <div
               style={{ marginBottom: '6px', borderRadius: '12px', overflow: 'hidden', cursor: 'pointer' }}
-              onClick={() => onMediaClick(message.attachment!.url)}
+              onClick={() => attachmentUrl && onMediaClick(attachmentUrl)}
             >
               <img
-                src={message.attachment.url}
+                src={attachmentUrl || ''}
                 alt={message.attachment.name}
                 style={{ maxHeight: '240px', width: '100%', objectFit: 'cover', borderRadius: '12px' }}
               />
@@ -770,7 +819,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           {/* 3. Document / File Attachment */}
           {!isAudioMessage && message.attachment && (message.attachment.kind === 'file' || !message.attachment.mime?.startsWith('image/')) && (
             <a
-              href={message.attachment.url}
+              href={attachmentUrl || '#'}
               target="_blank"
               rel="noopener noreferrer"
               style={{
