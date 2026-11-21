@@ -189,7 +189,7 @@ jobs:
             --repo "${GITHUB_REPOSITORY}" \
             --target "${GITHUB_SHA}" \
             --title "Novyn Android ARM64 APK — ${MB} MB" \
-            --notes "Signed ARM64-v8a Android release APK with Shorebird OTA enabled for compatible Dart-code updates. Direct download; no ZIP extraction required." \
+            --generate-notes \
             "${RELEASE_CHANNEL_ARGS[@]}"
 
       - name: Upload ARM64 APK
