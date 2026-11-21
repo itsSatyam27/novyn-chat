@@ -121,9 +121,26 @@ class AuthService extends ChangeNotifier {
   String? _pendingGoogleUsernameSuggestion;
   String? _pendingGoogleEmail;
   Timer? _sessionMaintenanceTimer;
-  bool _sessionRestoreInProgress = false;
+  Future<void>? _sessionRestoreTask;
   int _sessionMutationGeneration = 0;
   bool _sessionInvalidated = false;
+
+  /// Coalesce startup, resume and connectivity-triggered session checks. A
+  /// caller that arrives during a refresh must await the same result rather
+  /// than reconnecting Socket.IO with credentials that are still rotating.
+  Future<void> _runSessionRestore(Future<void> Function() operation) {
+    final pending = _sessionRestoreTask;
+    if (pending != null) return pending;
+
+    late final Future<void> task;
+    task = operation().whenComplete(() {
+      if (identical(_sessionRestoreTask, task)) {
+        _sessionRestoreTask = null;
+      }
+    });
+    _sessionRestoreTask = task;
+    return task;
+  }
 
   bool get isTwoFactorPending => _pendingTwoFactorChallenge != null;
   bool get isGoogleUsernamePending =>
@@ -446,9 +463,12 @@ class AuthService extends ChangeNotifier {
   /// explicit refresh-token rejection invalidates the local session.
   Future<void> _verifySessionInBackground(
     Future<Map<String, dynamic>?> Function() loadSession,
+  ) =>
+      _runSessionRestore(() => _verifySessionInBackgroundInternal(loadSession));
+
+  Future<void> _verifySessionInBackgroundInternal(
+    Future<Map<String, dynamic>?> Function() loadSession,
   ) async {
-    if (_sessionRestoreInProgress) return;
-    _sessionRestoreInProgress = true;
     final generation = _sessionMutationGeneration;
     var definitiveRejections = 0;
     try {
@@ -533,8 +553,6 @@ class AuthService extends ChangeNotifier {
       }
     } catch (error) {
       debugPrint('[NovynAuth] Background session verification deferred: $error');
-    } finally {
-      _sessionRestoreInProgress = false;
     }
   }
 
@@ -734,9 +752,13 @@ class AuthService extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> restoreSessionOnResume() async {
-    if (!_authReady || _user == null || _sessionRestoreInProgress) return;
-    _sessionRestoreInProgress = true;
+  Future<void> restoreSessionOnResume() {
+    if (!_authReady || _user == null) return Future<void>.value();
+    return _runSessionRestore(_restoreSessionOnResumeInternal);
+  }
+
+  Future<void> _restoreSessionOnResumeInternal() async {
+    if (!_authReady || _user == null) return;
     try {
       // Rehydrate encrypted cookies if the in-memory client was recreated.
       if (ApiService.sessionCookie == null ||
@@ -807,8 +829,6 @@ class AuthService extends ChangeNotifier {
       // gate only when the app is freshly started.
     } catch (_) {
       // Preserve the current user during temporary connectivity loss.
-    } finally {
-      _sessionRestoreInProgress = false;
     }
   }
 
