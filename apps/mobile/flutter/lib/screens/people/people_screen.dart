@@ -307,7 +307,7 @@ class _PeopleScreenState extends State<PeopleScreen> {
                     children: [
                       _buildFilters(all),
                       Expanded(
-                        child: _buildContactsList(filtered, myUid, friends),
+                        child: _buildContactsList(filtered, myUid),
                       ),
                     ],
                   );
@@ -457,7 +457,6 @@ class _PeopleScreenState extends State<PeopleScreen> {
   Widget _buildContactsList(
     List<UserModel> contacts,
     String myUid,
-    FriendService service,
   ) {
     if (contacts.isEmpty) {
       return ListView(
