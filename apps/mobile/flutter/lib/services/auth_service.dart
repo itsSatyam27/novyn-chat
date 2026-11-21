@@ -125,7 +125,8 @@ class AuthService extends ChangeNotifier {
   final SessionRestoreCoordinator _sessionRestoreCoordinator =
       SessionRestoreCoordinator();
   int _sessionMutationGeneration = 0;
-  int _consecutiveSessionRejections = 0;
+  final SessionRejectionTracker _sessionRejectionTracker =
+      SessionRejectionTracker();
   bool _sessionInvalidated = false;
 
   /// Coalesce startup, resume and connectivity-triggered session checks. A
@@ -224,7 +225,7 @@ class AuthService extends ChangeNotifier {
     final writeGeneration = expectedGeneration ?? ++_sessionMutationGeneration;
     if (writeGeneration != _sessionMutationGeneration) return;
     _sessionInvalidated = false;
-    _consecutiveSessionRejections = 0;
+    _sessionRejectionTracker.reset();
     final encoded = jsonEncode(_identityToMap(user));
 
     try {
@@ -430,7 +431,7 @@ class AuthService extends ChangeNotifier {
   ) async {
     if (expectedGeneration != _sessionMutationGeneration) return;
     debugPrint(
-      '[NovynAuth] Clearing local sign-in after 3 consecutive background refresh rejections.',
+      '[NovynAuth] Clearing local sign-in after 3 spaced background refresh rejections.',
     );
     final invalidationGeneration = ++_sessionMutationGeneration;
     await _setSignedOutMarker(true);
@@ -524,7 +525,10 @@ class AuthService extends ChangeNotifier {
         }
 
         final status = session?['_httpStatus'];
-        if (status != 401 && status != 403) return;
+        if (status != 401 && status != 403) {
+          _sessionRejectionTracker.reset();
+          return;
+        }
 
         final refreshStatus = await ApiService.refreshSessionStatus().timeout(
           const Duration(seconds: 8),
@@ -535,18 +539,21 @@ class AuthService extends ChangeNotifier {
           return;
         }
         if (refreshStatus == 200) {
-          _consecutiveSessionRejections = 0;
+          _sessionRejectionTracker.reset();
           await Future<void>.delayed(const Duration(milliseconds: 250));
           continue;
         }
-        if (refreshStatus != 401 && refreshStatus != 403) return;
-
-        _consecutiveSessionRejections++;
-        if (_consecutiveSessionRejections >= 3) {
-          await _invalidateSessionAfterStartupRejections(generation);
+        if (refreshStatus != 401 && refreshStatus != 403) {
+          _sessionRejectionTracker.reset();
           return;
         }
-        await Future<void>.delayed(const Duration(milliseconds: 400));
+
+        if (_sessionRejectionTracker.record(DateTime.now())) {
+          await _invalidateSessionAfterStartupRejections(generation);
+        }
+        // One quick failure burst is one observation, not three independent
+        // confirmations that the server-side session has been revoked.
+        return;
       }
     } catch (error) {
       debugPrint('[NovynAuth] Background session verification deferred: $error');
@@ -591,7 +598,6 @@ class AuthService extends ChangeNotifier {
     var storageReady = ApiService.sessionStorageInitialized;
     var hadSavedCookie = ApiService.sessionCookie != null;
     var attempt = 0;
-    var definitiveRejections = 0;
 
     while (!_authReady && clock.elapsed < const Duration(seconds: 32)) {
       if (!storageReady) {
@@ -664,16 +670,15 @@ class AuthService extends ChangeNotifier {
           final refreshStatus = await ApiService.refreshSessionStatus()
               .timeout(const Duration(seconds: 8), onTimeout: () => null);
           if (refreshStatus == 200) {
-            definitiveRejections = 0;
+            _sessionRejectionTracker.reset();
             attempt++;
             await Future<void>.delayed(const Duration(milliseconds: 400));
             continue;
           }
           if (refreshStatus == 401 || refreshStatus == 403) {
-            definitiveRejections++;
-            if (definitiveRejections >= 3) {
+            if (_sessionRejectionTracker.record(DateTime.now())) {
               debugPrint(
-                '[NovynAuth] Clearing local sign-in after 3 consecutive refresh rejections.',
+                '[NovynAuth] Clearing local sign-in after 3 spaced refresh rejections.',
               );
               await _setSignedOutMarker(true);
               await ApiService.clearSession();
@@ -684,13 +689,20 @@ class AuthService extends ChangeNotifier {
               notifyListeners();
               return;
             }
-          } else if (cachedIdentity != null) {
-            // An unavailable refresh endpoint is not an expired session.
-            await _activateCachedIdentity(
-              cachedIdentity,
-              reason: 'session server temporarily unavailable',
-            );
-            return;
+            // Stop this startup burst. A later resume/reconnect can confirm
+            // whether the saved refresh token is truly revoked.
+            break;
+          } else {
+            _sessionRejectionTracker.reset();
+            if (cachedIdentity != null) {
+              // An unavailable refresh endpoint is not an expired session.
+              await _activateCachedIdentity(
+                cachedIdentity,
+                reason: 'session server temporarily unavailable',
+              );
+              return;
+            }
+            break;
           }
         } else if (cachedIdentity != null) {
           // Network errors and 5xx responses must not turn a valid local
@@ -722,8 +734,7 @@ class AuthService extends ChangeNotifier {
     // backend could not be checked. Never use this fallback after a confirmed
     // missing session or repeated explicit refresh-token rejection.
     if (cachedIdentity != null &&
-        (hadSavedCookie || !storageReady) &&
-        definitiveRejections < 3) {
+        (hadSavedCookie || !storageReady)) {
       await _activateCachedIdentity(
         cachedIdentity,
         reason: 'bounded session restore fallback',
@@ -792,24 +803,29 @@ class AuthService extends ChangeNotifier {
           );
           if (!isCurrentSession()) return;
           if (refreshStatus == 200) {
-            _consecutiveSessionRejections = 0;
+            _sessionRejectionTracker.reset();
             session = await ApiService.getSession().timeout(
               const Duration(seconds: 8),
               onTimeout: () => null,
             );
           } else if (refreshStatus == 401 || refreshStatus == 403) {
-            _consecutiveSessionRejections++;
-            if (_consecutiveSessionRejections >= 3) {
+            if (_sessionRejectionTracker.record(DateTime.now())) {
               await _invalidateSessionAfterStartupRejections(generation);
               return;
             }
+          } else {
+            _sessionRejectionTracker.reset();
           }
+        } else {
+          // A timeout or service error is not an authentication rejection and
+          // breaks any earlier rejection sequence.
+          _sessionRejectionTracker.reset();
         }
       }
 
       if (session != null && session['authenticated'] == true) {
         if (!isCurrentSession()) return;
-        _consecutiveSessionRejections = 0;
+        _sessionRejectionTracker.reset();
         final refreshedUser = NovynUser.fromMap(session);
         if (_user?.username.toLowerCase() !=
             refreshedUser.username.toLowerCase()) {

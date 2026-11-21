@@ -97,6 +97,23 @@ test('newly issued auth session survives an immediate backend process restart', 
     await fs.rm(directory, { recursive: true, force: true });
   });
 
+  const live = await fetch(`${base}/health`);
+  assert.equal(live.status, 200, await live.clone().text());
+  assert.equal((await live.json()).status, 'live');
+
+  const readiness = await fetch(`${base}/health/ready`);
+  assert.equal(readiness.status, 200, await readiness.clone().text());
+  const readinessBody = await readiness.json();
+  assert.equal(readinessBody.ready, true);
+  assert.equal(readinessBody.storage, 'file');
+  assert.equal(readinessBody.persistentStorage, false);
+
+  const csrf = await fetch(`${base}/api/auth/csrf`);
+  assert.equal(csrf.status, 200, await csrf.clone().text());
+  const csrfBody = await csrf.json();
+  assert.ok(csrfBody.csrfToken, 'CSRF bootstrap must return a token');
+  assert.match(csrf.headers.get('set-cookie') || '', /novyn_csrf=/);
+
   const signup = await fetch(`${base}/api/auth/signup`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -132,6 +149,28 @@ test('newly issued auth session survives an immediate backend process restart', 
   assert.ok(
     authState.refreshSessions.some((entry) => entry.tokenId === refreshPayload.jti),
     'refresh allow-list entry must be persisted before its cookie is returned',
+  );
+
+  // Signing in an existing account must persist only the auth session, not
+  // rewrite the entire chat snapshot (which can become very large).
+  const chatStateStatBeforeSignin = await fs.stat(path.join(dataDirectory, 'chat-state.json'));
+  const signin = await fetch(`${base}/api/auth/signin`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      identifier: 'restart_user',
+      password: 'Persistent-session-test-123!',
+      remember: true,
+    }),
+  });
+  assert.equal(signin.status, 200, await signin.clone().text());
+  const signinBody = await signin.json();
+  assert.equal(signinBody.username, 'restart_user');
+  const chatStateStatAfterSignin = await fs.stat(path.join(dataDirectory, 'chat-state.json'));
+  assert.equal(
+    chatStateStatAfterSignin.mtimeMs,
+    chatStateStatBeforeSignin.mtimeMs,
+    'ordinary sign-in must not rewrite all chat data',
   );
 
   // Simulate Render/container restart after the client has received cookies.

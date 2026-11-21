@@ -31,7 +31,7 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
   DateTime? _lastCheckedAt;
   int _lastProgressBytes = 0;
   double _downloadSpeedBytesPerSecond = 0;
-  String _appVersion = AppUpdateService.displayVersion, _buildNumber = '0';
+  String _appVersion = AppUpdateService.displayVersion;
   final AppUpdateService _updateService = AppUpdateService.instance;
 
   String _lastCheckedLabel() {
@@ -134,7 +134,6 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
       if (mounted) {
         setState(() {
           _installedBuild = int.tryParse(packageInfo.buildNumber) ?? 0;
-          _buildNumber = packageInfo.buildNumber;
           _appVersion = AppUpdateService.displayVersion;
         });
       }
@@ -142,7 +141,6 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
       if (!mounted) return;
       _installedBuild = result.installedBuild;
       _appVersion = AppUpdateService.displayVersion;
-      _buildNumber = result.buildNumber;
       final release = result.release;
       if (release != null) {
         _latestBuild = release.build;
@@ -772,9 +770,7 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
               ),
               const SizedBox(height: 12),
               _infoCard(context, [
-                _InfoRow(label: 'App version', value: '$_appVersion (build $_buildNumber)'),
-                Divider(height: 1, color: border.withValues(alpha: .8)),
-                const _InfoRow(label: 'Platform', value: 'Flutter · Android'),
+                _InfoRow(label: 'App version', value: _appVersion),
               ]),
               const SizedBox(height: 12),
               Center(child: Text('MADE TO KEEP YOUR PEOPLE CLOSE',
