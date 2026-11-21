@@ -171,6 +171,8 @@ class SocketService extends ChangeNotifier {
   List<String> get blockedUsers => List.unmodifiable(_blockedUsers);
 
   // Call event callbacks
+  Function(Map)? onRandomMatchFound;
+  Function(Map)? onRandomMatchTimeout;
   Function(Map)? onCallInviteCallback;
   Function(Map)? onCallAcceptedCallback;
   Function()? onCallRejectedCallback;
@@ -1440,6 +1442,13 @@ class SocketService extends ChangeNotifier {
       }
     });
 
+    _socket!.on('random_match_found', (data) {
+      if (data is Map) onRandomMatchFound?.call(Map<String, dynamic>.from(data));
+    });
+    _socket!.on('random_match_timeout', (data) {
+      if (data is Map) onRandomMatchTimeout?.call(Map<String, dynamic>.from(data));
+    });
+
     // ── Server error messages ─────────────────────────────────────────────
     _socket!.on('error_message', (data) {
       final message = data is Map ? data['message'] : data;
@@ -2196,19 +2205,79 @@ class SocketService extends ChangeNotifier {
     }
   }
 
-  void sendGameChallenge(String gameType, String peerUsername,
-      {bool isGroup = false}) {
-    _requireConnection();
-    _socket!.emit('private_message', {
-      'to': peerUsername,
-      'toType': isGroup ? 'group' : 'friend',
-      'text': '🎮 Started a game of ${_gameTitle(gameType)}!',
-      'clientTempId': 'tmp_game_${DateTime.now().millisecondsSinceEpoch}',
-      'game': {
-        'id': 'game_${DateTime.now().millisecondsSinceEpoch}',
-        'gameType': gameType,
-      },
+  Future<void> joinRandomGame(String gameType) async {
+    await _waitForSocketAuthentication();
+    final completer = Completer<Map<String, dynamic>>();
+    _socket!.emitWithAck('join_random_game', {'gameType': gameType},
+        ack: (dynamic result) {
+      if (completer.isCompleted) return;
+      completer.complete(result is Map
+          ? Map<String, dynamic>.from(result)
+          : <String, dynamic>{'ok': false, 'message': 'Could not join matchmaking.'});
     });
+    final result = await completer.future.timeout(
+      const Duration(seconds: 10),
+      onTimeout: () => <String, dynamic>{'ok': false, 'message': 'Matchmaking request timed out.'},
+    );
+    if (result['ok'] != true) {
+      throw StateError(result['message']?.toString() ?? 'Could not join matchmaking.');
+    }
+  }
+
+  Future<void> cancelRandomGame() async {
+    final socket = _socket;
+    if (socket == null || !_isConnected || !_isAuthenticated) return;
+    final completer = Completer<void>();
+    socket.emitWithAck('cancel_random_game', {}, ack: (_) {
+      if (!completer.isCompleted) completer.complete();
+    });
+    await completer.future.timeout(const Duration(seconds: 5), onTimeout: () {});
+  }
+
+  Future<void> sendGameChallenge(String gameType, String peerUsername,
+      {bool isGroup = false}) async {
+    _requireConnection();
+    final connection = _socket!;
+    final timestamp = DateTime.now().microsecondsSinceEpoch.toString();
+    final response = Completer<Map<String, dynamic>>();
+
+    connection.emitWithAck(
+      'private_message',
+      {
+        'to': peerUsername,
+        'toType': isGroup ? 'group' : 'friend',
+        'text': '🎮 Started a game of ' + _gameTitle(gameType) + '!',
+        'clientTempId': 'tmp_game_' + timestamp,
+        'game': {
+          'id': 'game_' + timestamp,
+          'gameType': gameType,
+        },
+      },
+      ack: (dynamic result) {
+        if (response.isCompleted) return;
+        response.complete(
+          result is Map
+              ? Map<String, dynamic>.from(result)
+              : <String, dynamic>{
+                  'ok': false,
+                  'message': 'Could not send the game invitation.',
+                },
+        );
+      },
+    );
+
+    final result = await response.future.timeout(
+      const Duration(seconds: 12),
+      onTimeout: () => <String, dynamic>{
+        'ok': false,
+        'message': 'Game invitation timed out. Please retry.',
+      },
+    );
+    if (result['ok'] != true) {
+      throw StateError(
+        result['message']?.toString() ?? 'Could not send the game invitation.',
+      );
+    }
   }
 
   String _gameTitle(String type) {

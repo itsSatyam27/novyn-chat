@@ -29,6 +29,7 @@ class _GameMessageCardState extends State<GameMessageCard> {
   List<Map<String, dynamic>> _strokes = [];
   Map<String, dynamic>? _optimisticData;
   bool _sendingMove = false;
+  bool _startingRematch = false;
 
   @override
   void didUpdateWidget(covariant GameMessageCard oldWidget) {
@@ -157,6 +158,23 @@ class _GameMessageCardState extends State<GameMessageCard> {
           ),
           const SizedBox(height: 10),
           if (_type == 'tictactoe') _ticTacToe(),
+          if (_type == 'tictactoe' && _finished) ...[
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: _startingRematch ? null : _startTicTacToeRematch,
+                icon: _startingRematch
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.replay_rounded, size: 18),
+                label: Text(_startingRematch ? 'Starting rematch…' : 'Play again'),
+              ),
+            ),
+          ],
           if (_type == 'connect4') _connect4(),
           if (_type == 'rps') _rockPaperScissors(),
           if (_type == 'numberclash') _numberClash(),
@@ -168,15 +186,35 @@ class _GameMessageCardState extends State<GameMessageCard> {
   }
 
   Widget _ticTacToe() {
-    final board = _data['board'] is List ? List<dynamic>.from(_data['board']) : List<dynamic>.filled(9, null);
+    final board = _data['board'] is List
+        ? List<dynamic>.from(_data['board'])
+        : List<dynamic>.filled(9, null);
     final playerX = _data['playerX']?.toString() ?? _creator;
-    final playerO = _data['playerO']?.toString() ?? (widget.isGroup ? 'Waiting for player' : _opponent);
-    final canJoin = widget.isGroup && playerO == 'Waiting for player' && board.any((cell) => cell != null) &&
+    final playerO = _data['playerO']?.toString() ??
+        (widget.isGroup ? 'Waiting for player' : _opponent);
+    final canJoin = widget.isGroup &&
+        playerO == 'Waiting for player' &&
+        board.any((cell) => cell != null) &&
         widget.currentUsername.toLowerCase() != playerX.toLowerCase();
-    final symbol = widget.currentUsername.toLowerCase() == playerX.toLowerCase() ? 'X' : 'O';
+    final symbol =
+        widget.currentUsername.toLowerCase() == playerX.toLowerCase() ? 'X' : 'O';
+    final rawWinningLine = _data['winningLine'];
+    final winningCells = rawWinningLine is List
+        ? rawWinningLine
+            .whereType<num>()
+            .map((index) => index.toInt())
+            .where((index) => index >= 0 && index < 9)
+            .toSet()
+        : <int>{};
+    final colors = Theme.of(context).colorScheme;
+
     return Column(
       children: [
-        Text('@$playerX  ✕     @$playerO  ◯', style: const TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 10)),
+        Text(
+          '@$playerX  ✕     @$playerO  ◯',
+          style: const TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 10),
+          textAlign: TextAlign.center,
+        ),
         const SizedBox(height: 8),
         SizedBox(
           width: 204,
@@ -184,32 +222,101 @@ class _GameMessageCardState extends State<GameMessageCard> {
           child: GridView.builder(
             physics: const NeverScrollableScrollPhysics(),
             itemCount: 9,
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 3, crossAxisSpacing: 5, mainAxisSpacing: 5),
-            itemBuilder: (context, index) => InkWell(
-              onTap: !_finished && !_sendingMove && (_myTurn || canJoin) && board[index] == null
-                  ? () {
-                      final next = List<dynamic>.from(board);
-                      next[index] = symbol;
-                      _move({'board': next, 'playerX': playerX, 'playerO': canJoin ? widget.currentUsername : playerO});
-                    }
-                  : null,
-              borderRadius: BorderRadius.circular(9),
-              child: Container(
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                  borderRadius: BorderRadius.circular(9),
-                ),
-                alignment: Alignment.center,
-                child: Text(
-                  board[index] == 'X' ? '✕' : board[index] == 'O' ? '◯' : '',
-                  style: TextStyle(fontSize: 30, fontWeight: FontWeight.w800, color: board[index] == 'X' ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.tertiary),
-                ),
-              ),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 3,
+              crossAxisSpacing: 5,
+              mainAxisSpacing: 5,
             ),
+            itemBuilder: (context, index) {
+              final isWinningCell = winningCells.contains(index);
+              final value = board[index]?.toString();
+              final canTap = !_finished &&
+                  !_sendingMove &&
+                  (_myTurn || canJoin) &&
+                  value == null;
+              final position = 'Row ${index ~/ 3 + 1}, column ${index % 3 + 1}';
+              final cellLabel = value == null ? 'empty' : value;
+              return Semantics(
+                button: canTap,
+                enabled: canTap,
+                label: '$position, $cellLabel${isWinningCell ? ', winning line' : ''}',
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(9),
+                  onTap: canTap
+                      ? () {
+                          final next = List<dynamic>.from(board);
+                          next[index] = symbol;
+                          _move({
+                            'board': next,
+                            'playerX': playerX,
+                            'playerO': canJoin ? widget.currentUsername : playerO,
+                          });
+                        }
+                      : null,
+                  child: Container(
+                    key: ValueKey('tic-tac-toe-cell-$index'),
+                    decoration: BoxDecoration(
+                      color: isWinningCell
+                          ? colors.primaryContainer
+                          : colors.surfaceContainerHighest,
+                      borderRadius: BorderRadius.circular(9),
+                      border: Border.all(
+                        color: isWinningCell
+                            ? colors.primary
+                            : colors.outlineVariant.withValues(alpha: .35),
+                        width: isWinningCell ? 1.6 : .7,
+                      ),
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      value == 'X' ? '✕' : value == 'O' ? '◯' : '',
+                      style: TextStyle(
+                        fontSize: 30,
+                        fontWeight: FontWeight.w800,
+                        color: value == 'X' ? colors.primary : colors.tertiary,
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
           ),
         ),
       ],
     );
+  }
+
+  Future<void> _startTicTacToeRematch() async {
+    if (_startingRematch) return;
+    setState(() => _startingRematch = true);
+    try {
+      await context.read<SocketService>().sendGameChallenge(
+            'tictactoe',
+            widget.peerUsername,
+            isGroup: widget.isGroup,
+          );
+      if (!mounted) return;
+      NovynAlert.show(
+        context,
+        'A new Tic-Tac-Toe game has been sent to this chat.',
+        title: 'Rematch started',
+        icon: Icons.sports_esports_rounded,
+        tone: NovynAlertTone.success,
+      );
+    } catch (error) {
+      if (!mounted) return;
+      NovynAlert.show(
+        context,
+        error is StateError
+            ? error.message.toString()
+            : 'Could not start the rematch. Check your connection and try again.',
+        isError: true,
+        title: 'Could not start rematch',
+        icon: Icons.sports_esports_rounded,
+      );
+    } finally {
+      if (mounted) setState(() => _startingRematch = false);
+    }
   }
 
   Widget _connect4() {
