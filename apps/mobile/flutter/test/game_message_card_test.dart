@@ -10,7 +10,7 @@ class _FakeSocketService extends SocketService {
   bool? sentToGroup;
 
   @override
-  Future<void> sendGameChallenge(
+  Future<String> sendGameChallenge(
     String gameType,
     String peerUsername, {
     bool isGroup = false,
@@ -18,6 +18,7 @@ class _FakeSocketService extends SocketService {
     sentGameType = gameType;
     sentPeer = peerUsername;
     sentToGroup = isGroup;
+    return 'new-game-message';
   }
 }
 
@@ -50,6 +51,7 @@ Widget gameCardHost(_FakeSocketService socket, {bool isGroup = false}) {
             currentUsername: 'alice',
             peerUsername: isGroup ? 'group-123' : 'bob',
             isGroup: isGroup,
+            compact: false,
           ),
         ),
       ),
