@@ -21,10 +21,62 @@ test("disconnect removes only the owning socket queue entry", () => {
   const q = new PublicGameMatchmaking(); q.join({userKey:"alice",socketId:"old",gameType:"tictactoe"});
   assert.equal(q.disconnect("alice","new"),false); assert.equal(q.disconnect("alice","old"),true);
 });
-test("unsupported games rejected and same account cannot self-match", () => {
+test("all six games support random matchmaking and one account cannot self-match", () => {
   const q = new PublicGameMatchmaking();
-  assert.equal(q.join({userKey:"alice",socketId:"s1",gameType:"doodle"}).ok,false);
-  q.join({userKey:"alice",socketId:"s1",gameType:"tictactoe"});
-  assert.equal(q.join({userKey:"alice",socketId:"s2",gameType:"tictactoe"}).queued,true);
-  assert.equal(q.size,1); q.cancel("alice");
+  const gameTypes = ["tictactoe", "rps", "connect4", "doodle", "numberclash", "updown"];
+  for (const [index, gameType] of gameTypes.entries()) {
+    const first = "player_" + index + "_a";
+    const second = "player_" + index + "_b";
+    assert.equal(q.join({ userKey: first, socketId: first + "_socket", gameType }).queued, true);
+    assert.equal(q.join({ userKey: first, socketId: first + "_other_socket", gameType }).queued, true);
+    assert.equal(q.join({ userKey: second, socketId: second + "_socket", gameType }).matched, true);
+  }
+  assert.equal(q.join({ userKey: "alice", socketId: "s1", gameType: "unsupported" }).ok, false);
+  assert.equal(q.size, 0);
+});
+
+
+test("random matchmaking never pairs mutual friends", () => {
+  const q = new PublicGameMatchmaking();
+  assert.equal(q.join({
+    userKey: "alice",
+    socketId: "alice_socket",
+    gameType: "tictactoe",
+    excludedUsers: ["bob"],
+  }).queued, true);
+  const bob = q.join({
+    userKey: "bob",
+    socketId: "bob_socket",
+    gameType: "tictactoe",
+    excludedUsers: ["alice"],
+  });
+  assert.equal(bob.queued, true);
+  assert.equal(q.size, 2);
+  q.cancel("alice");
+  q.cancel("bob");
+});
+
+test("one-sided or stale friend records still exclude the pair but allow a stranger", () => {
+  const q = new PublicGameMatchmaking({ createSessionId: () => "stranger-session" });
+  q.join({
+    userKey: "alice",
+    socketId: "alice_socket",
+    gameType: "rps",
+    excludedUsers: ["bob"],
+  });
+  const bob = q.join({
+    userKey: "bob",
+    socketId: "bob_socket",
+    gameType: "rps",
+  });
+  assert.equal(bob.queued, true);
+  const charlie = q.join({
+    userKey: "charlie",
+    socketId: "charlie_socket",
+    gameType: "rps",
+  });
+  assert.equal(charlie.matched, true);
+  assert.deepEqual(charlie.players.map((player) => player.userKey), ["alice", "charlie"]);
+  assert.equal(q.size, 1);
+  q.cancel("bob");
 });
