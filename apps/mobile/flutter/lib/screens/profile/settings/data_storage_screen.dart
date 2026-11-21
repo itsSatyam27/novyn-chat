@@ -414,13 +414,17 @@ class _DataStorageScreenState extends State<DataStorageScreen> {
     HapticService.vibrate(NovynHapticType.medium);
 
     try {
-      final temporaryDirectory = await getTemporaryDirectory();
-      if (await temporaryDirectory.exists()) {
-        await for (final entity in temporaryDirectory.list(followLinks: false)) {
-          try {
-            await entity.delete(recursive: true);
-          } on FileSystemException {
-            // Skip files held by OS
+      if (Platform.isAndroid) {
+        await _DeviceStorageCard._storageChannel.invokeMethod<void>('clearStorageCache');
+      } else {
+        final temporaryDirectory = await getTemporaryDirectory();
+        if (await temporaryDirectory.exists()) {
+          await for (final entity in temporaryDirectory.list(followLinks: false)) {
+            try {
+              await entity.delete(recursive: true);
+            } on FileSystemException {
+              // Skip files held by OS
+            }
           }
         }
       }
