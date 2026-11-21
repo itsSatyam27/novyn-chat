@@ -3516,7 +3516,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
                                 if (encrypted) {
                                   if (mime.startsWith('image/')) {
                                     try {
-                                      final bytes = await _loadAttachmentBytes(attachment, message);
+                                      final bytes = await _ChatAttachmentLoader.loadBytes(context, attachment, message);
                                       if (!context.mounted) return;
                                       showDialog<void>(
                                         context: context,
