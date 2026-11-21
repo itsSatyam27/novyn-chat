@@ -8,12 +8,14 @@ class VoiceMessagePlayer extends StatefulWidget {
   final String url;
   final String label;
   final int? durationSeconds;
+  final Future<String> Function()? resolveLocalSource;
 
   const VoiceMessagePlayer({
     super.key,
     required this.url,
     this.label = 'Voice message',
     this.durationSeconds,
+    this.resolveLocalSource,
   });
 
   @override
@@ -105,6 +107,9 @@ class _VoiceMessagePlayerState extends State<VoiceMessagePlayer>
     try {
       if (_state == PlayerState.paused) {
         await _player.resume();
+      } else if (widget.resolveLocalSource != null) {
+        final path = await widget.resolveLocalSource!();
+        await _player.play(DeviceFileSource(path));
       } else {
         await _player.play(UrlSource(widget.url));
       }
