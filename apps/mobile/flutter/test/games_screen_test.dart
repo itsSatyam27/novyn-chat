@@ -26,7 +26,7 @@ void main() {
     SharedPreferences.setMockInitialValues({});
   });
 
-  testWidgets('Games hub shows the first game and keeps matchmaking unavailable',
+  testWidgets('Games hub shows the two MVP games and friend matchmaking',
       (tester) async {
     final socket = SocketService();
     final friends = FriendService(socket);
@@ -44,11 +44,11 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Games'), findsOneWidget);
-    expect(find.text('Tic Tac Toe'), findsNWidgets(2));
-    expect(find.text('Play online'), findsOneWidget);
-    expect(find.text('Random matchmaking is coming soon.'), findsOneWidget);
-    expect(find.text('No friends yet'), findsOneWidget);
-    expect(find.text('Find friends'), findsOneWidget);
+    expect(find.text('Tic-Tac-Toe'), findsOneWidget);
+    expect(find.text('Rock Paper Scissors'), findsOneWidget);
+    expect(find.text('Quick match'), findsOneWidget);
+    expect(find.text('Invite a friend'), findsOneWidget);
+    expect(find.text('No friends to invite yet'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }
