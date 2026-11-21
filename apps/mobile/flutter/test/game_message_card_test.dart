@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:novyn/models/chat_models.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:novyn/services/socket_service.dart';
 import 'package:novyn/widgets/game_message_card.dart';
@@ -20,6 +21,33 @@ class _FakeSocketService extends SocketService {
     sentToGroup = isGroup;
     return 'new-game-message';
   }
+
+  @override
+  Future<List<Message>> openChat(
+    String peerUsername,
+    List<Message> cachedHistory, {
+    bool isGroup = false,
+  }) async {
+    return <Message>[
+      Message(
+        id: 'new-game-message',
+        text: 'Started a new game',
+        isFromMe: true,
+        game: <String, dynamic>{
+          'gameType': 'tictactoe',
+          'title': 'Tic-Tac-Toe',
+          'createdBy': 'alice',
+          'opponent': peerUsername,
+          'state': 'in_progress',
+          'turn': 'alice',
+          'data': <String, dynamic>{
+            'board': List<dynamic>.filled(9, null),
+            'playerX': 'alice',
+          },
+        },
+      ),
+    ];
+  }
 }
 
 Map<String, dynamic> finishedGame() => {
@@ -39,7 +67,11 @@ Map<String, dynamic> finishedGame() => {
       },
     };
 
-Widget gameCardHost(_FakeSocketService socket, {bool isGroup = false}) {
+Widget gameCardHost(
+  _FakeSocketService socket, {
+  bool isGroup = false,
+  bool compact = false,
+}) {
   return ChangeNotifierProvider<SocketService>.value(
     value: socket,
     child: MaterialApp(
@@ -51,7 +83,7 @@ Widget gameCardHost(_FakeSocketService socket, {bool isGroup = false}) {
             currentUsername: 'alice',
             peerUsername: isGroup ? 'group-123' : 'bob',
             isGroup: isGroup,
-            compact: false,
+            compact: compact,
           ),
         ),
       ),
@@ -60,6 +92,21 @@ Widget gameCardHost(_FakeSocketService socket, {bool isGroup = false}) {
 }
 
 void main() {
+  testWidgets('chat game bubble is a summary and opens a dedicated game room', (tester) async {
+    final socket = _FakeSocketService();
+    await tester.pumpWidget(gameCardHost(socket, compact: true));
+
+    expect(find.text('Open'), findsOneWidget);
+    expect(find.byKey(const ValueKey('tic-tac-toe-cell-0')), findsNothing);
+
+    await tester.tap(find.text('Open'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Playing with bob'), findsOneWidget);
+    expect(find.byKey(const ValueKey('tic-tac-toe-cell-0')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('Tic-Tac-Toe highlights all server-reported winning cells', (tester) async {
     final socket = _FakeSocketService();
     await tester.pumpWidget(gameCardHost(socket));
