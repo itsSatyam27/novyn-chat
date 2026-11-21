@@ -34,6 +34,10 @@ class _GamesScreenState extends State<GamesScreen> {
   String _selectedGameType = 'tictactoe';
   bool _loadingFriends = true;
   bool _sendingChallenge = false;
+  bool _searchingRandom = false;
+  int _queueSecondsRemaining = 60;
+  Timer? _queueTimer;
+  SocketService? _gameSocket;
 
   @override
   void initState() {
@@ -42,6 +46,9 @@ class _GamesScreenState extends State<GamesScreen> {
       if (!mounted) return;
       _auth = context.read<AuthService>();
       _auth!.addListener(_handleAuthChanged);
+      _gameSocket = context.read<SocketService>();
+      _gameSocket!.onRandomMatchFound = _handleRandomMatchFound;
+      _gameSocket!.onRandomMatchTimeout = _handleRandomMatchTimeout;
       _subscribeToFriends();
     });
   }
@@ -49,6 +56,10 @@ class _GamesScreenState extends State<GamesScreen> {
   @override
   void dispose() {
     _auth?.removeListener(_handleAuthChanged);
+    _queueTimer?.cancel();
+    _gameSocket?.onRandomMatchFound = null;
+    _gameSocket?.onRandomMatchTimeout = null;
+    if (_searchingRandom) unawaited(_gameSocket?.cancelRandomGame());
     unawaited(_friendsSubscription?.cancel());
     super.dispose();
   }
@@ -117,17 +128,82 @@ class _GamesScreenState extends State<GamesScreen> {
       GameMatchmaking.availableOnlineFriends(_friends);
 
   Future<void> _quickMatch() async {
-    final opponent = GameMatchmaking.pickRandomOnlineFriend(_friends);
-    if (opponent == null) {
-      NovynAlert.show(
-        context,
-        'No friends are available for a quick match right now. You can still invite someone from your friends list.',
-        title: 'No players online',
-        icon: Icons.group_off_rounded,
-      );
+    if (_searchingRandom) {
+      _queueTimer?.cancel();
+      setState(() {
+        _searchingRandom = false;
+        _queueSecondsRemaining = 60;
+      });
+      await _gameSocket?.cancelRandomGame();
       return;
     }
-    await _sendChallenge(opponent);
+    final socket = _gameSocket ?? context.read<SocketService>();
+    setState(() {
+      _searchingRandom = true;
+      _queueSecondsRemaining = 60;
+    });
+    _queueTimer?.cancel();
+    _queueTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted || !_searchingRandom) {
+        timer.cancel();
+        return;
+      }
+      if (_queueSecondsRemaining > 0) {
+        setState(() => _queueSecondsRemaining--);
+      }
+    });
+    try {
+      await socket.joinRandomGame(_selectedGameType);
+    } catch (error) {
+      _queueTimer?.cancel();
+      if (!mounted) return;
+      setState(() {
+        _searchingRandom = false;
+        _queueSecondsRemaining = 60;
+      });
+      NovynAlert.show(
+        context,
+        error is StateError ? error.message.toString() : 'Could not start random matchmaking. Check your connection and try again.',
+        isError: true,
+        title: 'Matchmaking unavailable',
+        icon: Icons.group_off_rounded,
+      );
+    }
+  }
+
+  void _handleRandomMatchFound(Map<String, dynamic> data) {
+    if (!mounted) return;
+    _queueTimer?.cancel();
+    final opponent = data['opponent'] is Map
+        ? Map<String, dynamic>.from(data['opponent'] as Map)
+        : <String, dynamic>{};
+    final displayName = opponent['displayName']?.toString().trim();
+    final username = opponent['username']?.toString().trim();
+    setState(() {
+      _searchingRandom = false;
+      _queueSecondsRemaining = 60;
+    });
+    NovynAlert.show(
+      context,
+      'You have been matched with ' + ((displayName?.isNotEmpty == true) ? displayName! : '@' + (username ?? 'player')) + '. Your random game session is ready.',
+      title: 'Player found!',
+      icon: Icons.sports_esports_rounded,
+    );
+  }
+
+  void _handleRandomMatchTimeout(Map<String, dynamic> data) {
+    if (!mounted) return;
+    _queueTimer?.cancel();
+    setState(() {
+      _searchingRandom = false;
+      _queueSecondsRemaining = 60;
+    });
+    NovynAlert.show(
+      context,
+      data['message']?.toString() ?? 'No player available right now. Please try again.',
+      title: 'No player available',
+      icon: Icons.group_off_rounded,
+    );
   }
 
   Future<void> _sendChallenge(UserModel opponent) async {
@@ -288,7 +364,7 @@ class _GamesScreenState extends State<GamesScreen> {
 
   Widget _buildQuickMatchCard(ThemeData theme, _GameOption selectedGame) {
     final colors = theme.colorScheme;
-    final canMatch = _onlineFriends.isNotEmpty && !_sendingChallenge;
+    final canMatch = !_sendingChallenge;
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -333,12 +409,12 @@ class _GamesScreenState extends State<GamesScreen> {
           ),
           const SizedBox(height: 16),
           Text(
-            'Quick match',
+            'Play with Random',
             style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 5),
           Text(
-            'Get paired with a random online friend for ' + selectedGame.title + '.',
+            'Find a stranger to play ' + selectedGame.title + ' with. We will search for up to 1 minute.',
             style: theme.textTheme.bodySmall?.copyWith(
               color: colors.onSurfaceVariant,
               height: 1.45,
@@ -349,23 +425,33 @@ class _GamesScreenState extends State<GamesScreen> {
             width: double.infinity,
             child: FilledButton.icon(
               onPressed: canMatch ? _quickMatch : null,
-              icon: _sendingChallenge
+              icon: _searchingRandom || _sendingChallenge
                   ? const SizedBox(
                       width: 17,
                       height: 17,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  : const Icon(Icons.shuffle_rounded),
-              label: const Text('Find a quick match'),
+                  : Icon(_searchingRandom ? Icons.close_rounded : Icons.public_rounded),
+              label: Text(_searchingRandom ? 'Cancel search • 00:' + _queueSecondsRemaining.toString().padLeft(2, '0') : 'Play with Random'),
             ),
           ),
-          if (!_loadingFriends && _onlineFriends.isEmpty) ...[
-            const SizedBox(height: 8),
-            Text(
-              'Your online friends will appear here. You can still invite someone below.',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: colors.onSurfaceVariant,
-              ),
+          if (_searchingRandom) ...[
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+                const SizedBox(width: 9),
+                Expanded(
+                  child: Text(
+                    'Searching for an available stranger…',
+                    style: theme.textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant),
+                  ),
+                ),
+                Text(
+                  '00:' + _queueSecondsRemaining.toString().padLeft(2, '0'),
+                  style: theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w800),
+                ),
+              ],
             ),
           ],
         ],
