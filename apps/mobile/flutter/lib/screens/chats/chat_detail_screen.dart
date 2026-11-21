@@ -3143,6 +3143,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
         throw StateError('Voice recording file was not found.');
       final bytes = await file.readAsBytes();
       if (bytes.isEmpty) throw StateError('Voice recording is empty.');
+      if (widget.isGroup && bytes.length > 6 * 1024 * 1024) {
+        throw StateError('Group voice notes must be smaller than 6 MB.');
+      }
       final recipient = widget.peer.uid.isNotEmpty
           ? widget.peer.uid
           : widget.peer.username;
