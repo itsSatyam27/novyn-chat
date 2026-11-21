@@ -244,18 +244,15 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     // Reconnect if its previous socket was disconnected during logout.
     _activeUsername = username;
     auth.setOnline(true);
-    if (sameAccount && socket.isConnected && !socket.isAuthenticated) {
-      unawaited(socket.reconnectWithCurrentSession());
-    } else {
-      socket.connect(ApiService.baseUrl, username);
-    }
-    // SocketService now owns the requested identity and has cleared a previous
-    // account's live contacts before the offline cache is activated.
+    // Keep the local account cache available immediately, but do not create a
+    // socket handshake until secure cookies have been restored and the REST
+    // session check (including any refresh-token rotation) has completed.
     context.read<FriendService>().activateAccount(username);
     socket.onUserStatusChanged = (peerUsername, isOnline) {
       if (!mounted) return;
       context.read<FriendService>().updateCachedStatus(peerUsername, isOnline);
     };
+    unawaited(_restoreSessionAndRecover());
     ApiService.ping();
 
     unawaited(() async {
