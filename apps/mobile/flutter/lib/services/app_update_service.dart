@@ -23,6 +23,30 @@ const String _lastNotifiedBuildKey = 'novyn_last_notified_update_build';
 const String _lastUpdateNotificationAtKey = 'novyn_last_update_notification_at_ms';
 const String _handledUpdateBuildKey = 'novyn_handled_update_build';
 
+/// Extracts the human-readable change bullets from GitHub's generated release
+/// notes. Headings and GitHub's "Full Changelog" footer are intentionally
+/// omitted so the About screen only shows changes for this release.
+List<String> _parseReleaseNotes(String body) {
+  return body
+      .split('\n')
+      .map((line) => line.trim())
+      .where((line) =>
+          line.startsWith('- ') ||
+          line.startsWith('* ') ||
+          line.startsWith('• ') ||
+          RegExp(r'^\\d+\\.\\s+').hasMatch(line))
+      .map((line) => line
+          .replaceFirst(RegExp(r'^([-*•]|\\d+\\.)\\s*'), '')
+          .replaceAll(RegExp(r'\\s+'), ' ')
+          .trim())
+      .where((line) =>
+          line.isNotEmpty &&
+          !line.toLowerCase().startsWith('full changelog') &&
+          line.toLowerCase() != 'no changes')
+      .take(6)
+      .toList(growable: false);
+}
+
 @pragma('vm:entry-point')
 void novynUpdateCallbackDispatcher() {
   Workmanager().executeTask((task, inputData) async {
@@ -218,12 +242,7 @@ class AppUpdateService extends ChangeNotifier {
       sha256: digest.substring(7).toLowerCase(),
       size: size,
       name: (selectedRelease?['name'] ?? '').toString().trim(),
-      notes: (selectedRelease?['body'] ?? '').toString()
-          .split('\n')
-          .map((line) => line.replaceFirst(RegExp(r'^\s*([-*•]|\d+\.)\s*'), '').trim())
-          .where((line) => line.isNotEmpty && !line.startsWith('#'))
-          .take(4)
-          .toList(growable: false),
+      notes: _parseReleaseNotes((selectedRelease?['body'] ?? '').toString()),
     );
     await prepareForUpdate(release);
     if (notifyIfAvailable) {
