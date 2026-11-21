@@ -5,14 +5,26 @@ class PublicGameMatchmaking {
     this.timeoutMs = timeoutMs; this.onExpired = onExpired; this.createSessionId = createSessionId;
     this.queues = new Map(); this.byUser = new Map();
   }
-  join({ userKey, displayName, socketId, gameType }) {
+  join({ userKey, displayName, socketId, gameType, excludedUsers = [] }) {
     const user = String(userKey || "").trim().toLowerCase();
     const socket = String(socketId || "").trim();
     const type = String(gameType || "").trim().toLowerCase();
     if (!user || !socket || !["tictactoe", "rps", "connect4", "doodle", "numberclash", "updown"].includes(type)) return { ok: false, message: "Invalid matchmaking request." };
     this.cancel(user);
+    const excluded = new Set(
+      (Array.isArray(excludedUsers) ? excludedUsers : [])
+        .map((value) => String(value || "").trim().toLowerCase())
+        .filter(Boolean),
+    );
+    excluded.add(user);
     const queue = this.queues.get(type) || [];
-    const index = queue.findIndex((entry) => entry.userKey !== user);
+    // A match is valid only when both players consider the other a stranger.
+    // This protects against stale/inconsistent one-way friend lists as well.
+    const index = queue.findIndex((entry) =>
+      entry.userKey !== user &&
+      !excluded.has(entry.userKey) &&
+      !entry.excludedUsers.has(user)
+    );
     if (index >= 0) {
       const opponent = queue.splice(index, 1)[0]; clearTimeout(opponent.timer); this.byUser.delete(opponent.userKey);
       if (queue.length) this.queues.set(type, queue); else this.queues.delete(type);
@@ -20,7 +32,7 @@ class PublicGameMatchmaking {
         players: [{ userKey: opponent.userKey, displayName: opponent.displayName, socketId: opponent.socketId },
           { userKey: user, displayName: String(displayName || user), socketId: socket }] };
     }
-    const entry = { userKey: user, displayName: String(displayName || user), socketId: socket, gameType: type, timer: null };
+    const entry = { userKey: user, displayName: String(displayName || user), socketId: socket, gameType: type, excludedUsers: excluded, timer: null };
     entry.timer = setTimeout(() => { this.removeEntry(entry); this.onExpired({ userKey: user, socketId: socket, gameType: type }); }, this.timeoutMs);
     if (typeof entry.timer.unref === "function") entry.timer.unref();
     queue.push(entry); this.queues.set(type, queue); this.byUser.set(user, entry);
