@@ -498,10 +498,13 @@ class AuthService extends ChangeNotifier {
         return;
       }
       if (generation != _sessionMutationGeneration ||
-          ApiService.sessionCookie == null ||
-          ApiService.sessionCookie!.isEmpty) {
+          await _hasSignedOutMarker()) {
         return;
       }
+
+      // A readable secure store with no saved cookie is not a temporary
+      // Keystore failure. Verify it with the backend instead of preserving a
+      // cached profile forever in a logged-in-but-unauthenticated state.
       final cookieBeforeVerification = ApiService.sessionCookie;
 
       for (var attempt = 0; attempt < 5; attempt++) {
