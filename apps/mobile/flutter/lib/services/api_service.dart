@@ -124,7 +124,6 @@ class ApiService {
       const Duration(seconds: 4),
       onTimeout: () => false,
     );
-    await initializeSessionStorage();
 
     if (_csrfToken == null) await _bootstrapCsrfToken();
 
