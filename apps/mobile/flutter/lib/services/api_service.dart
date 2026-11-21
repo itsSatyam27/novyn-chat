@@ -754,6 +754,10 @@ class ApiService {
 
   // ── Auth: Get current session ─────────────────────────────────────────────
   // Returns { authenticated, username, displayName, email, avatarId, bio, presenceMode }
+  @visibleForTesting
+  static bool shouldPersistSessionCookies(int statusCode) =>
+      statusCode != 401 && statusCode != 403;
+
   static Future<Map<String, dynamic>?> getSession({
     Duration timeout = const Duration(seconds: 10),
   }) async {
@@ -771,10 +775,16 @@ class ApiService {
             headers: _authHeaders,
           )
           .timeout(timeout);
-      await _storeSessionCookie(
-        res,
-        expectedRevision: requestRevision,
-      );
+      // A single auth rejection can come from a restarting/out-of-sync API
+      // instance. Preserve the last known cookie pair until refresh independently
+      // confirms expiry; otherwise this 401 erases the only refresh credential
+      // before AuthService has a chance to retry another healthy API instance.
+      if (shouldPersistSessionCookies(res.statusCode)) {
+        await _storeSessionCookie(
+          res,
+          expectedRevision: requestRevision,
+        );
+      }
       if (res.statusCode == 200) {
         return Map<String, dynamic>.from(jsonDecode(res.body));
       }
