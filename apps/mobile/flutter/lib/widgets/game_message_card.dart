@@ -343,29 +343,80 @@ class _GameMessageCardState extends State<GameMessageCard> {
                           });
                         }
                       : null,
-                  child: Container(
+                  child: AnimatedContainer(
                     key: ValueKey('tic-tac-toe-cell-$index'),
+                    duration: const Duration(milliseconds: 220),
+                    curve: Curves.easeOutCubic,
                     decoration: BoxDecoration(
-                      color: isWinningCell
-                          ? colors.primaryContainer
-                          : colors.surfaceContainerHighest,
-                      borderRadius: BorderRadius.circular(9),
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: isWinningCell
+                            ? [
+                                colors.primaryContainer,
+                                colors.primary.withValues(alpha: .16),
+                              ]
+                            : [
+                                colors.surfaceContainerHighest,
+                                colors.surface,
+                              ],
+                      ),
+                      borderRadius: BorderRadius.circular(12),
                       border: Border.all(
                         color: isWinningCell
                             ? colors.primary
-                            : colors.outlineVariant.withValues(alpha: .35),
-                        width: isWinningCell ? 1.6 : .7,
+                            : colors.outlineVariant.withValues(alpha: .38),
+                        width: isWinningCell ? 2 : .8,
                       ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: isWinningCell
+                              ? colors.primary.withValues(alpha: .24)
+                              : colors.shadow.withValues(alpha: .10),
+                          blurRadius: isWinningCell ? 12 : 5,
+                          offset: Offset(0, isWinningCell ? 4 : 3),
+                        ),
+                        if (!isWinningCell)
+                          BoxShadow(
+                            color: colors.surface.withValues(alpha: .9),
+                            blurRadius: 1,
+                            offset: const Offset(-1, -1),
+                          ),
+                      ],
                     ),
                     alignment: Alignment.center,
-                    child: Text(
-                      value == 'X' ? '✕' : value == 'O' ? '◯' : '',
-                      style: TextStyle(
-                        fontSize: 30,
-                        fontWeight: FontWeight.w800,
-                        color: value == 'X' ? colors.primary : colors.tertiary,
-                      ),
-                    ),
+                    child: value == null
+                        ? const SizedBox.expand()
+                        : TweenAnimationBuilder<double>(
+                            key: ValueKey('tic-tac-toe-mark-$index-$value'),
+                            tween: Tween<double>(begin: .35, end: 1),
+                            duration: const Duration(milliseconds: 260),
+                            curve: Curves.elasticOut,
+                            builder: (context, scale, child) => Transform.scale(
+                              scale: scale,
+                              child: child,
+                            ),
+                            child: Text(
+                              value == 'X' ? '✕' : '◯',
+                              style: TextStyle(
+                                fontSize: 30,
+                                fontWeight: FontWeight.w900,
+                                color: value == 'X'
+                                    ? colors.primary
+                                    : colors.tertiary,
+                                shadows: [
+                                  Shadow(
+                                    color: (value == 'X'
+                                            ? colors.primary
+                                            : colors.tertiary)
+                                        .withValues(alpha: .22),
+                                    blurRadius: 7,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
                   ),
                 ),
               );
@@ -486,25 +537,229 @@ class _GameMessageCardState extends State<GameMessageCard> {
     final p2Move = _data['p2Move']?.toString();
     const choices = {'rock': '🪨', 'paper': '📄', 'scissors': '✂️'};
     if (_finished || (p1Move != null && p2Move != null)) {
-      return Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: [
-          Text(choices[p1Move] ?? '…', style: const TextStyle(fontSize: 28)),
-          const Text('VS', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800)),
-          Text(choices[p2Move] ?? '…', style: const TextStyle(fontSize: 28)),
-        ],
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Row(
+          children: [
+            Expanded(
+              child: _rpsRevealTile(
+                label: 'PLAYER 1',
+                emoji: choices[p1Move] ?? '…',
+                move: p1Move ?? 'Waiting',
+                accent: Theme.of(context).colorScheme.primary,
+                delay: 0,
+              ),
+            ),
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 8),
+              child: Text(
+                'VS',
+                style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900),
+              ),
+            ),
+            Expanded(
+              child: _rpsRevealTile(
+                label: 'PLAYER 2',
+                emoji: choices[p2Move] ?? '…',
+                move: p2Move ?? 'Waiting',
+                accent: Theme.of(context).colorScheme.tertiary,
+                delay: 90,
+              ),
+            ),
+          ],
+        ),
       );
     }
-    if (myMove != null) return const Center(child: Text('Your move is locked. Waiting…', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 11)));
+    if (myMove != null) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              Theme.of(context).colorScheme.primary.withValues(alpha: .13),
+              Theme.of(context).colorScheme.primary.withValues(alpha: .04),
+            ],
+          ),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: Theme.of(context).colorScheme.primary.withValues(alpha: .2),
+          ),
+        ),
+        child: const Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.lock_clock_rounded, size: 17),
+            SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                'Your move is locked. Waiting for opponent…',
+                style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 11),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
     final isP2 = _opponent.toLowerCase() == widget.currentUsername.toLowerCase();
-    if (!isP1 && !isP2 && !_canJoinGroup) return const Text('This game already has two players.', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 11));
-    return Wrap(
-      alignment: WrapAlignment.center,
-      spacing: 8,
-      children: choices.entries.map((entry) => OutlinedButton(
-        onPressed: _sendingMove ? null : () => _move({'move': entry.key}),
-        child: Text(entry.value, style: const TextStyle(fontSize: 20)),
-      )).toList(),
+    if (!isP1 && !isP2 && !_canJoinGroup) {
+      return const Text(
+        'This game already has two players.',
+        style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 11),
+      );
+    }
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 330;
+        return Row(
+          children: choices.entries.map((entry) {
+            final colors = Theme.of(context).colorScheme;
+            final title = entry.key[0].toUpperCase() + entry.key.substring(1);
+            return Expanded(
+              child: Padding(
+                padding: EdgeInsets.only(
+                  right: entry.key == 'scissors' ? 0 : 8,
+                ),
+                child: _rpsChoiceTile(
+                  title: title,
+                  emoji: entry.value,
+                  compact: compact,
+                  onTap: _sendingMove
+                      ? null
+                      : () => _move({'move': entry.key}),
+                  accent: colors.primary,
+                ),
+              ),
+            );
+          }).toList(),
+        );
+      },
+    );
+  }
+
+  Widget _rpsChoiceTile({
+    required String title,
+    required String emoji,
+    required bool compact,
+    required VoidCallback? onTap,
+    required Color accent,
+  }) {
+    final colors = Theme.of(context).colorScheme;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(17),
+        onTap: onTap,
+        child: Ink(
+          padding: EdgeInsets.symmetric(
+            horizontal: compact ? 4 : 8,
+            vertical: 12,
+          ),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                colors.surface,
+                accent.withValues(alpha: .09),
+              ],
+            ),
+            borderRadius: BorderRadius.circular(17),
+            border: Border.all(color: accent.withValues(alpha: .22)),
+            boxShadow: [
+              BoxShadow(
+                color: accent.withValues(alpha: .13),
+                blurRadius: 11,
+                offset: const Offset(0, 6),
+              ),
+              BoxShadow(
+                color: colors.shadow.withValues(alpha: .05),
+                blurRadius: 2,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(emoji, style: TextStyle(fontSize: compact ? 25 : 29)),
+              const SizedBox(height: 6),
+              Text(
+                title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  fontWeight: FontWeight.w900,
+                  fontSize: 10,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _rpsRevealTile({
+    required String label,
+    required String emoji,
+    required String move,
+    required Color accent,
+    required int delay,
+  }) {
+    final colors = Theme.of(context).colorScheme;
+    return TweenAnimationBuilder<double>(
+      tween: Tween<double>(begin: .65, end: 1),
+      duration: Duration(milliseconds: 360 + delay),
+      curve: Curves.easeOutBack,
+      builder: (context, scale, child) => Transform.scale(
+        scale: scale,
+        child: child,
+      ),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 13, horizontal: 7),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [accent.withValues(alpha: .16), colors.surface],
+          ),
+          borderRadius: BorderRadius.circular(17),
+          border: Border.all(color: accent.withValues(alpha: .25)),
+          boxShadow: [
+            BoxShadow(
+              color: accent.withValues(alpha: .16),
+              blurRadius: 14,
+              offset: const Offset(0, 7),
+            ),
+          ],
+        ),
+        child: Column(
+          children: [
+            Text(
+              label,
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: accent,
+                fontWeight: FontWeight.w900,
+                letterSpacing: .7,
+                fontSize: 8,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(emoji, style: const TextStyle(fontSize: 31)),
+            const SizedBox(height: 5),
+            Text(
+              move.toUpperCase(),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                fontWeight: FontWeight.w900,
+                fontSize: 9,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
