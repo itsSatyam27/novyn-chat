@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'dart:async';
+import 'dart:typed_data';
 import 'dart:collection';
 import '../models/chat_models.dart';
 import '../models/chat_preview.dart';
@@ -405,9 +406,9 @@ class SocketService extends ChangeNotifier {
     };
 
     if (!pending.isGroup) {
-      if (pending.attachment != null) {
+      if (pending.attachment != null && pending.attachment?['encrypted'] != true) {
         throw const PendingMessageRejectedException(
-          'Secure media sharing is not enabled yet. Send text-only messages.',
+          'This attachment is not end-to-end encrypted. Please select it again and retry.',
         );
       }
 
@@ -1999,6 +2000,62 @@ class SocketService extends ChangeNotifier {
   }
 
   // ── Send a message ─────────────────────────────────────────────────────────
+  /// Encrypts a selected attachment for a direct chat before it reaches storage.
+  /// Group media continues to use the existing group-media flow.
+  Future<Map<String, dynamic>> prepareEncryptedAttachment(
+    Uint8List bytes,
+    String peerUsername,
+  ) async {
+    final account = _myUsername;
+    if (account == null || account.isEmpty) {
+      throw StateError('Sign in before sending attachments.');
+    }
+    if (bytes.isEmpty) throw StateError('The selected attachment is empty.');
+    await _waitForSocketAuthentication();
+    _requireConnection();
+    await _registerEncryptionIdentity();
+    if (_registeredIdentityAccount != account.toLowerCase()) {
+      throw StateError('Secure identity registration is pending.');
+    }
+
+    final connection = _socket;
+    if (connection == null || !_isAuthenticated) {
+      throw StateError('Novyn is reconnecting. Please try again.');
+    }
+    final keyReply = Completer<Map<String, dynamic>>();
+    connection.emitWithAck('get_public_key', {'username': peerUsername},
+        ack: (dynamic result) {
+      if (!keyReply.isCompleted) {
+        keyReply.complete(result is Map
+            ? Map<String, dynamic>.from(result)
+            : <String, dynamic>{});
+      }
+    });
+    final keyResult = await keyReply.future.timeout(
+      const Duration(seconds: 8),
+      onTimeout: () => <String, dynamic>{},
+    );
+    final peerPublicKey = keyResult['publicKey']?.toString() ?? '';
+    if (peerPublicKey.isEmpty) {
+      throw StateError('The contact encryption key is not available yet.');
+    }
+    _peerKeys[peerUsername.toLowerCase()] = peerPublicKey;
+    final encrypted = await encryption.encryptAttachmentBytes(
+      bytes, account, peerPublicKey,
+    );
+    return {
+      'bytes': encrypted['ciphertext'] as Uint8List,
+      'metadata': {
+        'encrypted': true,
+        'encryptionVersion': 1,
+        'iv': encrypted['iv'],
+        'senderPublicKey': encrypted['senderPublicKey'],
+        // The sender uses this public key to decrypt their own uploaded copy.
+        'peerPublicKey': peerPublicKey,
+      },
+    };
+  }
+
   Future<void> sendMessage(
     String text,
     String toPeerUsername, {
@@ -2014,12 +2071,6 @@ class SocketService extends ChangeNotifier {
     if (trimmedText.isEmpty && attachment == null) {
       throw StateError('Write a message or attach a file first.');
     }
-    if (!isGroup && attachment != null) {
-      throw StateError(
-        'Secure media sharing is being prepared. Please send text-only messages for now.',
-      );
-    }
-
     final clientTempId = 'tmp_${DateTime.now().microsecondsSinceEpoch}';
     final rawText = trimmedText.isNotEmpty
         ? trimmedText
