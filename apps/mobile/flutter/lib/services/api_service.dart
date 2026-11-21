@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
@@ -1115,6 +1116,25 @@ class ApiService {
     } catch (error) {
       throw StateError('Could not upload voice message: $error');
     }
+  }
+
+  /// Downloads protected media bytes without writing ciphertext to the Downloads folder.
+  static Future<Uint8List> downloadMediaBytes(String mediaUrl) async {
+    final uri = Uri.tryParse(mediaUrl);
+    if (uri == null || !uri.hasScheme || !['http', 'https'].contains(uri.scheme)) {
+      throw StateError('This attachment link is invalid.');
+    }
+    final downloadUri = uri.replace(queryParameters: {
+      ...uri.queryParameters,
+      'inline': '1',
+    });
+    final response = await http.get(downloadUri, headers: _authHeaders)
+        .timeout(const Duration(seconds: 60));
+    if (response.statusCode != 200) {
+      throw StateError('Download failed (${response.statusCode}). Please try again.');
+    }
+    if (response.bodyBytes.isEmpty) throw StateError('The downloaded file is empty.');
+    return response.bodyBytes;
   }
 
   static Future<File> downloadMedia(String mediaUrl, String filename) async {
