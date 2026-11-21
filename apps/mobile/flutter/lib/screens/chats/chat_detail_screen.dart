@@ -4529,7 +4529,7 @@ class _MessageBubble extends StatelessWidget {
                         if (message.attachment is Map &&
                             message.attachment['url'] != null) ...[
                           _buildAttachmentPreview(
-                              context, message.attachment as Map),
+                              context, message.attachment as Map, message: message),
                           const SizedBox(height: 6),
                         ],
                         if ((message.text as String).isNotEmpty &&
@@ -5191,11 +5191,12 @@ class _MessageBubble extends StatelessWidget {
     }
   }
 
-  Widget _buildAttachmentPreview(BuildContext context, Map attachment) {
+  Widget _buildAttachmentPreview(BuildContext context, Map attachment, {Message? message}) {
     final url = attachment['url']?.toString() ?? '';
     final name = attachment['name']?.toString().trim().isNotEmpty == true
         ? attachment['name'].toString().trim()
         : 'Attachment';
+    final encrypted = attachment['encrypted'] == true && message != null;
     final rawKind = attachment['kind']?.toString().toLowerCase() ?? '';
     final mime = attachment['mime']?.toString().toLowerCase() ?? '';
     final mediaPath = (Uri.tryParse(url)?.path ?? url).toLowerCase();
@@ -5226,9 +5227,12 @@ class _MessageBubble extends StatelessWidget {
             url: url,
             label: name,
             durationSeconds: (attachment['duration'] as num?)?.toInt(),
+            resolveLocalSource: encrypted
+                ? () => _prepareAttachmentFile(attachment, message!)
+                : null,
           ),
           TextButton.icon(
-            onPressed: () => _downloadAttachment(context, url, name),
+            onPressed: () => _downloadAttachment(context, url, name, message: message, attachment: attachment),
             icon: const Icon(Icons.download_rounded, size: 17),
             label: const Text('Download'),
           ),
@@ -5238,6 +5242,40 @@ class _MessageBubble extends StatelessWidget {
 
     if (kind == 'image' && url.isNotEmpty) {
       final scheme = Theme.of(context).colorScheme;
+      final imageFuture = encrypted ? _loadAttachmentBytes(attachment, message!) : null;
+      Widget imageContent({required double? width, required double? height, required BoxFit fit, required bool fullScreen}) {
+        if (!encrypted) {
+          return Image.network(
+            url,
+            headers: ApiService.imageHeaders,
+            width: width,
+            height: height,
+            fit: fit,
+            errorBuilder: (_, __, ___) => const Icon(Icons.broken_image_outlined),
+          );
+        }
+        return FutureBuilder<Uint8List>(
+          future: imageFuture,
+          builder: (context, snapshot) {
+            if (snapshot.hasData) {
+              return Image.memory(
+                snapshot.data!, width: width, height: height, fit: fit,
+                errorBuilder: (_, __, ___) => const Icon(Icons.broken_image_outlined),
+              );
+            }
+            if (snapshot.hasError) {
+              return SizedBox(
+                width: width, height: height,
+                child: const Center(child: Icon(Icons.lock_outline_rounded)),
+              );
+            }
+            return SizedBox(
+              width: width, height: height,
+              child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+            );
+          },
+        );
+      }
       return Container(
         width: 244,
         decoration: BoxDecoration(
@@ -5277,7 +5315,7 @@ class _MessageBubble extends StatelessWidget {
                                 tooltip: 'Download image',
                                 icon: const Icon(Icons.download_rounded),
                                 onPressed: () =>
-                                    _downloadAttachment(context, url, name),
+                                    _downloadAttachment(context, url, name, message: message, attachment: attachment),
                               ),
                               const SizedBox(width: 8),
                             ],
@@ -5286,21 +5324,11 @@ class _MessageBubble extends StatelessWidget {
                             child: InteractiveViewer(
                               minScale: 0.7,
                               maxScale: 4,
-                              child: Image.network(
-                                url,
-                                headers: ApiService.imageHeaders,
+                              child: imageContent(
+                                width: double.infinity,
+                                height: double.infinity,
                                 fit: BoxFit.contain,
-                                errorBuilder: (_, __, ___) => const Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(Icons.broken_image_outlined,
-                                        color: Colors.white70, size: 42),
-                                    SizedBox(height: 10),
-                                    Text('Image unavailable',
-                                        style:
-                                            TextStyle(color: Colors.white70)),
-                                  ],
-                                ),
+                                fullScreen: true,
                               ),
                             ),
                           ),
@@ -5308,43 +5336,11 @@ class _MessageBubble extends StatelessWidget {
                       ),
                     );
                   },
-                  child: Image.network(
-                    url,
-                    headers: ApiService.imageHeaders,
+                  child: imageContent(
                     width: 236,
                     height: 188,
                     fit: BoxFit.cover,
-                    frameBuilder:
-                        (context, child, frame, wasSynchronouslyLoaded) {
-                      if (wasSynchronouslyLoaded || frame != null) return child;
-                      return SizedBox(
-                        width: 236,
-                        height: 188,
-                        child: Center(
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: scheme.primary,
-                          ),
-                        ),
-                      );
-                    },
-                    errorBuilder: (_, __, ___) => SizedBox(
-                      width: 236,
-                      height: 188,
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.broken_image_outlined,
-                              size: 34, color: scheme.onSurfaceVariant),
-                          const SizedBox(height: 7),
-                          Text(
-                            'Image unavailable',
-                            style: TextStyle(
-                                color: scheme.onSurfaceVariant, fontSize: 12),
-                          ),
-                        ],
-                      ),
-                    ),
+                    fullScreen: false,
                   ),
                 ),
               ),
@@ -5368,6 +5364,10 @@ class _MessageBubble extends StatelessWidget {
             onTap: url.isEmpty
                 ? null
                 : () async {
+                    if (encrypted) {
+                      await _downloadAttachment(context, url, name, message: message, attachment: attachment);
+                      return;
+                    }
                     final uri = Uri.tryParse(url);
                     if (uri == null) return;
                     try {
