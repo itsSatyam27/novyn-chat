@@ -291,6 +291,15 @@ class _SessionLifecycleGuardState extends State<SessionLifecycleGuard>
     });
   }
 
+  Future<void> _restoreSessionAndResumeSocket() async {
+    // Validate/refresh credentials before allowing the foreground socket to
+    // reuse them. MainScreen shares this in-flight check via AuthService.
+    await context.read<AuthService>().restoreSessionOnResume();
+    if (!mounted) return;
+    context.read<SocketService>().setAppForeground(true);
+    await _restoreOnlineAfterAutoAway();
+  }
+
   Future<void> _restoreOnlineAfterAutoAway() async {
     if (!_setAwayAutomatically) return;
     _setAwayAutomatically = false;
@@ -308,9 +317,7 @@ class _SessionLifecycleGuardState extends State<SessionLifecycleGuard>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       _autoAwayTimer?.cancel();
-      context.read<SocketService>().setAppForeground(true);
-      context.read<AuthService>().restoreSessionOnResume();
-      unawaited(_restoreOnlineAfterAutoAway());
+      unawaited(_restoreSessionAndResumeSocket());
     } else if (state == AppLifecycleState.inactive ||
         state == AppLifecycleState.paused ||
         state == AppLifecycleState.detached) {
