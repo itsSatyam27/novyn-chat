@@ -171,8 +171,47 @@ app.use("/api/auth", createIpRateLimiter({ getStore: () => httpRateLimits }, "au
 app.use("/upload-voice", createIpRateLimiter({ getStore: () => httpRateLimits }, "voice-upload", 40, 15 * 60 * 1000));
 app.use("/upload-file", createIpRateLimiter({ getStore: () => httpRateLimits }, "file-upload", 40, 15 * 60 * 1000));
 app.use((req, res, next) => {
-  ensureCsrfCookie(req, res);
+  req.novynCsrfToken = ensureCsrfCookie(req, res);
   next();
+});
+
+app.get("/health", (_req, res) => {
+  res.set("Cache-Control", "no-store, max-age=0");
+  res.status(200).json({ ok: true, status: "live" });
+});
+
+app.get("/health/ready", async (_req, res) => {
+  res.set("Cache-Control", "no-store, max-age=0");
+  const storage = hasMongoStorage() ? "mongodb" : "file";
+
+  if (MONGODB_URI) {
+    if (!mongoStorage || !hasMongoStorage()) {
+      return res.status(503).json({
+        ok: false,
+        ready: false,
+        storage: "mongodb",
+        message: "Database storage is not initialized.",
+      });
+    }
+    try {
+      await mongoStorage.ping();
+    } catch (error) {
+      console.warn("[NovynHealth] MongoDB readiness check failed:", error?.message || error);
+      return res.status(503).json({
+        ok: false,
+        ready: false,
+        storage: "mongodb",
+        message: "Database is temporarily unavailable.",
+      });
+    }
+  }
+
+  return res.status(200).json({
+    ok: true,
+    ready: true,
+    storage,
+    persistentStorage: storage === "mongodb",
+  });
 });
 
 const defaultUploadsDir = path.join(__dirname, "runtime", "uploads");
@@ -1644,7 +1683,7 @@ function describeAuthDevice(req) {
   return { deviceName, client, createdAt: Date.now() };
 }
 
-async function issueAuthTokensForUser(userKey, remember, req) {
+async function issueAuthTokensForUser(userKey, remember, req, options = {}) {
   const key = normalizeName(userKey);
   if (!key || users.get(key)?.isSuspended === true) return null;
   const persistent = Boolean(remember);
@@ -1661,9 +1700,13 @@ async function issueAuthTokensForUser(userKey, remember, req) {
   // A process restart during the debounce window must not invalidate a newly
   // issued token pair on the next app launch.
   try {
-    // Newly registered/linked accounts and one-time security changes (such as
-    // consumed backup codes) must be committed before a usable cookie is sent.
-    await flushStatePersistNow();
+    // Existing-user sign-in only changes the auth-session record. Persisting
+    // the complete chat snapshot for every login is expensive and can block
+    // authentication as conversations grow. Persist user data only when the
+    // auth flow actually created/changed the account or consumed a backup code.
+    if (options.persistUserState === true) {
+      await flushStatePersistNow();
+    }
     await flushAuthStatePersistNow();
   } catch (error) {
     revokeRefreshSession(refreshTokenId);
@@ -5844,39 +5887,52 @@ app.post(
 );
 
 app.post("/api/auth/signin", createIpRateLimiter({ getStore: () => httpRateLimits }, "auth-signin", 25, 15 * 60 * 1000), requireCsrf, async (req, res) => {
-  const result = await authenticateSigninPayload(req.body || {});
-  if (!result.ok) {
-    res.status(result.status || 401).json({
-      message: result.message || "Authentication failed.",
-      suggestions: result.suggestions || [],
-    });
-    return;
-  }
-  const remember = readRememberFlag(req.body?.remember);
-  const userKey = normalizeName(result.user.username);
-  if (result.user.twoFactorEnabled) {
-    const challengeToken = createAuthToken("2fa_challenge", userKey, 5 * 60 * 1000, {
-      remember: remember ? 1 : 0,
-      nonce: crypto.randomBytes(16).toString("hex"),
-    });
+  try {
+    const result = await authenticateSigninPayload(req.body || {});
+    if (!result.ok) {
+      res.status(result.status || 401).json({
+        message: result.message || "Authentication failed.",
+        suggestions: result.suggestions || [],
+      });
+      return;
+    }
+    const remember = readRememberFlag(req.body?.remember);
+    const userKey = normalizeName(result.user.username);
+    if (result.user.twoFactorEnabled) {
+      const challengeToken = createAuthToken("2fa_challenge", userKey, 5 * 60 * 1000, {
+        remember: remember ? 1 : 0,
+        nonce: crypto.randomBytes(16).toString("hex"),
+      });
+      res.json({
+        requiresTwoFactor: true,
+        challengeToken,
+        username: result.user.username,
+        message: "Enter the 6-digit code from your authenticator app.",
+      });
+      return;
+    }
+    const tokens = await issueAuthTokensForUser(userKey, remember, req);
+    if (!tokens) {
+      res.status(503).json({
+        message: "Login service is temporarily unavailable. Please try again shortly.",
+        code: "AUTH_SESSION_PERSISTENCE_UNAVAILABLE",
+      });
+      return;
+    }
+    applyAuthCookies(res, tokens);
     res.json({
-      requiresTwoFactor: true,
-      challengeToken,
       username: result.user.username,
-      message: "Enter the 6-digit code from your authenticator app.",
+      email: result.user.email || "",
     });
-    return;
+  } catch (error) {
+    console.error("[NovynAuth] Sign-in request failed:", error?.message || error);
+    if (!res.headersSent) {
+      res.status(503).json({
+        message: "Login service is temporarily unavailable. Please try again shortly.",
+        code: "AUTH_SERVICE_UNAVAILABLE",
+      });
+    }
   }
-  const tokens = await issueAuthTokensForUser(userKey, remember, req);
-  if (!tokens) {
-    res.status(500).json({ message: "Unable to create session." });
-    return;
-  }
-  applyAuthCookies(res, tokens);
-  res.json({
-    username: result.user.username,
-    email: result.user.email || "",
-  });
 });
 
 app.post(
@@ -5891,7 +5947,9 @@ app.post(
     }
     const remember = readRememberFlag(req.body?.remember);
     const userKey = normalizeName(result.user.username);
-    const tokens = await issueAuthTokensForUser(userKey, remember, req);
+    const tokens = await issueAuthTokensForUser(userKey, remember, req, {
+      persistUserState: true,
+    });
     if (!tokens) {
       res.status(500).json({ message: "Unable to create session." });
       return;
@@ -6066,7 +6124,9 @@ app.post(
       return;
     }
 
-    const tokens = await issueAuthTokensForUser(user.username, remember, req);
+    const tokens = await issueAuthTokensForUser(user.username, remember, req, {
+      persistUserState: userChanged,
+    });
     if (!tokens) {
       res.status(500).json({ message: "Unable to create session." });
       return;
@@ -6102,6 +6162,7 @@ app.post(
     }
 
     let verified = verifyTotpCode(decryptTotpSecret(user.twoFactorSecret), code);
+    let backupCodeConsumed = false;
     if (!verified && Array.isArray(user.twoFactorBackupCodes)) {
       const candidateHash = hashBackupCode(code);
       const backupIndex = user.twoFactorBackupCodes.findIndex((saved) => {
@@ -6114,6 +6175,7 @@ app.post(
       if (backupIndex >= 0) {
         user.twoFactorBackupCodes.splice(backupIndex, 1);
         verified = true;
+        backupCodeConsumed = true;
         schedulePersist();
       }
     }
@@ -6123,9 +6185,11 @@ app.post(
     }
 
     const remember = challenge.remember === 1;
-    const tokens = await issueAuthTokensForUser(userKey, remember, req);
+    const tokens = await issueAuthTokensForUser(userKey, remember, req, {
+      persistUserState: backupCodeConsumed,
+    });
     if (!tokens) {
-      res.status(500).json({ message: "Unable to create session." });
+      res.status(503).json({ message: "Unable to create session." });
       return;
     }
     applyAuthCookies(res, tokens);
@@ -6237,6 +6301,15 @@ app.put("/api/settings/account", requireUser, requireCsrf, async (req, res) => {
     console.warn("[NovynSettings] Firestore write failed:", error?.message || error);
     return res.status(503).json({ ok: false, message: "Cloud settings could not be saved." });
   }
+});
+
+app.get("/api/auth/csrf", (req, res) => {
+  const token = toDisplayName(req.novynCsrfToken);
+  if (!token) {
+    return res.status(503).json({ message: "Could not initialize the security token." });
+  }
+  res.set("Cache-Control", "no-store, max-age=0");
+  return res.json({ ok: true, csrfToken: token });
 });
 
 app.get("/api/auth/session", async (req, res) => {
