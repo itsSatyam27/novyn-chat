@@ -485,6 +485,46 @@ class MessageEncryptionService {
     return message;
   }
 
+  /// Encrypts binary media with the same per-contact ECDH key used for messages.
+  /// The returned ciphertext includes the 16-byte GCM authentication tag.
+  Future<Map<String, dynamic>> encryptAttachmentBytes(
+    Uint8List plaintext,
+    String username,
+    String peerPublicKeyJwk,
+  ) async {
+    if (plaintext.isEmpty) throw const FormatException('The selected attachment is empty.');
+    if (peerPublicKeyJwk.isEmpty) throw const FormatException('The contact encryption key is unavailable.');
+    final key = await _sharedKey(username, peerPublicKeyJwk);
+    final box = await _aes.encrypt(plaintext, secretKey: key);
+    return {
+      'ciphertext': Uint8List.fromList([...box.cipherText, ...box.mac.bytes]),
+      'iv': base64Encode(box.nonce),
+      'senderPublicKey': await initializeIdentity(username),
+    };
+  }
+
+  /// Decrypts an E2EE attachment for the sender or recipient using the
+  /// corresponding peer public key. Authentication failures are surfaced.
+  Future<Uint8List> decryptAttachmentBytes(
+    Uint8List ciphertext,
+    String username,
+    String peerPublicKeyJwk,
+    String ivBase64,
+  ) async {
+    if (ciphertext.length < 16) throw const FormatException('Encrypted attachment is damaged.');
+    final nonce = base64Decode(ivBase64);
+    if (nonce.length != 12) throw const FormatException('Encrypted attachment has an invalid nonce.');
+    final bytes = ciphertext;
+    final box = SecretBox(
+      bytes.sublist(0, bytes.length - 16),
+      nonce: nonce,
+      mac: Mac(bytes.sublist(bytes.length - 16)),
+    );
+    final key = await _sharedKey(username, peerPublicKeyJwk, requireExistingIdentity: true);
+    final clear = await _aes.decrypt(box, secretKey: key);
+    return Uint8List.fromList(clear);
+  }
+
   /// Encrypts using this Flutter device's ECDH identity and the peer's JWK.
   Future<Map<String, dynamic>?> encrypt(
       String text, String account, String peer, String publicKey,
