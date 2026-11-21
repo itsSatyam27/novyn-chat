@@ -2011,6 +2011,9 @@ class SocketService extends ChangeNotifier {
       throw StateError('Sign in before sending attachments.');
     }
     if (bytes.isEmpty) throw StateError('The selected attachment is empty.');
+    if (bytes.length + 16 > 15 * 1024 * 1024) {
+      throw StateError('Direct-chat attachments must be smaller than 15 MB.');
+    }
     await _waitForSocketAuthentication();
     _requireConnection();
     await _registerEncryptionIdentity();
