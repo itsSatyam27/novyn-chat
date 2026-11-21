@@ -3403,42 +3403,67 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
                                   crossAxisSpacing: 8,
                                   mainAxisSpacing: 8),
                           itemBuilder: (context, index) {
-                            final attachment =
-                                activeItems[index].attachment as Map;
+                            final message = activeItems[index];
+                            final attachment = message.attachment as Map;
                             final url = attachment['url']?.toString() ?? '';
-                            final mime =
-                                attachment['mime']?.toString().toLowerCase() ??
-                                    '';
+                            final mime = attachment['mime']?.toString().toLowerCase() ?? '';
+                            final encrypted = attachment['encrypted'] == true;
+                            final imageFuture = encrypted && mime.startsWith('image/')
+                                ? _loadAttachmentBytes(attachment, message)
+                                : null;
                             return InkWell(
-                              onTap: () {
+                              onTap: () async {
+                                if (encrypted) {
+                                  if (mime.startsWith('image/')) {
+                                    try {
+                                      final bytes = await _loadAttachmentBytes(attachment, message);
+                                      if (!context.mounted) return;
+                                      showDialog<void>(
+                                        context: context,
+                                        builder: (_) => Dialog(
+                                          backgroundColor: Colors.transparent,
+                                          child: InteractiveViewer(child: Image.memory(bytes)),
+                                        ),
+                                      );
+                                    } catch (error) {
+                                      if (context.mounted) NovynToast.show(context, 'Could not decrypt this image: $error', isError: true);
+                                    }
+                                  } else {
+                                    await _downloadAttachment(context, url, attachment['name']?.toString() ?? 'Attachment', message: message, attachment: attachment);
+                                  }
+                                  return;
+                                }
                                 if (mime.startsWith('image/')) {
                                   showDialog<void>(
-                                      context: context,
-                                      builder: (_) => Dialog(
-                                          backgroundColor: Colors.transparent,
-                                          child: InteractiveViewer(
-                                              child: Image.network(url))));
+                                    context: context,
+                                    builder: (_) => Dialog(
+                                      backgroundColor: Colors.transparent,
+                                      child: InteractiveViewer(
+                                        child: Image.network(url, headers: ApiService.imageHeaders),
+                                      ),
+                                    ),
+                                  );
                                 } else {
-                                  launchUrl(Uri.parse(url),
-                                      mode: LaunchMode.externalApplication);
+                                  launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
                                 }
                               },
                               child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(10),
-                                  child: mime.startsWith('image/')
-                                      ? Image.network(url,
-                                          fit: BoxFit.cover,
-                                          errorBuilder: (_, __, ___) =>
-                                              Icon(Icons.broken_image_outlined))
-                                      : Container(
-                                          color: Theme.of(context)
-                                              .colorScheme
-                                              .surfaceContainerHighest,
-                                          child: const Center(
-                                              child: Icon(
-                                                  Icons
-                                                      .play_circle_outline_rounded,
-                                                  size: 30)))),
+                                borderRadius: BorderRadius.circular(10),
+                                child: mime.startsWith('image/')
+                                    ? encrypted
+                                        ? FutureBuilder<Uint8List>(
+                                            future: imageFuture,
+                                            builder: (_, snapshot) => snapshot.hasData
+                                                ? Image.memory(snapshot.data!, fit: BoxFit.cover)
+                                                : const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                                          )
+                                        : Image.network(url, headers: ApiService.imageHeaders, fit: BoxFit.cover,
+                                            errorBuilder: (_, __, ___) => const Icon(Icons.broken_image_outlined))
+                                    : Container(
+                                        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                                        child: const Center(child: Icon(Icons.play_circle_outline_rounded, size: 30)),
+                                      ),
+                              ),
                             );
                           },
                         )
@@ -3446,26 +3471,24 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
                           itemCount: activeItems.length,
                           separatorBuilder: (_, __) => const Divider(height: 1),
                           itemBuilder: (context, index) {
-                            final attachment =
-                                activeItems[index].attachment as Map;
+                            final message = activeItems[index];
+                            final attachment = message.attachment as Map;
                             final url = attachment['url']?.toString() ?? '';
-                            final name =
-                                attachment['name']?.toString() ?? 'Attachment';
+                            final name = attachment['name']?.toString() ?? 'Attachment';
                             final isVoice = activeTab == 2;
                             return ListTile(
-                                leading: Icon(isVoice
-                                    ? Icons.mic_none_rounded
-                                    : Icons.insert_drive_file_outlined),
-                                title: Text(name,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis),
-                                subtitle: Text(isVoice
-                                    ? 'Voice message'
-                                    : name.split('.').last.toUpperCase()),
-                                trailing:
-                                    Icon(Icons.open_in_new_rounded, size: 18),
-                                onTap: () => launchUrl(Uri.parse(url),
-                                    mode: LaunchMode.externalApplication));
+                              leading: Icon(isVoice ? Icons.mic_none_rounded : Icons.insert_drive_file_outlined),
+                              title: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis),
+                              subtitle: Text(isVoice ? 'Voice message' : name.split('.').last.toUpperCase()),
+                              trailing: const Icon(Icons.download_rounded, size: 18),
+                              onTap: () {
+                                if (attachment['encrypted'] == true) {
+                                  _downloadAttachment(context, url, name, message: message, attachment: attachment);
+                                } else {
+                                  launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+                                }
+                              },
+                            );
                           },
                         ),
             ),
