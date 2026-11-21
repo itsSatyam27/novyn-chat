@@ -144,6 +144,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
       const blob = new Blob([new Uint8Array(clearBytes).buffer as ArrayBuffer], { type: attachment.mime || 'application/octet-stream' });
       objectUrl = URL.createObjectURL(blob);
       if (active) setDecryptedAttachmentUrl(objectUrl);
+      else URL.revokeObjectURL(objectUrl);
     };
     load().catch((error) => {
       if (active) setAttachmentDecryptError(error instanceof Error ? error.message : 'Could not decrypt attachment.');
