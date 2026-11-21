@@ -3360,6 +3360,43 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
     );
   }
 
+  Future<void> _downloadAttachment(
+    BuildContext context,
+    String url,
+    String name, {
+    Message? message,
+    Map? attachment,
+  }) async {
+    try {
+      final file = message != null && attachment != null
+          ? File(await _ChatAttachmentLoader.prepareFile(context, attachment, message))
+          : await ApiService.downloadMedia(url, name);
+      final mime = attachment?['mime']?.toString() ?? _mimeForFile(name);
+      final kind = mime.startsWith('image/')
+          ? 'image'
+          : mime.startsWith('video/')
+              ? 'video'
+              : 'file';
+      final saved = await MediaStorageService.exportToDevice(file, kind);
+      if (!context.mounted || !saved) return;
+      NovynAlert.show(
+        context,
+        kind == 'image' || kind == 'video'
+            ? 'Saved to your Gallery and Novyn Downloads.'
+            : 'Saved using the system Files picker.',
+        title: 'Saved',
+        icon: Icons.download_done_rounded,
+        tone: NovynAlertTone.success,
+      );
+    } catch (error) {
+      if (!context.mounted) return;
+      NovynAlert.show(
+        context, 'Download failed: $error',
+        isError: true, title: 'Download failed', icon: Icons.download_rounded,
+      );
+    }
+  }
+
   Future<void> _showSharedMedia() async {
     final messages = context
         .read<SocketService>()
@@ -3472,7 +3509,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
                             final mime = attachment['mime']?.toString().toLowerCase() ?? '';
                             final encrypted = attachment['encrypted'] == true;
                             final imageFuture = encrypted && mime.startsWith('image/')
-                                ? _loadAttachmentBytes(attachment, message)
+                                ? _ChatAttachmentLoader.loadBytes(context, attachment, message)
                                 : null;
                             return InkWell(
                               onTap: () async {
