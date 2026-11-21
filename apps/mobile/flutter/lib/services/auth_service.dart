@@ -12,6 +12,7 @@ import 'api_service.dart';
 import 'firebase_configuration.dart';
 import 'hybrid_db_service.dart';
 import 'local_db_service.dart';
+import 'session_restore_coordinator.dart';
 
 /// Novyn Auth Service — bridges Firebase Auth with novyn-chat's backend.
 ///
@@ -121,26 +122,17 @@ class AuthService extends ChangeNotifier {
   String? _pendingGoogleUsernameSuggestion;
   String? _pendingGoogleEmail;
   Timer? _sessionMaintenanceTimer;
-  Future<void>? _sessionRestoreTask;
+  final SessionRestoreCoordinator _sessionRestoreCoordinator =
+      SessionRestoreCoordinator();
   int _sessionMutationGeneration = 0;
+  int _consecutiveSessionRejections = 0;
   bool _sessionInvalidated = false;
 
   /// Coalesce startup, resume and connectivity-triggered session checks. A
   /// caller that arrives during a refresh must await the same result rather
   /// than reconnecting Socket.IO with credentials that are still rotating.
-  Future<void> _runSessionRestore(Future<void> Function() operation) {
-    final pending = _sessionRestoreTask;
-    if (pending != null) return pending;
-
-    late final Future<void> task;
-    task = operation().whenComplete(() {
-      if (identical(_sessionRestoreTask, task)) {
-        _sessionRestoreTask = null;
-      }
-    });
-    _sessionRestoreTask = task;
-    return task;
-  }
+  Future<void> _runSessionRestore(Future<void> Function() operation) =>
+      _sessionRestoreCoordinator.run(operation);
 
   bool get isTwoFactorPending => _pendingTwoFactorChallenge != null;
   bool get isGoogleUsernamePending =>
@@ -232,6 +224,7 @@ class AuthService extends ChangeNotifier {
     final writeGeneration = expectedGeneration ?? ++_sessionMutationGeneration;
     if (writeGeneration != _sessionMutationGeneration) return;
     _sessionInvalidated = false;
+    _consecutiveSessionRejections = 0;
     final encoded = jsonEncode(_identityToMap(user));
 
     try {
@@ -470,7 +463,6 @@ class AuthService extends ChangeNotifier {
     Future<Map<String, dynamic>?> Function() loadSession,
   ) async {
     final generation = _sessionMutationGeneration;
-    var definitiveRejections = 0;
     try {
       final storageReady = await ApiService.initializeSessionStorage().timeout(
         const Duration(seconds: 4),
@@ -542,13 +534,14 @@ class AuthService extends ChangeNotifier {
           return;
         }
         if (refreshStatus == 200) {
+          _consecutiveSessionRejections = 0;
           await Future<void>.delayed(const Duration(milliseconds: 250));
           continue;
         }
         if (refreshStatus != 401 && refreshStatus != 403) return;
 
-        definitiveRejections++;
-        if (definitiveRejections >= 3) {
+        _consecutiveSessionRejections++;
+        if (_consecutiveSessionRejections >= 3) {
           await _invalidateSessionAfterStartupRejections(generation);
           return;
         }
@@ -788,15 +781,25 @@ class AuthService extends ChangeNotifier {
             onTimeout: () => null,
           );
           if (refreshStatus == 200) {
+            _consecutiveSessionRejections = 0;
             session = await ApiService.getSession().timeout(
               const Duration(seconds: 8),
               onTimeout: () => null,
             );
+          } else if (refreshStatus == 401 || refreshStatus == 403) {
+            _consecutiveSessionRejections++;
+            if (_consecutiveSessionRejections >= 3) {
+              await _invalidateSessionAfterStartupRejections(
+                _sessionMutationGeneration,
+              );
+              return;
+            }
           }
         }
       }
 
       if (session != null && session['authenticated'] == true) {
+        _consecutiveSessionRejections = 0;
         final refreshedUser = NovynUser.fromMap(session);
         if (_user?.username.toLowerCase() !=
             refreshedUser.username.toLowerCase()) {
