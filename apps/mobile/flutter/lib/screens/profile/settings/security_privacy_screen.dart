@@ -147,7 +147,8 @@ class SecurityPrivacyScreen extends StatelessWidget {
                       ),
                     ),
                     _SettingsRow(
-                      leading: _iconBox(                        Icons.devices_rounded,
+                      leading: _iconBox(
+                        Icons.devices_rounded,
                         const Color(0xFF2563EB),
                         dark ? const Color(0xFF1E293B) : const Color(0xFFDBEAFE),
                       ),
@@ -296,7 +297,8 @@ class SecurityPrivacyScreen extends StatelessWidget {
     required bool value,
     required ValueChanged<bool> onChanged,
     required BuildContext context,
-  }) {    final dark = Theme.of(context).brightness == Brightness.dark;
+  }) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
     return Switch.adaptive(
       value: value,
       activeColor: Colors.white,
@@ -445,7 +447,8 @@ class SecurityPrivacyScreen extends StatelessWidget {
                     Navigator.pop(sheetContext);
                   },
                 ),
-            ],          ),
+            ],
+          ),
         ),
       ),
     );
@@ -594,7 +597,8 @@ class SecurityPrivacyScreen extends StatelessWidget {
             actions: [
               TextButton(
                 onPressed: deleting ? null : () => Navigator.pop(dialogContext, false),
-                child: const Text('Cancel'),              ),
+                child: const Text('Cancel'),
+              ),
               FilledButton(
                 style: FilledButton.styleFrom(backgroundColor: const Color(0xFFEF4444)),
                 onPressed: !matches || deleting
@@ -743,7 +747,8 @@ class _SettingsRow extends StatelessWidget {
                 ),
               ),
               if (trailing != null) trailing!,
-            ],          ),
+            ],
+          ),
         ),
       ),
     );
@@ -892,7 +897,8 @@ class _PrivacyDashboardState extends State<_PrivacyDashboard> {
     }
   }
 
-  Future<void> _saveToggle(String key, bool value) async {    if (_requireStealthModeOff()) return;
+  Future<void> _saveToggle(String key, bool value) async {
+    if (_requireStealthModeOff()) return;
     if (_saving) return;
     final previous = key == 'readReceiptsEnabled'
         ? widget.settings.readReceipts
@@ -1041,7 +1047,8 @@ class _PrivacyDashboardState extends State<_PrivacyDashboard> {
               ),
               title: 'Who can call me',
               trailing: SecurityPrivacyScreen._pillDropdown(
-                text: _label(_values['callPrivacy'] ?? 'friends'),                onTap: () => _choose('callPrivacy',
+                text: _label(_values['callPrivacy'] ?? 'friends'),
+                onTap: () => _choose('callPrivacy',
                     _values['callPrivacy'] ?? 'friends',
                     const ['everyone', 'friends', 'nobody']),
                 context: context,
@@ -1173,7 +1180,8 @@ class _PrivacyDashboardState extends State<_PrivacyDashboard> {
     final selected = await showModalBottomSheet<String>(
       context: context,
       backgroundColor: Colors.transparent,
-      builder: (sheetContext) {        final colors = Theme.of(sheetContext).colorScheme;
+      builder: (sheetContext) {
+        final colors = Theme.of(sheetContext).colorScheme;
         return Container(
           margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
           padding: const EdgeInsets.fromLTRB(18, 12, 18, 18),
