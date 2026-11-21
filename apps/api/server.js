@@ -1481,6 +1481,11 @@ const publicGameMatchmaking = new PublicGameMatchmaking({
   }),
 });
 
+// Random matches are short-lived, server-authoritative sessions. They do not
+// depend on a friendship or a chat thread, and are discarded after 30 minutes.
+const randomGameSessions = new Map();
+const RANDOM_GAME_SESSION_TTL_MS = 30 * 60 * 1000;
+
 let mongoStorage = null;
 let mongoLegacyCollection = null;
 let mongoUsersCollection = null;
@@ -7054,20 +7059,81 @@ io.on("connection", (socket) => {
     });
     if (!result.ok) return respond(result);
     if (!result.matched) return respond({ ok: true, queued: true, timeoutMs: 60_000 });
+
     const [first, second] = result.players;
+    const challenge = createGameChallenge({
+      userKey: first.userKey,
+      userDisplayName: first.userKey,
+      to: second.userKey,
+      toType: "friend",
+      game: { id: "random_" + result.sessionId, gameType: result.gameType },
+    });
+    if (!challenge.ok) {
+      io.to(first.socketId).emit("random_match_timeout", { gameType: result.gameType, message: challenge.reason || "This game is unavailable right now." });
+      return respond({ ok: false, message: challenge.reason || "This game is unavailable right now." });
+    }
+
+    const game = challenge.game;
+    const expiryTimer = setTimeout(() => randomGameSessions.delete(result.sessionId), RANDOM_GAME_SESSION_TTL_MS);
+    if (typeof expiryTimer.unref === "function") expiryTimer.unref();
+    randomGameSessions.set(result.sessionId, {
+      game,
+      players: [first.userKey, second.userKey],
+      expiresAt: Date.now() + RANDOM_GAME_SESSION_TTL_MS,
+      expiryTimer,
+    });
+
     const packet = (opponent) => ({
-      sessionId: result.sessionId, gameType: result.gameType,
+      sessionId: result.sessionId,
+      gameType: result.gameType,
+      game,
       opponent: { username: opponent.userKey, displayName: opponent.displayName },
     });
     io.to(first.socketId).emit("random_match_found", packet(second));
     io.to(second.socketId).emit("random_match_found", packet(first));
-    return respond({ ok: true, matched: true, sessionId: result.sessionId });
+    return respond({ ok: true, matched: true, sessionId: result.sessionId, game });
   });
+
   socket.on("cancel_random_game", (payload, callback) => {
     const respond = typeof callback === "function" ? callback : () => {};
     const userKey = normalizeName(socket.data.userKey || "");
     if (!userKey) return respond({ ok: false, message: "Please sign in again." });
     return respond({ ok: true, cancelled: publicGameMatchmaking.cancel(userKey) });
+  });
+
+  socket.on("random_game_move", (payload, callback) => {
+    const respond = typeof callback === "function" ? callback : () => {};
+    const userKey = normalizeName(socket.data.userKey || "");
+    const sessionId = String(payload?.sessionId || "").trim();
+    const session = randomGameSessions.get(sessionId);
+    if (!userKey || onlineUsers.get(userKey) !== socket.id || !session) {
+      return respond({ ok: false, message: "This random game session is no longer available." });
+    }
+    if (session.expiresAt <= Date.now()) {
+      clearTimeout(session.expiryTimer);
+      randomGameSessions.delete(sessionId);
+      return respond({ ok: false, message: "This random game has expired. Start a new match." });
+    }
+    if (!session.players.includes(userKey)) {
+      return respond({ ok: false, message: "You are not a player in this game." });
+    }
+
+    const result = applyGameMove(session.game, userKey, payload?.moveData);
+    if (!result.ok) {
+      return respond({ ok: false, message: result.reason || "Invalid game move." });
+    }
+
+    session.game = result.game;
+    const packet = {
+      sessionId,
+      game: session.game,
+      updatedBy: userKey,
+    };
+    respond({ ok: true, game: session.game });
+    for (const playerKey of session.players) {
+      const playerSocketId = onlineUsers.get(playerKey);
+      if (playerSocketId) io.to(playerSocketId).emit("random_game_updated", packet);
+    }
   });
   // Prevent a copied private URL from being laundered into another conversation
   // through sending, forwarding, editing, or wallpaper/profile updates.
