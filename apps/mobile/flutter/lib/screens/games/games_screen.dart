@@ -273,7 +273,7 @@ class _GamesScreenState extends State<GamesScreen> {
             ),
             const SizedBox(height: 18),
             Text(
-              'You can also start a game from any one-to-one or group chat using the attachment menu.',
+              'You can also challenge a friend directly from your chat.',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: colors.onSurfaceVariant,
                 height: 1.45,
