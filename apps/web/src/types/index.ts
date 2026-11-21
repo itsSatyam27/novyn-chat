@@ -5,7 +5,12 @@ export interface Attachment {
   name: string;
   mime: string;
   size: number;
-  kind: 'image' | 'file' | 'audio';
+  kind: 'image' | 'file' | 'audio' | 'video';
+  encrypted?: boolean;
+  encryptionVersion?: 1;
+  iv?: string;
+  senderPublicKey?: string;
+  peerPublicKey?: string;
 }
 
 export interface Reaction {
