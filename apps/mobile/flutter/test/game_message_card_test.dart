@@ -113,14 +113,14 @@ void main() {
 
     final scheme = Theme.of(tester.element(find.byType(GameMessageCard))).colorScheme;
     for (final index in [0, 1, 2]) {
-      final cell = tester.widget<Container>(
+      final cell = tester.widget<AnimatedContainer>(
         find.byKey(ValueKey('tic-tac-toe-cell-$index')),
       );
       final gradient = (cell.decoration as BoxDecoration).gradient as LinearGradient;
       expect(gradient.colors.first, scheme.primaryContainer);
     }
 
-    final ordinaryCell = tester.widget<Container>(
+    final ordinaryCell = tester.widget<AnimatedContainer>(
       find.byKey(const ValueKey('tic-tac-toe-cell-3')),
     );
     expect(
