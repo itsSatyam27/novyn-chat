@@ -56,6 +56,8 @@ String _mimeForFile(String filename) {
   if (name.endsWith('.aac')) return 'audio/aac';
   if (name.endsWith('.mp4')) return 'video/mp4';
   if (name.endsWith('.mov')) return 'video/quicktime';
+  if (name.endsWith('.m4v')) return 'video/mp4';
+  if (name.endsWith('.heic')) return 'image/heic';
   if (name.endsWith('.webm')) return 'video/webm';
   if (name.endsWith('.gif')) return 'image/gif';
   if (name.endsWith('.png')) return 'image/png';
