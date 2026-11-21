@@ -1124,7 +1124,11 @@ class ApiService {
     if (uri == null || !uri.hasScheme || !['http', 'https'].contains(uri.scheme)) {
       throw StateError('This attachment link is invalid.');
     }
-    final response = await http.get(uri, headers: _authHeaders)
+    final downloadUri = uri.replace(queryParameters: {
+      ...uri.queryParameters,
+      'inline': '1',
+    });
+    final response = await http.get(downloadUri, headers: _authHeaders)
         .timeout(const Duration(seconds: 60));
     if (response.statusCode != 200) {
       throw StateError('Download failed (${response.statusCode}). Please try again.');
