@@ -23,9 +23,7 @@ const String _lastNotifiedBuildKey = 'novyn_last_notified_update_build';
 const String _lastUpdateNotificationAtKey = 'novyn_last_update_notification_at_ms';
 const String _handledUpdateBuildKey = 'novyn_handled_update_build';
 
-/// Extracts the human-readable change bullets from GitHub's generated release
-/// notes. Headings and GitHub's "Full Changelog" footer are intentionally
-/// omitted so the About screen only shows changes for this release.
+/// Shows only two concise release-note points, stripping GitHub attribution and links.
 List<String> _parseReleaseNotes(String body) {
   return body
       .split('\n')
@@ -37,13 +35,15 @@ List<String> _parseReleaseNotes(String body) {
           RegExp(r'^\d+\.\s+').hasMatch(line))
       .map((line) => line
           .replaceFirst(RegExp(r'^([-*•]|\d+\.)\s*'), '')
+          .replaceFirst(RegExp(r'\s+by\s+@.*', caseSensitive: false), '')
+          .replaceAll(RegExp(r'https?://\S+', caseSensitive: false), '')
           .replaceAll(RegExp(r'\s+'), ' ')
           .trim())
       .where((line) =>
           line.isNotEmpty &&
           !line.toLowerCase().startsWith('full changelog') &&
           line.toLowerCase() != 'no changes')
-      .take(6)
+      .take(2)
       .toList(growable: false);
 }
 
