@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'novyn_alert.dart';
 import 'package:provider/provider.dart';
 import '../services/socket_service.dart';
+import '../screens/games/game_room_screen.dart';
 
 class GameMessageCard extends StatefulWidget {
   final String messageId;
@@ -9,6 +10,8 @@ class GameMessageCard extends StatefulWidget {
   final String currentUsername;
   final String peerUsername;
   final bool isGroup;
+  final bool compact;
+  final String? randomSessionId;
 
   const GameMessageCard({
     super.key,
@@ -17,6 +20,8 @@ class GameMessageCard extends StatefulWidget {
     required this.currentUsername,
     required this.peerUsername,
     this.isGroup = false,
+    this.compact = true,
+    this.randomSessionId,
   });
 
   @override
@@ -76,12 +81,17 @@ class _GameMessageCardState extends State<GameMessageCard> {
       _optimisticData = Map<String, dynamic>.from(data);
     });
     try {
-      await context.read<SocketService>().makeGameMove(
-        widget.messageId,
-        widget.peerUsername,
-        data,
-        isGroup: widget.isGroup,
-      );
+      final socket = context.read<SocketService>();
+      if (widget.randomSessionId != null) {
+        await socket.moveRandomGame(widget.randomSessionId!, data);
+      } else {
+        await socket.makeGameMove(
+          widget.messageId,
+          widget.peerUsername,
+          data,
+          isGroup: widget.isGroup,
+        );
+      }
     } catch (error) {
       if (mounted) {
         setState(() => _optimisticData = previousData);
@@ -101,12 +111,89 @@ class _GameMessageCardState extends State<GameMessageCard> {
     }
   }
 
+  Widget _buildSummary(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final status = _finished
+        ? (_winner == 'draw'
+            ? 'Draw'
+            : _winner.toLowerCase() == widget.currentUsername.toLowerCase()
+                ? 'You won'
+                : '$_winner won')
+        : _myTurn
+            ? 'Your turn'
+            : 'Waiting for opponent';
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(13),
+      decoration: BoxDecoration(
+        color: colors.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(17),
+        border: Border.all(color: colors.outlineVariant.withValues(alpha: .55)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: colors.primary.withValues(alpha: .11),
+              borderRadius: BorderRadius.circular(13),
+            ),
+            child: Icon(Icons.sports_esports_rounded, color: colors.primary),
+          ),
+          const SizedBox(width: 11),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(_title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    )),
+                const SizedBox(height: 3),
+                Text(
+                  status + (_finished ? ' · Completed' : ' · Live game'),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: colors.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          FilledButton.tonal(
+            onPressed: () {
+              Navigator.of(context).push<void>(
+                MaterialPageRoute<void>(
+                  builder: (_) => GameRoomScreen(
+                    messageId: widget.messageId,
+                    peerUsername: widget.peerUsername,
+                    currentUsername: widget.currentUsername,
+                    initialGame: widget.game,
+                    isGroup: widget.isGroup,
+                  ),
+                ),
+              );
+            },
+            child: const Text('Open'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (widget.compact) return _buildSummary(context);
     final scheme = Theme.of(context).colorScheme;
     return Container(
-      width: 270,
-      padding: const EdgeInsets.all(14),
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: scheme.surfaceContainerLow,
         borderRadius: BorderRadius.circular(18),
