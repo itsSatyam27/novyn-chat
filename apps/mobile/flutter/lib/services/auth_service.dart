@@ -12,6 +12,7 @@ import 'api_service.dart';
 import 'firebase_configuration.dart';
 import 'hybrid_db_service.dart';
 import 'local_db_service.dart';
+import 'session_restore_coordinator.dart';
 
 /// Novyn Auth Service — bridges Firebase Auth with novyn-chat's backend.
 ///
@@ -121,9 +122,17 @@ class AuthService extends ChangeNotifier {
   String? _pendingGoogleUsernameSuggestion;
   String? _pendingGoogleEmail;
   Timer? _sessionMaintenanceTimer;
-  bool _sessionRestoreInProgress = false;
+  final SessionRestoreCoordinator _sessionRestoreCoordinator =
+      SessionRestoreCoordinator();
   int _sessionMutationGeneration = 0;
+  int _consecutiveSessionRejections = 0;
   bool _sessionInvalidated = false;
+
+  /// Coalesce startup, resume and connectivity-triggered session checks. A
+  /// caller that arrives during a refresh must await the same result rather
+  /// than reconnecting Socket.IO with credentials that are still rotating.
+  Future<void> _runSessionRestore(Future<void> Function() operation) =>
+      _sessionRestoreCoordinator.run(operation);
 
   bool get isTwoFactorPending => _pendingTwoFactorChallenge != null;
   bool get isGoogleUsernamePending =>
@@ -215,6 +224,7 @@ class AuthService extends ChangeNotifier {
     final writeGeneration = expectedGeneration ?? ++_sessionMutationGeneration;
     if (writeGeneration != _sessionMutationGeneration) return;
     _sessionInvalidated = false;
+    _consecutiveSessionRejections = 0;
     final encoded = jsonEncode(_identityToMap(user));
 
     try {
@@ -337,6 +347,7 @@ class AuthService extends ChangeNotifier {
   Future<void> _activateCachedIdentity(
     NovynUser? cachedIdentity, {
     required String reason,
+    bool notify = true,
   }) async {
     if (cachedIdentity == null) return;
     try {
@@ -348,7 +359,7 @@ class AuthService extends ChangeNotifier {
     _user = cachedIdentity;
     _sessionInvalidated = false;
     _authReady = true;
-    notifyListeners();
+    if (notify) notifyListeners();
     debugPrint('[NovynAuth] Restored local account identity ($reason).');
   }
 
@@ -446,11 +457,13 @@ class AuthService extends ChangeNotifier {
   /// explicit refresh-token rejection invalidates the local session.
   Future<void> _verifySessionInBackground(
     Future<Map<String, dynamic>?> Function() loadSession,
+  ) =>
+      _runSessionRestore(() => _verifySessionInBackgroundInternal(loadSession));
+
+  Future<void> _verifySessionInBackgroundInternal(
+    Future<Map<String, dynamic>?> Function() loadSession,
   ) async {
-    if (_sessionRestoreInProgress) return;
-    _sessionRestoreInProgress = true;
     final generation = _sessionMutationGeneration;
-    var definitiveRejections = 0;
     try {
       final storageReady = await ApiService.initializeSessionStorage().timeout(
         const Duration(seconds: 4),
@@ -478,10 +491,13 @@ class AuthService extends ChangeNotifier {
         return;
       }
       if (generation != _sessionMutationGeneration ||
-          ApiService.sessionCookie == null ||
-          ApiService.sessionCookie!.isEmpty) {
+          await _hasSignedOutMarker()) {
         return;
       }
+
+      // A readable secure store with no saved cookie is not a temporary
+      // Keystore failure. Verify it with the backend instead of preserving a
+      // cached profile forever in a logged-in-but-unauthenticated state.
       final cookieBeforeVerification = ApiService.sessionCookie;
 
       for (var attempt = 0; attempt < 5; attempt++) {
@@ -519,13 +535,14 @@ class AuthService extends ChangeNotifier {
           return;
         }
         if (refreshStatus == 200) {
+          _consecutiveSessionRejections = 0;
           await Future<void>.delayed(const Duration(milliseconds: 250));
           continue;
         }
         if (refreshStatus != 401 && refreshStatus != 403) return;
 
-        definitiveRejections++;
-        if (definitiveRejections >= 3) {
+        _consecutiveSessionRejections++;
+        if (_consecutiveSessionRejections >= 3) {
           await _invalidateSessionAfterStartupRejections(generation);
           return;
         }
@@ -533,8 +550,6 @@ class AuthService extends ChangeNotifier {
       }
     } catch (error) {
       debugPrint('[NovynAuth] Background session verification deferred: $error');
-    } finally {
-      _sessionRestoreInProgress = false;
     }
   }
 
@@ -561,10 +576,14 @@ class AuthService extends ChangeNotifier {
       await _activateCachedIdentity(
         cachedIdentity,
         reason: 'local-first startup',
+        notify: false,
       );
       final generation = _sessionMutationGeneration;
       unawaited(_hydrateCachedIdentityDetails(cachedIdentity.username, generation));
+      // Start backend verification before listeners attempt to connect
+      // Socket.IO. Resume callbacks then await this exact in-flight check.
       unawaited(_verifySessionInBackground(loadSession));
+      notifyListeners();
       return;
     }
 
@@ -734,9 +753,16 @@ class AuthService extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> restoreSessionOnResume() async {
-    if (!_authReady || _user == null || _sessionRestoreInProgress) return;
-    _sessionRestoreInProgress = true;
+  Future<void> restoreSessionOnResume() {
+    if (!_authReady || _user == null) return Future<void>.value();
+    return _runSessionRestore(_restoreSessionOnResumeInternal);
+  }
+
+  Future<void> _restoreSessionOnResumeInternal() async {
+    if (!_authReady || _user == null) return;
+    final generation = _sessionMutationGeneration;
+    bool isCurrentSession() =>
+        generation == _sessionMutationGeneration && _user != null;
     try {
       // Rehydrate encrypted cookies if the in-memory client was recreated.
       if (ApiService.sessionCookie == null ||
@@ -745,8 +771,9 @@ class AuthService extends ChangeNotifier {
           const Duration(seconds: 4),
           onTimeout: () => false,
         );
-        if (!storageReady) return;
+        if (!storageReady || !isCurrentSession()) return;
       }
+      if (!isCurrentSession()) return;
 
       final cookieBeforeRestore = ApiService.sessionCookie;
       var session = await ApiService.getSession().timeout(
@@ -757,25 +784,37 @@ class AuthService extends ChangeNotifier {
       if (session == null || session['authenticated'] != true) {
         // Do not rotate tokens on ordinary network failures. Only attempt a
         // refresh after the server explicitly rejects the access cookie.
+        if (!isCurrentSession()) return;
         if (status == 401 || status == 403) {
           final refreshStatus = await ApiService.refreshSessionStatus().timeout(
             const Duration(seconds: 8),
             onTimeout: () => null,
           );
+          if (!isCurrentSession()) return;
           if (refreshStatus == 200) {
+            _consecutiveSessionRejections = 0;
             session = await ApiService.getSession().timeout(
               const Duration(seconds: 8),
               onTimeout: () => null,
             );
+          } else if (refreshStatus == 401 || refreshStatus == 403) {
+            _consecutiveSessionRejections++;
+            if (_consecutiveSessionRejections >= 3) {
+              await _invalidateSessionAfterStartupRejections(generation);
+              return;
+            }
           }
         }
       }
 
       if (session != null && session['authenticated'] == true) {
+        if (!isCurrentSession()) return;
+        _consecutiveSessionRejections = 0;
         final refreshedUser = NovynUser.fromMap(session);
         if (_user?.username.toLowerCase() !=
             refreshedUser.username.toLowerCase()) {
           await _prepareAccount(refreshedUser.username);
+          if (!isCurrentSession()) return;
         }
         final previousUser = _user;
         final identityChanged = previousUser == null ||
@@ -787,13 +826,17 @@ class AuthService extends ChangeNotifier {
         // notifying every auth consumer (tabs, dock, profile) unless data really
         // changed; this prevents a whole-app rebuild on every app switch.
         if (identityChanged) {
-          await _persistIdentity(refreshedUser);
-          notifyListeners();
+          await _persistIdentity(
+            refreshedUser,
+            expectedGeneration: generation,
+          );
+          if (!isCurrentSession()) return;
         }
 
         // A successful session lookup can rotate the access/refresh cookies.
         // Existing Socket.IO connections keep the old session ID, so reconnect
         // them with the newly persisted cookie before the next account action.
+        if (!isCurrentSession()) return;
         if (ApiService.sessionCookie != cookieBeforeRestore) {
           try {
             await onSessionRefreshed?.call();
@@ -801,14 +844,16 @@ class AuthService extends ChangeNotifier {
             // Keep the signed-in account even if the socket reconnect is delayed.
           }
         }
+        // Notify socket/session consumers even when the profile fields did not
+        // change. This lets a deferred Keystore recovery start the socket after
+        // credentials become available, without requiring another app resume.
+        if (isCurrentSession()) notifyListeners();
       }
       // A timeout, offline state, or temporary 5xx must never clear the local
       // account. A definitive expired session is handled by the next sign-in
       // gate only when the app is freshly started.
     } catch (_) {
       // Preserve the current user during temporary connectivity loss.
-    } finally {
-      _sessionRestoreInProgress = false;
     }
   }
 

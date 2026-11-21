@@ -37,11 +37,14 @@ class ApiService {
   // so we store and forward them manually.
   static String? _sessionCookie;
   static String? _csrfToken;
+  static int _sessionCredentialRevision = 0;
+  static Future<void> _sessionStorageWriteTail = Future<void>.value();
   static Future<void>? _csrfBootstrapInFlight;
   // Widgets with session-protected media can retry when the cookie jar changes.
   static final ValueNotifier<int> sessionRevision = ValueNotifier<int>(0);
 
   static void _notifySessionRevision() {
+    _sessionCredentialRevision++;
     sessionRevision.value++;
   }
   static bool _sessionStorageInitialized = false;
@@ -74,10 +77,19 @@ class ApiService {
 
   static Future<bool> _readSessionStorage() async {
     try {
-      // Read both values before mutating memory. A partial Keystore failure
-      // must never replace a previously valid in-memory session with nulls.
+      // Wait for pending writes, then protect the in-memory jar from an older
+      // disk snapshot if a login/refresh/logout completes during these reads.
+      await _sessionStorageWriteTail;
+      final revisionBeforeRead = _sessionCredentialRevision;
       final cookie = await _secureStorage.read(key: _sessionCookieKey);
       final csrf = await _secureStorage.read(key: _csrfTokenKey);
+      if (revisionBeforeRead != _sessionCredentialRevision) {
+        // A newer credential update won while Keystore reads were in flight.
+        // Wait for its serialized write before reporting storage as ready.
+        await _sessionStorageWriteTail;
+        _sessionStorageInitialized = true;
+        return true;
+      }
       final sessionChanged = cookie != _sessionCookie || csrf != _csrfToken;
       _sessionCookie = cookie;
       _csrfToken = csrf;
@@ -117,10 +129,42 @@ class ApiService {
     return cookies.join('; ');
   }
 
+  /// Serialize secure-storage writes and always persist the latest in-memory
+  /// cookie jar. A late refresh response can never resurrect credentials
+  /// after an explicit logout has cleared them.
+  static Future<void> _persistSessionCookies() async {
+    final previousWrite = _sessionStorageWriteTail;
+    final gate = Completer<void>();
+    _sessionStorageWriteTail = gate.future;
+    try {
+      await previousWrite;
+      final cookie = _sessionCookie;
+      final csrf = _csrfToken;
+      if (cookie == null || cookie.isEmpty) {
+        await _secureStorage.delete(key: _sessionCookieKey);
+      } else {
+        await _secureStorage.write(key: _sessionCookieKey, value: cookie);
+      }
+      if (csrf == null || csrf.isEmpty) {
+        await _secureStorage.delete(key: _csrfTokenKey);
+      } else {
+        await _secureStorage.write(key: _csrfTokenKey, value: csrf);
+      }
+    } catch (error) {
+      debugPrint('[NovynSession] Secure cookie persistence failed: $error');
+      rethrow;
+    } finally {
+      if (!gate.isCompleted) gate.complete();
+    }
+  }
+
   static Future<Map<String, String>> _csrfHeaders() async {
-    // Multipart uploads can be the first authenticated request after app
-    // resume. Restore the secure cookie jar before building request headers.
-    await initializeSessionStorage();
+    // Restore the secure cookie jar before any CSRF-protected request. This
+    // also covers refresh calls made while waking from an app update/restart.
+    await initializeSessionStorage().timeout(
+      const Duration(seconds: 4),
+      onTimeout: () => false,
+    );
 
     if (_csrfToken == null) await _bootstrapCsrfToken();
 
@@ -161,13 +205,17 @@ class ApiService {
     var attempt = 0;
     while (started.elapsed < const Duration(seconds: 95)) {
       try {
+        final requestRevision = _sessionCredentialRevision;
         final response = await http
             .get(
               Uri.parse('$baseUrl/api/auth/session'),
               headers: _authHeaders,
             )
             .timeout(const Duration(seconds: 30));
-        await _storeSessionCookie(response);
+        await _storeSessionCookie(
+          response,
+          expectedRevision: requestRevision,
+        );
         if (_csrfToken != null && _csrfToken!.isNotEmpty) return;
         lastError = HttpException(
           'CSRF bootstrap returned HTTP ${response.statusCode} without a token.',
@@ -231,14 +279,19 @@ class ApiService {
               response.body.contains('csrf'))) {
         // Re-sync a stale CSRF token once, then rebuild the multipart body.
         _csrfToken = null;
-        await _secureStorage.delete(key: _csrfTokenKey);
+        _notifySessionRevision();
+        await _persistSessionCookies();
+        final requestRevision = _sessionCredentialRevision;
         final bootstrap = await http
             .get(
               Uri.parse('$baseUrl/api/auth/session'),
               headers: _authHeaders,
             )
             .timeout(const Duration(seconds: 15));
-        await _storeSessionCookie(bootstrap);
+        await _storeSessionCookie(
+          bootstrap,
+          expectedRevision: requestRevision,
+        );
         continue;
       }
 
@@ -262,8 +315,26 @@ class ApiService {
     return names.contains('novyn_at') && names.contains('novyn_rt');
   }
 
+  /// An access cookie is required to open an authenticated Socket.IO session.
+  /// A refresh-only cookie must be renewed through REST first.
+  static bool get hasAccessSessionCookie {
+    return (_sessionCookie ?? '').split(';').any((part) {
+      final cookie = part.trim();
+      return cookie.startsWith('novyn_at=') &&
+          cookie.substring('novyn_at='.length).isNotEmpty;
+    });
+  }
+
   // ── Store session cookie from a response ─────────────────────────────────
-  static Future<void> _storeSessionCookie(http.Response res) async {
+  static Future<void> _storeSessionCookie(
+    http.Response res, {
+    int? expectedRevision,
+  }) async {
+    if (expectedRevision != null &&
+        expectedRevision != _sessionCredentialRevision) {
+      debugPrint('[NovynSession] Ignoring a stale session-cookie response.');
+      return;
+    }
     final raw = res.headers['set-cookie'];
     if (raw == null || raw.isEmpty) return;
     final previousSessionCookie = _sessionCookie;
@@ -284,8 +355,9 @@ class ApiService {
 
     final access = values['novyn_at'];
     final refresh = values['novyn_rt'];
-    if ((access != null && access.isEmpty) ||
-        (refresh != null && refresh.isEmpty)) {
+    if (refresh != null && refresh.isEmpty) {
+      // The backend explicitly cleared the refresh token, so this session
+      // cannot be renewed and the paired access token must be discarded too.
       _sessionCookie = null;
     } else {
       final merged = <String, String>{};
@@ -298,7 +370,15 @@ class ApiService {
           }
         }
       }
-      if (access != null && access.isNotEmpty) merged['novyn_at'] = access;
+      if (access != null) {
+        if (access.isEmpty) {
+          // An expired access cookie must not destroy a still-valid refresh
+          // token. Keep it so /api/auth/refresh can issue a new cookie pair.
+          merged.remove('novyn_at');
+        } else {
+          merged['novyn_at'] = access;
+        }
+      }
       if (refresh != null && refresh.isNotEmpty) merged['novyn_rt'] = refresh;
       _sessionCookie = merged.isEmpty
           ? null
@@ -308,34 +388,31 @@ class ApiService {
     final csrf = values['novyn_csrf'];
     if (csrf != null) {
       _csrfToken = csrf.isEmpty ? null : Uri.decodeComponent(csrf);
-      if (_csrfToken == null) {
-        await _secureStorage.delete(key: _csrfTokenKey);
-      } else {
-        await _secureStorage.write(key: _csrfTokenKey, value: _csrfToken);
-      }
     }
 
-    if (_sessionCookie == null || _sessionCookie!.isEmpty) {
-      await _secureStorage.delete(key: _sessionCookieKey);
-    } else {
-      await _secureStorage.write(key: _sessionCookieKey, value: _sessionCookie!);
+    final sessionChanged = previousSessionCookie != _sessionCookie ||
+        previousCsrfToken != _csrfToken;
+    if (sessionChanged) _notifySessionRevision();
+    if (sessionChanged) {
+      try {
+        await _persistSessionCookies();
+      } catch (_) {
+        _sessionStorageInitialized = false;
+        rethrow;
+      }
     }
     _sessionStorageInitialized = true;
-    if (previousSessionCookie != _sessionCookie ||
-        previousCsrfToken != _csrfToken) {
-      _notifySessionRevision();
-    }
   }
 
   // ── Clear session (on logout) ─────────────────────────────────────────────
   static Future<void> clearSession() async {
-    final hadSession = _sessionCookie != null || _csrfToken != null;
+    // Always advance the generation, even if memory already appears empty:
+    // in-flight session responses from before logout must not repopulate it.
     _sessionCookie = null;
     _csrfToken = null;
-    if (hadSession) _notifySessionRevision();
+    _notifySessionRevision();
     try {
-      await _secureStorage.delete(key: _sessionCookieKey);
-      await _secureStorage.delete(key: _csrfTokenKey);
+      await _persistSessionCookies();
     } catch (error) {
       debugPrint('[NovynSession] Could not fully clear secure cookies: $error');
     } finally {
@@ -419,10 +496,12 @@ class ApiService {
     bool remember = true,
   }) async {
     try {
+      final headers = await _csrfHeaders();
+      final requestRevision = _sessionCredentialRevision;
       final res = await http
           .post(
             Uri.parse('$baseUrl/api/auth/google'),
-            headers: await _csrfHeaders(),
+            headers: headers,
             body: jsonEncode({
               'idToken': idToken,
               'remember': remember,
@@ -433,7 +512,7 @@ class ApiService {
           .timeout(const Duration(seconds: 75));
 
       if (res.statusCode == 200) {
-        await _storeSessionCookie(res);
+        await _storeSessionCookie(res, expectedRevision: requestRevision);
         return Map<String, dynamic>.from(jsonDecode(res.body));
       }
 
@@ -466,10 +545,12 @@ class ApiService {
     bool remember = true,
   }) async {
     try {
+      final headers = await _csrfHeaders();
+      final requestRevision = _sessionCredentialRevision;
       final res = await http
           .post(
             Uri.parse('$baseUrl/api/auth/signin'),
-            headers: await _csrfHeaders(),
+            headers: headers,
             body: jsonEncode({
               'identifier': identifier,
               'password': password,
@@ -479,7 +560,7 @@ class ApiService {
           .timeout(const Duration(seconds: 75));
 
       if (res.statusCode == 200) {
-        await _storeSessionCookie(res);
+        await _storeSessionCookie(res, expectedRevision: requestRevision);
         return Map<String, dynamic>.from(jsonDecode(res.body));
       }
       try {
@@ -610,16 +691,18 @@ class ApiService {
     required String code,
   }) async {
     try {
+      final headers = await _csrfHeaders();
+      final requestRevision = _sessionCredentialRevision;
       final res = await http.post(
         Uri.parse('$baseUrl/api/auth/2fa/verify'),
-        headers: await _csrfHeaders(),
+        headers: headers,
         body: jsonEncode({
           'challengeToken': challengeToken,
           'code': code.trim(),
         }),
       ).timeout(const Duration(seconds: 15));
       if (res.statusCode == 200) {
-        await _storeSessionCookie(res);
+        await _storeSessionCookie(res, expectedRevision: requestRevision);
         return Map<String, dynamic>.from(jsonDecode(res.body));
       }
       try {
@@ -640,10 +723,12 @@ class ApiService {
     required String password,
   }) async {
     try {
+      final headers = await _csrfHeaders();
+      final requestRevision = _sessionCredentialRevision;
       final res = await http
           .post(
             Uri.parse('$baseUrl/api/auth/signup'),
-            headers: await _csrfHeaders(),
+            headers: headers,
             body: jsonEncode({
               'name': name,
               'username': username,
@@ -654,7 +739,7 @@ class ApiService {
           .timeout(const Duration(seconds: 15));
 
       if (res.statusCode == 200 || res.statusCode == 201) {
-        await _storeSessionCookie(res);
+        await _storeSessionCookie(res, expectedRevision: requestRevision);
         return Map<String, dynamic>.from(jsonDecode(res.body));
       }
       try {
@@ -673,13 +758,23 @@ class ApiService {
     Duration timeout = const Duration(seconds: 10),
   }) async {
     try {
+      // Do not make a seemingly anonymous session request simply because the
+      // in-memory cookie jar has not finished restoring after process restart.
+      await initializeSessionStorage().timeout(
+        const Duration(seconds: 4),
+        onTimeout: () => false,
+      );
+      final requestRevision = _sessionCredentialRevision;
       final res = await http
           .get(
             Uri.parse('$baseUrl/api/auth/session'),
             headers: _authHeaders,
           )
           .timeout(timeout);
-      await _storeSessionCookie(res);
+      await _storeSessionCookie(
+        res,
+        expectedRevision: requestRevision,
+      );
       if (res.statusCode == 200) {
         return Map<String, dynamic>.from(jsonDecode(res.body));
       }
@@ -716,10 +811,12 @@ class ApiService {
 
   static Future<int?> _performSessionRefresh() async {
     try {
+      final headers = await _csrfHeaders();
+      final requestRevision = _sessionCredentialRevision;
       final res = await http
           .post(
             Uri.parse('$baseUrl/api/auth/refresh'),
-            headers: await _csrfHeaders(),
+            headers: headers,
           )
           .timeout(const Duration(seconds: 10));
       // A single backend 401 is not enough to discard the refresh cookie.
@@ -728,7 +825,10 @@ class ApiService {
       // the rejection before it signs the user out. Successful refreshes and
       // all non-auth responses still persist cookie rotations normally.
       if (res.statusCode != 401 && res.statusCode != 403) {
-        await _storeSessionCookie(res);
+        await _storeSessionCookie(
+          res,
+          expectedRevision: requestRevision,
+        );
       } else {
         debugPrint(
           '[NovynSession] Refresh rejected (${res.statusCode}); keeping the saved session for retry.',

@@ -141,7 +141,9 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       unawaited(_runUpdateCheck());
-      _recoverSocketIfNeeded();
+      // Validate/refresh the REST session before reconnecting Socket.IO. The
+      // AuthService coalesces this with SessionLifecycleGuard's resume check.
+      unawaited(_restoreSessionAndRecover());
     }
   }
 
@@ -190,6 +192,11 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     final username = auth.user?.username.trim();
     if (username == null || username.isEmpty) return;
 
+    // Cached identity keeps local data available while offline, but it is not
+    // proof of a live backend session. Do not open a socket without an access
+    // cookie restored/renewed by AuthService first.
+    if (!ApiService.hasAccessSessionCookie) return;
+
     final socket = context.read<SocketService>();
     final sameAccount =
         socket.myUsername?.toLowerCase() == username.toLowerCase();
@@ -198,11 +205,14 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
       return;
     }
 
-    // A Socket.IO transport can stay marked connected after it has lost its
-    // authenticated session. Replace it when internet returns so account
-    // privacy and profile mutations do not remain stuck behind a stale socket.
-    if (forceReconnect || !socket.isAuthenticated) {
+    // Force a replacement only after an actual network transition. For an
+    // ordinary resume, let an existing connect/auth handshake finish; calling
+    // reconnectWithCurrentSession repeatedly would dispose a healthy in-flight
+    // socket handshake and keep the app stuck in "verifying session".
+    if (forceReconnect) {
       unawaited(socket.reconnectWithCurrentSession());
+    } else if (!socket.isConnected && !socket.isConnecting) {
+      socket.connect(ApiService.baseUrl, username);
     }
   }
 
@@ -242,18 +252,15 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     // Reconnect if its previous socket was disconnected during logout.
     _activeUsername = username;
     auth.setOnline(true);
-    if (sameAccount && socket.isConnected && !socket.isAuthenticated) {
-      unawaited(socket.reconnectWithCurrentSession());
-    } else {
-      socket.connect(ApiService.baseUrl, username);
-    }
-    // SocketService now owns the requested identity and has cleared a previous
-    // account's live contacts before the offline cache is activated.
+    // Keep the local account cache available immediately, but do not create a
+    // socket handshake until secure cookies have been restored and the REST
+    // session check (including any refresh-token rotation) has completed.
     context.read<FriendService>().activateAccount(username);
     socket.onUserStatusChanged = (peerUsername, isOnline) {
       if (!mounted) return;
       context.read<FriendService>().updateCachedStatus(peerUsername, isOnline);
     };
+    unawaited(_restoreSessionAndRecover());
     ApiService.ping();
 
     unawaited(() async {
