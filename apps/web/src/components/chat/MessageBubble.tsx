@@ -303,7 +303,8 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
       message.attachment?.name?.endsWith('.m4a')
   );
 
-  const attachmentUrl = message.attachment?.encrypted ? decryptedAttachmentUrl : message.attachment?.url;
+  const encryptedAttachment = message.attachment?.encrypted === true;
+  const attachmentUrl = encryptedAttachment ? decryptedAttachmentUrl : message.attachment?.url;
   const audioUrl = attachmentUrl;
 
   const handleDoubleClick = (e?: React.MouseEvent | React.TouchEvent) => {
@@ -800,14 +801,20 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           {/* 1. Image Attachment */}
           {message.attachment && (message.attachment.kind === 'image' || message.attachment.mime?.startsWith('image/')) && (
             <div
-              style={{ marginBottom: '6px', borderRadius: '12px', overflow: 'hidden', cursor: 'pointer' }}
+              style={{ marginBottom: '6px', borderRadius: '12px', overflow: 'hidden', cursor: attachmentUrl ? 'pointer' : 'default', minHeight: attachmentUrl ? undefined : '72px', display: attachmentUrl ? undefined : 'grid', placeItems: 'center', background: 'rgba(120,120,120,0.08)', padding: attachmentUrl ? 0 : '12px' }}
               onClick={() => attachmentUrl && onMediaClick(attachmentUrl)}
             >
-              <img
-                src={attachmentUrl || ''}
-                alt={message.attachment.name}
-                style={{ maxHeight: '240px', width: '100%', objectFit: 'cover', borderRadius: '12px' }}
-              />
+              {attachmentUrl ? (
+                <img
+                  src={attachmentUrl}
+                  alt={message.attachment.name}
+                  style={{ maxHeight: '240px', width: '100%', objectFit: 'cover', borderRadius: '12px' }}
+                />
+              ) : (
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                  {attachmentDecrypting ? 'Decrypting secure image…' : attachmentDecryptError || 'Secure image unavailable'}
+                </span>
+              )}
             </div>
           )}
 
@@ -815,11 +822,16 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           {isAudioMessage && audioUrl && (
             <VoicePlayer url={audioUrl} isMe={isMe} duration={message.voiceDuration} />
           )}
+          {isAudioMessage && encryptedAttachment && !audioUrl && (
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '6px' }}>
+              {attachmentDecrypting ? 'Decrypting secure voice message…' : attachmentDecryptError || 'Secure voice message unavailable'}
+            </div>
+          )}
 
           {/* 3. Document / File Attachment */}
           {!isAudioMessage && message.attachment && (message.attachment.kind === 'file' || !message.attachment.mime?.startsWith('image/')) && (
             <a
-              href={attachmentUrl || '#'}
+              href={attachmentUrl || undefined}
               target="_blank"
               rel="noopener noreferrer"
               style={{
