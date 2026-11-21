@@ -173,6 +173,8 @@ class SocketService extends ChangeNotifier {
   // Call event callbacks
   Function(Map)? onRandomMatchFound;
   Function(Map)? onRandomMatchTimeout;
+  Function(Map)? onRandomGameUpdated;
+  final Map<String, Map<String, dynamic>> _randomGames = <String, Map<String, dynamic>>{};
   Function(Map)? onCallInviteCallback;
   Function(Map)? onCallAcceptedCallback;
   Function()? onCallRejectedCallback;
@@ -207,6 +209,11 @@ class SocketService extends ChangeNotifier {
   String? get currentChatWith => _currentChatWith;
   bool get activeChatCaptureProtected => _activeChatCaptureProtected;
   String? get myUsername => _myUsername;
+
+  Map<String, dynamic>? randomGameFor(String sessionId) {
+    final game = _randomGames[sessionId];
+    return game == null ? null : Map<String, dynamic>.from(game);
+  }
 
   // ── Connect ───────────────────────────────────────────────────────────────
   /// Rebuild the socket handshake after the REST session cookie rotates.
@@ -1443,7 +1450,25 @@ class SocketService extends ChangeNotifier {
     });
 
     _socket!.on('random_match_found', (data) {
-      if (data is Map) onRandomMatchFound?.call(Map<String, dynamic>.from(data));
+      if (data is! Map) return;
+      final packet = Map<String, dynamic>.from(data);
+      final sessionId = packet['sessionId']?.toString() ?? '';
+      final game = packet['game'];
+      if (sessionId.isNotEmpty && game is Map) {
+        _randomGames[sessionId] = Map<String, dynamic>.from(game);
+        notifyListeners();
+      }
+      onRandomMatchFound?.call(packet);
+    });
+    _socket!.on('random_game_updated', (data) {
+      if (data is! Map) return;
+      final packet = Map<String, dynamic>.from(data);
+      final sessionId = packet['sessionId']?.toString() ?? '';
+      final game = packet['game'];
+      if (sessionId.isEmpty || game is! Map) return;
+      _randomGames[sessionId] = Map<String, dynamic>.from(game);
+      notifyListeners();
+      onRandomGameUpdated?.call(packet);
     });
     _socket!.on('random_match_timeout', (data) {
       if (data is Map) onRandomMatchTimeout?.call(Map<String, dynamic>.from(data));
@@ -2205,10 +2230,14 @@ class SocketService extends ChangeNotifier {
     }
   }
 
-  Future<void> joinRandomGame(String gameType) async {
+  Future<Map<String, dynamic>> joinRandomGame(String gameType) async {
     await _waitForSocketAuthentication();
+    final socket = _socket;
+    if (socket == null || !_isConnected || !_isAuthenticated) {
+      throw StateError('Connect to Novyn before starting a random game.');
+    }
     final completer = Completer<Map<String, dynamic>>();
-    _socket!.emitWithAck('join_random_game', {'gameType': gameType},
+    socket.emitWithAck('join_random_game', {'gameType': gameType},
         ack: (dynamic result) {
       if (completer.isCompleted) return;
       completer.complete(result is Map
@@ -2222,6 +2251,41 @@ class SocketService extends ChangeNotifier {
     if (result['ok'] != true) {
       throw StateError(result['message']?.toString() ?? 'Could not join matchmaking.');
     }
+    return result;
+  }
+
+  Future<Map<String, dynamic>> moveRandomGame(
+    String sessionId,
+    Map<String, dynamic> moveData,
+  ) async {
+    await _waitForSocketAuthentication();
+    final socket = _socket;
+    if (socket == null || !_isConnected || !_isAuthenticated) {
+      throw StateError('Reconnect to Novyn before sending your move.');
+    }
+    final completer = Completer<Map<String, dynamic>>();
+    socket.emitWithAck('random_game_move', {
+      'sessionId': sessionId,
+      'moveData': moveData,
+    }, ack: (dynamic result) {
+      if (completer.isCompleted) return;
+      completer.complete(result is Map
+          ? Map<String, dynamic>.from(result)
+          : <String, dynamic>{'ok': false, 'message': 'Could not update the game.'});
+    });
+    final result = await completer.future.timeout(
+      const Duration(seconds: 12),
+      onTimeout: () => <String, dynamic>{'ok': false, 'message': 'Game move timed out. Please retry.'},
+    );
+    if (result['ok'] != true) {
+      throw StateError(result['message']?.toString() ?? 'Game move failed.');
+    }
+    final game = result['game'];
+    if (game is Map) {
+      _randomGames[sessionId] = Map<String, dynamic>.from(game);
+      notifyListeners();
+    }
+    return result;
   }
 
   Future<void> cancelRandomGame() async {
@@ -2250,7 +2314,7 @@ class SocketService extends ChangeNotifier {
     }
   }
 
-  Future<void> sendGameChallenge(String gameType, String peerUsername,
+  Future<String> sendGameChallenge(String gameType, String peerUsername,
       {bool isGroup = false}) async {
     // A socket transport can be connected while resume_session is still
     // being verified. Wait for the authenticated session before sending a
@@ -2301,6 +2365,11 @@ class SocketService extends ChangeNotifier {
         result['message']?.toString() ?? 'Could not send the game invitation.',
       );
     }
+    final messageId = result['id']?.toString() ?? '';
+    if (messageId.isEmpty) {
+      throw StateError('The game invitation was sent, but its game ID was missing.');
+    }
+    return messageId;
   }
 
   String _gameTitle(String type) {
