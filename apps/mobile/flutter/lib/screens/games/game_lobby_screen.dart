@@ -577,9 +577,6 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
                   '00:${_secondsRemaining.toString().padLeft(2, '0')}',
                   style: theme.textTheme.labelLarge?.copyWith(
                     fontWeight: FontWeight.w900,
-                    fontFeatures: const <FontFeature>[
-                      FontFeature.tabularFigures(),
-                    ],
                   ),
                 ),
               ],
@@ -587,7 +584,7 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
           ] else ...[
             const SizedBox(height: 9),
             Text(
-              'The search lasts up to 60 seconds. Only players looking for $\{widget.title} are matched.',
+              'The search lasts up to 60 seconds. Only players looking for ${widget.title} are matched.',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: colors.onSurfaceVariant,
                 height: 1.4,
