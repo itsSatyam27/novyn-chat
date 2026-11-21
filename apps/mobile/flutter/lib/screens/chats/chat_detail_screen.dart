@@ -2310,6 +2310,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
       }
       if (bytes == null || bytes.isEmpty)
         throw StateError('Could not read the selected file.');
+      if (bytes.length > 15 * 1024 * 1024) {
+        throw StateError('Choose a file smaller than 15 MB.');
+      }
       if (!mounted) return;
       final selectedBytes = bytes;
 
