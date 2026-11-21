@@ -796,11 +796,28 @@ app.get("/uploads/:file", requireUser, (req, res) => {
   if (metadata?.remote) {
     res.set('Cache-Control', 'private, no-store');
     res.set('Referrer-Policy', 'no-referrer');
-    return res.redirect(302, cloudinary.utils.private_download_url(metadata.remote.publicId, metadata.remote.format, {
+    const signedUrl = cloudinary.utils.private_download_url(metadata.remote.publicId, metadata.remote.format, {
       resource_type: metadata.remote.resourceType, type: 'authenticated',
       expires_at: Math.floor(Date.now() / 1000) + 60,
       attachment: String(req.query.download || '') === '1',
-    }));
+    });
+    // Browser E2EE clients need same-origin bytes so the browser can decrypt
+    // the ciphertext without relying on cross-origin CDN CORS configuration.
+    if (String(req.query.inline || '') === '1') {
+      try {
+        const remoteResponse = await fetch(signedUrl, { headers: { Accept: '*/*' } });
+        if (!remoteResponse.ok) throw new Error(`Cloud media returned ${remoteResponse.status}`);
+        const bytes = Buffer.from(await remoteResponse.arrayBuffer());
+        res.set('Content-Type', remoteResponse.headers.get('content-type') || 'application/octet-stream');
+        res.set('Content-Length', String(bytes.length));
+        res.set('X-Content-Type-Options', 'nosniff');
+        return res.status(200).send(bytes);
+      } catch (error) {
+        console.error('[NovynMedia] Inline cloud download failed:', error?.message || error);
+        return res.status(502).json({ error: 'Media download is temporarily unavailable.' });
+      }
+    }
+    return res.redirect(302, signedUrl);
   }
   const filePath = path.join(uploadsDir, filename);
   if (!fs.existsSync(filePath)) {
