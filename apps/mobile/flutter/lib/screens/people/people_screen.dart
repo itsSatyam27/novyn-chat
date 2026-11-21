@@ -623,8 +623,8 @@ class _PeopleScreenState extends State<PeopleScreen> {
         ),
         PopupMenuItem<_PeopleMenuAction>(
           value: _PeopleMenuAction.requests,
-          height: 64,
-          padding: const EdgeInsets.symmetric(horizontal: 14),
+          height: 54,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
           child: _buildOverflowMenuRow(
             icon: Icons.person_add_alt_1_rounded,
             title: 'Friend requests',
@@ -634,8 +634,8 @@ class _PeopleScreenState extends State<PeopleScreen> {
         ),
         PopupMenuItem<_PeopleMenuAction>(
           value: _PeopleMenuAction.invite,
-          height: 64,
-          padding: const EdgeInsets.symmetric(horizontal: 14),
+          height: 54,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
           child: _buildOverflowMenuRow(
             icon: Icons.link_rounded,
             title: 'Invite friends',
