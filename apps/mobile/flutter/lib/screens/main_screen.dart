@@ -141,7 +141,9 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       unawaited(_runUpdateCheck());
-      _recoverSocketIfNeeded();
+      // Validate/refresh the REST session before reconnecting Socket.IO. The
+      // AuthService coalesces this with SessionLifecycleGuard's resume check.
+      unawaited(_restoreSessionAndRecover());
     }
   }
 
