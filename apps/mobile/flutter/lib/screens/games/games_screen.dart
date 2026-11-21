@@ -143,7 +143,7 @@ class GamesScreen extends StatelessWidget {
               children: [
                 Expanded(
                   child: Text(
-                    'Pick your game',
+                    'Choose a game',
                     style: theme.textTheme.titleLarge?.copyWith(
                       fontWeight: FontWeight.w900,
                       letterSpacing: -.35,
