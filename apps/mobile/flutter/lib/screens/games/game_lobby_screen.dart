@@ -357,7 +357,14 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
     final selectedFriend = _selectedFriendModel;
     final onlineCount = _friends.where((friend) => _presence(friend) == 'Online').length;
 
-    return Scaffold(
+    return PopScope<void>(
+      canPop: !_searchingRandom && !_cancellingMatchmaking,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop && !_cancellingMatchmaking) {
+          unawaited(_handleBack());
+        }
+      },
+      child: Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
         leading: IconButton(
@@ -485,6 +492,7 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
             ),
           ],
         ),
+      ),
       ),
     );
   }
