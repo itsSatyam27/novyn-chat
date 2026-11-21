@@ -489,6 +489,16 @@ function sanitizeMessageAttachment(rawAttachment, fallbackUrl = "") {
     ? Math.max(0, Math.min(86400, Math.floor(numericDuration)))
     : null;
 
+  const encrypted = attachment.encrypted === true;
+  const encryptionIv = toDisplayName(attachment.iv).slice(0, 64);
+  const senderPublicKey = encrypted ? normalizePushPublicKey(attachment.senderPublicKey) : "";
+  const peerPublicKey = encrypted ? normalizePushPublicKey(attachment.peerPublicKey) : "";
+  // Only persist the E2EE envelope fields needed by the two endpoints.
+  // Never trust or store arbitrary client-provided attachment metadata.
+  if (encrypted && (!encryptionIv || !senderPublicKey || !peerPublicKey || Number(attachment.encryptionVersion) !== 1)) {
+    return null;
+  }
+
   return {
     url,
     name,
@@ -496,6 +506,13 @@ function sanitizeMessageAttachment(rawAttachment, fallbackUrl = "") {
     size,
     kind,
     ...(duration !== null ? { duration } : {}),
+    ...(encrypted ? {
+      encrypted: true,
+      encryptionVersion: 1,
+      iv: encryptionIv,
+      senderPublicKey,
+      peerPublicKey,
+    } : {}),
   };
 }
 
