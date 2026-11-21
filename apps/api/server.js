@@ -407,7 +407,10 @@ function sanitizeAttachmentName(name) {
 
 function resolveAttachmentKind(mime) {
   const lower = String(mime || "").toLowerCase();
-  return lower.startsWith("image/") ? "image" : "file";
+  if (lower.startsWith("image/")) return "image";
+  if (lower.startsWith("video/")) return "video";
+  if (lower.startsWith("audio/")) return "audio";
+  return "file";
 }
 
 function resolveUploadExtension(mime, originalName, fallbackExt = ".bin") {
