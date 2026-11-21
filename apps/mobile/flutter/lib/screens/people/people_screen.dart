@@ -587,13 +587,13 @@ class _PeopleScreenState extends State<PeopleScreen> {
     return PopupMenuButton<_PeopleMenuAction>(
       tooltip: 'More contact options',
       position: PopupMenuPosition.under,
-      offset: const Offset(0, 10),
+      offset: const Offset(0, 12),
       color: theme.colorScheme.surface,
       surfaceTintColor: Colors.transparent,
-      elevation: 12,
+      elevation: 10,
       shadowColor: Colors.black.withValues(alpha: .16),
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(20),
       ),
       constraints: const BoxConstraints(minWidth: 224),
       onSelected: (action) {
@@ -644,17 +644,17 @@ class _PeopleScreenState extends State<PeopleScreen> {
         ),
       ],
       child: Container(
-        width: 46,
-        height: 46,
+        width: 48,
+        height: 48,
         decoration: BoxDecoration(
-          color: theme.colorScheme.secondaryContainer,
-          shape: BoxShape.circle,
+          color: theme.colorScheme.surface,
+          borderRadius: BorderRadius.circular(16),
         ),
         alignment: Alignment.center,
         child: Icon(
-          Icons.more_vert_rounded,
-          size: 23,
-          color: Colors.white,
+          Icons.more_horiz_rounded,
+          size: 24,
+          color: theme.colorScheme.onSurface,
         ),
       ),
     );
