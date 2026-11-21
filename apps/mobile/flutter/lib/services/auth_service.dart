@@ -525,7 +525,10 @@ class AuthService extends ChangeNotifier {
         }
 
         final status = session?['_httpStatus'];
-        if (status != 401 && status != 403) return;
+        if (status != 401 && status != 403) {
+          _sessionRejectionTracker.reset();
+          return;
+        }
 
         final refreshStatus = await ApiService.refreshSessionStatus().timeout(
           const Duration(seconds: 8),
@@ -813,6 +816,10 @@ class AuthService extends ChangeNotifier {
           } else {
             _sessionRejectionTracker.reset();
           }
+        } else {
+          // A timeout or service error is not an authentication rejection and
+          // breaks any earlier rejection sequence.
+          _sessionRejectionTracker.reset();
         }
       }
 
