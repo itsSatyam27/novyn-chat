@@ -36,6 +36,8 @@ class _GamesScreenState extends State<GamesScreen> {
   bool _sendingChallenge = false;
   bool _searchingRandom = false;
   int _queueSecondsRemaining = 60;
+  DateTime? _queueDeadline;
+  bool _cancellingMatchmaking = false;
   Timer? _queueTimer;
   SocketService? _gameSocket;
 
@@ -133,6 +135,7 @@ class _GamesScreenState extends State<GamesScreen> {
       setState(() {
         _searchingRandom = false;
         _queueSecondsRemaining = 60;
+        _queueDeadline = null;
       });
       await _gameSocket?.cancelRandomGame();
       return;
@@ -141,6 +144,7 @@ class _GamesScreenState extends State<GamesScreen> {
     setState(() {
       _searchingRandom = true;
       _queueSecondsRemaining = 60;
+      _queueDeadline = DateTime.now().add(const Duration(seconds: 60));
     });
     _queueTimer?.cancel();
     _queueTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
@@ -148,9 +152,10 @@ class _GamesScreenState extends State<GamesScreen> {
         timer.cancel();
         return;
       }
-      if (_queueSecondsRemaining > 0) {
-        setState(() => _queueSecondsRemaining--);
-      }
+      final deadline = _queueDeadline;
+      if (deadline == null) return;
+      final remaining = deadline.difference(DateTime.now()).inSeconds.clamp(0, 60);
+      setState(() => _queueSecondsRemaining = remaining);
     });
     try {
       await socket.joinRandomGame(_selectedGameType);
@@ -182,6 +187,7 @@ class _GamesScreenState extends State<GamesScreen> {
     setState(() {
       _searchingRandom = false;
       _queueSecondsRemaining = 60;
+      _queueDeadline = null;
     });
     NovynAlert.show(
       context,
@@ -204,6 +210,61 @@ class _GamesScreenState extends State<GamesScreen> {
       title: 'No player available',
       icon: Icons.group_off_rounded,
     );
+  }
+
+  Future<void> _selectGame(_GameOption game) async {
+    if (game.type == _selectedGameType || _sendingChallenge) return;
+
+    if (_searchingRandom) {
+      final shouldCancel = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Cancel matchmaking?'),
+          content: const Text(
+            'You are currently searching for a player. Cancel the matchmaking before selecting another game.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Keep searching'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Cancel matchmaking'),
+            ),
+          ],
+        ),
+      );
+      if (!mounted || shouldCancel != true) return;
+
+      setState(() => _cancellingMatchmaking = true);
+      try {
+        await _gameSocket?.cancelRandomGame();
+      } catch (_) {
+        if (!mounted) return;
+        setState(() => _cancellingMatchmaking = false);
+        NovynAlert.show(
+          context,
+          'Could not cancel matchmaking. Please try again before changing games.',
+          isError: true,
+          title: 'Matchmaking still active',
+          icon: Icons.group_off_rounded,
+        );
+        return;
+      }
+      if (!mounted) return;
+      _queueTimer?.cancel();
+      setState(() {
+        _searchingRandom = false;
+        _cancellingMatchmaking = false;
+        _queueSecondsRemaining = 60;
+        _queueDeadline = null;
+        _selectedGameType = game.type;
+      });
+      return;
+    }
+
+    setState(() => _selectedGameType = game.type);
   }
 
   Future<void> _sendChallenge(UserModel opponent) async {
@@ -471,9 +532,9 @@ class _GamesScreenState extends State<GamesScreen> {
       borderRadius: BorderRadius.circular(19),
       child: InkWell(
         borderRadius: BorderRadius.circular(19),
-        onTap: _sendingChallenge
+        onTap: (_sendingChallenge || _cancellingMatchmaking)
             ? null
-            : () => setState(() => _selectedGameType = game.type),
+            : () => _selectGame(game),
         child: Container(
           padding: const EdgeInsets.all(13),
           decoration: BoxDecoration(
