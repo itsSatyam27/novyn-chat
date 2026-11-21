@@ -442,6 +442,15 @@ test('localhost discovery, requests, reconnect state, and private media', { time
   await received;
   assert.equal((await fetch(base + media.url, { headers: { Cookie: bob.cookie } })).status, 200);
 
+  // Voice notes uploaded through the shared file endpoint must accept supported audio MIME types.
+  const audioForm = new FormData();
+  audioForm.append('file', new Blob([Buffer.from([1, 2, 3, 4])], { type: 'audio/mp4' }), 'voice_note.m4a');
+  const audioUpload = await fetch(`${base}/upload-file`, { method: 'POST', headers: { Cookie: alice.cookie }, body: audioForm });
+  assert.equal(audioUpload.status, 200, await audioUpload.clone().text());
+  const audioMedia = await audioUpload.json();
+  assert.equal(audioMedia.kind, 'audio');
+  assert.equal(audioMedia.mime, 'audio/mp4');
+
   // Direct-message media envelopes must retain only validated E2EE metadata.
   const encryptedForm = new FormData();
   encryptedForm.append('file', new Blob([Buffer.from([9, 8, 7, 6, 5])], { type: 'text/plain' }), 'cipher.bin');
