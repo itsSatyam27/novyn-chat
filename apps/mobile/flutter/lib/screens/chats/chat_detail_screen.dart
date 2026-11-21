@@ -2353,26 +2353,42 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
           mime = 'image/jpeg';
         }
       }
-      final url = await ApiService.uploadMedia(bytes, filename, mime);
+      final attachmentMime = mime;
+      final originalSize = bytes.length;
+      final recipient = widget.peer.uid.isNotEmpty
+          ? widget.peer.uid
+          : widget.peer.username;
+      var uploadBytes = bytes;
+      final encryptionMetadata = <String, dynamic>{};
+      if (!widget.isGroup) {
+        final prepared = await context.read<SocketService>()
+            .prepareEncryptedAttachment(bytes, recipient);
+        uploadBytes = prepared['bytes'] as Uint8List;
+        encryptionMetadata.addAll(
+          Map<String, dynamic>.from(prepared['metadata'] as Map),
+        );
+      }
+      final url = await ApiService.uploadMedia(uploadBytes, filename, attachmentMime);
       if (!mounted) return;
       if (url == null || url.isEmpty)
         throw StateError('Upload failed. Please try again.');
-      final kind = mime.startsWith('image/')
+      final kind = attachmentMime.startsWith('image/')
           ? 'image'
-          : mime.startsWith('video/')
+          : attachmentMime.startsWith('video/')
               ? 'video'
-              : mime.startsWith('audio/')
+              : attachmentMime.startsWith('audio/')
                   ? 'audio'
                   : 'file';
       await context.read<SocketService>().sendMessage(
             '',
-            widget.peer.uid.isNotEmpty ? widget.peer.uid : widget.peer.username,
+            recipient,
             attachment: {
               'url': url,
               'name': filename,
-              'mime': mime,
-              'size': bytes.length,
-              'kind': kind
+              'mime': attachmentMime,
+              'size': originalSize,
+              'kind': kind,
+              ...encryptionMetadata,
             },
             replyToId: _replyingTo?.id?.toString(),
             replyToText: _replyingTo?.text?.toString(),
