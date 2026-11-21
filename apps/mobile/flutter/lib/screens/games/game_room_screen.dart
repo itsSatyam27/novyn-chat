@@ -210,7 +210,9 @@ class _GameRoomScreenState extends State<GameRoomScreen> {
                   ),
                   const SizedBox(height: 14),
                   Text(
-                    'Stay on this screen while you play. Your game result will also be saved in chat.',
+                    widget.randomSessionId == null
+                        ? 'Stay on this screen while you play. Your game result will also be saved in chat.'
+                        : 'Stay on this screen while you play. Your random match is synced live with your opponent.',
                     textAlign: TextAlign.center,
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: colors.onSurfaceVariant,
