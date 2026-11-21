@@ -67,6 +67,29 @@ void main() {
     expect(settings.activeSmartPresenceMode, 'online');
   });
 
+
+  test('clearAll resets notification categories and quiet-hours schedule', () async {
+    SharedPreferences.setMockInitialValues({
+      'notification_direct_messages': false,
+      'notification_group_messages': false,
+      'notification_quiet_hours_enabled': true,
+      'notification_quiet_hours_start': '01:30',
+      'notification_quiet_hours_end': '05:45',
+      'notification_quiet_hours_offset': 330,
+    });
+
+    final settings = SettingsService();
+    await settings.load();
+    await settings.clearAll();
+
+    expect(settings.notificationPreference('directMessagesEnabled'), isTrue);
+    expect(settings.notificationPreference('groupMessagesEnabled'), isTrue);
+    expect(settings.notificationPreference('quietHoursEnabled'), isFalse);
+    expect(settings.quietHoursStart, '22:00');
+    expect(settings.quietHoursEnd, '07:00');
+    expect(settings.quietHoursOffsetMinutes, 0);
+  });
+
   test('clearAll removes persisted preferences instead of leaving stale values', () async {
     SharedPreferences.setMockInitialValues({
       'call_ringtone': 'Custom',
