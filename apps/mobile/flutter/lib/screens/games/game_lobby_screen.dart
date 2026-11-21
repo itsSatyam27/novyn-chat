@@ -435,14 +435,27 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
   Widget _buildSectionHeader(String title) {
     return Padding(
       padding: const EdgeInsets.only(left: 4, bottom: 12),
-      child: Text(
-        title.toUpperCase(),
-        style: const TextStyle(
-          color: Color(0xFF5E44F3),
-          fontSize: 12,
-          fontWeight: FontWeight.w800,
-          letterSpacing: 1.1,
-        ),
+      child: Row(
+        children: [
+          Container(
+            width: 4,
+            height: 17,
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.primary,
+              borderRadius: BorderRadius.circular(8),
+            ),
+          ),
+          const SizedBox(width: 9),
+          Text(
+            title.toUpperCase(),
+            style: Theme.of(context).textTheme.labelLarge?.copyWith(
+              color: Theme.of(context).colorScheme.onSurface,
+              fontSize: 11,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 1.15,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -455,20 +468,29 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
     return Container(
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
-        color: isDark ? colors.surface : Colors.white,
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: isDark
+              ? [colors.surfaceContainerHigh, colors.surface]
+              : [Colors.white, const Color(0xFFF9F7FF)],
+        ),
         borderRadius: BorderRadius.circular(28),
         boxShadow: [
           BoxShadow(
-            color: isDark ? Colors.black26 : const Color(0xFF5E44F3).withValues(alpha: .06),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
+            color: const Color(0xFF5E44F3).withValues(alpha: isDark ? .13 : .14),
+            blurRadius: 25,
+            offset: const Offset(0, 12),
+          ),
+          BoxShadow(
+            color: colors.shadow.withValues(alpha: .05),
+            blurRadius: 5,
+            offset: const Offset(0, 2),
           ),
         ],
         border: Border.all(
-          color: isDark
-              ? colors.outlineVariant.withValues(alpha: .25)
-              : const Color(0xFFEEEAF8),
-          width: 1,
+          color: const Color(0xFF8B70F8).withValues(alpha: isDark ? .24 : .20),
+          width: 1.1,
         ),
       ),
       child: Column(
@@ -584,6 +606,16 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
             ),
           ),
           if (_searchingRandom) ...[
+            const SizedBox(height: 16),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(20),
+              child: LinearProgressIndicator(
+                value: (60 - _secondsRemaining) / 60,
+                minHeight: 7,
+                backgroundColor: colors.primary.withValues(alpha: .10),
+                valueColor: AlwaysStoppedAnimation<Color>(colors.primary),
+              ),
+            ),
             const SizedBox(height: 12),
             Row(
               children: [
@@ -620,20 +652,29 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
     return Container(
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
-        color: isDark ? colors.surface : Colors.white,
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: isDark
+              ? [colors.surfaceContainerHigh, colors.surface]
+              : [Colors.white, const Color(0xFFF9F7FF)],
+        ),
         borderRadius: BorderRadius.circular(28),
         boxShadow: [
           BoxShadow(
-            color: isDark ? Colors.black26 : const Color(0xFF5E44F3).withValues(alpha: .06),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
+            color: const Color(0xFF5E44F3).withValues(alpha: isDark ? .13 : .14),
+            blurRadius: 25,
+            offset: const Offset(0, 12),
+          ),
+          BoxShadow(
+            color: colors.shadow.withValues(alpha: .05),
+            blurRadius: 5,
+            offset: const Offset(0, 2),
           ),
         ],
         border: Border.all(
-          color: isDark
-              ? colors.outlineVariant.withValues(alpha: .25)
-              : const Color(0xFFEEEAF8),
-          width: 1,
+          color: const Color(0xFF8B70F8).withValues(alpha: isDark ? .24 : .20),
+          width: 1.1,
         ),
       ),
       child: Column(
