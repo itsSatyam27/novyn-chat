@@ -27,17 +27,27 @@ const String _handledUpdateBuildKey = 'novyn_handled_update_build';
 /// at most two plain-language points, without GitHub author or PR link metadata.
 List<String> _parseReleaseNotes(String body) {
   return body
-      .split('\n')
+      .split('\\n')
       .map((line) => line.trim())
       .where((line) =>
           line.startsWith('- ') ||
           line.startsWith('* ') ||
           line.startsWith('• ') ||
-          RegExp(r'^\d+\.\s+').hasMatch(line))
+          RegExp(r'^\\d+\\.\\s+').hasMatch(line))
       .map((line) => line
-          .replaceFirst(RegExp(r'^([-*•]|\d+\.)\s*'), '')
-          // GitHub generated notes append "by @user in https://...".
-          .replaceFirst(RegExp(r'\s+by\s+@[^\s]+.*
+          .replaceFirst(RegExp(r'^([-*•]|\\d+\\.)\\s*'), '')
+          .replaceFirst(RegExp(r'\\s+by\\s+@.*', caseSensitive: false), '')
+          .replaceAll(RegExp(r'https?://\\S+', caseSensitive: false), '')
+          .replaceAll(RegExp(r'\\s+'), ' ')
+          .replaceAll(RegExp(r'\\s+([,.;:])'), r'$1')
+          .trim())
+      .where((line) =>
+          line.isNotEmpty &&
+          !line.toLowerCase().startsWith('full changelog') &&
+          line.toLowerCase() != 'no changes')
+      .take(2)
+      .toList(growable: false);
+}
 
 @pragma('vm:entry-point')
 void novynUpdateCallbackDispatcher() {
