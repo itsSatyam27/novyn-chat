@@ -61,7 +61,9 @@ class _GamesScreenState extends State<GamesScreen> {
     _queueTimer?.cancel();
     _gameSocket?.onRandomMatchFound = null;
     _gameSocket?.onRandomMatchTimeout = null;
-    if (_searchingRandom) unawaited(_gameSocket?.cancelRandomGame());
+    if (_searchingRandom) {
+      unawaited(_gameSocket?.cancelRandomGame().catchError((_) {}));
+    }
     unawaited(_friendsSubscription?.cancel());
     super.dispose();
   }
@@ -131,13 +133,28 @@ class _GamesScreenState extends State<GamesScreen> {
 
   Future<void> _quickMatch() async {
     if (_searchingRandom) {
+      try {
+        await _gameSocket?.cancelRandomGame();
+      } catch (error) {
+        if (!mounted) return;
+        NovynAlert.show(
+          context,
+          error is StateError
+              ? error.message.toString()
+              : 'Could not cancel matchmaking. Please try again.',
+          isError: true,
+          title: 'Could not cancel search',
+          icon: Icons.group_off_rounded,
+        );
+        return;
+      }
+      if (!mounted) return;
       _queueTimer?.cancel();
       setState(() {
         _searchingRandom = false;
         _queueSecondsRemaining = 60;
         _queueDeadline = null;
       });
-      await _gameSocket?.cancelRandomGame();
       return;
     }
     final socket = _gameSocket ?? context.read<SocketService>();
