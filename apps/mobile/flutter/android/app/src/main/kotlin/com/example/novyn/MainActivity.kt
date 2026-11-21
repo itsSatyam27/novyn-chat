@@ -288,38 +288,52 @@ class MainActivity : FlutterFragmentActivity() {
 
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "com.example.novyn/storage")
             .setMethodCallHandler { call, result ->
-                if (call.method != "getStorageUsage") {
-                    result.notImplemented()
-                    return@setMethodCallHandler
-                }
                 try {
-                    val appInfo = applicationInfo
-                    val installedBytes = sequenceOf(appInfo.sourceDir)
-                        .plus(appInfo.splitSourceDirs?.asSequence() ?: emptySequence())
-                        .map { File(it) }
-                        .filter { it.isFile }
-                        .sumOf { it.length() }
-
                     val cacheDirectories = (listOf(cacheDir) + (externalCacheDirs?.filterNotNull() ?: emptyList()))
                         .distinctBy { it.absolutePath }
-                    val excludedCachePaths = cacheDirectories.mapNotNull {
-                        try { it.canonicalPath } catch (_: Exception) { null }
-                    }.toSet()
+                    when (call.method) {
+                        "getStorageUsage" -> {
+                            val appInfo = applicationInfo
+                            val installedBytes = sequenceOf(appInfo.sourceDir)
+                                .plus(appInfo.splitSourceDirs?.asSequence() ?: emptySequence())
+                                .map { File(it) }
+                                .filter { it.isFile }
+                                .sumOf { it.length() }
 
-                    val appDataBytes = directoryBytes(File(appInfo.dataDir), excludedCachePaths) +
-                        (getExternalFilesDirs(null)?.filterNotNull() ?: emptyList())
-                            .sumOf { directoryBytes(it, excludedCachePaths) }
-                    val cacheBytes = cacheDirectories.sumOf { directoryBytes(it) }
+                            val excludedCachePaths = cacheDirectories.mapNotNull {
+                                try { it.canonicalPath } catch (_: Exception) { null }
+                            }.toSet()
+                            val appDataBytes = directoryBytes(File(appInfo.dataDir), excludedCachePaths) +
+                                (getExternalFilesDirs(null)?.filterNotNull() ?: emptyList())
+                                    .sumOf { directoryBytes(it, excludedCachePaths) }
+                            val cacheBytes = cacheDirectories.sumOf { directoryBytes(it) }
 
-                    result.success(
-                        mapOf(
-                            "installed" to installedBytes,
-                            "appData" to appDataBytes,
-                            "cache" to cacheBytes
-                        )
-                    )
+                            result.success(
+                                mapOf(
+                                    "installed" to installedBytes,
+                                    "appData" to appDataBytes,
+                                    "cache" to cacheBytes
+                                )
+                            )
+                        }
+                        "clearStorageCache" -> {
+                            cacheDirectories.forEach { directory ->
+                                if (directory.exists()) {
+                                    directory.listFiles()?.forEach { child ->
+                                        try {
+                                            if (child.isDirectory) child.deleteRecursively() else child.delete()
+                                        } catch (_: Exception) {
+                                            // Ignore cache entries temporarily held by the OS.
+                                        }
+                                    }
+                                }
+                            }
+                            result.success(null)
+                        }
+                        else -> result.notImplemented()
+                    }
                 } catch (error: Exception) {
-                    result.error("STORAGE_USAGE_FAILED", error.message, null)
+                    result.error("STORAGE_OPERATION_FAILED", error.message, null)
                 }
             }
 
