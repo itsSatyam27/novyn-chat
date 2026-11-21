@@ -47,6 +47,11 @@ void main() {
     expect(find.text('Tic-Tac-Toe'), findsOneWidget);
     expect(find.text('Rock Paper Scissors'), findsOneWidget);
     expect(find.text('Play with Random'), findsNWidgets(2));
+    await tester.scrollUntilVisible(
+      find.text('Invite a friend'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
     expect(find.text('Invite a friend'), findsOneWidget);
     expect(find.text('No friends to invite yet'), findsOneWidget);
     expect(tester.takeException(), isNull);
