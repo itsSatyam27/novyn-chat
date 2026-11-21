@@ -6,6 +6,7 @@ const http = require("http");
 const express = require("express");
 const multer = require("multer");
 const { createMongoStorage } = require("./server/db/mongo");
+const { registerHealthRoutes } = require("./server/routes/health");
 const { createSocketAuthMiddleware } = require("./server/realtime/socket-auth");
 const { isAllowedSocketOrigin } = require("./server/security/origins");
 const { mediaNames, canReadMedia } = require("./server/security/media-access");
@@ -66,43 +67,11 @@ app.use((req, res, next) => {
   next();
 });
 
-app.get("/health", (_req, res) => {
-  res.set("Cache-Control", "no-store, max-age=0");
-  res.status(200).json({ ok: true, status: "live" });
-});
-
-app.get("/health/ready", async (_req, res) => {
-  res.set("Cache-Control", "no-store, max-age=0");
-  const storage = hasMongoStorage() ? "mongodb" : "file";
-
-  if (MONGODB_URI) {
-    if (!mongoStorage || !hasMongoStorage()) {
-      return res.status(503).json({
-        ok: false,
-        ready: false,
-        storage: "mongodb",
-        message: "Database storage is not initialized.",
-      });
-    }
-    try {
-      await mongoStorage.ping();
-    } catch (error) {
-      console.warn("[NovynHealth] MongoDB readiness check failed:", error?.message || error);
-      return res.status(503).json({
-        ok: false,
-        ready: false,
-        storage: "mongodb",
-        message: "Database is temporarily unavailable.",
-      });
-    }
-  }
-
-  return res.status(200).json({
-    ok: true,
-    ready: true,
-    storage,
-    persistentStorage: storage === "mongodb",
-  });
+registerHealthRoutes({
+  app,
+  getMongoUri: () => MONGODB_URI,
+  getMongoStorage: () => mongoStorage,
+  hasMongoStorage,
 });
 
 const defaultUploadsDir = path.join(__dirname, "runtime", "uploads");
