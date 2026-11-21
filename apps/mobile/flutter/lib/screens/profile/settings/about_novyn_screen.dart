@@ -772,9 +772,7 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
               ),
               const SizedBox(height: 12),
               _infoCard(context, [
-                _InfoRow(label: 'App version', value: '$_appVersion (build $_buildNumber)'),
-                Divider(height: 1, color: border.withValues(alpha: .8)),
-                const _InfoRow(label: 'Platform', value: 'Flutter · Android'),
+                _InfoRow(label: 'App version', value: _appVersion),
               ]),
               const SizedBox(height: 12),
               Center(child: Text('MADE TO KEEP YOUR PEOPLE CLOSE',
