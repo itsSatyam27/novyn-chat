@@ -192,6 +192,11 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     final username = auth.user?.username.trim();
     if (username == null || username.isEmpty) return;
 
+    // Cached identity keeps local data available while offline, but it is not
+    // proof of a live backend session. Do not open a socket without an access
+    // cookie restored/renewed by AuthService first.
+    if (!ApiService.hasAccessSessionCookie) return;
+
     final socket = context.read<SocketService>();
     final sameAccount =
         socket.myUsername?.toLowerCase() == username.toLowerCase();
