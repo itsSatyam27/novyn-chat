@@ -205,11 +205,14 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
       return;
     }
 
-    // A Socket.IO transport can stay marked connected after it has lost its
-    // authenticated session. Replace it when internet returns so account
-    // privacy and profile mutations do not remain stuck behind a stale socket.
-    if (forceReconnect || !socket.isAuthenticated) {
+    // Force a replacement only after an actual network transition. For an
+    // ordinary resume, let an existing connect/auth handshake finish; calling
+    // reconnectWithCurrentSession repeatedly would dispose a healthy in-flight
+    // socket handshake and keep the app stuck in "verifying session".
+    if (forceReconnect) {
       unawaited(socket.reconnectWithCurrentSession());
+    } else if (!socket.isConnected && !socket.isConnecting) {
+      socket.connect(ApiService.baseUrl, username);
     }
   }
 
