@@ -116,14 +116,15 @@ void main() {
       final cell = tester.widget<Container>(
         find.byKey(ValueKey('tic-tac-toe-cell-$index')),
       );
-      expect((cell.decoration as BoxDecoration).color, scheme.primaryContainer);
+      final gradient = (cell.decoration as BoxDecoration).gradient as LinearGradient;
+      expect(gradient.colors.first, scheme.primaryContainer);
     }
 
     final ordinaryCell = tester.widget<Container>(
       find.byKey(const ValueKey('tic-tac-toe-cell-3')),
     );
     expect(
-      (ordinaryCell.decoration as BoxDecoration).color,
+      ((ordinaryCell.decoration as BoxDecoration).gradient as LinearGradient).colors.first,
       scheme.surfaceContainerHighest,
     );
   });
