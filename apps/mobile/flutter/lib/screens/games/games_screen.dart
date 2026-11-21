@@ -23,11 +23,7 @@ class GamesScreen extends StatefulWidget {
 class _GamesScreenState extends State<GamesScreen> {
   static const _games = <_GameOption>[
     _GameOption('tictactoe', 'Tic-Tac-Toe', 'Three in a row', Icons.grid_3x3_rounded),
-    _GameOption('connect4', 'Connect 4', 'Line up four chips', Icons.circle_rounded),
     _GameOption('rps', 'Rock Paper Scissors', 'Choose your move', Icons.back_hand_rounded),
-    _GameOption('doodle', 'Doodle Duel', 'Draw and guess', Icons.draw_rounded),
-    _GameOption('numberclash', 'Number Clash', 'Pick a number', Icons.pin_rounded),
-    _GameOption('updown', 'Up or Down', 'Predict the next card', Icons.trending_up_rounded),
   ];
 
   AuthService? _auth;
