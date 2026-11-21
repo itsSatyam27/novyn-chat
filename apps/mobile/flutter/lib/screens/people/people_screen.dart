@@ -14,7 +14,7 @@ import '../../widgets/novyn_ui.dart';
 import '../../theme/novyn_theme.dart';
 import '../chats/chat_detail_screen.dart';
 import 'received_friend_requests_screen.dart';
-import '../discover/discover_screen.dart';
+import 'discover_screen.dart';
 import 'package:novyn/services/haptic_service.dart';
 
 enum _PeopleMenuAction { discover, requests, invite }
