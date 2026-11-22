@@ -550,20 +550,7 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
         ]),
       );
 
-  Widget _buildSectionHeader(String title) {
-    return Padding(
-      padding: const EdgeInsets.only(left: 4, bottom: 12),
-      child: Text(
-        title.toUpperCase(),
-        style: const TextStyle(
-          color: Color(0xFF5E44F3),
-          fontSize: 12,
-          fontWeight: FontWeight.w800,
-          letterSpacing: 1.1,
-        ),
-      ),
-    );
-  }
+  Widget _buildSectionHeader(String title) => const SizedBox(height: 2);
 
   Widget _buildRandomCard(ThemeData theme, bool connectionReady) {
     final colors = theme.colorScheme;
@@ -593,35 +580,32 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
                 width: 58,
                 height: 58,
                 decoration: BoxDecoration(
-                  color: const Color(0xFF5E44F3),
+                  color: const Color(0xFF6B4BFA),
                   borderRadius: BorderRadius.circular(19),
                 ),
-                child: const Icon(
-                  Icons.language_rounded,
-                  color: Colors.white,
-                  size: 28,
+                child: const Icon(Icons.language_rounded, color: Colors.white, size: 30),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Text(
+                  'Random player',
+                  style: TextStyle(
+                    fontSize: 21,
+                    fontWeight: FontWeight.w900,
+                    color: isDark ? Colors.white : const Color(0xFF1E1C2A),
+                    letterSpacing: -.5,
+                  ),
                 ),
               ),
-              _buildGameBadge(widget.gameType),
+              const SizedBox(width: 104, height: 70, child: _LobbyTicTacToeMark()),
             ],
           ),
-          const SizedBox(height: 18),
-          Text(
-            'Random player',
-            style: TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.w800,
-              color: isDark ? Colors.white : const Color(0xFF1E1C2A),
-              letterSpacing: -.3,
-            ),
-          ),
+          const SizedBox(height: 20),
           const SizedBox(height: 18),
           SizedBox(
             width: double.infinity,
@@ -900,7 +884,7 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
           ] else if (filtered.isNotEmpty) ...[
             const SizedBox(height: 14),
             ConstrainedBox(
-              constraints: const BoxConstraints(maxHeight: 220),
+              constraints: const BoxConstraints(maxHeight: 410),
               child: ListView.builder(
                 shrinkWrap: true,
                 physics: const BouncingScrollPhysics(),
@@ -925,7 +909,7 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
                                   () => _selectedFriend = friend.username.toLowerCase(),
                                 ),
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                           decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(16),
                             border: Border.all(
@@ -1565,4 +1549,33 @@ class _FriendInviteWaitingSheetState extends State<_FriendInviteWaitingSheet>
       ),
     );
   }
+}
+
+
+class _LobbyTicTacToeMark extends StatelessWidget {
+  const _LobbyTicTacToeMark();
+
+  @override
+  Widget build(BuildContext context) => CustomPaint(painter: _LobbyTicTacToePainter());
+}
+
+class _LobbyTicTacToePainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final grid = Paint()..color = const Color(0xFFB9A9FF)..strokeWidth = 3.5..strokeCap = StrokeCap.round;
+    canvas.drawLine(Offset(size.width * .34, 2), Offset(size.width * .34, size.height - 2), grid);
+    canvas.drawLine(Offset(size.width * .67, 2), Offset(size.width * .67, size.height - 2), grid);
+    canvas.drawLine(Offset(2, size.height * .34), Offset(size.width - 2, size.height * .34), grid);
+    canvas.drawLine(Offset(2, size.height * .67), Offset(size.width - 2, size.height * .67), grid);
+    final x = Paint()..color = const Color(0xFF6B4BFA)..strokeWidth = 5..strokeCap = StrokeCap.round;
+    canvas.drawLine(const Offset(7, 8), const Offset(21, 22), x);
+    canvas.drawLine(const Offset(21, 8), const Offset(7, 22), x);
+    canvas.drawCircle(Offset(size.width * .83, size.height * .17), 8, Paint()..color = const Color(0xFFB9A9FF)..style = PaintingStyle.stroke..strokeWidth = 5);
+    canvas.drawCircle(Offset(size.width * .5, size.height * .5), 8, Paint()..color = const Color(0xFF6B4BFA)..style = PaintingStyle.stroke..strokeWidth = 5);
+    canvas.drawLine(Offset(size.width * .72, size.height * .75), Offset(size.width * .9, size.height * .93), x);
+    canvas.drawLine(Offset(size.width * .9, size.height * .75), Offset(size.width * .72, size.height * .93), x);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
