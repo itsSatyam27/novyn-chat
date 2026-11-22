@@ -46,7 +46,7 @@ void main() {
 
       await settings.load();
 
-      expect(settings.fontSize, 0.85);
+      expect(settings.fontSize, 0.95);
       expect(settings.messageTextSize, 1.0);
     });
 
