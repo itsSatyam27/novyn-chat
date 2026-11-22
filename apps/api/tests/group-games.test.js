@@ -41,13 +41,19 @@ test("removed group game types are rejected", () => {
   }
 });
 
-test("group Rock Paper Scissors assigns the first challenger as player two", () => {
-  const first = applyGameMove(groupGame("rps"), "alice", { move: "rock" });
-  assert.equal(first.ok, true);
-  const second = applyGameMove(first.game, "bob", { move: "scissors" });
-  assert.equal(second.ok, true);
-  assert.equal(second.game.state, "finished");
-  assert.equal(second.game.winner, "alice");
+test("group Rock Paper Scissors assigns the first challenger and resolves best of three", () => {
+  let game = groupGame("rps");
+  for (let round = 0; round < 3; round++) {
+    const first = applyGameMove(game, "alice", { move: "rock" });
+    assert.equal(first.ok, true);
+    const second = applyGameMove(first.game, "bob", { move: "scissors" });
+    assert.equal(second.ok, true);
+    game = second.game;
+    if (round < 2) assert.equal(game.state, "in_progress");
+  }
+  assert.equal(game.state, "finished");
+  assert.equal(game.winner, "alice");
+  assert.equal(game.data.player2, "bob");
 });
 
 test("group Number Clash and Up or Down assign one real opponent, not the group id", () => {
