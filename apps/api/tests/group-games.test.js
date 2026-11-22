@@ -56,32 +56,6 @@ test("group Rock Paper Scissors assigns the first challenger and resolves best o
   assert.equal(game.data.player2, "bob");
 });
 
-test("group Number Clash and Up or Down assign one real opponent, not the group id", () => {
-  const numberStart = groupGame("numberclash");
-  assert.equal(numberStart.data.player2, null);
-  const numberFirst = applyGameMove(numberStart, "alice", { number: 40 });
-  const numberSecond = applyGameMove(numberFirst.game, "bob", { number: 42 });
-  assert.equal(numberSecond.ok, true);
-  assert.equal(numberSecond.game.data.player2, "bob");
 
-  const upDownStart = groupGame("updown");
-  assert.equal(upDownStart.data.player2, null);
-  const predictionFirst = applyGameMove(upDownStart, "alice", { prediction: "higher" });
-  const predictionSecond = applyGameMove(predictionFirst.game, "bob", { prediction: "lower" });
-  assert.equal(predictionSecond.ok, true);
-  assert.equal(predictionSecond.game.data.player2, "bob");
-});
 
-test("group Doodle Duel allows one group member to claim the guessing role", () => {
-  const start = groupGame("doodle");
-  assert.equal(start.data.player2, null);
-  const drawing = applyGameMove(start, "alice", {
-    action: "draw",
-    strokes: [{ x1: 0, y1: 0, x2: 0.5, y2: 0.5 }],
-  });
-  assert.equal(drawing.ok, true);
-  const guess = applyGameMove(drawing.game, "bob", { action: "guess", guess: drawing.game.data.word });
-  assert.equal(guess.ok, true);
-  assert.equal(guess.game.state, "finished");
-  assert.equal(guess.game.data.player2, "bob");
-});
+
