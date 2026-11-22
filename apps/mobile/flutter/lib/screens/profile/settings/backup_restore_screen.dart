@@ -42,128 +42,149 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
     final dark = theme.brightness == Brightness.dark;
+    final ink = dark ? Colors.white : const Color(0xFF1D1933);
+    final muted = dark ? Colors.white70 : const Color(0xFF6D6885);
     return Scaffold(
-      backgroundColor: dark ? const Color(0xFF111019) : const Color(0xFFF5F2FC),
+      backgroundColor: dark ? const Color(0xFF111019) : const Color(0xFFF5F1FC),
       body: SafeArea(
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(20, 10, 20, 32),
+          physics: const BouncingScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(20, 10, 20, 30),
           children: [
             Row(children: [
-              IconButton(onPressed: () => Navigator.maybePop(context), icon: const Icon(Icons.arrow_back_rounded)),
-              const SizedBox(width: 6),
-              Expanded(child: Text('Backup & restore', style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800))),
+              IconButton(
+                onPressed: () => Navigator.maybePop(context),
+                icon: Icon(Icons.arrow_back_rounded, color: ink, size: 25),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 38, minHeight: 44),
+              ),
+              const SizedBox(width: 8),
+              Expanded(child: Text('Backup & restore',
+                style: theme.textTheme.headlineSmall?.copyWith(
+                  color: ink, fontWeight: FontWeight.w800, letterSpacing: -0.6))),
             ]),
             const SizedBox(height: 14),
             Container(
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
               decoration: BoxDecoration(
-                gradient: LinearGradient(colors: dark
-                    ? const [Color(0xFF292148), Color(0xFF1C1A2B)]
-                    : const [Color(0xFFEDE8FF), Color(0xFFFFFFFF)]),
-                borderRadius: BorderRadius.circular(26),
-                border: Border.all(color: colors.primary.withValues(alpha: .18)),
+                color: dark ? const Color(0xFF292342) : const Color(0xFFEDE8FB),
+                borderRadius: BorderRadius.circular(28),
               ),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Icon(Icons.shield_moon_rounded, color: colors.primary, size: 28),
-                const SizedBox(height: 12),
-                Text('Your chats, protected', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
-                const SizedBox(height: 6),
-                Text('Backup files are encrypted on this device with AES‑256‑GCM. A backup password is needed to restore them.',
-                    style: theme.textTheme.bodyMedium?.copyWith(color: colors.onSurfaceVariant, height: 1.45)),
+              child: Row(children: [
+                Icon(Icons.verified_user_outlined, color: colors.primary, size: 23),
+                const SizedBox(width: 12),
+                Expanded(child: Text('AES-256 encrypted · password required to restore',
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    color: colors.primary, fontWeight: FontWeight.w800, height: 1.15))),
               ]),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 30),
             _heading(context, 'AUTOMATIC BACKUP'),
             const SizedBox(height: 10),
             Container(
-              decoration: _cardDecoration(context),
-              padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              decoration: _cardDecoration(context).copyWith(borderRadius: BorderRadius.circular(28)),
+              padding: const EdgeInsets.fromLTRB(18, 16, 12, 16),
+              child: Column(children: [
                 Row(children: [
-                  Container(width: 42, height: 42, decoration: BoxDecoration(
-                    color: const Color(0xFF4285F4).withValues(alpha: .12),
-                    borderRadius: BorderRadius.circular(14)),
-                    child: const Icon(Icons.calendar_month_rounded, color: Color(0xFF4285F4))),
-                  const SizedBox(width: 12),
+                  _backupIcon(Icons.calendar_month_rounded, const Color(0xFF3478C5),
+                    const Color(0xFFE6F0FC)),
+                  const SizedBox(width: 14),
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text('Daily Google Drive backup', style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w700)),
-                    Text(_dailyEnabled ? 'Enabled · runs when Novyn opens on Wi-Fi' : 'Off',
-                        style: theme.textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant)),
+                    Text('Daily Google Drive backup',
+                      style: theme.textTheme.titleMedium?.copyWith(color: ink, fontWeight: FontWeight.w800)),
+                    Text('Wi-Fi only',
+                      style: theme.textTheme.bodyMedium?.copyWith(color: muted)),
                   ])),
-                  Switch(value: _dailyEnabled, onChanged: _working ? null : _setDailyBackup),
+                  Switch.adaptive(value: _dailyEnabled,
+                    onChanged: _working ? null : _setDailyBackup),
                 ]),
-                const SizedBox(height: 8),
-                Text(_lastAutomaticBackup == null
-                    ? 'Your first encrypted backup is created when you turn this on.'
-                    : 'Last successful backup: ${_lastAutomaticBackup!.toString().substring(0, 16)}',
-                    style: theme.textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant, height: 1.4)),
-                const SizedBox(height: 6),
-                Text('The password is stored in this device’s secure storage. Automatic uploads use Wi-Fi to avoid mobile data charges and run on app launch/resume; the OS may suspend Novyn while it is closed.',
-                    style: theme.textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant, height: 1.4)),
+                if (_dailyEnabled || _lastAutomaticBackup != null) ...[
+                  const SizedBox(height: 8),
+                  Align(alignment: Alignment.centerLeft, child: Text(
+                    _lastAutomaticBackup == null
+                      ? 'Enabled · runs when Novyn opens on Wi-Fi'
+                      : 'Last backup · ${_lastAutomaticBackup!.toString().substring(0, 16)}',
+                    style: theme.textTheme.bodySmall?.copyWith(color: muted))),
+                ],
               ]),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 30),
             _heading(context, 'CREATE A BACKUP'),
             const SizedBox(height: 10),
             _actionCard(context, [
-              _ActionItem(Icons.add_to_drive_rounded, const Color(0xFF4285F4), 'Back up to Google Drive',
-                  'Save an encrypted copy to Novyn’s private Drive app folder.', () => _drive(restore: false)),
-              _ActionItem(Icons.file_upload_outlined, const Color(0xFF7C5CFF), 'Export backup file',
-                  'Save an encrypted .json backup somewhere you control.', () => _file(restore: false)),
+              _ActionItem(Icons.add_to_drive_rounded, const Color(0xFF3478C5), 'Back up to Google Drive',
+                'Save an encrypted copy to your private Drive app folder.', () => _drive(restore: false)),
+              _ActionItem(Icons.file_upload_outlined, const Color(0xFF7652F5), 'Export backup file',
+                'Save an encrypted backup file to your device.', () => _file(restore: false)),
             ]),
-            const SizedBox(height: 22),
+            const SizedBox(height: 30),
             _heading(context, 'RESTORE A BACKUP'),
             const SizedBox(height: 10),
             _actionCard(context, [
-              _ActionItem(Icons.cloud_download_outlined, const Color(0xFF4285F4), 'Restore from Google Drive',
-                  'Find the latest Novyn backup in the Google account you select.', () => _drive(restore: true)),
-              _ActionItem(Icons.file_download_outlined, const Color(0xFF10A783), 'Restore from backup file',
-                  'Choose a Novyn backup file from your device or storage.', () => _file(restore: true)),
+              _ActionItem(Icons.cloud_download_outlined, const Color(0xFF3478C5), 'Restore from Google Drive',
+                'Find a Novyn backup in the Google account you select.', () => _drive(restore: true)),
+              _ActionItem(Icons.file_download_outlined, const Color(0xFF15966C), 'Restore from backup file',
+                'Choose a backup file from your device or storage.', () => _file(restore: true)),
             ]),
-            const SizedBox(height: 22),
+            const SizedBox(height: 30),
             _heading(context, 'INCLUDED IN BACKUP'),
             const SizedBox(height: 10),
             Container(
-              padding: const EdgeInsets.all(17),
-              decoration: _cardDecoration(context),
+              padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
+              decoration: _cardDecoration(context).copyWith(borderRadius: BorderRadius.circular(28)),
               child: Column(children: [
-                _included(context, Icons.chat_bubble_outline_rounded, 'Messages and conversations'),
-                _included(context, Icons.people_alt_outlined, 'Saved contacts and chat list'),
-                _included(context, Icons.call_outlined, 'On-device call history'),
-                _included(context, Icons.key_outlined, 'Conversation encryption keys'),
-                const Divider(height: 22),
+                Row(children: [
+                  Expanded(child: _included(context, Icons.chat_bubble_outline_rounded, 'Messages')),
+                  Expanded(child: _included(context, Icons.people_alt_outlined, 'Contacts')),
+                ]),
+                const SizedBox(height: 18),
+                Row(children: [
+                  Expanded(child: _included(context, Icons.call_outlined, 'Call history')),
+                  Expanded(child: _included(context, Icons.key_outlined, 'Encryption keys')),
+                ]),
+                const SizedBox(height: 18),
+                Divider(color: colors.outlineVariant.withValues(alpha: .6), height: 1),
+                const SizedBox(height: 16),
                 Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Icon(Icons.info_outline_rounded, size: 18, color: colors.onSurfaceVariant),
-                  const SizedBox(width: 9),
-                Expanded(child: Text('Attachments are included as encrypted file bytes (up to 45 MB of media per backup; total backup limit 100 MB). E2EE identity recovery is a separate option below. Restore merges data without erasing newer local chats.',
-                      style: theme.textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant, height: 1.45))),
+                  Icon(Icons.info_outline_rounded, color: muted, size: 19),
+                  const SizedBox(width: 11),
+                  Expanded(child: Text(
+                    'Media up to 45 MB per backup, 100 MB in total. Restoring merges data and never erases newer local chats.',
+                    style: theme.textTheme.bodyMedium?.copyWith(color: muted, height: 1.45))),
                 ]),
               ]),
             ),
-            const SizedBox(height: 22),
+            const SizedBox(height: 30),
             _heading(context, 'ENCRYPTION IDENTITY'),
             const SizedBox(height: 10),
             _actionCard(context, [
-              _ActionItem(Icons.vpn_key_outlined, const Color(0xFFD18A12), 'Protect encryption identity',
-                  'Save an encrypted recovery copy to your Novyn account.', () => _identity(restore: false)),
-              _ActionItem(Icons.key_rounded, const Color(0xFF9A6B0A), 'Restore encryption identity',
-                  'Recover your existing identity before decrypting old messages.', () => _identity(restore: true)),
+              _ActionItem(Icons.cloud_upload_outlined, const Color(0xFFAD7416), 'Protect encryption identity',
+                'Save an encrypted recovery copy to your Novyn account.', () => _identity(restore: false)),
+              _ActionItem(Icons.key_rounded, const Color(0xFFAD7416), 'Restore encryption identity',
+                'Recover your existing identity to decrypt old messages.', () => _identity(restore: true)),
             ]),
             if (_working) ...[
               const SizedBox(height: 20),
               LinearProgressIndicator(borderRadius: BorderRadius.circular(8)),
               const SizedBox(height: 8),
-              Center(child: Text(_activeAction ?? 'Working…', style: theme.textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant))),
+              Center(child: Text(_activeAction ?? 'Working…',
+                style: theme.textTheme.bodySmall?.copyWith(color: muted))),
             ],
-            const SizedBox(height: 20),
+            const SizedBox(height: 28),
             Container(
-              padding: const EdgeInsets.all(15),
-              decoration: BoxDecoration(color: colors.errorContainer.withValues(alpha: .45), borderRadius: BorderRadius.circular(18)),
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                color: dark ? const Color(0xFF3A2027) : const Color(0xFFFDEBEC),
+                borderRadius: BorderRadius.circular(26),
+              ),
               child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Icon(Icons.warning_amber_rounded, color: colors.error),
-                const SizedBox(width: 10),
-                Expanded(child: Text('Keep your backup password safe. Novyn cannot decrypt or reset a forgotten backup password.',
-                    style: theme.textTheme.bodySmall?.copyWith(color: colors.onSurface, height: 1.4))),
+                const Icon(Icons.warning_amber_rounded, color: Color(0xFFC52E2E), size: 23),
+                const SizedBox(width: 12),
+                Expanded(child: Text(
+                  'Keep your backup password safe. Novyn can’t decrypt or reset a forgotten backup password.',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: dark ? const Color(0xFFFFB8B8) : const Color(0xFF9F2525),
+                    height: 1.4, fontWeight: FontWeight.w600))),
               ]),
             ),
           ],
@@ -171,6 +192,12 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
       ),
     );
   }
+
+  Widget _backupIcon(IconData icon, Color foreground, Color background) => Container(
+    width: 64, height: 64,
+    decoration: BoxDecoration(color: background, borderRadius: BorderRadius.circular(22)),
+    child: Icon(icon, color: foreground, size: 29),
+  );
 
   Widget _heading(BuildContext context, String text) => Text(text,
       style: Theme.of(context).textTheme.labelLarge?.copyWith(
