@@ -1584,6 +1584,7 @@ class _TicTacToeMatchPanelState extends State<_TicTacToeMatchPanel> {
                 button: canTap,
                 label: value == null ? 'Empty cell' : '$value${winning ? ', winning tile' : ''}',
                 child: Material(
+                  key: ValueKey('tic-tac-toe-cell-$index'),
                   color: Colors.transparent,
                   child: InkWell(
                     onTap: canTap ? () => _tapCell(index, board, playerX, playerO, mySymbol) : null,
