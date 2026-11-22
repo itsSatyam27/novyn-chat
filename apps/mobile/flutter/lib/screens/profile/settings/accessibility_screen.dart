@@ -13,7 +13,7 @@ const _accessibilityChannel = MethodChannel('com.example.novyn/accessibility');
 class AccessibilityScreen extends StatelessWidget {
   const AccessibilityScreen({super.key});
 
-  static const _fontScales = <double>[0.95, 1.05, 1.30, 1.38, 1.45];
+  static const _fontScales = <double>[0.85, 0.95, 1.20, 1.28, 1.35];
   static const _fontLabels = <String>[
     'Small',
     'Default',
