@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../services/auth_service.dart';
 import '../../services/game_history_service.dart';
+import '../../widgets/user_avatar.dart';
 import 'game_history_screen.dart';
 import 'game_lobby_screen.dart';
 
@@ -20,6 +21,7 @@ class GamesScreen extends StatefulWidget {
 class _GamesScreenState extends State<GamesScreen> {
   static const _lastPlayedKey = 'games_last_played_v1';
   final TextEditingController _searchController = TextEditingController();
+  final FocusNode _searchFocusNode = FocusNode();
   final ScrollController _carouselController = ScrollController();
 
   String _searchQuery = '';
@@ -28,6 +30,7 @@ class _GamesScreenState extends State<GamesScreen> {
   GameStatsSnapshot _stats = GameStatsSnapshot.empty;
   int _statsLoadGeneration = 0;
   String? _lastPlayedType;
+  double _prevBottomInset = 0;
 
   static const List<_GameOption> _games = <_GameOption>[
     _GameOption(
@@ -56,6 +59,7 @@ class _GamesScreenState extends State<GamesScreen> {
   @override
   void dispose() {
     _searchController.dispose();
+    _searchFocusNode.dispose();
     _carouselController.removeListener(_onCarouselScroll);
     _carouselController.dispose();
     super.dispose();
@@ -63,7 +67,7 @@ class _GamesScreenState extends State<GamesScreen> {
 
   void _onCarouselScroll() {
     if (!_carouselController.hasClients) return;
-    const itemExtent = 224.0; // card width (210) + margin (14)
+    const itemExtent = 238.0; // card width (224) + separator (14)
     final index = (_carouselController.offset / itemExtent).round().clamp(0, 2);
     if (index != _activeCarouselIndex) {
       setState(() => _activeCarouselIndex = index);
@@ -101,6 +105,7 @@ class _GamesScreenState extends State<GamesScreen> {
 
   Future<void> _openGame(_GameOption game) async {
     if (!mounted) return;
+    _searchFocusNode.unfocus();
     setState(() => _lastPlayedType = game.type);
     unawaited(() async {
       try {
@@ -121,6 +126,7 @@ class _GamesScreenState extends State<GamesScreen> {
   }
 
   Future<void> _openHistory(String username) async {
+    _searchFocusNode.unfocus();
     await Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
         builder: (_) => GameHistoryScreen(username: username),
@@ -141,6 +147,16 @@ class _GamesScreenState extends State<GamesScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+    if (_prevBottomInset > 0 && bottomInset == 0 && _searchFocusNode.hasFocus) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _searchFocusNode.hasFocus) {
+          _searchFocusNode.unfocus();
+        }
+      });
+    }
+    _prevBottomInset = bottomInset;
+
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final user = Provider.of<AuthService?>(context)?.user;
@@ -151,93 +167,133 @@ class _GamesScreenState extends State<GamesScreen> {
 
     final filtered = _filteredGames;
 
-    return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF141026) : const Color(0xFFF4F2FA),
-      body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 116),
-          children: [
-            // Title Header
-            Text(
-              'Games',
-              style: TextStyle(
-                fontFamily: 'PlusJakartaSans',
-                fontSize: 34,
-                fontWeight: FontWeight.w900,
-                color: isDark ? Colors.white : const Color(0xFF1E1A33),
-                letterSpacing: -0.6,
-              ),
-            ),
-            const SizedBox(height: 18),
-
-            // Hero Profile & Stats Card
-            _GameProfileHeroCard(
-              displayName: displayName,
-              username: username,
-              stats: _stats,
-              onHistoryTap: () => _openHistory(username),
-              isDark: isDark,
-            ),
-            const SizedBox(height: 20),
-
-            // Search Bar
-            Container(
-              decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF201B36) : Colors.white,
-                borderRadius: BorderRadius.circular(30),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFF5E44F3).withValues(alpha: isDark ? 0.08 : 0.04),
-                    blurRadius: 14,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: TextField(
-                controller: _searchController,
-                onChanged: (val) => setState(() => _searchQuery = val.trim().toLowerCase()),
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: isDark ? Colors.white : const Color(0xFF1E1A33),
-                ),
-                decoration: InputDecoration(
-                  isDense: true,
-                  border: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-                  prefixIcon: const Icon(
-                    Icons.search_rounded,
-                    size: 22,
-                    color: Color(0xFF7E7A9C),
-                  ),
-                  suffixIcon: _searchQuery.isNotEmpty
-                      ? IconButton(
-                          icon: const Icon(Icons.close_rounded, size: 18, color: Color(0xFF7E7A9C)),
-                          onPressed: () {
-                            _searchController.clear();
-                            setState(() => _searchQuery = '');
-                          },
-                        )
-                      : null,
-                  hintText: 'Search games',
-                  hintStyle: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    color: Color(0xFF7E7A9C),
+    return PopScope(
+      canPop: !_searchFocusNode.hasFocus,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && _searchFocusNode.hasFocus) {
+          _searchFocusNode.unfocus();
+        }
+      },
+      child: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onTap: () {
+          if (_searchFocusNode.hasFocus) {
+            _searchFocusNode.unfocus();
+          }
+        },
+        child: Scaffold(
+          backgroundColor: isDark ? const Color(0xFF141026) : const Color(0xFFF4F2FA),
+          body: SafeArea(
+            child: ListView(
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+              padding: const EdgeInsets.only(top: 16, bottom: 116),
+              children: [
+                // Title Header
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Text(
+                    'Games',
+                    style: TextStyle(
+                      fontFamily: 'PlusJakartaSans',
+                      fontSize: 34,
+                      fontWeight: FontWeight.w900,
+                      color: isDark ? Colors.white : const Color(0xFF1E1A33),
+                      letterSpacing: -0.6,
+                    ),
                   ),
                 ),
-              ),
-            ),
-            const SizedBox(height: 24),
+                const SizedBox(height: 18),
+
+                // Hero Profile & Stats Card
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: _GameProfileHeroCard(
+                    displayName: displayName,
+                    username: username,
+                    photoUrl: user?.photoUrl ?? '',
+                    stats: _stats,
+                    onHistoryTap: () => _openHistory(username),
+                    isDark: isDark,
+                  ),
+                ),
+                const SizedBox(height: 20),
+
+                // Search Bar
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: isDark ? const Color(0xFF201B36) : Colors.white,
+                      borderRadius: BorderRadius.circular(30),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF5E44F3).withValues(alpha: isDark ? 0.08 : 0.04),
+                          blurRadius: 14,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: TextField(
+                      controller: _searchController,
+                      focusNode: _searchFocusNode,
+                      textInputAction: TextInputAction.search,
+                      onSubmitted: (_) => _searchFocusNode.unfocus(),
+                      cursorColor: const Color(0xFF5E44F3),
+                      onChanged: (val) => setState(() => _searchQuery = val.trim().toLowerCase()),
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: isDark ? Colors.white : const Color(0xFF1E1A33),
+                      ),
+                      decoration: InputDecoration(
+                        isDense: true,
+                        filled: false,
+                        fillColor: Colors.transparent,
+                        border: InputBorder.none,
+                        enabledBorder: InputBorder.none,
+                        focusedBorder: InputBorder.none,
+                        errorBorder: InputBorder.none,
+                        focusedErrorBorder: InputBorder.none,
+                        disabledBorder: InputBorder.none,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                        prefixIcon: const Icon(
+                          Icons.search_rounded,
+                          size: 22,
+                          color: Color(0xFF7E7A9C),
+                        ),
+                        suffixIcon: _searchQuery.isNotEmpty
+                            ? IconButton(
+                                icon: const Icon(Icons.close_rounded, size: 18, color: Color(0xFF7E7A9C)),
+                                onPressed: () {
+                                  _searchController.clear();
+                                  setState(() => _searchQuery = '');
+                                  _searchFocusNode.unfocus();
+                                },
+                              )
+                            : null,
+                        hintText: 'Search games',
+                        hintStyle: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: Color(0xFF7E7A9C),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24),
 
             // 2 Player Section Header
-            const Text(
-              '2 Player',
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w800,
-                color: Color(0xFF5E44F3),
-                letterSpacing: 0.5,
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 20),
+              child: Text(
+                '2 Player',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF5E44F3),
+                  letterSpacing: 0.5,
+                ),
               ),
             ),
             const SizedBox(height: 14),
@@ -245,7 +301,7 @@ class _GamesScreenState extends State<GamesScreen> {
             // 2 Player Games Carousel
             if (filtered.isEmpty)
               Padding(
-                padding: const EdgeInsets.symmetric(vertical: 24),
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
                 child: Center(
                   child: Text(
                     'No games found matching "$_searchQuery"',
@@ -259,11 +315,13 @@ class _GamesScreenState extends State<GamesScreen> {
               )
             else
               SizedBox(
-                height: 225,
+                height: 236,
                 child: ListView.separated(
                   controller: _carouselController,
                   scrollDirection: Axis.horizontal,
                   physics: const BouncingScrollPhysics(),
+                  clipBehavior: Clip.none,
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
                   itemCount: filtered.length,
                   separatorBuilder: (_, __) => const SizedBox(width: 14),
                   itemBuilder: (context, index) {
@@ -279,25 +337,28 @@ class _GamesScreenState extends State<GamesScreen> {
             if (filtered.isNotEmpty) ...[
               const SizedBox(height: 14),
               // Dots Indicator
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: List.generate(
-                  math.max(3, filtered.length),
-                  (index) {
-                    final isActive = index == _activeCarouselIndex;
-                    return AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      margin: const EdgeInsets.symmetric(horizontal: 3),
-                      width: isActive ? 20 : 6,
-                      height: 6,
-                      decoration: BoxDecoration(
-                        color: isActive
-                            ? const Color(0xFF5E44F3)
-                            : (isDark ? const Color(0xFF382F57) : const Color(0xFFD8D1F7)),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                    );
-                  },
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: List.generate(
+                    math.max(3, filtered.length),
+                    (index) {
+                      final isActive = index == _activeCarouselIndex;
+                      return AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        margin: const EdgeInsets.symmetric(horizontal: 3),
+                        width: isActive ? 20 : 6,
+                        height: 6,
+                        decoration: BoxDecoration(
+                          color: isActive
+                              ? const Color(0xFF5E44F3)
+                              : (isDark ? const Color(0xFF382F57) : const Color(0xFFD8D1F7)),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      );
+                    },
+                  ),
                 ),
               ),
             ],
@@ -305,63 +366,69 @@ class _GamesScreenState extends State<GamesScreen> {
             const SizedBox(height: 24),
 
             // 3 P / 4 P Section Header
-            const Text(
-              '3 P / 4 P',
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w800,
-                color: Color(0xFF5E44F3),
-                letterSpacing: 0.5,
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 20),
+              child: Text(
+                '3 P / 4 P',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF5E44F3),
+                  letterSpacing: 0.5,
+                ),
               ),
             ),
             const SizedBox(height: 14),
 
             // 3 P / 4 P "Coming soon" Card
-            Align(
-              alignment: Alignment.centerLeft,
-              child: CustomPaint(
-                painter: _DashedBorderPainter(
-                  color: isDark ? const Color(0xFF453B6D) : const Color(0xFFD6CEF8),
-                  strokeWidth: 1.5,
-                  dashWidth: 6,
-                  dashSpace: 5,
-                  radius: 24,
-                ),
-                child: Container(
-                  width: 210,
-                  height: 154,
-                  decoration: BoxDecoration(
-                    color: isDark
-                        ? const Color(0xFF1E1833).withValues(alpha: 0.6)
-                        : Colors.white.withValues(alpha: 0.55),
-                    borderRadius: BorderRadius.circular(24),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: CustomPaint(
+                  painter: _DashedBorderPainter(
+                    color: isDark ? const Color(0xFF453B6D) : const Color(0xFFD6CEF8),
+                    strokeWidth: 1.5,
+                    dashWidth: 6,
+                    dashSpace: 5,
+                    radius: 24,
                   ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Container(
-                        width: 44,
-                        height: 44,
-                        decoration: BoxDecoration(
-                          color: isDark ? const Color(0xFF2C2449) : const Color(0xFFEEEAFB),
-                          shape: BoxShape.circle,
+                  child: Container(
+                    width: 210,
+                    height: 154,
+                    decoration: BoxDecoration(
+                      color: isDark
+                          ? const Color(0xFF1E1833).withValues(alpha: 0.6)
+                          : Colors.white.withValues(alpha: 0.55),
+                      borderRadius: BorderRadius.circular(24),
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            color: isDark ? const Color(0xFF2C2449) : const Color(0xFFEEEAFB),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.add_rounded,
+                            color: Color(0xFF5E44F3),
+                            size: 24,
+                          ),
                         ),
-                        child: const Icon(
-                          Icons.add_rounded,
-                          color: Color(0xFF5E44F3),
-                          size: 24,
+                        const SizedBox(height: 12),
+                        const Text(
+                          'Coming soon',
+                          style: TextStyle(
+                            color: Color(0xFF5E44F3),
+                            fontWeight: FontWeight.w800,
+                            fontSize: 14,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 12),
-                      const Text(
-                        'Coming soon',
-                        style: TextStyle(
-                          color: Color(0xFF5E44F3),
-                          fontWeight: FontWeight.w800,
-                          fontSize: 14,
-                        ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -369,7 +436,9 @@ class _GamesScreenState extends State<GamesScreen> {
           ],
         ),
       ),
-    );
+    ),
+  ),
+);
   }
 }
 
@@ -377,6 +446,7 @@ class _GameProfileHeroCard extends StatelessWidget {
   const _GameProfileHeroCard({
     required this.displayName,
     required this.username,
+    required this.photoUrl,
     required this.stats,
     required this.onHistoryTap,
     required this.isDark,
@@ -384,18 +454,13 @@ class _GameProfileHeroCard extends StatelessWidget {
 
   final String displayName;
   final String username;
+  final String photoUrl;
   final GameStatsSnapshot stats;
   final VoidCallback onHistoryTap;
   final bool isDark;
 
   @override
   Widget build(BuildContext context) {
-    final initial = displayName.trim().isNotEmpty
-        ? displayName.trim().characters.first.toUpperCase()
-        : (username.trim().isNotEmpty
-            ? username.trim().characters.first.toUpperCase()
-            : 'H');
-
     final total = stats.total;
     final wins = stats.wins;
     final losses = stats.losses;
@@ -421,22 +486,11 @@ class _GameProfileHeroCard extends StatelessWidget {
           // Header Row: Avatar, Name & Handle, History Button
           Row(
             children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: const BoxDecoration(
-                  color: Color(0xFF5E44F3),
-                  shape: BoxShape.circle,
-                ),
-                alignment: Alignment.center,
-                child: Text(
-                  initial,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 20,
-                  ),
-                ),
+              UserAvatar(
+                name: displayName.isNotEmpty ? displayName : username,
+                photoUrl: photoUrl,
+                radius: 24,
+                fallbackColor: const Color(0xFF5E44F3),
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -655,8 +709,10 @@ class _GameCarouselCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
-      width: 210,
+      width: 224,
+      height: 216,
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         gradient: LinearGradient(
@@ -667,7 +723,7 @@ class _GameCarouselCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(26),
         boxShadow: [
           BoxShadow(
-            color: game.gradient.first.withValues(alpha: 0.28),
+            color: game.gradient.first.withValues(alpha: isDark ? 0.22 : 0.18),
             blurRadius: 16,
             offset: const Offset(0, 8),
           ),

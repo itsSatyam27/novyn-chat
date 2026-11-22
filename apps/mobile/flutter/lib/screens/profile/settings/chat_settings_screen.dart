@@ -405,30 +405,14 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
             ),
             const SizedBox(height: 24),
 
-            // CHAT BACKUP & RESTORE Section
-            _sectionHeader('CHAT BACKUP & RESTORE'),
+            // Chat history and its encryption identity are recovered together.
+            _sectionHeader('CHAT BACKUP & ENCRYPTION'),
             _groupedCard(context, children: [
               _SettingsRow(
                 leading: _iconBox(Icons.backup_rounded, const Color(0xFF6366F1),
                     isDark ? const Color(0xFF28234B) : const Color(0xFFEDE9FE)),
-                title: 'Backup & restore',
-                subtitle: 'Encrypted backups, Google Drive and recovery options',
-                trailing: const Icon(Icons.chevron_right_rounded, color: Color(0xFF8F8BA0), size: 20),
-                onTap: () => Navigator.push(context, MaterialPageRoute(
-                  builder: (_) => const BackupRestoreScreen(),
-                )),
-              ),
-            ]),
-            const SizedBox(height: 24),
-
-            // E2EE ACCOUNT RECOVERY Section
-            _sectionHeader('E2EE ACCOUNT RECOVERY'),
-            _groupedCard(context, children: [
-              _SettingsRow(
-                leading: _iconBox(Icons.vpn_key_rounded, const Color(0xFFD97706),
-                    isDark ? const Color(0xFF382A1B) : const Color(0xFFFEF3C7)),
-                title: 'Encryption identity recovery',
-                subtitle: 'Manage this in Backup & restore',
+                title: 'Chat backup & encryption',
+                subtitle: 'Back up chats and restore your encryption identity',
                 trailing: const Icon(Icons.chevron_right_rounded, color: Color(0xFF8F8BA0), size: 20),
                 onTap: () => Navigator.push(context, MaterialPageRoute(
                   builder: (_) => const BackupRestoreScreen(),
