@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -18,22 +19,55 @@ class GamesScreen extends StatefulWidget {
 
 class _GamesScreenState extends State<GamesScreen> {
   static const _lastPlayedKey = 'games_last_played_v1';
+  final TextEditingController _searchController = TextEditingController();
+  final ScrollController _carouselController = ScrollController();
+
+  String _searchQuery = '';
+  int _activeCarouselIndex = 0;
   String _statsUsername = '';
   GameStatsSnapshot _stats = GameStatsSnapshot.empty;
   int _statsLoadGeneration = 0;
   String? _lastPlayedType;
 
   static const List<_GameOption> _games = <_GameOption>[
-    _GameOption('tictactoe', 'Tic-Tac-Toe', 'Quick strategy', Icons.grid_3x3_rounded),
-    _GameOption('rps', 'Rock Paper Scissors', 'Fast showdown', Icons.back_hand_rounded),
+    _GameOption(
+      type: 'tictactoe',
+      title: 'Tic-Tac-Toe',
+      subtitle: 'Quick strategy',
+      icon: Icons.tag_rounded,
+      gradient: [Color(0xFF6341ED), Color(0xFF5B3DE6)],
+    ),
+    _GameOption(
+      type: 'rps',
+      title: 'Rock Paper',
+      subtitle: 'Fast showdown',
+      icon: Icons.content_cut_rounded,
+      gradient: [Color(0xFFE53468), Color(0xFFD61E53)],
+    ),
   ];
-
-  static List<_GameOption> get _featuredGames => _games;
 
   @override
   void initState() {
     super.initState();
     unawaited(_loadLastPlayed());
+    _carouselController.addListener(_onCarouselScroll);
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    _carouselController.removeListener(_onCarouselScroll);
+    _carouselController.dispose();
+    super.dispose();
+  }
+
+  void _onCarouselScroll() {
+    if (!_carouselController.hasClients) return;
+    const itemExtent = 224.0; // card width (210) + margin (14)
+    final index = (_carouselController.offset / itemExtent).round().clamp(0, 2);
+    if (index != _activeCarouselIndex) {
+      setState(() => _activeCarouselIndex = index);
+    }
   }
 
   Future<void> _loadLastPlayed() async {
@@ -41,10 +75,8 @@ class _GamesScreenState extends State<GamesScreen> {
       final saved = (await SharedPreferences.getInstance()).getString(_lastPlayedKey);
       if (!mounted) return;
       setState(() => _lastPlayedType =
-          _featuredGames.any((game) => game.type == saved) ? saved : null);
-    } catch (_) {
-      // Game selection remains available if local preferences cannot be read.
-    }
+          _games.any((game) => game.type == saved) ? saved : null);
+    } catch (_) {}
   }
 
   @override
@@ -78,7 +110,7 @@ class _GamesScreenState extends State<GamesScreen> {
     }());
     final screen = GameLobbyScreen(
       gameType: game.type,
-      title: game.title,
+      title: game.title == 'Rock Paper' ? 'Rock Paper Scissors' : game.title,
       subtitle: game.subtitle,
       icon: game.icon,
     );
@@ -97,71 +129,243 @@ class _GamesScreenState extends State<GamesScreen> {
     if (mounted) _loadStats(_statsUsername);
   }
 
+  List<_GameOption> get _filteredGames {
+    if (_searchQuery.isEmpty) return _games;
+    return _games.where((g) {
+      final q = _searchQuery.toLowerCase();
+      return g.title.toLowerCase().contains(q) ||
+          g.subtitle.toLowerCase().contains(q) ||
+          (g.type == 'rps' && 'rock paper scissors'.contains(q));
+    }).toList();
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final scheme = theme.colorScheme;
     final user = Provider.of<AuthService?>(context)?.user;
     final displayName = user?.displayName.trim().isNotEmpty == true
         ? user!.displayName.trim()
-        : (user?.username.trim().isNotEmpty == true ? user!.username : 'Your profile');
-    final username = user?.username.trim() ?? '';
+        : (user?.username.trim().isNotEmpty == true ? user!.username : 'Harsh');
+    final username = user?.username.trim() ?? 'harsh';
+
+    final filtered = _filteredGames;
 
     return Scaffold(
-      backgroundColor: isDark ? theme.scaffoldBackgroundColor : const Color(0xFFF5F1FC),
+      backgroundColor: isDark ? const Color(0xFF141026) : const Color(0xFFF4F2FA),
       body: SafeArea(
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(20, 18, 20, 116),
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 116),
           children: [
+            // Title Header
             Text(
               'Games',
-              style: theme.textTheme.headlineLarge?.copyWith(
+              style: TextStyle(
                 fontFamily: 'PlusJakartaSans',
-                fontSize: 36,
-                height: 1.12,
-                letterSpacing: -1.1,
-                fontWeight: FontWeight.w800,
+                fontSize: 34,
+                fontWeight: FontWeight.w900,
+                color: isDark ? Colors.white : const Color(0xFF1E1A33),
+                letterSpacing: -0.6,
               ),
             ),
-            const SizedBox(height: 17),
-            _GameProfileCard(
+            const SizedBox(height: 18),
+
+            // Hero Profile & Stats Card
+            _GameProfileHeroCard(
               displayName: displayName,
               username: username,
               stats: _stats,
               onHistoryTap: () => _openHistory(username),
               isDark: isDark,
             ),
-            const SizedBox(height: 25),
-            Row(
-              children: [
-                Expanded(
+            const SizedBox(height: 20),
+
+            // Search Bar
+            Container(
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF201B36) : Colors.white,
+                borderRadius: BorderRadius.circular(30),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF5E44F3).withValues(alpha: isDark ? 0.08 : 0.04),
+                    blurRadius: 14,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: TextField(
+                controller: _searchController,
+                onChanged: (val) => setState(() => _searchQuery = val.trim().toLowerCase()),
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: isDark ? Colors.white : const Color(0xFF1E1A33),
+                ),
+                decoration: InputDecoration(
+                  isDense: true,
+                  border: InputBorder.none,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                  prefixIcon: const Icon(
+                    Icons.search_rounded,
+                    size: 22,
+                    color: Color(0xFF7E7A9C),
+                  ),
+                  suffixIcon: _searchQuery.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.close_rounded, size: 18, color: Color(0xFF7E7A9C)),
+                          onPressed: () {
+                            _searchController.clear();
+                            setState(() => _searchQuery = '');
+                          },
+                        )
+                      : null,
+                  hintText: 'Search games',
+                  hintStyle: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: Color(0xFF7E7A9C),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            // 2 Player Section Header
+            const Text(
+              '2 Player',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
+                color: Color(0xFF5E44F3),
+                letterSpacing: 0.5,
+              ),
+            ),
+            const SizedBox(height: 14),
+
+            // 2 Player Games Carousel
+            if (filtered.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 24),
+                child: Center(
                   child: Text(
-                    'Pick a game',
-                    style: theme.textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: -.45,
+                    'No games found matching "$_searchQuery"',
+                    style: TextStyle(
+                      color: isDark ? Colors.white60 : const Color(0xFF7E7A9C),
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ),
-                Text(
-                  '${_featuredGames.length} games',
-                  style: theme.textTheme.labelMedium?.copyWith(
-                    color: scheme.onSurfaceVariant,
-                    fontWeight: FontWeight.w700,
+              )
+            else
+              SizedBox(
+                height: 225,
+                child: ListView.separated(
+                  controller: _carouselController,
+                  scrollDirection: Axis.horizontal,
+                  physics: const BouncingScrollPhysics(),
+                  itemCount: filtered.length,
+                  separatorBuilder: (_, __) => const SizedBox(width: 14),
+                  itemBuilder: (context, index) {
+                    final game = filtered[index];
+                    return _GameCarouselCard(
+                      game: game,
+                      onPlay: () => _openGame(game),
+                    );
+                  },
+                ),
+              ),
+
+            if (filtered.isNotEmpty) ...[
+              const SizedBox(height: 14),
+              // Dots Indicator
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: List.generate(
+                  math.max(3, filtered.length),
+                  (index) {
+                    final isActive = index == _activeCarouselIndex;
+                    return AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      margin: const EdgeInsets.symmetric(horizontal: 3),
+                      width: isActive ? 20 : 6,
+                      height: 6,
+                      decoration: BoxDecoration(
+                        color: isActive
+                            ? const Color(0xFF5E44F3)
+                            : (isDark ? const Color(0xFF382F57) : const Color(0xFFD8D1F7)),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+
+            const SizedBox(height: 24),
+
+            // 3 P / 4 P Section Header
+            const Text(
+              '3 P / 4 P',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
+                color: Color(0xFF5E44F3),
+                letterSpacing: 0.5,
+              ),
+            ),
+            const SizedBox(height: 14),
+
+            // 3 P / 4 P "Coming soon" Card
+            Align(
+              alignment: Alignment.centerLeft,
+              child: CustomPaint(
+                painter: _DashedBorderPainter(
+                  color: isDark ? const Color(0xFF453B6D) : const Color(0xFFD6CEF8),
+                  strokeWidth: 1.5,
+                  dashWidth: 6,
+                  dashSpace: 5,
+                  radius: 24,
+                ),
+                child: Container(
+                  width: 210,
+                  height: 154,
+                  decoration: BoxDecoration(
+                    color: isDark
+                        ? const Color(0xFF1E1833).withValues(alpha: 0.6)
+                        : Colors.white.withValues(alpha: 0.55),
+                    borderRadius: BorderRadius.circular(24),
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: isDark ? const Color(0xFF2C2449) : const Color(0xFFEEEAFB),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.add_rounded,
+                          color: Color(0xFF5E44F3),
+                          size: 24,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      const Text(
+                        'Coming soon',
+                        style: TextStyle(
+                          color: Color(0xFF5E44F3),
+                          fontWeight: FontWeight.w800,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              ],
-            ),
-            const SizedBox(height: 13),
-            for (final game in _featuredGames) ...[
-              _FeaturedGameCard(
-                game: game,
-                lastPlayed: _lastPlayedType == game.type,
-                onTap: () => _openGame(game),
               ),
-              if (game != _featuredGames.last) const SizedBox(height: 16),
-            ],
+            ),
           ],
         ),
       ),
@@ -169,8 +373,8 @@ class _GamesScreenState extends State<GamesScreen> {
   }
 }
 
-class _GameProfileCard extends StatelessWidget {
-  const _GameProfileCard({
+class _GameProfileHeroCard extends StatelessWidget {
+  const _GameProfileHeroCard({
     required this.displayName,
     required this.username,
     required this.stats,
@@ -186,291 +390,440 @@ class _GameProfileCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final muted = scheme.onSurfaceVariant;
-    final initials = displayName.trim().isEmpty
-        ? '?'
-        : displayName.trim().substring(0, 1).toUpperCase();
+    final initial = displayName.trim().isNotEmpty
+        ? displayName.trim().characters.first.toUpperCase()
+        : (username.trim().isNotEmpty
+            ? username.trim().characters.first.toUpperCase()
+            : 'H');
+
+    final total = stats.total;
+    final wins = stats.wins;
+    final losses = stats.losses;
+    final draws = stats.draws;
+    final winRate = total > 0 ? (wins / total * 100).round() : 0;
 
     return Container(
-      padding: const EdgeInsets.all(17),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: isDark ? scheme.surface : Colors.white,
-        borderRadius: BorderRadius.circular(25),
-        border: Border.all(
-          color: isDark ? scheme.outlineVariant.withValues(alpha: .35) : const Color(0xFFE3DBFF),
-        ),
+        color: isDark ? const Color(0xFF201B36) : Colors.white,
+        borderRadius: BorderRadius.circular(26),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF6348E8).withValues(alpha: isDark ? .08 : .055),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
+            color: const Color(0xFF5E44F3).withValues(alpha: isDark ? 0.08 : 0.04),
+            blurRadius: 18,
+            offset: const Offset(0, 6),
           ),
         ],
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Header Row: Avatar, Name & Handle, History Button
           Row(
             children: [
-              CircleAvatar(
-                radius: 26,
-                backgroundColor: const Color(0xFFECE7FF),
+              Container(
+                width: 48,
+                height: 48,
+                decoration: const BoxDecoration(
+                  color: Color(0xFF5E44F3),
+                  shape: BoxShape.circle,
+                ),
+                alignment: Alignment.center,
                 child: Text(
-                  initials,
+                  initial,
                   style: const TextStyle(
-                    color: Color(0xFF684BF5),
-                    fontWeight: FontWeight.w900,
+                    color: Colors.white,
+                    fontWeight: FontWeight.w800,
                     fontSize: 20,
                   ),
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 14),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      displayName,
+                      displayName.isNotEmpty ? displayName : 'Player',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: -.25,
-                          ),
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                        color: isDark ? Colors.white : const Color(0xFF1E1A33),
+                      ),
                     ),
+                    const SizedBox(height: 2),
                     Text(
-                      username.isEmpty ? 'Game profile' : '@$username',
+                      username.isNotEmpty ? '@$username' : '',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(color: muted),
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        color: isDark ? Colors.white60 : const Color(0xFF7E7A9C),
+                      ),
                     ),
                   ],
                 ),
               ),
-              IconButton.filledTonal(
-                onPressed: onHistoryTap,
-                tooltip: 'View match history',
-                icon: const Icon(Icons.history_rounded),
-                style: IconButton.styleFrom(
-                  foregroundColor: const Color(0xFF6548EF),
-                  backgroundColor: const Color(0xFFF0ECFF),
-                  minimumSize: const Size(46, 46),
+              Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: onHistoryTap,
+                  borderRadius: BorderRadius.circular(16),
+                  child: Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: isDark ? const Color(0xFF2C2649) : const Color(0xFFEDE9FA),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: const Icon(
+                      Icons.history_rounded,
+                      color: Color(0xFF5E44F3),
+                      size: 22,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          // 4 Stats Badges
+          Row(
+            children: [
+              Expanded(
+                child: _HeroStatBox(
+                  value: '$total',
+                  label: 'Matches',
+                  bgColor: isDark ? const Color(0xFF282244) : const Color(0xFFF1EFFF),
+                  textColor: isDark ? Colors.white : const Color(0xFF1E1A33),
+                  labelColor: isDark ? Colors.white60 : const Color(0xFF7E7A9C),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _HeroStatBox(
+                  value: '$wins',
+                  label: 'Wins',
+                  bgColor: isDark ? const Color(0xFF1C332A) : const Color(0xFFE8F7EE),
+                  textColor: const Color(0xFF16A34A),
+                  labelColor: isDark ? const Color(0xFF4ADE80) : const Color(0xFF388E57),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _HeroStatBox(
+                  value: '$losses',
+                  label: 'Losses',
+                  bgColor: isDark ? const Color(0xFF381F28) : const Color(0xFFFDE8EC),
+                  textColor: const Color(0xFFEF4444),
+                  labelColor: isDark ? const Color(0xFFF87171) : const Color(0xFF9E4B57),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _HeroStatBox(
+                  value: '$draws',
+                  label: 'Draws',
+                  bgColor: isDark ? const Color(0xFF282244) : const Color(0xFFF1EFFF),
+                  textColor: isDark ? Colors.white : const Color(0xFF1E1A33),
+                  labelColor: isDark ? Colors.white60 : const Color(0xFF7E7A9C),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 16),
-          Divider(height: 1, color: scheme.outlineVariant.withValues(alpha: .35)),
-          const SizedBox(height: 13),
+          // Win rate label & value
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Expanded(child: _StatValue(label: 'MATCHES', value: '${stats.total}')),
-              _statDivider(scheme),
-              Expanded(child: _StatValue(label: 'WINS', value: '${stats.wins}', color: const Color(0xFF6548EF))),
-              _statDivider(scheme),
-              Expanded(child: _StatValue(label: 'LOSSES', value: '${stats.losses}', color: const Color(0xFFE34D87))),
-              _statDivider(scheme),
-              Expanded(child: _StatValue(label: 'DRAWS', value: '${stats.draws}', color: const Color(0xFF817A9B))),
+              Text(
+                'Win rate',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: isDark ? Colors.white60 : const Color(0xFF7E7A9C),
+                ),
+              ),
+              Text(
+                '$winRate%',
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF16A34A),
+                ),
+              ),
             ],
+          ),
+          const SizedBox(height: 8),
+          // Segmented Progress Bar
+          ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: SizedBox(
+              height: 6,
+              child: total == 0
+                  ? Container(color: isDark ? const Color(0xFF2C2649) : const Color(0xFFE8E5F4))
+                  : Row(
+                      children: [
+                        if (wins > 0)
+                          Expanded(
+                            flex: wins,
+                            child: Container(color: const Color(0xFF16A34A)),
+                          ),
+                        if (wins > 0 && (draws > 0 || losses > 0))
+                          Container(width: 2, color: Colors.transparent),
+                        if (draws > 0)
+                          Expanded(
+                            flex: draws,
+                            child: Container(color: const Color(0xFFB8ACE8)),
+                          ),
+                        if (draws > 0 && losses > 0)
+                          Container(width: 2, color: Colors.transparent),
+                        if (losses > 0)
+                          Expanded(
+                            flex: losses,
+                            child: Container(color: const Color(0xFFEF4444)),
+                          ),
+                      ],
+                    ),
+            ),
           ),
         ],
       ),
     );
   }
-
-  Widget _statDivider(ColorScheme scheme) => Container(
-        width: 1,
-        height: 31,
-        color: scheme.outlineVariant.withValues(alpha: .4),
-      );
 }
 
-class _StatValue extends StatelessWidget {
-  const _StatValue({required this.label, required this.value, this.color});
-
-  final String label;
-  final String value;
-  final Color? color;
-
-  @override
-  Widget build(BuildContext context) => Column(
-        children: [
-          Text(
-            value,
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w900,
-                  color: color,
-                  height: 1,
-                ),
-          ),
-          const SizedBox(height: 5),
-          Text(
-            label,
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  letterSpacing: .65,
-                  fontWeight: FontWeight.w800,
-                ),
-          ),
-        ],
-      );
-}
-
-class _FeaturedGameCard extends StatelessWidget {
-  const _FeaturedGameCard({
-    required this.game,
-    required this.lastPlayed,
-    required this.onTap,
+class _HeroStatBox extends StatelessWidget {
+  const _HeroStatBox({
+    required this.value,
+    required this.label,
+    required this.bgColor,
+    required this.textColor,
+    required this.labelColor,
   });
 
-  final _GameOption game;
-  final bool lastPlayed;
-  final VoidCallback onTap;
+  final String value;
+  final String label;
+  final Color bgColor;
+  final Color textColor;
+  final Color labelColor;
 
   @override
   Widget build(BuildContext context) {
-    final isTicTacToe = game.type == 'tictactoe';
-    final gradient = isTicTacToe
-        ? const [Color(0xFF8061FF), Color(0xFF6241E7)]
-        : const [Color(0xFFEE4C91), Color(0xFFB72A83)];
-
-    return Material(
-      color: Colors.transparent,
-      borderRadius: BorderRadius.circular(31),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(31),
-        child: Container(
-          height: 218,
-          padding: const EdgeInsets.all(21),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: gradient,
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        children: [
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w900,
+              color: textColor,
             ),
-            borderRadius: BorderRadius.circular(31),
-            boxShadow: [
-              BoxShadow(
-                color: gradient.last.withValues(alpha: .2),
-                blurRadius: 22,
-                offset: const Offset(0, 11),
-              ),
-            ],
           ),
-          child: Stack(
-            children: [
-              Positioned(
-                top: 0,
-                right: 1,
-                child: _GameArtwork(gameType: game.type),
-              ),
-              if (lastPlayed)
-                Align(
-                  alignment: Alignment.topLeft,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: .22),
-                      borderRadius: BorderRadius.circular(30),
-                    ),
-                    child: const Text(
-                      'Last played',
-                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 12),
-                    ),
-                  ),
-                ),
-              Positioned(
-                left: 0,
-                right: 70,
-                bottom: 4,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
+          const SizedBox(height: 3),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: labelColor,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _GameCarouselCard extends StatelessWidget {
+  const _GameCarouselCard({
+    required this.game,
+    required this.onPlay,
+  });
+
+  final _GameOption game;
+  final VoidCallback onPlay;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 210,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: game.gradient,
+        ),
+        borderRadius: BorderRadius.circular(26),
+        boxShadow: [
+          BoxShadow(
+            color: game.gradient.first.withValues(alpha: 0.28),
+            blurRadius: 16,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Icon Box
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.22),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(
+              game.icon,
+              color: Colors.white,
+              size: 24,
+            ),
+          ),
+          const Spacer(),
+          // Title
+          Text(
+            game.title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 20,
+              fontWeight: FontWeight.w900,
+              letterSpacing: -0.3,
+            ),
+          ),
+          const SizedBox(height: 3),
+          // Subtitle
+          Text(
+            game.subtitle,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.85),
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 16),
+          // Play Button
+          Material(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(22),
+            child: InkWell(
+              onTap: onPlay,
+              borderRadius: BorderRadius.circular(22),
+              child: Container(
+                width: double.infinity,
+                height: 42,
+                alignment: Alignment.center,
+                child: const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text(
-                      game.title,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 24,
-                        height: 1.08,
-                        letterSpacing: -.6,
-                        fontWeight: FontWeight.w900,
-                      ),
+                    Icon(
+                      Icons.play_arrow_rounded,
+                      color: Color(0xFF1E1A33),
+                      size: 20,
                     ),
-                    const SizedBox(height: 6),
+                    SizedBox(width: 4),
                     Text(
-                      game.subtitle,
+                      'Play',
                       style: TextStyle(
-                        color: Colors.white.withValues(alpha: .86),
+                        color: Color(0xFF1E1A33),
                         fontSize: 14,
-                        fontWeight: FontWeight.w600,
+                        fontWeight: FontWeight.w800,
                       ),
                     ),
                   ],
                 ),
               ),
-              Positioned(
-                bottom: 1,
-                right: 1,
-                child: Container(
-                  width: 54,
-                  height: 54,
-                  decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
-                  child: const Icon(Icons.north_east_rounded, color: Color(0xFF6347EB), size: 25),
-                ),
-              ),
-            ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
 }
 
-class _GameArtwork extends StatelessWidget {
-  const _GameArtwork({required this.gameType});
+class _DashedBorderPainter extends CustomPainter {
+  const _DashedBorderPainter({
+    required this.color,
+    this.strokeWidth = 1.5,
+    this.dashWidth = 6.0,
+    this.dashSpace = 5.0,
+    this.radius = 24.0,
+  });
 
-  final String gameType;
+  final Color color;
+  final double strokeWidth;
+  final double dashWidth;
+  final double dashSpace;
+  final double radius;
 
   @override
-  Widget build(BuildContext context) {
-    if (gameType == 'tictactoe') {
-      return Icon(
-        Icons.grid_3x3_rounded,
-        size: 105,
-        color: Colors.white.withValues(alpha: .5),
-      );
-    }
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = strokeWidth
+      ..style = PaintingStyle.stroke;
 
-    return Row(
-      children: [
-        _rpsIcon(Icons.back_hand_rounded),
-        _rpsIcon(Icons.article_rounded),
-        _rpsIcon(Icons.content_cut_rounded),
-      ],
+    final rrect = RRect.fromRectAndRadius(
+      Rect.fromLTWH(
+        strokeWidth / 2,
+        strokeWidth / 2,
+        size.width - strokeWidth,
+        size.height - strokeWidth,
+      ),
+      Radius.circular(radius),
     );
+
+    final path = Path()..addRRect(rrect);
+    final metrics = path.computeMetrics();
+
+    for (final metric in metrics) {
+      double distance = 0.0;
+      while (distance < metric.length) {
+        final length = (distance + dashWidth < metric.length)
+            ? dashWidth
+            : metric.length - distance;
+        final extractPath = metric.extractPath(distance, distance + length);
+        canvas.drawPath(extractPath, paint);
+        distance += dashWidth + dashSpace;
+      }
+    }
   }
 
-  Widget _rpsIcon(IconData icon) => Container(
-        width: 48,
-        height: 48,
-        margin: const EdgeInsets.only(left: 3),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: .2),
-          shape: BoxShape.circle,
-        ),
-        child: Icon(icon, color: Colors.white, size: 24),
-      );
+  @override
+  bool shouldRepaint(covariant _DashedBorderPainter oldDelegate) =>
+      oldDelegate.color != color ||
+      oldDelegate.strokeWidth != strokeWidth ||
+      oldDelegate.dashWidth != dashWidth ||
+      oldDelegate.dashSpace != dashSpace ||
+      oldDelegate.radius != radius;
 }
 
 class _GameOption {
-  const _GameOption(this.type, this.title, this.subtitle, this.icon);
+  const _GameOption({
+    required this.type,
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.gradient,
+  });
 
   final String type;
   final String title;
   final String subtitle;
   final IconData icon;
+  final List<Color> gradient;
 }
