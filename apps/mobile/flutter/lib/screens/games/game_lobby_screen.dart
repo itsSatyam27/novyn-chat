@@ -701,6 +701,8 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
               ],
               _buildRandomCard(theme, connectionReady),
               const SizedBox(height: 16),
+              _buildBotCard(theme),
+              const SizedBox(height: 16),
               _buildFriendCard(theme, connectionReady),
             ],
           ),
@@ -911,6 +913,140 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
               ],
             ),
           ],
+        ],
+      ),
+    );
+  }
+
+  void _playWithAiBot() {
+    final account = _account;
+    final initialGame = <String, dynamic>{
+      'type': widget.gameType,
+      'title': widget.title,
+      'state': 'in_progress',
+      'creator': account,
+      'turn': account,
+      'isOfflineBot': true,
+      'data': widget.gameType == 'tictactoe'
+          ? <String, dynamic>{
+              'playerX': account,
+              'playerO': 'AI Bot',
+              'board': List<dynamic>.filled(9, null),
+              'winsX': 0,
+              'winsO': 0,
+            }
+          : <String, dynamic>{
+              'player1': account,
+              'player2': 'AI Bot',
+              'round': 1,
+              'target': 3,
+              'p1Score': 0,
+              'p2Score': 0,
+              'p1Move': null,
+              'p2Move': null,
+            },
+    };
+
+    Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => GameRoomScreen(
+          messageId: 'bot_${DateTime.now().millisecondsSinceEpoch}',
+          peerUsername: 'AI Bot',
+          currentUsername: account,
+          initialGame: initialGame,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBotCard(ThemeData theme) {
+    final colors = theme.colorScheme;
+    return Container(
+      decoration: BoxDecoration(
+        color: colors.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: colors.outlineVariant.withValues(alpha: .5)),
+      ),
+      padding: const EdgeInsets.all(18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF10B981).withValues(alpha: .15),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: const Icon(Icons.smart_toy_rounded, color: Color(0xFF10B981), size: 24),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          'Practice vs AI Bot',
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF10B981).withValues(alpha: .15),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: const Text(
+                            'OFFLINE',
+                            style: TextStyle(
+                              color: Color(0xFF10B981),
+                              fontSize: 10,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      'Play instantly against the computer · No internet needed',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: colors.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.tonal(
+              onPressed: _playWithAiBot,
+              style: FilledButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 13),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              ),
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.play_arrow_rounded, size: 20),
+                  SizedBox(width: 6),
+                  Text(
+                    'Play vs Bot',
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ],
       ),
     );

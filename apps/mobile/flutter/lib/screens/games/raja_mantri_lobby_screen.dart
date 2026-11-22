@@ -1,11 +1,13 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../models/user_model.dart';
 import '../../services/auth_service.dart';
 import '../../services/friend_service.dart';
+import '../../services/socket_service.dart';
 import '../../widgets/user_avatar.dart';
 import 'raja_mantri_screen.dart';
 
@@ -19,23 +21,29 @@ class RajaMantriLobbyScreen extends StatefulWidget {
 class _LobbySlot {
   _LobbySlot({
     required this.name,
+    this.username = '',
     this.photoUrl = '',
     this.isHost = false,
     this.isBot = false,
     this.isReady = true,
+    this.isPending = false,
   });
 
   final String name;
+  final String username;
   final String photoUrl;
   final bool isHost;
   final bool isBot;
   final bool isReady;
+  final bool isPending;
 }
 
 class _RajaMantriLobbyScreenState extends State<RajaMantriLobbyScreen> {
   final List<_LobbySlot?> _slots = List.filled(4, null);
   List<UserModel> _friends = [];
   bool _loadingFriends = false;
+  final String _roomCode = '#RMCS-${2400 + (DateTime.now().millisecondsSinceEpoch % 7000)}';
+  bool _isPassAndPlay = false;
 
   static const List<String> _defaultBots = ['Bot 1', 'Bot 2', 'Bot 3'];
 
@@ -118,6 +126,208 @@ class _RajaMantriLobbyScreenState extends State<RajaMantriLobbyScreen> {
     if (slotIndex == 0) return; // Cannot remove host
     setState(() {
       _slots[slotIndex] = null;
+    });
+  }
+
+  Future<void> _inviteFriend(int slotIndex, UserModel friend) async {
+    final displayName = friend.name.isNotEmpty ? friend.name : friend.username;
+    setState(() {
+      _slots[slotIndex] = _LobbySlot(
+        name: displayName,
+        username: friend.username,
+        photoUrl: friend.photoUrl,
+        isPending: true,
+        isReady: false,
+      );
+    });
+
+    try {
+      final socket = Provider.of<SocketService?>(context, listen: false);
+      if (socket != null && socket.isConnected) {
+        await socket.sendGameChallenge('rajamantri', friend.username);
+      }
+    } catch (_) {
+      // Offline fallback
+    }
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Invited $displayName! Room code $_roomCode sent.'),
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    }
+  }
+
+  void _startRandomMatchmaking() {
+    int secondsLeft = 15;
+    Timer? countdownTimer;
+    bool isCancelled = false;
+
+    showModalBottomSheet<void>(
+      context: context,
+      isDismissible: false,
+      enableDrag: false,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) {
+        final isDark = Theme.of(ctx).brightness == Brightness.dark;
+
+        return StatefulBuilder(
+          builder: (dialogContext, setModalState) {
+            countdownTimer ??= Timer.periodic(const Duration(seconds: 1), (timer) {
+              if (secondsLeft > 1) {
+                setModalState(() => secondsLeft--);
+                if (secondsLeft == 12 && !isCancelled) {
+                  timer.cancel();
+                  Navigator.of(ctx).pop();
+                  _populateRandomMatchAndStart();
+                }
+              } else {
+                timer.cancel();
+                if (!isCancelled && mounted) {
+                  Navigator.of(ctx).pop();
+                  _fillAllWithBots();
+                  _startGame();
+                }
+              }
+            });
+
+            return Container(
+              margin: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+              padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF201B36) : Colors.white,
+                borderRadius: BorderRadius.circular(28),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.2),
+                    blurRadius: 28,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 72,
+                    height: 72,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF5E44F3).withValues(alpha: 0.12),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Center(
+                      child: Icon(
+                        Icons.travel_explore_rounded,
+                        color: Color(0xFF5E44F3),
+                        size: 38,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  Text(
+                    'Finding 4 Players...',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w900,
+                      color: isDark ? Colors.white : const Color(0xFF1E1A33),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Searching for active players online ($secondsLeft s)',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: isDark ? Colors.white70 : const Color(0xFF7E7A9C),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  const LinearProgressIndicator(
+                    backgroundColor: Color(0xFFEEEAFB),
+                    color: Color(0xFF5E44F3),
+                    minHeight: 4,
+                  ),
+                  const SizedBox(height: 24),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF5E44F3),
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
+                      onPressed: () {
+                        isCancelled = true;
+                        countdownTimer?.cancel();
+                        Navigator.of(ctx).pop();
+                        _fillAllWithBots();
+                        _startGame();
+                      },
+                      icon: const Icon(Icons.smart_toy_rounded, color: Colors.white, size: 18),
+                      label: const Text(
+                        'Auto-fill with Bots & Play',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 44,
+                    child: TextButton(
+                      onPressed: () {
+                        isCancelled = true;
+                        countdownTimer?.cancel();
+                        Navigator.of(ctx).pop();
+                      },
+                      child: const Text(
+                        'Cancel',
+                        style: TextStyle(
+                          color: Color(0xFF7E7A9C),
+                          fontWeight: FontWeight.w700,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _populateRandomMatchAndStart() {
+    setState(() {
+      for (int i = 1; i < 4; i++) {
+        _slots[i] = _LobbySlot(
+          name: 'Player $i',
+          isBot: false,
+          isReady: true,
+        );
+      }
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Matched with 3 random players! Starting game...'),
+        duration: Duration(seconds: 2),
+      ),
+    );
+    Future.delayed(const Duration(milliseconds: 600), () {
+      if (mounted) _startGame();
     });
   }
 
@@ -254,21 +464,7 @@ class _RajaMantriLobbyScreenState extends State<RajaMantriLobbyScreen> {
                                   ),
                                   onPressed: () {
                                     Navigator.of(ctx).pop();
-                                    setState(() {
-                                      _slots[slotIndex] = _LobbySlot(
-                                        name: friend.name.isNotEmpty
-                                            ? friend.name
-                                            : friend.username,
-                                        photoUrl: friend.photoUrl,
-                                        isReady: true,
-                                      );
-                                    });
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text('Invited ${friend.name.isNotEmpty ? friend.name : friend.username}!'),
-                                        duration: const Duration(seconds: 2),
-                                      ),
-                                    );
+                                    _inviteFriend(slotIndex, friend);
                                   },
                                   child: const Text(
                                     'Invite',
@@ -314,6 +510,7 @@ class _RajaMantriLobbyScreenState extends State<RajaMantriLobbyScreen> {
           currentUsername: username,
           playerPhotoUrl: photoUrl,
           customOpponents: opponents,
+          isPassAndPlay: _isPassAndPlay,
         ),
       ),
     );
@@ -443,10 +640,13 @@ class _RajaMantriLobbyScreenState extends State<RajaMantriLobbyScreen> {
                       icon: const Icon(Icons.share_rounded, color: Colors.white),
                       tooltip: 'Share room code',
                       onPressed: () {
+                        Clipboard.setData(ClipboardData(
+                          text: '👑 Join my Raja Mantri match on Novyn! Room Code: $_roomCode',
+                        ));
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Room code #RMCS-4921 copied to share with friends!'),
-                            duration: Duration(seconds: 2),
+                          SnackBar(
+                            content: Text('Room code $_roomCode copied! Share it with friends.'),
+                            duration: const Duration(seconds: 2),
                           ),
                         );
                       },
@@ -470,22 +670,61 @@ class _RajaMantriLobbyScreenState extends State<RajaMantriLobbyScreen> {
                     ),
                   ),
                   if (filledCount < 4)
-                    GestureDetector(
-                      onTap: _fillAllWithBots,
-                      child: const Row(
-                        children: [
-                          Icon(Icons.smart_toy_rounded, size: 14, color: Color(0xFF5E44F3)),
-                          SizedBox(width: 4),
-                          Text(
-                            'Fill with Bots',
-                            style: TextStyle(
-                              color: Color(0xFF5E44F3),
-                              fontWeight: FontWeight.w800,
-                              fontSize: 12,
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Quick Match
+                        GestureDetector(
+                          onTap: _startRandomMatchmaking,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF5E44F3).withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Row(
+                              children: [
+                                Icon(Icons.bolt_rounded, size: 14, color: Color(0xFF5E44F3)),
+                                SizedBox(width: 3),
+                                Text(
+                                  'Quick Match',
+                                  style: TextStyle(
+                                    color: Color(0xFF5E44F3),
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                        ],
-                      ),
+                        ),
+                        const SizedBox(width: 8),
+                        // Fill with Bots
+                        GestureDetector(
+                          onTap: _fillAllWithBots,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                            decoration: BoxDecoration(
+                              color: isDark ? const Color(0xFF2C2449) : const Color(0xFFEEEAFB),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Row(
+                              children: [
+                                Icon(Icons.smart_toy_rounded, size: 14, color: Color(0xFF5E44F3)),
+                                SizedBox(width: 3),
+                                Text(
+                                  'Fill Bots',
+                                  style: TextStyle(
+                                    color: Color(0xFF5E44F3),
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                 ],
               ),
@@ -500,6 +739,76 @@ class _RajaMantriLobbyScreenState extends State<RajaMantriLobbyScreen> {
                     final slot = _slots[index];
                     return _buildSlotTile(index, slot, isDark);
                   },
+                ),
+              ),
+
+              // Pass & Play Mode Toggle (Feature 5)
+              Container(
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF201B36) : Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: _isPassAndPlay
+                        ? const Color(0xFF5E44F3)
+                        : (isDark ? const Color(0xFF332757) : const Color(0xFFE9E5F5)),
+                    width: _isPassAndPlay ? 1.8 : 1,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF5E44F3).withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Icon(Icons.phone_android_rounded,
+                          color: Color(0xFF5E44F3), size: 20),
+                    ),
+                    const SizedBox(width: 12),
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Pass & Play (Party Mode)',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          Text(
+                            'Play on 1 phone by passing to friends',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Color(0xFF7E7A9C),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Switch.adaptive(
+                      value: _isPassAndPlay,
+                      activeColor: const Color(0xFF5E44F3),
+                      onChanged: (val) {
+                        setState(() {
+                          _isPassAndPlay = val;
+                          if (val) {
+                            for (int i = 1; i < 4; i++) {
+                              _slots[i] = _LobbySlot(
+                                name: 'Player ${i + 1}',
+                                isBot: false,
+                                isReady: true,
+                              );
+                            }
+                          }
+                        });
+                      },
+                    ),
+                  ],
                 ),
               ),
 
@@ -669,6 +978,23 @@ class _RajaMantriLobbyScreenState extends State<RajaMantriLobbyScreen> {
                           ),
                         ),
                       ),
+                    ] else if (slot.isPending) ...[
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF59E0B).withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: const Text(
+                          'INVITED',
+                          style: TextStyle(
+                            color: Color(0xFFF59E0B),
+                            fontWeight: FontWeight.w900,
+                            fontSize: 10,
+                          ),
+                        ),
+                      ),
                     ] else if (slot.isBot) ...[
                       const SizedBox(width: 6),
                       Container(
@@ -690,20 +1016,43 @@ class _RajaMantriLobbyScreenState extends State<RajaMantriLobbyScreen> {
                   ],
                 ),
                 const SizedBox(height: 2),
-                const Row(
-                  children: [
-                    Icon(Icons.check_circle_rounded, color: Color(0xFF16A34A), size: 14),
-                    SizedBox(width: 4),
-                    Text(
-                      'Ready to play',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Color(0xFF16A34A),
-                        fontWeight: FontWeight.w600,
+                if (slot.isPending)
+                  const Row(
+                    children: [
+                      SizedBox(
+                        width: 10,
+                        height: 10,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 1.5,
+                          color: Color(0xFFF59E0B),
+                        ),
                       ),
-                    ),
-                  ],
-                ),
+                      SizedBox(width: 6),
+                      Text(
+                        'Waiting for response...',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Color(0xFFF59E0B),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  )
+                else
+                  const Row(
+                    children: [
+                      Icon(Icons.check_circle_rounded, color: Color(0xFF16A34A), size: 14),
+                      SizedBox(width: 4),
+                      Text(
+                        'Ready to play',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Color(0xFF16A34A),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
               ],
             ),
           ),

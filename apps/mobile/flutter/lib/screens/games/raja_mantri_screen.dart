@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../widgets/user_avatar.dart';
 
@@ -103,17 +105,31 @@ enum RMGameState {
   gameOver;
 }
 
+class _FloatingEmojiData {
+  final Key key;
+  final String emoji;
+  final double leftRatio;
+
+  _FloatingEmojiData({
+    required this.key,
+    required this.emoji,
+    required this.leftRatio,
+  });
+}
+
 class RajaMantriScreen extends StatefulWidget {
   const RajaMantriScreen({
     super.key,
     required this.currentUsername,
     this.playerPhotoUrl = '',
     this.customOpponents,
+    this.isPassAndPlay = false,
   });
 
   final String currentUsername;
   final String playerPhotoUrl;
   final List<String>? customOpponents;
+  final bool isPassAndPlay;
 
   @override
   State<RajaMantriScreen> createState() => _RajaMantriScreenState();
@@ -133,6 +149,13 @@ class _RajaMantriScreenState extends State<RajaMantriScreen>
   bool _lastGuessWasCorrect = false;
   String _statusMessage = 'Shuffling chits...';
 
+  // Guessing Timer (Feature 4)
+  Timer? _guessTimer;
+  int _guessSecondsRemaining = 15;
+
+  // Floating Reactions (Feature 3)
+  final List<_FloatingEmojiData> _floatingEmojis = [];
+
   // Animation Controllers
   late AnimationController _shuffleAnimController;
   late AnimationController _bobAnimController;
@@ -146,35 +169,105 @@ class _RajaMantriScreenState extends State<RajaMantriScreen>
   }
 
   void _initPlayers() {
-    final opponentNames = (widget.customOpponents != null &&
+    final rawOpponents = (widget.customOpponents != null &&
             widget.customOpponents!.length >= 3)
         ? widget.customOpponents!
         : ['Bot 1', 'Bot 2', 'Bot 3'];
 
+    // Ensure bot names are strictly Bot 1, Bot 2, Bot 3
+    final opponentNames = List<String>.generate(3, (idx) {
+      final name = rawOpponents[idx];
+      if (name.toLowerCase().contains('bot') || name.startsWith('Player')) {
+        return 'Bot ${idx + 1}';
+      }
+      return name;
+    });
+
     _players = [
       RMPlayer(
         id: 'user',
-        name: 'You',
+        name: widget.isPassAndPlay ? 'Player 1' : 'You',
         color: const Color(0xFF5E44F3),
         photoUrl: widget.playerPhotoUrl,
         isUser: true,
       ),
       RMPlayer(
         id: 'p1',
-        name: opponentNames[0],
+        name: widget.isPassAndPlay ? 'Player 2' : opponentNames[0],
         color: const Color(0xFFD92D66),
       ),
       RMPlayer(
         id: 'p2',
-        name: opponentNames[1],
+        name: widget.isPassAndPlay ? 'Player 3' : opponentNames[1],
         color: const Color(0xFFF59E0B),
       ),
       RMPlayer(
         id: 'p3',
-        name: opponentNames[2],
+        name: widget.isPassAndPlay ? 'Player 4' : opponentNames[2],
         color: const Color(0xFF0D9488),
       ),
     ];
+  }
+
+  void _spawnEmoji(String emoji) {
+    HapticFeedback.lightImpact();
+    final item = _FloatingEmojiData(
+      key: UniqueKey(),
+      emoji: emoji,
+      leftRatio: 0.15 + math.Random().nextDouble() * 0.7,
+    );
+    setState(() {
+      _floatingEmojis.add(item);
+    });
+    Timer(const Duration(milliseconds: 2200), () {
+      if (!mounted) return;
+      setState(() {
+        _floatingEmojis.remove(item);
+      });
+    });
+  }
+
+  void _startGuessTimer() {
+    _guessTimer?.cancel();
+    _guessSecondsRemaining = 15;
+    _guessTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      if (_guessSecondsRemaining <= 1) {
+        timer.cancel();
+        _autoPickSuspect();
+      } else {
+        setState(() => _guessSecondsRemaining--);
+      }
+    });
+  }
+
+  void _autoPickSuspect() {
+    if (_gameState != RMGameState.userGuessing) return;
+    final chorIndex = _players.indexWhere((p) => p.currentRole == RMRole.chor);
+    final mantriIndex = _players.indexWhere((p) => p.currentRole == RMRole.mantri);
+    final candidates = [chorIndex, mantriIndex];
+    candidates.shuffle();
+    _onUserSelectSuspect(candidates.first);
+  }
+
+  Future<void> _recordGameStats(RMPlayer winner) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final played = (prefs.getInt('rm_played') ?? 0) + 1;
+      await prefs.setInt('rm_played', played);
+      if (winner.isUser) {
+        final wins = (prefs.getInt('rm_wins') ?? 0) + 1;
+        await prefs.setInt('rm_wins', wins);
+      }
+      final user = _players.firstWhere((p) => p.isUser);
+      final high = prefs.getInt('rm_highscore') ?? 0;
+      if (user.score > high) {
+        await prefs.setInt('rm_highscore', user.score);
+      }
+    } catch (_) {}
   }
 
   void _initAnimations() {
@@ -193,6 +286,7 @@ class _RajaMantriScreenState extends State<RajaMantriScreen>
 
   @override
   void dispose() {
+    _guessTimer?.cancel();
     _shuffleAnimController.dispose();
     _bobAnimController.dispose();
     super.dispose();
@@ -241,38 +335,29 @@ class _RajaMantriScreenState extends State<RajaMantriScreen>
   void _onChitTapped(int index) {
     if (_gameState != RMGameState.pickChit) return;
 
+    HapticFeedback.lightImpact();
+
     setState(() {
       _userPickedChitIndex = index;
       _gameState = RMGameState.revealedWaitingGuess;
-      // User's role is revealed
       _players[0].isRoleRevealed = true;
     });
-
-    // In the iconic Indian game:
-    // Raja reveals: "Mera Mantri kaun?"
-    // The player with Sipahi role (or Mantri) has to catch the Chor!
-    // Notice in the user's reference screenshots:
-    // Screenshot 3: "You are Sipahi. Who is the Chor?" (You guesses)
-    // Screenshot 2: "Bholu picked Pikachu. Chor caught! 🎉" (Bholu was Sipahi/Mantri and guessed)
 
     final rajaIndex = _players.indexWhere((p) => p.currentRole == RMRole.raja);
     final sipahiIndex = _players.indexWhere((p) => p.currentRole == RMRole.sipahi);
 
-    // Raja is always known/revealed first
     _players[rajaIndex].isRoleRevealed = true;
 
-    // The guessing role is Sipahi (detective) as shown in the screenshots:
     final guesserIndex = sipahiIndex;
     final guesser = _players[guesserIndex];
 
     if (guesser.isUser) {
-      // User is the detective!
       setState(() {
         _gameState = RMGameState.userGuessing;
         _statusMessage = 'You are ${guesser.currentRole!.label}. Who is the Chor?';
       });
+      _startGuessTimer();
     } else {
-      // Bot is the detective!
       setState(() {
         _statusMessage = '${guesser.name} is thinking...';
       });
@@ -285,7 +370,6 @@ class _RajaMantriScreenState extends State<RajaMantriScreen>
   }
 
   void _botMakeGuess(int guesserIndex) {
-    // Guesser needs to pick between the remaining hidden players (Mantri vs Chor)
     final chorIndex = _players.indexWhere((p) => p.currentRole == RMRole.chor);
     final mantriIndex = _players.indexWhere((p) => p.currentRole == RMRole.mantri);
 
@@ -297,6 +381,8 @@ class _RajaMantriScreenState extends State<RajaMantriScreen>
   }
 
   void _onUserSelectSuspect(int suspectIndex) {
+    _guessTimer?.cancel();
+    HapticFeedback.mediumImpact();
     if (_gameState != RMGameState.userGuessing) return;
     _resolveRound(guesserIndex: 0, pickedSuspectIndex: suspectIndex);
   }
@@ -305,9 +391,19 @@ class _RajaMantriScreenState extends State<RajaMantriScreen>
     required int guesserIndex,
     required int pickedSuspectIndex,
   }) {
+    _guessTimer?.cancel();
     final guesser = _players[guesserIndex];
     final suspect = _players[pickedSuspectIndex];
     final isCorrect = suspect.currentRole == RMRole.chor;
+
+    if (isCorrect) {
+      HapticFeedback.heavyImpact();
+      if (!guesser.isUser) _spawnEmoji('👑');
+    } else {
+      HapticFeedback.vibrate();
+      final chorIndex = _players.indexWhere((p) => p.currentRole == RMRole.chor);
+      if (!_players[chorIndex].isUser) _spawnEmoji('😂');
+    }
 
     final rajaPlayer = _players.firstWhere((p) => p.currentRole == RMRole.raja);
     final mantriPlayer = _players.firstWhere((p) => p.currentRole == RMRole.mantri);
@@ -369,6 +465,7 @@ class _RajaMantriScreenState extends State<RajaMantriScreen>
     final sorted = List<RMPlayer>.from(_players)
       ..sort((a, b) => b.score.compareTo(a.score));
     final winner = sorted.first;
+    _recordGameStats(winner);
 
     showDialog<void>(
       context: context,
@@ -561,40 +658,107 @@ class _RajaMantriScreenState extends State<RajaMantriScreen>
 
     return Scaffold(
       backgroundColor: isDark ? const Color(0xFF141026) : const Color(0xFFF4F2FA),
-      body: SafeArea(
-        child: Column(
-          children: [
-            // Header
-            _buildHeader(isDark),
+      body: Stack(
+        children: [
+          SafeArea(
+            child: Column(
+              children: [
+                // Header
+                _buildHeader(isDark),
 
-            // Content Area
-            Expanded(
-              child: SingleChildScrollView(
-                physics: const BouncingScrollPhysics(),
-                padding: const EdgeInsets.fromLTRB(18, 14, 18, 16),
-                child: Column(
-                  children: [
-                    // 2x2 Players Grid
-                    _buildPlayersGrid(isDark),
-                    const SizedBox(height: 24),
+                // Content Area
+                Expanded(
+                  child: SingleChildScrollView(
+                    physics: const BouncingScrollPhysics(),
+                    padding: const EdgeInsets.fromLTRB(18, 14, 18, 16),
+                    child: Column(
+                      children: [
+                        // 2x2 Players Grid
+                        _buildPlayersGrid(isDark),
+                        const SizedBox(height: 24),
 
-                    // Status Text
-                    _buildStatusBanner(isDark),
-                    const SizedBox(height: 20),
+                        // Status Text
+                        _buildStatusBanner(isDark),
+                        const SizedBox(height: 20),
 
-                    // 4 Chits Row
-                    _buildChitsRow(isDark),
-                  ],
+                        // 4 Chits Row
+                        _buildChitsRow(isDark),
+                      ],
+                    ),
+                  ),
                 ),
-              ),
-            ),
 
-            // Sticky Bottom Action Area
-            _buildBottomActionArea(isDark),
-          ],
-        ),
+                // Floating Reactions Bar
+                _buildReactionsBar(isDark),
+
+                // Sticky Bottom Action Area (Lifted)
+                _buildBottomActionArea(isDark),
+              ],
+            ),
+          ),
+          ..._buildFloatingEmojisOverlay(),
+        ],
       ),
     );
+  }
+
+  Widget _buildReactionsBar(bool isDark) {
+    const emojis = ['😂', '🤫', '👀', '👑', '🔥'];
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: emojis.map((e) {
+          return GestureDetector(
+            onTap: () => _spawnEmoji(e),
+            child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 5),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF241C40) : const Color(0xFFEEEAFB),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: isDark ? const Color(0xFF382B5C) : const Color(0xFFDDD7F8),
+                  width: 1,
+                ),
+              ),
+              child: Text(e, style: const TextStyle(fontSize: 18)),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  List<Widget> _buildFloatingEmojisOverlay() {
+    final size = MediaQuery.of(context).size;
+    return _floatingEmojis.map((data) {
+      return Positioned(
+        left: size.width * data.leftRatio,
+        bottom: 90,
+        child: TweenAnimationBuilder<double>(
+          key: data.key,
+          tween: Tween<double>(begin: 0.0, end: 1.0),
+          duration: const Duration(milliseconds: 2000),
+          curve: Curves.easeOutCubic,
+          builder: (context, val, child) {
+            final dy = -260 * val;
+            final opacity = (1.0 - val).clamp(0.0, 1.0);
+            final scale = 0.8 + 0.5 * math.sin(val * math.pi);
+            return Transform.translate(
+              offset: Offset(0, dy),
+              child: Transform.scale(
+                scale: scale,
+                child: Opacity(
+                  opacity: opacity,
+                  child: Text(data.emoji, style: const TextStyle(fontSize: 34)),
+                ),
+              ),
+            );
+          },
+        ),
+      );
+    }).toList();
   }
 
   Widget _buildHeader(bool isDark) {
@@ -1012,21 +1176,30 @@ class _RajaMantriScreenState extends State<RajaMantriScreen>
   }
 
   Widget _buildBottomActionArea(bool isDark) {
-    return Container(
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1A1530) : Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.18 : 0.06),
-            blurRadius: 12,
-            offset: const Offset(0, -3),
+    return SafeArea(
+      top: false,
+      child: Container(
+        margin: const EdgeInsets.fromLTRB(16, 2, 16, 14),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF1E1838) : Colors.white,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(
+            color: isDark ? const Color(0xFF332757) : const Color(0xFFE9E5F5),
+            width: 1.2,
           ),
-        ],
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.08),
+              blurRadius: 18,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        constraints: const BoxConstraints(minHeight: 74),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        alignment: Alignment.center,
+        child: _buildActionButtonContent(isDark),
       ),
-      constraints: const BoxConstraints(minHeight: 76),
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-      alignment: Alignment.center,
-      child: _buildActionButtonContent(isDark),
     );
   }
 
@@ -1039,63 +1212,110 @@ class _RajaMantriScreenState extends State<RajaMantriScreen>
       final suspects = [_players[chorIndex], _players[mantriIndex]];
       suspects.sort((a, b) => a.name.compareTo(b.name));
 
-      return Row(
-        children: suspects.map((suspect) {
-          final sIndex = _players.indexOf(suspect);
-          return Expanded(
-            child: GestureDetector(
-              onTap: () => _onUserSelectSuspect(sIndex),
-              child: Container(
-                margin: const EdgeInsets.symmetric(horizontal: 6),
-                height: 56,
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
                 decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF282046) : Colors.white,
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(
-                    color: isDark ? const Color(0xFF4A3D7A) : const Color(0xFFD6CEF8),
-                    width: 1.5,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: suspect.color.withValues(alpha: 0.12),
-                      blurRadius: 8,
-                      offset: const Offset(0, 3),
-                    ),
-                  ],
+                  color: const Color(0xFFD92D66).withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(10),
                 ),
                 child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    CircleAvatar(
-                      radius: 16,
-                      backgroundColor: suspect.color,
-                      child: Text(
-                        suspect.name.characters.first.toUpperCase(),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Flexible(
-                      child: Text(
-                        suspect.name,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: isDark ? Colors.white : const Color(0xFF1E1A33),
-                          fontSize: 14,
-                          fontWeight: FontWeight.w800,
-                        ),
+                    const Icon(Icons.timer_outlined, size: 13, color: Color(0xFFD92D66)),
+                    const SizedBox(width: 4),
+                    Text(
+                      '${_guessSecondsRemaining}s to guess',
+                      style: const TextStyle(
+                        color: Color(0xFFD92D66),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
                       ),
                     ),
                   ],
                 ),
               ),
-            ),
-          );
-        }).toList(),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: suspects.map((suspect) {
+              final sIndex = _players.indexOf(suspect);
+              return Expanded(
+                child: GestureDetector(
+                  onTap: () => _onUserSelectSuspect(sIndex),
+                  child: Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 6),
+                    height: 58,
+                    decoration: BoxDecoration(
+                      color: isDark ? const Color(0xFF282046) : Colors.white,
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(
+                        color: isDark ? const Color(0xFF4A3D7A) : const Color(0xFFD6CEF8),
+                        width: 1.8,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: suspect.color.withValues(alpha: 0.14),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        CircleAvatar(
+                          radius: 17,
+                          backgroundColor: suspect.color,
+                          child: Text(
+                            suspect.name.characters.first.toUpperCase(),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Flexible(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                suspect.name,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: isDark ? Colors.white : const Color(0xFF1E1A33),
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                              const Text(
+                                'Tap to accuse',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  color: Color(0xFF7E7A9C),
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        ],
       );
     }
 

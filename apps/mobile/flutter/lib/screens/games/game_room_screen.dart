@@ -55,8 +55,23 @@ class _GameRoomScreenState extends State<GameRoomScreen> {
 
   @override
   void dispose() {
+    _notifyLeaveRoom();
     if (widget.closeChatOnExit) _socket?.closeChat();
     super.dispose();
+  }
+
+  void _notifyLeaveRoom() {
+    final s = _socket;
+    if (s == null || !s.isConnected) return;
+    final rId = widget.randomSessionId;
+    if (rId != null && rId.isNotEmpty) {
+      s.sendRandomGameMove(rId, const {'action': 'leave_room'});
+      return;
+    }
+    final mId = widget.messageId;
+    if (mId != null && mId.isNotEmpty && widget.peerUsername.isNotEmpty) {
+      s.makeGameMove(mId, widget.peerUsername, const {'action': 'leave_room'}, isGroup: widget.isGroup);
+    }
   }
 
   String _gameTitle(Map<String, dynamic> game) {

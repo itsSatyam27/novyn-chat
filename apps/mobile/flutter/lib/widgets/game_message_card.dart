@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'novyn_alert.dart';
 import 'package:provider/provider.dart';
 import '../services/socket_service.dart';
@@ -105,8 +106,17 @@ class _GameMessageCardState extends State<GameMessageCard> {
       _opponent == 'Waiting for player' &&
       widget.currentUsername.toLowerCase() != _creator.toLowerCase();
 
+  bool get _isOfflineBot =>
+      widget.peerUsername == 'AI Bot' ||
+      widget.messageId.startsWith('bot_') ||
+      widget.game['isOfflineBot'] == true;
+
   Future<bool> _move(Map<String, dynamic> data) async {
     if (_sendingMove || _finished) return false;
+    if (_isOfflineBot) {
+      _handleOfflineBotMove(data);
+      return true;
+    }
     final previousData = _optimisticData;
     setState(() {
       _sendingMove = true;
@@ -143,6 +153,159 @@ class _GameMessageCardState extends State<GameMessageCard> {
       if (mounted) setState(() => _sendingMove = false);
     }
     return true;
+  }
+
+  void _handleOfflineBotMove(Map<String, dynamic> data) {
+    if (_type == 'tictactoe') {
+      final board = List<dynamic>.from(data['board'] as List);
+      final gData = widget.game['data'] as Map<String, dynamic>;
+      gData['board'] = board;
+
+      const winLines = [
+        [0, 1, 2], [3, 4, 5], [6, 7, 8],
+        [0, 3, 6], [1, 4, 7], [2, 5, 8],
+        [0, 4, 8], [2, 4, 6]
+      ];
+
+      String? checkWinner(List<dynamic> b) {
+        for (final line in winLines) {
+          final s = b[line[0]];
+          if (s != null && s == b[line[1]] && s == b[line[2]]) {
+            return s.toString();
+          }
+        }
+        return null;
+      }
+
+      final winnerSymbol = checkWinner(board);
+      if (winnerSymbol != null) {
+        widget.game['state'] = 'finished';
+        widget.game['winner'] = widget.currentUsername;
+        gData['winsX'] = ((gData['winsX'] as int?) ?? 0) + 1;
+        HapticFeedback.heavyImpact();
+        setState(() {});
+        return;
+      } else if (!board.contains(null)) {
+        widget.game['state'] = 'finished';
+        widget.game['winner'] = 'draw';
+        setState(() {});
+        return;
+      }
+
+      widget.game['turn'] = 'AI Bot';
+      setState(() {});
+
+      Timer(const Duration(milliseconds: 500), () {
+        if (!mounted) return;
+        final currentBoard = List<dynamic>.from(gData['board'] as List);
+        final emptyIndices = <int>[];
+        for (int i = 0; i < 9; i++) {
+          if (currentBoard[i] == null) emptyIndices.add(i);
+        }
+        if (emptyIndices.isEmpty) return;
+
+        int chosen = -1;
+        for (final idx in emptyIndices) {
+          final test = List<dynamic>.from(currentBoard)..[idx] = 'O';
+          if (checkWinner(test) == 'O') {
+            chosen = idx;
+            break;
+          }
+        }
+        if (chosen == -1) {
+          for (final idx in emptyIndices) {
+            final test = List<dynamic>.from(currentBoard)..[idx] = 'X';
+            if (checkWinner(test) == 'X') {
+              chosen = idx;
+              break;
+            }
+          }
+        }
+        if (chosen == -1 && emptyIndices.contains(4)) {
+          chosen = 4;
+        }
+        if (chosen == -1) {
+          chosen = emptyIndices[math.Random().nextInt(emptyIndices.length)];
+        }
+
+        currentBoard[chosen] = 'O';
+        gData['board'] = currentBoard;
+        final botWin = checkWinner(currentBoard);
+        if (botWin != null) {
+          widget.game['state'] = 'finished';
+          widget.game['winner'] = 'AI Bot';
+          gData['winsO'] = ((gData['winsO'] as int?) ?? 0) + 1;
+          HapticFeedback.mediumImpact();
+        } else if (!currentBoard.contains(null)) {
+          widget.game['state'] = 'finished';
+          widget.game['winner'] = 'draw';
+        } else {
+          widget.game['turn'] = widget.currentUsername;
+        }
+        setState(() {});
+      });
+    } else if (_type == 'rps') {
+      final userMove = data['move']?.toString() ?? 'rock';
+      final gData = widget.game['data'] as Map<String, dynamic>;
+      gData['p1Move'] = userMove;
+
+      Timer(const Duration(milliseconds: 400), () {
+        if (!mounted) return;
+        const botChoices = ['rock', 'paper', 'scissors'];
+        final botMove = botChoices[math.Random().nextInt(botChoices.length)];
+        gData['p2Move'] = botMove;
+
+        int p1Score = (gData['p1Score'] as int?) ?? 0;
+        int p2Score = (gData['p2Score'] as int?) ?? 0;
+        int round = (gData['round'] as int?) ?? 1;
+        final target = (gData['target'] as int?) ?? 3;
+
+        if (userMove != botMove) {
+          if ((userMove == 'rock' && botMove == 'scissors') ||
+              (userMove == 'paper' && botMove == 'rock') ||
+              (userMove == 'scissors' && botMove == 'paper')) {
+            p1Score++;
+          } else {
+            p2Score++;
+          }
+        }
+
+        gData['p1Score'] = p1Score;
+        gData['p2Score'] = p2Score;
+        gData['round'] = round + 1;
+
+        if (p1Score >= target) {
+          widget.game['state'] = 'finished';
+          widget.game['winner'] = widget.currentUsername;
+          HapticFeedback.heavyImpact();
+        } else if (p2Score >= target) {
+          widget.game['state'] = 'finished';
+          widget.game['winner'] = 'AI Bot';
+          HapticFeedback.mediumImpact();
+        }
+        setState(() {});
+      });
+    }
+  }
+
+  void _resetOfflineGame() {
+    final gData = widget.game['data'] as Map<String, dynamic>? ?? {};
+    widget.game['state'] = 'in_progress';
+    widget.game['winner'] = null;
+    widget.game['turn'] = widget.currentUsername;
+    gData['rematch'] = null;
+    gData['playerLeft'] = null;
+
+    if (_type == 'tictactoe') {
+      gData['board'] = List.filled(9, null);
+    } else if (_type == 'rps') {
+      gData['p1Score'] = 0;
+      gData['p2Score'] = 0;
+      gData['round'] = 1;
+      gData['p1Move'] = null;
+      gData['p2Move'] = null;
+    }
+    setState(() {});
   }
 
   Widget _buildSummary(BuildContext context) {
@@ -359,6 +522,10 @@ class _GameMessageCardState extends State<GameMessageCard> {
   }
 
   Future<void> _startRematch() async {
+    if (_isOfflineBot) {
+      _resetOfflineGame();
+      return;
+    }
     if (_startingRematch) return;
     setState(() => _startingRematch = true);
     try {
@@ -376,6 +543,12 @@ class _GameMessageCardState extends State<GameMessageCard> {
   }
 
   Future<void> _sendRematchAction(String action) async {
+    if (_isOfflineBot) {
+      if (action == 'rematch_request' || action == 'rematch_accept') {
+        _resetOfflineGame();
+      }
+      return;
+    }
     try {
       final socket = context.read<SocketService>();
       await socket.makeGameMove(
@@ -398,6 +571,8 @@ void _showGameOverModal(
   required VoidCallback onClose,
   Future<void> Function(String action)? onRematchAction,
   bool isOpponentRequest = false,
+  String? playerLeft,
+  String? opponentName,
 }) {
   showModalBottomSheet<void>(
     context: context,
@@ -414,6 +589,8 @@ void _showGameOverModal(
         onClose: onClose,
         onRematchAction: onRematchAction,
         isOpponentRequest: isOpponentRequest,
+        playerLeft: playerLeft,
+        opponentName: opponentName,
       );
     },
   );
@@ -429,6 +606,8 @@ class _GameOverModalContent extends StatefulWidget {
     required this.onClose,
     this.onRematchAction,
     this.isOpponentRequest = false,
+    this.playerLeft,
+    this.opponentName,
   });
 
   final String emoji;
@@ -439,6 +618,8 @@ class _GameOverModalContent extends StatefulWidget {
   final VoidCallback onClose;
   final Future<void> Function(String action)? onRematchAction;
   final bool isOpponentRequest;
+  final String? playerLeft;
+  final String? opponentName;
 
   @override
   State<_GameOverModalContent> createState() => _GameOverModalContentState();
@@ -455,9 +636,24 @@ class _GameOverModalContentState extends State<_GameOverModalContent> {
   @override
   void initState() {
     super.initState();
-    if (widget.isOpponentRequest) {
+    if (widget.playerLeft != null && widget.playerLeft!.isNotEmpty) {
+      _statusNote = '${widget.opponentName ?? "Player 2"} left the room';
+    } else if (widget.isOpponentRequest) {
       _opponentWantsRematch = true;
       _startTimer();
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant _GameOverModalContent oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.playerLeft != null && widget.playerLeft != oldWidget.playerLeft) {
+      _timer?.cancel();
+      setState(() {
+        _rematchRequested = false;
+        _opponentWantsRematch = false;
+        _statusNote = '${widget.opponentName ?? "Player 2"} left the room';
+      });
     }
   }
 
@@ -490,6 +686,14 @@ class _GameOverModalContentState extends State<_GameOverModalContent> {
   }
 
   Future<void> _handlePlayAgain() async {
+    final opponent = widget.opponentName ?? 'Player 2';
+    if (widget.playerLeft != null && widget.playerLeft!.isNotEmpty) {
+      setState(() {
+        _statusNote = '$opponent left the room';
+        _rematchRequested = false;
+      });
+      return;
+    }
     setState(() {
       _rematchRequested = true;
       _statusNote = null;
@@ -499,7 +703,19 @@ class _GameOverModalContentState extends State<_GameOverModalContent> {
     if (widget.onRematchAction != null) {
       try {
         await widget.onRematchAction!('rematch_request');
-      } catch (_) {}
+      } catch (err) {
+        if (!mounted) return;
+        _timer?.cancel();
+        setState(() {
+          _rematchRequested = false;
+          final msg = err.toString();
+          if (msg.contains('left the room')) {
+            _statusNote = '$opponent left the room';
+          } else {
+            _statusNote = 'Could not request rematch';
+          }
+        });
+      }
     }
   }
 
@@ -740,6 +956,7 @@ class _GameOverModalContentState extends State<_GameOverModalContent> {
             const SizedBox(height: 12),
             FilledButton(
               onPressed: () {
+                widget.onRematchAction?.call('leave_room');
                 Navigator.of(context).pop();
                 widget.onClose();
               },
@@ -1211,6 +1428,11 @@ class _TicTacToeMatchPanelState extends State<_TicTacToeMatchPanel> {
         rematch['requestedBy']?.toString().toLowerCase() !=
             widget.currentUsername.toLowerCase();
 
+    final playerLeft = data['playerLeft']?.toString() ??
+        (rematch is Map && rematch['status'] == 'opponent_left'
+            ? rematch['leftBy']?.toString()
+            : null);
+
     _showGameOverModal(
       context,
       emoji: tie ? '🤝' : (meWon ? '🏆' : '⚡'),
@@ -1223,11 +1445,14 @@ class _TicTacToeMatchPanelState extends State<_TicTacToeMatchPanel> {
       onClose: () => Navigator.of(context).maybePop(),
       onRematchAction: widget.onRematchAction,
       isOpponentRequest: isOpponentRequest,
+      playerLeft: playerLeft,
+      opponentName: opponentName,
     );
   }
 
   Future<void> _tapCell(int index, List<dynamic> board, String playerX, String playerO, String symbol) async {
     if (_finished || widget.sendingMove || board[index] != null) return;
+    HapticFeedback.lightImpact();
     final next = List<dynamic>.from(board)..[index] = symbol;
     setState(() { _optimisticBoard = next; _error = null; });
     final success = await widget.onSendBoard(
@@ -1827,6 +2052,11 @@ class _RockPaperScissorsPanelState extends State<_RockPaperScissorsPanel> with S
         rematch['requestedBy']?.toString().toLowerCase() !=
             widget.currentUsername.toLowerCase();
 
+    final playerLeft = widget.game['data']?['playerLeft']?.toString() ??
+        (rematch is Map && rematch['status'] == 'opponent_left'
+            ? rematch['leftBy']?.toString()
+            : null);
+
     _showGameOverModal(
       context,
       emoji: tie ? '🤝' : (iWon ? '🏆' : '⚡'),
@@ -1839,11 +2069,14 @@ class _RockPaperScissorsPanelState extends State<_RockPaperScissorsPanel> with S
       onClose: () => Navigator.of(context).maybePop(),
       onRematchAction: widget.onRematchAction,
       isOpponentRequest: isOpponentRequest,
+      playerLeft: playerLeft,
+      opponentName: _opponentFullName,
     );
   }
 
   Future<void> _pickMove(String move) async {
     if (!_canPick || widget.sendingMove) return;
+    HapticFeedback.lightImpact();
     setState(() {
       _selectedMove = move;
       _error = null;

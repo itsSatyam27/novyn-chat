@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 import '../../widgets/novyn_alert.dart';
 import 'package:flutter/material.dart';
@@ -30,6 +31,90 @@ class DiscoverScreen extends StatefulWidget {
 class _DiscoverScreenState extends State<DiscoverScreen> {
   bool _isResolvingQr = false;
   final Set<String> _sendingRequests = <String>{};
+  final Set<String> _pendingUids = <String>{};
+  final TextEditingController _searchController = TextEditingController();
+  Timer? _searchDebounce;
+  int _searchGeneration = 0;
+  List<FriendSearchResult> _searchResults = <FriendSearchResult>[];
+  bool _searching = false;
+  String? _searchError;
+
+  @override
+  void dispose() {
+    _searchDebounce?.cancel();
+    _searchGeneration++;
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _onSearchChanged(String value) {
+    _searchDebounce?.cancel();
+    final query = value.trim().replaceFirst(RegExp(r'^@'), '');
+    final generation = ++_searchGeneration;
+    if (query.length < 2) {
+      setState(() {
+        _searchResults = <FriendSearchResult>[];
+        _searching = false;
+        _searchError = null;
+      });
+      return;
+    }
+    setState(() {
+      _searching = true;
+      _searchError = null;
+    });
+    _searchDebounce = Timer(const Duration(milliseconds: 280), () async {
+      try {
+        final matches = await context.read<FriendService>().searchUsers(query);
+        if (!mounted || generation != _searchGeneration) return;
+        final myUid = context.read<AuthService>().user?.username.toLowerCase();
+        setState(() {
+          _searchResults = matches
+              .where((result) => result.user.username.toLowerCase() != myUid)
+              .toList();
+          _searching = false;
+        });
+      } catch (_) {
+        if (!mounted || generation != _searchGeneration) return;
+        setState(() {
+          _searchResults = <FriendSearchResult>[];
+          _searching = false;
+          _searchError = 'Could not search right now. Check your connection.';
+        });
+      }
+    });
+  }
+
+  Future<void> _sendSearchRequest(
+      String myUid, FriendSearchResult result) async {
+    final user = result.user;
+    if (!result.canRequest || _sendingRequests.contains(user.uid)) return;
+    setState(() => _sendingRequests.add(user.uid));
+    try {
+      await context.read<FriendService>().sendRequest(myUid, user.uid);
+      if (!mounted) return;
+      setState(() => _pendingUids.add(user.uid));
+      NovynAlert.showEvent(
+          context, NovynAlertEvent.requestSent('@${user.username}'));
+    } catch (_) {
+      if (mounted)
+        NovynAlert.show(context, 'Could not send request to @${user.username}.',
+            isError: true);
+    } finally {
+      if (mounted) setState(() => _sendingRequests.remove(user.uid));
+    }
+  }
+
+  void _openProfilePreview(UserModel user) {
+    HapticService.vibrate(NovynHapticType.light,
+        category: HapticCategory.navigation);
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => ProfilePreviewSheet(user: user, showActions: false),
+    );
+  }
 
   Future<void> _sendDiscoveredRequest(String myUid, UserModel user) async {
     if (_sendingRequests.contains(user.uid)) return;
@@ -37,300 +122,348 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     try {
       await context.read<FriendService>().sendRequest(myUid, user.uid);
       if (!mounted) return;
-      NovynAlert.showEvent(context, NovynAlertEvent.requestSent('@${user.username}'));
+      setState(() => _pendingUids.add(user.uid));
+      NovynAlert.showEvent(
+          context, NovynAlertEvent.requestSent('@${user.username}'));
     } catch (_) {
-      if (mounted) NovynAlert.show(context, 'Could not send request to @${user.username}.', isError: true);
+      if (mounted)
+        NovynAlert.show(context, 'Could not send request to @${user.username}.',
+            isError: true);
     } finally {
       if (mounted) setState(() => _sendingRequests.remove(user.uid));
     }
   }
+
   @override
   Widget build(BuildContext context) {
     final auth = context.read<AuthService>();
     final friends = context.read<FriendService>();
     final myUid = auth.user?.username;
+    if (myUid == null) return const Center(child: Text('Not logged in'));
 
-    if (myUid == null) {
-      return const Center(child: Text('Not logged in'));
-    }
+    final theme = Theme.of(context);
+    final dark = theme.brightness == Brightness.dark;
+    final accent = const Color(0xFF6547F5);
+    final foreground = dark ? Colors.white : const Color(0xFF211D36);
+    final muted = dark ? Colors.white60 : const Color(0xFF716B89);
+    final surface = dark ? const Color(0xFF201B36) : Colors.white;
+    final query = _searchController.text.trim().replaceFirst(RegExp(r'^@'), '');
 
     return Scaffold(
-      backgroundColor: Colors.transparent,
+      backgroundColor: dark ? const Color(0xFF141026) : const Color(0xFFF5F1FC),
       body: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(22, 18, 22, 36),
           children: [
-            // ── Header ──────────────────────────────────────────────
-            NovynHeader(
-                  title: 'Discover',
-                  subtitle: 'Find people and grow your circle',
-                  titleSize: 36,
-                  titleWeight: FontWeight.w600,
-                  actions: [
-                    if (Navigator.of(context).canPop())
-                      NovynIconButton(
-                        icon: Icons.arrow_back_rounded,
-                        size: 56,
-                        radius: 20,
-                        iconSize: 23,
-                        onTap: () => Navigator.of(context).pop(),
-                      ),
-                    PopupMenuButton<String>(
-                      tooltip: 'Discover options',
-                      child: Container(
-                        width: 56,
-                        height: 56,
-                        decoration: BoxDecoration(
-                          color: Theme.of(context).colorScheme.surface,
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Icon(Icons.more_horiz_rounded, size: 25,
-                          color: Theme.of(context).colorScheme.onSurface),
-                      ),
-                      offset: const Offset(0, 12),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-                      elevation: 10,
-                      onSelected: (value) {
-                        if (value == 'send' || value == 'sent') {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => DiscoverPeopleScreen(myUid: myUid),
-                            ),
-                          );
-                        } else if (value == 'refresh') {
-                          context.read<SocketService>().requestDiscover();
-                        } else if (value == 'scan') {
-                          _showScanPlaceholder(context);
-                        }
-                      },
-                      itemBuilder: (menuContext) => [
-                        const PopupMenuItem(
-                          value: 'send',
-                          height: 52,
-                          child: ListTile(
-                            contentPadding: EdgeInsets.zero,
-                            leading: Icon(Icons.person_add_alt_1_rounded),
-                            title: Text('Send friend request'),
-                            dense: true,
-                          ),
-                        ),
-                        const PopupMenuItem(
-                          value: 'sent',
-                          height: 52,
-                          child: ListTile(
-                            contentPadding: EdgeInsets.zero,
-                            leading: Icon(Icons.send_rounded),
-                            title: Text('Sent requests'),
-                            dense: true,
-                          ),
-                        ),
-                        const PopupMenuItem(
-                          value: 'refresh',
-                          height: 52,
-                          child: ListTile(
-                            contentPadding: EdgeInsets.zero,
-                            leading: Icon(Icons.refresh_rounded),
-                            title: Text('Refresh people'),
-                            dense: true,
-                          ),
-                        ),
-                        const PopupMenuItem(
-                          value: 'scan',
-                          height: 52,
-                          child: ListTile(
-                            contentPadding: EdgeInsets.zero,
-                            leading: Icon(Icons.qr_code_scanner_rounded),
-                            title: Text('Scan QR code'),
-                            dense: true,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
+            Row(children: [
+              if (Navigator.of(context).canPop()) ...[
+                IconButton(
+                  tooltip: 'Back',
+                  onPressed: () => Navigator.of(context).pop(),
+                  icon: Icon(Icons.arrow_back_rounded,
+                      color: foreground, size: 27),
                 ),
-
-            // Keep the whole Discover content in one scroll view. The previous
-            // fixed-height column squeezed the people list on normal phone screens.
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.only(bottom: 112),
-                children: [
-                  const SizedBox(height: 12),
-                  StreamBuilder<List<String>>(
-                    stream: friends.friendUidsStream(myUid),
-                    builder: (context, friendSnap) {
-                      if (friendSnap.hasError) {
-                        return Padding(
-                          padding: const EdgeInsets.fromLTRB(20, 22, 20, 32),
-                          child: _buildLoadError(
-                            'Could not load your connections',
-                            'Try refreshing Discover.',
-                            () => context.read<SocketService>().requestDiscover(),
-                          ),
-                        );
-                      }
-                      final friendUids = friendSnap.data ?? [];
-                      return StreamBuilder<List<UserModel>>(
-                        stream: friends.discoverUsersStream(myUid, friendUids),
-                        builder: (context, userSnap) {
-                          if (userSnap.hasError) {
-                            return Padding(
-                              padding: const EdgeInsets.fromLTRB(20, 22, 20, 32),
-                              child: _buildLoadError(
-                                'Could not load people',
-                                'Check your connection and pull to refresh.',
-                                () => context.read<SocketService>().requestDiscover(),
-                              ),
-                            );
-                          }
-                          if (userSnap.connectionState == ConnectionState.waiting && !userSnap.hasData) {
-                            return Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                              child: Column(
-                                children: List.generate(4, (_) => Padding(
-                                  padding: const EdgeInsets.only(bottom: 10),
-                                  child: NovynShimmer.discoverItem(),
-                                )),
-                              ),
-                            );
-                          }
-
-                          final filtered = List<UserModel>.from(
-                            userSnap.data ?? <UserModel>[],
-                          );
-                          bool isOnline(UserModel user) =>
-                              user.isOnline &&
-                              !{'invisible', 'offline'}.contains(user.status.trim().toLowerCase());
-                          final onlineUsers = filtered.where(isOnline).toList()
-                            ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
-                          final recentUsers = filtered.where((user) => !isOnline(user)).toList()
-                            ..sort((a, b) {
-                              final aSeen = a.lastSeen ?? DateTime.fromMillisecondsSinceEpoch(0);
-                              final bSeen = b.lastSeen ?? DateTime.fromMillisecondsSinceEpoch(0);
-                              return bSeen.compareTo(aSeen);
-                            });
-
-                          if (filtered.isEmpty) {
-                            return Padding(
-                              padding: const EdgeInsets.fromLTRB(20, 0, 20, 30),
-                              child: _buildEmpty(myUid),
-                            );
-                          }
-
-                          return StreamBuilder<Set<String>>(
-                            stream: friends.sentPendingUidsStream(myUid),
-                            builder: (context, pendingSnap) {
-                              if (pendingSnap.hasError) {
-                                return Padding(
-                                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
-                                  child: _buildLoadError(
-                                    'Could not load request status',
-                                    'Refresh Discover to try again.',
-                                    () => context.read<SocketService>().requestDiscover(),
-                                  ),
-                                );
-                              }
-                              final pendingUids = pendingSnap.data ?? <String>{};
-                              Widget userGroup(String title, List<UserModel> users) {
-                                if (users.isEmpty) return const SizedBox.shrink();
-                                return Padding(
-                                  padding: const EdgeInsets.fromLTRB(20, 4, 20, 16),
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Padding(
-                                        padding: const EdgeInsets.only(left: 2, bottom: 10),
-                                        child: Text(
-                                          title,
-                                          style: NovynText.body(
-                                            12,
-                                            weight: FontWeight.w700,
-                                            color: Theme.of(context).colorScheme.onSurfaceVariant,
-                                          ).copyWith(letterSpacing: 1.1),
-                                        ),
-                                      ),
-                                      Container(
-                                        decoration: BoxDecoration(
-                                          color: Theme.of(context).colorScheme.surface,
-                                          borderRadius: BorderRadius.circular(24),
-                                          border: Border.all(
-                                            color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: .22),
-                                          ),
-                                          boxShadow: [
-                                            BoxShadow(
-                                              color: const Color(0xFF6D5DFC).withValues(alpha: .045),
-                                              blurRadius: 18,
-                                              offset: const Offset(0, 5),
-                                            ),
-                                          ],
-                                        ),
-                                        child: Column(
-                                          children: List.generate(users.length, (index) {
-                                            final user = users[index];
-                                            return Column(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                if (index > 0)
-                                                  Divider(
-                                                    height: 1,
-                                                    thickness: 1,
-                                                    indent: 16,
-                                                    endIndent: 16,
-                                                    color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: .48),
-                                                  ),
-                                                _DiscoverPersonRow(
-                                                  user: user,
-                                                  isOnline: isOnline(user),
-                                                  isPending: pendingUids.contains(user.uid) ||
-                                                      pendingUids.contains(user.username),
-                                                  isSending: _sendingRequests.contains(user.uid),
-                                                  onAddFriend: () => _sendDiscoveredRequest(myUid, user),
-                                                  onOpenProfile: () {
-                                                    HapticService.vibrate(
-                                                      NovynHapticType.light,
-                                                      category: HapticCategory.navigation,
-                                                    );
-                                                    showModalBottomSheet(
-                                                      context: context,
-                                                      isScrollControlled: true,
-                                                      backgroundColor: Colors.transparent,
-                                                      builder: (_) => ProfilePreviewSheet(
-                                                        user: user,
-                                                        showActions: false,
-                                                      ),
-                                                    );
-                                                  },
-                                                ),
-                                              ],
-                                            );
-                                          }),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                );
-                              }
-
-                              return Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  userGroup('ONLINE NOW · ${onlineUsers.length}', onlineUsers),
-                                  userGroup('RECENTLY ACTIVE', recentUsers),
-                                ],
-                              );
-                            },
-                          );
-                        },
-                      );
-                    },
-                  ),
-                ],
+                const SizedBox(width: 6),
+              ],
+              Expanded(
+                child: Text('Discover',
+                    style: TextStyle(
+                      fontSize: 34,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -1.1,
+                      color: foreground,
+                    )),
               ),
-            ),
+              _DiscoverHeaderButton(
+                tooltip: 'Refresh people',
+                icon: Icons.refresh_rounded,
+                onTap: () {
+                  context.read<SocketService>().requestDiscover();
+                  if (query.length >= 2) _onSearchChanged(query);
+                },
+              ),
+              const SizedBox(width: 10),
+              _DiscoverHeaderButton(
+                tooltip: 'Scan QR code',
+                icon: Icons.qr_code_2_rounded,
+                onTap: () => _showScanPlaceholder(context),
+              ),
+            ]),
+            const SizedBox(height: 34),
+            Text('ADD A FRIEND',
+                style: TextStyle(
+                  color: accent,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1.15,
+                )),
+            const SizedBox(height: 12),
+            Row(children: [
+              Expanded(
+                child: Container(
+                  height: 58,
+                  decoration: BoxDecoration(
+                    color: surface,
+                    borderRadius: BorderRadius.circular(21),
+                    border: Border.all(
+                      color:
+                          query.isNotEmpty ? accent : const Color(0xFFDCD4F7),
+                      width: query.isNotEmpty ? 1.8 : 1.2,
+                    ),
+                  ),
+                  child: TextField(
+                    controller: _searchController,
+                    onChanged: _onSearchChanged,
+                    onSubmitted: _onSearchChanged,
+                    textInputAction: TextInputAction.search,
+                    style: TextStyle(
+                        color: foreground,
+                        fontSize: 17,
+                        fontWeight: FontWeight.w600),
+                    decoration: InputDecoration(
+                      border: InputBorder.none,
+                      contentPadding: const EdgeInsets.symmetric(vertical: 17),
+                      prefixIcon: Icon(Icons.alternate_email_rounded,
+                          color: muted, size: 24),
+                      hintText: 'Enter username',
+                      hintStyle: TextStyle(
+                          color: muted,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500),
+                      suffixIcon: query.isEmpty
+                          ? null
+                          : IconButton(
+                              tooltip: 'Clear search',
+                              onPressed: () {
+                                _searchController.clear();
+                                _onSearchChanged('');
+                              },
+                              icon: Icon(Icons.close_rounded, color: muted),
+                            ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              SizedBox(
+                width: 58,
+                height: 58,
+                child: FilledButton(
+                  onPressed:
+                      query.length < 2 ? null : () => _onSearchChanged(query),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: accent,
+                    disabledBackgroundColor: accent.withValues(alpha: .28),
+                    foregroundColor: Colors.white,
+                    padding: EdgeInsets.zero,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20)),
+                  ),
+                  child: const Icon(Icons.send_rounded, size: 23),
+                ),
+              ),
+            ]),
+            const SizedBox(height: 28),
+            if (query.isNotEmpty) ...[
+              if (query.length < 2)
+                const _DiscoverMessageCard(
+                    message: 'Enter at least 2 characters to search.')
+              else if (_searching)
+                const Padding(
+                  padding: EdgeInsets.only(top: 32),
+                  child: Center(child: CircularProgressIndicator()),
+                )
+              else if (_searchError != null)
+                _DiscoverMessageCard(
+                    message: _searchError!,
+                    onRetry: () => _onSearchChanged(query))
+              else if (_searchResults.isEmpty)
+                const _DiscoverMessageCard(
+                    message:
+                        'No Novyn users found. Check the username and try again.')
+              else
+                _buildPeopleCard(
+                  _searchResults
+                      .map((result) => _DiscoverEntry(
+                            user: result.user,
+                            status: _pendingUids.contains(result.user.uid)
+                                ? 'Pending'
+                                : result.requestStatus == 'friend'
+                                    ? 'Friends'
+                                    : (result.requestStatus == 'sent' ||
+                                            result.requestStatus == 'incoming')
+                                        ? 'Pending'
+                                        : result.user.isOnline
+                                            ? 'Online'
+                                            : 'Available',
+                            canRequest: result.canRequest &&
+                                !_pendingUids.contains(result.user.uid),
+                            isSending:
+                                _sendingRequests.contains(result.user.uid),
+                          ))
+                      .toList(),
+                  heading:
+                      '${_searchResults.length} MATCH${_searchResults.length == 1 ? '' : 'ES'}',
+                  query: query,
+                  onAdd: (entry) {
+                    final result = _searchResults
+                        .firstWhere((item) => item.user.uid == entry.user.uid);
+                    _sendSearchRequest(myUid, result);
+                  },
+                ),
+            ] else ...[
+              Row(children: [
+                Expanded(
+                    child: Text('ONLINE NOW',
+                        style: TextStyle(
+                          color: accent,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 1.15,
+                        ))),
+                Container(
+                    width: 9,
+                    height: 9,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF12A85A),
+                      shape: BoxShape.circle,
+                    )),
+              ]),
+              const SizedBox(height: 14),
+              _buildOnlinePeople(friends, myUid),
+            ],
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildOnlinePeople(FriendService friends, String myUid) {
+    return StreamBuilder<List<String>>(
+      stream: friends.friendUidsStream(myUid),
+      builder: (context, friendSnap) {
+        if (friendSnap.hasError) {
+          return _buildLoadError(
+              'Could not load your connections',
+              'Try refreshing Discover.',
+              () => context.read<SocketService>().requestDiscover());
+        }
+        return StreamBuilder<List<UserModel>>(
+          stream:
+              friends.discoverUsersStream(myUid, friendSnap.data ?? <String>[]),
+          builder: (context, userSnap) {
+            if (userSnap.hasError) {
+              return _buildLoadError(
+                  'Could not load people',
+                  'Check your connection and try again.',
+                  () => context.read<SocketService>().requestDiscover());
+            }
+            if (userSnap.connectionState == ConnectionState.waiting &&
+                !userSnap.hasData) {
+              return Column(
+                  children: List.generate(
+                      3,
+                      (_) => Padding(
+                            padding: const EdgeInsets.only(bottom: 10),
+                            child: NovynShimmer.discoverItem(),
+                          )));
+            }
+            final online = (userSnap.data ?? <UserModel>[])
+                .where((user) =>
+                    user.isOnline &&
+                    !{'invisible', 'offline'}
+                        .contains(user.status.trim().toLowerCase()))
+                .toList()
+              ..sort((a, b) =>
+                  a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+            if (online.isEmpty) {
+              return const _DiscoverMessageCard(
+                  message:
+                      'No one is online right now. Try searching by username.');
+            }
+            return StreamBuilder<Set<String>>(
+              stream: friends.sentPendingUidsStream(myUid),
+              builder: (context, pendingSnap) => _buildPeopleCard(
+                online
+                    .map((user) => _DiscoverEntry(
+                          user: user,
+                          status: _pendingUids.contains(user.uid) ||
+                                  (pendingSnap.data ?? <String>{})
+                                      .contains(user.uid) ||
+                                  (pendingSnap.data ?? <String>{})
+                                      .contains(user.username)
+                              ? 'Pending'
+                              : 'Online',
+                          canRequest: !_pendingUids.contains(user.uid) &&
+                              !(pendingSnap.data ?? <String>{})
+                                  .contains(user.uid) &&
+                              !(pendingSnap.data ?? <String>{})
+                                  .contains(user.username),
+                          isSending: _sendingRequests.contains(user.uid),
+                        ))
+                    .toList(),
+                onAdd: (entry) => _sendDiscoveredRequest(myUid, entry.user),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildPeopleCard(
+    List<_DiscoverEntry> entries, {
+    String? heading,
+    String query = '',
+    required ValueChanged<_DiscoverEntry> onAdd,
+  }) {
+    final theme = Theme.of(context);
+    final dark = theme.brightness == Brightness.dark;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 17, 14, 8),
+      decoration: BoxDecoration(
+        color: dark ? const Color(0xFF201B36) : Colors.white,
+        borderRadius: BorderRadius.circular(27),
+        border:
+            Border.all(color: const Color(0xFFDCD4F7).withValues(alpha: .9)),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF6547F5).withValues(alpha: dark ? .06 : .08),
+            blurRadius: 24,
+            offset: const Offset(0, 9),
+          )
+        ],
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        if (heading != null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(4, 0, 4, 12),
+            child: Text(heading,
+                style: TextStyle(
+                  color: dark ? Colors.white70 : const Color(0xFF625B78),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: .9,
+                )),
+          ),
+        ...List.generate(entries.length, (index) {
+          final entry = entries[index];
+          return Column(children: [
+            if (index > 0)
+              Divider(
+                  height: 1,
+                  indent: 4,
+                  endIndent: 4,
+                  color: const Color(0xFFEAE5F5).withValues(alpha: .9)),
+            _DiscoverResultRow(
+              entry: entry,
+              query: query,
+              onAdd: () => onAdd(entry),
+              onOpen: () => _openProfilePreview(entry.user),
+            ),
+          ]);
+        }),
+      ]),
     );
   }
 
@@ -349,7 +482,8 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
             height: 218,
             child: CustomPaint(
               painter: _DiscoverEmptyPainter(
-                ring: theme.colorScheme.primary.withValues(alpha: dark ? .22 : .13),
+                ring: theme.colorScheme.primary
+                    .withValues(alpha: dark ? .22 : .13),
                 accent: theme.colorScheme.primary,
               ),
               child: Center(
@@ -384,7 +518,8 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
           Text(
             'No one online yet',
             textAlign: TextAlign.center,
-            style: NovynText.display(25, weight: FontWeight.w600, color: theme.colorScheme.onSurface),
+            style: NovynText.display(25,
+                weight: FontWeight.w600, color: theme.colorScheme.onSurface),
           ),
           const SizedBox(height: 10),
           ConstrainedBox(
@@ -407,12 +542,15 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                 );
               },
               icon: const Icon(Icons.person_add_alt_1_rounded, size: 20),
-              label: Text('Invite a friend', style: NovynText.body(15, weight: FontWeight.w600, color: Colors.white)),
+              label: Text('Invite a friend',
+                  style: NovynText.body(15,
+                      weight: FontWeight.w600, color: Colors.white)),
               style: FilledButton.styleFrom(
                 backgroundColor: theme.colorScheme.primary,
                 foregroundColor: Colors.white,
                 elevation: 0,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(22)),
               ),
             ),
           ),
@@ -441,7 +579,8 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => DiscoverPeopleScreen(myUid: myUid, initialTab: 2),
+                        builder: (_) =>
+                            DiscoverPeopleScreen(myUid: myUid, initialTab: 2),
                       ),
                     );
                   },
@@ -465,13 +604,22 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
       ),
       child: Column(
         children: [
-          Icon(Icons.cloud_off_rounded, size: 34, color: theme.colorScheme.onSurfaceVariant),
+          Icon(Icons.cloud_off_rounded,
+              size: 34, color: theme.colorScheme.onSurfaceVariant),
           const SizedBox(height: 10),
-          Text(title, style: NovynText.body(14, weight: FontWeight.w600, color: theme.colorScheme.onSurface)),
+          Text(title,
+              style: NovynText.body(14,
+                  weight: FontWeight.w600, color: theme.colorScheme.onSurface)),
           const SizedBox(height: 5),
-          Text(message, textAlign: TextAlign.center, style: NovynText.body(12, color: theme.colorScheme.onSurfaceVariant)),
+          Text(message,
+              textAlign: TextAlign.center,
+              style: NovynText.body(12,
+                  color: theme.colorScheme.onSurfaceVariant)),
           const SizedBox(height: 14),
-          OutlinedButton.icon(onPressed: onRetry, icon: const Icon(Icons.refresh_rounded, size: 17), label: const Text('Try again')),
+          OutlinedButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh_rounded, size: 17),
+              label: const Text('Try again')),
         ],
       ),
     );
@@ -501,7 +649,10 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
       final username = _usernameFromQr(data);
       if (username == null) {
         if (mounted) {
-          NovynAlert.show(context, 'This QR code is not a valid Novyn profile.', isError: true, title: 'Invalid QR code', icon: Icons.qr_code_rounded);
+          NovynAlert.show(context, 'This QR code is not a valid Novyn profile.',
+              isError: true,
+              title: 'Invalid QR code',
+              icon: Icons.qr_code_rounded);
         }
         return;
       }
@@ -509,7 +660,10 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
       final profile = await ApiService.getPublicProfile(username);
       if (!mounted) return;
       if (profile == null) {
-        NovynAlert.show(context, 'Novyn user not found.', isError: true, title: 'User not found', icon: Icons.person_search_rounded);
+        NovynAlert.show(context, 'Novyn user not found.',
+            isError: true,
+            title: 'User not found',
+            icon: Icons.person_search_rounded);
         return;
       }
 
@@ -528,11 +682,18 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
       _isResolvingQr = false;
     }
   }
+
   Future<void> _showScanPlaceholder(BuildContext context) async {
     final status = await Permission.camera.request();
     if (status.isDenied || status.isPermanentlyDenied) {
       if (mounted) {
-        NovynAlert.show(context, 'Camera permission is required to scan QR codes.', isError: true, title: 'Camera permission needed', icon: Icons.camera_alt_rounded, actionLabel: 'Settings', onAction: () => openAppSettings());
+        NovynAlert.show(
+            context, 'Camera permission is required to scan QR codes.',
+            isError: true,
+            title: 'Camera permission needed',
+            icon: Icons.camera_alt_rounded,
+            actionLabel: 'Settings',
+            onAction: () => openAppSettings());
       }
       return;
     }
@@ -553,9 +714,13 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
           decoration: BoxDecoration(
             color: theme.colorScheme.surface,
             borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
-            border: Border.all(color: theme.colorScheme.outlineVariant.withValues(alpha: .45)),
+            border: Border.all(
+                color: theme.colorScheme.outlineVariant.withValues(alpha: .45)),
             boxShadow: [
-              BoxShadow(color: Colors.black.withValues(alpha: .18), blurRadius: 28, offset: const Offset(0, -8)),
+              BoxShadow(
+                  color: Colors.black.withValues(alpha: .18),
+                  blurRadius: 28,
+                  offset: const Offset(0, -8)),
             ],
           ),
           child: SafeArea(
@@ -582,23 +747,30 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                           gradient: NovynGradients.selected(context),
                           borderRadius: BorderRadius.circular(14),
                         ),
-                        child: const Icon(Icons.qr_code_scanner_rounded, color: Colors.white, size: 23),
+                        child: const Icon(Icons.qr_code_scanner_rounded,
+                            color: Colors.white, size: 23),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text('Scan a Novyn QR', style: NovynText.display(19, color: theme.colorScheme.onSurface)),
+                            Text('Scan a Novyn QR',
+                                style: NovynText.display(19,
+                                    color: theme.colorScheme.onSurface)),
                             const SizedBox(height: 3),
-                            Text('Align the code inside the frame to open a profile.', style: NovynText.body(11.5, color: theme.colorScheme.onSurfaceVariant)),
+                            Text(
+                                'Align the code inside the frame to open a profile.',
+                                style: NovynText.body(11.5,
+                                    color: theme.colorScheme.onSurfaceVariant)),
                           ],
                         ),
                       ),
                       IconButton(
                         tooltip: 'Close scanner',
                         onPressed: () => Navigator.pop(sheetContext),
-                        icon: Icon(Icons.close_rounded, color: theme.colorScheme.onSurfaceVariant),
+                        icon: Icon(Icons.close_rounded,
+                            color: theme.colorScheme.onSurfaceVariant),
                       ),
                     ],
                   ),
@@ -606,17 +778,26 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                   Expanded(
                     child: LayoutBuilder(
                       builder: (context, constraints) {
-                        final side = math.min(constraints.maxWidth - 28, constraints.maxHeight - 8).clamp(150.0, 280.0).toDouble();
+                        final side = math
+                            .min(constraints.maxWidth - 28,
+                                constraints.maxHeight - 8)
+                            .clamp(150.0, 280.0)
+                            .toDouble();
                         return Center(
                           child: AspectRatio(
                             aspectRatio: 1,
                             child: Container(
-                              constraints: BoxConstraints(maxWidth: side, maxHeight: side),
+                              constraints: BoxConstraints(
+                                  maxWidth: side, maxHeight: side),
                               decoration: BoxDecoration(
                                 color: Colors.black,
                                 borderRadius: BorderRadius.circular(24),
                                 boxShadow: [
-                                  BoxShadow(color: theme.colorScheme.primary.withValues(alpha: .16), blurRadius: 22, spreadRadius: 1),
+                                  BoxShadow(
+                                      color: theme.colorScheme.primary
+                                          .withValues(alpha: .16),
+                                      blurRadius: 22,
+                                      spreadRadius: 1),
                                 ],
                               ),
                               child: ClipRRect(
@@ -627,7 +808,8 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                                     MobileScanner(
                                       onDetect: (capture) {
                                         if (_isResolvingQr) return;
-                                        for (final barcode in capture.barcodes) {
+                                        for (final barcode
+                                            in capture.barcodes) {
                                           if (barcode.rawValue != null) {
                                             _onQRScanned(barcode.rawValue!);
                                             break;
@@ -641,19 +823,35 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                                         height: side * .68,
                                         child: DecoratedBox(
                                           decoration: BoxDecoration(
-                                            border: Border.all(color: Colors.white.withValues(alpha: .9), width: 2.4),
-                                            borderRadius: BorderRadius.circular(20),
+                                            border: Border.all(
+                                                color: Colors.white
+                                                    .withValues(alpha: .9),
+                                                width: 2.4),
+                                            borderRadius:
+                                                BorderRadius.circular(20),
                                           ),
                                         ),
                                       ),
                                     ),
                                     Positioned(
-                                      left: 0, right: 0, bottom: 12,
+                                      left: 0,
+                                      right: 0,
+                                      bottom: 12,
                                       child: Center(
                                         child: Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
-                                          decoration: BoxDecoration(color: Colors.black.withValues(alpha: .58), borderRadius: BorderRadius.circular(20)),
-                                          child: const Text('Scanning automatically', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w600)),
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 11, vertical: 6),
+                                          decoration: BoxDecoration(
+                                              color: Colors.black
+                                                  .withValues(alpha: .58),
+                                              borderRadius:
+                                                  BorderRadius.circular(20)),
+                                          child: const Text(
+                                              'Scanning automatically',
+                                              style: TextStyle(
+                                                  color: Colors.white,
+                                                  fontSize: 10,
+                                                  fontWeight: FontWeight.w600)),
                                         ),
                                       ),
                                     ),
@@ -676,11 +874,16 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                           onSubmitted: (value) => _onQRScanned(value),
                           decoration: InputDecoration(
                             hintText: 'Enter username instead',
-                            prefixIcon: const Icon(Icons.alternate_email_rounded, size: 19),
+                            prefixIcon: const Icon(
+                                Icons.alternate_email_rounded,
+                                size: 19),
                             isDense: true,
                             filled: true,
-                            fillColor: theme.colorScheme.surfaceContainerHighest.withValues(alpha: .5),
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide.none),
+                            fillColor: theme.colorScheme.surfaceContainerHighest
+                                .withValues(alpha: .5),
+                            border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(15),
+                                borderSide: BorderSide.none),
                           ),
                         ),
                       ),
@@ -689,7 +892,9 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                         height: 48,
                         child: FilledButton(
                           onPressed: () => _onQRScanned(manualUsername.text),
-                          style: FilledButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
+                          style: FilledButton.styleFrom(
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(14))),
                           child: const Icon(Icons.arrow_forward_rounded),
                         ),
                       ),
@@ -707,6 +912,201 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
   }
 }
 
+class _DiscoverEntry {
+  const _DiscoverEntry({
+    required this.user,
+    required this.status,
+    required this.canRequest,
+    required this.isSending,
+  });
+
+  final UserModel user;
+  final String status;
+  final bool canRequest;
+  final bool isSending;
+}
+
+class _DiscoverHeaderButton extends StatelessWidget {
+  const _DiscoverHeaderButton({
+    required this.tooltip,
+    required this.icon,
+    required this.onTap,
+  });
+
+  final String tooltip;
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 58,
+      height: 58,
+      child: IconButton(
+        tooltip: tooltip,
+        onPressed: onTap,
+        style: IconButton.styleFrom(
+          backgroundColor: Theme.of(context).colorScheme.surface,
+          foregroundColor: const Color(0xFF6547F5),
+          side: const BorderSide(color: Color(0xFFDCD4F7)),
+        ),
+        icon: Icon(icon, size: 24),
+      ),
+    );
+  }
+}
+
+class _DiscoverMessageCard extends StatelessWidget {
+  const _DiscoverMessageCard({required this.message, this.onRetry});
+
+  final String message;
+  final VoidCallback? onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      padding: const EdgeInsets.all(22),
+      decoration: BoxDecoration(
+        color: dark ? const Color(0xFF201B36) : Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0xFFDCD4F7)),
+      ),
+      child: Row(children: [
+        Expanded(
+            child: Text(message,
+                style: TextStyle(
+                  color: dark ? Colors.white70 : const Color(0xFF716B89),
+                  fontSize: 14,
+                  height: 1.4,
+                ))),
+        if (onRetry != null)
+          IconButton(
+            tooltip: 'Try again',
+            onPressed: onRetry,
+            icon: const Icon(Icons.refresh_rounded, color: Color(0xFF6547F5)),
+          ),
+      ]),
+    );
+  }
+}
+
+class _DiscoverResultRow extends StatelessWidget {
+  const _DiscoverResultRow({
+    required this.entry,
+    required this.query,
+    required this.onAdd,
+    required this.onOpen,
+  });
+
+  final _DiscoverEntry entry;
+  final String query;
+  final VoidCallback onAdd;
+  final VoidCallback onOpen;
+
+  TextSpan _highlight(String text, Color normal, Color accent) {
+    final lower = text.toLowerCase();
+    final needle = query.toLowerCase();
+    final index = needle.isEmpty ? -1 : lower.indexOf(needle);
+    if (index < 0) return TextSpan(text: text, style: TextStyle(color: normal));
+    return TextSpan(children: [
+      if (index > 0)
+        TextSpan(
+            text: text.substring(0, index), style: TextStyle(color: normal)),
+      TextSpan(
+          text: text.substring(index, index + needle.length),
+          style: TextStyle(color: accent)),
+      if (index + needle.length < text.length)
+        TextSpan(
+            text: text.substring(index + needle.length),
+            style: TextStyle(color: normal)),
+    ]);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final normal = dark ? Colors.white : const Color(0xFF211D36);
+    final muted = dark ? Colors.white60 : const Color(0xFF716B89);
+    final accent = const Color(0xFF6547F5);
+    final alreadyConnected = entry.status == 'Friends';
+    final pending = entry.status == 'Pending';
+    final online = entry.status == 'Online';
+    final buttonLabel = entry.isSending
+        ? 'Sending'
+        : alreadyConnected
+            ? 'Added'
+            : pending
+                ? 'Requested'
+                : 'Add';
+
+    return InkWell(
+      onTap: onOpen,
+      borderRadius: BorderRadius.circular(17),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 12),
+        child: Row(children: [
+          UserAvatar(
+            name: entry.user.name,
+            photoUrl: entry.user.photoUrl,
+            radius: 29,
+            showOnlineIndicator: true,
+            isOnline: online || entry.user.isOnline,
+            presence: entry.user.status,
+            fallbackColor: entry.user.avatarColor,
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+              child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              RichText(
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                text: _highlight(entry.user.name, normal, accent).copyWith(
+                  style: TextStyle(
+                      fontSize: 15.5,
+                      fontWeight: FontWeight.w700,
+                      color: normal),
+                ),
+              ),
+              const SizedBox(height: 3),
+              RichText(
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                text: TextSpan(children: [
+                  const TextSpan(text: '@'),
+                  _highlight(entry.user.username, muted, accent),
+                  TextSpan(
+                      text: '  ·  ${entry.status}',
+                      style: TextStyle(color: muted)),
+                ], style: TextStyle(fontSize: 13, color: muted)),
+              ),
+            ],
+          )),
+          const SizedBox(width: 9),
+          SizedBox(
+            height: 42,
+            child: FilledButton(
+              onPressed: entry.canRequest && !entry.isSending ? onAdd : null,
+              style: FilledButton.styleFrom(
+                backgroundColor: accent.withValues(alpha: .11),
+                foregroundColor: accent,
+                disabledBackgroundColor: const Color(0xFFF0EDF6),
+                disabledForegroundColor: const Color(0xFF716B89),
+                elevation: 0,
+                padding: const EdgeInsets.symmetric(horizontal: 17),
+                shape: const StadiumBorder(),
+              ),
+              child: Text(buttonLabel,
+                  style: const TextStyle(fontWeight: FontWeight.w700)),
+            ),
+          ),
+        ]),
+      ),
+    );
+  }
+}
 
 class _DiscoverRadarCard extends StatelessWidget {
   @override
@@ -724,8 +1124,10 @@ class _DiscoverRadarCard extends StatelessWidget {
           SizedBox(
             width: 68,
             height: 68,
-            child: CustomPaint(painter: _RadarPainter(
-              ring: theme.colorScheme.primary.withValues(alpha: theme.brightness == Brightness.dark ? .28 : .18),
+            child: CustomPaint(
+                painter: _RadarPainter(
+              ring: theme.colorScheme.primary.withValues(
+                  alpha: theme.brightness == Brightness.dark ? .28 : .18),
               accent: theme.colorScheme.primary,
             )),
           ),
@@ -735,21 +1137,29 @@ class _DiscoverRadarCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text('LIVE DISCOVER', style: TextStyle(
-                  fontFamily: 'PlusJakartaSans', fontSize: 10,
-                  fontWeight: FontWeight.w800, letterSpacing: 1.1,
-                  color: theme.colorScheme.primary,
-                )),
+                Text('LIVE DISCOVER',
+                    style: TextStyle(
+                      fontFamily: 'PlusJakartaSans',
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1.1,
+                      color: theme.colorScheme.primary,
+                    )),
                 const SizedBox(height: 4),
-                Text('People around you', style: TextStyle(
-                  fontFamily: 'PlusJakartaSans', fontSize: 16,
-                  fontWeight: FontWeight.w800, color: theme.colorScheme.onSurface,
-                )),
+                Text('People around you',
+                    style: TextStyle(
+                      fontFamily: 'PlusJakartaSans',
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                      color: theme.colorScheme.onSurface,
+                    )),
                 const SizedBox(height: 3),
-                Text('Online people appear first', style: TextStyle(
-                  fontFamily: 'PlusJakartaSans', fontSize: 11.5,
-                  color: theme.colorScheme.onSurfaceVariant,
-                )),
+                Text('Online people appear first',
+                    style: TextStyle(
+                      fontFamily: 'PlusJakartaSans',
+                      fontSize: 11.5,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    )),
               ],
             ),
           ),
@@ -768,56 +1178,73 @@ class _RadarPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
     final radius = size.height * .44;
-    final stroke = Paint()..color = ring..style = PaintingStyle.stroke..strokeWidth = 1.5;
+    final stroke = Paint()
+      ..color = ring
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5;
     for (var i = 1; i <= 3; i++) {
       canvas.drawCircle(center, radius * i / 3, stroke);
     }
     final sector = Path()
       ..moveTo(center.dx, center.dy)
       ..lineTo(center.dx, center.dy - radius)
-      ..arcTo(Rect.fromCircle(center: center, radius: radius), -math.pi / 2, .95, false)
+      ..arcTo(Rect.fromCircle(center: center, radius: radius), -math.pi / 2,
+          .95, false)
       ..close();
     canvas.drawPath(sector, Paint()..color = accent.withValues(alpha: .18));
     canvas.drawCircle(center, 5, Paint()..color = accent);
   }
+
   @override
-  bool shouldRepaint(covariant _RadarPainter oldDelegate) => oldDelegate.ring != ring || oldDelegate.accent != accent;
+  bool shouldRepaint(covariant _RadarPainter oldDelegate) =>
+      oldDelegate.ring != ring || oldDelegate.accent != accent;
 }
 
 class _DiscoverCountCard extends StatelessWidget {
-  const _DiscoverCountCard({required this.label, required this.icon, required this.stream, this.onTap});
+  const _DiscoverCountCard(
+      {required this.label,
+      required this.icon,
+      required this.stream,
+      this.onTap});
   final String label;
   final IconData icon;
   final Stream<int> stream;
   final VoidCallback? onTap;
   @override
   Widget build(BuildContext context) => GestureDetector(
-    onTap: onTap,
-    child: Container(
-    padding: const EdgeInsets.all(14),
-    decoration: BoxDecoration(
-      color: Theme.of(context).colorScheme.surface,
-      borderRadius: BorderRadius.circular(22),
-      border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
-    ),
-    child: StreamBuilder<int>(
-      stream: stream,
-      builder: (context, snapshot) => Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(children: [
-            Icon(icon, size: 20, color: Theme.of(context).colorScheme.primary),
-            const Spacer(),
-            Text('${snapshot.data ?? 0}', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
-          ]),
-          const SizedBox(height: 8),
-          Text(label, style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant)),
-        ],
-      ),
-    ),
-  ));
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: BorderRadius.circular(22),
+          border:
+              Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+        ),
+        child: StreamBuilder<int>(
+          stream: stream,
+          builder: (context, snapshot) => Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(children: [
+                Icon(icon,
+                    size: 20, color: Theme.of(context).colorScheme.primary),
+                const Spacer(),
+                Text('${snapshot.data ?? 0}',
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleLarge
+                        ?.copyWith(fontWeight: FontWeight.w800)),
+              ]),
+              const SizedBox(height: 8),
+              Text(label,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant)),
+            ],
+          ),
+        ),
+      ));
 }
-
 
 class _DiscoverPersonRow extends StatelessWidget {
   const _DiscoverPersonRow({
@@ -878,20 +1305,29 @@ class _DiscoverPersonRow extends StatelessWidget {
                     user.name,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: NovynText.body(15, weight: FontWeight.w500, color: scheme.onSurface),
+                    style: NovynText.body(15,
+                        weight: FontWeight.w500, color: scheme.onSurface),
                   ),
                   const SizedBox(height: 4),
                   RichText(
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     text: TextSpan(children: [
-                      TextSpan(text: '@${user.username}',
-                        style: NovynText.body(13, color: scheme.onSurfaceVariant)),
-                      TextSpan(text: ' · ',
-                        style: NovynText.body(13, color: scheme.onSurfaceVariant)),
-                      TextSpan(text: statusText,
-                        style: NovynText.body(13, weight: FontWeight.w500,
-                          color: isOnline ? const Color(0xFF25864C) : scheme.onSurfaceVariant)),
+                      TextSpan(
+                          text: '@${user.username}',
+                          style: NovynText.body(13,
+                              color: scheme.onSurfaceVariant)),
+                      TextSpan(
+                          text: ' · ',
+                          style: NovynText.body(13,
+                              color: scheme.onSurfaceVariant)),
+                      TextSpan(
+                          text: statusText,
+                          style: NovynText.body(13,
+                              weight: FontWeight.w500,
+                              color: isOnline
+                                  ? const Color(0xFF25864C)
+                                  : scheme.onSurfaceVariant)),
                     ]),
                   ),
                 ],
@@ -907,16 +1343,25 @@ class _DiscoverPersonRow extends StatelessWidget {
                   backgroundColor: isPending
                       ? scheme.surfaceContainerHighest
                       : scheme.primary.withValues(alpha: .12),
-                  foregroundColor: isPending ? scheme.onSurfaceVariant : scheme.primary,
+                  foregroundColor:
+                      isPending ? scheme.onSurfaceVariant : scheme.primary,
                   disabledBackgroundColor: scheme.surfaceContainerHighest,
                   disabledForegroundColor: scheme.onSurfaceVariant,
                   elevation: 0,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14)),
                 ),
                 child: Text(
-                  isSending ? 'Sending' : isPending ? 'Requested' : 'Add',
-                  style: NovynText.body(12, weight: FontWeight.w600,
-                    color: isPending || isSending ? scheme.onSurfaceVariant : scheme.primary),
+                  isSending
+                      ? 'Sending'
+                      : isPending
+                          ? 'Requested'
+                          : 'Add',
+                  style: NovynText.body(12,
+                      weight: FontWeight.w600,
+                      color: isPending || isSending
+                          ? scheme.onSurfaceVariant
+                          : scheme.primary),
                 ),
               ),
             ),
@@ -972,14 +1417,16 @@ class _DiscoverEmptyAction extends StatelessWidget {
                 title,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: NovynText.body(14, weight: FontWeight.w600, color: scheme.onSurface),
+                style: NovynText.body(14,
+                    weight: FontWeight.w600, color: scheme.onSurface),
               ),
               const SizedBox(height: 3),
               Text(
                 subtitle,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: NovynText.body(11.5, color: scheme.onSurfaceVariant).copyWith(height: 1.25),
+                style: NovynText.body(11.5, color: scheme.onSurfaceVariant)
+                    .copyWith(height: 1.25),
               ),
             ],
           ),

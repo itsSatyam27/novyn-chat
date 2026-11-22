@@ -2664,6 +2664,7 @@ class SocketService extends ChangeNotifier {
     const titles = {
       'tictactoe': 'Tic-Tac-Toe',
       'rps': 'Rock • Paper • Scissors',
+      'rajamantri': 'Raja Mantri Chor Sipahi',
     };
     return titles[type] ?? 'Game';
   }

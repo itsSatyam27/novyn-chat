@@ -1,6 +1,6 @@
 "use strict";
 
-const GAME_TYPES = new Set(["tictactoe", "rps"]);
+const GAME_TYPES = new Set(["tictactoe", "rps", "rajamantri"]);
 const RPS_MOVES = new Set(["rock", "paper", "scissors"]);
 
 function sameUser(a, b) {
@@ -236,7 +236,31 @@ function handleRematchAction(game, userKey, moveData) {
 
   const now = Date.now();
 
+  if (moveData.action === "leave_room") {
+    return {
+      ok: true,
+      game: {
+        ...game,
+        data: {
+          ...current,
+          playerLeft: userKey,
+          rematch: {
+            status: "opponent_left",
+            leftBy: userKey,
+          },
+        },
+        updatedAt: now,
+      },
+    };
+  }
+
   if (moveData.action === "rematch_request") {
+    if (current.playerLeft) {
+      return {
+        ok: false,
+        reason: `${current.playerLeft} left the room.`,
+      };
+    }
     return {
       ok: true,
       game: {
@@ -337,7 +361,8 @@ function applyGameMove(game, userKey, moveData) {
     moveData.action === "rematch" ||
     moveData.action === "rematch_request" ||
     moveData.action === "rematch_accept" ||
-    moveData.action === "rematch_decline"
+    moveData.action === "rematch_decline" ||
+    moveData.action === "leave_room"
   ) {
     return handleRematchAction(game, userKey, moveData);
   }
@@ -366,12 +391,14 @@ function createGameChallenge(input = {}) {
   const gameType = String(requested.gameType || "");
   if (!GAME_TYPES.has(gameType)) return { ok: false, reason: "Unsupported game." };
 
-  const titles = { tictactoe: "Tic-Tac-Toe", rps: "Rock Paper Scissors" };
+  const titles = { tictactoe: "Tic-Tac-Toe", rps: "Rock Paper Scissors", rajamantri: "Raja Mantri Chor Sipahi" };
   const board = gameType === "tictactoe" ? Array(9).fill(null) : undefined;
   const initialOpponent = toType === "friend" ? to : null;
   const data = gameType === "tictactoe"
     ? { board, playerX: userName }
-    : { player1: userName, player2: initialOpponent, round: 1, p1Score: 0, p2Score: 0, target: 3 };
+    : gameType === "rps"
+    ? { player1: userName, player2: initialOpponent, round: 1, p1Score: 0, p2Score: 0, target: 3 }
+    : { host: userName, players: [userName], round: 1, target: 5 };
 
   return {
     ok: true,

@@ -24,11 +24,15 @@ class _GamesScreenState extends State<GamesScreen> {
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
   final ScrollController _carouselController = ScrollController();
+  final ScrollController _carousel3pController = ScrollController();
 
   String _searchQuery = '';
   int _activeCarouselIndex = 0;
+  int _active3pIndex = 0;
   String _statsUsername = '';
   GameStatsSnapshot _stats = GameStatsSnapshot.empty;
+  int _rmPlayed = 0;
+  int _rmHighScore = 0;
   int _statsLoadGeneration = 0;
   double _prevBottomInset = 0;
 
@@ -62,6 +66,7 @@ class _GamesScreenState extends State<GamesScreen> {
     super.initState();
     unawaited(_loadLastPlayed());
     _carouselController.addListener(_onCarouselScroll);
+    _carousel3pController.addListener(_on3pCarouselScroll);
   }
 
   @override
@@ -70,6 +75,8 @@ class _GamesScreenState extends State<GamesScreen> {
     _searchFocusNode.dispose();
     _carouselController.removeListener(_onCarouselScroll);
     _carouselController.dispose();
+    _carousel3pController.removeListener(_on3pCarouselScroll);
+    _carousel3pController.dispose();
     super.dispose();
   }
 
@@ -79,6 +86,15 @@ class _GamesScreenState extends State<GamesScreen> {
     final index = (_carouselController.offset / itemExtent).round().clamp(0, 2);
     if (index != _activeCarouselIndex) {
       setState(() => _activeCarouselIndex = index);
+    }
+  }
+
+  void _on3pCarouselScroll() {
+    if (!_carousel3pController.hasClients) return;
+    const itemExtent = 238.0; // card width (224) + separator (14)
+    final index = (_carousel3pController.offset / itemExtent).round().clamp(0, 2);
+    if (index != _active3pIndex) {
+      setState(() => _active3pIndex = index);
     }
   }
 
@@ -104,8 +120,15 @@ class _GamesScreenState extends State<GamesScreen> {
     if (mounted) setState(() => _stats = GameStatsSnapshot.empty);
     if (username.isEmpty) return;
     final snapshot = await GameHistoryService.load(username);
+    final prefs = await SharedPreferences.getInstance();
+    final rmPlayed = prefs.getInt('rm_played') ?? 0;
+    final rmHigh = prefs.getInt('rm_highscore') ?? 0;
     if (!mounted || generation != _statsLoadGeneration) return;
-    setState(() => _stats = snapshot);
+    setState(() {
+      _stats = snapshot;
+      _rmPlayed = rmPlayed;
+      _rmHighScore = rmHigh;
+    });
   }
 
   Future<void> _openGame(_GameOption game) async {
@@ -232,6 +255,8 @@ class _GamesScreenState extends State<GamesScreen> {
                     username: username,
                     photoUrl: user?.photoUrl ?? '',
                     stats: _stats,
+                    rmPlayed: _rmPlayed,
+                    rmHighScore: _rmHighScore,
                     onHistoryTap: () => _openHistory(username),
                     isDark: isDark,
                   ),
@@ -333,7 +358,7 @@ class _GamesScreenState extends State<GamesScreen> {
                   ),
                 ),
               )
-            else
+            else ...[
               SizedBox(
                 height: 236,
                 child: ListView.separated(
@@ -342,19 +367,20 @@ class _GamesScreenState extends State<GamesScreen> {
                   physics: const BouncingScrollPhysics(),
                   clipBehavior: Clip.none,
                   padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
-                  itemCount: filtered.length,
+                  itemCount: filtered.length + (_searchQuery.isEmpty ? 1 : 0),
                   separatorBuilder: (_, __) => const SizedBox(width: 14),
                   itemBuilder: (context, index) {
-                    final game = filtered[index];
-                    return _GameCarouselCard(
-                      game: game,
-                      onPlay: () => _openGame(game),
-                    );
+                    if (index < filtered.length) {
+                      final game = filtered[index];
+                      return _GameCarouselCard(
+                        game: game,
+                        onPlay: () => _openGame(game),
+                      );
+                    }
+                    return _ComingSoonCard(isDark: isDark);
                   },
                 ),
               ),
-
-            if (filtered.isNotEmpty) ...[
               const SizedBox(height: 14),
               // Dots Indicator
               Padding(
@@ -362,7 +388,7 @@ class _GamesScreenState extends State<GamesScreen> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: List.generate(
-                    math.max(3, filtered.length),
+                    filtered.length + (_searchQuery.isEmpty ? 1 : 0),
                     (index) {
                       final isActive = index == _activeCarouselIndex;
                       return AnimatedContainer(
@@ -404,6 +430,7 @@ class _GamesScreenState extends State<GamesScreen> {
             SizedBox(
               height: 236,
               child: ListView(
+                controller: _carousel3pController,
                 scrollDirection: Axis.horizontal,
                 physics: const BouncingScrollPhysics(),
                 clipBehavior: Clip.none,
@@ -414,53 +441,36 @@ class _GamesScreenState extends State<GamesScreen> {
                     onPlay: () => _openGame(_rajaMantriGame),
                   ),
                   const SizedBox(width: 14),
-                  CustomPaint(
-                    painter: _DashedBorderPainter(
-                      color: isDark ? const Color(0xFF453B6D) : const Color(0xFFD6CEF8),
-                      strokeWidth: 1.5,
-                      dashWidth: 6,
-                      dashSpace: 5,
-                      radius: 24,
-                    ),
-                    child: Container(
-                      width: 210,
-                      height: 216,
-                      decoration: BoxDecoration(
-                        color: isDark
-                            ? const Color(0xFF1E1833).withValues(alpha: 0.6)
-                            : Colors.white.withValues(alpha: 0.55),
-                        borderRadius: BorderRadius.circular(24),
-                      ),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Container(
-                            width: 44,
-                            height: 44,
-                            decoration: BoxDecoration(
-                              color: isDark ? const Color(0xFF2C2449) : const Color(0xFFEEEAFB),
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(
-                              Icons.add_rounded,
-                              color: Color(0xFF5E44F3),
-                              size: 24,
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          const Text(
-                            'Coming soon',
-                            style: TextStyle(
-                              color: Color(0xFF5E44F3),
-                              fontWeight: FontWeight.w800,
-                              fontSize: 14,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
+                  _ComingSoonCard(isDark: isDark),
+                  const SizedBox(width: 14),
+                  _ComingSoonCard(isDark: isDark),
                 ],
+              ),
+            ),
+            const SizedBox(height: 14),
+            // Dots Indicator for 3 P / 4 P
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: List.generate(
+                  3,
+                  (index) {
+                    final isActive = index == _active3pIndex;
+                    return AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      margin: const EdgeInsets.symmetric(horizontal: 3),
+                      width: isActive ? 20 : 6,
+                      height: 6,
+                      decoration: BoxDecoration(
+                        color: isActive
+                            ? const Color(0xFF5E44F3)
+                            : (isDark ? const Color(0xFF382F57) : const Color(0xFFD8D1F7)),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    );
+                  },
+                ),
               ),
             ),
           ],
@@ -478,6 +488,8 @@ class _GameProfileHeroCard extends StatelessWidget {
     required this.username,
     required this.photoUrl,
     required this.stats,
+    this.rmPlayed = 0,
+    this.rmHighScore = 0,
     required this.onHistoryTap,
     required this.isDark,
   });
@@ -486,6 +498,8 @@ class _GameProfileHeroCard extends StatelessWidget {
   final String username;
   final String photoUrl;
   final GameStatsSnapshot stats;
+  final int rmPlayed;
+  final int rmHighScore;
   final VoidCallback onHistoryTap;
   final bool isDark;
 
@@ -674,6 +688,39 @@ class _GameProfileHeroCard extends StatelessWidget {
                     ),
             ),
           ),
+          if (rmPlayed > 0) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF282244) : const Color(0xFFF1EFFF),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  const Text('👑', style: TextStyle(fontSize: 16)),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Raja Mantri',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      color: isDark ? Colors.white : const Color(0xFF1E1A33),
+                    ),
+                  ),
+                  const Spacer(),
+                  Text(
+                    '$rmPlayed played · Best: $rmHighScore pts',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF5E44F3),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -836,6 +883,62 @@ class _GameCarouselCard extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _ComingSoonCard extends StatelessWidget {
+  const _ComingSoonCard({required this.isDark});
+
+  final bool isDark;
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      painter: _DashedBorderPainter(
+        color: isDark ? const Color(0xFF453B6D) : const Color(0xFFD6CEF8),
+        strokeWidth: 1.5,
+        dashWidth: 6,
+        dashSpace: 5,
+        radius: 26,
+      ),
+      child: Container(
+        width: 224,
+        height: 216,
+        decoration: BoxDecoration(
+          color: isDark
+              ? const Color(0xFF1E1833).withValues(alpha: 0.6)
+              : Colors.white.withValues(alpha: 0.55),
+          borderRadius: BorderRadius.circular(26),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF2C2449) : const Color(0xFFEEEAFB),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.add_rounded,
+                color: Color(0xFF5E44F3),
+                size: 24,
+              ),
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'Coming soon',
+              style: TextStyle(
+                color: Color(0xFF5E44F3),
+                fontWeight: FontWeight.w800,
+                fontSize: 14,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
