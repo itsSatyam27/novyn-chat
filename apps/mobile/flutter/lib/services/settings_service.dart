@@ -712,7 +712,7 @@ class SettingsService extends ChangeNotifier {
     _language = _prefs.getString(_kLanguage) ?? 'en';
     final savedTimeFormat = _prefs.getString(_kTimeFormat) ?? '12h';
     _timeFormat = savedTimeFormat == '24h' ? '24h' : '12h';
-    _fontSize = (_prefs.getDouble(_kFontSize) ?? 0.85).clamp(0.85, 1.35).toDouble();
+    _fontSize = (_prefs.getDouble(_kFontSize) ?? 0.85).clamp(0.75, 1.35).toDouble();
     _chatMessageTextSize = (_prefs.getDouble(_kChatMessageTextSize) ?? 1.0).clamp(0.85, 1.25).toDouble();
     _chatLabelSize = (_prefs.getDouble(_kChatLabelSize) ?? 1.0).clamp(0.8, 1.4).toDouble();
     _accentColorValue = _prefs.getInt(_kAccentColor) ?? 0xFF6D5DFC;
@@ -1065,7 +1065,7 @@ class SettingsService extends ChangeNotifier {
   }
 
   Future<void> setFontSize(double v) async {
-    v = v.clamp(0.85, 1.35).toDouble();
+    v = v.clamp(0.75, 1.35).toDouble();
     _fontSize = v;
     await _prefs.setDouble(_kFontSize, v);
     notifyListeners();
@@ -1528,7 +1528,7 @@ class SettingsService extends ChangeNotifier {
     _photoQuality = stringValue('photoQuality', _photoQuality);
     _language = stringValue('language', _language);
     _timeFormat = stringValue('timeFormat', _timeFormat) == '24h' ? '24h' : '12h';
-    _fontSize = doubleValue('fontSize', _fontSize, 0.85, 1.35);
+    _fontSize = doubleValue('fontSize', _fontSize, 0.75, 1.35);
     _chatLabelSize = doubleValue('chatLabelSize', _chatLabelSize, 0.8, 1.4);
     final accent = values['accentColorValue'];
     if (accent is num && accent.toInt() >= 0 && accent.toInt() <= 0xFFFFFFFF) {
