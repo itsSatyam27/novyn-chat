@@ -1384,6 +1384,7 @@ const publicGameMatchmaking = new PublicGameMatchmaking({
 // depend on a friendship or a chat thread, and are discarded after 30 minutes.
 const randomGameSessions = new Map();
 const RANDOM_GAME_SESSION_TTL_MS = 30 * 60 * 1000;
+const pendingGameInvites = new Map();
 
 let mongoStorage = null;
 let mongoLegacyCollection = null;
@@ -7038,6 +7039,41 @@ io.on("connection", (socket) => {
     return respond({ ok: true, cancelled: publicGameMatchmaking.cancel(userKey) });
   });
 
+  socket.on("accept_game_invite", (payload, callback) => {
+    const respond = typeof callback === "function" ? callback : () => {};
+    const userKey = normalizeName(socket.data.userKey || "");
+    const messageId = toDisplayName(payload?.messageId).slice(0, 128);
+    const invite = pendingGameInvites.get(messageId);
+    if (!userKey || !invite || invite.toKey !== userKey || invite.expiresAt <= Date.now()) {
+      pendingGameInvites.delete(messageId);
+      return respond({ ok: false, message: "This game invite has expired." });
+    }
+    clearTimeout(invite.timer);
+    pendingGameInvites.delete(messageId);
+    const senderSocketId = onlineUsers.get(invite.fromKey);
+    if (senderSocketId) {
+      io.to(senderSocketId).emit("game_invite_accepted", {
+        messageId,
+        gameType: invite.gameType,
+        from: userKey,
+      });
+    }
+    return respond({ ok: true });
+  });
+
+  socket.on("cancel_game_invite", (payload, callback) => {
+    const respond = typeof callback === "function" ? callback : () => {};
+    const userKey = normalizeName(socket.data.userKey || "");
+    const messageId = toDisplayName(payload?.messageId).slice(0, 128);
+    const invite = pendingGameInvites.get(messageId);
+    if (!userKey || !invite || invite.fromKey !== userKey) {
+      return respond({ ok: false, message: "This invite is no longer active." });
+    }
+    clearTimeout(invite.timer);
+    pendingGameInvites.delete(messageId);
+    return respond({ ok: true });
+  });
+
   socket.on("random_game_move", (payload, callback) => {
     const respond = typeof callback === "function" ? callback : () => {};
     const userKey = normalizeName(socket.data.userKey || "");
@@ -9221,6 +9257,26 @@ io.on("connection", (socket) => {
       }
       rejectMessage(result.message || "Unable to send message.");
       return;
+    }
+    if (game && toType === "friend") {
+      const inviteId = String(result.message.id || "").slice(0, 128);
+      const oldInvite = pendingGameInvites.get(inviteId);
+      if (oldInvite) clearTimeout(oldInvite.timer);
+      const invite = {
+        fromKey: normalizeName(userKey),
+        toKey: normalizeName(to),
+        gameType: game.gameType,
+        expiresAt: Date.now() + 60_000,
+        timer: null,
+      };
+      invite.timer = setTimeout(() => {
+        if (pendingGameInvites.get(inviteId) !== invite) return;
+        pendingGameInvites.delete(inviteId);
+        const senderSocketId = onlineUsers.get(invite.fromKey);
+        if (senderSocketId) io.to(senderSocketId).emit("game_invite_timeout", { messageId: inviteId, gameType: invite.gameType });
+      }, 60_000);
+      if (typeof invite.timer.unref === "function") invite.timer.unref();
+      pendingGameInvites.set(inviteId, invite);
     }
     respond({ ok: true, id: result.message.id });
     if (result.existing) {

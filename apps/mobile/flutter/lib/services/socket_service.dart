@@ -229,6 +229,8 @@ class SocketService extends ChangeNotifier {
   Function(Map)? onRandomMatchFound;
   Function(Map)? onRandomMatchTimeout;
   Function(Map)? onRandomGameUpdated;
+  Function(Map)? onGameInviteAccepted;
+  Function(Map)? onGameInviteTimeout;
   final Map<String, Map<String, dynamic>> _randomGames = <String, Map<String, dynamic>>{};
   // Game moves can arrive before the corresponding chat history page.
   final Map<String, Map<String, dynamic>> _pendingGameUpdates =
@@ -1630,6 +1632,12 @@ class SocketService extends ChangeNotifier {
     _socket!.on('random_match_timeout', (data) {
       if (data is Map) onRandomMatchTimeout?.call(Map<String, dynamic>.from(data));
     });
+    _socket!.on('game_invite_accepted', (data) {
+      if (data is Map) onGameInviteAccepted?.call(Map<String, dynamic>.from(data));
+    });
+    _socket!.on('game_invite_timeout', (data) {
+      if (data is Map) onGameInviteTimeout?.call(Map<String, dynamic>.from(data));
+    });
 
     // ── Server error messages ─────────────────────────────────────────────
     _socket!.on('error_message', (data) {
@@ -2545,6 +2553,52 @@ class SocketService extends ChangeNotifier {
         result['message']?.toString() ??
             'Matchmaking is no longer waiting. Please refresh the Games screen.',
       );
+    }
+  }
+
+  Future<void> acceptGameInvite(String messageId) async {
+    await _waitForSocketAuthentication();
+    final socket = _socket;
+    if (socket == null || !_isConnected || !_isAuthenticated) {
+      throw StateError('Reconnect before joining this game.');
+    }
+    final completer = Completer<Map<String, dynamic>>();
+    socket.emitWithAck('accept_game_invite', {'messageId': messageId},
+        ack: (dynamic result) {
+      if (completer.isCompleted) return;
+      completer.complete(result is Map
+          ? Map<String, dynamic>.from(result)
+          : <String, dynamic>{'ok': false});
+    });
+    final result = await completer.future.timeout(
+      const Duration(seconds: 5),
+      onTimeout: () => throw StateError('Could not join the invite in time.'),
+    );
+    if (result['ok'] != true) {
+      throw StateError(result['message']?.toString() ?? 'This game invite has expired.');
+    }
+  }
+
+  Future<void> cancelGameInvite(String messageId) async {
+    await _waitForSocketAuthentication();
+    final socket = _socket;
+    if (socket == null || !_isConnected || !_isAuthenticated) {
+      throw StateError('Reconnect before cancelling this invite.');
+    }
+    final completer = Completer<Map<String, dynamic>>();
+    socket.emitWithAck('cancel_game_invite', {'messageId': messageId},
+        ack: (dynamic result) {
+      if (completer.isCompleted) return;
+      completer.complete(result is Map
+          ? Map<String, dynamic>.from(result)
+          : <String, dynamic>{'ok': false});
+    });
+    final result = await completer.future.timeout(
+      const Duration(seconds: 5),
+      onTimeout: () => throw StateError('Invite cancellation timed out.'),
+    );
+    if (result['ok'] != true) {
+      throw StateError(result['message']?.toString() ?? 'The invite is no longer active.');
     }
   }
 

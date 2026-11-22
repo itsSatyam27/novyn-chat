@@ -45,8 +45,19 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
   bool _searchEndedByDisconnect = false;
   bool _friendsLoadFailed = false;
   int _secondsRemaining = 60;
+  int _friendInviteSecondsRemaining = 60;
+  final ValueNotifier<int> _friendInviteCountdown = ValueNotifier<int>(60);
+  final ValueNotifier<int> _queueCountdown = ValueNotifier<int>(60);
+  String? _pendingFriendInviteId;
+  UserModel? _pendingInviteFriend;
+  Map<String, dynamic>? _pendingInviteGame;
+  String _pendingInviteOpponentName = '';
+  String _pendingInviteCurrentUser = '';
+  BuildContext? _friendWaitingSheetContext;
   DateTime? _queueDeadline;
   Timer? _queueTimer;
+  Timer? _friendInviteTimer;
+  bool _backgroundRouteOpen = false;
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
 
@@ -60,6 +71,8 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
       _auth!.addListener(_handleAuthChanged);
       _socket!.onRandomMatchFound = _handleRandomMatchFound;
       _socket!.onRandomMatchTimeout = _handleRandomMatchTimeout;
+      _socket!.onGameInviteAccepted = _handleGameInviteAccepted;
+      _socket!.onGameInviteTimeout = _handleGameInviteTimeout;
       _socket!.addListener(_handleSocketStateChanged);
       _subscribeToFriends();
     });
@@ -69,11 +82,16 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
   void dispose() {
     _auth?.removeListener(_handleAuthChanged);
     _queueTimer?.cancel();
+    _friendInviteTimer?.cancel();
     _searchController.dispose();
+    _friendInviteCountdown.dispose();
+    _queueCountdown.dispose();
     if (_socket != null) {
       _socket!.removeListener(_handleSocketStateChanged);
       _socket!.onRandomMatchFound = null;
       _socket!.onRandomMatchTimeout = null;
+      _socket!.onGameInviteAccepted = null;
+      _socket!.onGameInviteTimeout = null;
       if (_searchingRandom) {
         unawaited(_socket!.cancelRandomGame().catchError((_) {}));
       }
@@ -190,31 +208,41 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
       final initialGameData = Map<String, dynamic>.from(gameMessage.game!);
       final opponentName = friend.name.isEmpty ? friend.username : friend.name;
       final currentUserName = socket.myUsername ?? _auth?.user?.username ?? '';
+      _friendInviteTimer?.cancel();
+      _pendingFriendInviteId = messageId;
+      _pendingInviteFriend = friend;
+      _pendingInviteGame = initialGameData;
+      _pendingInviteOpponentName = opponentName;
+      _pendingInviteCurrentUser = currentUserName;
+      _friendInviteCountdown.value = 60;
+      _friendInviteSecondsRemaining = 60;
+      _friendInviteTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+        if (!mounted || _pendingFriendInviteId != messageId) {
+          timer.cancel();
+          return;
+        }
+        final next = _friendInviteSecondsRemaining - 1;
+        _friendInviteSecondsRemaining = next.clamp(0, 60);
+        _friendInviteCountdown.value = _friendInviteSecondsRemaining;
+        if (_friendInviteSecondsRemaining == 0) {
+          timer.cancel();
+          _handleFriendInviteTimeout({'messageId': messageId, 'gameType': widget.gameType});
+        }
+      });
 
       showModalBottomSheet<void>(
         context: context,
         isScrollControlled: true,
         backgroundColor: Colors.transparent,
-        builder: (sheetContext) => _FriendInviteWaitingSheet(
-          gameTitle: widget.title,
-          friend: friend,
-          currentUser: _auth?.user,
-          onEnterRoom: () {
-            Navigator.of(sheetContext).pop();
-            Navigator.of(context).push<void>(
-              MaterialPageRoute<void>(
-                builder: (_) => GameRoomScreen(
-                  messageId: messageId,
-                  peerUsername: friend.username,
-                  currentUsername: currentUserName,
-                  initialGame: initialGameData,
-                  opponentDisplayName: opponentName,
-                  closeChatOnExit: true,
-                ),
-              ),
-            );
-          },
-        ),
+        builder: (sheetContext) {
+          _friendWaitingSheetContext = sheetContext;
+          return _FriendInviteWaitingSheet(
+            gameTitle: widget.title,
+            friend: friend,
+            currentUser: _auth?.user,
+            countdown: _friendInviteCountdown,
+          );
+        },
       );
     } catch (error) {
       if (!mounted) return;
@@ -248,9 +276,10 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
       _searchingRandom = true;
       _searchEndedByDisconnect = false;
       _secondsRemaining = 60;
+      _queueCountdown.value = 60;
       // Give the server timeout event a short delivery grace period before
       // showing a local fallback in case the event was lost during reconnect.
-      _queueDeadline = DateTime.now().add(const Duration(seconds: 65));
+      _queueDeadline = DateTime.now().add(const Duration(seconds: 60));
     });
     try {
       await socket.joinRandomGame(widget.gameType);
@@ -273,6 +302,7 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
           return;
         }
         setState(() => _secondsRemaining = remaining.clamp(0, 60));
+        _queueCountdown.value = remaining.clamp(0, 60);
       });
     } catch (error) {
       _queueTimer?.cancel();
@@ -331,7 +361,13 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
         _secondsRemaining = 60;
         _queueDeadline = null;
       });
-      if (leaveLobby) Navigator.of(context).pop();
+      if (leaveLobby) {
+        if (_backgroundRouteOpen) {
+          _backgroundRouteOpen = false;
+          Navigator.of(context).pop();
+        }
+        if (mounted) Navigator.of(context).pop();
+      }
     } catch (error) {
       if (!mounted) return;
       setState(() => _cancellingMatchmaking = false);
@@ -348,31 +384,89 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
   }
 
   Future<void> _handleBack() async {
-    if (!_searchingRandom) {
+    final friendInvitePending = _pendingFriendInviteId != null;
+    if (!_searchingRandom && !friendInvitePending) {
       Navigator.of(context).pop();
       return;
     }
-    final cancel = await showDialog<bool>(
+    final isFriendInvite = friendInvitePending && !_searchingRandom;
+    final choice = await showDialog<String>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Leave matchmaking?'),
-        content: const Text(
-          'You are currently searching for a player. Cancel the search before leaving this game lobby.',
-        ),
+        title: Text(isFriendInvite ? 'Waiting for your friend' : 'Matchmaking in progress'),
+        content: Text(isFriendInvite
+            ? 'The invite stays active for ${_friendInviteSecondsRemaining}s. Keep waiting in the background or cancel it.'
+            : 'Your search can keep running while you leave this screen.'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Keep searching'),
+            onPressed: () => Navigator.of(dialogContext).pop('stay'),
+            child: const Text('Stay here'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop('cancel'),
+            child: Text(isFriendInvite ? 'Cancel invite' : 'Cancel search'),
           ),
           FilledButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Cancel and leave'),
+            onPressed: () => Navigator.of(dialogContext).pop('background'),
+            child: const Text('Keep searching'),
           ),
         ],
       ),
     );
-    if (!mounted || cancel != true) return;
-    await _cancelRandomSearch(leaveLobby: true);
+    if (!mounted || choice == null || choice == 'stay') return;
+    if (choice == 'cancel') {
+      if (isFriendInvite) {
+        await _cancelPendingFriendInvite(leaveLobby: true);
+      } else {
+        await _cancelRandomSearch(leaveLobby: true);
+      }
+      return;
+    }
+    _showBackgroundSearch(isFriendInvite: isFriendInvite);
+  }
+
+  void _showBackgroundSearch({bool isFriendInvite = false}) {
+    if (_backgroundRouteOpen) return;
+    _backgroundRouteOpen = true;
+    unawaited(Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => _MatchmakingBackgroundScreen(
+          title: isFriendInvite ? _pendingInviteFriend?.name ?? 'your friend' : widget.title,
+          countdown: isFriendInvite ? _friendInviteCountdown : _queueCountdown,
+          isFriendInvite: isFriendInvite,
+          onReturn: () => Navigator.of(context).pop(),
+          onCancel: isFriendInvite
+              ? () => _cancelPendingFriendInvite(leaveLobby: true)
+              : () => _cancelRandomSearch(leaveLobby: true),
+        ),
+      ),
+    ).whenComplete(() {
+      _backgroundRouteOpen = false;
+      if (mounted) setState(() {});
+    }));
+  }
+
+  Future<void> _cancelPendingFriendInvite({bool leaveLobby = false}) async {
+    final inviteId = _pendingFriendInviteId;
+    if (inviteId == null) return;
+    try {
+      await (_socket ?? context.read<SocketService>()).cancelGameInvite(inviteId);
+      if (!mounted) return;
+      final sheetContext = _friendWaitingSheetContext;
+      if (sheetContext != null && sheetContext.mounted) Navigator.of(sheetContext).pop();
+      _clearPendingFriendInvite();
+      if (_backgroundRouteOpen) Navigator.of(context).pop();
+      if (leaveLobby && mounted) Navigator.of(context).pop();
+    } catch (error) {
+      if (!mounted) return;
+      NovynAlert.show(
+        context,
+        error is StateError ? error.message.toString() : 'Could not cancel the invite. Please try again.',
+        isError: true,
+        title: 'Invite is still active',
+        icon: Icons.sync_problem_rounded,
+      );
+    }
   }
 
   void _handleRandomMatchFound(Map data) {
@@ -404,6 +498,10 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
       );
       return;
     }
+    if (_backgroundRouteOpen) {
+      _backgroundRouteOpen = false;
+      Navigator.of(context).pop();
+    }
     Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
         builder: (_) => GameRoomScreen(
@@ -427,13 +525,117 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
       _queueDeadline = null;
       _secondsRemaining = 60;
     });
-    NovynAlert.show(
-      context,
-      data['message']?.toString() ??
-          'No player available right now. Please try again.',
-      title: 'No player available',
-      icon: Icons.group_off_rounded,
+    _showMatchTimeoutDialog(
+      title: 'No player found',
+      message: data['message']?.toString() ?? 'No player joined in 60 seconds.',
+      retryLabel: 'Search again',
+      onRetry: _startRandomSearch,
     );
+  }
+
+  Future<void> _showMatchTimeoutDialog({
+    required String title,
+    required String message,
+    required String retryLabel,
+    required VoidCallback onRetry,
+  }) async {
+    final retry = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(title),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Close'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text(retryLabel),
+          ),
+        ],
+      ),
+    );
+    if (!mounted) return;
+    if (_backgroundRouteOpen) {
+      _backgroundRouteOpen = false;
+      Navigator.of(context).pop();
+    }
+    if (retry == true) {
+      onRetry();
+    } else if (Navigator.of(context).canPop()) {
+      Navigator.of(context).pop();
+    }
+  }
+
+  void _handleGameInviteAccepted(Map data) {
+    if (!mounted || data['messageId']?.toString() != _pendingFriendInviteId) return;
+    final from = data['from']?.toString().toLowerCase();
+    if (from != _pendingInviteFriend?.username.toLowerCase()) return;
+    _friendInviteTimer?.cancel();
+    final sheetContext = _friendWaitingSheetContext;
+    if (sheetContext != null && sheetContext.mounted) {
+      Navigator.of(sheetContext).pop();
+    }
+    _friendWaitingSheetContext = null;
+    if (_backgroundRouteOpen) {
+      _backgroundRouteOpen = false;
+      Navigator.of(context).pop();
+    }
+    _openPendingFriendGame();
+  }
+
+  void _handleGameInviteTimeout(Map data) {
+    if (!mounted || data['messageId']?.toString() != _pendingFriendInviteId) return;
+    _friendInviteTimer?.cancel();
+    final friend = _pendingInviteFriend;
+    final sheetContext = _friendWaitingSheetContext;
+    if (sheetContext != null && sheetContext.mounted) Navigator.of(sheetContext).pop();
+    _friendWaitingSheetContext = null;
+    _clearPendingFriendInvite();
+    if (friend == null) return;
+    _showMatchTimeoutDialog(
+      title: 'Invite expired',
+      message: '@${friend.username} did not join within 60 seconds.',
+      retryLabel: 'Invite again',
+      onRetry: () => _playWithFriend(friend),
+    );
+  }
+
+  void _openPendingFriendGame() {
+    final friend = _pendingInviteFriend;
+    final game = _pendingInviteGame;
+    final messageId = _pendingFriendInviteId;
+    if (friend == null || game == null || messageId == null || !mounted) return;
+    final peer = friend.username;
+    final opponentName = _pendingInviteOpponentName;
+    final currentUser = _pendingInviteCurrentUser;
+    _clearPendingFriendInvite();
+    Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => GameRoomScreen(
+          messageId: messageId,
+          peerUsername: peer,
+          currentUsername: currentUser,
+          initialGame: game,
+          opponentDisplayName: opponentName,
+          closeChatOnExit: true,
+        ),
+      ),
+    );
+  }
+
+  void _clearPendingFriendInvite() {
+    _friendInviteTimer?.cancel();
+    _friendWaitingSheetContext = null;
+    _pendingFriendInviteId = null;
+    _pendingInviteFriend = null;
+    _pendingInviteGame = null;
+    _pendingInviteOpponentName = '';
+    _pendingInviteCurrentUser = '';
+    _friendInviteSecondsRemaining = 60;
+    _friendInviteCountdown.value = 60;
   }
 
   List<UserModel> get _filteredFriends {
@@ -455,7 +657,7 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
     final connectionReady = socket.isConnected && socket.isAuthenticated;
 
     return PopScope<void>(
-      canPop: !_searchingRandom && !_cancellingMatchmaking,
+      canPop: !_searchingRandom && !_cancellingMatchmaking && _pendingFriendInviteId == null,
       onPopInvokedWithResult: (didPop, result) {
         if (!didPop && !_cancellingMatchmaking) {
           unawaited(_handleBack());
@@ -1192,18 +1394,111 @@ class _TicTacToeBadgePainter extends CustomPainter {
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
+class _MatchmakingBackgroundScreen extends StatelessWidget {
+  const _MatchmakingBackgroundScreen({
+    required this.title,
+    required this.countdown,
+    required this.isFriendInvite,
+    required this.onReturn,
+    required this.onCancel,
+  });
+
+  final String title;
+  final ValueListenable<int> countdown;
+  final bool isFriendInvite;
+  final VoidCallback onReturn;
+  final VoidCallback onCancel;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Matchmaking'),
+        leading: IconButton(
+          tooltip: 'Return to game setup',
+          onPressed: onReturn,
+          icon: const Icon(Icons.arrow_back_rounded),
+        ),
+      ),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(28),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 82,
+                height: 82,
+                decoration: BoxDecoration(
+                  color: scheme.primaryContainer,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  isFriendInvite ? Icons.person_add_alt_1_rounded : Icons.search_rounded,
+                  size: 38,
+                  color: scheme.primary,
+                ),
+              ),
+              const SizedBox(height: 20),
+              Text(
+                isFriendInvite ? 'Waiting for $title' : 'Finding a player for $title',
+                textAlign: TextAlign.center,
+                style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                isFriendInvite
+                    ? 'Your invite is active while you browse Novyn.'
+                    : 'Your search keeps running while you browse Novyn.',
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
+              ),
+              const SizedBox(height: 24),
+              ValueListenableBuilder<int>(
+                valueListenable: countdown,
+                builder: (context, seconds, _) => Text(
+                  '00:${seconds.toString().padLeft(2, '0')}',
+                  style: theme.textTheme.displaySmall?.copyWith(
+                    color: scheme.primary,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: onReturn,
+                  icon: const Icon(Icons.sports_esports_rounded),
+                  label: const Text('Return to game setup'),
+                ),
+              ),
+              TextButton(
+                onPressed: onCancel,
+                child: Text(isFriendInvite ? 'Cancel invite' : 'Cancel search'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _FriendInviteWaitingSheet extends StatefulWidget {
   const _FriendInviteWaitingSheet({
     required this.gameTitle,
     required this.friend,
     required this.currentUser,
-    required this.onEnterRoom,
+    required this.countdown,
   });
 
   final String gameTitle;
   final UserModel friend;
   final NovynUser? currentUser;
-  final VoidCallback onEnterRoom;
+  final ValueListenable<int> countdown;
 
   @override
   State<_FriendInviteWaitingSheet> createState() => _FriendInviteWaitingSheetState();
@@ -1267,7 +1562,7 @@ class _FriendInviteWaitingSheetState extends State<_FriendInviteWaitingSheet>
           ),
           const SizedBox(height: 22),
           Text(
-            'Waiting for Opponent',
+            'Waiting for ${widget.friend.name.isEmpty ? widget.friend.username : widget.friend.name}',
             style: TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.w800,
@@ -1403,13 +1698,16 @@ class _FriendInviteWaitingSheetState extends State<_FriendInviteWaitingSheet>
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: Text(
-                    'Waiting for @${widget.friend.username} to open the match card in chat.',
-                    style: TextStyle(
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w600,
-                      color: isDark ? Colors.white70 : const Color(0xFF58527A),
-                      height: 1.3,
+                  child: ValueListenableBuilder<int>(
+                    valueListenable: widget.countdown,
+                    builder: (context, seconds, _) => Text(
+                      'Invite sent to @${widget.friend.username}. They can join from this chat within $seconds seconds.',
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                        color: isDark ? Colors.white70 : const Color(0xFF58527A),
+                        height: 1.3,
+                      ),
                     ),
                   ),
                 ),
@@ -1417,27 +1715,6 @@ class _FriendInviteWaitingSheetState extends State<_FriendInviteWaitingSheet>
             ),
           ),
           const SizedBox(height: 22),
-          SizedBox(
-            width: double.infinity,
-            height: 52,
-            child: ElevatedButton.icon(
-              onPressed: widget.onEnterRoom,
-              icon: const Icon(Icons.sports_esports_rounded, size: 21),
-              label: const Text(
-                'Enter Game Room',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF5E44F3),
-                foregroundColor: Colors.white,
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 8),
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
             child: Text(

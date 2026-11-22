@@ -144,51 +144,87 @@ function applyRps(game, userKey, moveData) {
 
   const player1 = current.player1 || game.createdBy;
   let player2 = current.player2 || game.opponent || null;
-
-  if (sameUser(userKey, player1)) {
-    if (current.p1Move) return { ok: false, reason: "Your move is already locked." };
-  } else if (player2) {
-    if (!sameUser(userKey, player2)) return { ok: false, reason: "You are not a player in this game." };
-    if (current.p2Move) return { ok: false, reason: "Your move is already locked." };
-  } else {
-    player2 = userKey;
+  const isPlayer1 = sameUser(userKey, player1);
+  if (!isPlayer1 && player2 && !sameUser(userKey, player2)) {
+    return { ok: false, reason: "You are not a player in this game." };
   }
+  if (!isPlayer1 && !player2) player2 = userKey;
 
-  const p1Move = sameUser(userKey, player1) ? move : current.p1Move;
-  const p2Move = sameUser(userKey, player2) ? move : current.p2Move;
+  const target = Math.max(1, Math.min(10, Number(current.target) || 3));
+  const p1Score = Math.max(0, Number(current.p1Score) || 0);
+  const p2Score = Math.max(0, Number(current.p2Score) || 0);
+  const round = Math.max(1, Number(current.round) || 1);
+  const currentRoundResolved = current.roundResolved === true;
+
+  // The first move after a revealed round opens the next round. This lets
+  // either player act first without relying on both clients to reset in sync.
+  const base = currentRoundResolved
+    ? {
+        ...current,
+        round: round + 1,
+        p1Move: null,
+        p2Move: null,
+        roundResolved: false,
+        roundWinner: null,
+        roundResolvedAt: null,
+        roundMessage: null,
+      }
+    : current;
+  const ownMove = isPlayer1 ? base.p1Move : base.p2Move;
+  if (ownMove) return { ok: false, reason: "Your move is already locked." };
+
+  const p1Move = isPlayer1 ? move : base.p1Move;
+  const p2Move = isPlayer1 ? base.p2Move : move;
+  const data = { ...base, player1, player2, target, p1Score, p2Score, p1Move, p2Move };
   if (!p1Move || !p2Move) {
     return {
       ok: true,
       game: {
         ...game,
         state: "in_progress",
-        turn: p1Move ? player2 : player1,
-        data: { ...current, player1, player2, p1Move, p2Move },
+        turn: "",
+        winner: undefined,
+        data,
         lastMoveBy: userKey,
         updatedAt: Date.now(),
       },
     };
   }
 
-  let winner = "draw";
+  let roundWinner = "draw";
   if (p1Move !== p2Move) {
     const p1Wins =
       (p1Move === "rock" && p2Move === "scissors") ||
       (p1Move === "paper" && p2Move === "rock") ||
       (p1Move === "scissors" && p2Move === "paper");
-    winner = p1Wins ? player1 : player2;
+    roundWinner = p1Wins ? player1 : player2;
   }
+
+  const nextP1Score = p1Score + (sameUser(roundWinner, player1) ? 1 : 0);
+  const nextP2Score = p2Score + (sameUser(roundWinner, player2) ? 1 : 0);
+  const matchWinner = nextP1Score >= target ? player1 : nextP2Score >= target ? player2 : undefined;
+  const now = Date.now();
 
   return {
     ok: true,
     game: {
       ...game,
-      state: "finished",
+      state: matchWinner ? "finished" : "in_progress",
       turn: "",
-      winner,
-      data: { ...current, player1, player2, p1Move, p2Move },
+      winner: matchWinner,
+      data: {
+        ...data,
+        p1Score: nextP1Score,
+        p2Score: nextP2Score,
+        roundResolved: true,
+        roundWinner,
+        roundResolvedAt: now,
+        roundMessage: roundWinner === "draw"
+          ? "It's a tie"
+          : `${roundWinner === player1 ? p1Move : p2Move} wins the round`,
+      },
       lastMoveBy: userKey,
-      updatedAt: Date.now(),
+      updatedAt: now,
     },
   };
 }
@@ -228,7 +264,7 @@ function createGameChallenge(input = {}) {
   const initialOpponent = toType === "friend" ? to : null;
   const data = gameType === "tictactoe"
     ? { board, playerX: userName }
-    : { player1: userName, player2: initialOpponent };
+    : { player1: userName, player2: initialOpponent, round: 1, p1Score: 0, p2Score: 0, target: 3 };
 
   return {
     ok: true,
