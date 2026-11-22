@@ -108,7 +108,9 @@ void main() {
       onRejected: (_, reason) => rejectionReason = reason,
     );
     expect(rejectionReason, 'blocked');
-    expect(sync.pendingMessages, isEmpty);
+    expect(sync.pendingMessages, hasLength(1));
+    expect(sync.pendingMessages.single.isFailed, isTrue);
+    expect(sync.pendingMessages.single.lastError, 'blocked');
 
     await LocalDbService.close();
     await directory.delete(recursive: true);
