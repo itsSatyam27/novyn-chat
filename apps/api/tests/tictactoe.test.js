@@ -202,17 +202,25 @@ test("Rock Paper Scissors locks both player choices and resolves the best-of-thr
 test("Rock Paper Scissors handles best-of-three draws and rejects invalid or repeated moves", () => {
   let game = createRpsGame();
   assert.equal(applyGameMove(game, "alice", { move: "lizard" }).ok, false);
+  const tieFirst = applyGameMove(game, "alice", { move: "paper" });
+  assert.equal(tieFirst.ok, true);
+  const tieSecond = applyGameMove(tieFirst.game, "bob", { move: "paper" });
+  assert.equal(tieSecond.ok, true);
+  game = tieSecond.game;
+  assert.equal(game.state, "in_progress");
+  assert.equal(game.data.roundWinner, "draw");
+
   for (let round = 0; round < 3; round++) {
-    const first = applyGameMove(game, "alice", { move: "paper" });
+    const first = applyGameMove(game, "alice", { move: "rock" });
     assert.equal(first.ok, true);
-    assert.equal(applyGameMove(first.game, "alice", { move: "rock" }).ok, false);
-    const second = applyGameMove(first.game, "bob", { move: "paper" });
+    assert.equal(applyGameMove(first.game, "alice", { move: "paper" }).ok, false);
+    const second = applyGameMove(first.game, "bob", { move: "scissors" });
     assert.equal(second.ok, true);
     game = second.game;
     if (round < 2) assert.equal(game.state, "in_progress");
   }
   assert.equal(game.state, "finished");
-  assert.equal(game.winner, "draw");
+  assert.equal(game.winner, "Alice");
   assert.equal(applyGameMove(game, "bob", { move: "scissors" }).ok, false);
 });
 
