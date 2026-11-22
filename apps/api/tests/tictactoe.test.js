@@ -181,13 +181,22 @@ function createRpsGame() {
   return result.game;
 }
 
-test("Rock Paper Scissors locks both player choices and resolves the winner", () => {
-  const start = createRpsGame();
-  const first = applyGameMove(start, "alice", { move: "rock" });
-  assert.equal(first.ok, true);
-  assert.equal(first.game.state, "in_progress");
-  assert.equal(first.game.turn, "bob");
-  assert.equal(first.game.data.p1Move, "rock");
+test("Rock Paper Scissors locks both player choices and resolves the best-of-three winner", () => {
+  let game = createRpsGame();
+  for (let round = 0; round < 3; round++) {
+    const first = applyGameMove(game, "alice", { move: "rock" });
+    assert.equal(first.ok, true);
+    assert.equal(first.game.state, "in_progress");
+    assert.equal(first.game.data.p1Move, "rock");
+    const second = applyGameMove(first.game, "bob", { move: "scissors" });
+    assert.equal(second.ok, true);
+    game = second.game;
+    if (round < 2) assert.equal(game.state, "in_progress");
+  }
+  assert.equal(game.state, "finished");
+  assert.equal(game.winner, "Alice");
+  assert.equal(game.data.p2Move, "scissors");
+});
 
   const second = applyGameMove(first.game, "bob", { move: "scissors" });
   assert.equal(second.ok, true);
@@ -196,13 +205,22 @@ test("Rock Paper Scissors locks both player choices and resolves the winner", ()
   assert.equal(second.game.data.p2Move, "scissors");
 });
 
-test("Rock Paper Scissors handles draws and rejects invalid or repeated moves", () => {
-  const start = createRpsGame();
-  assert.equal(applyGameMove(start, "alice", { move: "lizard" }).ok, false);
-
-  const first = applyGameMove(start, "alice", { move: "paper" });
-  assert.equal(first.ok, true);
-  assert.equal(applyGameMove(first.game, "alice", { move: "rock" }).ok, false);
+test("Rock Paper Scissors handles best-of-three draws and rejects invalid or repeated moves", () => {
+  let game = createRpsGame();
+  assert.equal(applyGameMove(game, "alice", { move: "lizard" }).ok, false);
+  for (let round = 0; round < 3; round++) {
+    const first = applyGameMove(game, "alice", { move: "paper" });
+    assert.equal(first.ok, true);
+    assert.equal(applyGameMove(first.game, "alice", { move: "rock" }).ok, false);
+    const second = applyGameMove(first.game, "bob", { move: "paper" });
+    assert.equal(second.ok, true);
+    game = second.game;
+    if (round < 2) assert.equal(game.state, "in_progress");
+  }
+  assert.equal(game.state, "finished");
+  assert.equal(game.winner, "draw");
+  assert.equal(applyGameMove(game, "bob", { move: "scissors" }).ok, false);
+});
 
   const second = applyGameMove(first.game, "bob", { move: "paper" });
   assert.equal(second.ok, true);
