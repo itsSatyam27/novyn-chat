@@ -30,7 +30,6 @@ class _GamesScreenState extends State<GamesScreen> {
   String _statsUsername = '';
   GameStatsSnapshot _stats = GameStatsSnapshot.empty;
   int _statsLoadGeneration = 0;
-  String? _lastPlayedType;
   double _prevBottomInset = 0;
 
   static const List<_GameOption> _games = <_GameOption>[
@@ -85,10 +84,7 @@ class _GamesScreenState extends State<GamesScreen> {
 
   Future<void> _loadLastPlayed() async {
     try {
-      final saved = (await SharedPreferences.getInstance()).getString(_lastPlayedKey);
-      if (!mounted) return;
-      setState(() => _lastPlayedType =
-          _games.any((game) => game.type == saved) ? saved : null);
+      await SharedPreferences.getInstance();
     } catch (_) {}
   }
 
@@ -115,7 +111,6 @@ class _GamesScreenState extends State<GamesScreen> {
   Future<void> _openGame(_GameOption game) async {
     if (!mounted) return;
     _searchFocusNode.unfocus();
-    setState(() => _lastPlayedType = game.type);
     unawaited(() async {
       try {
         final prefs = await SharedPreferences.getInstance();

@@ -255,9 +255,7 @@ class _RajaMantriScreenState extends State<RajaMantriScreen>
     // Screenshot 3: "You are Sipahi. Who is the Chor?" (You guesses)
     // Screenshot 2: "Bholu picked Pikachu. Chor caught! 🎉" (Bholu was Sipahi/Mantri and guessed)
 
-    final userRole = _players[0].currentRole!;
     final rajaIndex = _players.indexWhere((p) => p.currentRole == RMRole.raja);
-    final mantriIndex = _players.indexWhere((p) => p.currentRole == RMRole.mantri);
     final sipahiIndex = _players.indexWhere((p) => p.currentRole == RMRole.sipahi);
 
     // Raja is always known/revealed first
@@ -747,9 +745,9 @@ class _RajaMantriScreenState extends State<RajaMantriScreen>
 
   Widget _buildRoleLine(RMPlayer player, bool isDark) {
     if (!player.isRoleRevealed || player.currentRole == null) {
-      return Row(
+      return const Row(
         mainAxisSize: MainAxisSize.min,
-        children: const [
+        children: [
           Text(
             '❓',
             style: TextStyle(fontSize: 11),
@@ -820,12 +818,12 @@ class _RajaMantriScreenState extends State<RajaMantriScreen>
             fontWeight: FontWeight.w800,
             color: isDark ? Colors.white : const Color(0xFF1E1A33),
           ),
-          children: [
-            const TextSpan(
+          children: const [
+            TextSpan(
               text: 'You ',
               style: TextStyle(color: Color(0xFF5E44F3)),
             ),
-            const TextSpan(text: 'are Sipahi. Who is the Chor?'),
+            TextSpan(text: 'are Sipahi. Who is the Chor?'),
           ],
         ),
       );
@@ -880,7 +878,7 @@ class _RajaMantriScreenState extends State<RajaMantriScreen>
   Widget _buildChitsRow(bool isDark) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final totalSpacing = 3 * 10.0;
+        const totalSpacing = 3 * 10.0;
         final chitWidth = (constraints.maxWidth - totalSpacing) / 4;
         final chitHeight = chitWidth * (4 / 3);
 

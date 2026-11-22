@@ -67,7 +67,15 @@ class _RajaMantriLobbyScreenState extends State<RajaMantriLobbyScreen> {
 
     setState(() => _loadingFriends = true);
     try {
-      final list = await context.read<FriendService>().fetchFriends(username);
+      final friendService = context.read<FriendService>();
+      final cached = friendService.cachedFriends;
+      if (cached != null && cached.isNotEmpty && mounted) {
+        setState(() {
+          _friends = cached;
+          _loadingFriends = false;
+        });
+      }
+      final list = await friendService.friendsStream(username).first;
       if (mounted) {
         setState(() {
           _friends = list;
@@ -218,12 +226,12 @@ class _RajaMantriLobbyScreenState extends State<RajaMantriLobbyScreen> {
                               final friend = _friends[idx];
                               return ListTile(
                                 leading: UserAvatar(
-                                  name: friend.displayName.isNotEmpty ? friend.displayName : friend.username,
+                                  name: friend.name.isNotEmpty ? friend.name : friend.username,
                                   photoUrl: friend.photoUrl,
                                   radius: 20,
                                 ),
                                 title: Text(
-                                  friend.displayName.isNotEmpty ? friend.displayName : friend.username,
+                                  friend.name.isNotEmpty ? friend.name : friend.username,
                                   style: TextStyle(
                                     fontWeight: FontWeight.w700,
                                     color: isDark ? Colors.white : const Color(0xFF1E1A33),
@@ -248,8 +256,8 @@ class _RajaMantriLobbyScreenState extends State<RajaMantriLobbyScreen> {
                                     Navigator.of(ctx).pop();
                                     setState(() {
                                       _slots[slotIndex] = _LobbySlot(
-                                        name: friend.displayName.isNotEmpty
-                                            ? friend.displayName
+                                        name: friend.name.isNotEmpty
+                                            ? friend.name
                                             : friend.username,
                                         photoUrl: friend.photoUrl,
                                         isReady: true,
@@ -257,7 +265,7 @@ class _RajaMantriLobbyScreenState extends State<RajaMantriLobbyScreen> {
                                     });
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       SnackBar(
-                                        content: Text('Invited ${friend.displayName.isNotEmpty ? friend.displayName : friend.username}!'),
+                                        content: Text('Invited ${friend.name.isNotEmpty ? friend.name : friend.username}!'),
                                         duration: const Duration(seconds: 2),
                                       ),
                                     );

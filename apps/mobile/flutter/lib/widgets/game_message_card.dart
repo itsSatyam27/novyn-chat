@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import '../models/chat_models.dart';
 import 'novyn_alert.dart';
 import 'package:provider/provider.dart';
 import '../services/socket_service.dart';
@@ -1614,7 +1613,6 @@ class _RockPaperScissorsPanel extends StatefulWidget {
 
 class _RockPaperScissorsPanelState extends State<_RockPaperScissorsPanel> with SingleTickerProviderStateMixin {
   static const _moves = ['rock', 'paper', 'scissors'];
-  static const _labels = {'rock': 'Rock', 'paper': 'Paper', 'scissors': 'Scissors'};
   static const _countdownWords = ['Rock…', 'Paper…', 'Scissors…', 'Shoot!'];
   late final AnimationController _shakeController;
   Timer? _shuffleTimer;
@@ -2034,7 +2032,7 @@ class _RockPaperScissorsPanelState extends State<_RockPaperScissorsPanel> with S
             ),
           ],
         ),
-        SizedBox(height: widget.compact ? 20 : 64),
+        const SizedBox(height: 56),
         Row(
           children: _moves.map((move) => Expanded(
             child: Padding(
