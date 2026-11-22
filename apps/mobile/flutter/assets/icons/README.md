@@ -1,8 +1,8 @@
-# Icons
+# Novyn app icon assets
 
-Place your app icons here:
-- app_icon.png (1024x1024) — main app icon
-- app_icon_foreground.png — for adaptive icon (Android)
-- app_icon_background.png — for adaptive icon background (Android)
+- `app_icon.png`: 1024×1024 master icon used for app launchers and branded screens.
+- `app_icon_foreground.png`: transparent Android adaptive icon foreground.
+- `app_icon_background.png`: Android adaptive icon background.
+- `novyn-badge.png`: shared branded image used by Flutter splash, sign-in, and onboarding screens.
 
-Run `flutter pub run flutter_launcher_icons` after adding icons.
+To regenerate Android, iOS, web, Windows, and macOS launcher assets after changing these files, run `dart run flutter_launcher_icons` from `apps/mobile/flutter`.

@@ -179,7 +179,7 @@ class _GameRoomScreenState extends State<GameRoomScreen> {
                 ),
               )
             : ListView(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 40),
                 children: [
                   GameMessageCard(
                     messageId: widget.messageId ??
@@ -194,7 +194,7 @@ class _GameRoomScreenState extends State<GameRoomScreen> {
                     compact: false,
                     randomSessionId: widget.randomSessionId,
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 28),
                   Text(
                     widget.randomSessionId == null
                         ? 'Stay on this screen while you play. Your result is saved in chat.'

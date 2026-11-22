@@ -229,10 +229,117 @@ function applyRps(game, userKey, moveData) {
   };
 }
 
+function handleRematchAction(game, userKey, moveData) {
+  const current = cloneData(game.data);
+  const player1 = current.player1 || current.playerX || game.createdBy;
+  const player2 = current.player2 || current.playerO || game.opponent;
+
+  const now = Date.now();
+
+  if (moveData.action === "rematch_request") {
+    return {
+      ok: true,
+      game: {
+        ...game,
+        data: {
+          ...current,
+          rematch: {
+            requestedBy: userKey,
+            requestedAt: now,
+            expiresAt: now + 15000,
+            status: "pending",
+          },
+        },
+        updatedAt: now,
+      },
+    };
+  }
+
+  if (moveData.action === "rematch_decline") {
+    return {
+      ok: true,
+      game: {
+        ...game,
+        data: {
+          ...current,
+          rematch: {
+            ...(current.rematch || {}),
+            status: "declined",
+            declinedBy: userKey,
+          },
+        },
+        updatedAt: now,
+      },
+    };
+  }
+
+  if (moveData.action === "rematch_accept" || moveData.action === "rematch") {
+    if (game.gameType === "tictactoe") {
+      return {
+        ok: true,
+        game: {
+          ...game,
+          state: "in_progress",
+          winner: undefined,
+          turn: player1,
+          data: {
+            ...current,
+            board: Array(9).fill(null),
+            p1Score: 0,
+            p2Score: 0,
+            winningLine: [],
+            rematch: null,
+          },
+          lastMoveBy: userKey,
+          updatedAt: now,
+        },
+      };
+    }
+
+    if (game.gameType === "rps") {
+      return {
+        ok: true,
+        game: {
+          ...game,
+          state: "in_progress",
+          winner: undefined,
+          turn: "",
+          data: {
+            ...current,
+            round: 1,
+            p1Score: 0,
+            p2Score: 0,
+            p1Move: null,
+            p2Move: null,
+            roundResolved: false,
+            roundWinner: null,
+            roundResolvedAt: null,
+            roundMessage: null,
+            rematch: null,
+          },
+          lastMoveBy: userKey,
+          updatedAt: now,
+        },
+      };
+    }
+  }
+
+  return { ok: false, reason: "Invalid rematch action." };
+}
+
 function applyGameMove(game, userKey, moveData) {
   if (!game || !GAME_TYPES.has(game.gameType)) return { ok: false, reason: "Unsupported game." };
   if (!moveData || typeof moveData !== "object" || Array.isArray(moveData)) {
     return { ok: false, reason: "Invalid move payload." };
+  }
+
+  if (
+    moveData.action === "rematch" ||
+    moveData.action === "rematch_request" ||
+    moveData.action === "rematch_accept" ||
+    moveData.action === "rematch_decline"
+  ) {
+    return handleRematchAction(game, userKey, moveData);
   }
 
   switch (game.gameType) {

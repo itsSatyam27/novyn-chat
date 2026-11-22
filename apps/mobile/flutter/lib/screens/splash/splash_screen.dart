@@ -8,9 +8,8 @@ import '../../services/auth_service.dart';
 import '../auth/auth_screen.dart';
 import '../main_screen.dart';
 
-/// Animated light aurora splash. Returning accounts are restored from the
-/// local identity/cache first; remote session verification continues in the
-/// background so a slow backend does not hold up the home screen.
+/// Animated light aurora splash. Wait for local session restoration before
+/// choosing the signed-in or signed-out destination.
 class SplashScreen extends StatefulWidget {
   const SplashScreen({
     super.key,
@@ -96,8 +95,6 @@ class _SplashScreenState extends State<SplashScreen>
   }
 
   Future<void> _waitForSessionResolution(AuthService auth) async {
-    // For returning accounts this now means local account/database bootstrap
-    // is ready. Remote cookie verification runs independently in the background.
     while (mounted && !auth.authReady) {
       await Future<void>.delayed(const Duration(milliseconds: 250));
     }
@@ -493,7 +490,7 @@ class _SplashScreenState extends State<SplashScreen>
             ),
             const SizedBox(height: 12),
             const Text(
-              'Getting your chats ready',
+              'Your space, your people',
               style: TextStyle(
                 fontSize: 12.5,
                 fontWeight: FontWeight.w500,

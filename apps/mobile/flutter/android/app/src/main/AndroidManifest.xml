@@ -32,7 +32,7 @@
         android:allowBackup="false"
         android:label="Novyn"
         android:name="${applicationName}"
-        android:icon="@drawable/novyn_wings_icon">
+        android:icon="@mipmap/ic_launcher">
         <activity
             android:name="com.example.novyn.MainActivity"
             android:exported="true"

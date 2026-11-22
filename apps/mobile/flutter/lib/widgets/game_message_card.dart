@@ -265,6 +265,7 @@ class _GameMessageCardState extends State<GameMessageCard> {
           'playerO': playerO,
         }),
         onPlayAgain: _startRematch,
+        onRematchAction: _sendRematchAction,
       );
     }
     if (_type == 'rps') {
@@ -277,6 +278,7 @@ class _GameMessageCardState extends State<GameMessageCard> {
         startingRematch: _startingRematch,
         onSendMove: (move) => _move({'move': move}),
         onPlayAgain: _startRematch,
+        onRematchAction: _sendRematchAction,
       );
     }
     final scheme = Theme.of(context).colorScheme;
@@ -362,52 +364,28 @@ class _GameMessageCardState extends State<GameMessageCard> {
     setState(() => _startingRematch = true);
     try {
       final socket = context.read<SocketService>();
-      final messageId = await socket.sendGameChallenge(
-        _type,
+      await socket.makeGameMove(
+        widget.messageId,
         widget.peerUsername,
+        {'action': 'rematch_accept'},
         isGroup: widget.isGroup,
       );
-      final history = await socket.openChat(
-        widget.peerUsername,
-        const <Message>[],
-        isGroup: widget.isGroup,
-      );
-      Map<String, dynamic>? nextGame;
-      for (final message in history) {
-        if (message.id == messageId && message.game != null) {
-          nextGame = Map<String, dynamic>.from(message.game!);
-          break;
-        }
-      }
-      if (!mounted) return;
-      if (nextGame == null) {
-        throw StateError('The rematch was sent, but its game room could not be loaded.');
-      }
-      await Navigator.of(context).push<void>(
-        MaterialPageRoute<void>(
-          builder: (_) => GameRoomScreen(
-            messageId: messageId,
-            peerUsername: widget.peerUsername,
-            currentUsername: widget.currentUsername,
-            initialGame: nextGame!,
-            isGroup: widget.isGroup,
-          ),
-        ),
-      );
-    } catch (error) {
-      if (!mounted) return;
-      NovynAlert.show(
-        context,
-        error is StateError
-            ? error.message.toString()
-            : 'Could not start the rematch. Check your connection and try again.',
-        isError: true,
-        title: 'Could not start rematch',
-        icon: Icons.sports_esports_rounded,
-      );
+    } catch (_) {
     } finally {
       if (mounted) setState(() => _startingRematch = false);
     }
+  }
+
+  Future<void> _sendRematchAction(String action) async {
+    try {
+      final socket = context.read<SocketService>();
+      await socket.makeGameMove(
+        widget.messageId,
+        widget.peerUsername,
+        {'action': action},
+        isGroup: widget.isGroup,
+      );
+    } catch (_) {}
   }
 }
 
@@ -419,6 +397,8 @@ void _showGameOverModal(
   required String score,
   required Future<void> Function() onPlayAgain,
   required VoidCallback onClose,
+  Future<void> Function(String action)? onRematchAction,
+  bool isOpponentRequest = false,
 }) {
   showModalBottomSheet<void>(
     context: context,
@@ -426,137 +406,366 @@ void _showGameOverModal(
     enableDrag: true,
     backgroundColor: Colors.transparent,
     builder: (sheetContext) {
-      final isDark = Theme.of(sheetContext).brightness == Brightness.dark;
-      bool startingRematch = false;
-      return StatefulBuilder(
-        builder: (context, setModalState) {
-          return Container(
-            padding: const EdgeInsets.fromLTRB(24, 28, 24, 32),
-            decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF201B36) : Colors.white,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.15),
-                  blurRadius: 20,
-                  offset: const Offset(0, -4),
-                ),
-              ],
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  emoji,
-                  style: const TextStyle(fontSize: 48),
-                ),
-                const SizedBox(height: 14),
-                Text(
-                  title,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w900,
-                    color: isDark ? Colors.white : const Color(0xFF1E1A33),
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  subtitle,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    color: isDark ? Colors.white70 : const Color(0xFF7E7A9C),
-                  ),
-                ),
-                const SizedBox(height: 18),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: isDark ? const Color(0xFF2C2649) : const Color(0xFFF3F0FA),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    score,
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w900,
-                      color: isDark ? Colors.white : const Color(0xFF1E1A33),
-                      letterSpacing: 1.2,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 24),
-                FilledButton(
-                  onPressed: startingRematch
-                      ? null
-                      : () async {
-                          setModalState(() => startingRematch = true);
-                          try {
-                            Navigator.of(sheetContext).pop();
-                            await onPlayAgain();
-                          } catch (_) {
-                            if (sheetContext.mounted) {
-                              setModalState(() => startingRematch = false);
-                            }
-                          }
-                        },
-                  style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFF5E44F3),
-                    foregroundColor: Colors.white,
-                    minimumSize: const Size(double.infinity, 52),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                  ),
-                  child: startingRematch
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        )
-                      : const Text(
-                          'Play again',
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                ),
-                const SizedBox(height: 12),
-                FilledButton(
-                  onPressed: () {
-                    Navigator.of(sheetContext).pop();
-                    onClose();
-                  },
-                  style: FilledButton.styleFrom(
-                    backgroundColor: isDark ? const Color(0xFF2C2649) : const Color(0xFFF3F0FA),
-                    foregroundColor: const Color(0xFFD81E5B),
-                    minimumSize: const Size(double.infinity, 52),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                  ),
-                  child: const Text(
-                    'Close room',
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFFD81E5B),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          );
-        },
+      return _GameOverModalContent(
+        emoji: emoji,
+        title: title,
+        subtitle: subtitle,
+        score: score,
+        onPlayAgain: onPlayAgain,
+        onClose: onClose,
+        onRematchAction: onRematchAction,
+        isOpponentRequest: isOpponentRequest,
       );
     },
   );
+}
+
+class _GameOverModalContent extends StatefulWidget {
+  const _GameOverModalContent({
+    required this.emoji,
+    required this.title,
+    required this.subtitle,
+    required this.score,
+    required this.onPlayAgain,
+    required this.onClose,
+    this.onRematchAction,
+    this.isOpponentRequest = false,
+  });
+
+  final String emoji;
+  final String title;
+  final String subtitle;
+  final String score;
+  final Future<void> Function() onPlayAgain;
+  final VoidCallback onClose;
+  final Future<void> Function(String action)? onRematchAction;
+  final bool isOpponentRequest;
+
+  @override
+  State<_GameOverModalContent> createState() => _GameOverModalContentState();
+}
+
+class _GameOverModalContentState extends State<_GameOverModalContent> {
+  bool _rematchRequested = false;
+  bool _opponentWantsRematch = false;
+  int _secondsRemaining = 15;
+  Timer? _timer;
+  bool _loading = false;
+  String? _statusNote;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.isOpponentRequest) {
+      _opponentWantsRematch = true;
+      _startTimer();
+    }
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  void _startTimer() {
+    _timer?.cancel();
+    _secondsRemaining = 15;
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      if (_secondsRemaining <= 1) {
+        timer.cancel();
+        setState(() {
+          _secondsRemaining = 0;
+          _rematchRequested = false;
+          _opponentWantsRematch = false;
+          _statusNote = 'Rematch request timed out';
+        });
+      } else {
+        setState(() => _secondsRemaining--);
+      }
+    });
+  }
+
+  Future<void> _handlePlayAgain() async {
+    setState(() {
+      _rematchRequested = true;
+      _statusNote = null;
+      _loading = false;
+    });
+    _startTimer();
+    if (widget.onRematchAction != null) {
+      try {
+        await widget.onRematchAction!('rematch_request');
+      } catch (_) {}
+    }
+  }
+
+  Future<void> _handleAccept() async {
+    _timer?.cancel();
+    setState(() => _loading = true);
+    try {
+      if (widget.onRematchAction != null) {
+        await widget.onRematchAction!('rematch_accept');
+      }
+      await widget.onPlayAgain();
+      if (mounted) Navigator.of(context).pop();
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _statusNote = 'Could not accept rematch. Try again.';
+        });
+      }
+    }
+  }
+
+  Future<void> _handleDecline() async {
+    _timer?.cancel();
+    if (widget.onRematchAction != null) {
+      try {
+        await widget.onRematchAction!('rematch_decline');
+      } catch (_) {}
+    }
+    setState(() {
+      _opponentWantsRematch = false;
+      _rematchRequested = false;
+      _statusNote = 'Rematch declined';
+    });
+  }
+
+  void _handleCancelRequest() {
+    _timer?.cancel();
+    if (widget.onRematchAction != null) {
+      try {
+        widget.onRematchAction!('rematch_decline');
+      } catch (_) {}
+    }
+    setState(() {
+      _rematchRequested = false;
+      _statusNote = 'Rematch request cancelled';
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(24, 28, 24, 32),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF201B36) : Colors.white,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.15),
+            blurRadius: 20,
+            offset: const Offset(0, -4),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            _opponentWantsRematch ? '🤝' : (_rematchRequested ? '⏱' : widget.emoji),
+            style: const TextStyle(fontSize: 48),
+          ),
+          const SizedBox(height: 14),
+          Text(
+            _opponentWantsRematch
+                ? 'Rematch Challenge!'
+                : (_rematchRequested ? 'Rematch Requested' : widget.title),
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.w900,
+              color: isDark ? Colors.white : const Color(0xFF1E1A33),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            _statusNote ??
+                (_opponentWantsRematch
+                    ? 'Opponent wants to play again! Accept within 15s'
+                    : (_rematchRequested
+                        ? 'Waiting for opponent to accept...'
+                        : widget.subtitle)),
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+              color: isDark ? Colors.white70 : const Color(0xFF7E7A9C),
+            ),
+          ),
+          const SizedBox(height: 18),
+          if (_opponentWantsRematch || _rematchRequested) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: const Color(0xFF5E44F3).withValues(alpha: isDark ? 0.2 : 0.1),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.timer_outlined, size: 16, color: Color(0xFF5E44F3)),
+                  const SizedBox(width: 6),
+                  Text(
+                    '${_secondsRemaining}s remaining',
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF5E44F3),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ] else ...[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF2C2649) : const Color(0xFFF3F0FA),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                widget.score,
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w900,
+                  color: isDark ? Colors.white : const Color(0xFF1E1A33),
+                  letterSpacing: 1.2,
+                ),
+              ),
+            ),
+          ],
+          const SizedBox(height: 24),
+          if (_opponentWantsRematch) ...[
+            Row(
+              children: [
+                Expanded(
+                  child: FilledButton(
+                    onPressed: _loading ? null : _handleAccept,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFF5E44F3),
+                      foregroundColor: Colors.white,
+                      minimumSize: const Size(double.infinity, 52),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                    child: _loading
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : Text(
+                            'Accept (${_secondsRemaining}s)',
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: FilledButton(
+                    onPressed: _loading ? null : _handleDecline,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: isDark ? const Color(0xFF2C2649) : const Color(0xFFF3F0FA),
+                      foregroundColor: const Color(0xFFD81E5B),
+                      minimumSize: const Size(double.infinity, 52),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                    child: const Text(
+                      'Decline',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFFD81E5B),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ] else if (_rematchRequested) ...[
+            FilledButton(
+              onPressed: _handleCancelRequest,
+              style: FilledButton.styleFrom(
+                backgroundColor: isDark ? const Color(0xFF2C2649) : const Color(0xFFF3F0FA),
+                foregroundColor: isDark ? Colors.white70 : const Color(0xFF5A5579),
+                minimumSize: const Size(double.infinity, 52),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+              child: const Text(
+                'Cancel request',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ] else ...[
+            FilledButton(
+              onPressed: _handlePlayAgain,
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFF5E44F3),
+                foregroundColor: Colors.white,
+                minimumSize: const Size(double.infinity, 52),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+              child: const Text(
+                'Play again',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            FilledButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                widget.onClose();
+              },
+              style: FilledButton.styleFrom(
+                backgroundColor: isDark ? const Color(0xFF2C2649) : const Color(0xFFF3F0FA),
+                foregroundColor: const Color(0xFFD81E5B),
+                minimumSize: const Size(double.infinity, 52),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+              child: const Text(
+                'Close room',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFFD81E5B),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
 }
 
 class _RpsPlayerCard extends StatelessWidget {
@@ -924,6 +1133,7 @@ class _TicTacToeMatchPanel extends StatefulWidget {
     required this.startingRematch,
     required this.onSendBoard,
     required this.onPlayAgain,
+    this.onRematchAction,
   });
 
   final Map<String, dynamic> game;
@@ -935,6 +1145,7 @@ class _TicTacToeMatchPanel extends StatefulWidget {
   final bool startingRematch;
   final Future<bool> Function(List<dynamic> board, String playerX, String playerO) onSendBoard;
   final Future<void> Function() onPlayAgain;
+  final Future<void> Function(String action)? onRematchAction;
 
   @override
   State<_TicTacToeMatchPanel> createState() => _TicTacToeMatchPanelState();
@@ -995,16 +1206,24 @@ class _TicTacToeMatchPanelState extends State<_TicTacToeMatchPanel> {
     final myScore = isPlayerX ? winsX : winsO;
     final opponentScore = isPlayerX ? winsO : winsX;
 
+    final rematch = data['rematch'];
+    final isOpponentRequest = rematch is Map &&
+        rematch['status'] == 'pending' &&
+        rematch['requestedBy']?.toString().toLowerCase() !=
+            widget.currentUsername.toLowerCase();
+
     _showGameOverModal(
       context,
       emoji: tie ? '🤝' : (meWon ? '🏆' : '⚡'),
       title: tie ? 'It’s a draw' : (meWon ? 'You won!' : '$opponentName wins!'),
       subtitle: tie
-          ? 'Evenly matched. Play again?'
-          : (meWon ? 'Great match! Play again?' : 'So close. Want a rematch?'),
+          ? 'Evenly matched. Want a rematch?'
+          : (meWon ? 'Great match! Want a rematch?' : 'So close. Want a rematch?'),
       score: '$myScore : $opponentScore',
       onPlayAgain: widget.onPlayAgain,
       onClose: () => Navigator.of(context).maybePop(),
+      onRematchAction: widget.onRematchAction,
+      isOpponentRequest: isOpponentRequest,
     );
   }
 
@@ -1376,6 +1595,7 @@ class _RockPaperScissorsPanel extends StatefulWidget {
     required this.startingRematch,
     required this.onSendMove,
     required this.onPlayAgain,
+    this.onRematchAction,
   });
 
   final Map<String, dynamic> game;
@@ -1386,6 +1606,7 @@ class _RockPaperScissorsPanel extends StatefulWidget {
   final bool startingRematch;
   final Future<bool> Function(String move) onSendMove;
   final Future<void> Function() onPlayAgain;
+  final Future<void> Function(String action)? onRematchAction;
 
   @override
   State<_RockPaperScissorsPanel> createState() => _RockPaperScissorsPanelState();
@@ -1602,16 +1823,24 @@ class _RockPaperScissorsPanelState extends State<_RockPaperScissorsPanel> with S
     final myScore = _isPlayer1 ? _displayedP1Score : _displayedP2Score;
     final otherScore = _isPlayer1 ? _displayedP2Score : _displayedP1Score;
 
+    final rematch = widget.game['data']?['rematch'];
+    final isOpponentRequest = rematch is Map &&
+        rematch['status'] == 'pending' &&
+        rematch['requestedBy']?.toString().toLowerCase() !=
+            widget.currentUsername.toLowerCase();
+
     _showGameOverModal(
       context,
       emoji: tie ? '🤝' : (iWon ? '🏆' : '⚡'),
       title: tie ? 'It’s a draw' : (iWon ? 'You won!' : '$_opponentFullName wins!'),
       subtitle: tie
-          ? 'Evenly matched. Play again?'
-          : (iWon ? 'Great match! Play again?' : 'So close. Want a rematch?'),
+          ? 'Evenly matched. Want a rematch?'
+          : (iWon ? 'Great match! Want a rematch?' : 'So close. Want a rematch?'),
       score: '$myScore : $otherScore',
       onPlayAgain: widget.onPlayAgain,
       onClose: () => Navigator.of(context).maybePop(),
+      onRematchAction: widget.onRematchAction,
+      isOpponentRequest: isOpponentRequest,
     );
   }
 
@@ -1805,7 +2034,7 @@ class _RockPaperScissorsPanelState extends State<_RockPaperScissorsPanel> with S
             ),
           ],
         ),
-        const SizedBox(height: 24),
+        SizedBox(height: widget.compact ? 20 : 64),
         Row(
           children: _moves.map((move) => Expanded(
             child: Padding(

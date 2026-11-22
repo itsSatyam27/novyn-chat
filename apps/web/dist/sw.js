@@ -1,4 +1,4 @@
-const CACHE_NAME = "novyn-shell-v42";
+const CACHE_NAME = "novyn-shell-v43";
 const APP_SHELL = [
   "/",
   "/index.html",
@@ -13,6 +13,7 @@ const APP_SHELL = [
   "/pwa-register.js",
   "/manifest.json",
   "/icons/novyn-badge.svg",
+  "/icons/novyn-app-icon.png",
   "/icons/icon-192.png",
   "/icons/icon-192-maskable.png",
   "/icons/icon-512.png",

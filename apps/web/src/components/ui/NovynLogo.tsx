@@ -19,24 +19,21 @@ export const NovynLogo: React.FC<NovynLogoProps> = ({
   style = {},
   onClick,
 }) => {
-  const iconSrc =
-    variant === 'emerald'
-      ? '/icons/novyn-wings-emerald.png'
-      : variant === 'black'
-      ? '/icons/novyn-wings.png'
-      : '/icons/novyn-wings-white.png';
+  const displaySize = withBadge ? badgeSize || Math.round(size * 1.6) : size;
 
   const imgElement = (
     <img
-      src={iconSrc}
-      alt="Novyn Wings Logo"
-      width={size}
-      height={size}
+      src="/icons/novyn-app-icon.png"
+      alt="Novyn app icon"
+      width={displaySize}
+      height={displaySize}
       style={{
-        width: `${size}px`,
-        height: `${size}px`,
+        width: `${displaySize}px`,
+        height: `${displaySize}px`,
         objectFit: 'contain',
         display: 'block',
+        borderRadius: `${Math.round(displaySize * 0.24)}px`,
+        flexShrink: 0,
         pointerEvents: 'none',
         userSelect: 'none',
         ...style,
@@ -45,36 +42,9 @@ export const NovynLogo: React.FC<NovynLogoProps> = ({
     />
   );
 
-  if (!withBadge) {
-    return onClick ? (
-      <div onClick={onClick} style={{ cursor: 'pointer', display: 'inline-flex' }}>
-        {imgElement}
-      </div>
-    ) : (
-      imgElement
-    );
-  }
-
-  const containerSize = badgeSize || Math.round(size * 1.6);
-  const radius = Math.round(containerSize * 0.28);
-
-  return (
-    <div
-      onClick={onClick}
-      style={{
-        width: `${containerSize}px`,
-        height: `${containerSize}px`,
-        borderRadius: `${radius}px`,
-        background: 'linear-gradient(135deg, #7c6cff 0%, #5141cd 100%)',
-        display: 'inline-flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        boxShadow: '0 4px 18px rgba(75, 62, 186, 0.38)',
-        flexShrink: 0,
-        cursor: onClick ? 'pointer' : 'default',
-      }}
-    >
+  return onClick ? (
+    <div onClick={onClick} style={{ cursor: 'pointer', display: 'inline-flex' }}>
       {imgElement}
     </div>
-  );
+  ) : imgElement;
 };

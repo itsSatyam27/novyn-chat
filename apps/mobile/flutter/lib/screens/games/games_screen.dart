@@ -10,6 +10,7 @@ import '../../services/game_history_service.dart';
 import '../../widgets/user_avatar.dart';
 import 'game_history_screen.dart';
 import 'game_lobby_screen.dart';
+import 'raja_mantri_lobby_screen.dart';
 
 class GamesScreen extends StatefulWidget {
   const GamesScreen({super.key});
@@ -48,6 +49,14 @@ class _GamesScreenState extends State<GamesScreen> {
       gradient: [Color(0xFFE53468), Color(0xFFD61E53)],
     ),
   ];
+
+  static const _GameOption _rajaMantriGame = _GameOption(
+    type: 'rajamantri',
+    title: 'Raja Mantri',
+    subtitle: 'Chor Sipahi (4P)',
+    icon: Icons.military_tech_rounded,
+    gradient: [Color(0xFF8B5CF6), Color(0xFF6D28D9)],
+  );
 
   @override
   void initState() {
@@ -113,6 +122,15 @@ class _GamesScreenState extends State<GamesScreen> {
         await prefs.setString(_lastPlayedKey, game.type);
       } catch (_) {}
     }());
+    if (game.type == 'rajamantri') {
+      await Navigator.of(context).push<void>(
+        MaterialPageRoute<void>(
+          builder: (_) => const RajaMantriLobbyScreen(),
+        ),
+      );
+      if (mounted) _loadStats(_statsUsername);
+      return;
+    }
     final screen = GameLobbyScreen(
       gameType: game.type,
       title: game.title == 'Rock Paper' ? 'Rock Paper Scissors' : game.title,
@@ -136,13 +154,20 @@ class _GamesScreenState extends State<GamesScreen> {
   }
 
   List<_GameOption> get _filteredGames {
-    if (_searchQuery.isEmpty) return _games;
-    return _games.where((g) {
-      final q = _searchQuery.toLowerCase();
+    final list = <_GameOption>[..._games];
+    if (_searchQuery.isEmpty) return list;
+    final q = _searchQuery.toLowerCase();
+    final res = list.where((g) {
       return g.title.toLowerCase().contains(q) ||
           g.subtitle.toLowerCase().contains(q) ||
           (g.type == 'rps' && 'rock paper scissors'.contains(q));
     }).toList();
+    if ('raja mantri chor sipahi rmcs'.contains(q) ||
+        _rajaMantriGame.title.toLowerCase().contains(q) ||
+        _rajaMantriGame.subtitle.toLowerCase().contains(q)) {
+      res.add(_rajaMantriGame);
+    }
+    return res;
   }
 
   @override
@@ -380,57 +405,67 @@ class _GamesScreenState extends State<GamesScreen> {
             ),
             const SizedBox(height: 14),
 
-            // 3 P / 4 P "Coming soon" Card
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: CustomPaint(
-                  painter: _DashedBorderPainter(
-                    color: isDark ? const Color(0xFF453B6D) : const Color(0xFFD6CEF8),
-                    strokeWidth: 1.5,
-                    dashWidth: 6,
-                    dashSpace: 5,
-                    radius: 24,
+            // 3 P / 4 P Games Carousel
+            SizedBox(
+              height: 236,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                physics: const BouncingScrollPhysics(),
+                clipBehavior: Clip.none,
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+                children: [
+                  _GameCarouselCard(
+                    game: _rajaMantriGame,
+                    onPlay: () => _openGame(_rajaMantriGame),
                   ),
-                  child: Container(
-                    width: 210,
-                    height: 154,
-                    decoration: BoxDecoration(
-                      color: isDark
-                          ? const Color(0xFF1E1833).withValues(alpha: 0.6)
-                          : Colors.white.withValues(alpha: 0.55),
-                      borderRadius: BorderRadius.circular(24),
+                  const SizedBox(width: 14),
+                  CustomPaint(
+                    painter: _DashedBorderPainter(
+                      color: isDark ? const Color(0xFF453B6D) : const Color(0xFFD6CEF8),
+                      strokeWidth: 1.5,
+                      dashWidth: 6,
+                      dashSpace: 5,
+                      radius: 24,
                     ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Container(
-                          width: 44,
-                          height: 44,
-                          decoration: BoxDecoration(
-                            color: isDark ? const Color(0xFF2C2449) : const Color(0xFFEEEAFB),
-                            shape: BoxShape.circle,
+                    child: Container(
+                      width: 210,
+                      height: 216,
+                      decoration: BoxDecoration(
+                        color: isDark
+                            ? const Color(0xFF1E1833).withValues(alpha: 0.6)
+                            : Colors.white.withValues(alpha: 0.55),
+                        borderRadius: BorderRadius.circular(24),
+                      ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Container(
+                            width: 44,
+                            height: 44,
+                            decoration: BoxDecoration(
+                              color: isDark ? const Color(0xFF2C2449) : const Color(0xFFEEEAFB),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.add_rounded,
+                              color: Color(0xFF5E44F3),
+                              size: 24,
+                            ),
                           ),
-                          child: const Icon(
-                            Icons.add_rounded,
-                            color: Color(0xFF5E44F3),
-                            size: 24,
+                          const SizedBox(height: 12),
+                          const Text(
+                            'Coming soon',
+                            style: TextStyle(
+                              color: Color(0xFF5E44F3),
+                              fontWeight: FontWeight.w800,
+                              fontSize: 14,
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 12),
-                        const Text(
-                          'Coming soon',
-                          style: TextStyle(
-                            color: Color(0xFF5E44F3),
-                            fontWeight: FontWeight.w800,
-                            fontSize: 14,
-                          ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
-                ),
+                ],
               ),
             ),
           ],

@@ -504,13 +504,10 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
                       ],
                     ),
                     clipBehavior: Clip.antiAlias,
-                    child: Padding(
-                      padding: const EdgeInsets.all(10),
-                      child: Image.asset(
-                        'assets/icons/app_icon_foreground.png',
-                        fit: BoxFit.contain,
-                        semanticLabel: 'Novyn',
-                      ),
+                    child: Image.asset(
+                      'assets/icons/app_icon.png',
+                      fit: BoxFit.cover,
+                      semanticLabel: 'Novyn',
                     ),
                   ),
                   const SizedBox(height: 8),
