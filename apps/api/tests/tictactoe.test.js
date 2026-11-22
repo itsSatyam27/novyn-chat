@@ -198,12 +198,6 @@ test("Rock Paper Scissors locks both player choices and resolves the best-of-thr
   assert.equal(game.data.p2Move, "scissors");
 });
 
-  const second = applyGameMove(first.game, "bob", { move: "scissors" });
-  assert.equal(second.ok, true);
-  assert.equal(second.game.state, "finished");
-  assert.equal(second.game.winner, "Alice");
-  assert.equal(second.game.data.p2Move, "scissors");
-});
 
 test("Rock Paper Scissors handles best-of-three draws and rejects invalid or repeated moves", () => {
   let game = createRpsGame();
@@ -222,9 +216,3 @@ test("Rock Paper Scissors handles best-of-three draws and rejects invalid or rep
   assert.equal(applyGameMove(game, "bob", { move: "scissors" }).ok, false);
 });
 
-  const second = applyGameMove(first.game, "bob", { move: "paper" });
-  assert.equal(second.ok, true);
-  assert.equal(second.game.state, "finished");
-  assert.equal(second.game.winner, "draw");
-  assert.equal(applyGameMove(second.game, "bob", { move: "scissors" }).ok, false);
-});
