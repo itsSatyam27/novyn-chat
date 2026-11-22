@@ -564,10 +564,12 @@ class _GameProfileHeroCard extends StatelessWidget {
                   ],
                 ),
               ),
-              Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  onTap: onHistoryTap,
+              Tooltip(
+                message: 'View match history',
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: onHistoryTap,
                   borderRadius: BorderRadius.circular(16),
                   child: Container(
                     width: 44,
