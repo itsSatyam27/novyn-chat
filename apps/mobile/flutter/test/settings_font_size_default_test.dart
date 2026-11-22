@@ -8,13 +8,13 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('Accessibility font-size default', () {
-    test('uses Default (85%) when no preference has been saved', () async {
+    test('uses Default (95%) when no preference has been saved', () async {
       SharedPreferences.setMockInitialValues({});
       final settings = SettingsService();
 
       await settings.load();
 
-      expect(settings.fontSize, 0.85);
+      expect(settings.fontSize, 0.95);
     });
 
     test('allows Small to be smaller than Default', () async {
@@ -41,7 +41,7 @@ void main() {
 
   group('Chat message text size', () {
     test('defaults independently of global accessibility scaling', () async {
-      SharedPreferences.setMockInitialValues({'font_size': 0.85});
+      SharedPreferences.setMockInitialValues({'font_size': 0.95});
       final settings = SettingsService();
 
       await settings.load();
