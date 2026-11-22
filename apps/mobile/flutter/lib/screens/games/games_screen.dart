@@ -3,13 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'connect4_screen.dart';
-import 'doodle_duel_screen.dart';
-import 'game_lobby_screen.dart';
-import 'number_clash_screen.dart';
 import 'rps_screen.dart';
 import 'tictactoe_screen.dart';
-import 'up_down_screen.dart';
 
 class GamesScreen extends StatefulWidget {
   const GamesScreen({super.key});
@@ -20,7 +15,6 @@ class GamesScreen extends StatefulWidget {
 
 class _GamesScreenState extends State<GamesScreen> {
   static const _lastPlayedKey = 'games_last_played_v1';
-  final _gamesSectionKey = GlobalKey();
   String? _lastPlayedType;
 
   @override
@@ -34,104 +28,24 @@ class _GamesScreenState extends State<GamesScreen> {
       final prefs = await SharedPreferences.getInstance();
       final saved = prefs.getString(_lastPlayedKey);
       if (!mounted) return;
-      setState(() => _lastPlayedType = _games.any((game) => game.type == saved) ? saved : null);
-    } catch (_) {
-      // The games hub remains usable when local preferences are unavailable.
-    }
+      setState(() => _lastPlayedType =
+          saved == 'tictactoe' || saved == 'rps' ? saved : null);
+    } catch (_) {}
   }
 
-  _GameOption? get _lastPlayedGame {
-    for (final game in _games) {
-      if (game.type == _lastPlayedType) return game;
-    }
-    return null;
-  }
-
-  static const List<_GameOption> _games = <_GameOption>[
-    _GameOption(
-      'tictactoe',
-      'Tic-Tac-Toe',
-      'Make a line of three',
-      Icons.grid_3x3_rounded,
-      'Quick strategy',
-    ),
-    _GameOption(
-      'rps',
-      'Rock Paper Scissors',
-      'Rock beats scissors',
-      Icons.back_hand_rounded,
-      'Fast showdown',
-    ),
-    _GameOption(
-      'connect4',
-      'Connect 4',
-      'Line up four chips',
-      Icons.circle_rounded,
-      'Think ahead',
-    ),
-    _GameOption(
-      'doodle',
-      'Doodle Duel',
-      'Draw and guess',
-      Icons.draw_rounded,
-      'Creative challenge',
-    ),
-    _GameOption(
-      'numberclash',
-      'Number Clash',
-      'Pick the closest number',
-      Icons.pin_rounded,
-      'Number strategy',
-    ),
-    _GameOption(
-      'updown',
-      'Up or Down',
-      'Predict the next card',
-      Icons.trending_up_rounded,
-      'Card prediction',
-    ),
-  ];
-
-  void _openGame(BuildContext context, _GameOption game) {
-    if (!mounted) return;
-    setState(() => _lastPlayedType = game.type);
+  void _openGame(String type) {
+    setState(() => _lastPlayedType = type);
     unawaited(() async {
       try {
         final prefs = await SharedPreferences.getInstance();
-        await prefs.setString(_lastPlayedKey, game.type);
+        await prefs.setString(_lastPlayedKey, type);
       } catch (_) {}
     }());
-    Widget screen;
-    switch (game.type) {
-      case 'tictactoe':
-        screen = const TicTacToeScreen();
-        break;
-      case 'rps':
-        screen = const RpsScreen();
-        break;
-      case 'connect4':
-        screen = const Connect4Screen();
-        break;
-      case 'doodle':
-        screen = const DoodleDuelScreen();
-        break;
-      case 'numberclash':
-        screen = const NumberClashScreen();
-        break;
-      case 'updown':
-        screen = const UpDownScreen();
-        break;
-      default:
-        screen = GameLobbyScreen(
-          gameType: game.type,
-          title: game.title,
-          subtitle: game.subtitle,
-          icon: game.icon,
-        );
-    }
     Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
-        builder: (_) => screen,
+        builder: (_) => type == 'tictactoe'
+            ? const TicTacToeScreen()
+            : const RpsScreen(),
       ),
     );
   }
@@ -139,149 +53,41 @@ class _GamesScreenState extends State<GamesScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final colors = theme.colorScheme;
-
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       body: SafeArea(
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(20, 18, 20, 112),
+          padding: const EdgeInsets.fromLTRB(16, 24, 16, 112),
           children: [
-            Text(
-              'Games',
-              style: theme.textTheme.headlineLarge?.copyWith(
-                fontFamily: 'PlusJakartaSans',
-                fontSize: 36,
-                height: 1.12,
-                letterSpacing: -1.1,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-            const SizedBox(height: 7),
-            Text(
-              'Pick a game. Choose your opponent. Play.',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: colors.onSurfaceVariant,
-              ),
-            ),
-            const SizedBox(height: 21),
-            Container(
-              padding: const EdgeInsets.all(19),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    colors.primaryContainer.withValues(alpha: .95),
-                    colors.surfaceContainerLow,
-                  ],
-                ),
-                borderRadius: BorderRadius.circular(25),
-                border: Border.all(
-                  color: colors.primary.withValues(alpha: .13),
+            Padding(
+              padding: const EdgeInsets.only(left: 4, bottom: 22),
+              child: Text(
+                'Games',
+                style: theme.textTheme.headlineLarge?.copyWith(
+                  fontFamily: 'PlusJakartaSans',
+                  fontSize: 36,
+                  height: 1.12,
+                  letterSpacing: -1.1,
+                  fontWeight: FontWeight.w800,
                 ),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(children: [
-                    Container(
-                      width: 54,
-                      height: 54,
-                      decoration: BoxDecoration(
-                        color: colors.surface.withValues(alpha: .88),
-                        borderRadius: BorderRadius.circular(17),
-                      ),
-                      child: Icon(Icons.sports_esports_rounded,
-                          size: 29, color: colors.primary),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            _lastPlayedGame == null
-                                ? 'Your game room awaits'
-                                : 'Last played: ${_lastPlayedGame!.title}',
-                            style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Challenge friends or get matched with a stranger playing the same game.',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: colors.onSurfaceVariant,
-                              height: 1.4,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ]),
-                  const SizedBox(height: 14),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: FilledButton.tonalIcon(
-                      onPressed: () {
-                        final lastGame = _lastPlayedGame;
-                        if (lastGame != null) {
-                          _openGame(context, lastGame);
-                        } else {
-                          final targetContext = _gamesSectionKey.currentContext;
-                          if (targetContext != null) {
-                            Scrollable.ensureVisible(targetContext,
-                                duration: const Duration(milliseconds: 350), curve: Curves.easeOutCubic);
-                          }
-                        }
-                      },
-                      icon: Icon(_lastPlayedType == null ? Icons.grid_view_rounded : Icons.replay_rounded),
-                      label: Text(_lastPlayedGame == null
-                          ? 'Browse games'
-                          : 'Choose ${_lastPlayedGame!.title} opponent'),
-                    ),
-                  ),
-                ],
-              ),
             ),
-            const SizedBox(height: 25),
-            Row(
-              key: _gamesSectionKey,
-              children: [
-                Expanded(
-                  child: Text(
-                    'Choose a game',
-                    style: theme.textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                ),
-                Text(
-                  '${_games.length} games',
-                  style: theme.textTheme.labelMedium?.copyWith(
-                    color: colors.onSurfaceVariant,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
+            _FeaturedGameCard(
+              title: 'Tic-Tac-Toe',
+              subtitle: 'Quick strategy',
+              isLastPlayed: _lastPlayedType == 'tictactoe',
+              colors: const [Color(0xFF8060FA), Color(0xFF5C3FE4)],
+              onTap: () => _openGame('tictactoe'),
+              art: const _TicTacToeArt(),
             ),
-            const SizedBox(height: 13),
-            GridView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: _games.length,
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                mainAxisSpacing: 12,
-                crossAxisSpacing: 12,
-                childAspectRatio: 1.08,
-              ),
-              itemBuilder: (context, index) {
-                final game = _games[index];
-                return _GameTile(
-                  game: game,
-                  onTap: () => _openGame(context, game),
-                );
-              },
+            const SizedBox(height: 14),
+            _FeaturedGameCard(
+              title: 'Rock Paper Scissors',
+              subtitle: 'Fast showdown',
+              isLastPlayed: _lastPlayedType == 'rps',
+              colors: const [Color(0xFFEB4784), Color(0xFFB9297C)],
+              onTap: () => _openGame('rps'),
+              art: const _RpsArt(),
             ),
           ],
         ),
@@ -290,77 +96,130 @@ class _GamesScreenState extends State<GamesScreen> {
   }
 }
 
-class _GameTile extends StatelessWidget {
-  const _GameTile({required this.game, required this.onTap});
+class _FeaturedGameCard extends StatelessWidget {
+  const _FeaturedGameCard({
+    required this.title,
+    required this.subtitle,
+    required this.colors,
+    required this.art,
+    required this.onTap,
+    required this.isLastPlayed,
+  });
 
-  final _GameOption game;
+  final String title;
+  final String subtitle;
+  final List<Color> colors;
+  final Widget art;
   final VoidCallback onTap;
+  final bool isLastPlayed;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colors = theme.colorScheme;
     return Material(
-      color: colors.surface,
-      borderRadius: BorderRadius.circular(21),
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(32),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(21),
+        borderRadius: BorderRadius.circular(32),
         child: Container(
-          padding: const EdgeInsets.all(14),
+          height: 252,
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(21),
-            border: Border.all(
-              color: colors.outlineVariant.withValues(alpha: .5),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: colors,
             ),
+            borderRadius: BorderRadius.circular(32),
+            boxShadow: [
+              BoxShadow(
+                color: colors.last.withValues(alpha: .24),
+                blurRadius: 26,
+                offset: const Offset(0, 13),
+              ),
+            ],
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          child: Stack(
             children: [
-              Row(
-                children: [
-                  Container(
-                    width: 43,
-                    height: 43,
-                    decoration: BoxDecoration(
-                      color: colors.primary.withValues(alpha: .1),
-                      borderRadius: BorderRadius.circular(14),
+              Positioned(
+                top: 2,
+                right: 2,
+                child: SizedBox(width: 150, height: 150, child: art),
+              ),
+              if (isLastPlayed)
+                Align(
+                  alignment: Alignment.topLeft,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 15,
+                      vertical: 8,
                     ),
-                    child: Icon(game.icon, color: colors.primary, size: 23),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: .23),
+                      borderRadius: BorderRadius.circular(30),
+                    ),
+                    child: const Text(
+                      'Last played',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
                   ),
-                  const Spacer(),
-                  Icon(Icons.arrow_outward_rounded,
-                      size: 18, color: colors.onSurfaceVariant),
-                ],
-              ),
-              const Spacer(),
-              Text(
-                game.title,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w900,
-                  height: 1.15,
                 ),
-              ),
-              const SizedBox(height: 5),
-              Text(
-                game.subtitle,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: colors.onSurfaceVariant,
-                  height: 1.25,
-                ),
-              ),
-              const SizedBox(height: 9),
-              Text(
-                game.tag,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: colors.primary,
-                  fontWeight: FontWeight.w800,
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 2,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            title,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontFamily: 'PlusJakartaSans',
+                              fontSize: 25,
+                              height: 1.1,
+                              letterSpacing: -.6,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                          const SizedBox(height: 7),
+                          Text(
+                            subtitle,
+                            style: TextStyle(
+                              color: Colors.white.withValues(alpha: .9),
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Container(
+                      width: 54,
+                      height: 54,
+                      decoration: const BoxDecoration(
+                        color: Colors.white,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        Icons.north_east_rounded,
+                        color: colors.last,
+                        size: 28,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -371,18 +230,93 @@ class _GameTile extends StatelessWidget {
   }
 }
 
-class _GameOption {
-  const _GameOption(
-    this.type,
-    this.title,
-    this.subtitle,
-    this.icon,
-    this.tag,
-  );
+class _TicTacToeArt extends StatelessWidget {
+  const _TicTacToeArt();
 
-  final String type;
-  final String title;
-  final String subtitle;
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(painter: _TicTacToePainter());
+  }
+}
+
+class _TicTacToePainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final line = Paint()
+      ..color = Colors.white.withValues(alpha: .42)
+      ..strokeWidth = 7
+      ..strokeCap = StrokeCap.round;
+    final x = size.width * .28;
+    final y = size.height * .28;
+    for (final offset in [x, x + size.width * .34]) {
+      canvas.drawLine(Offset(offset, 4), Offset(offset, size.height - 4), line);
+    }
+    for (final offset in [y, y + size.height * .34]) {
+      canvas.drawLine(Offset(4, offset), Offset(size.width - 4, offset), line);
+    }
+    final mark = Paint()
+      ..color = Colors.white
+      ..strokeWidth = 9
+      ..strokeCap = StrokeCap.round;
+    canvas.drawLine(Offset(12, 12), Offset(43, 43), mark);
+    canvas.drawLine(Offset(43, 12), Offset(12, 43), mark);
+    canvas.drawCircle(Offset(size.width * .83, size.height * .18), 17,
+        Paint()..color = const Color(0xFFFFD6E7)..style = PaintingStyle.stroke..strokeWidth = 8);
+    canvas.drawCircle(Offset(size.width * .5, size.height * .5), 18,
+        Paint()..color = const Color(0xFFFFD6E7)..style = PaintingStyle.stroke..strokeWidth = 8);
+    canvas.drawLine(Offset(size.width * .65, size.height * .72),
+        Offset(size.width * .88, size.height * .94), mark);
+    canvas.drawLine(Offset(size.width * .88, size.height * .72),
+        Offset(size.width * .65, size.height * .94), mark);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+class _RpsArt extends StatelessWidget {
+  const _RpsArt();
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        Positioned(
+          left: 2,
+          top: 8,
+          child: _RpsSymbol(icon: Icons.back_hand_rounded, angle: -.18),
+        ),
+        Positioned(
+          right: 2,
+          top: 8,
+          child: _RpsSymbol(icon: Icons.description_rounded, angle: .05),
+        ),
+        Positioned(
+          right: 36,
+          bottom: 0,
+          child: _RpsSymbol(icon: Icons.content_cut_rounded, angle: .12),
+        ),
+      ],
+    );
+  }
+}
+
+class _RpsSymbol extends StatelessWidget {
+  const _RpsSymbol({required this.icon, required this.angle});
   final IconData icon;
-  final String tag;
+  final double angle;
+
+  @override
+  Widget build(BuildContext context) => Transform.rotate(
+        angle: angle,
+        child: Container(
+          width: 61,
+          height: 61,
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: .22),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(icon, color: Colors.white, size: 35),
+        ),
+      );
 }
