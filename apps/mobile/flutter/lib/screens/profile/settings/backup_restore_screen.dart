@@ -103,7 +103,7 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
                   Align(alignment: Alignment.centerLeft, child: Text(
                     _lastAutomaticBackup == null
                       ? 'Enabled · runs when Novyn opens on Wi-Fi'
-                      : 'Last backup · \${_lastAutomaticBackup!.toString().substring(0, 16)}',
+                      : 'Last backup · ${_lastAutomaticBackup!.toString().substring(0, 16)}',
                     style: theme.textTheme.bodySmall?.copyWith(color: muted))),
                 ],
               ]),
