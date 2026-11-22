@@ -104,10 +104,10 @@ void main() {
     final socket = _FakeSocketService();
     await tester.pumpWidget(gameCardHost(socket, compact: true));
 
-    expect(find.text('Open'), findsOneWidget);
-    expect(find.byKey(const ValueKey('tic-tac-toe-cell-0')), findsNothing);
+    expect(find.text('Details'), findsOneWidget);
+    expect(find.bySemanticsLabel('Empty cell'), findsNothing);
 
-    await tester.tap(find.text('Open'));
+    await tester.tap(find.text('Details'));
     await tester.pumpAndSettle();
 
     expect(find.text('Playing with bob'), findsOneWidget);
@@ -115,31 +115,21 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('Tic-Tac-Toe highlights all server-reported winning cells', (tester) async {
+  testWidgets('Tic-Tac-Toe marks all server-reported winning cells', (tester) async {
     final socket = _FakeSocketService();
     await tester.pumpWidget(gameCardHost(socket));
 
-    final scheme = Theme.of(tester.element(find.byType(GameMessageCard))).colorScheme;
-    for (final index in [0, 1, 2]) {
-      final cell = tester.widget<Container>(
-        find.byKey(ValueKey('tic-tac-toe-cell-$index')),
-      );
-      expect((cell.decoration as BoxDecoration).color, scheme.primaryContainer);
-    }
-
-    final ordinaryCell = tester.widget<Container>(
-      find.byKey(const ValueKey('tic-tac-toe-cell-3')),
-    );
-    expect(
-      (ordinaryCell.decoration as BoxDecoration).color,
-      scheme.surfaceContainerHighest,
-    );
+    expect(find.bySemanticsLabel('X, winning tile'), findsNWidgets(3));
+    expect(find.bySemanticsLabel('O'), findsNWidgets(2));
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('Play again sends a new server-backed Tic-Tac-Toe challenge', (tester) async {
     final socket = _FakeSocketService();
     await tester.pumpWidget(gameCardHost(socket));
 
+    await tester.tap(find.text('View match results'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Play again'));
     await tester.pump();
 
@@ -164,6 +154,8 @@ void main() {
     final socket = _FakeSocketService();
     await tester.pumpWidget(gameCardHost(socket, gameType: 'rps'));
 
+    await tester.tap(find.text('View match results'));
+    await tester.pumpAndSettle();
     expect(find.text('Play again'), findsOneWidget);
     await tester.tap(find.text('Play again'));
     await tester.pump();
